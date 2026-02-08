@@ -1,0 +1,17 @@
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Redirect all routes to index.html for SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Environment variables reminder (set these in Netlify Dashboard > Site Settings > Environment Variables):
+# - VITE_API_URL: Your backend API URL (e.g., https://your-api.execute-api.region.amazonaws.com/prod/api)
+# - VITE_TENANT_ID: Your tenant ID for multi-tenancy
+# - VITE_GOOGLE_MAPS_API_KEY: Google Maps API key (REQUIRED for location picker to work)

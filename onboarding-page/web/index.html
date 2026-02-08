@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tenant Onboarding</title>
+    <style>
+      :root {
+        --bg: #0b1220;
+        --card: rgba(255, 255, 255, 0.08);
+        --card2: rgba(255, 255, 255, 0.06);
+        --text: #e8eefc;
+        --muted: rgba(232, 238, 252, 0.75);
+        --border: rgba(255, 255, 255, 0.12);
+        --primary: #6d28d9;
+        --primary2: #7c3aed;
+        --danger: #ef4444;
+        --ok: #22c55e;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        color: var(--text);
+        background: radial-gradient(1200px 600px at 10% 10%, rgba(109, 40, 217, 0.35), transparent 50%),
+                    radial-gradient(900px 500px at 90% 20%, rgba(124, 58, 237, 0.25), transparent 45%),
+                    radial-gradient(1000px 600px at 40% 90%, rgba(59, 130, 246, 0.18), transparent 55%),
+                    var(--bg);
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .wrap { width: 100%; max-width: 880px; }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+      }
+      .title { font-size: 22px; font-weight: 700; letter-spacing: 0.2px; }
+      .subtitle { color: var(--muted); font-size: 13px; margin-top: 6px; }
+      .chip {
+        padding: 8px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--card2);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr;
+        gap: 16px;
+      }
+      @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+      .card {
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, var(--card), rgba(255,255,255,0.04));
+        border-radius: 18px;
+        padding: 18px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+      }
+      label { display: block; color: var(--muted); font-size: 12px; margin: 10px 0 6px; }
+      input {
+        width: 100%;
+        padding: 12px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.06);
+        color: var(--text);
+        outline: none;
+      }
+      input:focus { border-color: rgba(124,58,237,0.7); box-shadow: 0 0 0 4px rgba(124,58,237,0.18); }
+      .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      @media (max-width: 520px) { .row { grid-template-columns: 1fr; } }
+      .btn {
+        margin-top: 14px;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(124,58,237,0.45);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+        background: linear-gradient(135deg, var(--primary), var(--primary2));
+        box-shadow: 0 12px 26px rgba(109,40,217,0.35);
+      }
+      .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+      .hint { color: var(--muted); font-size: 12px; line-height: 1.5; }
+      .out {
+        margin-top: 10px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.05);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .ok { border-color: rgba(34,197,94,0.45); }
+      .bad { border-color: rgba(239,68,68,0.45); }
+      .kpi {
+        display: grid;
+        gap: 10px;
+      }
+      .kpiBox {
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,0.05);
+        border-radius: 14px;
+        padding: 14px;
+      }
+      .kpiTitle { color: var(--muted); font-size: 12px; }
+      .kpiValue { font-size: 16px; font-weight: 700; margin-top: 6px; }
+      .small { font-size: 12px; color: var(--muted); margin-top: 6px; }
+      a { color: #c4b5fd; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <div>
+          <div class="title">Tenant Onboarding</div>
+          <div class="subtitle">Creates tenant credentials in DynamoDB AgencyConfig table for CRM login.</div>
+        </div>
+        <div class="chip">POST /api/onboard</div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <form id="form">
+            <label>Agency Name</label>
+            <input name="agencyName" placeholder="Happy Properties" required />
+
+            <div class="row">
+              <div>
+                <label>Admin Username</label>
+                <input name="adminUsername" placeholder="admin" required />
+              </div>
+              <div>
+                <label>Admin Password</label>
+                <input name="adminPassword" placeholder="min 6 chars" type="password" required />
+              </div>
+            </div>
+
+            <div class="row">
+              <div>
+                <label>Contact Email (optional)</label>
+                <input name="contactEmail" placeholder="admin@agency.com" type="email" />
+              </div>
+              <div>
+                <label>Contact Phone (optional)</label>
+                <input name="contactPhone" placeholder="+91..." />
+              </div>
+            </div>
+
+            <button class="btn" id="submit" type="submit">Create Tenant</button>
+            <div class="hint" style="margin-top:10px;">
+              TenantId format: <b>&lt;agency-slug&gt;-&lt;randomhash&gt;</b><br />
+              Example: <span style="font-family: ui-monospace">happy-properties-1a2b3c4d5e</span>
+            </div>
+          </form>
+
+          <div id="output" class="out" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+          <div class="kpi">
+            <div class="kpiBox">
+              <div class="kpiTitle">How CRM will login</div>
+              <div class="small">
+                Send header <b>x-tenant-id</b> with the generated tenantId, then call <b>/api/auth/login</b> with username/password.
+              </div>
+            </div>
+            <div class="kpiBox">
+              <div class="kpiTitle">DynamoDB write</div>
+              <div class="small">
+                Writes item with PK <b>TenantId</b> into table in <b>AGENCY_CONFIG_DYNAMODB_TABLE_NAME</b>.
+              </div>
+            </div>
+            <div class="kpiBox">
+              <div class="kpiTitle">Tips</div>
+              <div class="small">
+                Use AWS profile locally (recommended). Configure it in <code>onboarding-page/.env</code>.<br />
+                See <a href="./README.md" target="_blank">README.md</a> for setup.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const form = document.getElementById('form');
+      const out = document.getElementById('output');
+      const btn = document.getElementById('submit');
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        out.style.display = 'none';
+        out.classList.remove('ok', 'bad');
+        btn.disabled = true;
+        btn.textContent = 'Creating...';
+
+        const data = Object.fromEntries(new FormData(form).entries());
+
+        try {
+          const res = await fetch('/api/onboard', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json?.error || 'Request failed');
+
+          out.style.display = 'block';
+          out.classList.add('ok');
+          out.textContent = JSON.stringify(json, null, 2);
+        } catch (err) {
+          out.style.display = 'block';
+          out.classList.add('bad');
+          out.textContent = JSON.stringify({
+            ok: false,
+            error: err?.message || String(err),
+          }, null, 2);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Create Tenant';
+        }
+      });
+    </script>
+  </body>
+</html>
