@@ -707,4 +707,11 @@ foreach ($s in $sizes) { magick display-base.png -resize "${s}!" "images/display
 
 ---
 
-*Sections 5-13 continue in [CLAUDESKILLSUSAGE-PART2.md](./CLAUDESKILLSUSAGE-PART2.md)*
+---
+
+## Continue Reading
+
+- **[Part 2: Video Creation — Product Demos & Feature Explainers](./CLAUDESKILLSUSAGE-PART2.md)** (Sections 5-6, 40 examples)
+- **[Part 3: UGC Videos with Custom Media & Audio/Voiceover/Lipsync](./CLAUDESKILLSUSAGE-PART3.md)** (Sections 7-8, 40 examples)
+- **[Part 4: Meta Ads & Multi-Platform Outreach](./CLAUDESKILLSUSAGE-PART4.md)** (Sections 9-10, 40 examples)
+- **[Part 5: Data Scraping, AI Calling & E2E Workflows](./CLAUDESKILLSUSAGE-PART5.md)** (Sections 11-13, 50+ examples)
