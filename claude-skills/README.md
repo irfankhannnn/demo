@@ -145,7 +145,7 @@ claude-skills/
 | `orator` | Voiceovers (ElevenLabs), subtitles | `sonnet` | `voiceover-gen`, `whatsapp-outreach` |
 | `landing-page-builder` | HTML landing pages with Hinglish copy | `sonnet` | `landing-page`, `brand-strategy` |
 | `seo-content-writer` | SEO blog articles, editorial calendars | `sonnet` | `seo-blog`, `brand-strategy` |
-
+###
 ### Team 4: Growth & Ad Ops (The Scalers)
 **Focus:** Deploying, testing, and scaling Meta ad campaigns.
 
