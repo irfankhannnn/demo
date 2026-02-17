@@ -121,6 +121,14 @@ export async function createDefaultAdmin() {
     console.log('Default admin created successfully');
     return admin;
   } catch (error) {
+    if (error?.name === 'ResourceNotFoundException') {
+      logger.warn('admin.default.skip.tableNotFound', {
+        tableName: TABLE_NAME,
+        region: REGION,
+        errorMessage: error?.message,
+      });
+      return null;
+    }
     console.error('Error creating default admin:', error);
     throw error;
   }
@@ -138,6 +146,14 @@ export async function getAdminByUsername(username) {
     }));
     return result.Items?.[0] || null;
   } catch (error) {
+    if (error?.name === 'ResourceNotFoundException') {
+      logger.warn('admin.lookup.tableNotFound', {
+        tableName: TABLE_NAME,
+        region: REGION,
+        errorMessage: error?.message,
+      });
+      return null;
+    }
     console.error('Error getting admin:', error);
     throw error;
   }

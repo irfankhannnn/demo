@@ -71,7 +71,7 @@ import {
   updateCurrentRental,
   moveTenantToHistory,
 } from '../crmHelpers.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, deleteFromS3, getSignedUrl as getS3SignedUrl } from '../s3Service.js';
 import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
 
@@ -87,7 +87,7 @@ const upload = multer({
 // ============== Customer Routes ==============
 
 // Get all customers
-router.get('/customers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers', validateToken, extractTenantId, async (req, res) => {
   try {
     const customers = await getCustomers(req.tenantId);
     res.json(customers);
@@ -98,7 +98,7 @@ router.get('/customers', authenticateToken, extractTenantId, async (req, res) =>
 });
 
 // Get single customer
-router.get('/customers/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const customer = await getCustomer(req.tenantId, req.params.id);
     if (!customer) {
@@ -112,7 +112,7 @@ router.get('/customers/:id', authenticateToken, extractTenantId, async (req, res
 });
 
 // Create customer
-router.post('/customers', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/customers', validateToken, extractTenantId, async (req, res) => {
   try {
     const customer = await createCustomer(req.tenantId, req.body);
     res.status(201).json(customer);
@@ -123,7 +123,7 @@ router.post('/customers', authenticateToken, extractTenantId, async (req, res) =
 });
 
 // Update customer
-router.put('/customers/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const customer = await updateCustomer(req.tenantId, req.params.id, req.body);
     res.json(customer);
@@ -134,12 +134,12 @@ router.put('/customers/:id', authenticateToken, extractTenantId, async (req, res
 });
 
 // Delete customer - DISABLED: Delete operations are not allowed
-// router.delete('/customers/:id', authenticateToken, extractTenantId, async (req, res) => {
+// router.delete('/customers/:id', validateToken, extractTenantId, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
 
 // Get customer notes
-router.get('/customers/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getCustomerNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -150,7 +150,7 @@ router.get('/customers/:id/notes', authenticateToken, extractTenantId, async (re
 });
 
 // Create customer note
-router.post('/customers/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/customers/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const note = await createCustomerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -160,7 +160,7 @@ router.post('/customers/:id/notes', authenticateToken, extractTenantId, async (r
   }
 });
 
-router.put('/customers/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     const updated = await updateCustomerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -170,7 +170,7 @@ router.put('/customers/:id/notes/:noteId', authenticateToken, extractTenantId, a
   }
 });
 
-router.delete('/customers/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/customers/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteCustomerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -183,7 +183,7 @@ router.delete('/customers/:id/notes/:noteId', authenticateToken, extractTenantId
 // ============== Owner Routes ==============
 
 // Get all owners
-router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const normalizePhone = (phone) => String(phone || '').replace(/[^0-9]/g, '').slice(-10);
 
@@ -249,7 +249,7 @@ router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get single owner
-router.get('/owners/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const owner = await getOwner(req.tenantId, req.params.id);
     if (!owner) {
@@ -263,7 +263,7 @@ router.get('/owners/:id', authenticateToken, extractTenantId, async (req, res) =
 });
 
 // Create owner
-router.post('/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const owner = await createOwner(req.tenantId, req.body);
     res.status(201).json(owner);
@@ -274,7 +274,7 @@ router.post('/owners', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Update owner
-router.put('/owners/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/owners/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const owner = await updateOwner(req.tenantId, req.params.id, req.body);
     res.json(owner);
@@ -285,7 +285,7 @@ router.put('/owners/:id', authenticateToken, extractTenantId, async (req, res) =
 });
 
 // Owner notes
-router.get('/owners/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getOwnerNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -295,7 +295,7 @@ router.get('/owners/:id/notes', authenticateToken, extractTenantId, async (req, 
   }
 });
 
-router.post('/owners/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/owners/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const note = await createOwnerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -305,7 +305,7 @@ router.post('/owners/:id/notes', authenticateToken, extractTenantId, async (req,
   }
 });
 
-router.put('/owners/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     const updated = await updateOwnerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -315,7 +315,7 @@ router.put('/owners/:id/notes/:noteId', authenticateToken, extractTenantId, asyn
   }
 });
 
-router.delete('/owners/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteOwnerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -326,12 +326,12 @@ router.delete('/owners/:id/notes/:noteId', authenticateToken, extractTenantId, a
 });
 
 // Delete owner - DISABLED: Delete operations are not allowed
-// router.delete('/owners/:id', authenticateToken, extractTenantId, async (req, res) => {
+// router.delete('/owners/:id', validateToken, extractTenantId, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
 
 // Lookup owner by phone number (for auto-fill)
-router.get('/owners/lookup/by-phone', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners/lookup/by-phone', validateToken, extractTenantId, async (req, res) => {
   try {
     const { phone } = req.query;
     if (!phone) {
@@ -359,7 +359,7 @@ router.get('/owners/lookup/by-phone', authenticateToken, extractTenantId, async 
 });
 
 // Lookup customer/tenant by phone number (for auto-fill)
-router.get('/customers/lookup/by-phone', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers/lookup/by-phone', validateToken, extractTenantId, async (req, res) => {
   try {
     const { phone } = req.query;
     if (!phone) {
@@ -379,7 +379,7 @@ router.get('/customers/lookup/by-phone', authenticateToken, extractTenantId, asy
 });
 
 // Get properties by owner
-router.get('/owners/:id/properties', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners/:id/properties', validateToken, extractTenantId, async (req, res) => {
   try {
     const properties = await getPropertiesByOwner(req.tenantId, req.params.id);
     
@@ -412,7 +412,7 @@ router.get('/owners/:id/properties', authenticateToken, extractTenantId, async (
 // ============== Property Routes ==============
 
 // Get all properties (CRM - with owner & tenant info)
-router.get('/properties', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status } = req.query;
     let properties;
@@ -511,7 +511,7 @@ router.get('/properties/public/list', extractTenantIdOptional, async (req, res) 
 });
 
 // Get single property
-router.get('/properties/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -584,7 +584,7 @@ router.get('/properties/public/:id', extractTenantIdOptional, async (req, res) =
 });
 
 // Create property
-router.post('/properties', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties', validateToken, extractTenantId, async (req, res) => {
   try {
     const property = await createProperty(req.tenantId, req.body);
     res.status(201).json(property);
@@ -595,7 +595,7 @@ router.post('/properties', authenticateToken, extractTenantId, async (req, res) 
 });
 
 // Update property
-router.put('/properties/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/properties/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const property = await updateProperty(req.tenantId, req.params.id, req.body);
     res.json(property);
@@ -606,12 +606,12 @@ router.put('/properties/:id', authenticateToken, extractTenantId, async (req, re
 });
 
 // Delete property - DISABLED: Delete operations are not allowed
-// router.delete('/properties/:id', authenticateToken, extractTenantId, async (req, res) => {
+// router.delete('/properties/:id', validateToken, extractTenantId, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
 
 // Upload property images
-router.post('/properties/:id/images', authenticateToken, extractTenantId, upload.array('images', 10), async (req, res) => {
+router.post('/properties/:id/images', validateToken, extractTenantId, upload.array('images', 10), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -639,7 +639,7 @@ router.post('/properties/:id/images', authenticateToken, extractTenantId, upload
 });
 
 // Upload property videos
-router.post('/properties/:id/videos', authenticateToken, extractTenantId, upload.array('videos', 5), async (req, res) => {
+router.post('/properties/:id/videos', validateToken, extractTenantId, upload.array('videos', 5), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -667,7 +667,7 @@ router.post('/properties/:id/videos', authenticateToken, extractTenantId, upload
 });
 
 // Delete property image
-router.delete('/properties/:id/images/:key', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/images/:key', validateToken, extractTenantId, async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -688,7 +688,7 @@ router.delete('/properties/:id/images/:key', authenticateToken, extractTenantId,
 });
 
 // Delete property video
-router.delete('/properties/:id/videos/:key', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -711,7 +711,7 @@ router.delete('/properties/:id/videos/:key', authenticateToken, extractTenantId,
 // ============== Owner Document Upload Routes ==============
 
 // Upload owner documents (photo, PAN, Aadhar)
-router.post('/owners/:id/documents', authenticateToken, extractTenantId, upload.fields([
+router.post('/owners/:id/documents', validateToken, extractTenantId, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -775,7 +775,7 @@ router.post('/owners/:id/documents', authenticateToken, extractTenantId, upload.
 });
 
 // Get owner with documents and presigned URLs
-router.get('/owners/:id/with-documents', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners/:id/with-documents', validateToken, extractTenantId, async (req, res) => {
   try {
     const owner = await getOwner(req.tenantId, req.params.id);
     if (!owner) {
@@ -799,7 +799,7 @@ router.get('/owners/:id/with-documents', authenticateToken, extractTenantId, asy
 // ============== Customer/Tenant Document Upload Routes ==============
 
 // Upload customer documents (photo, PAN, Aadhar)
-router.post('/customers/:id/documents', authenticateToken, extractTenantId, upload.fields([
+router.post('/customers/:id/documents', validateToken, extractTenantId, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -863,7 +863,7 @@ router.post('/customers/:id/documents', authenticateToken, extractTenantId, uplo
 });
 
 // Get customer with documents and presigned URLs
-router.get('/customers/:id/with-documents', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers/:id/with-documents', validateToken, extractTenantId, async (req, res) => {
   try {
     const customer = await getCustomer(req.tenantId, req.params.id);
     if (!customer) {
@@ -887,7 +887,7 @@ router.get('/customers/:id/with-documents', authenticateToken, extractTenantId, 
 // ============== Property Agreement Routes ==============
 
 // Get property agreements
-router.get('/properties/:id/agreements', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties/:id/agreements', validateToken, extractTenantId, async (req, res) => {
   try {
     const agreements = await getPropertyAgreements(req.tenantId, req.params.id);
     
@@ -907,7 +907,7 @@ router.get('/properties/:id/agreements', authenticateToken, extractTenantId, asy
 });
 
 // Create property agreement
-router.post('/properties/:id/agreements', authenticateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/agreements', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -937,7 +937,7 @@ router.post('/properties/:id/agreements', authenticateToken, extractTenantId, up
 });
 
 // Update property agreement
-router.put('/properties/:id/agreements/:agreementId', authenticateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/agreements/:agreementId', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
   try {
     const agreementData = JSON.parse(req.body.data || '{}');
 
@@ -964,7 +964,7 @@ router.put('/properties/:id/agreements/:agreementId', authenticateToken, extract
 // ============== Property Verification Routes ==============
 
 // Get property verifications
-router.get('/properties/:id/verifications', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties/:id/verifications', validateToken, extractTenantId, async (req, res) => {
   try {
     const verifications = await getPropertyVerifications(req.tenantId, req.params.id);
     
@@ -984,7 +984,7 @@ router.get('/properties/:id/verifications', authenticateToken, extractTenantId, 
 });
 
 // Create property verification
-router.post('/properties/:id/verifications', authenticateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/verifications', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -1014,7 +1014,7 @@ router.post('/properties/:id/verifications', authenticateToken, extractTenantId,
 });
 
 // Update property verification
-router.put('/properties/:id/verifications/:verificationId', authenticateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/verifications/:verificationId', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
   try {
     const verificationData = JSON.parse(req.body.data || '{}');
 
@@ -1041,7 +1041,7 @@ router.put('/properties/:id/verifications/:verificationId', authenticateToken, e
 // ============== Property Document Routes ==============
 
 // Get property documents
-router.get('/properties/:id/documents', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties/:id/documents', validateToken, extractTenantId, async (req, res) => {
   try {
     const documents = await getPropertyDocuments(req.tenantId, req.params.id);
     
@@ -1061,7 +1061,7 @@ router.get('/properties/:id/documents', authenticateToken, extractTenantId, asyn
 });
 
 // Upload property document
-router.post('/properties/:id/documents/upload', authenticateToken, extractTenantId, upload.fields([
+router.post('/properties/:id/documents/upload', validateToken, extractTenantId, upload.fields([
   { name: 'files', maxCount: 20 },
   { name: 'file', maxCount: 1 },
 ]), async (req, res) => {
@@ -1118,7 +1118,7 @@ router.post('/properties/:id/documents/upload', authenticateToken, extractTenant
 });
 
 // Delete property document
-router.delete('/properties/:id/documents/:documentId', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/documents/:documentId', validateToken, extractTenantId, async (req, res) => {
   try {
     const documents = await getPropertyDocuments(req.tenantId, req.params.id);
     const document = documents.find(d => d.documentId === req.params.documentId);
@@ -1137,7 +1137,7 @@ router.delete('/properties/:id/documents/:documentId', authenticateToken, extrac
 
 // ============== Properties with Full Details (for Dashboard) ==============
 
-router.get('/properties/list/detailed', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/properties/list/detailed', validateToken, extractTenantId, async (req, res) => {
   try {
     const properties = await getPropertiesWithDetails(req.tenantId);
     
@@ -1169,7 +1169,7 @@ router.get('/properties/list/detailed', authenticateToken, extractTenantId, asyn
 
 // ============== Metrics Route ==============
 
-router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
   try {
     const metrics = await getCRMMetrics(req.tenantId);
     res.json(metrics);
@@ -1181,7 +1181,7 @@ router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
 
 // ============== Business Analytics Route ==============
 
-router.get('/analytics/business', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/analytics/business', validateToken, extractTenantId, async (req, res) => {
   try {
     // Get all properties with basic details
     const properties = await getProperties(req.tenantId);
@@ -1346,7 +1346,7 @@ router.get('/analytics/business', authenticateToken, extractTenantId, async (req
 // ============== Meeting/Calendar Routes ==============
 
 // Get all meetings (with optional filters)
-router.get('/meetings', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings', validateToken, extractTenantId, async (req, res) => {
   try {
     const { startDate, endDate, status } = req.query;
     const filters = {};
@@ -1363,7 +1363,7 @@ router.get('/meetings', authenticateToken, extractTenantId, async (req, res) => 
 });
 
 // Get upcoming meetings
-router.get('/meetings/upcoming', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings/upcoming', validateToken, extractTenantId, async (req, res) => {
   try {
     const days = parseInt(req.query.days) || 7;
     const meetings = await getUpcomingMeetings(req.tenantId, days);
@@ -1375,7 +1375,7 @@ router.get('/meetings/upcoming', authenticateToken, extractTenantId, async (req,
 });
 
 // Get meeting metrics
-router.get('/meetings/metrics', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings/metrics', validateToken, extractTenantId, async (req, res) => {
   try {
     const metrics = await getMeetingMetrics(req.tenantId);
     res.json(metrics);
@@ -1386,7 +1386,7 @@ router.get('/meetings/metrics', authenticateToken, extractTenantId, async (req, 
 });
 
 // Get meetings by entity (customer, owner, enquiry, etc.)
-router.get('/meetings/entity/:entityType/:entityId', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings/entity/:entityType/:entityId', validateToken, extractTenantId, async (req, res) => {
   try {
     const { entityType, entityId } = req.params;
     const meetings = await getMeetingsByEntity(req.tenantId, entityType, entityId);
@@ -1398,7 +1398,7 @@ router.get('/meetings/entity/:entityType/:entityId', authenticateToken, extractT
 });
 
 // Get single meeting
-router.get('/meetings/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const meeting = await getMeeting(req.tenantId, req.params.id);
     if (!meeting) {
@@ -1412,7 +1412,7 @@ router.get('/meetings/:id', authenticateToken, extractTenantId, async (req, res)
 });
 
 // Get meeting history/events
-router.get('/meetings/:id/history', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/meetings/:id/history', validateToken, extractTenantId, async (req, res) => {
   try {
     const history = await getMeetingHistory(req.tenantId, req.params.id);
     res.json(history);
@@ -1423,7 +1423,7 @@ router.get('/meetings/:id/history', authenticateToken, extractTenantId, async (r
 });
 
 // Create meeting
-router.post('/meetings', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/meetings', validateToken, extractTenantId, async (req, res) => {
   try {
     const meeting = await createMeeting(req.tenantId, req.body);
     res.status(201).json(meeting);
@@ -1434,7 +1434,7 @@ router.post('/meetings', authenticateToken, extractTenantId, async (req, res) =>
 });
 
 // Update meeting
-router.put('/meetings/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/meetings/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const meeting = await updateMeeting(req.tenantId, req.params.id, req.body);
     res.json(meeting);
@@ -1445,7 +1445,7 @@ router.put('/meetings/:id', authenticateToken, extractTenantId, async (req, res)
 });
 
 // Delete meeting
-router.delete('/meetings/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/meetings/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteMeeting(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -1458,7 +1458,7 @@ router.delete('/meetings/:id', authenticateToken, extractTenantId, async (req, r
 // ============== Search Routes ==============
 
 // Search owners by name or phone
-router.get('/search/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/search/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const { q } = req.query;
     const results = await searchOwners(req.tenantId, q);
@@ -1470,7 +1470,7 @@ router.get('/search/owners', authenticateToken, extractTenantId, async (req, res
 });
 
 // Search customers/tenants by name or phone
-router.get('/search/customers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/search/customers', validateToken, extractTenantId, async (req, res) => {
   try {
     const { q } = req.query;
     const results = await searchCustomers(req.tenantId, q);
@@ -1482,7 +1482,7 @@ router.get('/search/customers', authenticateToken, extractTenantId, async (req, 
 });
 
 // Search properties with filters
-router.get('/search/properties', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/search/properties', validateToken, extractTenantId, async (req, res) => {
   try {
     const { q, status, propertyType, bhk, furnishing, minRent, maxRent } = req.query;
     const filters = { status, propertyType, bhk, furnishing, minRent, maxRent };
@@ -1497,7 +1497,7 @@ router.get('/search/properties', authenticateToken, extractTenantId, async (req,
 // ============== Property Status Management ==============
 
 // List property for sale
-router.post('/properties/:id/list-for-sale', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, async (req, res) => {
   try {
     const { listedPrice } = req.body;
     if (!listedPrice) {
@@ -1513,7 +1513,7 @@ router.post('/properties/:id/list-for-sale', authenticateToken, extractTenantId,
 });
 
 // List property for rent
-router.post('/properties/:id/list-for-rent', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, async (req, res) => {
   try {
     const { expectedRent, securityDeposit } = req.body;
     if (!expectedRent) {
@@ -1529,7 +1529,7 @@ router.post('/properties/:id/list-for-rent', authenticateToken, extractTenantId,
 });
 
 // Mark property as sold
-router.post('/properties/:id/mark-sold', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/mark-sold', validateToken, extractTenantId, async (req, res) => {
   try {
     const { soldPrice, buyerId } = req.body;
     if (!soldPrice) {
@@ -1545,7 +1545,7 @@ router.post('/properties/:id/mark-sold', authenticateToken, extractTenantId, asy
 });
 
 // Mark property as rented
-router.post('/properties/:id/mark-rented', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/mark-rented', validateToken, extractTenantId, async (req, res) => {
   try {
     const { customerId, rentalDetails } = req.body;
     if (!customerId || !rentalDetails) {
@@ -1561,7 +1561,7 @@ router.post('/properties/:id/mark-rented', authenticateToken, extractTenantId, a
 });
 
 // Vacate property
-router.post('/properties/:id/vacate', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/vacate', validateToken, extractTenantId, async (req, res) => {
   try {
     const result = await vacateProperty(req.tenantId, req.params.id);
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
@@ -1575,7 +1575,7 @@ router.post('/properties/:id/vacate', authenticateToken, extractTenantId, async 
 // ============== Buyer Purchase Management ==============
 
 // Add purchase to buyer
-router.post('/buyers/:id/purchases', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/buyers/:id/purchases', validateToken, extractTenantId, async (req, res) => {
   try {
     const purchaseDetails = req.body;
     if (!purchaseDetails.propertyId) {
@@ -1590,7 +1590,7 @@ router.post('/buyers/:id/purchases', authenticateToken, extractTenantId, async (
 });
 
 // Update buyer purchase
-router.put('/buyers/:id/purchases/:propertyId', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, async (req, res) => {
   try {
     const updates = req.body;
     const updatedPurchase = await updateBuyerPurchase(
@@ -1609,7 +1609,7 @@ router.put('/buyers/:id/purchases/:propertyId', authenticateToken, extractTenant
 // ============== Tenant Rental Management ==============
 
 // Update tenant's current rental
-router.put('/customers/:id/current-rental', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id/current-rental', validateToken, extractTenantId, async (req, res) => {
   try {
     const rentalDetails = req.body;
     const updatedRental = await updateCurrentRental(req.tenantId, req.params.id, rentalDetails);
@@ -1621,7 +1621,7 @@ router.put('/customers/:id/current-rental', authenticateToken, extractTenantId, 
 });
 
 // Archive tenant's current rental to history
-router.post('/customers/:id/archive-rental', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/customers/:id/archive-rental', validateToken, extractTenantId, async (req, res) => {
   try {
     const result = await moveTenantToHistory(req.tenantId, req.params.id);
     res.json(result);
@@ -1632,7 +1632,7 @@ router.post('/customers/:id/archive-rental', authenticateToken, extractTenantId,
 });
 
 // Get tenant rental history
-router.get('/customers/:id/rental-history', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/customers/:id/rental-history', validateToken, extractTenantId, async (req, res) => {
   try {
     const customer = await getCustomer(req.tenantId, req.params.id);
     if (!customer) {

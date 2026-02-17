@@ -13,7 +13,7 @@ import {
 } from '../notificationDynamodbService.js';
 import { getPropertiesByStatus } from '../crmDynamodbService.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 
 const router = express.Router();
@@ -21,7 +21,7 @@ const router = express.Router();
 // ============== Notification Inbox Routes ==============
 
 // Get all notifications with optional filters
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { category, unreadOnly, limit } = req.query;
     
@@ -40,7 +40,7 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get notification counts (for badge display)
-router.get('/counts', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/counts', validateToken, extractTenantId, async (req, res) => {
   try {
     const counts = await getNotificationCounts(req.tenantId);
     res.json(counts);
@@ -51,7 +51,7 @@ router.get('/counts', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Mark a notification as read
-router.post('/:notificationId/read', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:notificationId/read', validateToken, extractTenantId, async (req, res) => {
   try {
     const { notificationId } = req.params;
     const notification = await markNotificationAsRead(req.tenantId, notificationId);
@@ -63,7 +63,7 @@ router.post('/:notificationId/read', authenticateToken, extractTenantId, async (
 });
 
 // Mark all notifications as read
-router.post('/mark-all-read', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/mark-all-read', validateToken, extractTenantId, async (req, res) => {
   try {
     const result = await markAllNotificationsAsRead(req.tenantId);
     res.json(result);
@@ -74,7 +74,7 @@ router.post('/mark-all-read', authenticateToken, extractTenantId, async (req, re
 });
 
 // Delete old notifications (cleanup)
-router.delete('/cleanup', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/cleanup', validateToken, extractTenantId, async (req, res) => {
   try {
     const { daysOld } = req.query;
     const result = await deleteOldNotifications(req.tenantId, daysOld ? parseInt(daysOld, 10) : 30);
@@ -88,7 +88,7 @@ router.delete('/cleanup', authenticateToken, extractTenantId, async (req, res) =
 // ============== Notification Processing Routes ==============
 
 // Process due scheduled notifications (can be called by a cron job or manually)
-router.post('/process-scheduled', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/process-scheduled', validateToken, extractTenantId, async (req, res) => {
   try {
     const result = await processDueNotifications(req.tenantId);
     res.json(result);
@@ -99,7 +99,7 @@ router.post('/process-scheduled', authenticateToken, extractTenantId, async (req
 });
 
 // Generate rent expiry notifications (can be called by a cron job or manually)
-router.post('/generate-rent-expiry', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/generate-rent-expiry', validateToken, extractTenantId, async (req, res) => {
   try {
     // Get notification settings
     const config = await getAgencyConfig(req.tenantId);
@@ -118,7 +118,7 @@ router.post('/generate-rent-expiry', authenticateToken, extractTenantId, async (
 });
 
 // Combined processing endpoint (process scheduled + generate rent expiry)
-router.post('/process-all', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/process-all', validateToken, extractTenantId, async (req, res) => {
   try {
     const results = {
       scheduled: null,
@@ -146,7 +146,7 @@ router.post('/process-all', authenticateToken, extractTenantId, async (req, res)
 // ============== Notification Settings Routes ==============
 
 // Get notification settings
-router.get('/settings', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/settings', validateToken, extractTenantId, async (req, res) => {
   try {
     const config = await getAgencyConfig(req.tenantId);
     
@@ -168,7 +168,7 @@ router.get('/settings', authenticateToken, extractTenantId, async (req, res) => 
 });
 
 // Update notification settings
-router.put('/settings', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/settings', validateToken, extractTenantId, async (req, res) => {
   try {
     const {
       rentedExpiryThresholdDays,
@@ -197,7 +197,7 @@ router.put('/settings', authenticateToken, extractTenantId, async (req, res) => 
 // ============== Test/Debug Routes ==============
 
 // Create a test notification (for debugging)
-router.post('/test', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/test', validateToken, extractTenantId, async (req, res) => {
   try {
     const { category, type, title, message, deepLink } = req.body;
 

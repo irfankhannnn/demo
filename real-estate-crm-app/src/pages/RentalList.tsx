@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { CRMProperty } from '../types/crm';
+import { clearAuth } from '../utils/authStorage';
+import { redirectToLogout } from '../utils/cognitoAuth';
 
 type SortField = 'title' | 'area' | 'ownerName' | 'tenantName' | 'rentAmount' | 'status';
 type SortOrder = 'asc' | 'desc';
@@ -143,8 +145,8 @@ export default function RentalList() {
   };
 
   const handleLogout = () => {
-    api.clearToken();
-    navigate('/login');
+    clearAuth();
+    redirectToLogout();
   };
 
   const getStatusBadge = (status: string) => {

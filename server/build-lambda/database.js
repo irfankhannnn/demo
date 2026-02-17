@@ -2,17 +2,33 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { logger } from './logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const db = new Database(join(__dirname, 'admin.db'));
+const dbFilePath = join(__dirname, 'admin.db');
+
+logger.warn('sqlite.module_loaded', {
+  dbFilePath,
+  cwd: process.cwd(),
+  isLambda: !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+});
+
+const db = new Database(dbFilePath);
+
+logger.warn('sqlite.connection_opened', {
+  dbFilePath,
+});
 
 // Enable foreign keys
 db.pragma('foreign_keys = ON');
 
 // Initialize database schema
 export function initializeDatabase() {
+  const initLog = logger.child({ dbFilePath });
+  initLog.warn('sqlite.initialize.start');
+
   // Admin users table
   db.exec(`
     CREATE TABLE IF NOT EXISTS admins (
@@ -77,10 +93,12 @@ export function initializeDatabase() {
     );
     db.prepare('INSERT INTO admins (username, password) VALUES (?, ?)')
       .run(process.env.DEFAULT_ADMIN_USERNAME || 'admin', hashedPassword);
-    console.log('Default admin user created');
+    initLog.warn('sqlite.initialize.default_admin_created', {
+      username: process.env.DEFAULT_ADMIN_USERNAME || 'admin',
+    });
   }
 
-  console.log('Database initialized successfully');
+  initLog.warn('sqlite.initialize.end');
 }
 
 export default db;

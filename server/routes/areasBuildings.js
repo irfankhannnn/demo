@@ -1,11 +1,11 @@
 import express from 'express';
 import * as dynamodb from '../dynamodbService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(authenticateToken);
+router.use(validateToken);
 
 // ============== Dashboard Metrics ==============
 

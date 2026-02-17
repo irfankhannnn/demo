@@ -14,6 +14,125 @@ const KHATA_TABLE = process.env.KHATA_TABLE_NAME || 'cloudberry-real-estate-khat
 // ============== Khata Categories ==============
 
 // Get all categories for tenant
+// Search parties (owners, tenants, buyers, sellers) by name or phone
+router.get('/parties/search', async (req, res) => {
+  try {
+    const { query, partyType } = req.query;
+    
+    if (!query || !query.trim()) {
+      return res.json([]);
+    }
+
+    const searchQuery = query.toLowerCase().trim();
+    
+    // Import CRM service
+    const crmService = await import('../crmDynamodbService.js');
+    
+    let results = [];
+    
+    // Search based on party type
+    if (!partyType || partyType === 'OWNER') {
+      const owners = await crmService.getOwners();
+      const matchingOwners = owners
+        .filter(owner => 
+          owner.name.toLowerCase().includes(searchQuery) || 
+          owner.phone.includes(searchQuery)
+        )
+        .map(owner => ({
+          id: owner.ownerId,
+          name: owner.name,
+          phone: owner.phone,
+          type: 'OWNER'
+        }));
+      results.push(...matchingOwners);
+    }
+    
+    if (!partyType || partyType === 'TENANT') {
+      const tenants = await crmService.getCustomers();
+      const matchingTenants = tenants
+        .filter(tenant => 
+          tenant.name.toLowerCase().includes(searchQuery) || 
+          tenant.phone.includes(searchQuery)
+        )
+        .map(tenant => ({
+          id: tenant.customerId,
+          name: tenant.name,
+          phone: tenant.phone,
+          type: 'TENANT'
+        }));
+      results.push(...matchingTenants);
+    }
+    
+    if (!partyType || partyType === 'BUYER') {
+      const buyers = await crmService.getBuyers();
+      const matchingBuyers = buyers
+        .filter(buyer => 
+          buyer.name.toLowerCase().includes(searchQuery) || 
+          buyer.phone.includes(searchQuery)
+        )
+        .map(buyer => ({
+          id: buyer.buyerId,
+          name: buyer.name,
+          phone: buyer.phone,
+          type: 'BUYER'
+        }));
+      results.push(...matchingBuyers);
+    }
+    
+    if (!partyType || partyType === 'SELLER') {
+      const sellers = await crmService.getSellers();
+      const matchingSellers = sellers
+        .filter(seller => 
+          seller.name.toLowerCase().includes(searchQuery) || 
+          seller.phone.includes(searchQuery)
+        )
+        .map(seller => ({
+          id: seller.sellerId,
+          name: seller.name,
+          phone: seller.phone,
+          type: 'SELLER'
+        }));
+      results.push(...matchingSellers);
+    }
+    
+    res.json(results);
+  } catch (error) {
+    console.error('Error searching parties:', error);
+    res.status(500).json({ error: 'Failed to search parties' });
+  }
+});
+
+// Get properties associated with a party
+router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
+  try {
+    const { partyType, partyId } = req.params;
+    
+    const crmService = await import('../crmDynamodbService.js');
+    let properties = [];
+    
+    if (partyType === 'OWNER') {
+      properties = await crmService.getPropertiesByOwner(partyId);
+    } else if (partyType === 'TENANT') {
+      properties = await crmService.getPropertiesByTenant(partyId);
+    } else if (partyType === 'BUYER') {
+      // For buyers, return all available properties (they might be interested in)
+      properties = await crmService.getCRMProperties('available');
+    } else if (partyType === 'SELLER') {
+      // For sellers, get properties they are selling
+      const seller = await crmService.getSeller(partyId);
+      if (seller && seller.propertyDetails) {
+        // Return properties linked to seller if any, otherwise all available
+        properties = await crmService.getCRMProperties();
+      }
+    }
+    
+    res.json(properties || []);
+  } catch (error) {
+    console.error('Error fetching party properties:', error);
+    res.status(500).json({ error: 'Failed to fetch properties' });
+  }
+});
+
 router.get('/categories', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] || 'default';
@@ -128,21 +247,43 @@ router.get('/entries', async (req, res) => {
     const result = await ddbDocClient.send(propertyId ? new QueryCommand(params) : new ScanCommand(params));
     let entries = result.Items || [];
 
+    // Populate property details for each entry
+    const crmService = await import('../crmDynamodbService.js');
+    const enrichedEntries = await Promise.all(entries.map(async (entry) => {
+      if (entry.propertyId) {
+        try {
+          const property = await crmService.getCRMProperty(entry.propertyId);
+          if (property) {
+            entry.property = {
+              propertyId: property.propertyId,
+              title: property.title,
+              area: property.area,
+              flatNumber: property.flatNumber,
+            };
+          }
+        } catch (error) {
+          console.error(`Error fetching property ${entry.propertyId}:`, error);
+        }
+      }
+      return entry;
+    }));
+
     // Apply filters
+    let filteredEntries = enrichedEntries;
     if (partyType) {
-      entries = entries.filter(e => e.partyType === partyType);
+      filteredEntries = filteredEntries.filter(e => e.partyType === partyType);
     }
     if (partyId) {
-      entries = entries.filter(e => e.partyId === partyId);
+      filteredEntries = filteredEntries.filter(e => e.partyId === partyId);
     }
     if (transactionType) {
-      entries = entries.filter(e => e.transactionType === transactionType);
+      filteredEntries = filteredEntries.filter(e => e.transactionType === transactionType);
     }
     if (settlementStatus) {
-      entries = entries.filter(e => e.settlementStatus === settlementStatus);
+      filteredEntries = filteredEntries.filter(e => e.settlementStatus === settlementStatus);
     }
     if (categoryId) {
-      entries = entries.filter(e => {
+      filteredEntries = filteredEntries.filter(e => {
         if (Array.isArray(e.lineItems) && e.lineItems.length > 0) {
           return e.lineItems.some(li => li && li.categoryId === categoryId);
         }
@@ -151,9 +292,9 @@ router.get('/entries', async (req, res) => {
     }
 
     // Sort by creation date (newest first)
-    entries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    filteredEntries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-    res.json(entries);
+    res.json(filteredEntries);
   } catch (error) {
     console.error('Error fetching entries:', error);
     res.status(500).json({ error: 'Failed to fetch entries' });
@@ -210,7 +351,7 @@ router.post('/entries', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    if (!['OWNER', 'TENANT'].includes(partyType)) {
+    if (!['OWNER', 'TENANT', 'BUYER', 'SELLER'].includes(partyType)) {
       return res.status(400).json({ error: 'Invalid party type' });
     }
 

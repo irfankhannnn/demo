@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, User, Settings } from 'lucide-react';
+import { Lock, User, Settings, UserPlus } from 'lucide-react';
 import { api } from '../services/api';
 
 export default function AdminSettings() {
@@ -61,12 +61,21 @@ export default function AdminSettings() {
               <p className="text-gray-600 text-xs sm:text-sm">Update admin username and password for this agency</p>
             </div>
           </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 font-medium self-start sm:self-auto"
-          >
-            Back to Dashboard
-          </button>
+          <div className="flex gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => navigate('/admin/invites')}
+              className="flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs sm:text-sm rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all font-medium"
+            >
+              <UserPlus className="w-4 h-4" />
+              Team Invites
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="text-xs sm:text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              Back to Dashboard
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

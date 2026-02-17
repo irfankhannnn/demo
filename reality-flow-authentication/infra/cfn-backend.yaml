@@ -1,0 +1,570 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Reality Flow Authentication Microservice - Cognito + API Gateway + Lambda + DynamoDB'
+
+# =============================================================================
+# Parameters (org-standard set)
+# =============================================================================
+Parameters:
+  ServiceName:
+    Type: String
+    Default: reality-flow-auth
+
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod, test]
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 256
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+
+  LogRetentionInDays:
+    Type: Number
+    Default: 14
+
+  SubnetIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Optional VPC subnet IDs for Lambda
+
+  SecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Optional VPC security group IDs for Lambda
+
+  # Cognito params — this stack CREATES the pool, but we keep params for org compat
+  CognitoUserPoolId:
+    Type: String
+    Default: ''
+    Description: Leave empty; this stack creates its own Cognito User Pool
+
+  CognitoClientId:
+    Type: String
+    Default: ''
+    Description: Leave empty; this stack creates its own Cognito Client
+
+  LambdaPackagesBucketName:
+    Type: String
+    Description: S3 bucket where Lambda function.zip is uploaded
+
+  # RDS params (unused but required by org standard)
+  DatabaseHost:
+    Type: String
+    Default: ''
+  DatabasePort:
+    Type: String
+    Default: ''
+  DatabaseName:
+    Type: String
+    Default: ''
+  DatabaseUsername:
+    Type: String
+    Default: ''
+  DatabasePassword:
+    Type: String
+    Default: ''
+    NoEcho: true
+
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional custom domain for API Gateway
+
+  # --- Auth-service-specific params ---
+  GoogleClientId:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client ID
+
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client Secret
+
+  CognitoDomainPrefix:
+    Type: String
+    Description: Unique prefix for Cognito hosted UI domain (e.g. reality-flow-auth-dev)
+
+  IdentityCallbackURL:
+    Type: String
+    Default: http://localhost:3000/auth/callback
+    Description: Frontend redirect URL after Cognito authentication
+
+  IdentityLogoutURL:
+    Type: String
+    Default: http://localhost:3000/logout
+    Description: Frontend redirect URL after Cognito logout
+
+# =============================================================================
+# Conditions
+# =============================================================================
+Conditions:
+  HasVpcConfig:
+    !Not [!Equals [!Select [0, !Ref SubnetIds], '']]
+
+# =============================================================================
+# Resources
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # 1. Cognito User Pool
+  # ===========================================================================
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${Env}-${ServiceName}-user-pool'
+      AutoVerifiedAttributes:
+        - email
+      MfaConfiguration: 'OFF'
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+          - Name: verified_phone_number
+            Priority: 2
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailMessage: 'Your Reality Flow verification code is {####}'
+        EmailSubject: 'Reality Flow - Verification Code'
+        SmsMessage: 'Your Reality Flow code is {####}'
+
+  # ===========================================================================
+  # 2. Cognito Google Identity Provider
+  # ===========================================================================
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: 'profile email openid'
+      AttributeMapping:
+        email: email
+        name: name
+        username: sub
+
+  # ===========================================================================
+  # 3. Cognito User Pool Client
+  # ===========================================================================
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
+    Properties:
+      ClientName: !Sub '${Env}-${ServiceName}-client'
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_CUSTOM_AUTH
+      PreventUserExistenceErrors: ENABLED
+      AllowedOAuthFlows:
+        - code
+        - implicit
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - phone
+        - email
+        - openid
+        - profile
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      CallbackURLs:
+        - !Ref IdentityCallbackURL
+      LogoutURLs:
+        - !Ref IdentityLogoutURL
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+  # ===========================================================================
+  # 4. Cognito Hosted UI Domain
+  # ===========================================================================
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref CognitoUserPool
+
+  # ===========================================================================
+  # 5. DynamoDB — Users Table
+  # ===========================================================================
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-users'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: TenantId
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI_SubPK
+          AttributeType: S
+        - AttributeName: GSI_SubSK
+          AttributeType: S
+        - AttributeName: GSI_EmailPK
+          AttributeType: S
+        - AttributeName: GSI_EmailSK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: TenantId
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: SubIndex
+          KeySchema:
+            - AttributeName: GSI_SubPK
+              KeyType: HASH
+            - AttributeName: GSI_SubSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: GSI_EmailPK
+              KeyType: HASH
+            - AttributeName: GSI_EmailSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ===========================================================================
+  # 6. DynamoDB — Agency Config Table
+  # ===========================================================================
+  AgencyConfigTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-agency-config'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: TenantId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: TenantId
+          KeyType: HASH
+
+  # ===========================================================================
+  # 7. IAM Role for Lambda
+  # ===========================================================================
+  AuthLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Env}-${ServiceName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !GetAtt AgencyConfigTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub '${UsersTable.Arn}/index/SubIndex'
+                  - !Sub '${UsersTable.Arn}/index/EmailIndex'
+        - PolicyName: CognitoReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:ListUsers
+                Resource: !GetAtt CognitoUserPool.Arn
+
+  # ===========================================================================
+  # 8. Lambda Function
+  # ===========================================================================
+  AuthLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-lambda'
+      Runtime: nodejs18.x
+      Handler: dist/index.handler
+      Role: !GetAtt AuthLambdaRole.Arn
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      Environment:
+        Variables:
+          USERS_TABLE: !Ref UsersTable
+          AGENCY_CONFIG_TABLE: !Ref AgencyConfigTable
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          AWS_REGION_NAME: !Ref 'AWS::Region'
+          ENV: !Ref Env
+      Code:
+        S3Bucket: !Ref LambdaPackagesBucketName
+        S3Key: !Sub '${ServiceName}/function.zip'
+
+  # ===========================================================================
+  # 9. CloudWatch Log Groups
+  # ===========================================================================
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-${ServiceName}-lambda'
+      RetentionInDays: !Ref LogRetentionInDays
+
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${Env}-${ServiceName}-api'
+      RetentionInDays: !Ref LogRetentionInDays
+
+  # ===========================================================================
+  # 10. API Gateway REST API
+  # ===========================================================================
+  AuthApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${Env}-${ServiceName}-api'
+      Description: Reality Flow Authentication API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # ===========================================================================
+  # 11. Cognito Authorizer for API Gateway
+  # ===========================================================================
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Properties:
+      Name: CognitoAuthorizer
+      RestApiId: !Ref AuthApiGateway
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      ProviderARNs:
+        - !GetAtt CognitoUserPool.Arn
+
+  # ===========================================================================
+  # 12. API Gateway — Proxy Resource (Lambda handles routing via Express)
+  # ===========================================================================
+  ProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref AuthApiGateway
+      ParentId: !GetAtt AuthApiGateway.RootResourceId
+      PathPart: '{proxy+}'
+
+  ProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AuthApiGateway
+      ResourceId: !Ref ProxyResource
+      HttpMethod: ANY
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref CognitoAuthorizer
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+
+  # CORS preflight (OPTIONS) — no auth required
+  ProxyOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AuthApiGateway
+      ResourceId: !Ref ProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: '200'
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: '200'
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Root resource method (for /health etc.)
+  RootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AuthApiGateway
+      ResourceId: !GetAtt AuthApiGateway.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+
+  # ===========================================================================
+  # 13. Lambda Invoke Permissions
+  # ===========================================================================
+  LambdaApiGatewayProxyPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AuthApiGateway}/*/*/{proxy+}'
+
+  LambdaApiGatewayRootPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref AuthLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AuthApiGateway}/*/*/*'
+
+  # ===========================================================================
+  # 14. API Gateway Deployment & Stage
+  # ===========================================================================
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ProxyMethod
+      - ProxyOptionsMethod
+      - RootMethod
+    Properties:
+      RestApiId: !Ref AuthApiGateway
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: !Ref Env
+      RestApiId: !Ref AuthApiGateway
+      DeploymentId: !Ref ApiDeployment
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+
+# =============================================================================
+# Outputs
+# =============================================================================
+Outputs:
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoUserPoolId'
+
+  CognitoUserPoolArn:
+    Description: Cognito User Pool ARN
+    Value: !GetAtt CognitoUserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoUserPoolArn'
+
+  CognitoClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoClientId'
+
+  CognitoHostedUIDomain:
+    Description: Cognito Hosted UI Domain
+    Value: !Sub 'https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
+    Export:
+      Name: !Sub '${AWS::StackName}-CognitoHostedUIDomain'
+
+  AuthApiEndpoint:
+    Description: Auth API Gateway Endpoint URL
+    Value: !Sub 'https://${AuthApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Env}'
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthApiEndpoint'
+
+  AuthApiGatewayId:
+    Description: Auth API Gateway ID
+    Value: !Ref AuthApiGateway
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthApiGatewayId'
+
+  AuthLambdaFunctionArn:
+    Description: Auth Lambda Function ARN
+    Value: !GetAtt AuthLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthLambdaArn'
+
+  UsersTableName:
+    Description: DynamoDB Users Table Name
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTableName'
+
+  UsersTableArn:
+    Description: DynamoDB Users Table ARN
+    Value: !GetAtt UsersTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTableArn'
+
+  AgencyConfigTableName:
+    Description: DynamoDB Agency Config Table Name
+    Value: !Ref AgencyConfigTable
+    Export:
+      Name: !Sub '${AWS::StackName}-AgencyConfigTableName'
+
+  AgencyConfigTableArn:
+    Description: DynamoDB Agency Config Table ARN
+    Value: !GetAtt AgencyConfigTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AgencyConfigTableArn'

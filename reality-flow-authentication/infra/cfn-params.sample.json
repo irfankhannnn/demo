@@ -1,0 +1,23 @@
+[
+  { "ParameterKey": "ServiceName", "ParameterValue": "__SERVICE_NAME__" },
+  { "ParameterKey": "Env", "ParameterValue": "__ENV__" },
+  { "ParameterKey": "LambdaMemorySize", "ParameterValue": "__LAMBDA_MEMORY_SIZE__" },
+  { "ParameterKey": "LambdaTimeout", "ParameterValue": "__LAMBDA_TIMEOUT__" },
+  { "ParameterKey": "LogRetentionInDays", "ParameterValue": "__LOG_RETENTION_IN_DAYS__" },
+  { "ParameterKey": "SubnetIds", "ParameterValue": "__SUBNET_IDS__" },
+  { "ParameterKey": "SecurityGroupIds", "ParameterValue": "__SECURITY_GROUP_IDS__" },
+  { "ParameterKey": "CognitoUserPoolId", "ParameterValue": "" },
+  { "ParameterKey": "CognitoClientId", "ParameterValue": "" },
+  { "ParameterKey": "LambdaPackagesBucketName", "ParameterValue": "__LAMBDA_PACKAGES_BUCKET_NAME__" },
+  { "ParameterKey": "DatabaseHost", "ParameterValue": "" },
+  { "ParameterKey": "DatabasePort", "ParameterValue": "" },
+  { "ParameterKey": "DatabaseName", "ParameterValue": "" },
+  { "ParameterKey": "DatabaseUsername", "ParameterValue": "" },
+  { "ParameterKey": "DatabasePassword", "ParameterValue": "" },
+  { "ParameterKey": "DomainName", "ParameterValue": "__DOMAIN_NAME__" },
+  { "ParameterKey": "GoogleClientId", "ParameterValue": "__GOOGLE_CLIENT_ID__" },
+  { "ParameterKey": "GoogleClientSecret", "ParameterValue": "__GOOGLE_CLIENT_SECRET__" },
+  { "ParameterKey": "CognitoDomainPrefix", "ParameterValue": "__COGNITO_DOMAIN_PREFIX__" },
+  { "ParameterKey": "IdentityCallbackURL", "ParameterValue": "__IDENTITY_CALLBACK_URL__" },
+  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "__IDENTITY_LOGOUT_URL__" }
+]

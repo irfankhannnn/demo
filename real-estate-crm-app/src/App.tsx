@@ -1,12 +1,25 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
+import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh } from './utils/authStorage';
+import { callMe } from './utils/cognitoAuth';
 
 // Pages
 import AdminLogin from './pages/AdminLogin';
-import AdminSettings from './pages/AdminSettings';
-import ForgotPassword from './pages/ForgotPassword';
+import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
+
+// Onboarding Pages
+import RoleSelection from './pages/RoleSelection';
+import RegisterAdmin from './pages/RegisterAdmin';
+import AcceptInvite from './pages/AcceptInvite';
+
+// Member Pages
+import Invites from './pages/member/Invites';
+import NoAccess from './pages/member/NoAccess';
+
+// Admin Pages
+import InviteManagement from './pages/admin/InviteManagement';
 
 // CRM Pages
 import CRMDashboard from './pages/crm/CRMDashboard';
@@ -48,20 +61,79 @@ import {
 } from './pages/crm/AICalling';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 
   useEffect(() => {
-    // Check if user is authenticated
-    const token = localStorage.getItem('admin_token');
-    setIsAuthenticated(!!token);
+    async function initAuth() {
+      if (!checkAuth()) {
+        setAuthState('unauthenticated');
+        return;
+      }
+
+      // Check if we have a fresh cached profile (< 60s old)
+      const cachedProfile = getUserProfile();
+      const profileIsFresh = isProfileFresh(60);
+
+      // If profile is fresh, skip /auth/me and set authenticated immediately
+      if (cachedProfile && profileIsFresh) {
+        setAuthState('authenticated');
+        return;
+      }
+
+      // Profile is stale or missing — refresh via /auth/me
+      const idToken = getIdToken();
+      if (idToken) {
+        try {
+          const meResult = await callMe(idToken);
+          const meData = meResult.data || meResult;
+          setUserProfile({
+            cognitoSub: meData.user.cognitoSub,
+            email: meData.user.email,
+            phoneNumber: meData.user.phoneNumber,
+            role: meData.user.role,
+            tenantId: meData.user.tenantId,
+            displayName: meData.user.displayName,
+            status: meData.user.status,
+            createdAt: meData.user.createdAt,
+            lastLoginAt: meData.user.lastLoginAt,
+            agency: meData.agency,
+          });
+        } catch (err) {
+          // Continue with cached profile if /auth/me fails
+        }
+      }
+
+      setAuthState('authenticated');
+    }
+
+    const handleAuthChanged = () => {
+      initAuth();
+    };
+
+    window.addEventListener('auth-changed', handleAuthChanged);
+    initAuth();
+
+    return () => {
+      window.removeEventListener('auth-changed', handleAuthChanged);
+    };
   }, []);
 
   const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-    if (isAuthenticated === null) {
-      return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    if (authState === 'loading') {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <svg className="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="text-slate-500">Loading...</p>
+          </div>
+        </div>
+      );
     }
     
-    return isAuthenticated ? children : <Navigate to="/login" replace />;
+    return authState === 'authenticated' ? children : <Navigate to="/login" replace />;
   };
 
   return (
@@ -69,16 +141,28 @@ function App() {
       <Router>
         <Routes>
           {/* Public Routes */}
-          <Route path="/login" element={<AdminLogin onLoginSuccess={() => setIsAuthenticated(true)} />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/login" element={<AdminLogin />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          
+          {/* Onboarding Routes (authenticated but not registered) */}
+          <Route path="/onboarding/role-selection" element={<RoleSelection />} />
+          <Route path="/onboarding/register-admin" element={<RegisterAdmin />} />
+          <Route path="/onboarding/accept-invite" element={<AcceptInvite />} />
+          
+          {/* Member Routes (post-auth but pre-registration) */}
+          <Route path="/member/invites" element={<Invites />} />
+          <Route path="/member/no-access" element={<NoAccess />} />
           
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute><Navigate to="/crm" replace /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><Navigate to="/crm" replace /></ProtectedRoute>} />
+          <Route path="/admin/dashboard" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />
           <Route path="/rental-list" element={<ProtectedRoute><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
           <Route path="/building/:id" element={<ProtectedRoute><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
-          <Route path="/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+          
+          {/* Admin Routes */}
+          <Route path="/admin/invites" element={<ProtectedRoute><InviteManagement /></ProtectedRoute>} />
           
           {/* CRM Routes */}
           <Route path="/crm" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />

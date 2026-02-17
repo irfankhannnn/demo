@@ -12,7 +12,7 @@ import {
   getAreaMetrics,
 } from '../realEstateAreasDynamodbService.js';
 import { getProjectsByArea } from '../projectsDynamodbService.js';
-import { authMiddleware } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, deleteFromS3, getSignedUrl } from '../s3Service.js';
 
 const router = express.Router();
@@ -27,7 +27,7 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-router.use(authMiddleware);
+router.use(validateToken);
 
 /**
  * @route GET /api/crm/real-estate-areas

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMContact, CRMContactNote } from '../../types/crm';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 export default function ContactDetails() {
   const navigate = useNavigate();
@@ -595,12 +596,14 @@ export default function ContactDetails() {
                             >
                               <Edit3 className="h-4 w-4" />
                             </button>
-                            <button
-                              onClick={() => handleDeleteNote(note.noteId)}
-                              className="p-1 text-gray-400 hover:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
+                            <PermissionGuard permission="delete">
+                              <button
+                                onClick={() => handleDeleteNote(note.noteId)}
+                                className="p-1 text-gray-400 hover:text-red-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </PermissionGuard>
                           </div>
                         </div>
                       </>

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut } from 'lucide-react';
-import { api } from '../services/api';
+import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield } from 'lucide-react';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { isValidEmail, isValidIndianMobile, normalizeEmail, normalizeIndianPhone, normalizeWhitespace } from '../utils/validation';
+import { clearAuth, getUserProfile, setUserProfile } from '../utils/authStorage';
+import { redirectToLogout } from '../utils/cognitoAuth';
+import { getAgencyMembershipDescription } from '../utils/rbac';
 
 interface ProfileData {
-  username: string;
+  displayName: string;
   email: string;
   companyName: string;
   phone: string;
@@ -24,7 +26,7 @@ export default function Profile() {
   const [error, setError] = useState('');
 
   const [formData, setFormData] = useState<ProfileData>({
-    username: '',
+    displayName: '',
     email: '',
     companyName: '',
     phone: '',
@@ -40,13 +42,22 @@ export default function Profile() {
   const loadProfile = async () => {
     try {
       setLoading(true);
-      // TODO: Implement API call to fetch profile
-      // const data = await api.getProfile();
-      // For now, load from localStorage or use defaults
-      const storedProfile = localStorage.getItem('user_profile');
-      if (storedProfile) {
-        setFormData(JSON.parse(storedProfile));
+      
+      const profile = getUserProfile();
+      if (!profile) {
+        setError('Profile not found. Please log in again.');
+        return;
       }
+
+      setFormData({
+        displayName: profile.displayName || '',
+        email: profile.email || '',
+        companyName: profile.agency?.agencyName || '',
+        phone: profile.phoneNumber || '',
+        address: profile.agency?.address || '',
+        city: profile.agency?.city || '',
+        role: profile.role === 'ADMIN' ? 'Admin' : 'Member',
+      });
     } catch (err) {
       setError('Failed to load profile');
     } finally {
@@ -67,6 +78,7 @@ export default function Profile() {
     setSuccess('');
 
     const cleanedEmail = normalizeEmail(formData.email);
+    const cleanedDisplayName = normalizeWhitespace(formData.displayName);
     const cleanedPhone = formData.phone ? normalizeIndianPhone(formData.phone) : '';
     const cleanedCompanyName = normalizeWhitespace(formData.companyName);
     const cleanedAddress = normalizeWhitespace(formData.address);
@@ -90,16 +102,90 @@ export default function Profile() {
     setSaving(true);
 
     try {
-      // TODO: Implement API call to update profile
-      // await api.updateProfile(formData);
-      localStorage.setItem('user_profile', JSON.stringify({
-        ...formData,
-        email: cleanedEmail,
-        phone: cleanedPhone || formData.phone,
-        companyName: cleanedCompanyName,
-        address: cleanedAddress,
-        city: cleanedCity,
-      }));
+      const authApiUrl = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3002';
+      const idToken = localStorage.getItem('auth_id_token');
+      
+      if (!idToken) {
+        setError('Authentication token not found. Please log in again.');
+        return;
+      }
+
+      const profile = getUserProfile();
+      const isAdmin = profile?.role === 'ADMIN';
+
+      // Update user profile fields (displayName, phoneNumber)
+      const userProfileChanged = 
+        cleanedDisplayName !== (profile?.displayName || '') || 
+        cleanedPhone !== (profile?.phoneNumber || '');
+
+      if (userProfileChanged) {
+        const profileResponse = await fetch(`${authApiUrl}/auth/profile`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            displayName: cleanedDisplayName,
+            phoneNumber: cleanedPhone,
+          }),
+        });
+
+        if (!profileResponse.ok) {
+          const errorData = await profileResponse.json().catch(() => ({ error: 'Failed to update profile' }));
+          throw new Error(errorData.error || 'Failed to update profile');
+        }
+      }
+
+      // Update agency fields (admin-only)
+      const agencyChanged = 
+        cleanedCompanyName !== (profile?.agency?.agencyName || '') ||
+        cleanedAddress !== (profile?.agency?.address || '') ||
+        cleanedCity !== (profile?.agency?.city || '');
+
+      if (isAdmin && agencyChanged) {
+        const agencyResponse = await fetch(`${authApiUrl}/auth/agency`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            agencyName: cleanedCompanyName,
+            address: cleanedAddress,
+            city: cleanedCity,
+          }),
+        });
+
+        if (!agencyResponse.ok) {
+          const errorData = await agencyResponse.json().catch(() => ({ error: 'Failed to update agency' }));
+          throw new Error(errorData.error || 'Failed to update agency configuration');
+        }
+      }
+
+      // Refresh profile from /auth/me
+      const meResponse = await fetch(`${authApiUrl}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      if (meResponse.ok) {
+        const meData = await meResponse.json();
+        setUserProfile({
+          cognitoSub: meData.user.cognitoSub,
+          email: meData.user.email,
+          phoneNumber: meData.user.phoneNumber,
+          role: meData.user.role,
+          tenantId: meData.user.tenantId,
+          displayName: meData.user.displayName,
+          status: meData.user.status,
+          createdAt: meData.user.createdAt,
+          lastLoginAt: meData.user.lastLoginAt,
+          agency: meData.agency,
+        });
+      }
+
       setSuccess('Profile updated successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -110,9 +196,8 @@ export default function Profile() {
   };
 
   const handleLogout = () => {
-    api.clearToken();
-    localStorage.removeItem('user_profile');
-    navigate('/login');
+    clearAuth();
+    redirectToLogout();
   };
 
   if (loading) {
@@ -165,8 +250,14 @@ export default function Profile() {
             <div className="bg-white w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg">
               <User className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-600" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">{formData.username || 'Admin User'}</h2>
-            <p className="text-sm sm:text-base text-indigo-100">{formData.role}</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">{formData.displayName || 'Admin User'}</h2>
+            <div className="flex items-center justify-center gap-2 text-indigo-100 mb-2">
+              <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
+              <p className="text-sm sm:text-base font-medium">{getAgencyMembershipDescription()}</p>
+            </div>
+            {formData.companyName && (
+              <p className="text-xs sm:text-sm text-indigo-200">{formData.companyName}</p>
+            )}
           </div>
 
           {/* Form */}
@@ -193,14 +284,14 @@ export default function Profile() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-2">
-                      Username
+                      Display Name
                     </label>
                     <input
                       type="text"
-                      value={formData.username}
-                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      value={formData.displayName}
+                      onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                       className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-slate-50 focus:bg-white"
-                      placeholder="Enter username"
+                      placeholder="Enter display name"
                       maxLength={60}
                       required
                     />

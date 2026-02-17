@@ -23,6 +23,7 @@ import CreateTenantModal from '../../components/CreateTenantModal';
 import Toast from '../../components/Toast';
 import NumericInput from '../../components/NumericInput';
 import FullscreenMediaViewer from '../../components/FullscreenMediaViewer';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
@@ -1264,13 +1265,15 @@ export default function PropertyDetails() {
                             Download
                           </a>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteImage(img.key)}
-                          className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        <PermissionGuard permission="delete">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteImage(img.key)}
+                            className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </PermissionGuard>
                       </div>
                     ))
                   ) : (!isEditing && pendingImages.length === 0) || (isEditing && (!property?.images || property.images.length === 0)) ? (
@@ -1376,13 +1379,15 @@ export default function PropertyDetails() {
                                 Download
                               </a>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteVideo(vid.key)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
+                            <PermissionGuard permission="delete">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVideo(vid.key)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </PermissionGuard>
                           </div>
                         </div>
                       </div>
@@ -1534,13 +1539,15 @@ export default function PropertyDetails() {
                                           Download
                                         </a>
                                       )}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteDocument(doc.documentId)}
-                                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </button>
+                                      <PermissionGuard permission="delete">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteDocument(doc.documentId)}
+                                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </button>
+                                      </PermissionGuard>
                                     </div>
                                   </div>
                                 ))}

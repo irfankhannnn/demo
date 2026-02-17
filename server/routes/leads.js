@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import {
   createLead,
@@ -18,7 +18,7 @@ const router = express.Router();
 // ============== Lead CRUD Routes ==============
 
 // Get all leads with optional filters
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { leadType, status, priority, excludeConverted } = req.query;
     const filters = {};
@@ -36,7 +36,7 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get leads by type (convenience endpoints)
-router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/buyers', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'buyer' };
@@ -51,7 +51,7 @@ router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/sellers', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'seller' };
@@ -66,7 +66,7 @@ router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/tenants', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'tenant' };
@@ -81,7 +81,7 @@ router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'owner' };
@@ -97,7 +97,7 @@ router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get lead metrics
-router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
   try {
     const allLeads = await getLeads(req.tenantId);
 
@@ -153,7 +153,7 @@ router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get single lead
-router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.id);
     if (!lead) {
@@ -167,7 +167,7 @@ router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Create lead
-router.post('/', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const leadData = {
       ...req.body,
@@ -182,7 +182,7 @@ router.post('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Update lead
-router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -201,7 +201,7 @@ router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
 
 // Convert lead to buyer/tenant/owner
 // IMPORTANT: Buyer and Tenant conversions now require transaction details
-router.post('/:id/convert', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => {
   try {
     const { 
       existingContactId,
@@ -238,7 +238,7 @@ router.post('/:id/convert', authenticateToken, extractTenantId, async (req, res)
 });
 
 // Get contacts for linking during conversion
-router.get('/:id/matching-contacts', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/matching-contacts', validateToken, extractTenantId, async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.id);
     if (!lead) {
@@ -263,7 +263,7 @@ router.get('/:id/matching-contacts', authenticateToken, extractTenantId, async (
 });
 
 // Delete lead
-router.delete('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteLead(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -275,7 +275,7 @@ router.delete('/:id', authenticateToken, extractTenantId, async (req, res) => {
 
 // ============== Lead Notes Routes ==============
 
-router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getLeadNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -285,7 +285,7 @@ router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) =>
   }
 });
 
-router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const noteData = {
       ...req.body,

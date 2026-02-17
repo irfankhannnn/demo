@@ -15,10 +15,8 @@ if (!API_BASE_URL) {
 }
 
 class ApiService {
-  private token: string | null = null;
-
-  constructor() {
-    this.token = localStorage.getItem('admin_token');
+  private get token(): string | null {
+    return localStorage.getItem('auth_id_token');
   }
 
   async getEnquiryNotes(enquiryId: string) {
@@ -55,12 +53,15 @@ class ApiService {
   }
 
   setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('admin_token', token);
+    localStorage.setItem('auth_id_token', token);
   }
 
   clearToken() {
-    this.token = null;
+    localStorage.removeItem('auth_id_token');
+    localStorage.removeItem('auth_access_token');
+    localStorage.removeItem('auth_refresh_token');
+    localStorage.removeItem('auth_token_expiry');
+    localStorage.removeItem('auth_user_profile');
     localStorage.removeItem('admin_token');
   }
 
@@ -82,8 +83,9 @@ class ApiService {
 
   private async handleResponse(response: Response) {
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         this.clearToken();
+        window.location.href = '/login';
       }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
       throw new Error(error.error || `HTTP ${response.status}`);
@@ -115,41 +117,6 @@ class ApiService {
     });
 
     return cleaned as Partial<T>;
-  }
-
-  // Auth endpoints
-  async login(username: string, password: string) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await this.handleResponse(response);
-    this.setToken(data.token);
-    return data;
-  }
-
-  async changePassword(
-    username: string,
-    currentPassword: string,
-    newPassword: string,
-    newUsername?: string
-  ) {
-    const body: {
-      username: string;
-      currentPassword: string;
-      newPassword: string;
-      newUsername?: string;
-    } = { username, currentPassword, newPassword };
-    if (newUsername && newUsername !== username) {
-      body.newUsername = newUsername;
-    }
-    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    });
-    return this.handleResponse(response);
   }
 
   // Dashboard

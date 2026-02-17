@@ -20,11 +20,14 @@ import {
   Calendar,
   ShoppingCart,
   PhoneCall,
+  UserPlus,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
+import { clearAuth, getUserProfile } from '../../utils/authStorage';
+import { redirectToLogout } from '../../utils/cognitoAuth';
 
 interface UnifiedCrmCounts {
   buyers: number;
@@ -36,6 +39,8 @@ interface UnifiedCrmCounts {
 
 export default function CRMDashboard() {
   const navigate = useNavigate();
+  const profile = getUserProfile();
+  const isAdmin = profile?.role === 'ADMIN';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -94,9 +99,8 @@ export default function CRMDashboard() {
   };
 
   const handleLogout = () => {
-    api.clearToken();
-    localStorage.removeItem('user_profile');
-    navigate('/login');
+    clearAuth();
+    redirectToLogout();
   };
 
   if (loading) {
@@ -164,6 +168,19 @@ export default function CRMDashboard() {
               </div>
               
               <NotificationCenter />
+
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/invites"
+                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    title="Team Invites"
+                  >
+                    <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline text-sm">Invites</span>
+                  </Link>
+                </>
+              )}
               
               <Link
                 to="/profile"
