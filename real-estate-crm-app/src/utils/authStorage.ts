@@ -119,6 +119,16 @@ export function isProfileFresh(maxAgeSeconds = 60): boolean {
 
 // --- Clear all auth data ---
 
+export function clearAuthSilently(): void {
+  localStorage.removeItem(ID_TOKEN_KEY);
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(TOKEN_EXPIRY_KEY);
+  localStorage.removeItem(USER_PROFILE_KEY);
+  localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
+  localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+}
+
 export function clearAuth(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);

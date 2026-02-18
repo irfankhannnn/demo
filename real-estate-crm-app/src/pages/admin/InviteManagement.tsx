@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, Mail, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield } from 'lucide-react';
+import { UserPlus, Mail, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield, Pencil } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
 
 interface Invite {
@@ -21,6 +21,9 @@ export default function InviteManagement() {
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newInviteEmail, setNewInviteEmail] = useState('');
+  const [editingInviteCode, setEditingInviteCode] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -61,6 +64,64 @@ export default function InviteManagement() {
       setError(err instanceof Error ? err.message : 'Failed to load invites');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const startEdit = (invite: Invite) => {
+    setError('');
+    setSuccess('');
+    setEditingInviteCode(invite.inviteCode);
+    setEditingEmail(invite.email);
+  };
+
+  const cancelEdit = () => {
+    setEditingInviteCode(null);
+    setEditingEmail('');
+    setSavingEdit(false);
+  };
+
+  const saveEdit = async () => {
+    if (!editingInviteCode) return;
+    setError('');
+    setSuccess('');
+
+    if (!editingEmail.trim()) {
+      setError('Email is required');
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      const idToken = getIdToken();
+      if (!idToken) {
+        setError('Not authenticated');
+        return;
+      }
+
+      const response = await fetch(`${AUTH_API_URL}/invites/${editingInviteCode}/email`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          email: editingEmail.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Failed to update invite email' }));
+        throw new Error(errorData.message || errorData.error || 'Failed to update invite email');
+      }
+
+      setSuccess('Invite email updated successfully!');
+      cancelEdit();
+      await loadInvites();
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update invite email');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -299,7 +360,20 @@ export default function InviteManagement() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
                         <Mail className="w-5 h-5 text-slate-400" />
-                        <span className="font-medium text-slate-900">{invite.email}</span>
+                        {invite.status === 'PENDING' && editingInviteCode === invite.inviteCode ? (
+                          <div className="flex items-center gap-2 flex-1">
+                            <input
+                              type="email"
+                              value={editingEmail}
+                              onChange={(e) => setEditingEmail(e.target.value)}
+                              className="w-full max-w-md px-3 py-2 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                              placeholder="member@example.com"
+                              disabled={savingEdit}
+                            />
+                          </div>
+                        ) : (
+                          <span className="font-medium text-slate-900">{invite.email}</span>
+                        )}
                         {getStatusBadge(invite.status)}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-slate-500 ml-8">
@@ -311,13 +385,42 @@ export default function InviteManagement() {
                       </div>
                     </div>
                     {invite.status === 'PENDING' && (
-                      <button
-                        onClick={() => handleRevokeInvite(invite.inviteCode)}
-                        className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Revoke
-                      </button>
+                      <div className="flex items-center gap-2">
+                        {editingInviteCode === invite.inviteCode ? (
+                          <>
+                            <button
+                              onClick={saveEdit}
+                              disabled={savingEdit}
+                              className="flex items-center gap-2 px-4 py-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {savingEdit ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              disabled={savingEdit}
+                              className="flex items-center gap-2 px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => startEdit(invite)}
+                            className="flex items-center gap-2 px-4 py-2 text-slate-700 hover:bg-slate-100 rounded-lg transition-colors font-medium"
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Edit
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleRevokeInvite(invite.inviteCode)}
+                          disabled={savingEdit && editingInviteCode === invite.inviteCode}
+                          className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Revoke
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>

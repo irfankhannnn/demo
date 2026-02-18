@@ -26,7 +26,7 @@ import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
-import { clearAuth, getUserProfile } from '../../utils/authStorage';
+import { getUserProfile, clearAuthSilently } from '../../utils/authStorage';
 import { redirectToLogout } from '../../utils/cognitoAuth';
 
 interface UnifiedCrmCounts {
@@ -99,7 +99,7 @@ export default function CRMDashboard() {
   };
 
   const handleLogout = () => {
-    clearAuth();
+    clearAuthSilently();
     redirectToLogout();
   };
 
@@ -178,6 +178,14 @@ export default function CRMDashboard() {
                   >
                     <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span className="hidden sm:inline text-sm">Invites</span>
+                  </Link>
+                  <Link
+                    to="/admin/members"
+                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    title="Members"
+                  >
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline text-sm">Members</span>
                   </Link>
                 </>
               )}

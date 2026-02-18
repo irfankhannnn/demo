@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield } from 'lucide-react';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
 import { isValidEmail, isValidIndianMobile, normalizeEmail, normalizeIndianPhone, normalizeWhitespace } from '../utils/validation';
-import { clearAuth, getUserProfile, setUserProfile } from '../utils/authStorage';
+import { clearAuthSilently, getUserProfile, setUserProfile } from '../utils/authStorage';
 import { redirectToLogout } from '../utils/cognitoAuth';
 import { getAgencyMembershipDescription } from '../utils/rbac';
 
@@ -196,7 +196,7 @@ export default function Profile() {
   };
 
   const handleLogout = () => {
-    clearAuth();
+    clearAuthSilently();
     redirectToLogout();
   };
 

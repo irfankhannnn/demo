@@ -20,6 +20,7 @@ import NoAccess from './pages/member/NoAccess';
 
 // Admin Pages
 import InviteManagement from './pages/admin/InviteManagement';
+import MemberManagement from './pages/admin/MemberManagement';
 
 // CRM Pages
 import CRMDashboard from './pages/crm/CRMDashboard';
@@ -163,6 +164,7 @@ function App() {
           
           {/* Admin Routes */}
           <Route path="/admin/invites" element={<ProtectedRoute><InviteManagement /></ProtectedRoute>} />
+          <Route path="/admin/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
           
           {/* CRM Routes */}
           <Route path="/crm" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />

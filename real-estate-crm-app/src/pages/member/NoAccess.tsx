@@ -1,11 +1,11 @@
 import { ShieldX, LogOut } from 'lucide-react';
-import { clearAuth } from '../../utils/authStorage';
+import { clearAuthSilently } from '../../utils/authStorage';
 import { redirectToLogout } from '../../utils/cognitoAuth';
 
 export default function NoAccess() {
 
   function handleLogout() {
-    clearAuth();
+    clearAuthSilently();
     redirectToLogout();
   }
 

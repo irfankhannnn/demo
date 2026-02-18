@@ -204,14 +204,14 @@ export async function callRegisterAdmin(
 }
 
 /**
- * Redirect the browser to the Cognito logout endpoint, then back to login page.
+ * Redirect the browser to the Cognito Hosted UI logout endpoint, then back to login page.
  */
 export function redirectToLogout(): void {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    redirect_uri: LOGOUT_URI,
+    logout_uri: LOGOUT_URI,
   });
 
   const logoutUrl = `${COGNITO_DOMAIN}/logout?${params.toString()}`;
-  window.location.href = logoutUrl;
+  window.location.replace(logoutUrl);
 }
