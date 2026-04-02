@@ -6,11 +6,12 @@ const dynamodb = new AWS.DynamoDB.DocumentClient();
 export interface AgencyConfigItem {
   TenantId: string;
   agencyName: string;
-  adminEmail: string;
+  adminEmail?: string;
+  adminPhone?: string;
   address?: string;
   city?: string;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-  notificationSettings: {
+  notificationSettings?: {
     rentedExpiryThresholdDays: number;
     meetingReminderMinutes: number;
     enableRentExpiryNotifications: boolean;
@@ -22,7 +23,7 @@ export interface AgencyConfigItem {
 }
 
 /**
- * Get agency config by TenantId (admin's Cognito sub).
+ * Get agency config by TenantId.
  */
 export async function getAgencyConfig(tenantId: string): Promise<AgencyConfigItem | null> {
   const { AGENCY_CONFIG_TABLE } = getConfig();
@@ -35,6 +36,50 @@ export async function getAgencyConfig(tenantId: string): Promise<AgencyConfigIte
     .promise();
 
   return (result.Item as AgencyConfigItem) || null;
+}
+
+/**
+ * Find agency by admin email (uses AdminEmailIndex GSI).
+ * Used to check if an admin is pre-onboarded during login.
+ */
+export async function findAgencyByAdminEmail(email: string): Promise<AgencyConfigItem | null> {
+  const { AGENCY_CONFIG_TABLE } = getConfig();
+
+  const result = await dynamodb
+    .query({
+      TableName: AGENCY_CONFIG_TABLE,
+      IndexName: 'AdminEmailIndex',
+      KeyConditionExpression: 'adminEmail = :email',
+      ExpressionAttributeValues: {
+        ':email': email.toLowerCase().trim(),
+      },
+      Limit: 1,
+    })
+    .promise();
+
+  return (result.Items?.[0] as AgencyConfigItem) || null;
+}
+
+/**
+ * Find agency by admin phone (uses AdminPhoneIndex GSI).
+ * Used to check if an admin is pre-onboarded during phone login.
+ */
+export async function findAgencyByAdminPhone(phone: string): Promise<AgencyConfigItem | null> {
+  const { AGENCY_CONFIG_TABLE } = getConfig();
+
+  const result = await dynamodb
+    .query({
+      TableName: AGENCY_CONFIG_TABLE,
+      IndexName: 'AdminPhoneIndex',
+      KeyConditionExpression: 'adminPhone = :phone',
+      ExpressionAttributeValues: {
+        ':phone': phone.trim(),
+      },
+      Limit: 1,
+    })
+    .promise();
+
+  return (result.Items?.[0] as AgencyConfigItem) || null;
 }
 
 /**

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, Mail, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield, Pencil } from 'lucide-react';
+import { UserPlus, Mail, Phone, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield, Pencil } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
 
 interface Invite {
   inviteCode: string;
-  email: string;
+  inviteeEmail?: string;
+  inviteePhone?: string;
   status: 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED';
   createdAt: string;
   expiresAt?: string;
@@ -21,6 +22,7 @@ export default function InviteManagement() {
   const [creating, setCreating] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newInviteEmail, setNewInviteEmail] = useState('');
+  const [newInvitePhone, setNewInvitePhone] = useState('');
   const [editingInviteCode, setEditingInviteCode] = useState<string | null>(null);
   const [editingEmail, setEditingEmail] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
@@ -53,7 +55,8 @@ export default function InviteManagement() {
       const data = await response.json();
       const mappedInvites: Invite[] = (data.invites || []).map((inv: any) => ({
         inviteCode: inv.inviteCode,
-        email: inv.inviteeEmail,
+        inviteeEmail: inv.inviteeEmail,
+        inviteePhone: inv.inviteePhone,
         status: inv.status,
         createdAt: inv.createdAt,
         expiresAt: inv.expiresAt,
@@ -68,10 +71,15 @@ export default function InviteManagement() {
   };
 
   const startEdit = (invite: Invite) => {
+    // Only allow editing if invite has email
+    if (!invite.inviteeEmail) {
+      setError('This invite has no email to edit. Please revoke and create a new one.');
+      return;
+    }
     setError('');
     setSuccess('');
     setEditingInviteCode(invite.inviteCode);
-    setEditingEmail(invite.email);
+    setEditingEmail(invite.inviteeEmail || '');
   };
 
   const cancelEdit = () => {
@@ -130,8 +138,23 @@ export default function InviteManagement() {
     setError('');
     setSuccess('');
 
-    if (!newInviteEmail.trim()) {
-      setError('Email is required');
+    const email = newInviteEmail.trim();
+    const phone = newInvitePhone.trim();
+
+    if (!email && !phone) {
+      setError('At least one of email or phone number is required');
+      return;
+    }
+
+    // Validate email format if provided
+    if (email && !email.includes('@')) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    // Validate phone format if provided (10 digits)
+    if (phone && !/^\d{10}$/.test(phone)) {
+      setError('Please enter a valid 10-digit phone number');
       return;
     }
 
@@ -143,24 +166,28 @@ export default function InviteManagement() {
         return;
       }
 
+      // Build request body with both fields if provided
+      const body: { email?: string; phone?: string } = {};
+      if (email) body.email = email;
+      if (phone) body.phone = phone;
+
       const response = await fetch(`${AUTH_API_URL}/invites`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({
-          email: newInviteEmail.trim(),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Failed to create invite' }));
-        throw new Error(errorData.error || 'Failed to create invite');
+        throw new Error(errorData.error || errorData.message || 'Failed to create invite');
       }
 
       setSuccess('Invite created successfully!');
       setNewInviteEmail('');
+      setNewInvitePhone('');
       setShowCreateForm(false);
       await loadInvites();
       setTimeout(() => setSuccess(''), 3000);
@@ -288,24 +315,41 @@ export default function InviteManagement() {
         {showCreateForm && (
           <div className="bg-white rounded-2xl shadow-xl border border-slate-100 p-6 mb-6">
             <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-              <Mail className="w-5 h-5 text-indigo-600" />
+              <UserPlus className="w-5 h-5 text-indigo-600" />
               Create New Invite
             </h2>
             <form onSubmit={handleCreateInvite} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  value={newInviteEmail}
-                  onChange={(e) => setNewInviteEmail(e.target.value)}
-                  className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
-                  placeholder="member@example.com"
-                  required
-                  disabled={creating}
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <Mail className="w-4 h-4 inline mr-1" />
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={newInviteEmail}
+                    onChange={(e) => setNewInviteEmail(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                    placeholder="member@example.com"
+                    disabled={creating}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <Phone className="w-4 h-4 inline mr-1" />
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={newInvitePhone}
+                    onChange={(e) => setNewInvitePhone(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none"
+                    placeholder="9876543210"
+                    disabled={creating}
+                  />
+                </div>
               </div>
+              <p className="text-xs text-slate-500">You can provide email, phone, or both. Member can login using either method.</p>
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Role
@@ -329,6 +373,7 @@ export default function InviteManagement() {
                   onClick={() => {
                     setShowCreateForm(false);
                     setNewInviteEmail('');
+                    setNewInvitePhone('');
                     setError('');
                   }}
                   className="px-6 py-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-all font-medium"
@@ -358,10 +403,10 @@ export default function InviteManagement() {
                 <div key={invite.inviteCode} className="px-6 py-4 hover:bg-slate-50 transition-colors">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Mail className="w-5 h-5 text-slate-400" />
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         {invite.status === 'PENDING' && editingInviteCode === invite.inviteCode ? (
                           <div className="flex items-center gap-2 flex-1">
+                            <Mail className="w-5 h-5 text-slate-400" />
                             <input
                               type="email"
                               value={editingEmail}
@@ -372,11 +417,27 @@ export default function InviteManagement() {
                             />
                           </div>
                         ) : (
-                          <span className="font-medium text-slate-900">{invite.email}</span>
+                          <>
+                            {invite.inviteeEmail && (
+                              <span className="flex items-center gap-1 font-medium text-slate-900">
+                                <Mail className="w-4 h-4 text-blue-500" />
+                                {invite.inviteeEmail}
+                              </span>
+                            )}
+                            {invite.inviteeEmail && invite.inviteePhone && (
+                              <span className="text-slate-400">•</span>
+                            )}
+                            {invite.inviteePhone && (
+                              <span className="flex items-center gap-1 font-medium text-slate-900">
+                                <Phone className="w-4 h-4 text-purple-500" />
+                                {invite.inviteePhone}
+                              </span>
+                            )}
+                          </>
                         )}
                         {getStatusBadge(invite.status)}
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-slate-500 ml-8">
+                      <div className="flex items-center gap-4 text-sm text-slate-500 ml-0">
                         <span>Role: <span className="font-medium text-slate-700">Member</span></span>
                         <span>Created: {new Date(invite.createdAt).toLocaleDateString()}</span>
                         {invite.acceptedAt && (

@@ -1,11 +1,18 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import { loadConfig } from './config/config';
 import authRoutes from './routes/auth';
 import inviteRoutes from './routes/invites';
 import userRoutes from './routes/users';
+import phoneAuthRoutes from './routes/phoneAuth';
+import googleAuthRoutes from './routes/googleAuth';
 
 export function createApp(): express.Application {
   const app = express();
+  
+  // Load configuration
+  const config = loadConfig();
+  app.locals.config = config;
 
   // --- Cross-cutting middleware ---
   app.use(cors());
@@ -17,6 +24,8 @@ export function createApp(): express.Application {
   });
 
   // --- Routes ---
+  app.use('/auth/google', googleAuthRoutes);
+  app.use('/auth/phone', phoneAuthRoutes);
   app.use('/auth', authRoutes);
   app.use('/invites', inviteRoutes);
   app.use('/users', userRoutes);

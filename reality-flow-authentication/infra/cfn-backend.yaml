@@ -36,16 +36,16 @@ Parameters:
     Default: ''
     Description: Optional VPC security group IDs for Lambda
 
-  # Cognito params — this stack CREATES the pool, but we keep params for org compat
-  CognitoUserPoolId:
-    Type: String
-    Default: ''
-    Description: Leave empty; this stack creates its own Cognito User Pool
+  # Cognito params — V1 params (no longer used, kept for org compat)
+  # CognitoUserPoolId:
+  #   Type: String
+  #   Default: ''
+  #   Description: Leave empty; this stack creates its own Cognito User Pool
 
-  CognitoClientId:
-    Type: String
-    Default: ''
-    Description: Leave empty; this stack creates its own Cognito Client
+  # CognitoClientId:
+  #   Type: String
+  #   Default: ''
+  #   Description: Leave empty; this stack creates its own Cognito Client
 
   LambdaPackagesBucketName:
     Type: String
@@ -103,6 +103,17 @@ Parameters:
     Default: http://localhost:3000/logout
     Description: Frontend redirect URL after Cognito logout
 
+  TestOtpEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Set to true to use a fixed OTP (skips SMS) for dev/testing
+
+  TestOtpValue:
+    Type: String
+    Default: '123456'
+    Description: The fixed OTP to use when TestOtpEnabled is true
+
 # =============================================================================
 # Conditions
 # =============================================================================
@@ -118,118 +129,118 @@ Resources:
   # ===========================================================================
   # 1. Cognito User Pool
   # ===========================================================================
-  CognitoUserPool:
-    Type: AWS::Cognito::UserPool
-    Properties:
-      UserPoolName: !Sub '${Env}-${ServiceName}-user-pool'
-      AutoVerifiedAttributes:
-        - email
-      MfaConfiguration: 'OFF'
-      Schema:
-        - Name: email
-          AttributeDataType: String
-          Mutable: true
-          Required: true
-        - Name: phone_number
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-        - Name: name
-          AttributeDataType: String
-          Mutable: true
-          Required: false
-      UsernameAttributes:
-        - email
-      UsernameConfiguration:
-        CaseSensitive: false
-      AccountRecoverySetting:
-        RecoveryMechanisms:
-          - Name: verified_email
-            Priority: 1
-          - Name: verified_phone_number
-            Priority: 2
-      Policies:
-        PasswordPolicy:
-          MinimumLength: 8
-          RequireLowercase: true
-          RequireNumbers: true
-          RequireSymbols: false
-          RequireUppercase: true
-          TemporaryPasswordValidityDays: 7
-      EmailConfiguration:
-        EmailSendingAccount: COGNITO_DEFAULT
-      VerificationMessageTemplate:
-        DefaultEmailOption: CONFIRM_WITH_CODE
-        EmailMessage: 'Your Reality Flow verification code is {####}'
-        EmailSubject: 'Reality Flow - Verification Code'
-        SmsMessage: 'Your Reality Flow code is {####}'
+  # CognitoUserPool:
+    # Type: AWS::Cognito::UserPool
+    # Properties:
+    #   UserPoolName: !Sub '${Env}-${ServiceName}-user-pool'
+    #   AutoVerifiedAttributes:
+    #     - email
+    #   MfaConfiguration: 'OFF'
+    #   Schema:
+    #     - Name: email
+    #       AttributeDataType: String
+    #       Mutable: true
+    #       Required: true
+    #     - Name: phone_number
+    #       AttributeDataType: String
+    #       Mutable: true
+    #       Required: false
+    #     - Name: name
+    #       AttributeDataType: String
+    #       Mutable: true
+    #       Required: false
+    #   UsernameAttributes:
+    #     - email
+    #   UsernameConfiguration:
+    #     CaseSensitive: false
+    #   AccountRecoverySetting:
+    #     RecoveryMechanisms:
+    #       - Name: verified_email
+    #         Priority: 1
+    #       - Name: verified_phone_number
+    #         Priority: 2
+    #   Policies:
+    #     PasswordPolicy:
+    #       MinimumLength: 8
+    #       RequireLowercase: true
+    #       RequireNumbers: true
+    #       RequireSymbols: false
+    #       RequireUppercase: true
+    #       TemporaryPasswordValidityDays: 7
+    #   EmailConfiguration:
+    #     EmailSendingAccount: COGNITO_DEFAULT
+    #   VerificationMessageTemplate:
+    #     DefaultEmailOption: CONFIRM_WITH_CODE
+    #     EmailMessage: 'Your Reality Flow verification code is {####}'
+    #     EmailSubject: 'Reality Flow - Verification Code'
+    #     SmsMessage: 'Your Reality Flow code is {####}'
 
   # ===========================================================================
   # 2. Cognito Google Identity Provider
   # ===========================================================================
-  GoogleIdentityProvider:
-    Type: AWS::Cognito::UserPoolIdentityProvider
-    Properties:
-      UserPoolId: !Ref CognitoUserPool
-      ProviderName: Google
-      ProviderType: Google
-      ProviderDetails:
-        client_id: !Ref GoogleClientId
-        client_secret: !Ref GoogleClientSecret
-        authorize_scopes: 'profile email openid'
-      AttributeMapping:
-        email: email
-        name: name
-        username: sub
+  # GoogleIdentityProvider:
+  #   Type: AWS::Cognito::UserPoolIdentityProvider
+  #   Properties:
+  #     UserPoolId: !Ref CognitoUserPool
+  #     ProviderName: Google
+  #     ProviderType: Google
+  #     ProviderDetails:
+  #       client_id: !Ref GoogleClientId
+  #       client_secret: !Ref GoogleClientSecret
+  #       authorize_scopes: 'profile email openid'
+  #     AttributeMapping:
+  #       email: email
+  #       name: name
+  #       username: sub
 
   # ===========================================================================
   # 3. Cognito User Pool Client
   # ===========================================================================
-  UserPoolClient:
-    Type: AWS::Cognito::UserPoolClient
-    DependsOn: GoogleIdentityProvider
-    Properties:
-      ClientName: !Sub '${Env}-${ServiceName}-client'
-      UserPoolId: !Ref CognitoUserPool
-      GenerateSecret: false
-      ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_SRP_AUTH
-        - ALLOW_ADMIN_USER_PASSWORD_AUTH
-      PreventUserExistenceErrors: ENABLED
-      AllowedOAuthFlows:
-        - code
-        - implicit
-      AllowedOAuthFlowsUserPoolClient: true
-      AllowedOAuthScopes:
-        - phone
-        - email
-        - openid
-        - profile
-      SupportedIdentityProviders:
-        - COGNITO
-        - Google
-      CallbackURLs:
-        - !Ref IdentityCallbackURL
-      LogoutURLs:
-        - !Ref IdentityLogoutURL
-      TokenValidityUnits:
-        AccessToken: hours
-        IdToken: hours
-        RefreshToken: days
-      AccessTokenValidity: 1
-      IdTokenValidity: 1
-      RefreshTokenValidity: 30
+  # UserPoolClient:
+  #   Type: AWS::Cognito::UserPoolClient
+  #   DependsOn: GoogleIdentityProvider
+  #   Properties:
+  #     ClientName: !Sub '${Env}-${ServiceName}-client'
+  #     UserPoolId: !Ref CognitoUserPool
+  #     GenerateSecret: false
+  #     ExplicitAuthFlows:
+  #       - ALLOW_USER_PASSWORD_AUTH
+  #       - ALLOW_REFRESH_TOKEN_AUTH
+  #       - ALLOW_USER_SRP_AUTH
+  #       - ALLOW_ADMIN_USER_PASSWORD_AUTH
+  #     PreventUserExistenceErrors: ENABLED
+  #     AllowedOAuthFlows:
+  #       - code
+  #       - implicit
+  #     AllowedOAuthFlowsUserPoolClient: true
+  #     AllowedOAuthScopes:
+  #       - phone
+  #       - email
+  #       - openid
+  #       - profile
+  #     SupportedIdentityProviders:
+  #       - COGNITO
+  #       - Google
+  #     CallbackURLs:
+  #       - !Ref IdentityCallbackURL
+  #     LogoutURLs:
+  #       - !Ref IdentityLogoutURL
+  #     TokenValidityUnits:
+  #       AccessToken: hours
+  #       IdToken: hours
+  #       RefreshToken: days
+  #     AccessTokenValidity: 1
+  #     IdTokenValidity: 1
+  #     RefreshTokenValidity: 30
 
   # ===========================================================================
   # 4. Cognito Hosted UI Domain
   # ===========================================================================
-  UserPoolDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: !Ref CognitoDomainPrefix
-      UserPoolId: !Ref CognitoUserPool
+  # UserPoolDomain:
+  #   Type: AWS::Cognito::UserPoolDomain
+  #   Properties:
+  #     Domain: !Ref CognitoDomainPrefix
+  #     UserPoolId: !Ref CognitoUserPool
 
   # ===========================================================================
   # 4.1. Cognito SMS Role (Required for Phone Authentication)
@@ -397,9 +408,15 @@ Resources:
           AttributeType: S
         - AttributeName: GSI_SubSK
           AttributeType: S
+        - AttributeName: GSI_UserIdPK
+          AttributeType: S
         - AttributeName: GSI_EmailPK
           AttributeType: S
         - AttributeName: GSI_EmailSK
+          AttributeType: S
+        - AttributeName: GSI_PhonePK
+          AttributeType: S
+        - AttributeName: GSI_PhoneSK
           AttributeType: S
       KeySchema:
         - AttributeName: TenantId
@@ -415,11 +432,25 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+        - IndexName: UserIdIndex
+          KeySchema:
+            - AttributeName: GSI_UserIdPK
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
         - IndexName: EmailIndex
           KeySchema:
             - AttributeName: GSI_EmailPK
               KeyType: HASH
             - AttributeName: GSI_EmailSK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: PhoneIndex
+          KeySchema:
+            - AttributeName: GSI_PhonePK
+              KeyType: HASH
+            - AttributeName: GSI_PhoneSK
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
@@ -457,8 +488,40 @@ Resources:
       AttributeDefinitions:
         - AttributeName: TenantId
           AttributeType: S
+        - AttributeName: adminEmail
+          AttributeType: S
+        - AttributeName: adminPhone
+          AttributeType: S
       KeySchema:
         - AttributeName: TenantId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: AdminEmailIndex
+          KeySchema:
+            - AttributeName: adminEmail
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: AdminPhoneIndex
+          KeySchema:
+            - AttributeName: adminPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ===========================================================================
+  # 7b. DynamoDB — Auth Identities Table
+  # ===========================================================================
+  AuthIdentitiesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-auth-identities'
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
           KeyType: HASH
 
   # ===========================================================================
@@ -517,7 +580,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-define-auth-challenge'
-      Runtime: nodejs18.x
+      Runtime: nodejs16.x
       Handler: index.handler
       Role: !GetAtt CognitoTriggerLambdaRole.Arn
       Timeout: 30
@@ -554,7 +617,125 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-create-auth-challenge'
-      Runtime: nodejs18.x
+      Runtime: nodejs16.x
+      Handler: index.handler
+      Role: !GetAtt CognitoTriggerLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 128
+      Environment:
+        Variables:
+          OTP_TABLE: !Ref OtpTable
+          TEST_OTP_ENABLED: !Ref TestOtpEnabled
+          TEST_OTP_VALUE: !Ref TestOtpValue
+      Code:
+        ZipFile: |
+          const AWS = require('aws-sdk');
+          const crypto = require('crypto');
+          const ddb = new AWS.DynamoDB.DocumentClient();
+          const cognito = new AWS.CognitoIdentityServiceProvider();
+          
+          function phoneToCognitoUsername(phoneNumberE164) {
+            const digitsOnly = phoneNumberE164.replace(/\D/g, '');
+            return `${digitsOnly}@phone.realityflow.local`;
+          }
+          
+          exports.handler = async (event) => {
+            try {
+              // Extract phone number from user attributes
+              const phoneNumber = event.request.userAttributes?.phone_number;
+              if (!phoneNumber) {
+                throw new Error('phone_number attribute missing');
+              }
+              
+              const testOtpEnabled = (process.env.TEST_OTP_ENABLED || '').toLowerCase() === 'true';
+              const testOtpValue = process.env.TEST_OTP_VALUE || '123456';
+              console.log('CreateAuthChallenge config', {
+                userPoolId: event.userPoolId,
+                phoneNumber,
+                testOtpEnabled,
+                usingFixedOtp: testOtpEnabled,
+              });
+              
+              const cognitoUsername = phoneToCognitoUsername(phoneNumber);
+              
+              // Only generate and send OTP on FIRST challenge (not retries)
+              const isFirstChallenge = !event.request.session || event.request.session.length === 0;
+              
+              if (isFirstChallenge) {
+                // Ensure user exists (safety net - backend should already do this)
+                try {
+                  await cognito.adminGetUser({
+                    UserPoolId: event.userPoolId,
+                    Username: cognitoUsername
+                  }).promise();
+                } catch (err) {
+                  if (err.code === 'UserNotFoundException') {
+                    await cognito.adminCreateUser({
+                      UserPoolId: event.userPoolId,
+                      Username: cognitoUsername,
+                      UserAttributes: [
+                        { Name: 'phone_number', Value: phoneNumber },
+                        { Name: 'phone_number_verified', Value: 'false' }
+                      ],
+                      MessageAction: 'SUPPRESS'
+                    }).promise();
+                  } else {
+                    throw err;
+                  }
+                }
+                
+                const otp = testOtpEnabled ? testOtpValue : Math.floor(100000 + Math.random() * 900000).toString();
+                const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+                const ttl = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+                
+                // Store OTP
+                await ddb.put({
+                  TableName: process.env.OTP_TABLE,
+                  Item: {
+                    PhoneNumber: phoneNumber,
+                    SK: 'OTP#LOGIN',
+                    otpHash,
+                    attempts: 0,
+                    createdAt: Date.now(),
+                    ttl
+                  }
+                }).promise();
+                
+                if (!testOtpEnabled) {
+                  // Send OTP via SNS (skipped in dev/test mode)
+                  const sns = new AWS.SNS();
+                  await sns.publish({
+                    PhoneNumber: phoneNumber,
+                    Message: `Your verification code is ${otp}. Valid for 5 minutes.`
+                  }).promise();
+                }
+                
+                console.log('CreateAuthChallenge OTP stored', {
+                  phoneNumber,
+                  testOtpEnabled,
+                  otpLength: otp.length,
+                });
+                
+                event.response.publicChallengeParameters = { phoneNumber };
+                event.response.privateChallengeParameters = { otpHash };
+              } else {
+                // Retry - don't send new OTP, return existing challenge params
+                event.response.publicChallengeParameters = { phoneNumber };
+                event.response.privateChallengeParameters = {};
+              }
+              
+              return event;
+            } catch (error) {
+              console.error('CreateAuthChallenge error:', error);
+              throw error;
+            }
+          };
+
+  VerifyAuthChallengeResponseLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-verify-auth-challenge'
+      Runtime: nodejs16.x
       Handler: index.handler
       Role: !GetAtt CognitoTriggerLambdaRole.Arn
       Timeout: 30
@@ -576,101 +757,13 @@ Resources:
           
           exports.handler = async (event) => {
             try {
-              // Extract phone number from user attributes
-              const phoneNumber = event.request.userAttributes?.phone_number;
-              if (!phoneNumber) {
-                throw new Error('phone_number attribute missing');
-              }
-              
-              const cognitoUsername = phoneToCognitoUsername(phoneNumber);
-              
-              // Only generate and send OTP on FIRST challenge (not retries)
-              const isFirstChallenge = !event.request.session || event.request.session.length === 0;
-              
-              if (isFirstChallenge) {
-                // Ensure user exists (safety net - backend should already do this)
-                try {
-                  await cognito.adminGetUser({
-                    UserPoolId: event.userPoolId,
-                    Username: cognitoUsername
-                  }).promise();
-                } catch (err) {
-                  if (err.code === 'UserNotFoundException') {
-                    await cognito.adminCreateUser({
-                      UserPoolId: event.userPoolId,
-                      Username: cognitoUsername,
-                      UserAttributes: [
-                        { Name: 'phone_number', Value: phoneNumber },
-                        { Name: 'phone_number_verified', Value: 'true' }
-                      ],
-                      MessageAction: 'SUPPRESS'
-                    }).promise();
-                  } else {
-                    throw err;
-                  }
-                }
-                
-                const otp = Math.floor(100000 + Math.random() * 900000).toString();
-                const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
-                const ttl = Math.floor(Date.now() / 1000) + 300; // 5 minutes
-                
-                // Store OTP
-                await ddb.put({
-                  TableName: process.env.OTP_TABLE,
-                  Item: {
-                    PhoneNumber: phoneNumber,
-                    SK: 'OTP#LOGIN',
-                    otpHash,
-                    attempts: 0,
-                    createdAt: Date.now(),
-                    ttl
-                  }
-                }).promise();
-                
-                // Send OTP via SNS
-                const sns = new AWS.SNS();
-                await sns.publish({
-                  PhoneNumber: phoneNumber,
-                  Message: `Your verification code is ${otp}. Valid for 5 minutes.`
-                }).promise();
-                
-                event.response.publicChallengeParameters = { phoneNumber };
-                event.response.privateChallengeParameters = { otpHash };
-              } else {
-                // Retry - don't send new OTP, return existing challenge params
-                event.response.publicChallengeParameters = { phoneNumber };
-                event.response.privateChallengeParameters = {};
-              }
-              
-              return event;
-            } catch (error) {
-              console.error('CreateAuthChallenge error:', error);
-              throw error;
-            }
-          };
-
-  VerifyAuthChallengeResponseLambda:
-    Type: AWS::Lambda::Function
-    Properties:
-      FunctionName: !Sub '${Env}-${ServiceName}-verify-auth-challenge'
-      Runtime: nodejs18.x
-      Handler: index.handler
-      Role: !GetAtt CognitoTriggerLambdaRole.Arn
-      Timeout: 30
-      MemorySize: 128
-      Environment:
-        Variables:
-          OTP_TABLE: !Ref OtpTable
-      Code:
-        ZipFile: |
-          const AWS = require('aws-sdk');
-          const crypto = require('crypto');
-          const ddb = new AWS.DynamoDB.DocumentClient();
-          
-          exports.handler = async (event) => {
-            try {
               const phoneNumber = event.request.userAttributes?.phone_number;
               const answer = event.request.challengeAnswer;
+              console.log('VerifyAuthChallenge request', {
+                userPoolId: event.userPoolId,
+                phoneNumber,
+                hasAnswer: !!answer,
+              });
               
               if (!phoneNumber || !answer) {
                 event.response.answerCorrect = false;
@@ -717,6 +810,11 @@ Resources:
               // Verify OTP
               const answerHash = crypto.createHash('sha256').update(answer).digest('hex');
               const isCorrect = answerHash === otpRecord.otpHash;
+              console.log('VerifyAuthChallenge comparison', {
+                phoneNumber,
+                isCorrect,
+                attempts: otpRecord.attempts,
+              });
               
               if (isCorrect) {
                 // Delete OTP on success
@@ -776,12 +874,25 @@ Resources:
                   - !GetAtt UsersTable.Arn
                   - !GetAtt AgencyConfigTable.Arn
                   - !GetAtt OtpTable.Arn
+                  - !GetAtt AuthIdentitiesTable.Arn
               - Effect: Allow
                 Action:
                   - dynamodb:Query
                 Resource:
-                  - !Sub '${UsersTable.Arn}/index/SubIndex'
+                  - !Sub '${UsersTable.Arn}/index/UserIdIndex'
                   - !Sub '${UsersTable.Arn}/index/EmailIndex'
+                  - !Sub '${UsersTable.Arn}/index/PhoneIndex'
+                  - !GetAtt AgencyConfigTable.Arn
+                  - !Sub '${AgencyConfigTable.Arn}/index/AdminEmailIndex'
+                  - !Sub '${AgencyConfigTable.Arn}/index/AdminPhoneIndex'
+        - PolicyName: SNSPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: '*'
         - PolicyName: CognitoReadAccess
           PolicyDocument:
             Version: '2012-10-17'
@@ -794,7 +905,6 @@ Resources:
                   - cognito-idp:AdminInitiateAuth
                   - cognito-idp:RespondToAuthChallenge
                 Resource:
-                  - !GetAtt CognitoUserPool.Arn
                   - !GetAtt CognitoUserPoolV2.Arn
 
   # ===========================================================================
@@ -812,13 +922,14 @@ Resources:
       Environment:
         Variables:
           USERS_TABLE: !Ref UsersTable
+          AUTH_IDENTITIES_TABLE: !Ref AuthIdentitiesTable
           AGENCY_CONFIG_TABLE: !Ref AgencyConfigTable
-          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
-          COGNITO_CLIENT_ID: !Ref UserPoolClient
-          COGNITO_USER_POOL_ID_V2: !Ref CognitoUserPoolV2
-          COGNITO_CLIENT_ID_V2: !Ref UserPoolClientV2
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolV2
+          COGNITO_CLIENT_ID: !Ref UserPoolClientV2
+          COGNITO_HOSTED_UI_DOMAIN: !Sub 'https://${UserPoolDomainV2}.auth.${AWS::Region}.amazoncognito.com'
           AWS_REGION_NAME: !Ref 'AWS::Region'
           ENV: !Ref Env
+          OTP_TABLE: !Ref OtpTable
       Code:
         S3Bucket: !Ref LambdaPackagesBucketName
         S3Key: !Sub '${ServiceName}/function.zip'
@@ -879,7 +990,6 @@ Resources:
       Type: COGNITO_USER_POOLS
       IdentitySource: method.request.header.Authorization
       ProviderARNs:
-        - !GetAtt CognitoUserPool.Arn
         - !GetAtt CognitoUserPoolV2.Arn
 
   # ===========================================================================
@@ -1006,34 +1116,10 @@ Resources:
       DeploymentId: !Ref ApiDeployment
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
-
-# =============================================================================
 # Outputs
 # =============================================================================
 Outputs:
-  CognitoUserPoolId:
-    Description: Cognito User Pool ID
-    Value: !Ref CognitoUserPool
-    Export:
-      Name: !Sub '${AWS::StackName}-CognitoUserPoolId'
-
-  CognitoUserPoolArn:
-    Description: Cognito User Pool ARN
-    Value: !GetAtt CognitoUserPool.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-CognitoUserPoolArn'
-
-  CognitoClientId:
-    Description: Cognito User Pool Client ID
-    Value: !Ref UserPoolClient
-    Export:
-      Name: !Sub '${AWS::StackName}-CognitoClientId'
-
-  CognitoHostedUIDomain:
-    Description: Cognito Hosted UI Domain
-    Value: !Sub 'https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
-    Export:
-      Name: !Sub '${AWS::StackName}-CognitoHostedUIDomain'
+  # V1 outputs removed - resources deprecated
 
   AuthApiEndpoint:
     Description: Auth API Gateway Endpoint URL
@@ -1064,6 +1150,18 @@ Outputs:
     Value: !GetAtt UsersTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-UsersTableArn'
+
+  AuthIdentitiesTableName:
+    Description: DynamoDB Auth Identities Table Name
+    Value: !Ref AuthIdentitiesTable
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthIdentitiesTableName'
+
+  AuthIdentitiesTableArn:
+    Description: DynamoDB Auth Identities Table ARN
+    Value: !GetAtt AuthIdentitiesTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthIdentitiesTableArn'
 
   AgencyConfigTableName:
     Description: DynamoDB Agency Config Table Name

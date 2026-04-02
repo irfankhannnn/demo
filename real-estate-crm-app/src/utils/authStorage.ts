@@ -10,6 +10,7 @@ const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
 const USER_PROFILE_KEY = 'auth_user_profile';
 const PROFILE_TIMESTAMP_KEY = 'auth_profile_timestamp';
+const ONBOARDING_SESSION_KEY = 'auth_onboarding_session';
 
 // --- Legacy key (to clean up) ---
 const LEGACY_ADMIN_TOKEN_KEY = 'admin_token';
@@ -26,8 +27,9 @@ function notifyAuthChanged(): void {
 }
 
 export interface UserProfile {
+  userId: string;
   cognitoSub: string;
-  email: string;
+  email?: string;
   phoneNumber?: string;
   role: 'ADMIN' | 'MEMBER';
   tenantId: string;
@@ -35,6 +37,10 @@ export interface UserProfile {
   status: string;
   createdAt?: string;
   lastLoginAt?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+  pendingEmail?: string;
+  pendingPhoneNumber?: string;
   agency?: {
     agencyName: string;
     address?: string;
@@ -48,6 +54,25 @@ export interface UserProfile {
       enableKhataReminders: boolean;
     };
   } | null;
+}
+
+export function setOnboardingSession(active: boolean, notify = true): void {
+  console.log('[authStorage] setOnboardingSession:', active);
+  if (active) {
+    localStorage.setItem(ONBOARDING_SESSION_KEY, 'true');
+  } else {
+    localStorage.removeItem(ONBOARDING_SESSION_KEY);
+  }
+
+  if (notify) {
+    notifyAuthChanged();
+  }
+}
+
+export function hasOnboardingSession(): boolean {
+  const result = localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
+  console.log('[authStorage] hasOnboardingSession:', result);
+  return result;
 }
 
 // --- Token operations ---
@@ -126,6 +151,7 @@ export function clearAuthSilently(): void {
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
+  localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
 }
 
@@ -136,6 +162,7 @@ export function clearAuth(): void {
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
+  localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
 
   notifyAuthChanged();

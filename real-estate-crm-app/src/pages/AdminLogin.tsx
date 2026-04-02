@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock } from 'lucide-react';
+import { Lock, Smartphone } from 'lucide-react';
 import { redirectToLogin } from '../utils/cognitoAuth';
 import { isAuthenticated } from '../utils/authStorage';
 
@@ -62,6 +62,26 @@ export default function AdminLogin() {
                 Continue with Google
               </>
             )}
+          </button>
+
+          {/* Divider */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+            </div>
+          </div>
+
+          {/* Phone Sign-In */}
+          <button
+            onClick={() => navigate('/phone-login')}
+            disabled={loading}
+            className="w-full bg-white border-2 border-indigo-600 text-indigo-600 py-3.5 rounded-xl font-semibold hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+          >
+            <Smartphone className="w-5 h-5" />
+            Continue with Phone
           </button>
 
           <div className="text-center">

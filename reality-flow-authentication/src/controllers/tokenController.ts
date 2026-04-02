@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import axios from 'axios';
 import { getConfig } from '../config/config';
 import { ok, badRequest, internalError } from '../utils/http';
+import { GOOGLE_AUTH_ERRORS } from '../types/errors';
 
 /**
  * POST /auth/token
@@ -10,6 +11,9 @@ import { ok, badRequest, internalError } from '../utils/http';
  */
 export async function exchangeToken(req: Request, res: Response): Promise<void> {
   const { code, code_verifier, redirect_uri } = req.body;
+
+  console.log(`CODE: ${code},CODE VERIFIER: ${code_verifier}, REDIRECT URI ${redirect_uri}`);
+  
 
   if (!code || !code_verifier || !redirect_uri) {
     badRequest(res, 'Missing required fields: code, code_verifier, redirect_uri');
@@ -56,15 +60,48 @@ export async function exchangeToken(req: Request, res: Response): Promise<void> 
     console.error('[TOKEN_EXCHANGE] Failed:', error.response?.data || error.message);
     
     if (error.response) {
-      // Forward Cognito error to frontend
+      const cognitoError = error.response.data;
+      
+      // Handle specific Google OAuth errors
+      if (cognitoError.error === 'invalid_grant') {
+        if (cognitoError.error_description?.includes('authorization code') || 
+            cognitoError.error_description?.includes('expired')) {
+          res.status(400).json({
+            error: GOOGLE_AUTH_ERRORS.INVALID_AUTH_CODE.code,
+            message: GOOGLE_AUTH_ERRORS.INVALID_AUTH_CODE.message,
+            retryable: GOOGLE_AUTH_ERRORS.INVALID_AUTH_CODE.retryable,
+            details: cognitoError.error_description,
+          });
+          return;
+        }
+      }
+      
+      if (cognitoError.error === 'access_denied') {
+        res.status(403).json({
+          error: GOOGLE_AUTH_ERRORS.ACCESS_DENIED.code,
+          message: GOOGLE_AUTH_ERRORS.ACCESS_DENIED.message,
+          retryable: GOOGLE_AUTH_ERRORS.ACCESS_DENIED.retryable,
+          details: cognitoError.error_description,
+        });
+        return;
+      }
+      
+      // Forward other Cognito errors with better formatting
       res.status(error.response.status).json({
-        error: error.response.data.error || 'token_exchange_failed',
-        error_description: error.response.data.error_description || 'Failed to exchange authorization code',
+        error: cognitoError.error || GOOGLE_AUTH_ERRORS.TOKEN_EXCHANGE_FAILED.code,
+        message: cognitoError.error_description || GOOGLE_AUTH_ERRORS.TOKEN_EXCHANGE_FAILED.message,
+        retryable: false,
+        details: cognitoError,
       });
       return;
     }
 
-    internalError(res, 'Token exchange failed');
+    // Network or other errors
+    res.status(500).json({
+      error: GOOGLE_AUTH_ERRORS.NETWORK_ERROR.code,
+      message: GOOGLE_AUTH_ERRORS.NETWORK_ERROR.message,
+      retryable: GOOGLE_AUTH_ERRORS.NETWORK_ERROR.retryable,
+    });
   }
 }
 

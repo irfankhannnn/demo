@@ -10,7 +10,8 @@ export interface InviteItem {
   entityType: 'INVITE';
   inviteCode: string;
   invitedBySub: string;
-  inviteeEmail: string;
+  inviteeEmail?: string;  // Optional - can have both email and phone
+  inviteePhone?: string;  // Optional - can have both email and phone
   intendedRole: 'MEMBER';
   status: 'PENDING' | 'ACCEPTED' | 'EXPIRED' | 'REVOKED';
   expiresAt: string;
@@ -18,23 +19,31 @@ export interface InviteItem {
   updatedAt: string;
   GSI_SubPK: string;
   GSI_SubSK: string;
-  GSI_EmailPK: string;
-  GSI_EmailSK: string;
+  GSI_EmailPK?: string;  // Optional - populated if inviteeEmail provided
+  GSI_EmailSK?: string;  // Optional - populated if inviteeEmail provided
+  GSI_PhonePK?: string;  // Optional - populated if inviteePhone provided
+  GSI_PhoneSK?: string;  // Optional - populated if inviteePhone provided
 }
 
 /**
  * Create a new invite for a member.
+ * Supports dual-contact invites: both email and phone can be provided.
  */
 export async function createInvite(params: {
   tenantId: string;
   invitedBySub: string;
-  inviteeEmail: string;
+  inviteeEmail?: string;
+  inviteePhone?: string;
   expiresInDays?: number;
 }): Promise<InviteItem> {
   const { USERS_TABLE } = getConfig();
   const now = new Date().toISOString();
   const inviteCode = uuidv4();
   const expiresInDays = params.expiresInDays ?? 7;
+
+  if (!params.inviteeEmail && !params.inviteePhone) {
+    throw new Error('Either inviteeEmail or inviteePhone must be provided');
+  }
 
   const expiryDate = new Date();
   expiryDate.setDate(expiryDate.getDate() + expiresInDays);
@@ -45,7 +54,6 @@ export async function createInvite(params: {
     entityType: 'INVITE',
     inviteCode,
     invitedBySub: params.invitedBySub,
-    inviteeEmail: params.inviteeEmail,
     intendedRole: 'MEMBER',
     status: 'PENDING',
     expiresAt: expiryDate.toISOString(),
@@ -53,9 +61,21 @@ export async function createInvite(params: {
     updatedAt: now,
     GSI_SubPK: `INVITE#${inviteCode}`,
     GSI_SubSK: `TENANT#${params.tenantId}`,
-    GSI_EmailPK: `EMAIL#${params.inviteeEmail.toLowerCase()}`,
-    GSI_EmailSK: `INVITE#${inviteCode}`,
   };
+
+  // Add email fields if provided
+  if (params.inviteeEmail) {
+    item.inviteeEmail = params.inviteeEmail.toLowerCase().trim();
+    item.GSI_EmailPK = `EMAIL#${params.inviteeEmail.toLowerCase().trim()}`;
+    item.GSI_EmailSK = `INVITE#${inviteCode}`;
+  }
+
+  // Add phone fields if provided
+  if (params.inviteePhone) {
+    item.inviteePhone = params.inviteePhone;
+    item.GSI_PhonePK = `PHONE#${params.inviteePhone}`;
+    item.GSI_PhoneSK = `INVITE#${inviteCode}`;
+  }
 
   await dynamodb.put({ TableName: USERS_TABLE, Item: item }).promise();
   return item;
@@ -76,6 +96,30 @@ export async function findInvitesByEmail(email: string): Promise<InviteItem[]> {
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: {
         ':emailPk': `EMAIL#${email.toLowerCase()}`,
+        ':et': 'INVITE',
+        ':pending': 'PENDING',
+      },
+    })
+    .promise();
+
+  return (result.Items || []) as InviteItem[];
+}
+
+/**
+ * Find pending invites by phone number using PhoneIndex GSI.
+ */
+export async function findInvitesByPhone(phone: string): Promise<InviteItem[]> {
+  const { USERS_TABLE } = getConfig();
+
+  const result = await dynamodb
+    .query({
+      TableName: USERS_TABLE,
+      IndexName: 'PhoneIndex',
+      KeyConditionExpression: 'GSI_PhonePK = :phonePk',
+      FilterExpression: 'entityType = :et AND #status = :pending',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':phonePk': `PHONE#${phone}`,
         ':et': 'INVITE',
         ':pending': 'PENDING',
       },
@@ -115,6 +159,20 @@ export async function markInviteAccepted(tenantId: string, inviteCode: string): 
       UpdateExpression: 'SET #status = :status, updatedAt = :now',
       ExpressionAttributeNames: { '#status': 'status' },
       ExpressionAttributeValues: { ':status': 'ACCEPTED', ':now': now },
+    })
+    .promise();
+}
+
+/**
+ * Delete an invite after it has been successfully consumed.
+ */
+export async function deleteInvite(tenantId: string, inviteCode: string): Promise<void> {
+  const { USERS_TABLE } = getConfig();
+
+  await dynamodb
+    .delete({
+      TableName: USERS_TABLE,
+      Key: { TenantId: tenantId, SK: `INVITE#${inviteCode}` },
     })
     .promise();
 }

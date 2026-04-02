@@ -1,11 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
-import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh } from './utils/authStorage';
+import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession } from './utils/authStorage';
 import { callMe } from './utils/cognitoAuth';
 
 // Pages
 import AdminLogin from './pages/AdminLogin';
+import PhoneLogin from './pages/PhoneLogin';
 import AuthCallback from './pages/AuthCallback';
 import Profile from './pages/Profile';
 
@@ -66,10 +67,15 @@ function App() {
 
   useEffect(() => {
     async function initAuth() {
+      console.log('[App] initAuth called');
       if (!checkAuth()) {
+        console.log('[App] No auth found - setting unauthenticated');
         setAuthState('unauthenticated');
         return;
       }
+
+      const onboardingActive = hasOnboardingSession();
+      console.log('[App] Onboarding session active:', onboardingActive);
 
       // Check if we have a fresh cached profile (< 60s old)
       const cachedProfile = getUserProfile();
@@ -83,11 +89,15 @@ function App() {
 
       // Profile is stale or missing — refresh via /auth/me
       const idToken = getIdToken();
+      console.log('[App] ID token exists:', !!idToken);
       if (idToken) {
         try {
+          console.log('[App] Calling /auth/me...');
           const meResult = await callMe(idToken);
           const meData = meResult.data || meResult;
+          console.log('[App] /auth/me success');
           setUserProfile({
+            userId: meData.user.userId,
             cognitoSub: meData.user.cognitoSub,
             email: meData.user.email,
             phoneNumber: meData.user.phoneNumber,
@@ -99,12 +109,37 @@ function App() {
             lastLoginAt: meData.user.lastLoginAt,
             agency: meData.agency,
           });
+          setAuthState('authenticated');
+          return;
         } catch (err) {
-          // Continue with cached profile if /auth/me fails
+          console.log('[App] /auth/me failed:', err);
+          if (onboardingActive) {
+            console.log('[App] Onboarding active - preserving auth state');
+            setAuthState('authenticated');
+            return;
+          }
+
+          if (!cachedProfile) {
+            console.log('[App] No cached profile - clearing auth');
+            clearAuth();
+            setAuthState('unauthenticated');
+            return;
+          }
         }
       }
 
-      setAuthState('authenticated');
+      if (cachedProfile) {
+        setAuthState('authenticated');
+        return;
+      }
+
+      if (onboardingActive) {
+        setAuthState('authenticated');
+        return;
+      }
+
+      clearAuth();
+      setAuthState('unauthenticated');
     }
 
     const handleAuthChanged = () => {
@@ -143,6 +178,7 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<AdminLogin />} />
+          <Route path="/phone-login" element={<PhoneLogin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           
           {/* Onboarding Routes (authenticated but not registered) */}

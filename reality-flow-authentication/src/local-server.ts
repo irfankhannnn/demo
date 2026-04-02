@@ -26,9 +26,14 @@ localApp.use('/health', (_req, res) => {
   res.json({ status: 'ok', service: 'reality-flow-auth', mode: 'local', timestamp: new Date().toISOString() });
 });
 
-// Skip auth middleware for token exchange endpoints (they don't require auth)
+// Skip auth middleware for public endpoints (they don't require auth)
 localApp.use((req, res, next) => {
-  const publicPaths = ['/auth/token', '/auth/refresh'];
+  const publicPaths = [
+    '/auth/token',
+    '/auth/refresh',
+    '/auth/phone/start',
+    '/auth/phone/confirm',
+  ];
   if (publicPaths.includes(req.path)) {
     next();
   } else {

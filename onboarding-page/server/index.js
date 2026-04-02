@@ -28,18 +28,14 @@ app.post('/api/onboard', async (req, res) => {
   try {
     const {
       agencyName,
-      adminUsername,
-      adminPassword,
-      contactEmail,
-      contactPhone,
+      adminEmail,
+      adminPhone,
     } = req.body || {};
 
     const result = await onboardTenant({
       agencyName,
-      adminUsername,
-      adminPassword,
-      contactEmail,
-      contactPhone,
+      adminEmail,
+      adminPhone,
     });
 
     res.json(result);

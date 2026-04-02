@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield } from 'lucide-react';
+import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield, Plus, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
-import { isValidEmail, isValidIndianMobile, normalizeEmail, normalizeIndianPhone, normalizeWhitespace } from '../utils/validation';
+import { normalizeWhitespace } from '../utils/validation';
 import { clearAuthSilently, getUserProfile, setUserProfile } from '../utils/authStorage';
-import { redirectToLogout } from '../utils/cognitoAuth';
+import { redirectToLogout, callMe } from '../utils/cognitoAuth';
 import { getAgencyMembershipDescription } from '../utils/rbac';
+import { startEmailLink, startPhoneLink, verifyPhoneLink } from '../services/contactLinkApi';
 
 interface ProfileData {
   displayName: string;
@@ -35,6 +36,21 @@ export default function Profile() {
     role: 'Admin',
   });
 
+  // Contact linking state
+  const [showAddEmail, setShowAddEmail] = useState(false);
+  const [showAddPhone, setShowAddPhone] = useState(false);
+  const [showPhoneOtp, setShowPhoneOtp] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [phoneOtp, setPhoneOtp] = useState('');
+  const [linkingLoading, setLinkingLoading] = useState(false);
+  const [linkMessage, setLinkMessage] = useState('');
+  const [linkError, setLinkError] = useState('');
+  const [pendingEmail, setPendingEmail] = useState<string | undefined>();
+  const [pendingPhone, setPendingPhone] = useState<string | undefined>();
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [phoneVerified, setPhoneVerified] = useState(false);
+
   useEffect(() => {
     loadProfile();
   }, []);
@@ -58,17 +74,14 @@ export default function Profile() {
         city: profile.agency?.city || '',
         role: profile.role === 'ADMIN' ? 'Admin' : 'Member',
       });
+      setPendingEmail(profile.pendingEmail);
+      setPendingPhone(profile.pendingPhoneNumber);
+      setEmailVerified(profile.emailVerified ?? !!profile.email);
+      setPhoneVerified(profile.phoneVerified ?? !!profile.phoneNumber);
     } catch (err) {
       setError('Failed to load profile');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePhoneBlur = () => {
-    const normalized = formData.phone ? normalizeIndianPhone(formData.phone) : '';
-    if (normalized) {
-      setFormData((prev) => ({ ...prev, phone: normalized }));
     }
   };
 
@@ -77,25 +90,13 @@ export default function Profile() {
     setError('');
     setSuccess('');
 
-    const cleanedEmail = normalizeEmail(formData.email);
     const cleanedDisplayName = normalizeWhitespace(formData.displayName);
-    const cleanedPhone = formData.phone ? normalizeIndianPhone(formData.phone) : '';
     const cleanedCompanyName = normalizeWhitespace(formData.companyName);
     const cleanedAddress = normalizeWhitespace(formData.address);
     const cleanedCity = normalizeWhitespace(formData.city);
 
     if (!cleanedCompanyName) {
       setError('Company name is required');
-      return;
-    }
-
-    if (!isValidEmail(cleanedEmail)) {
-      setError('Please enter a valid email address');
-      return;
-    }
-
-    if (formData.phone && !isValidIndianMobile(formData.phone)) {
-      setError('Please enter a valid Indian mobile number (10 digits)');
       return;
     }
 
@@ -113,10 +114,8 @@ export default function Profile() {
       const profile = getUserProfile();
       const isAdmin = profile?.role === 'ADMIN';
 
-      // Update user profile fields (displayName, phoneNumber)
-      const userProfileChanged = 
-        cleanedDisplayName !== (profile?.displayName || '') || 
-        cleanedPhone !== (profile?.phoneNumber || '');
+      // Update user profile fields (displayName only)
+      const userProfileChanged = cleanedDisplayName !== (profile?.displayName || '');
 
       if (userProfileChanged) {
         const profileResponse = await fetch(`${authApiUrl}/auth/profile`, {
@@ -127,7 +126,6 @@ export default function Profile() {
           },
           body: JSON.stringify({
             displayName: cleanedDisplayName,
-            phoneNumber: cleanedPhone,
           }),
         });
 
@@ -173,6 +171,7 @@ export default function Profile() {
       if (meResponse.ok) {
         const meData = await meResponse.json();
         setUserProfile({
+          userId: meData.user.userId,
           cognitoSub: meData.user.cognitoSub,
           email: meData.user.email,
           phoneNumber: meData.user.phoneNumber,
@@ -182,6 +181,10 @@ export default function Profile() {
           status: meData.user.status,
           createdAt: meData.user.createdAt,
           lastLoginAt: meData.user.lastLoginAt,
+          emailVerified: meData.user.emailVerified,
+          phoneVerified: meData.user.phoneVerified,
+          pendingEmail: meData.user.pendingEmail,
+          pendingPhoneNumber: meData.user.pendingPhoneNumber,
           agency: meData.agency,
         });
       }
@@ -193,6 +196,70 @@ export default function Profile() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const refreshProfile = async () => {
+    const idToken = localStorage.getItem('auth_id_token');
+    if (!idToken) return;
+    try {
+      const meData = await callMe(idToken);
+      if (meData?.user) {
+        const u = meData.user;
+        setUserProfile({
+          userId: u.userId, cognitoSub: u.cognitoSub, email: u.email,
+          phoneNumber: u.phoneNumber, role: u.role, tenantId: u.tenantId,
+          displayName: u.displayName, status: u.status, createdAt: u.createdAt,
+          lastLoginAt: u.lastLoginAt, emailVerified: u.emailVerified,
+          phoneVerified: u.phoneVerified, pendingEmail: u.pendingEmail,
+          pendingPhoneNumber: u.pendingPhoneNumber, agency: meData.agency,
+        });
+        setFormData(prev => ({ ...prev, email: u.email || '', phone: u.phoneNumber || '' }));
+        setPendingEmail(u.pendingEmail);
+        setPendingPhone(u.pendingPhoneNumber);
+        setEmailVerified(u.emailVerified ?? !!u.email);
+        setPhoneVerified(u.phoneVerified ?? !!u.phoneNumber);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const handleAddEmail = async () => {
+    if (!newEmail.trim()) return;
+    setLinkingLoading(true); setLinkError(''); setLinkMessage('');
+    try {
+      const res = await startEmailLink(newEmail.trim());
+      setLinkMessage(res.message || 'Pending email saved.');
+      setShowAddEmail(false); setNewEmail('');
+      await refreshProfile();
+    } catch (err: any) {
+      setLinkError(err.message || 'Failed to add email');
+    } finally { setLinkingLoading(false); }
+  };
+
+  const handleAddPhone = async () => {
+    if (!newPhone.trim()) return;
+    setLinkingLoading(true); setLinkError(''); setLinkMessage('');
+    try {
+      const res = await startPhoneLink(newPhone.trim());
+      setLinkMessage(res.message || 'OTP sent.');
+      setShowAddPhone(false);
+      setShowPhoneOtp(true);
+      await refreshProfile();
+    } catch (err: any) {
+      setLinkError(err.message || 'Failed to add phone');
+    } finally { setLinkingLoading(false); }
+  };
+
+  const handleVerifyPhone = async () => {
+    if (!phoneOtp.trim() || !pendingPhone) return;
+    setLinkingLoading(true); setLinkError(''); setLinkMessage('');
+    try {
+      const res = await verifyPhoneLink(pendingPhone, phoneOtp.trim());
+      setLinkMessage(res.message || 'Phone verified!');
+      setShowPhoneOtp(false); setPhoneOtp(''); setNewPhone('');
+      await refreshProfile();
+    } catch (err: any) {
+      setLinkError(err.message || 'Phone verification failed');
+    } finally { setLinkingLoading(false); }
   };
 
   const handleLogout = () => {
@@ -274,6 +341,20 @@ export default function Profile() {
               </div>
             )}
 
+            {linkMessage && (
+              <div className="mb-6 bg-blue-50 border-l-4 border-blue-500 text-blue-700 px-4 py-3 rounded-r-lg flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <p className="text-sm font-medium">{linkMessage}</p>
+              </div>
+            )}
+
+            {linkError && (
+              <div className="mb-6 bg-red-50 border-l-4 border-red-500 text-red-700 px-4 py-3 rounded-r-lg flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <p className="text-sm font-medium">{linkError}</p>
+              </div>
+            )}
+
             <div className="space-y-6">
               {/* Personal Information */}
               <div>
@@ -298,44 +379,68 @@ export default function Profile() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                       Email Address
+                      {formData.email && emailVerified && <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" />Verified</span>}
+                      {pendingEmail && <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" />Pending</span>}
                     </label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        className="pl-10 w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-slate-50 focus:bg-white"
-                        placeholder="admin@example.com"
-                        autoComplete="email"
-                        inputMode="email"
-                        maxLength={254}
-                        required
-                      />
-                    </div>
+                    {formData.email ? (
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <input type="email" value={formData.email} className="pl-10 w-full px-4 py-3 border-2 border-slate-200 rounded-xl bg-slate-100 text-slate-600 cursor-not-allowed" disabled readOnly />
+                      </div>
+                    ) : !showAddEmail ? (
+                      <div>
+                        <button type="button" onClick={() => { setShowAddEmail(true); setLinkError(''); setLinkMessage(''); }} className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-indigo-300 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors w-full">
+                          <Plus className="w-4 h-4" /> Add Email Address
+                        </button>
+                        {pendingEmail && <p className="mt-2 text-xs text-amber-600">Pending: {pendingEmail} — log in with Google using this email to verify.</p>}
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="Enter email address" className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" autoFocus />
+                        <button type="button" onClick={handleAddEmail} disabled={linkingLoading} className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-medium text-sm">{linkingLoading ? '...' : 'Save'}</button>
+                        <button type="button" onClick={() => { setShowAddEmail(false); setNewEmail(''); }} className="px-3 py-3 text-slate-500 hover:text-slate-700">Cancel</button>
+                      </div>
+                    )}
+                    {formData.email && <p className="mt-2 text-xs text-slate-500">Email is managed by your sign-in identity.</p>}
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
                       Phone Number
+                      {formData.phone && phoneVerified && <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full"><CheckCircle className="w-3 h-3" />Verified</span>}
+                      {pendingPhone && <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" />Pending</span>}
                     </label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        onBlur={handlePhoneBlur}
-                        className="pl-10 w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all outline-none bg-slate-50 focus:bg-white"
-                        placeholder="+91 98765 43210"
-                        inputMode="tel"
-                        autoComplete="tel"
-                        maxLength={16}
-                        pattern="^(?:\\+?91[ -]?)?[6-9][0-9]{9}$"
-                      />
-                    </div>
+                    {formData.phone ? (
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+                        <input type="tel" value={formData.phone} className="pl-10 w-full px-4 py-3 border-2 border-slate-200 rounded-xl bg-slate-100 text-slate-600 cursor-not-allowed" disabled readOnly />
+                      </div>
+                    ) : showPhoneOtp ? (
+                      <div>
+                        <p className="text-sm text-slate-600 mb-2">Enter the OTP sent to <strong>{pendingPhone}</strong></p>
+                        <div className="flex gap-2">
+                          <input type="text" value={phoneOtp} onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="6-digit OTP" className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-center tracking-widest font-mono text-lg" maxLength={6} autoFocus />
+                          <button type="button" onClick={handleVerifyPhone} disabled={linkingLoading || phoneOtp.length !== 6} className="px-4 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 font-medium text-sm">Verify</button>
+                          <button type="button" onClick={() => { setShowPhoneOtp(false); setPhoneOtp(''); }} className="px-3 py-3 text-slate-500 hover:text-slate-700">Cancel</button>
+                        </div>
+                      </div>
+                    ) : !showAddPhone ? (
+                      <div>
+                        <button type="button" onClick={() => { setShowAddPhone(true); setLinkError(''); setLinkMessage(''); }} className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-indigo-300 rounded-xl text-indigo-600 hover:bg-indigo-50 transition-colors w-full">
+                          <Plus className="w-4 h-4" /> Add Phone Number
+                        </button>
+                        {pendingPhone && <p className="mt-2 text-xs text-amber-600">Pending: {pendingPhone} — verify with OTP to complete linking.</p>}
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
+                        <input type="tel" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="+91 98765 43210" className="flex-1 px-4 py-3 border-2 border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" autoFocus />
+                        <button type="button" onClick={handleAddPhone} disabled={linkingLoading} className="px-4 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-medium text-sm">{linkingLoading ? '...' : 'Send OTP'}</button>
+                        <button type="button" onClick={() => { setShowAddPhone(false); setNewPhone(''); }} className="px-3 py-3 text-slate-500 hover:text-slate-700">Cancel</button>
+                      </div>
+                    )}
+                    {formData.phone && <p className="mt-2 text-xs text-slate-500">Phone is managed by your sign-in identity.</p>}
                   </div>
 
                   <div>

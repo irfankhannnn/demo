@@ -68,7 +68,6 @@ REQUIRED_VARS=(
   ENV
   GOOGLE_CLIENT_ID
   GOOGLE_CLIENT_SECRET
-  COGNITO_DOMAIN_PREFIX
   COGNITO_DOMAIN_PREFIX_V2
   LAMBDA_PACKAGES_BUCKET_NAME
   IDENTITY_CALLBACK_URL
@@ -148,10 +147,11 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "DomainName", "ParameterValue": "${DOMAIN_NAME:-}" },
   { "ParameterKey": "GoogleClientId", "ParameterValue": "${GOOGLE_CLIENT_ID}" },
   { "ParameterKey": "GoogleClientSecret", "ParameterValue": "${GOOGLE_CLIENT_SECRET}" },
-  { "ParameterKey": "CognitoDomainPrefix", "ParameterValue": "${COGNITO_DOMAIN_PREFIX}" },
   { "ParameterKey": "CognitoDomainPrefixV2", "ParameterValue": "${COGNITO_DOMAIN_PREFIX_V2}" },
   { "ParameterKey": "IdentityCallbackURL", "ParameterValue": "${IDENTITY_CALLBACK_URL}" },
-  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "${IDENTITY_LOGOUT_URL}" }
+  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "${IDENTITY_LOGOUT_URL}" },
+  { "ParameterKey": "TestOtpEnabled", "ParameterValue": "${TEST_OTP_ENABLED:-false}" },
+  { "ParameterKey": "TestOtpValue", "ParameterValue": "${TEST_OTP_VALUE:-123456}" }
 ]
 EOF
 
@@ -178,10 +178,11 @@ PARAM_OVERRIDES=(
   "DomainName=${DOMAIN_NAME:-}"
   "GoogleClientId=${GOOGLE_CLIENT_ID}"
   "GoogleClientSecret=${GOOGLE_CLIENT_SECRET}"
-  "CognitoDomainPrefix=${COGNITO_DOMAIN_PREFIX}"
   "CognitoDomainPrefixV2=${COGNITO_DOMAIN_PREFIX_V2}"
   "IdentityCallbackURL=${IDENTITY_CALLBACK_URL}"
   "IdentityLogoutURL=${IDENTITY_LOGOUT_URL}"
+  "TestOtpEnabled=${TEST_OTP_ENABLED:-false}"
+  "TestOtpValue=${TEST_OTP_VALUE:-123456}"
 )
 "$AWS_BIN" cloudformation deploy \
   --template-file "$SCRIPT_DIR/cfn-backend.yaml" \

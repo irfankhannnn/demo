@@ -8,7 +8,7 @@ const envSchema = z.object({
   SERVICE_NAME: z.string().default('reality-flow-auth'),
   ENV: z.enum(['dev', 'test', 'prod']).default('dev'),
 
-  // Cognito
+  // Cognito (V2 pool supporting both Google and Phone auth)
   COGNITO_USER_POOL_ID: z.string().min(1, 'COGNITO_USER_POOL_ID is required'),
   COGNITO_CLIENT_ID: z.string().min(1, 'COGNITO_CLIENT_ID is required'),
   COGNITO_CLIENT_SECRET: z.string().optional(),
@@ -16,7 +16,9 @@ const envSchema = z.object({
 
   // DynamoDB Tables
   USERS_TABLE: z.string().min(1, 'USERS_TABLE is required'),
+  AUTH_IDENTITIES_TABLE: z.string().min(1, 'AUTH_IDENTITIES_TABLE is required'),
   AGENCY_CONFIG_TABLE: z.string().min(1, 'AGENCY_CONFIG_TABLE is required'),
+  OTP_TABLE: z.string().min(1, 'OTP_TABLE is required'),
 
   // Local dev
   PORT: z.string().default('3002').transform(Number),

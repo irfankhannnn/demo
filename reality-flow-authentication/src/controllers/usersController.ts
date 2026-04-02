@@ -2,11 +2,12 @@ import { Request, Response } from 'express';
 import { extractClaims } from '../utils/cognito';
 import { ok, badRequest, forbidden, internalError, notFound } from '../utils/http';
 import {
-  deleteUserByTenantAndSub,
-  findUserBySub,
-  getUserByTenantAndSub,
+  deleteUserByTenantAndUserId,
+  getUserByTenantAndUserId,
   listUsersByTenant,
+  findUserByUserId,
 } from '../models/usersModel';
+import { findIdentityBySub, deleteIdentitiesByUserId } from '../models/authIdentitiesModel';
 
 /**
  * GET /users
@@ -22,7 +23,9 @@ export async function listUsersHandler(req: Request, res: Response): Promise<voi
       return;
     }
 
-    const caller = await findUserBySub(sub);
+    const callerIdentity = await findIdentityBySub(sub);
+    if (!callerIdentity) { forbidden(res, 'Only admins can list users'); return; }
+    const caller = await findUserByUserId(callerIdentity.userId);
     if (!caller || caller.role !== 'ADMIN') {
       forbidden(res, 'Only admins can list users');
       return;
@@ -32,6 +35,7 @@ export async function listUsersHandler(req: Request, res: Response): Promise<voi
 
     ok(res, {
       users: users.map((u) => ({
+        userId: u.userId,
         cognitoSub: u.cognitoSub,
         email: u.email,
         phoneNumber: u.phoneNumber,
@@ -41,6 +45,10 @@ export async function listUsersHandler(req: Request, res: Response): Promise<voi
         createdAt: u.createdAt,
         updatedAt: u.updatedAt,
         lastLoginAt: u.lastLoginAt,
+        emailVerified: u.emailVerified ?? (!!u.email),
+        phoneVerified: u.phoneVerified ?? (!!u.phoneNumber),
+        pendingEmail: u.pendingEmail,
+        pendingPhoneNumber: u.pendingPhoneNumber,
       })),
     });
   } catch (error) {
@@ -63,24 +71,26 @@ export async function deleteUserHandler(req: Request, res: Response): Promise<vo
       return;
     }
 
-    const caller = await findUserBySub(sub);
+    const callerIdentity = await findIdentityBySub(sub);
+    if (!callerIdentity) { forbidden(res, 'Only admins can delete users'); return; }
+    const caller = await findUserByUserId(callerIdentity.userId);
     if (!caller || caller.role !== 'ADMIN') {
       forbidden(res, 'Only admins can delete users');
       return;
     }
 
-    const targetSub = req.params.sub;
-    if (!targetSub) {
-      badRequest(res, 'Target sub is required');
+    const targetUserId = req.params.userId;
+    if (!targetUserId) {
+      badRequest(res, 'Target userId is required');
       return;
     }
 
-    if (targetSub === sub) {
+    if (targetUserId === caller.userId) {
       badRequest(res, 'You cannot delete your own user');
       return;
     }
 
-    const target = await getUserByTenantAndSub(caller.TenantId, targetSub);
+    const target = await getUserByTenantAndUserId(caller.TenantId, targetUserId);
     if (!target) {
       notFound(res, 'User not found');
       return;
@@ -91,7 +101,8 @@ export async function deleteUserHandler(req: Request, res: Response): Promise<vo
       return;
     }
 
-    await deleteUserByTenantAndSub(caller.TenantId, targetSub);
+    await deleteUserByTenantAndUserId(caller.TenantId, targetUserId);
+    await deleteIdentitiesByUserId(targetUserId);
 
     ok(res, { success: true });
   } catch (error) {

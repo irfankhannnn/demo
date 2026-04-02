@@ -16,8 +16,8 @@ export function unauthorized(res: Response, message = 'Unauthorized') {
   return res.status(401).json({ error: 'Unauthorized', message });
 }
 
-export function forbidden(res: Response, message = 'Forbidden') {
-  return res.status(403).json({ error: 'Forbidden', message });
+export function forbidden(res: Response, code: string, message = 'Forbidden') {
+  return res.status(403).json({ error: 'Forbidden', code, message });
 }
 
 export function notFound(res: Response, message = 'Not Found') {
@@ -30,4 +30,8 @@ export function conflict(res: Response, message: string) {
 
 export function internalError(res: Response, message = 'Internal Server Error') {
   return res.status(500).json({ error: 'Internal Server Error', message });
+}
+
+export function tooManyRequests(res: Response, message = 'Too Many Requests') {
+  return res.status(429).json({ error: 'Too Many Requests', message });
 }

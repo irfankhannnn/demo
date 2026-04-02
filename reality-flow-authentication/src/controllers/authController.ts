@@ -2,9 +2,12 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { extractClaims } from '../utils/cognito';
 import { ok, badRequest, conflict, internalError, notFound, forbidden } from '../utils/http';
-import { findUserBySub, createAdminUser, updateLastLogin, updateUserProfile } from '../models/usersModel';
-import { getAgencyConfig, createAgencyConfig, updateAgencyConfig } from '../models/agencyConfigModel';
-import { findInvitesByEmail } from '../models/invitesModel';
+import { updateUserProfile, findUserByUserId, findUserByEmail, findUserByPhone, findUserByPendingEmail } from '../models/usersModel';
+import { getAgencyConfig, updateAgencyConfig } from '../models/agencyConfigModel';
+import { findInvitesByEmail, findInvitesByPhone, deleteInvite } from '../models/invitesModel';
+import { findIdentityBySub } from '../models/authIdentitiesModel';
+import { resolveUser } from '../utils/resolveUser';
+import { resolveMemberUser } from '../utils/resolveMemberUser';
 
 // --- Zod Schemas ---
 
@@ -20,7 +23,6 @@ const acceptInviteSchema = z.object({
 
 const patchProfileSchema = z.object({
   displayName: z.string().min(1).optional(),
-  phoneNumber: z.string().optional(),
 });
 
 const patchAgencySchema = z.object({
@@ -46,50 +48,130 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Check if user already exists
-    const existingUser = await findUserBySub(sub);
+    // Run universal resolution pipeline (fast-path + tenant lookup + admin create/link)
+    const resolved = await resolveUser(sub, 'google', email, phone_number);
 
-    if (existingUser) {
-      // Update last login
-      await updateLastLogin(existingUser.TenantId, sub);
-
-      // Get agency config
-      const tenantId = existingUser.role === 'ADMIN' ? sub : existingUser.TenantId;
-      const agency = await getAgencyConfig(tenantId);
-
+    if (resolved.isNewUser === false) {
+      // Existing or newly-linked user
+      const { user, agency } = resolved;
       ok(res, {
         exists: true,
         user: {
-          cognitoSub: existingUser.cognitoSub,
-          email: existingUser.email,
-          role: existingUser.role,
-          tenantId: existingUser.TenantId,
-          displayName: existingUser.displayName,
-          status: existingUser.status,
+          userId: user.userId,
+          cognitoSub: user.cognitoSub,
+          email: user.email,
+          role: user.role,
+          tenantId: user.TenantId,
+          displayName: user.displayName,
+          status: user.status,
         },
         agency: agency
-          ? {
-              agencyName: agency.agencyName,
-              status: agency.status,
-            }
+          ? { agencyName: agency.agencyName, status: agency.status }
           : null,
       });
       return;
     }
 
-    // User doesn't exist — check for pending invites
+    let existingMember = email ? await findUserByEmail(email) : null;
+
+    if (!existingMember && phone_number) {
+      existingMember = await findUserByPhone(phone_number);
+    }
+
+    // Phase 4: Check if any user has this email as pendingEmail (Google-based linking)
+    if (!existingMember && email) {
+      existingMember = await findUserByPendingEmail(email);
+    }
+
+    if (existingMember && existingMember.role === 'MEMBER') {
+      const result = await resolveMemberUser(
+        sub,
+        'google',
+        existingMember.TenantId,
+        email,
+        phone_number,
+        name || email?.split('@')[0]
+      );
+
+      if (result.isNewMember === null) {
+        internalError(res, 'Failed to resolve member');
+        return;
+      }
+
+      ok(res, {
+        exists: true,
+        user: {
+          userId: result.user.userId,
+          cognitoSub: result.user.cognitoSub,
+          email: result.user.email,
+          role: result.user.role,
+          tenantId: result.user.TenantId,
+          displayName: result.user.displayName,
+          status: result.user.status,
+        },
+        agency: result.agency ? { agencyName: result.agency.agencyName, status: result.agency.status } : null,
+      });
+      return;
+    }
+
+    // resolveUser could not resolve a tenant — check pending invites
     const pendingInvites = email ? await findInvitesByEmail(email) : [];
 
-    ok(res, {
-      exists: false,
-      needsRegistration: true,
-      cognitoSub: sub,
-      email: email || null,
-      name: name || null,
-      phoneNumber: phone_number || null,
-      hasPendingInvites: pendingInvites.length > 0,
-      pendingInviteCount: pendingInvites.length,
-    });
+    // Auto-accept if exactly 1 pending invite
+    if (pendingInvites.length === 1) {
+      const invite = pendingInvites[0];
+      console.log('[bootstrap] Auto-accepting invite for:', email, 'under tenant:', invite.TenantId);
+
+      const result = await resolveMemberUser(
+        sub,
+        'google',
+        invite.TenantId,
+        email,
+        phone_number,
+        name || email?.split('@')[0]
+      );
+
+      if (result.isNewMember === null) {
+        internalError(res, 'Failed to resolve member');
+        return;
+      }
+
+      await deleteInvite(invite.TenantId, invite.inviteCode);
+
+      ok(res, {
+        exists: true,
+        user: {
+          userId: result.user.userId,
+          cognitoSub: result.user.cognitoSub,
+          email: result.user.email,
+          role: result.user.role,
+          tenantId: result.user.TenantId,
+          displayName: result.user.displayName,
+          status: result.user.status,
+        },
+        agency: result.agency ? { agencyName: result.agency.agencyName, status: result.agency.status } : null,
+        autoAcceptedInvite: true,
+      });
+      return;
+    }
+
+    // Multiple invites — manual selection required
+    if (pendingInvites.length > 1) {
+      ok(res, {
+        exists: false,
+        needsRegistration: true,
+        cognitoSub: sub,
+        email: email || null,
+        name: name || null,
+        phoneNumber: phone_number || null,
+        hasPendingInvites: true,
+        pendingInviteCount: pendingInvites.length,
+      });
+      return;
+    }
+
+    // No invites and no pre-onboarded agency
+    forbidden(res, 'NOT_ONBOARDED', 'You are not onboarded. Please contact the administrator to get onboarded.');
   } catch (error) {
     console.error('bootstrap error:', error);
     internalError(res, 'Failed to bootstrap user');
@@ -98,74 +180,12 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
 
 /**
  * POST /auth/register-admin
- * Register a new admin user and create their agency config.
+ * DEPRECATED: Admin self-registration is no longer allowed.
+ * Admins must be pre-onboarded via the onboarding page by SaaS owner.
+ * This endpoint now returns a 403 Forbidden error.
  */
 export async function registerAdmin(req: Request, res: Response): Promise<void> {
-  try {
-    const claims = extractClaims(req);
-    const { sub, email, phone_number } = claims;
-
-    if (!sub || !email) {
-      badRequest(res, 'Cognito sub and email are required');
-      return;
-    }
-
-    // Validate body
-    const parsed = registerAdminSchema.safeParse(req.body);
-    if (!parsed.success) {
-      badRequest(res, parsed.error.errors.map((e) => e.message).join(', '));
-      return;
-    }
-
-    const { agencyName, displayName } = parsed.data;
-
-    // Check if user already exists
-    const existingUser = await findUserBySub(sub);
-    if (existingUser) {
-      conflict(res, 'User already registered');
-      return;
-    }
-
-    // Check if an agency config already exists for this sub
-    const existingAgency = await getAgencyConfig(sub);
-    if (existingAgency) {
-      conflict(res, 'Agency already exists for this user');
-      return;
-    }
-
-    // Create admin user + agency config
-    const [user, agency] = await Promise.all([
-      createAdminUser({
-        cognitoSub: sub,
-        email,
-        displayName,
-        phoneNumber: phone_number,
-      }),
-      createAgencyConfig({
-        tenantId: sub,
-        agencyName,
-        adminEmail: email,
-      }),
-    ]);
-
-    ok(res, {
-      success: true,
-      user: {
-        cognitoSub: user.cognitoSub,
-        email: user.email,
-        role: user.role,
-        tenantId: user.TenantId,
-        displayName: user.displayName,
-      },
-      agency: {
-        agencyName: agency.agencyName,
-        status: agency.status,
-      },
-    });
-  } catch (error) {
-    console.error('registerAdmin error:', error);
-    internalError(res, 'Failed to register admin');
-  }
+  forbidden(res, 'NOT_ONBOARDED', 'Admin self-registration is not allowed. Please contact the SaaS administrator to get onboarded.');
 }
 
 /**
@@ -212,6 +232,7 @@ export async function checkInvite(req: Request, res: Response): Promise<void> {
 /**
  * POST /auth/accept-invite
  * Accept a pending invite and register as a member under the inviting tenant.
+ * Uses resolveMemberUser to handle both new members and identity linking.
  */
 export async function acceptInvite(req: Request, res: Response): Promise<void> {
   try {
@@ -232,16 +253,15 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
 
     const { inviteCode, displayName } = parsed.data;
 
-    // Check if user already exists
-    const existingUser = await findUserBySub(sub);
-    if (existingUser) {
-      conflict(res, 'User already registered');
-      return;
-    }
+    // Find the matching invite by email (or phone if invite has both)
+    let pendingInvites = await findInvitesByEmail(email);
+    let matchingInvite = pendingInvites.find((inv) => inv.inviteCode === inviteCode);
 
-    // Find the invite — we need to find which tenant it belongs to
-    const pendingInvites = await findInvitesByEmail(email);
-    const matchingInvite = pendingInvites.find((inv) => inv.inviteCode === inviteCode);
+    // If not found by email, try by phone (for dual-contact invites)
+    if (!matchingInvite && phone_number) {
+      const phoneInvites = await findInvitesByPhone(phone_number);
+      matchingInvite = phoneInvites.find((inv) => inv.inviteCode === inviteCode);
+    }
 
     if (!matchingInvite) {
       notFound(res, 'Invite not found or already used');
@@ -254,39 +274,35 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Import here to avoid circular dependency at module level
-    const { createMemberUser } = await import('../models/usersModel');
-    const { markInviteAccepted } = await import('../models/invitesModel');
+    // Use resolveMemberUser to create/link member
+    const result = await resolveMemberUser(
+      sub,
+      'google',
+      matchingInvite.TenantId,
+      email,
+      phone_number,
+      displayName || name || email.split('@')[0]
+    );
 
-    // Create member + mark invite accepted
-    const [user] = await Promise.all([
-      createMemberUser({
-        tenantId: matchingInvite.TenantId,
-        cognitoSub: sub,
-        email,
-        displayName: displayName || name || email.split('@')[0],
-        phoneNumber: phone_number,
-      }),
-      markInviteAccepted(matchingInvite.TenantId, inviteCode),
-    ]);
+    if (result.isNewMember === null) {
+      internalError(res, 'Failed to resolve member');
+      return;
+    }
 
-    const agency = await getAgencyConfig(matchingInvite.TenantId);
+    // Delete consumed invite
+    await deleteInvite(matchingInvite.TenantId, inviteCode);
 
     ok(res, {
       success: true,
       user: {
-        cognitoSub: user.cognitoSub,
-        email: user.email,
-        role: user.role,
-        tenantId: user.TenantId,
-        displayName: user.displayName,
+        userId: result.user.userId,
+        cognitoSub: result.user.cognitoSub,
+        email: result.user.email,
+        role: result.user.role,
+        tenantId: result.user.TenantId,
+        displayName: result.user.displayName,
       },
-      agency: agency
-        ? {
-            agencyName: agency.agencyName,
-            status: agency.status,
-          }
-        : null,
+      agency: result.agency ? { agencyName: result.agency.agencyName, status: result.agency.status } : null,
     });
   } catch (error) {
     console.error('acceptInvite error:', error);
@@ -308,17 +324,23 @@ export async function me(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const user = await findUserBySub(sub);
-    if (!user) {
+    const identity = await findIdentityBySub(sub);
+    if (!identity) {
       notFound(res, 'User not registered');
       return;
     }
 
-    const tenantId = user.role === 'ADMIN' ? sub : user.TenantId;
-    const agency = await getAgencyConfig(tenantId);
+    const user = await findUserByUserId(identity.userId);
+    if (!user) {
+      notFound(res, 'User record not found');
+      return;
+    }
+
+    const agency = await getAgencyConfig(user.TenantId);
 
     ok(res, {
       user: {
+        userId: user.userId,
         cognitoSub: user.cognitoSub,
         email: user.email,
         phoneNumber: user.phoneNumber,
@@ -328,6 +350,10 @@ export async function me(req: Request, res: Response): Promise<void> {
         status: user.status,
         createdAt: user.createdAt,
         lastLoginAt: user.lastLoginAt,
+        emailVerified: user.emailVerified ?? (!!user.email),
+        phoneVerified: user.phoneVerified ?? (!!user.phoneNumber),
+        pendingEmail: user.pendingEmail,
+        pendingPhoneNumber: user.pendingPhoneNumber,
       },
       agency: agency
         ? {
@@ -347,8 +373,8 @@ export async function me(req: Request, res: Response): Promise<void> {
 
 /**
  * PATCH /auth/profile
- * Update current user's profile (displayName, phoneNumber).
- * Does NOT allow updating role, tenantId, email, or status.
+ * Update current user's profile (displayName only).
+ * Does NOT allow updating role, tenantId, email, phoneNumber, or status.
  */
 export async function patchProfile(req: Request, res: Response): Promise<void> {
   try {
@@ -369,15 +395,20 @@ export async function patchProfile(req: Request, res: Response): Promise<void> {
 
     const updates = validation.data;
 
-    // Get user to determine tenantId
-    const user = await findUserBySub(sub);
-    if (!user) {
+    // Resolve identity → user
+    const identity = await findIdentityBySub(sub);
+    if (!identity) {
       notFound(res, 'User not found');
+      return;
+    }
+    const user = await findUserByUserId(identity.userId);
+    if (!user) {
+      notFound(res, 'User record not found');
       return;
     }
 
     // Update user profile
-    await updateUserProfile(user.TenantId, sub, updates);
+    await updateUserProfile(user.TenantId, user.userId, updates);
 
     ok(res, { message: 'Profile updated successfully' });
   } catch (error) {
@@ -410,10 +441,15 @@ export async function patchAgency(req: Request, res: Response): Promise<void> {
 
     const updates = validation.data;
 
-    // Get user to check role
-    const user = await findUserBySub(sub);
-    if (!user) {
+    // Resolve identity → user
+    const identity = await findIdentityBySub(sub);
+    if (!identity) {
       notFound(res, 'User not found');
+      return;
+    }
+    const user = await findUserByUserId(identity.userId);
+    if (!user) {
+      notFound(res, 'User record not found');
       return;
     }
 
@@ -423,7 +459,6 @@ export async function patchAgency(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // For admin, tenantId is their own sub
     const tenantId = user.TenantId;
 
     // Update agency config

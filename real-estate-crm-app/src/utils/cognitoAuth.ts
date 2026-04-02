@@ -9,7 +9,7 @@ import {
   getStoredCodeVerifier,
   clearCodeVerifier,
 } from './pkce';
-import { setTokens, type AuthTokens } from './authStorage';
+import { type AuthTokens } from './authStorage';
 
 // --- Env-driven config ---
 
@@ -80,7 +80,6 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
     expiresIn: data.expires_in,
   };
 
-  setTokens(tokens);
   return tokens;
 }
 
@@ -101,6 +100,12 @@ export async function callBootstrap(idToken: string) {
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({ error: 'Bootstrap failed' }));
+    // Check for NOT_ONBOARDED error - propagate with code for caller to handle
+    if (err.code === 'NOT_ONBOARDED') {
+      const notOnboardedError = new Error(err.error || 'You are not onboarded. Please contact the administrator.');
+      (notOnboardedError as Error & { code: string }).code = 'NOT_ONBOARDED';
+      throw notOnboardedError;
+    }
     throw new Error(err.error || `Bootstrap returned ${response.status}`);
   }
 

@@ -69,6 +69,7 @@ export default function AcceptInvite() {
       const meData = meResult.data || meResult;
       
       setUserProfile({
+        userId: meData.user.userId,
         cognitoSub: meData.user.cognitoSub,
         email: meData.user.email,
         phoneNumber: meData.user.phoneNumber,

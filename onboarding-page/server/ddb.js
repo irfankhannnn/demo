@@ -14,10 +14,13 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
+
+// Points to auth agency table (dev-reality-flow-auth-agency-config)
+// This is the source of truth for tenant provisioning
 const TABLE = process.env.AGENCY_CONFIG_DYNAMODB_TABLE_NAME;
 
 if (!TABLE) {
-  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env');
+  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env (should be dev-reality-flow-auth-agency-config)');
 }
 
 // Uses AWS SDK default credential provider chain.

@@ -7,13 +7,16 @@ let _jwksClient: jwksClient.JwksClient | null = null;
 
 function getJwksClient(): jwksClient.JwksClient {
   if (_jwksClient) return _jwksClient;
+  
   const { COGNITO_USER_POOL_ID, AWS_REGION } = getConfig();
+  
   _jwksClient = jwksClient({
     jwksUri: `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}/.well-known/jwks.json`,
     cache: true,
     cacheMaxAge: 600000,
     rateLimit: true,
   });
+  
   return _jwksClient;
 }
 
@@ -63,10 +66,12 @@ export async function localAuthMiddleware(
     }
 
     const { COGNITO_USER_POOL_ID, AWS_REGION } = getConfig();
+    const expectedIssuer = `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`;
+    
     const signingKey = await getSigningKey(decoded.header.kid);
 
     const verified = jwt.verify(token, signingKey, {
-      issuer: `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`,
+      issuer: expectedIssuer,
     }) as jwt.JwtPayload;
 
     // Set claims as header for downstream extraction by cognito.ts

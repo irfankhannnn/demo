@@ -1,11 +1,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { exchangeCodeForTokens, callBootstrap, callMe } from '../utils/cognitoAuth';
-import { setUserProfile } from '../utils/authStorage';
+import { clearAuthSilently, setTokens, setUserProfile } from '../utils/authStorage';
 
 export default function AuthCallback() {
   const [status, setStatus] = useState('Signing you in...');
   const [error, setError] = useState('');
+  const [notOnboarded, setNotOnboarded] = useState(false);
   const navigate = useNavigate();
   const hasRun = useRef(false);
 
@@ -42,10 +43,12 @@ export default function AuthCallback() {
       const bootstrapResult = await callBootstrap(tokens.idToken);
       
       if (bootstrapResult.exists) {
+        setTokens(tokens);
         setStatus('Loading your profile...');
         const meResult = await callMe(tokens.idToken);
         const meData = meResult.data || meResult;
         setUserProfile({
+          userId: meData.user.userId,
           cognitoSub: meData.user.cognitoSub,
           email: meData.user.email,
           phoneNumber: meData.user.phoneNumber,
@@ -59,12 +62,43 @@ export default function AuthCallback() {
         });
         navigate(meData.user.role === 'ADMIN' ? '/admin/dashboard' : '/crm', { replace: true });
       } else {
+        setTokens(tokens);
         navigate('/onboarding/role-selection', { replace: true });
       }
     } catch (err) {
+      clearAuthSilently();
+      // Check for NOT_ONBOARDED error
+      if (err instanceof Error && (err as Error & { code?: string }).code === 'NOT_ONBOARDED') {
+        setNotOnboarded(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Authentication failed');
     }
   };
+
+  if (notOnboarded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-10 border border-slate-100 text-center">
+          <div className="bg-amber-100 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Not Onboarded</h1>
+          <p className="text-slate-600 mb-6">
+            You are not registered in the system. Please contact your administrator to get onboarded before you can access the CRM.
+          </p>
+          <button
+            onClick={() => navigate('/login', { replace: true })}
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

@@ -9,6 +9,11 @@ import {
   patchAgency,
 } from '../controllers/authController';
 import { exchangeToken, refreshToken } from '../controllers/tokenController';
+import {
+  selfEmailStart,
+  selfPhoneStart,
+  selfPhoneVerify,
+} from '../controllers/contactLinkController';
 
 const router = Router();
 
@@ -24,5 +29,10 @@ router.post('/accept-invite', acceptInvite);
 router.get('/me', me);
 router.patch('/profile', patchProfile);
 router.patch('/agency', patchAgency);
+
+// Self-service contact linking
+router.post('/profile/contact/email/start', selfEmailStart);
+router.post('/profile/contact/phone/start', selfPhoneStart);
+router.post('/profile/contact/phone/verify', selfPhoneVerify);
 
 export default router;
