@@ -16,14 +16,18 @@ import {
   CheckCircle,
   Sparkles,
   BarChart3,
+  Trash2,
+  List,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMLead, LeadMetrics } from '../../types/crm';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import LeadDrawer from './LeadDrawer';
+import Toast from '../../components/Toast';
 
 type LeadTypeFilter = 'all' | 'buyer' | 'seller' | 'tenant' | 'owner';
 type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
+type ViewMode = 'active' | 'converted' | 'all';
 
 export default function LeadList() {
   const navigate = useNavigate();
@@ -34,10 +38,18 @@ export default function LeadList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<LeadTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [showConverted, setShowConverted] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('active');
   const [showFilters, setShowFilters] = useState(false);
   
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [deleteLeadId, setDeleteLeadId] = useState<string | null>(null);
+  const [deleteLeadName, setDeleteLeadName] = useState('');
+  const [deleting, setDeleting] = useState(false);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
 
   useEffect(() => {
     loadLeads();
@@ -45,7 +57,7 @@ export default function LeadList() {
 
   useEffect(() => {
     applyFilters();
-  }, [leads, searchQuery, typeFilter, statusFilter, showConverted]);
+  }, [leads, searchQuery, typeFilter, statusFilter, viewMode]);
 
   const loadLeads = async () => {
     try {
@@ -69,6 +81,14 @@ export default function LeadList() {
   const applyFilters = () => {
     let filtered = [...leads];
 
+    // Apply view mode filter first
+    if (viewMode === 'active') {
+      filtered = filtered.filter((l) => !l.convertedAt);
+    } else if (viewMode === 'converted') {
+      filtered = filtered.filter((l) => !!l.convertedAt);
+    }
+    // 'all' shows everything, no filter needed
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -87,12 +107,23 @@ export default function LeadList() {
       filtered = filtered.filter((l) => l.status === statusFilter);
     }
 
-    if (!showConverted) {
-      filtered = filtered.filter((l) => !l.convertedAt);
-    }
-
     filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setFilteredLeads(filtered);
+  };
+
+  const handleDeleteLead = async () => {
+    if (!deleteLeadId) return;
+    try {
+      setDeleting(true);
+      await api.deleteLead(deleteLeadId);
+      setDeleteLeadId(null);
+      setDeleteLeadName('');
+      await loadLeads();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to delete lead', 'error');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const getTypeIcon = (type: string) => {
@@ -222,24 +253,24 @@ export default function LeadList() {
       render: (lead) => (
         <div className="flex items-center gap-2">
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedLeadId(lead.leadId);
-            }}
+            onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.leadId); }}
             className="flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all text-xs font-medium shadow-md shadow-amber-500/20"
           >
             <Eye className="h-3 w-3" />
             View
           </button>
-          {!lead.convertedAt && (
+          {lead.convertedAt ? (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">
+              <CheckCircle className="h-3 w-3" />
+              Converted
+            </span>
+          ) : (
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedLeadId(lead.leadId);
-              }}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-lg hover:from-emerald-600 hover:to-green-700 transition-all text-xs font-medium shadow-md shadow-emerald-500/20"
+              onClick={(e) => { e.stopPropagation(); setDeleteLeadId(lead.leadId); setDeleteLeadName(lead.name); }}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-all text-xs font-medium"
+              title="Delete lead"
             >
-              <UserPlus className="h-3 w-3" />
+              <Trash2 className="h-3 w-3" />
             </button>
           )}
         </div>
@@ -279,22 +310,18 @@ export default function LeadList() {
           <option value="lost">Lost</option>
         </select>
       </div>
-      <div className="flex items-end">
-        <label className="flex items-center cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showConverted}
-            onChange={(e) => setShowConverted(e.target.checked)}
-            className="w-4 h-4 text-amber-600 border-gray-300 rounded focus:ring-amber-500"
-          />
-          <span className="ml-2 text-sm text-gray-600">Show Converted</span>
-        </label>
-      </div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50 to-orange-50">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       {/* Header */}
       <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -312,7 +339,6 @@ export default function LeadList() {
                 </div>
                 <div>
                   <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Leads</h1>
-                  <p className="text-sm text-gray-500">{filteredLeads.length} total</p>
                 </div>
               </div>
             </div>
@@ -346,8 +372,8 @@ export default function LeadList() {
                   <Target className="h-6 w-6 text-white" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-gray-900">{metrics.total}</p>
-                  <p className="text-xs text-gray-500">Total Leads</p>
+                  <p className="text-2xl font-bold text-gray-900">{metrics.total - (metrics.byStatus.converted || 0)}</p>
+                  <p className="text-xs text-gray-500">Active Leads</p>
                 </div>
               </div>
             </div>
@@ -362,7 +388,12 @@ export default function LeadList() {
                 </div>
               </div>
             </div>
-            <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+            <button
+              onClick={() => setViewMode(viewMode === 'converted' ? 'active' : 'converted')}
+              className={`bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group cursor-pointer ${
+                viewMode === 'converted' ? 'ring-2 ring-emerald-500 bg-emerald-50/40' : ''
+              }`}
+            >
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
                   <CheckCircle className="h-6 w-6 text-white" />
@@ -372,7 +403,7 @@ export default function LeadList() {
                   <p className="text-xs text-gray-500">Converted</p>
                 </div>
               </div>
-            </div>
+            </button>
             <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform">
@@ -406,6 +437,28 @@ export default function LeadList() {
               </button>
             );
           })}
+          <button
+            onClick={() => setViewMode('converted')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              viewMode === 'converted'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30'
+                : 'bg-white/70 backdrop-blur-sm text-gray-700 border border-white/20 hover:bg-white/90'
+            }`}
+          >
+            <CheckCircle className="h-4 w-4" />
+            Converted
+          </button>
+          <button
+            onClick={() => setViewMode('all')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              viewMode === 'all'
+                ? 'bg-gradient-to-r from-slate-500 to-slate-600 text-white shadow-lg shadow-slate-500/30'
+                : 'bg-white/70 backdrop-blur-sm text-gray-700 border border-white/20 hover:bg-white/90'
+            }`}
+          >
+            <List className="h-4 w-4" />
+            All
+          </button>
         </div>
 
         {/* Data Table */}
@@ -432,6 +485,42 @@ export default function LeadList() {
           onClose={() => setSelectedLeadId(null)}
           onUpdate={loadLeads}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteLeadId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Delete Lead</h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-700 mb-6">
+              Are you sure you want to delete <strong>{deleteLeadName}</strong>?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteLead}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 font-medium"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => { setDeleteLeadId(null); setDeleteLeadName(''); }}
+                disabled={deleting}
+                className="flex-1 px-4 py-2 border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -684,11 +684,11 @@ export default function Calendar() {
                       .sort((a, b) => parseTimeToMinutes(a.meetingTime) - parseTimeToMinutes(b.meetingTime));
 
                     return (
-                      <>
-                        <div key={`time-${slotStartMinutes}`} className="border-r border-b p-3 text-xs text-gray-500 bg-white">
+                      <div key={`slot-${slotStartMinutes}`} className="contents">
+                        <div className="border-r border-b p-3 text-xs text-gray-500 bg-white">
                           {formatMinutesToTimeLabel(slotStartMinutes)}
                         </div>
-                        <div key={`cell-${slotStartMinutes}`} className="border-b p-2 min-h-[72px] bg-white">
+                        <div className="border-b p-2 min-h-[72px] bg-white">
                           <div className="space-y-2">
                             {meetingsInSlot.map((meeting) => (
                               <button
@@ -707,7 +707,7 @@ export default function Calendar() {
                             ))}
                           </div>
                         </div>
-                      </>
+                      </div>
                     );
                   })}
                 </div>
@@ -943,8 +943,8 @@ export default function Calendar() {
 
                   {timeSlots.map((slotStartMinutes) => {
                     return (
-                      <>
-                        <div key={`time-${slotStartMinutes}`} className="border-r border-b p-3 text-xs text-gray-500 bg-white">
+                      <div key={`slot-${slotStartMinutes}`} className="contents">
+                        <div className="border-r border-b p-3 text-xs text-gray-500 bg-white">
                           {formatMinutesToTimeLabel(slotStartMinutes)}
                         </div>
                         {Array.from({ length: 7 }).map((_, index) => {
@@ -979,7 +979,7 @@ export default function Calendar() {
                             </div>
                           );
                         })}
-                      </>
+                      </div>
                     );
                   })}
                 </div>

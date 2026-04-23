@@ -10,9 +10,9 @@ import { errorHandler } from './expressError.js';
 import { logger } from './logger.js';
 import authRoutes from './routes/auth.js';
 // import areasRoutes from './routes/areas.js'; // Commented out - areas are auto-created from properties
-import publicAreasRoutes from './routes/publicAreas.js';
-import areasBuildings from './routes/areasBuildings.js';
-import flatsRoutes from './routes/flats.js';
+// import publicAreasRoutes from './routes/publicAreas.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
+// import areasBuildings from './routes/areasBuildings.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
+// import flatsRoutes from './routes/flats.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
 import crmRoutes from './routes/crm.js';
 import contactsRoutes from './routes/contacts.js';
 import leadsRoutes from './routes/leads.js';
@@ -21,10 +21,10 @@ import enquiriesRoutes from './routes/enquiries.js';
 import b2bLeadsRoutes from './routes/b2bLeads.js';
 import khataRoutes from './routes/khata.js';
 import notificationsRoutes from './routes/notifications.js';
-import aiCallingInternalRoutes from './routes/aiCallingInternal.js';
-import developersRoutes from './routes/developers.js';
-import realEstateAreasRoutes from './routes/realEstateAreas.js';
-import projectsRoutes from './routes/projects.js';
+// import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
+// import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
+// import realEstateAreasRoutes from './routes/realEstateAreas.js'; // DISABLED: Developers/Projects/Areas removed
+// import projectsRoutes from './routes/projects.js'; // DISABLED: Developers/Projects/Areas removed
 
 // Load environment variables
 dotenv.config();
@@ -72,12 +72,12 @@ app.use('/api/auth', authRoutes);
 logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
 app.use('/api', b2bLeadsRoutes); // Register b2b-leads BEFORE areasBuildings to avoid auth middleware conflict
 // app.use('/api/areas', areasRoutes); // Commented out - areas are auto-created from properties, no manual management needed
-logger.info('routes.mount', { basePath: '/api/areas/public', router: 'publicAreasRoutes' });
-app.use('/api/areas/public', publicAreasRoutes);
+// logger.info('routes.mount', { basePath: '/api/areas/public', router: 'publicAreasRoutes' }); // DISABLED
+// app.use('/api/areas/public', publicAreasRoutes); // DISABLED
 logger.info('routes.mount', { basePath: '/api/enquiries', router: 'enquiriesRoutes' });
 app.use('/api/enquiries', enquiriesRoutes);
-logger.info('routes.mount', { basePath: '/api/flats', router: 'flatsRoutes' });
-app.use('/api/flats', flatsRoutes);
+// logger.info('routes.mount', { basePath: '/api/flats', router: 'flatsRoutes' }); // DISABLED
+// app.use('/api/flats', flatsRoutes); // DISABLED
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });
@@ -86,20 +86,20 @@ logger.info('routes.mount', { basePath: '/api/crm/leads', router: 'leadsRoutes' 
 app.use('/api/crm/leads', leadsRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/buyers', router: 'buyersRoutes' });
 app.use('/api/crm/buyers', buyersRoutes);
-logger.info('routes.mount', { basePath: '/api/crm/developers', router: 'developersRoutes' });
-app.use('/api/crm/developers', developersRoutes);
-logger.info('routes.mount', { basePath: '/api/crm/real-estate-areas', router: 'realEstateAreasRoutes' });
-app.use('/api/crm/real-estate-areas', realEstateAreasRoutes);
-logger.info('routes.mount', { basePath: '/api/crm/projects', router: 'projectsRoutes' });
-app.use('/api/crm/projects', projectsRoutes);
+// logger.info('routes.mount', { basePath: '/api/crm/developers', router: 'developersRoutes' }); // DISABLED
+// app.use('/api/crm/developers', developersRoutes); // DISABLED
+// logger.info('routes.mount', { basePath: '/api/crm/real-estate-areas', router: 'realEstateAreasRoutes' }); // DISABLED
+// app.use('/api/crm/real-estate-areas', realEstateAreasRoutes); // DISABLED
+// logger.info('routes.mount', { basePath: '/api/crm/projects', router: 'projectsRoutes' }); // DISABLED
+// app.use('/api/crm/projects', projectsRoutes); // DISABLED
 logger.info('routes.mount', { basePath: '/api/khata', router: 'khataRoutes' });
 app.use('/api/khata', khataRoutes);
 logger.info('routes.mount', { basePath: '/api/notifications', router: 'notificationsRoutes' });
 app.use('/api/notifications', notificationsRoutes);
-logger.info('routes.mount', { basePath: '/api/internal', router: 'aiCallingInternalRoutes' });
-app.use('/api/internal', aiCallingInternalRoutes); // Internal API for AI Calling Service
-logger.info('routes.mount', { basePath: '/api', router: 'areasBuildings' });
-app.use('/api', areasBuildings);
+// logger.info('routes.mount', { basePath: '/api/internal', router: 'aiCallingInternalRoutes' }); // DISABLED
+// app.use('/api/internal', aiCallingInternalRoutes); // DISABLED: Internal API for AI Calling Service
+// logger.info('routes.mount', { basePath: '/api', router: 'areasBuildings' }); // DISABLED
+// app.use('/api', areasBuildings); // DISABLED
 
 // Error handling middleware
 app.use(errorHandler);

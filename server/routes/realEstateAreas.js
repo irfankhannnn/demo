@@ -27,13 +27,17 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-router.use(validateToken);
+// router.use(validateToken);
+
+/*
+// ============== COMMENTED OUT: Real Estate Areas feature disabled ==============
+// All routes below are commented out as part of removing developers/projects/areas functionality
 
 /**
  * @route GET /api/crm/real-estate-areas
  * @desc Get all areas with optional filters
  * @access Private
- */
+ *\/
 router.get('/', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
@@ -463,6 +467,7 @@ router.delete('/:areaId/videos', async (req, res) => {
 
     res.json({ success: true, message: 'Video deleted successfully' });
   } catch (error) {
+*/
     console.error('Error deleting video:', error);
     res.status(500).json({ success: false, message: error.message });
   }

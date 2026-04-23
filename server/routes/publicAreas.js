@@ -11,6 +11,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const areaImagesDir = path.join(__dirname, '..', 'public', 'area');
 
+/*
+// ============== COMMENTED OUT: Public Areas feature disabled ==============
+// All routes below are commented out as part of removing flats/buildings/areas functionality
+
 function toFileToken(value) {
   return String(value || '')
     .trim()
@@ -82,5 +86,6 @@ router.get('/banners', extractTenantIdOptional, handlePublicAreaBanners);
 
 // Backwards-compatible alias: older builds may call /api/areas/public/list
 router.get('/list', extractTenantIdOptional, handlePublicAreaBanners);
+*/
 
 export default router;

@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+
+*.timestamp-*.mjs
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -32,3 +35,10 @@ dist-ssr
 android/
 ios/
 .capacitor/
+
+# Playwright
+e2e/.env.e2e
+test-results/
+playwright-report/
+playwright/.cache/
+evidences/

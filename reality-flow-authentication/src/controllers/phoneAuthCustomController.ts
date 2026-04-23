@@ -357,9 +357,8 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     const claims = extractClaims(req);
     const { sub } = claims;
     
-    // Get authorization header for phone resolution
-    const authHeader = req.headers.authorization;
-    const accessToken = authHeader?.replace('Bearer ', '');
+    // Get access token from custom header (ID Token is in Authorization header for API Gateway)
+    const accessToken = req.headers['x-access-token'] as string;
 
     if (!sub) {
       return badRequest(res, 'Cognito sub is missing from token');

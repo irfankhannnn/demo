@@ -107,7 +107,7 @@ export function getRefreshToken(): string | null {
 export function isTokenExpired(): boolean {
   const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
   if (!expiry) return true;
-  return Date.now() > Number(expiry);
+  return Date.now() > Number(expiry) - 60000; // Treat as expired 60s before actual expiry
 }
 
 export function isAuthenticated(): boolean {

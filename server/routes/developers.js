@@ -27,13 +27,17 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-router.use(validateToken);
+// router.use(validateToken);
+
+/*
+// ============== COMMENTED OUT: Developers feature disabled ==============
+// All routes below are commented out as part of removing developers/projects/areas functionality
 
 /**
  * @route GET /api/crm/developers
  * @desc Get all developers with optional filters
  * @access Private
- */
+ *\/
 router.get('/', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
@@ -535,5 +539,6 @@ router.delete('/:developerId/videos', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+*/
 
 export default router;

@@ -1,5 +1,11 @@
 import { logger } from './logger.js';
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+};
+
 export function errorHandler(err, req, res, next) {
   const log = req?.log || logger.child({
     method: req?.method,
@@ -15,6 +21,7 @@ export function errorHandler(err, req, res, next) {
     stack: err?.stack,
   });
 
+  res.set(CORS_HEADERS);
   res.status(err?.status || 500).json({
     error: err?.message || 'Internal server error',
   });

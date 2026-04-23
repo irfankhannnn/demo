@@ -34,13 +34,17 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-router.use(validateToken);
+// router.use(validateToken);
+
+/*
+// ============== COMMENTED OUT: Projects feature disabled ==============
+// All routes below are commented out as part of removing developers/projects/areas functionality
 
 /**
  * @route GET /api/crm/projects
  * @desc Get all projects with optional filters
  * @access Private
- */
+ *\/
 router.get('/', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
@@ -814,6 +818,7 @@ router.delete('/:projectId/floor-plans', async (req, res) => {
 
     res.json({ success: true, message: 'Floor plan deleted successfully' });
   } catch (error) {
+*/
     console.error('Error deleting floor plan:', error);
     res.status(500).json({ success: false, message: error.message });
   }

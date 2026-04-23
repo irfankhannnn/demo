@@ -44,15 +44,16 @@ import BuyerDetails from './pages/crm/BuyerDetails';
 import LeadList from './pages/crm/LeadList';
 import LeadDetails from './pages/crm/LeadDetails';
 
-// Real Estate Management Pages
-import DeveloperList from './pages/crm/DeveloperList';
-import DeveloperDetails from './pages/crm/DeveloperDetails';
-import RealEstateAreaList from './pages/crm/RealEstateAreaList';
-import RealEstateAreaDetails from './pages/crm/RealEstateAreaDetails';
-import ProjectList from './pages/crm/ProjectList';
-import ProjectDetails from './pages/crm/ProjectDetails';
+// Real Estate Management Pages - DISABLED
+// import DeveloperList from './pages/crm/DeveloperList';
+// import DeveloperDetails from './pages/crm/DeveloperDetails';
+// import RealEstateAreaList from './pages/crm/RealEstateAreaList';
+// import RealEstateAreaDetails from './pages/crm/RealEstateAreaDetails';
+// import ProjectList from './pages/crm/ProjectList';
+// import ProjectDetails from './pages/crm/ProjectDetails';
 
-// AI Calling Module
+// AI Calling Module - DISABLED
+/*
 import {
   AICallingDashboard,
   StartCallModal,
@@ -61,6 +62,7 @@ import {
   KnowledgeManager,
   AICallingSettings,
 } from './pages/crm/AICalling';
+*/
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
@@ -238,24 +240,24 @@ function App() {
           <Route path="/crm/leads/new" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
           <Route path="/crm/leads/:id" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
           
-          {/* Real Estate Management Routes */}
-          <Route path="/crm/developers" element={<ProtectedRoute><DeveloperList /></ProtectedRoute>} />
-          <Route path="/crm/developers/new" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} />
-          <Route path="/crm/developers/:id" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} />
-          <Route path="/crm/real-estate-areas" element={<ProtectedRoute><RealEstateAreaList /></ProtectedRoute>} />
-          <Route path="/crm/real-estate-areas/new" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} />
-          <Route path="/crm/real-estate-areas/:id" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} />
-          <Route path="/crm/projects" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} />
-          <Route path="/crm/projects/new" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} />
-          <Route path="/crm/projects/:id" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} />
+          {/* Real Estate Management Routes - DISABLED */}
+          {/* <Route path="/crm/developers" element={<ProtectedRoute><DeveloperList /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/developers/new" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/developers/:id" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/real-estate-areas" element={<ProtectedRoute><RealEstateAreaList /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/real-estate-areas/new" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/real-estate-areas/:id" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/projects" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/projects/new" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/projects/:id" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} /> */}
           
-          {/* AI Calling Routes */}
-          <Route path="/crm/ai-calling" element={<ProtectedRoute><AICallingDashboard /></ProtectedRoute>} />
-          <Route path="/crm/ai-calling/start" element={<ProtectedRoute><StartCallModal /></ProtectedRoute>} />
-          <Route path="/crm/ai-calling/calls/:callSessionId" element={<ProtectedRoute><CallDetails /></ProtectedRoute>} />
-          <Route path="/crm/ai-calling/history" element={<ProtectedRoute><CallHistory /></ProtectedRoute>} />
-          <Route path="/crm/ai-calling/knowledge" element={<ProtectedRoute><KnowledgeManager /></ProtectedRoute>} />
-          <Route path="/crm/ai-calling/settings" element={<ProtectedRoute><AICallingSettings /></ProtectedRoute>} />
+          {/* AI Calling Routes - DISABLED */}
+          {/* <Route path="/crm/ai-calling" element={<ProtectedRoute><AICallingDashboard /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/ai-calling/start" element={<ProtectedRoute><StartCallModal /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/ai-calling/calls/:callSessionId" element={<ProtectedRoute><CallDetails /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/ai-calling/history" element={<ProtectedRoute><CallHistory /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/ai-calling/knowledge" element={<ProtectedRoute><KnowledgeManager /></ProtectedRoute>} /> */}
+          {/* <Route path="/crm/ai-calling/settings" element={<ProtectedRoute><AICallingSettings /></ProtectedRoute>} /> */}
         </Routes>
       </Router>
     </GoogleMapsProvider>

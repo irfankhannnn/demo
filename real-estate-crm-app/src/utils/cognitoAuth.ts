@@ -36,6 +36,7 @@ export async function redirectToLogin(): Promise<void> {
     scope: 'openid email profile phone',
     code_challenge_method: 'S256',
     code_challenge: challenge,
+    identity_provider: 'Google',
   });
 
   const authorizeUrl = `${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;

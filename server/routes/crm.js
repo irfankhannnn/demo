@@ -1068,6 +1068,11 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
+      res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+      });
       return res.status(404).json({ error: 'Property not found' });
     }
 
@@ -1077,6 +1082,11 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
     ];
 
     if (!files || files.length === 0) {
+      res.set({
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+      });
       return res.status(400).json({ error: 'No file provided' });
     }
 
@@ -1113,6 +1123,11 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
     res.status(201).json(created);
   } catch (error) {
     console.error('Upload property document error:', error);
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1339,11 +1354,26 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     res.json(analytics);
   } catch (error) {
     console.error('Get business analytics error:', error);
+    res.set({
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // ============== Meeting/Calendar Routes ==============
+
+// OPTIONS for CORS preflight (no auth required)
+router.options('/meetings', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  });
+  res.sendStatus(200);
+});
 
 // Get all meetings (with optional filters)
 router.get('/meetings', validateToken, extractTenantId, async (req, res) => {
@@ -1372,6 +1402,16 @@ router.get('/meetings/upcoming', validateToken, extractTenantId, async (req, res
     console.error('Get upcoming meetings error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
+});
+
+// OPTIONS for /meetings/metrics (no auth required)
+router.options('/meetings/metrics', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  });
+  res.sendStatus(200);
 });
 
 // Get meeting metrics

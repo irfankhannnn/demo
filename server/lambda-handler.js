@@ -1,89 +1,66 @@
 import serverlessExpress from '@vendia/serverless-express';
 import app from './server.js';
+import { applyCorsHeaders, buildResponse } from './utils/response.js';
 
 let serverlessExpressInstance;
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  'Access-Control-Max-Age': '86400'
-};
-
-function normalizeSingleValueHeader(key, value) {
-  if (value == null) return value;
-
-  // API Gateway/Lambda can end up returning duplicated header values when both
-  // `headers` and `multiValueHeaders` are present. Browsers reject this for ACAO.
-  if (key.toLowerCase() === 'access-control-allow-origin') {
-    if (Array.isArray(value)) return String(value[0]);
-    const s = String(value);
-    return s.split(',')[0].trim();
+function stripConfiguredBasePath(pathValue) {
+  if (!pathValue || typeof pathValue !== 'string') {
+    return pathValue;
   }
 
-  if (Array.isArray(value)) return value.join(',');
-  return value;
+  const configuredBasePaths = [
+    process.env.CRM_API_BASE_PATH,
+    process.env.PUBLIC_API_BASE_PATH,
+  ]
+    .filter(Boolean)
+    .map((basePath) => `/${String(basePath).replace(/^\/+|\/+$/g, '')}`)
+    .filter((basePath, index, arr) => arr.indexOf(basePath) === index)
+    .sort((a, b) => b.length - a.length);
+
+  for (const basePath of configuredBasePaths) {
+    if (pathValue === basePath) {
+      return '/';
+    }
+
+    if (pathValue.startsWith(`${basePath}/`)) {
+      return pathValue.slice(basePath.length) || '/';
+    }
+  }
+
+  return pathValue;
 }
 
-function canonicalCorsHeaderKey(lowerKey) {
-  switch (lowerKey) {
-    case 'access-control-allow-origin':
-      return 'Access-Control-Allow-Origin';
-    case 'access-control-allow-methods':
-      return 'Access-Control-Allow-Methods';
-    case 'access-control-allow-headers':
-      return 'Access-Control-Allow-Headers';
-    case 'access-control-max-age':
-      return 'Access-Control-Max-Age';
-    default:
-      return null;
+function normalizeEventPath(event) {
+  if (!event || typeof event !== 'object') {
+    return event;
   }
-}
 
-function dedupeHeadersCaseInsensitive(headers) {
-  if (!headers || typeof headers !== 'object') return {};
+  if (typeof event.path === 'string') {
+    event.path = stripConfiguredBasePath(event.path);
+  }
 
-  const out = {};
-  const seen = new Map(); // lowerKey -> canonicalKey
+  if (typeof event.rawPath === 'string') {
+    event.rawPath = stripConfiguredBasePath(event.rawPath);
+  }
 
-  for (const [k, v] of Object.entries(headers)) {
-    const lower = String(k).toLowerCase();
-    const canonicalCors = canonicalCorsHeaderKey(lower);
-    const targetKey = canonicalCors || k;
-
-    if (!seen.has(lower)) {
-      seen.set(lower, targetKey);
-      out[targetKey] = normalizeSingleValueHeader(targetKey, v);
-      continue;
+  if (event.requestContext && typeof event.requestContext === 'object') {
+    if (typeof event.requestContext.path === 'string') {
+      event.requestContext.path = stripConfiguredBasePath(event.requestContext.path);
     }
 
-    // Merge duplicates deterministically. For CORS headers we always keep a single value.
-    const existingKey = seen.get(lower);
-    if (lower === 'access-control-allow-origin') {
-      // Keep the first value (after normalization) and ignore subsequent duplicates.
-      continue;
-    }
-
-    const existingVal = out[existingKey];
-    const nextVal = normalizeSingleValueHeader(existingKey, v);
-    if (existingVal == null) {
-      out[existingKey] = nextVal;
-    } else if (nextVal != null && String(existingVal) !== String(nextVal)) {
-      out[existingKey] = `${existingVal},${nextVal}`;
+    if (event.requestContext.http && typeof event.requestContext.http.path === 'string') {
+      event.requestContext.http.path = stripConfiguredBasePath(event.requestContext.http.path);
     }
   }
 
-  return out;
+  return event;
 }
 
 export const handler = async (event, context) => {
   // Handle OPTIONS preflight requests directly
   if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: CORS_HEADERS,
-      body: ''
-    };
+    return buildResponse(200, '');
   }
 
   // Ensure we always have a correlation id available to Express + logs
@@ -91,6 +68,8 @@ export const handler = async (event, context) => {
   if (!event.headers['x-request-id'] && !event.headers['X-Request-Id']) {
     event.headers['x-request-id'] = context?.awsRequestId;
   }
+
+  normalizeEventPath(event);
 
   // Initialize serverless-express instance
   if (!serverlessExpressInstance) {
@@ -116,32 +95,5 @@ export const handler = async (event, context) => {
   // Process the request through Express
   const response = await serverlessExpressInstance(event, context);
 
-  // Normalize multi-value headers into single headers to avoid duplicates like "*, *"
-  // in Access-Control-Allow-Origin.
-  response.headers = response.headers || {};
-  if (response.multiValueHeaders && typeof response.multiValueHeaders === 'object') {
-    for (const [k, v] of Object.entries(response.multiValueHeaders)) {
-      if (response.headers[k] == null) {
-        response.headers[k] = normalizeSingleValueHeader(k, v);
-      }
-    }
-    delete response.multiValueHeaders;
-  }
-
-  // Add CORS headers to all responses
-  response.headers = {
-    ...response.headers,
-    ...CORS_HEADERS
-  };
-
-  // Remove duplicate headers that differ only by casing and canonicalize CORS header keys.
-  response.headers = dedupeHeadersCaseInsensitive(response.headers);
-
-  // Ensure ACAO is a single valid value (not a comma-separated list)
-  response.headers['Access-Control-Allow-Origin'] = normalizeSingleValueHeader(
-    'Access-Control-Allow-Origin',
-    response.headers['Access-Control-Allow-Origin']
-  );
-
-  return response;
+  return applyCorsHeaders(response);
 };

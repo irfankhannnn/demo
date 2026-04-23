@@ -1,3 +1,9 @@
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+};
+
 /**
  * Middleware to extract and validate tenant_id
  * Priority: server-derived tenantId from validateToken > x-tenant-id header
@@ -13,6 +19,7 @@ export function extractTenantId(req, res, next) {
   const tenantId = req.headers['x-tenant-id'];
   
   if (!tenantId) {
+    res.set(CORS_HEADERS);
     return res.status(400).json({ 
       error: 'Tenant ID is required. Please include x-tenant-id header.' 
     });

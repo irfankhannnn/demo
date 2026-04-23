@@ -29,6 +29,10 @@ router.use((req, res, next) => {
   next();
 });
 
+/*
+// ============== COMMENTED OUT: Buildings (SQLite) feature disabled ==============
+// All routes below are commented out as part of removing flats/buildings/areas functionality
+
 // Configure multer for memory storage
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -319,5 +323,6 @@ router.post('/:id/documents', validateToken, extractTenantId, upload.single('fil
 // router.delete('/:buildingId/documents/:documentId', validateToken, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
+*/
 
 export default router;

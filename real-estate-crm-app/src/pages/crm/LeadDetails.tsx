@@ -19,6 +19,8 @@ import {
   Calendar,
   Building2,
   X,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
@@ -50,6 +52,9 @@ export default function LeadDetails() {
   const [saving, setSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [draftActivityNote, setDraftActivityNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [converting, setConverting] = useState(false);
   const [properties, setProperties] = useState<any[]>([]);
@@ -352,6 +357,36 @@ export default function LeadDetails() {
       setNewNote('');
     } catch (error) {
       console.error('Error adding note:', error);
+    }
+  };
+
+  const handleNoteEdit = (note: CRMLeadNote) => {
+    setEditingNoteId(note.noteId);
+    setEditingNoteContent(note.content);
+  };
+
+  const handleNoteEditSave = async (noteId: string) => {
+    if (!id || !editingNoteContent.trim()) return;
+    try {
+      const updated = await api.updateLeadNote(id, noteId, { content: editingNoteContent });
+      setNotes(prev => prev.map(n => n.noteId === noteId ? (updated || n) : n));
+      setEditingNoteId(null);
+      setEditingNoteContent('');
+    } catch (e) {
+      console.error('Error updating note:', e);
+    }
+  };
+
+  const handleNoteDelete = async (noteId: string) => {
+    if (!id) return;
+    setDeletingNoteId(noteId);
+    try {
+      await api.deleteLeadNote(id, noteId);
+      setNotes(prev => prev.filter(n => n.noteId !== noteId));
+    } catch (e) {
+      console.error('Error deleting note:', e);
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -1076,10 +1111,40 @@ export default function LeadDetails() {
               <h4 className="text-sm font-medium text-gray-700">Activity Notes</h4>
               {notes.map((note) => (
                 <div key={note.noteId} className="p-3 bg-gray-50 rounded-lg">
-                  <p className="text-gray-700 text-sm whitespace-pre-wrap">{note.content}</p>
-                  <div className="text-xs text-gray-500 mt-2">
-                    {note.createdBy} • {new Date(note.createdAt).toLocaleString()}
-                  </div>
+                  {editingNoteId === note.noteId ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={editingNoteContent}
+                        onChange={(e) => setEditingNoteContent(e.target.value)}
+                        rows={3}
+                        className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleNoteEditSave(note.noteId)} className="px-3 py-1 bg-amber-600 text-white rounded text-xs hover:bg-amber-700">Save</button>
+                        <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="px-3 py-1 border rounded text-xs hover:bg-gray-100">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-gray-700 text-sm whitespace-pre-wrap">{note.content}</p>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-xs text-gray-500">{note.createdBy} • {new Date(note.createdAt).toLocaleString()}</span>
+                        <div className="flex gap-1">
+                          <button onClick={() => handleNoteEdit(note)} className="p-1 text-gray-400 hover:text-amber-600 rounded" title="Edit">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleNoteDelete(note.noteId)}
+                            disabled={deletingNoteId === note.noteId}
+                            className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               ))}
             </div>

@@ -535,7 +535,8 @@ export default function CRMDashboard() {
           </div>
         </div>
 
-        {/* Real Estate Management - NEW SECTION */}
+        {/* Real Estate Management - DISABLED */}
+        {/*
         <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl shadow-lg border border-white/20 p-6 mt-6 sm:mt-8 backdrop-blur-sm">
           <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
             <Building2 className="w-5 h-5 text-purple-600" />
@@ -579,6 +580,7 @@ export default function CRMDashboard() {
             </button>
           </div>
         </div>
+        */}
 
         {/* Quick Links - Moved to Bottom */}
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mt-6 sm:mt-8">
@@ -665,16 +667,6 @@ export default function CRMDashboard() {
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
             </button>
             <button 
-              onClick={() => navigate('/crm/leads')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
-            >
-              <span className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-gray-400 group-hover:text-amber-500" />
-                Leads
-              </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-amber-400" />
-            </button>
-            <button 
               onClick={() => navigate('/crm/hierarchy')} 
               className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
             >
@@ -704,6 +696,8 @@ export default function CRMDashboard() {
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
             </button>
+            {/* AI Calling - DISABLED */}
+            {/*
             <button 
               onClick={() => navigate('/crm/ai-calling')} 
               className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-green-200 bg-green-50"
@@ -714,6 +708,7 @@ export default function CRMDashboard() {
               </span>
               <ChevronRight className="w-4 h-4 text-green-300 group-hover:text-green-500" />
             </button>
+            */}
           </div>
         </div>
       </main>

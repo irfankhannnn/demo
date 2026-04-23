@@ -10,7 +10,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Smartphone, Shield, AlertCircle } from 'lucide-react';
 import PhoneInput from '../components/PhoneInput';
 import OTPInput from '../components/OTPInput';
-import { getAccessToken, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
+import { getAccessToken, getIdToken, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
@@ -194,10 +194,11 @@ export default function PhoneLogin() {
     setError('');
 
     try {
+      const idToken = getIdToken();
       const accessToken = getAccessToken();
-      console.log('[PhoneLogin] Onboard - accessToken exists:', !!accessToken);
-      if (!accessToken) {
-        console.log('[PhoneLogin] Onboard - No access token found');
+      console.log('[PhoneLogin] Onboard - idToken exists:', !!idToken, 'accessToken exists:', !!accessToken);
+      if (!idToken || !accessToken) {
+        console.log('[PhoneLogin] Onboard - Missing tokens');
         throw new Error('Authentication tokens not found. Please try again.');
       }
 
@@ -205,7 +206,8 @@ export default function PhoneLogin() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${idToken}`,         // ID Token for API Gateway authorizer
+          'X-Access-Token': accessToken,                   // Access Token for backend cognito.getUser()
         },
         body: JSON.stringify({
           displayName,

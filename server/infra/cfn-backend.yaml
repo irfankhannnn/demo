@@ -1,0 +1,1055 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Real Estate Agency - Core AWS resources
+  (core properties table, multi-tenant CRM table, agency config table, S3 bucket).
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (used for tagging only)
+
+  DynamoDbTableName:
+    Type: String
+    Default: cloudberry-real-estate-core
+    Description: Name of the core DynamoDB table used by the application
+
+  CrmDynamoDbTableName:
+    Type: String
+    Default: cloudberry-real-estate-crm
+    Description: Name of the DynamoDB table used by the multi-tenant CRM
+
+  AgencyConfigTableName:
+    Type: String
+    Default: cloudberry-real-estate-agencies
+    Description: Name of the DynamoDB table storing per-agency admin configuration
+
+  AreasTableName:
+    Type: String
+    Default: cloudberry-real-estate-areas
+    Description: Name of the DynamoDB table storing area information with banners
+
+  EnquiriesTableNameCloudberry:
+    Type: String
+    Default: cloudberry-real-estate-enquiries
+    Description: Name of the DynamoDB table storing contact and consultation enquiries
+
+  B2BLeadsTableName:
+    Type: String
+    Default: cloudberry-real-estate-b2b-details
+    Description: Name of the DynamoDB table storing B2B sales leads (Ten BKC channel partnership inquiries)
+
+  KhataTableName:
+    Type: String
+    Default: cloudberry-real-estate-khata
+    Description: Name of the DynamoDB table storing Khata Book transactions and categories
+
+  NotificationsTableName:
+    Type: String
+    Default: cloudberry-real-estate-notifications
+    Description: Name of the DynamoDB table storing in-app notifications and scheduled reminders
+
+  DevelopersTableName:
+    Type: String
+    Default: cloudberry-real-estate-developers
+    Description: Name of the DynamoDB table storing real estate developer profiles (Emaar, Sobha, Lodha, etc.)
+
+  RealEstateAreasTableName:
+    Type: String
+    Default: cloudberry-real-estate-communities
+    Description: Name of the DynamoDB table storing area/community profiles (DIFC, Dubai Marina, Andheri, etc.)
+
+  ProjectsTableName:
+    Type: String
+    Default: cloudberry-real-estate-projects
+    Description: Name of the DynamoDB table storing real estate projects (off-plan, ready-to-move properties)
+
+  S3BucketName:
+    Type: String
+    Description: S3 bucket name for documents (must be globally unique)
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    ConstraintDescription: >
+      Bucket name must be lowercase, 3–63 characters, and can contain
+      letters, numbers, dots, and hyphens.
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket that stores the packaged Lambda zip (deployment artifact)
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 object key for the packaged Lambda zip
+
+  LambdaRuntime:
+    Type: String
+    Default: nodejs20.x
+    AllowedValues:
+      - nodejs18.x
+      - nodejs20.x
+    Description: Lambda runtime for the backend function
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    Description: Lambda memory size in MB
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+    Description: Lambda timeout in seconds
+
+  PublicApiDomainName:
+    Type: String
+    Description: Custom domain name for the public website API (e.g. api.example.com)
+
+  PublicApiBasePath:
+    Type: String
+    Default: api
+    Description: Base path for the public API mapping on the custom domain
+
+  PublicApiStageName:
+    Type: String
+    Default: prod
+    Description: Stage name for the public API Gateway
+
+  CrmApiDomainName:
+    Type: String
+    Description: Custom domain name for the CRM web UI API (e.g. crm-api.example.com)
+
+  CrmApiBasePath:
+    Type: String
+    Default: api
+    Description: Base path for the CRM API mapping on the custom domain
+
+  CrmApiStageName:
+    Type: String
+    Default: prod
+    Description: Stage name for the CRM API Gateway
+
+  AuthServiceUrl:
+    Type: String
+    Description: URL of the authentication microservice for token validation (e.g., https://auth-api.example.com)
+
+  ApiGatewayRoutesTemplateUrl:
+    Type: String
+    Description: S3 URL for nested template that creates explicit API Gateway routes without ANY/proxy+ methods
+
+Resources:
+  PropertiesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref DynamoDbTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: area-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: building-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CrmTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CrmDynamoDbTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: owner-property-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  AgencyConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgencyConfigTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: TenantId
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: TenantId
+          KeyType: HASH
+
+  AreasTableCloudberry:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AreasTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-city-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  EnquiriesTableCloudberry:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref EnquiriesTableNameCloudberry
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-status-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  B2BLeadsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref B2BLeadsTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: leadId
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: submittedAt
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: leadId
+          KeyType: HASH
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-date-index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: submittedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  KhataTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref KhataTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: property-settlement-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: tenant-settlement-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref NotificationsTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: unread-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ============================================================
+  # Real Estate Management Tables (Developers, Areas, Projects)
+  # ============================================================
+
+  DevelopersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref DevelopersTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  RealEstateAreasTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref RealEstateAreasTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI3: Location index (tenant + city/emirate for geographic filtering)
+        - IndexName: location-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref ProjectsTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+        - AttributeName: GSI4PK
+          AttributeType: S
+        - AttributeName: GSI4SK
+          AttributeType: S
+        - AttributeName: GSI5PK
+          AttributeType: S
+        - AttributeName: GSI5SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Developer index (tenant + developerId for projects by developer)
+        - IndexName: developer-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Area index (tenant + areaId for projects by area/community)
+        - IndexName: area-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI3: Status index (tenant + status for filtering active/completed projects)
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI4: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI4PK
+              KeyType: HASH
+            - AttributeName: GSI4SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI5: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI5PK
+              KeyType: HASH
+            - AttributeName: GSI5SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Suspended
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - "*"
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ApiLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-real-estate-api-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RealEstateApiDynamoAndS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DescribeTable
+                Resource:
+                  - !GetAtt PropertiesTable.Arn
+                  - !GetAtt CrmTable.Arn
+                  - !GetAtt AgencyConfigTable.Arn
+                  - !GetAtt AreasTableCloudberry.Arn
+                  - !GetAtt EnquiriesTableCloudberry.Arn
+                  - !GetAtt B2BLeadsTable.Arn
+                  - !GetAtt KhataTable.Arn
+                  - !GetAtt NotificationsTable.Arn
+                  - !GetAtt DevelopersTable.Arn
+                  - !GetAtt RealEstateAreasTable.Arn
+                  - !GetAtt ProjectsTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub "${PropertiesTable.Arn}/index/*"
+                  - !Sub "${CrmTable.Arn}/index/*"
+                  - !Sub "${AreasTableCloudberry.Arn}/index/*"
+                  - !Sub "${EnquiriesTableCloudberry.Arn}/index/*"
+                  - !Sub "${B2BLeadsTable.Arn}/index/*"
+                  - !Sub "${KhataTable.Arn}/index/*"
+                  - !Sub "${NotificationsTable.Arn}/index/*"
+                  - !Sub "${DevelopersTable.Arn}/index/*"
+                  - !Sub "${RealEstateAreasTable.Arn}/index/*"
+                  - !Sub "${ProjectsTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${DocumentsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+
+  ApiLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-real-estate-api"
+      Runtime: !Ref LambdaRuntime
+      Handler: lambda-handler.handler
+      Role: !GetAtt ApiLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          AREAS_DYNAMODB_TABLE_NAME: !Ref AreasTableName
+          ENQUIRIES_DYNAMODB_TABLE_NAME: !Ref EnquiriesTableNameCloudberry
+          B2B_LEADS_TABLE: !Ref B2BLeadsTableName
+          KHATA_TABLE_NAME: !Ref KhataTableName
+          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
+          DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
+          REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
+          PROJECTS_TABLE_NAME: !Ref ProjectsTableName
+          S3_BUCKET_NAME: !Ref S3BucketName
+          PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
+          CRM_API_BASE_PATH: !Ref CrmApiBasePath
+          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+
+  RealEstatePublicRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-real-estate-public-api"
+      BinaryMediaTypes:
+        - "*/*"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  PublicApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  PublicApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  PublicApiResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
+      Parameters:
+        RestApiId: !Ref RealEstatePublicRestApi
+        RootResourceId: !GetAtt RealEstatePublicRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+
+  PublicApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - PublicApiResourcesStack
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      StageName: !Ref PublicApiStageName
+
+  PublicApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn:
+      - PublicApiDeployment
+    Properties:
+      DomainName: !Ref PublicApiDomainName
+      RestApiId: !Ref RealEstatePublicRestApi
+      Stage: !Ref PublicApiStageName
+      BasePath: !Ref PublicApiBasePath
+
+  PublicApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RealEstatePublicRestApi}/*/*/*"
+
+  RealEstateCrmRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-real-estate-crm-api"
+      BinaryMediaTypes:
+        - "*/*"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  CrmApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiGatewayResponseRequestTooLarge:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: REQUEST_TOO_LARGE
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
+      Parameters:
+        RestApiId: !Ref RealEstateCrmRestApi
+        RootResourceId: !GetAtt RealEstateCrmRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+
+  CrmApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CrmApiResourcesStack
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      StageName: !Ref CrmApiStageName
+
+  CrmApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    DependsOn:
+      - CrmApiDeployment
+    Properties:
+      DomainName: !Ref CrmApiDomainName
+      RestApiId: !Ref RealEstateCrmRestApi
+      Stage: !Ref CrmApiStageName
+      BasePath: !Ref CrmApiBasePath
+
+  CrmApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RealEstateCrmRestApi}/*/*/*"
+
+Outputs:
+  DynamoDbTableNameOutput:
+    Description: Core DynamoDB table name to use in the backend .env
+    Value: !Ref DynamoDbTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDbTableName"
+
+  DynamoDbTableArnOutput:
+    Description: Core DynamoDB table ARN
+    Value: !GetAtt PropertiesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDbTableArn"
+
+  CrmDynamoDbTableNameOutput:
+    Description: CRM DynamoDB table name to use in the backend .env (CRM_DYNAMODB_TABLE_NAME)
+    Value: !Ref CrmDynamoDbTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmDynamoDbTableName"
+
+  CrmDynamoDbTableArnOutput:
+    Description: CRM DynamoDB table ARN
+    Value: !GetAtt CrmTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmDynamoDbTableArn"
+
+  AgencyConfigTableNameOutput:
+    Description: Agency config DynamoDB table name for storing per-agency admin settings
+    Value: !Ref AgencyConfigTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-AgencyConfigTableName"
+
+  AgencyConfigTableArnOutput:
+    Description: Agency config DynamoDB table ARN
+    Value: !GetAtt AgencyConfigTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-AgencyConfigTableArn"
+
+  S3BucketNameOutput:
+    Description: S3 bucket name to use in the backend .env
+    Value: !Ref S3BucketName
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  S3BucketArnOutput:
+    Description: S3 bucket ARN
+    Value: !GetAtt DocumentsBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketArn"
+
+  EnquiriesTableNameOutput:
+    Description: Enquiries DynamoDB table name to use in the backend .env (ENQUIRIES_DYNAMODB_TABLE_NAME)
+    Value: !Ref EnquiriesTableNameCloudberry
+    Export:
+      Name: !Sub "${AWS::StackName}-EnquiriesTableCloudberry"
+
+  ApiLambdaFunctionNameOutput:
+    Description: Name of the Lambda function serving the HTTP APIs
+    Value: !Ref ApiLambdaFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiLambdaFunctionName"
+
+  PublicApiDomainOutput:
+    Description: Custom domain name for the public website API
+    Value: !Ref PublicApiDomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicApiDomainName"
+
+  PublicApiBaseUrlOutput:
+    Description: Base URL for the public website API (use as VITE_API_URL for the public UI)
+    Value: !Sub "https://${PublicApiDomainName}/${PublicApiBasePath}"
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicApiBaseUrl"
+
+  CrmApiDomainOutput:
+    Description: Custom domain name for the CRM web UI API
+    Value: !Ref CrmApiDomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmApiDomainName"
+
+  CrmApiBaseUrlOutput:
+    Description: Base URL for the CRM web UI API (use as VITE_API_URL for the CRM app)
+    Value: !Sub "https://${CrmApiDomainName}/${CrmApiBasePath}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmApiBaseUrl"
+
+  # Real Estate Management Tables Outputs
+  DevelopersTableNameOutput:
+    Description: Developers DynamoDB table name (DEVELOPERS_TABLE_NAME)
+    Value: !Ref DevelopersTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-DevelopersTableName"
+
+  DevelopersTableArnOutput:
+    Description: Developers DynamoDB table ARN
+    Value: !GetAtt DevelopersTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DevelopersTableArn"
+
+  RealEstateAreasTableNameOutput:
+    Description: Real Estate Areas/Communities DynamoDB table name (REAL_ESTATE_AREAS_TABLE_NAME)
+    Value: !Ref RealEstateAreasTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-RealEstateAreasTableName"
+
+  RealEstateAreasTableArnOutput:
+    Description: Real Estate Areas/Communities DynamoDB table ARN
+    Value: !GetAtt RealEstateAreasTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RealEstateAreasTableArn"
+
+  ProjectsTableNameOutput:
+    Description: Projects DynamoDB table name (PROJECTS_TABLE_NAME)
+    Value: !Ref ProjectsTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-ProjectsTableName"
+
+  ProjectsTableArnOutput:
+    Description: Projects DynamoDB table ARN
+    Value: !GetAtt ProjectsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ProjectsTableArn"

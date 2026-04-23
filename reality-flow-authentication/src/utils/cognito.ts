@@ -19,7 +19,15 @@ export interface CognitoClaims {
  * For local dev, claims are extracted from the x-cognito-claims header (JSON).
  */
 export function extractClaims(req: Request): CognitoClaims {
-  // Production: API Gateway injects claims via @vendia/serverless-express
+  // Production: API Gateway injects claims - read from app.locals where handler stores the event
+  const app = req.app;
+  const apiGwEvent = (app as any).locals?.apiGatewayEvent;
+  const claims = apiGwEvent?.requestContext?.authorizer?.claims;
+  if (claims) {
+    return claims as CognitoClaims;
+  }
+
+  // Fallback: try req.apiGateway (for compatibility if serverless-express populates it)
   const apiGwContext = (req as any).apiGateway?.event?.requestContext?.authorizer?.claims;
   if (apiGwContext) {
     return apiGwContext as CognitoClaims;

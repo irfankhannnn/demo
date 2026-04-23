@@ -85,13 +85,15 @@ export default function TenantDetails() {
 
     try {
       setLookingUp(true);
-      const existing = await api.getCustomerByPhone(phone);
-      if (existing) {
+      const result = await api.getCustomerByPhone(phone);
+      // API returns { found: boolean, customer: object | null }
+      if (result?.found && result?.customer) {
+        const tenantName = result.customer.name || result.customer.phone || 'Unnamed';
         const confirmUse = window.confirm(
-          `Found existing tenant: ${existing.name}. Do you want to load their information?`
+          `A tenant with this phone number already exists: "${tenantName}".\n\nDo you want to load their information instead of creating a new tenant?`
         );
         if (confirmUse) {
-          setCustomer(existing);
+          setCustomer(result.customer);
         }
       }
     } catch (error) {

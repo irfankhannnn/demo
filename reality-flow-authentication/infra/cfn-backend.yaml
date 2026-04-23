@@ -36,16 +36,7 @@ Parameters:
     Default: ''
     Description: Optional VPC security group IDs for Lambda
 
-  # Cognito params — V1 params (no longer used, kept for org compat)
-  # CognitoUserPoolId:
-  #   Type: String
-  #   Default: ''
-  #   Description: Leave empty; this stack creates its own Cognito User Pool
 
-  # CognitoClientId:
-  #   Type: String
-  #   Default: ''
-  #   Description: Leave empty; this stack creates its own Cognito Client
 
   LambdaPackagesBucketName:
     Type: String
@@ -113,6 +104,11 @@ Parameters:
     Type: String
     Default: '123456'
     Description: The fixed OTP to use when TestOtpEnabled is true
+
+  ApiGatewayRoutesTemplateUrl:
+    Type: String
+    Default: ''
+    Description: S3 URL for nested template that creates explicit API Gateway routes without ANY/proxy+ methods
 
 # =============================================================================
 # Conditions
@@ -993,65 +989,20 @@ Resources:
         - !GetAtt CognitoUserPoolV2.Arn
 
   # ===========================================================================
-  # 12. API Gateway — Proxy Resource (Lambda handles routing via Express)
+  # 12. API Gateway — Explicit Routes (Nested Stack)
   # ===========================================================================
-  ProxyResource:
-    Type: AWS::ApiGateway::Resource
+  ApiGatewayRoutesStack:
+    Type: AWS::CloudFormation::Stack
     Properties:
-      RestApiId: !Ref AuthApiGateway
-      ParentId: !GetAtt AuthApiGateway.RootResourceId
-      PathPart: '{proxy+}'
-
-  ProxyMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref AuthApiGateway
-      ResourceId: !Ref ProxyResource
-      HttpMethod: ANY
-      AuthorizationType: COGNITO_USER_POOLS
-      AuthorizerId: !Ref CognitoAuthorizer
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
-
-  # CORS preflight (OPTIONS) — no auth required
-  ProxyOptionsMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref AuthApiGateway
-      ResourceId: !Ref ProxyResource
-      HttpMethod: OPTIONS
-      AuthorizationType: NONE
-      Integration:
-        Type: MOCK
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: '200'
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Amz-Date,X-Api-Key'"
-              method.response.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS'"
-              method.response.header.Access-Control-Allow-Origin: "'*'"
-      MethodResponses:
-        - StatusCode: '200'
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # Root resource method (for /health etc.)
-  RootMethod:
-    Type: AWS::ApiGateway::Method
-    Properties:
-      RestApiId: !Ref AuthApiGateway
-      ResourceId: !GetAtt AuthApiGateway.RootResourceId
-      HttpMethod: ANY
-      AuthorizationType: NONE
-      Integration:
-        Type: AWS_PROXY
-        IntegrationHttpMethod: POST
-        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AuthLambdaFunction.Arn}/invocations'
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
+      Parameters:
+        RestApiId: !Ref AuthApiGateway
+        RootResourceId: !GetAtt AuthApiGateway.RootResourceId
+        LambdaFunctionArn: !GetAtt AuthLambdaFunction.Arn
+        CognitoAuthorizerId: !Ref CognitoAuthorizer
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Access-Token"
+        AllowMethods: "GET,POST,PUT,DELETE,OPTIONS"
 
   # ===========================================================================
   # 13. Cognito Trigger Lambda Permissions
@@ -1102,9 +1053,7 @@ Resources:
   ApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - ProxyMethod
-      - ProxyOptionsMethod
-      - RootMethod
+      - ApiGatewayRoutesStack
     Properties:
       RestApiId: !Ref AuthApiGateway
 

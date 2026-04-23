@@ -4,6 +4,12 @@ import axios from 'axios';
 const tokenCache = new Map();
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+};
+
 /**
  * Middleware to validate Cognito tokens via auth microservice
  * Calls AUTH_SERVICE_URL/auth/me to verify token and get user context
@@ -14,6 +20,7 @@ async function validateToken(req, res, next) {
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.set(CORS_HEADERS);
       return res.status(401).json({ 
         error: 'Unauthorized', 
         message: 'Missing or invalid Authorization header' 
@@ -43,6 +50,7 @@ async function validateToken(req, res, next) {
       const { user, agency } = response.data;
       
       if (!user || !user.tenantId) {
+        res.set(CORS_HEADERS);
         return res.status(401).json({ 
           error: 'Unauthorized', 
           message: 'Invalid user data from auth service' 
@@ -66,6 +74,7 @@ async function validateToken(req, res, next) {
     }
 
     // Invalid response from auth service
+    res.set(CORS_HEADERS);
     return res.status(401).json({ 
       error: 'Unauthorized', 
       message: 'Invalid token' 
@@ -83,12 +92,20 @@ async function validateToken(req, res, next) {
     if (error.response) {
       // Auth service returned an error response
       const status = error.response.status;
+      console.error('[validateToken] Auth service error:', {
+        status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        url: error.config?.url
+      });
       if (status === 401 || status === 403) {
+        res.set(CORS_HEADERS);
         return res.status(status).json({ 
           error: 'Unauthorized', 
           message: 'Invalid or expired token' 
         });
       }
+      res.set(CORS_HEADERS);
       return res.status(502).json({ 
         error: 'Bad Gateway', 
         message: 'Auth service error' 
@@ -98,6 +115,7 @@ async function validateToken(req, res, next) {
     if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
       // Auth service is down or unreachable
       console.error('[validateToken] Auth service unreachable:', error.message);
+      res.set(CORS_HEADERS);
       return res.status(503).json({ 
         error: 'Service Unavailable', 
         message: 'Authentication service is currently unavailable' 
@@ -106,6 +124,7 @@ async function validateToken(req, res, next) {
 
     // Unknown error
     console.error('[validateToken] Unexpected error:', error);
+    res.set(CORS_HEADERS);
     return res.status(500).json({ 
       error: 'Internal Server Error', 
       message: 'Failed to validate token' 
