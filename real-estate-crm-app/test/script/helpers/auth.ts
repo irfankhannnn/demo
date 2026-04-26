@@ -33,14 +33,14 @@ export async function loginWithPhoneOtp(
   const snapPrefix = options.snapPrefix ?? 'login';
   const onboardingDisplayName = options.displayName ?? `Invited ${phoneNumber.slice(-4)}`;
 
-  log('Login', 'INFO', 'Navigating to /phone-login');
-  await page.goto(`${BASE_URL}/phone-login`);
+  log('Login', 'INFO', 'Navigating to app root and entering phone-login through the client route');
+  await page.goto(`${BASE_URL}/`);
   await page.waitForLoadState('networkidle');
   if (ctx) await snap(page, ctx, `${snapPrefix}-01-login-page`);
 
-  // Handle the Welcome page if we ever land there instead of /phone-login directly.
+  // Handle the Welcome page and move through the client-side phone-login route.
   const continueWithPhone = page.getByRole('button', { name: 'Continue with Phone' });
-  if (await continueWithPhone.isVisible({ timeout: 2_000 }).catch(() => false)) {
+  if (await continueWithPhone.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await continueWithPhone.click();
     await page.waitForLoadState('networkidle');
   }

@@ -1858,6 +1858,33 @@ Resources:
       ParentId: !Ref CrmOwnerLookupResource
       PathPart: by-phone
 
+  CrmOwnerLookupByPhoneOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmOwnerLookupByPhoneResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   CrmOwnerLookupByPhoneGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:

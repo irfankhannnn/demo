@@ -20,6 +20,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { CRMMeeting, CRMCustomerNote, CRMOwnerNote, CRMEnquiryNote, CRMLeadNote } from '../../types/crm';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
@@ -558,13 +559,7 @@ export default function Calendar() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading calendar...</p>
-        </div>
+        <LoadingSpinner message="Loading calendar..." />
       </div>
     );
   }
@@ -628,7 +623,7 @@ export default function Calendar() {
                 onClick={loadData}
                 className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
                 title="Refresh"
-              >
+               aria-label="Refresh data">
                 <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
               </button>
             </div>
@@ -754,7 +749,7 @@ export default function Calendar() {
               <button
                 onClick={prevMonth}
                 className="p-2 hover:bg-gray-100 rounded-lg"
-              >
+               aria-label="Previous">
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <div className="flex items-center gap-4">
@@ -769,7 +764,7 @@ export default function Calendar() {
               <button
                 onClick={nextMonth}
                 className="p-2 hover:bg-gray-100 rounded-lg"
-              >
+               aria-label="Next">
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import {
   Key,
   ArrowLeft,
@@ -45,6 +48,13 @@ export default function TenantDetails() {
     location: '',
     notes: '',
   });
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (isNew) {
@@ -89,12 +99,15 @@ export default function TenantDetails() {
       // API returns { found: boolean, customer: object | null }
       if (result?.found && result?.customer) {
         const tenantName = result.customer.name || result.customer.phone || 'Unnamed';
-        const confirmUse = window.confirm(
-          `A tenant with this phone number already exists: "${tenantName}".\n\nDo you want to load their information instead of creating a new tenant?`
-        );
-        if (confirmUse) {
-          setCustomer(result.customer);
-        }
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Tenant Already Exists',
+          message: `A tenant with this phone number already exists: "${tenantName}".\n\nDo you want to load their information instead of creating a new tenant?`,
+          onConfirm: () => {
+            setCustomer(result.customer);
+            setConfirmDialog(null);
+          },
+        });
       }
     } catch (error) {
       console.error('Error looking up phone:', error);
@@ -105,7 +118,7 @@ export default function TenantDetails() {
 
   const handleSave = async () => {
     if (!customer.name || !customer.phone) {
-      alert('Name and phone are required');
+      setToast({ message: 'Name and phone are required', type: 'error' });
       return;
     }
 
@@ -127,7 +140,7 @@ export default function TenantDetails() {
       }
     } catch (error) {
       console.error('Error saving customer:', error);
-      alert('Failed to save tenant');
+      setToast({ message: 'Failed to save tenant', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -147,7 +160,7 @@ export default function TenantDetails() {
 
   const handleScheduleMeeting = async () => {
     if (!id || !newMeeting.meetingDate || !newMeeting.meetingTime || !newMeeting.title) {
-      alert('Meeting date, time, and title are required');
+      setToast({ message: 'Meeting date, time, and title are required', type: 'error' });
       return;
     }
 
@@ -166,7 +179,7 @@ export default function TenantDetails() {
       setShowMeetingForm(false);
     } catch (error) {
       console.error('Error scheduling meeting:', error);
-      alert('Failed to schedule meeting');
+      setToast({ message: 'Failed to schedule meeting', type: 'error' });
     }
   };
 
@@ -193,18 +206,13 @@ export default function TenantDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-emerald-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-teal-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading tenant...</p>
-        </div>
+        <LoadingSpinner message="Loading tenant..." />
       </div>
     );
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-emerald-50">
       <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
@@ -623,7 +631,7 @@ export default function TenantDetails() {
                   onClick={handleAddNote}
                   disabled={!newNote.trim()}
                   className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed self-end"
-                >
+                 aria-label="Add">
                   <Plus className="h-5 w-5" />
                 </button>
               )}
@@ -649,5 +657,25 @@ export default function TenantDetails() {
         </div>
       </main>
     </div>
-  );
+    {toast && (
+      <Toast
+        message={toast.message}
+        type={toast.type}
+        onClose={() => setToast(null)}
+      />
+    )}
+    {confirmDialog && (
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmLabel="Load"
+        cancelLabel="Cancel"
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={() => setConfirmDialog(null)}
+      />
+    )}
+  </>
+);
+
 }

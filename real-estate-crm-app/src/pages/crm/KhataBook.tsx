@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   BookOpen,
   Plus,
@@ -170,13 +171,7 @@ export default function KhataBook() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading Khata Book...</p>
-        </div>
+        <LoadingSpinner message="Loading Khata Book..." />
       </div>
     );
   }

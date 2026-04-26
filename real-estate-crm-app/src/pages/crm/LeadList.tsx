@@ -347,7 +347,7 @@ export default function LeadList() {
                 onClick={loadLeads}
                 disabled={loading}
                 className="p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
-              >
+               aria-label="Refresh data">
                 <RefreshCw className={`h-5 w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button

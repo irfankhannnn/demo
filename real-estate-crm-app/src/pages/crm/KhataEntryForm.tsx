@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   ArrowLeft,
   Save,
@@ -245,13 +246,7 @@ export default function KhataEntryForm() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading...</p>
-        </div>
+        <LoadingSpinner message="Loading..." />
       </div>
     );
   }
@@ -472,7 +467,7 @@ export default function KhataEntryForm() {
                     onClick={handleAddCategory}
                     className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-md"
                     title="Save"
-                  >
+                   aria-label="Save">
                     <Save className="h-4 w-4" />
                   </button>
                   <button

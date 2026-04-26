@@ -1,4 +1,4 @@
-// Independent CRM operations spec (calendar, analytics, khata, ai-calling).
+// Independent CRM operations spec (calendar, analytics, hierarchy, B2B leads).
 // Run: npx playwright test crm-operations-flows.spec.ts --headed
 import { test } from '@playwright/test';
 import { TEST_TIMEOUT_MS } from './helpers/config';
@@ -6,7 +6,7 @@ import { setupEvidence, createLogger } from './helpers/evidence';
 import { loginWithPhoneOtp } from './helpers/auth';
 import { runCrmOperationsFlow } from './flows/crmOperationsFlow';
 
-test('CRM Operations: login + calendar/analytics/khata/ai-calling', async ({ page }) => {
+test('CRM Operations: calendar/analytics/hierarchy/b2b-leads', async ({ page }) => {
   test.setTimeout(TEST_TIMEOUT_MS);
   const ctx = setupEvidence('crm-operations');
   const log = createLogger(ctx.feature);

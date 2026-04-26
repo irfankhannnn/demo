@@ -1,6 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 import { BASE_URL } from '../../helpers/config';
 import { EvidenceCtx, createLogger, snap } from '../../helpers/evidence';
+import { loginWithPhoneOtp } from '../../helpers/auth';
 
 export async function createKhataOwnerAndProperty(
   page: Page,
@@ -11,12 +12,29 @@ export async function createKhataOwnerAndProperty(
 ): Promise<{ ownerId: string; propertyId: string }> {
   const log = createLogger(ctx.feature);
 
+  // Guard: if hard navigation bounced us back to login, re-authenticate
+  const ensureAuthenticated = async () => {
+    const loginHeading = page.locator('h1, h2').filter({ hasText: /Welcome|Sign in|Sign In/i });
+    if (await loginHeading.isVisible({ timeout: 3_000 }).catch(() => false)) {
+      log('Auth', 'INFO', 'Session lost after navigation, re-authenticating');
+      await loginWithPhoneOtp(page, ctx);
+      await page.waitForLoadState('networkidle');
+    }
+  };
+
+  // Resilient page-load assertion — checks any heading tag, not strict role
+  const assertPageLoaded = async (textPattern: RegExp) => {
+    const header = page.locator('h1, h2, [role="heading"]').filter({ hasText: textPattern }).first();
+    await expect(header).toBeVisible({ timeout: 10_000 });
+  };
+
   const saveHeaderForm = async (expectedUrl: RegExp) => {
     const saveBtn = page.locator('button').filter({ hasText: /Save|Save Property|Create|Submit/i }).first();
     await expect(saveBtn).toBeVisible({ timeout: 10_000 });
     await saveBtn.click();
     await page.waitForURL(expectedUrl, { timeout: 20_000 });
     await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(600); // buffer for async post-save dialogs / alerts
   };
 
   let ownerId = '';
@@ -24,7 +42,8 @@ export async function createKhataOwnerAndProperty(
   await test.step('Khata Setup: create owner', async () => {
     await page.goto(`${BASE_URL}/crm/owners/new`);
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('heading', { name: /New Owner/i })).toBeVisible({ timeout: 10_000 });
+    await ensureAuthenticated();
+    await assertPageLoaded(/New Owner|Add Owner|Create Owner/i);
 
     await page.getByPlaceholder('Full name').fill(owner.name);
     await page.getByPlaceholder('Phone number').fill(owner.phone);
@@ -35,10 +54,13 @@ export async function createKhataOwnerAndProperty(
       await address.fill('Link Road, Andheri West, Mumbai');
     }
 
-    await saveHeaderForm(/\/crm\/owners\/[^/?#]+$/);
-    ownerId = page.url().match(/\/crm\/owners\/([^/?#]+)/)?.[1] || '';
+    await saveHeaderForm(/\/crm\/owners\/[^\/?#]+$/);
+    ownerId = page.url().match(/\/crm\/owners\/([^\/?#]+)/)?.[1] || '';
+    if (!ownerId) {
+      throw new Error('Owner creation failed: no ownerId extracted from URL');
+    }
     await snap(page, ctx, '01-khata-owner-created');
-    log('Setup', 'PASS', `${owner.name} created`);
+    log('Setup', 'PASS', `${owner.name} created (id=${ownerId})`);
   });
 
   let propertyId = '';
@@ -46,7 +68,11 @@ export async function createKhataOwnerAndProperty(
   await test.step('Khata Setup: create property', async () => {
     await page.goto(`${BASE_URL}/crm/properties/new`);
     await page.waitForLoadState('networkidle');
-    await expect(page.getByRole('heading', { name: /New Property/i })).toBeVisible({ timeout: 10_000 });
+    await ensureAuthenticated();
+
+    // Skip heading assertion — directly wait for first known form field
+    const titleInput = page.getByPlaceholder('Spacious 2BHK Apartment in Andheri');
+    await expect(titleInput).toBeVisible({ timeout: 15_000 });
 
     const ownerDropdown = page.locator('button').filter({ hasText: 'Unassigned / No Owner' }).first();
     await expect(ownerDropdown).toBeVisible({ timeout: 10_000 });

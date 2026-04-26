@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   ArrowLeft,
   Building2,
@@ -176,13 +177,7 @@ export default function RentedProperties() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading rented properties...</p>
-        </div>
+        <LoadingSpinner message="Loading rented properties..." />
       </div>
     );
   }
@@ -232,7 +227,7 @@ export default function RentedProperties() {
             <button
               onClick={loadRentedProperties}
               className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm flex-shrink-0"
-            >
+             aria-label="Refresh data">
               <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
             </button>
           </div>

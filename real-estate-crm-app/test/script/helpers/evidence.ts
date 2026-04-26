@@ -31,3 +31,12 @@ export async function snap(page: Page, ctx: EvidenceCtx, name: string): Promise<
   // eslint-disable-next-line no-console
   console.log(`[snap] ${ctx.feature}/${name}.png`);
 }
+
+export async function stepPause(page: Page, feature: string, label: string, ms = 2500): Promise<void> {
+  const isHeaded = process.env.CI !== 'true' && !process.env.HEADLESS;
+  if (!isHeaded) return;
+
+  // eslint-disable-next-line no-console
+  console.log(`[pause] [${new Date().toISOString()}] [${feature}] ${label} - waiting ${ms}ms`);
+  await page.waitForTimeout(ms);
+}

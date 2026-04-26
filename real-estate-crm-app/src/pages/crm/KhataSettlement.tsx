@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   ArrowLeft,
   Building2,
@@ -146,13 +147,7 @@ export default function KhataSettlement() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200" />
-            <div className="absolute inset-0 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading settlement intelligence...</p>
-        </div>
+        <LoadingSpinner message="Loading settlement intelligence..." />
       </div>
     );
   }

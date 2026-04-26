@@ -74,7 +74,7 @@ export default function MeetingHistoryModal({ isOpen, meetingId, onClose }: Meet
               onClick={load}
               className="p-2 hover:bg-gray-100 rounded-lg"
               title="Refresh"
-            >
+             aria-label="Refresh data">
               <RefreshCw className="w-4 h-4 text-gray-600" />
             </button>
             <button type="button" onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">

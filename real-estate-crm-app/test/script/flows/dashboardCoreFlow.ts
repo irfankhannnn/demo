@@ -1,7 +1,27 @@
 import { expect, Page, test } from '@playwright/test';
 import { BASE_URL } from '../helpers/config';
-import { EvidenceCtx, createLogger, snap } from '../helpers/evidence';
+import { EvidenceCtx, createLogger, snap, stepPause } from '../helpers/evidence';
 import { SEED_DATA, generateTestPhone, generateTestEmail, getItemByIndex } from '../helpers/seedData';
+import {
+  uploadOwnerPhoto,
+  uploadOwnerPan,
+  uploadOwnerAadhar,
+  assertOwnerKycUploadsVisible,
+  setPropertyImageInput,
+  setPropertyVideoInput,
+  setPropertyAgreementDocInput,
+  setPropertyVerificationDocInput,
+  assertPropertyPendingUploadsVisible,
+  selectPropertyDocumentType,
+  setPropertyGenericDocInput,
+  clickPropertyDocumentUploadButton,
+  waitForPropertyDocumentUploadComplete,
+  assertPropertyDocumentInList,
+  ASSET_PROPERTY_IMAGE,
+  ASSET_VIDEO,
+  ASSET_AGREEMENT_PDF,
+  ASSET_PROPERTY_PDF,
+} from '../helpers/uploadHelpers';
 
 type LeadType = 'buyer' | 'seller' | 'tenant' | 'owner';
 
@@ -21,7 +41,9 @@ type CreatedEntity = {
 export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
   const log = createLogger(ctx.feature);
   const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-  const phoneBase = 7_000_000_000 + (Date.now() % 1_000_000);
+  // Combine Date.now() with a random factor to prevent collisions across rapid re-runs
+  // (Date.now() % 1_000_000 cycles every ~16 minutes; adding randomness avoids API duplicate-phone errors)
+  const phoneBase = 7_000_000_000 + ((Date.now() + Math.floor(Math.random() * 1_000_000)) % 1_000_000_00);
   const phoneFor = (offset: number) => generateTestPhone(offset, phoneBase);
   const emailFor = (prefix: string, offset: number) => generateTestEmail(prefix, offset, 'test.com');
 
@@ -69,7 +91,16 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
 
   const createdLeads: Record<LeadType, CreatedLead> = {} as Record<LeadType, CreatedLead>;
 
+  // Capture browser dialogs (alerts) so the real API error surfaces instead of being auto-dismissed
+  let lastDialogMessage: string | null = null;
+  page.on('dialog', async (dialog) => {
+    lastDialogMessage = dialog.message();
+    log('Dialog', 'INFO', `${dialog.type()}: ${dialog.message()}`);
+    await dialog.accept().catch(() => null);
+  });
+
   const saveHeaderForm = async (expectedUrl: RegExp) => {
+    lastDialogMessage = null;
     // Try header button first (for owner/buyer/tenant), fall back to form save buttons
     const saveBtn = page
       .locator('button')
@@ -77,7 +108,14 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       .first();
     await expect(saveBtn).toBeVisible({ timeout: 10_000 });
     await saveBtn.click();
-    await page.waitForURL(expectedUrl, { timeout: 20_000 });
+    try {
+      await page.waitForURL(expectedUrl, { timeout: 20_000 });
+    } catch (err) {
+      if (lastDialogMessage) {
+        throw new Error(`Save failed — backend error: "${lastDialogMessage}"`);
+      }
+      throw err;
+    }
     await page.waitForLoadState('networkidle');
   };
 
@@ -104,14 +142,49 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
         await address.fill('Link Road, Andheri West, Mumbai');
       }
-      await saveHeaderForm(/\/crm\/owners\/[^/?#]+$/);
-      const ownerId = page.url().match(/\/crm\/owners\/([^/?#]+)/)?.[1] || '';
+      await saveHeaderForm(/\/crm\/owners\/(?!new)[a-f0-9-]+$/);
+      const ownerId = page.url().match(/\/crm\/owners\/([a-f0-9-]+)$/)?.[1] || '';
+      if (!ownerId || ownerId === 'new') {
+        throw new Error(`Owner ID not captured or invalid: "${ownerId}"`);
+      }
       await snap(page, ctx, '01-owner-created');
-      log('Owner', 'PASS', `${ownerName} created`);
+      log('Owner', 'PASS', `${ownerName} created (id=${ownerId})`);
+      await stepPause(page, ctx.feature, 'Owner created');
       return { id: ownerId, name: ownerName, phone: ownerPhone };
     });
 
-    return { id: page.url().match(/\/crm\/owners\/([^/?#]+)/)?.[1] || '', name: ownerName, phone: ownerPhone };
+    return { id: page.url().match(/\/crm\/owners\/([a-f0-9-]+)$/)?.[1] || '', name: ownerName, phone: ownerPhone };
+  };
+
+  const uploadOwnerKyc = async (ownerId: string) => {
+    await test.step('Dashboard ops: upload owner KYC documents', async () => {
+      // Guard: never call this with empty/invalid ID
+      if (!ownerId || ownerId === 'new') {
+        throw new Error(`uploadOwnerKyc called with invalid ownerId: "${ownerId}"`);
+      }
+      await page.goto(`${BASE_URL}/crm/owners/${ownerId}`);
+      await page.waitForLoadState('networkidle');
+      // KYC Documents section (h3) only renders when !isNew && id (i.e., on existing-owner edit page)
+      await expect(page.getByRole('heading', { name: 'KYC Documents', exact: true })).toBeVisible({ timeout: 15_000 });
+
+      // Upload Photo
+      await uploadOwnerPhoto(page);
+      log('Owner KYC', 'PASS', 'Photo uploaded');
+
+      // Upload PAN
+      await uploadOwnerPan(page);
+      log('Owner KYC', 'PASS', 'PAN uploaded');
+
+      // Upload Aadhar
+      await uploadOwnerAadhar(page);
+      log('Owner KYC', 'PASS', 'Aadhar uploaded');
+
+      // Assert all uploads are visible
+      await assertOwnerKycUploadsVisible(page);
+      await snap(page, ctx, '02-owner-kyc-uploaded');
+      log('Owner KYC', 'PASS', 'All KYC documents uploaded and visible');
+      await stepPause(page, ctx.feature, 'Owner KYC uploaded');
+    });
   };
 
   const createDirectProperty = async (owner: CreatedEntity): Promise<CreatedEntity> => {
@@ -167,11 +240,40 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       if (await deposit.isVisible({ timeout: 1_500 }).catch(() => false)) {
         await deposit.fill('250000');
       }
+      const statusSelect = page.getByLabel('Status');
+      if (await statusSelect.isVisible({ timeout: 1_500 }).catch(() => false)) {
+        await statusSelect.selectOption('available');
+      }
 
-      await saveHeaderForm(/\/crm\/properties\/[^/?#]+$/);
-      const propertyId = page.url().match(/\/crm\/properties\/([^/?#]+)/)?.[1] || '';
-      await snap(page, ctx, '02-property-created');
-      log('Property', 'PASS', `${propertyTitle} created`);
+      // Add property file uploads (pending) before save
+      await setPropertyImageInput(page, ASSET_PROPERTY_IMAGE);
+      log('Property', 'INFO', 'Image file selected (pending)');
+      await setPropertyVideoInput(page, ASSET_VIDEO);
+      log('Property', 'INFO', 'Video file selected (pending)');
+      await setPropertyAgreementDocInput(page, ASSET_AGREEMENT_PDF);
+      log('Property', 'INFO', 'Agreement PDF selected (pending)');
+      await setPropertyVerificationDocInput(page, ASSET_PROPERTY_PDF);
+      log('Property', 'INFO', 'Verification PDF selected (pending)');
+      await assertPropertyPendingUploadsVisible(page);
+      log('Property', 'PASS', 'All pending uploads visible in sidebar');
+
+      // PropertyDetails.tsx auto-navigates to /crm/properties after 1500ms success toast.
+      // We must capture the ID the instant the detail-page URL is reached.
+      const saveBtn = page.locator('button').filter({ hasText: /Save|Save Property|Create|Submit/i }).first();
+      await expect(saveBtn).toBeVisible({ timeout: 10_000 });
+      await saveBtn.click();
+      // Wait for detail-page URL: /crm/properties/{UUID} (NOT /crm/properties/new)
+      await page.waitForURL(/\/crm\/properties\/(?!new)[a-f0-9-]+$/, { timeout: 20_000 });
+      const propertyId = page.url().match(/\/crm\/properties\/([a-f0-9-]+)$/)?.[1] || '';
+      if (!propertyId || propertyId === 'new') {
+        throw new Error(`Property ID not captured or invalid: "${propertyId}"`);
+      }
+      // Allow auto-redirect to list page — we already have the ID
+      await page.waitForLoadState('networkidle').catch(() => null);
+
+      await snap(page, ctx, '03-property-created-with-uploads');
+      log('Property', 'PASS', `${propertyTitle} created with file uploads (id=${propertyId})`);
+      await stepPause(page, ctx.feature, 'Property created');
       return { id: propertyId, name: propertyTitle, phone: owner.phone };
     });
 
@@ -188,12 +290,13 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
         await address.fill('Powai, Mumbai');
       }
-      await saveHeaderForm(/\/crm\/tenants\/[^/?#]+$/);
+      await saveHeaderForm(/\/crm\/tenants\/(?!new)[a-f0-9-]+$/);
       await snap(page, ctx, '03-tenant-created');
       log('Tenant', 'PASS', `${tenantName} created`);
+      await stepPause(page, ctx.feature, 'Tenant created');
     });
 
-    return { id: page.url().match(/\/crm\/tenants\/([^/?#]+)/)?.[1] || '', name: tenantName, phone: tenantPhone };
+    return { id: page.url().match(/\/crm\/tenants\/([a-f0-9-]+)$/)?.[1] || '', name: tenantName, phone: tenantPhone };
   };
 
   const createDirectBuyer = async (): Promise<CreatedEntity> => {
@@ -206,12 +309,51 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
         await address.fill('Bandra West, Mumbai');
       }
-      await saveHeaderForm(/\/crm\/buyers\/[^/?#]+$/);
+      await saveHeaderForm(/\/crm\/buyers\/(?!new)[a-f0-9-]+$/);
       await snap(page, ctx, '04-buyer-created');
       log('Buyer', 'PASS', `${buyerName} created`);
+      await stepPause(page, ctx.feature, 'Buyer created');
     });
 
-    return { id: page.url().match(/\/crm\/buyers\/([^/?#]+)/)?.[1] || '', name: buyerName, phone: buyerPhone };
+    return { id: page.url().match(/\/crm\/buyers\/([a-f0-9-]+)$/)?.[1] || '', name: buyerName, phone: buyerPhone };
+  };
+
+  const uploadPropertyGenericDocument = async (propertyId: string) => {
+    await test.step('Dashboard ops: upload property generic document', async () => {
+      await page.goto(`${BASE_URL}/crm/properties/${propertyId}`);
+      await page.waitForLoadState('networkidle');
+      // Documents section is rendered as <h2>Documents</h2> when isEditing=true.
+      // It will only be present after the property page has loaded with the existing record.
+      await expect(page.getByRole('heading', { name: 'Documents', exact: true })).toBeVisible({ timeout: 15_000 });
+
+      // Scroll to documents section if needed
+      const docSection = page.locator('text=/Documents|Upload Document/i').first();
+      if (await docSection.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await docSection.scrollIntoViewIfNeeded();
+      }
+
+      // Select document type = AGREEMENT
+      await selectPropertyDocumentType(page, 'AGREEMENT');
+      log('Property Doc', 'PASS', 'Document type selected');
+
+      // Set document file
+      await setPropertyGenericDocInput(page, ASSET_PROPERTY_PDF);
+      log('Property Doc', 'PASS', 'Document file selected');
+
+      // Click upload button
+      await clickPropertyDocumentUploadButton(page);
+      log('Property Doc', 'PASS', 'Upload button clicked');
+
+      // Wait for upload to complete
+      await waitForPropertyDocumentUploadComplete(page);
+      log('Property Doc', 'PASS', 'Upload completed');
+
+      // Assert document appears in list
+      await assertPropertyDocumentInList(page, 'AGREEMENT');
+      await snap(page, ctx, '04-property-doc-uploaded');
+      log('Property Doc', 'PASS', 'Generic document uploaded and visible in list');
+      await stepPause(page, ctx.feature, 'Property generic document uploaded');
+    });
   };
 
   const createLead = async (lead: {
@@ -339,6 +481,7 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await snap(page, ctx, `05-${lead.type}-lead-created`);
       log('Lead', 'PASS', `${lead.name} created (id=${leadId})`);
       createdLeads[lead.type] = { id: leadId, name: lead.name, phone: lead.phone, type: lead.type };
+      await stepPause(page, ctx.feature, `${lead.type} lead created`);
     });
 
     return createdLeads[lead.type];
@@ -395,15 +538,24 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       }
 
       if (lead.type === 'tenant') {
+        const ownerPhoneToUse = options.ownerPhone || ownerPhone;
         const ownerLookup = modal.getByPlaceholder('Owner phone number');
-        await ownerLookup.fill(options.ownerPhone || ownerPhone);
+        await ownerLookup.fill(ownerPhoneToUse);
+        await expect(ownerLookup).toHaveValue(ownerPhoneToUse);
+        log('Convert', 'INFO', `Tenant owner lookup phone=${ownerPhoneToUse}`);
         await modal.getByRole('button', { name: /^Search$/ }).click();
-        await expect(modal.getByText(ownerName)).toBeVisible({ timeout: 15_000 });
+        await expect(modal.getByRole('button', { name: 'Change' })).toBeVisible({ timeout: 15_000 });
+        await expect(modal.getByText(ownerName, { exact: true })).toBeVisible({ timeout: 15_000 });
+        await stepPause(page, ctx.feature, 'Tenant owner selected');
 
         const propertySelect = modal.locator('select').first();
         await expect(propertySelect).toBeVisible({ timeout: 10_000 });
-        // Wait for properties to load after owner selection
-        await page.waitForTimeout(1_500);
+        await expect(propertySelect).toBeEnabled({ timeout: 15_000 });
+        await page.waitForFunction(
+          (select) => Boolean(select) && (select as HTMLSelectElement).options.length > 1,
+          await propertySelect.elementHandle(),
+          { timeout: 15_000 },
+        );
         // Select the first available property (skip placeholder)
         const propertyValue = await propertySelect.evaluate((el: HTMLSelectElement) => {
           for (const opt of el.options) {
@@ -413,9 +565,10 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         });
         if (!propertyValue) {
           const options = await propertySelect.locator('option').allTextContents();
-          throw new Error(`No properties available. Options: ${options.join('; ')}`);
+          throw new Error(`No properties available for owner ${ownerName} (${ownerPhoneToUse}). Options: ${options.join('; ')}`);
         }
         await propertySelect.selectOption(propertyValue);
+        await stepPause(page, ctx.feature, 'Tenant property selected');
 
         const monthlyRent = modal.getByPlaceholder('Monthly rent');
         await expect(monthlyRent).toBeVisible({ timeout: 5_000 });
@@ -463,15 +616,30 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await page.waitForLoadState('networkidle');
       await snap(page, ctx, `06-${lead.type}-lead-converted`);
       log('Convert', 'PASS', `${lead.name} converted`);
+      await stepPause(page, ctx.feature, `${lead.type} lead converted`);
     });
   };
 
   await test.step('Dashboard ops: overview cards', async () => {
+    // Guard: if we're back at login, re-authenticate (session lost)
+    const currentUrl = page.url();
+    if (currentUrl.includes('/login') || currentUrl.includes('/phone-login')) {
+      log('Dashboard', 'WARN', 'Session lost after operations, re-authenticating');
+      await loginWithPhoneOtp(page, ctx);
+    }
+    
     await page.goto(`${BASE_URL}/crm`);
+    await page.waitForLoadState('networkidle');
+    
+    // Guard: if redirect happened to login, fail explicitly
+    if (page.url().includes('/login')) {
+      throw new Error('Dashboard navigation redirected to login — session invalid or token expired');
+    }
+    
     // Dashboard makes 5+ concurrent API calls before rendering the real UI.
     // Wait for the loading spinner to disappear so the heading and cards are in the DOM.
     await page.locator('text=Loading Dashboard...').waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => null);
-    await expect(page.getByRole('heading', { name: /CRM Dashboard/i })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('heading', { name: 'CRM Dashboard', exact: true })).toBeVisible({ timeout: 30_000 });
 
     // Cards use <p class="...text-gray-500">Label</p> - match exactly as rendered in CRMDashboard.tsx
     const expectedCards = ['Leads', 'Buyers', 'Owners', 'Total Properties', 'Tenants', 'Sellers'];
@@ -482,10 +650,15 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     }
     await snap(page, ctx, '00-dashboard-overview');
     log('Dashboard', 'PASS', 'Core dashboard cards visible');
+    await stepPause(page, ctx.feature, 'Dashboard overview visible');
   });
 
   const owner = await createDirectOwner();
+  await uploadOwnerKyc(owner.id);
+
   const property = await createDirectProperty(owner);
+  await uploadPropertyGenericDocument(property.id);
+
   const tenant = await createDirectTenant();
   const buyer = await createDirectBuyer();
 
