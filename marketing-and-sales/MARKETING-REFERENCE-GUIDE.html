@@ -1,0 +1,1342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RealEstateFlow — Marketing & Sales Reference Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --sky: #0EA5E9;
+    --saffron: #F97316;
+    --gold: #F59E0B;
+    --bg: #060B18;
+    --surface: #0D1526;
+    --surface2: #142035;
+    --border: #1E3050;
+    --text: #E2E8F0;
+    --muted: #64748B;
+    --green: #10B981;
+    --red: #EF4444;
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    min-height: 100vh;
+  }
+
+  /* SIDEBAR - FIXED */
+  #sidebar {
+    width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 1000;
+    padding-bottom: 40px;
+  }
+
+  #sidebar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  #sidebar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .sidebar-logo {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    background: var(--surface);
+    z-index: 10;
+  }
+
+  .logo-badge {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    background: linear-gradient(135deg, #0EA5E9, #F97316);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 900;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+
+  .nav-section {
+    padding: 16px 12px 4px;
+  }
+
+  .nav-section-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    padding: 0 8px 8px;
+  }
+
+  .nav-item {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 6px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-left: 3px solid transparent;
+    margin-left: -3px;
+  }
+
+  .nav-item:hover {
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .nav-item.active {
+    background: linear-gradient(90deg, rgba(14, 165, 233, 0.25) 0%, rgba(14, 165, 233, 0.05) 100%);
+    color: var(--sky);
+    border-left: 3px solid var(--sky);
+    font-weight: 600;
+  }
+
+  .nav-item .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+  }
+
+  /* MAIN CONTENT - SCROLLABLE */
+  #main {
+    margin-left: 280px;
+    width: calc(100% - 280px);
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* SECTIONS */
+  section {
+    padding: 48px;
+    border-bottom: 1px solid var(--border);
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  section:last-child {
+    border-bottom: none;
+  }
+
+  .section-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--sky);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+  }
+
+  h2 {
+    font-size: 32px;
+    font-weight: 900;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+
+  .section-sub {
+    font-size: 15px;
+    color: var(--muted);
+    margin-bottom: 32px;
+    line-height: 1.6;
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, #0EA5E9, #F97316);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* CARDS */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+
+  .card-icon {
+    font-size: 24px;
+    margin-bottom: 12px;
+  }
+
+  .card-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* TABLES */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+  }
+
+  thead {
+    background: var(--surface2);
+  }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(30, 48, 80, 0.5);
+    line-height: 1.5;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  tr:hover td {
+    background: rgba(14, 165, 233, 0.03);
+  }
+
+  /* CODE BLOCK */
+  .code-block {
+    background: #0A0F1E;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    margin: 12px 0;
+    overflow-x: auto;
+  }
+
+  /* FILE TREE */
+  .file-tree {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 2;
+  }
+
+  /* ALERTS */
+  .alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+    margin: 16px 0;
+  }
+
+  .alert-sky {
+    background: rgba(14, 165, 233, 0.08);
+    border: 1px solid rgba(14, 165, 233, 0.2);
+    color: var(--sky);
+  }
+
+  .alert-gold {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.2);
+    color: var(--gold);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    #sidebar {
+      display: none;
+    }
+
+    #main {
+      margin-left: 0;
+      width: 100%;
+    }
+
+    section {
+      padding: 32px 24px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR NAVIGATION -->
+<nav id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-badge">R</div>
+    <div>
+      <div class="logo-text">RealEstate<span style="background:linear-gradient(90deg,#0EA5E9,#F97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent">Flow</span></div>
+      <div class="logo-sub">Marketing Reference</div>
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <a class="nav-item" href="#dashboard"><span class="dot" style="background:#0EA5E9"></span>Dashboard</a>
+    <a class="nav-item" href="#file-tree"><span class="dot" style="background:#64748B"></span>File Structure</a>
+    <a class="nav-item" href="#brand-kit"><span class="dot" style="background:#0EA5E9"></span>Brand Kit</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Creative</div>
+    <a class="nav-item" href="#landing-pages"><span class="dot" style="background:#F97316"></span>Landing Pages (6)</a>
+    <a class="nav-item" href="#image-prompts"><span class="dot" style="background:#A78BFA"></span>AI Image Prompts</a>
+    <a class="nav-item" href="#canva-specs"><span class="dot" style="background:#F59E0B"></span>Canva Specs</a>
+    <a class="nav-item" href="#motion-graphics"><span class="dot" style="background:#F97316"></span>Motion Graphics</a>
+    <a class="nav-item" href="#video-scripts"><span class="dot" style="background:#EF4444"></span>Video Scripts</a>
+    <a class="nav-item" href="#whatsapp-graphics"><span class="dot" style="background:#10B981"></span>WhatsApp Graphics</a>
+    <a class="nav-item" href="#webinar"><span class="dot" style="background:#0EA5E9"></span>Webinar Plan</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Strategy</div>
+    <a class="nav-item" href="#personas"><span class="dot" style="background:#F97316"></span>Buyer Personas</a>
+    <a class="nav-item" href="#icp-report"><span class="dot" style="background:#0EA5E9"></span>ICP Report</a>
+    <a class="nav-item" href="#positioning"><span class="dot" style="background:#F59E0B"></span>Positioning</a>
+    <a class="nav-item" href="#master-plan"><span class="dot" style="background:#10B981"></span>Master Plan</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Sales</div>
+    <a class="nav-item" href="#mumbai-outreach"><span class="dot" style="background:#F97316"></span>Mumbai Outreach</a>
+    <a class="nav-item" href="#pune-outreach"><span class="dot" style="background:#F59E0B"></span>Pune Outreach</a>
+    <a class="nav-item" href="#whatsapp-sequences"><span class="dot" style="background:#10B981"></span>WhatsApp Sequences</a>
+    <a class="nav-item" href="#lead-scoring"><span class="dot" style="background:#0EA5E9"></span>Lead Scoring</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label" style="color:#F97316">🔥 Hormozi System</div>
+    <a class="nav-item" href="#hormozi-overview" style="color:#F97316"><span class="dot" style="background:#F97316"></span>System Overview</a>
+    <a class="nav-item" href="#hormozi-50-hooks"><span class="dot" style="background:#F97316"></span>50 Hooks</a>
+    <a class="nav-item" href="#hormozi-meats"><span class="dot" style="background:#F59E0B"></span>5 Meat Formats</a>
+    <a class="nav-item" href="#hormozi-ctas"><span class="dot" style="background:#10B981"></span>3 CTAs</a>
+    <a class="nav-item" href="#hormozi-matrix"><span class="dot" style="background:#0EA5E9"></span>Ad Matrix (750 Ads)</a>
+  </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main id="main">
+
+  <!-- DASHBOARD -->
+  <section id="dashboard">
+    <div class="section-eyebrow">Welcome</div>
+    <h2>RealEstate<span class="gradient-text">Flow OS</span><br>Marketing & Sales Bible</h2>
+    <p class="section-sub">Complete reference for all marketing files, strategies, creative assets, and the Alex Hormozi 750-ad system — adapted for Indian real estate.</p>
+    
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; margin-top:32px;">
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:28px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">30</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px;">Total Files</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:28px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">₹20L</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px;">Campaign Budget</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:28px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">750</div>
+        <div style="font-size:12px; color:var(--muted); margin-top:4px;">Hormozi Ads</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FILE TREE -->
+  <section id="file-tree">
+    <div class="section-eyebrow">Directory Overview</div>
+    <h2>Complete <span class="gradient-text">File Structure</span></h2>
+    <p class="section-sub">All 30 files organized by category. Click any section in the sidebar to jump to details.</p>
+    
+    <div class="file-tree">
+📁 marketing-and-sales/<br>
+├── 📄 MARKETING-MASTER-PLAN.md<br>
+├── 📁 creative/<br>
+│   ├── 📁 landing-pages/ (6 HTML files)<br>
+│   └── 📁 realestateflow-launch/ (12 files)<br>
+├── 📁 leads/<br>
+│   └── 📄 lead-scoring-template.csv<br>
+├── 📁 outreach/<br>
+│   ├── 📄 mumbai-outreach-templates.md<br>
+│   ├── 📄 pune-outreach-templates.md<br>
+│   └── 📄 whatsapp-broadcast-sequences.md<br>
+├── 📁 research/<br>
+│   ├── 📄 buyer-personas-summary.md<br>
+│   ├── 📄 icp-report-mumbai-launch.md<br>
+│   ├── 📄 mumbai-positioning-strategy.md<br>
+│   └── 📄 MUMBAI-LAUNCH-EXECUTIVE-SUMMARY.md<br>
+└── 📁 ads/hormozi-ad-system/ ← NEW<br>
+    ├── 📄 README.md<br>
+    ├── 📄 hormozi-50-hooks.md<br>
+    ├── 📄 hormozi-meats.md<br>
+    ├── 📄 hormozi-ctas.md<br>
+    ├── 📄 hormozi-ad-matrix.md<br>
+    └── 📄 weekly-filming-guide.md
+    </div>
+  </section>
+
+  <!-- BRAND KIT -->
+  <section id="brand-kit">
+    <div class="section-eyebrow">Brand Identity</div>
+    <h2>Brand <span class="gradient-text">Kit</span></h2>
+    <p class="section-sub">Complete visual identity system. Colors, gradients, typography, and pricing tiers.</p>
+    
+    <div style="margin:20px 0;">
+      <h3 style="font-size:16px; font-weight:700; margin-bottom:12px;">Color Palette</h3>
+      <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(100px,1fr)); gap:12px;">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+          <div style="width:60px; height:60px; background:#0EA5E9; border-radius:8px; margin:0 auto 8px;"></div>
+          <div style="font-size:11px; font-weight:700;">Sky Blue</div>
+          <div style="font-size:10px; color:var(--muted);">#0EA5E9</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+          <div style="width:60px; height:60px; background:#F97316; border-radius:8px; margin:0 auto 8px;"></div>
+          <div style="font-size:11px; font-weight:700;">Saffron</div>
+          <div style="font-size:10px; color:var(--muted);">#F97316</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; text-align:center;">
+          <div style="width:60px; height:60px; background:#F59E0B; border-radius:8px; margin:0 auto 8px;"></div>
+          <div style="font-size:11px; font-weight:700;">Gold</div>
+          <div style="font-size:10px; color:var(--muted);">#F59E0B</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin:20px 0;">
+      <h3 style="font-size:16px; font-weight:700; margin-bottom:12px;">Pricing Tiers</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Price</th>
+            <th>Trial</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>CRM Solo</strong></td>
+            <td>₹3,000/month</td>
+            <td>2 months free</td>
+          </tr>
+          <tr>
+            <td><strong>CRM Team</strong></td>
+            <td>₹3,000 + ₹1,000/member</td>
+            <td>2 months free</td>
+          </tr>
+          <tr>
+            <td><strong>WhatsApp AI Bot</strong></td>
+            <td>+₹5,000/month</td>
+            <td style="color:#EF4444;"><strong>NO free trial</strong></td>
+          </tr>
+          <tr>
+            <td><strong>Enterprise White-Label</strong></td>
+            <td>₹99,000 one-time</td>
+            <td>—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- LANDING PAGES -->
+  <section id="landing-pages">
+    <div class="section-eyebrow">Creative/Landing Pages</div>
+    <h2>Landing <span class="gradient-text">Pages (6)</span></h2>
+    <p class="section-sub">6 conversion-optimized landing pages hosted on Netlify. Each targets a specific persona and traffic source.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🏠</div>
+        <div class="card-title">Homepage</div>
+        <div class="card-desc">Full brand story with pain points, features, pricing, FAQ, and lead capture form.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏢</div>
+        <div class="card-title">Agency Owners LP</div>
+        <div class="card-desc">Hero: "₹20 lakh leak." Lead leakage stats. Solution columns. Demo booking.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">👤</div>
+        <div class="card-title">Agents LP</div>
+        <div class="card-desc">Hero: "AI handles follow-up, you close deals." Time audit chart. AI calling demo. Trial signup.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">AI Employee LP</div>
+        <div class="card-desc">24/7 WhatsApp automation. Pricing disclosure (NO free trial). 6-feature grid.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🏗️</div>
+        <div class="card-title">Enterprise LP</div>
+        <div class="card-desc">White-label OS. ₹99K one-time. Unlimited agents. AWS cloud. Enterprise inquiry form.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📅</div>
+        <div class="card-title">Demo LP</div>
+        <div class="card-desc">Primary conversion page for ALL paid traffic. 5 demo topics. Trust signals. Calendly embed.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CREATIVE ASSETS -->
+  <section id="image-prompts">
+    <div class="section-eyebrow">Creative/Realestateflow-Launch</div>
+    <h2>Creative Assets <span class="gradient-text">Overview</span></h2>
+    <p class="section-sub">Image prompts, Canva specs, motion graphics, video scripts, WhatsApp graphics, webinar plans.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">🎨</div>
+        <div class="card-title">AI Image Gen Prompts</div>
+        <div class="card-desc">10 detailed prompts for Midjourney/DALL-E 3. Hero mock, mobile, infographics, trust badges.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <div class="card-title">Canva Layout Specs</div>
+        <div class="card-desc">10 poster templates. 4 artboard sizes. Brand colors. Component variants.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎬</div>
+        <div class="card-title">Motion Graphics</div>
+        <div class="card-desc">4 deliverables: loops, typing overlay, offer stickers, counters. 1080×1920 + 1080×1080.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📹</div>
+        <div class="card-title">Video Scripts</div>
+        <div class="card-desc">2 master videos × 6 cutdowns. Full Hinglish VO scripts. Production notes for every format.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <div class="card-title">WhatsApp Graphics</div>
+        <div class="card-desc">Chat mockup, automation flow, 5-step diagram, bot UI components.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎤</div>
+        <div class="card-title">3-Webinar Plan</div>
+        <div class="card-desc">Lead Management, AI Calling Live Demo, Khata Book Commission Tracking.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HORMOZI SYSTEM -->
+  <section id="hormozi-overview">
+    <div class="section-eyebrow">🔥 Alex Hormozi Framework</div>
+    <h2>Hormozi Ad System <span class="gradient-text">— 750 Ads</span></h2>
+    <p class="section-sub">Complete 50 Hooks × 5 Meats × 3 CTAs framework adapted for Indian real estate. One filming day = 750 ads per batch.</p>
+    
+    <div style="background:var(--surface); border:1px solid rgba(249,115,22,.3); border-radius:16px; padding:32px; margin:20px 0; text-align:center;">
+      <div style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:16px; align-items:center; margin-bottom:20px;">
+        <div>
+          <div style="font-size:36px; font-weight:900; color:#F97316;">50</div>
+          <div style="font-size:12px; color:var(--muted);">Hooks</div>
+        </div>
+        <div style="font-size:24px; color:#64748B;">×</div>
+        <div>
+          <div style="font-size:36px; font-weight:900; color:#0EA5E9;">5</div>
+          <div style="font-size:12px; color:var(--muted);">Meats</div>
+        </div>
+        <div style="font-size:24px; color:#64748B;">×</div>
+        <div>
+          <div style="font-size:36px; font-weight:900; color:#10B981;">3</div>
+          <div style="font-size:12px; color:var(--muted);">CTAs</div>
+        </div>
+      </div>
+      <div style="padding-top:20px; border-top:1px solid var(--border);">
+        <div style="font-size:40px; font-weight:900; background:linear-gradient(135deg,#F97316,#F59E0B); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">= 750 Ads</div>
+        <div style="font-size:13px; color:var(--muted); margin-top:4px;">per batch · one filming day</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:16px; font-weight:700; margin:24px 0 12px;">6 Files Included:</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>README.md</strong></td>
+          <td>System overview + usage workflow</td>
+        </tr>
+        <tr>
+          <td><strong>hormozi-50-hooks.md</strong></td>
+          <td>50 hooks across 5 sources (189 lines)</td>
+        </tr>
+        <tr>
+          <td><strong>hormozi-meats.md</strong></td>
+          <td>5 ad body formats with full scripts (233 lines)</td>
+        </tr>
+        <tr>
+          <td><strong>hormozi-ctas.md</strong></td>
+          <td>3 CTAs with 5-element rule (127 lines)</td>
+        </tr>
+        <tr>
+          <td><strong>hormozi-ad-matrix.md</strong></td>
+          <td>Priority matrix + kill/scale rules (104 lines)</td>
+        </tr>
+        <tr>
+          <td><strong>weekly-filming-guide.md</strong></td>
+          <td>One-day production schedule + cost (163 lines)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-gold" style="margin-top:20px;">
+      ⚡ <strong>Quick Start:</strong> Film all 50 hooks in 2 hours → Film all 5 meats in 3 hours → Film all 3 CTAs in 1 hour → Edit 750 ads in 1 week. Cost: ₹76K/month.
+    </div>
+  </section>
+
+  <!-- 50 HOOKS -->
+  <section id="hormozi-50-hooks">
+    <div class="section-eyebrow">hormozi-50-hooks.md</div>
+    <h2>50 Hooks <span class="gradient-text">— 5 Sources</span></h2>
+    <p class="section-sub">Each hook is 1-3 sentences. Covers all 5 awareness levels. Hinglish + English variants for A/B testing.</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Sources</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Source</th>
+          <th>Hooks</th>
+          <th>Focus</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Winning Ads</strong></td>
+          <td>1-10</td>
+          <td>Pain-based hooks from past successful ads</td>
+        </tr>
+        <tr>
+          <td><strong>Free Content</strong></td>
+          <td>11-20</td>
+          <td>Educational, curiosity-driven hooks</td>
+        </tr>
+        <tr>
+          <td><strong>Competitor Ads</strong></td>
+          <td>21-30</td>
+          <td>Adapt winning competitor angles</td>
+        </tr>
+        <tr>
+          <td><strong>Competitor Content</strong></td>
+          <td>31-40</td>
+          <td>Story-based, testimonial-style hooks</td>
+        </tr>
+        <tr>
+          <td><strong>Platform Ad Libraries</strong></td>
+          <td>41-50</td>
+          <td>UGC style, trending formats, POV hooks</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Hook Examples</h3>
+    <div class="code-block">
+H4: "The ₹20 lakh leak in your real estate agency — and how to plug it in 2 hours."
+H22: "A WhatsApp bot that works 24/7, follows up instantly, and never asks for a raise."
+H41: "POV: Your AI employee just booked 3 site visits while you slept 🤖"
+H47: "Day 1 on RealEstateFlow vs Day 30 — the difference is embarrassing."
+    </div>
+  </section>
+
+  <!-- 5 MEATS -->
+  <section id="hormozi-meats">
+    <div class="section-eyebrow">hormozi-meats.md</div>
+    <h2>5 Meat <span class="gradient-text">Formats</span></h2>
+    <p class="section-sub">The body of the ad — 20-60 seconds. Educates customer on offer/product/solution/problem.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Meat 1: Demonstration</div>
+        <div class="card-desc">Screen recording of CRM in action. Lead → AI call → CRM update → agent notified. 45s full · 15s cut.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎙️</div>
+        <div class="card-title">Meat 2: Testimonial</div>
+        <div class="card-desc">Real agency owner or agent shares before/after story. Highest trust. Agency (50s) + Agent (35s) versions.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Meat 3: Educational</div>
+        <div class="card-desc">Teach something valuable. "Lead Leakage Explained": 32% stat → ₹20L → unified pipeline. 55s.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">📖</div>
+        <div class="card-title">Meat 4: Story</div>
+        <div class="card-desc">"Priya's Story": 7 agents → manual midnight work → setup in 2hrs → ₹4.2L month 1. 60s.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🖥️</div>
+        <div class="card-title">Meat 5: Faceless</div>
+        <div class="card-desc">Screen recording + timer overlay. "Setup 0:00 to 2:00:00." No people. Fastest to produce.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 CTAs -->
+  <section id="hormozi-ctas">
+    <div class="section-eyebrow">hormozi-ctas.md</div>
+    <h2>3 CTAs <span class="gradient-text">— 5-Element Rule</span></h2>
+    <p class="section-sub">Every CTA tells: WHAT to do, WHERE to go, WHY now, WHAT they get, WHAT it costs.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📞</div>
+        <div class="card-title">CTA 1: Demo Book</div>
+        <div class="card-desc">"Book Your Free 30-Min Demo" — Best for: Cold audiences, agency owners, LinkedIn. No card, no commitment.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">CTA 2: Free Trial</div>
+        <div class="card-desc">"Start 2-Month Free Trial" — Best for: Warm audiences, agents, Instagram. Results by tomorrow. 6-mo guarantee.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎁</div>
+        <div class="card-title">CTA 3: Lead Magnet</div>
+        <div class="card-desc">"Free Lead Leakage Calculator" — Best for: Top of funnel, unaware cold. See ₹ loss in 10 seconds. No signup.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AD MATRIX -->
+  <section id="hormozi-matrix">
+    <div class="section-eyebrow">hormozi-ad-matrix.md</div>
+    <h2>Ad Matrix <span class="gradient-text">— Production Schedule</span></h2>
+    <p class="section-sub">Phase-by-phase rollout. Priority batches. Kill/scale rules. One-day filming guide.</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Phase Rollout</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Hooks</th>
+          <th>Meats</th>
+          <th>CTAs</th>
+          <th>Total Ads</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Phase 1</strong></td>
+          <td>10</td>
+          <td>2</td>
+          <td>2</td>
+          <td style="color:#0EA5E9; font-weight:700;">40 ads</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 2</strong></td>
+          <td>20</td>
+          <td>3</td>
+          <td>2</td>
+          <td style="color:#F97316; font-weight:700;">120 ads</td>
+        </tr>
+        <tr>
+          <td><strong>Phase 3</strong></td>
+          <td>50</td>
+          <td>5</td>
+          <td>3</td>
+          <td style="color:#10B981; font-weight:700;">750 ads</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Kill/Scale Rules (after 72 hours)</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;">
+      <div style="background:rgba(239,68,68,.08); border:1px solid rgba(239,68,68,.2); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#EF4444; font-weight:700; margin-bottom:8px;">🗑️ KILL IF</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">CTR &lt; 1%<br>CPL &gt; ₹800<br>0 leads after ₹2K</div>
+      </div>
+      <div style="background:rgba(16,185,129,.08); border:1px solid rgba(16,185,129,.2); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#10B981; font-weight:700; margin-bottom:8px;">🚀 SCALE IF</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">CTR &gt; 3%<br>CPL &lt; ₹200<br>ROAS &gt; 3x</div>
+      </div>
+      <div style="background:rgba(245,158,11,.08); border:1px solid rgba(245,158,11,.2); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#F59E0B; font-weight:700; margin-bottom:8px;">🔧 ITERATE IF</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">Good CTR, low convert → fix CTA<br>Good watch, no click → fix CTA</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PERSONAS -->
+  <section id="personas">
+    <div class="section-eyebrow">research/buyer-personas-summary.md</div>
+    <h2>Buyer <span class="gradient-text">Personas (3)</span></h2>
+    <p class="section-sub">Three core personas driving every ad, email, landing page, and sales script.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">👩‍💼</div>
+        <div class="card-title" style="color:#0EA5E9;">Priya Patel</div>
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">"The Ambitious Broker Owner" · Age 35-45 · 3-8 agents</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.6;">
+          <strong>Pain:</strong> Lead leakage, zero visibility, admin overload, agent turnover<br>
+          <strong>Hook:</strong> "Best agents are getting poached by competitors with better tools"
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">👨‍💻</div>
+        <div class="card-title" style="color:#F97316;">Arjun Desai</div>
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">"The Tech-Savvy Young Agent" · Age 26-35 · Top 20%</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.6;">
+          <strong>Pain:</strong> 15-20 hrs/week admin, slow follow-up, can't prove performance<br>
+          <strong>Hook:</strong> "AI calling saves 10 hours/week — imagine your close rate"
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">👴</div>
+        <div class="card-title" style="color:#F59E0B;">Suresh Sharma</div>
+        <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">"The Family-Run Brokerage Boss" · Age 50-60 · 8-15 agents</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.6;">
+          <strong>Pain:</strong> Can't delegate, settlement disputes, zero succession plan<br>
+          <strong>Hook:</strong> "Successor won't manage like you — give them tools to do better"
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ICP REPORT -->
+  <section id="icp-report">
+    <div class="section-eyebrow">research/icp-report-mumbai-launch.md</div>
+    <h2>ICP Report <span class="gradient-text">— Mumbai Launch</span></h2>
+    <p class="section-sub">TAM/SAM/SOM analysis. Lead scoring framework. 3-phase go-to-market strategy.</p>
+    
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin:20px 0;">
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:8px;">TAM</div>
+        <div style="font-size:24px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">₹1,200 Cr</div>
+        <div style="font-size:12px; color:var(--muted);">Annual CRM spend · Mumbai</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:8px;">SAM</div>
+        <div style="font-size:24px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">11,500</div>
+        <div style="font-size:12px; color:var(--muted);">Potential customers</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center;">
+        <div style="font-size:11px; color:var(--muted); font-weight:700; text-transform:uppercase; margin-bottom:8px;">SOM Year 1</div>
+        <div style="font-size:24px; font-weight:900; background:linear-gradient(135deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">300-400</div>
+        <div style="font-size:12px; color:var(--muted);">Customers · ₹1.5-2Cr revenue</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Target Market Segments</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Segment</th>
+          <th>Count (Mumbai)</th>
+          <th>Team Size</th>
+          <th>Revenue</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Growth-Stage Brokerages</strong></td>
+          <td>~5,000</td>
+          <td>3-15 agents</td>
+          <td>₹50L-5Cr</td>
+        </tr>
+        <tr>
+          <td><strong>Luxury Boutique Agencies</strong></td>
+          <td>~1,500</td>
+          <td>1-5 agents</td>
+          <td>₹20L-2Cr</td>
+        </tr>
+        <tr>
+          <td><strong>High-Volume Aggregators</strong></td>
+          <td>200-300</td>
+          <td>30+ agents</td>
+          <td>₹5Cr+</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- POSITIONING -->
+  <section id="positioning">
+    <div class="section-eyebrow">research/mumbai-positioning-strategy.md</div>
+    <h2>Positioning <span class="gradient-text">Strategy</span></h2>
+    <p class="section-sub">Core positioning statement, competitive wins, and messaging by persona.</p>
+    
+    <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; border-left:4px solid var(--sky); padding:20px; margin:20px 0;">
+      <div style="font-size:11px; color:var(--sky); font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:12px;">Positioning Statement</div>
+      <div style="font-size:18px; font-weight:800; line-height:1.4; margin-bottom:8px;">"The only CRM built <em>for</em> Indian real estate agents, <em>by</em> people who get the business."</div>
+      <div style="font-size:13px; color:var(--muted);">Category: Real Estate OS · Target: RERA-registered brokerages · Proof: 200+ brokerages across Mumbai, Delhi, Pune, Dubai</div>
+    </div>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Messaging by Persona</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Persona</th>
+          <th>Message</th>
+          <th>3 Pillars</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Priya (Owner)</strong></td>
+          <td>"Stop Losing Deals to Spreadsheets"</td>
+          <td>Accountability · Automation · Scaling</td>
+        </tr>
+        <tr>
+          <td><strong>Arjun (Agent)</strong></td>
+          <td>"Work Less, Close More"</td>
+          <td>Time freedom · Data-driven · Professional</td>
+        </tr>
+        <tr>
+          <td><strong>Suresh (Family Biz)</strong></td>
+          <td>"Pass the Torch Without Losing Control"</td>
+          <td>Continuity · Accuracy · Loyalty</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- MASTER PLAN -->
+  <section id="master-plan">
+    <div class="section-eyebrow">MARKETING-MASTER-PLAN.md</div>
+    <h2>Marketing <span class="gradient-text">Master Plan</span></h2>
+    <p class="section-sub">6-month strategy. 8 marketing channels. ₹20L budget. 24-week calendar. Metrics dashboard.</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">₹20 Lakh Budget Allocation</h3>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:12px;">
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#0EA5E9;">₹8L</div>
+        <div style="font-size:11px; color:var(--muted);">Meta + Google Ads</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">40%</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#F97316;">₹3L</div>
+        <div style="font-size:11px; color:var(--muted);">Content Production</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">15%</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#F59E0B;">₹2L</div>
+        <div style="font-size:11px; color:var(--muted);">LinkedIn Ads</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">10%</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#10B981;">₹2L</div>
+        <div style="font-size:11px; color:var(--muted);">Webinars + Events</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">10%</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#A78BFA;">₹2L</div>
+        <div style="font-size:11px; color:var(--muted);">Sales Tools</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">10%</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; text-align:center;">
+        <div style="font-size:18px; font-weight:900; color:#64748B;">₹3L</div>
+        <div style="font-size:11px; color:var(--muted);">Contingency + PR</div>
+        <div style="font-size:10px; color:var(--muted); margin-top:2px;">15%</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">24-Week Calendar — 4 Phases</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Weeks</th>
+          <th>Focus</th>
+          <th>Key Activities</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span style="color:#0EA5E9; font-weight:700;">Pre-Launch</span></td>
+          <td>1-6 (Feb-Mar)</td>
+          <td>Awareness + List Build</td>
+          <td>Beta users, case studies, email list 500+</td>
+        </tr>
+        <tr>
+          <td><span style="color:#F97316; font-weight:700;">Launch</span></td>
+          <td>7-12 (Apr-May)</td>
+          <td>Lead Generation</td>
+          <td>Paid ads live, 3 webinars, 1,000+ leads</td>
+        </tr>
+        <tr>
+          <td><span style="color:#10B981; font-weight:700;">Conversion</span></td>
+          <td>13-18 (Jun-Jul)</td>
+          <td>Trial → Paid</td>
+          <td>Demo calls, onboarding, referral program</td>
+        </tr>
+        <tr>
+          <td><span style="color:#F59E0B; font-weight:700;">Retention</span></td>
+          <td>19-24 (Aug)</td>
+          <td>Scale + Expand</td>
+          <td>Upsell AI bot, Delhi/Dubai launch</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- OUTREACH TEMPLATES -->
+  <section id="mumbai-outreach">
+    <div class="section-eyebrow">outreach/mumbai-outreach-templates.md</div>
+    <h2>Mumbai Outreach <span class="gradient-text">Templates</span></h2>
+    <p class="section-sub">Complete email, WhatsApp, and LinkedIn templates. Objection handlers. Closing techniques.</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Template Sets by Persona</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Persona</th>
+          <th>Email 1</th>
+          <th>Email 2</th>
+          <th>WhatsApp</th>
+          <th>LinkedIn</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Priya (Owner)</strong></td>
+          <td>Lead Leakage Hook</td>
+          <td>Admin Pain Follow-up</td>
+          <td>Peer Angle</td>
+          <td>Warm Connection</td>
+        </tr>
+        <tr>
+          <td><strong>Arjun (Agent)</strong></td>
+          <td>Time Back</td>
+          <td>Personal Proof Point</td>
+          <td>WhatsApp Cold</td>
+          <td>Agent Network</td>
+        </tr>
+        <tr>
+          <td><strong>Suresh (Family Biz)</strong></td>
+          <td>Warm Intro</td>
+          <td>Succession Planning</td>
+          <td>In-Person Meeting</td>
+          <td>Follow-up Demo</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- PUNE OUTREACH -->
+  <section id="pune-outreach">
+    <div class="section-eyebrow">outreach/pune-outreach-templates.md</div>
+    <h2>Pune Outreach <span class="gradient-text">Templates</span></h2>
+    <p class="section-sub">Pune-specific variations. Smaller teams. IT-savvy clients. New construction focus.</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Mumbai vs Pune — Key Differences</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Factor</th>
+          <th>Mumbai</th>
+          <th>Pune</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Avg Deal Size</strong></td>
+          <td>₹1-3 Cr</td>
+          <td>₹50L-1.5 Cr</td>
+        </tr>
+        <tr>
+          <td><strong>Team Size</strong></td>
+          <td>5-15 agents</td>
+          <td>2-8 agents</td>
+        </tr>
+        <tr>
+          <td><strong>Primary Pain</strong></td>
+          <td>Lead leakage, disputes</td>
+          <td>New construction, IT clients</td>
+        </tr>
+        <tr>
+          <td><strong>Language</strong></td>
+          <td>Hinglish (English dominant)</td>
+          <td>Marathi + Hinglish</td>
+        </tr>
+        <tr>
+          <td><strong>Speed Expectation</strong></td>
+          <td>High</td>
+          <td>Very high (IT clients)</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- WHATSAPP SEQUENCES -->
+  <section id="whatsapp-sequences">
+    <div class="section-eyebrow">outreach/whatsapp-broadcast-sequences.md</div>
+    <h2>WhatsApp Broadcast <span class="gradient-text">Sequences</span></h2>
+    <p class="section-sub">4 complete automated sequences. Exact timing, copy, and follow-up logic.</p>
+    
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-icon">📱</div>
+        <div class="card-title">Sequence 1 · 21 Days · 7 Messages</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.7;">
+          <strong>Agency Owners — Cold</strong><br>
+          Day 0: Lead conversion hook<br>
+          Day 3: Social proof + video<br>
+          Day 7: Free calculator<br>
+          Day 10: Demo offer<br>
+          Day 14: FOMO (200+ agencies)<br>
+          Day 18: Testimonial<br>
+          Day 21: Breakup
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <div class="card-title">Sequence 2 · 14 Days · 5 Messages</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.7;">
+          <strong>Agents — Cold</strong><br>
+          Day 0: Hours wasted hook<br>
+          Day 3: AI calling demo<br>
+          Day 7: Time savings proof<br>
+          Day 10: Free trial CTA<br>
+          Day 14: Productivity breakup
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">✅</div>
+        <div class="card-title">Sequence 3 · 14 Days · 5 Messages</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.7;">
+          <strong>Post-Demo Nurture</strong><br>
+          Day 0: Thank you + trial link<br>
+          Day 2: Setup nudge<br>
+          Day 5: Import value<br>
+          Day 10: Success story<br>
+          Day 14: Trial check-in
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔥</div>
+        <div class="card-title">Sequence 4 · Last 10 Days · 3 Messages</div>
+        <div style="font-size:11px; color:var(--muted); line-height:1.7;">
+          <strong>Trial-to-Paid Conversion</strong><br>
+          Day T-10: Trial ending + metrics<br>
+          Day T-5: Pricing objection<br>
+          Day T-1: Last day alert
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEAD SCORING -->
+  <section id="lead-scoring">
+    <div class="section-eyebrow">leads/lead-scoring-template.csv</div>
+    <h2>Lead Scoring <span class="gradient-text">Template</span></h2>
+    <p class="section-sub">CSV template with 15 sample leads. Scoring formula. Grade assignments (A/B/C/D).</p>
+    
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Lead Scoring Formula — 100 Points</h3>
+    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#0EA5E9; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Firmographic — 40pts</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">Company size<br>Revenue band<br>Location<br>Tech maturity</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#F97316; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Behavioral — 30pts</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">Website visits<br>Downloads<br>Webinar attendance<br>Email opens</div>
+      </div>
+      <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px;">
+        <div style="font-size:11px; color:#F59E0B; font-weight:700; text-transform:uppercase; margin-bottom:8px;">Timing — 30pts</div>
+        <div style="font-size:12px; color:#94A3B8; line-height:1.8;">Budget cycle<br>Lead leakage signals<br>Hiring activity<br>Competitions</div>
+      </div>
+    </div>
+
+    <h3 style="font-size:15px; font-weight:700; margin:20px 0 12px;">Lead Grades</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Grade</th>
+          <th>Score</th>
+          <th>Action</th>
+          <th>Timeline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span style="color:#10B981; font-weight:800;">A</span></td>
+          <td>60-100</td>
+          <td>Immediate outreach · Priority demo · SDR call same day</td>
+          <td>24 hours</td>
+        </tr>
+        <tr>
+          <td><span style="color:#0EA5E9; font-weight:800;">B</span></td>
+          <td>40-59</td>
+          <td>Standard sequence · 3-touch in 7 days</td>
+          <td>7 days</td>
+        </tr>
+        <tr>
+          <td><span style="color:#F59E0B; font-weight:800;">C</span></td>
+          <td>20-39</td>
+          <td>Nurture campaign · Monthly check-in</td>
+          <td>30+ days</td>
+        </tr>
+        <tr>
+          <td><span style="color:#EF4444; font-weight:800;">D</span></td>
+          <td>0-19</td>
+          <td>Newsletter only · No active outreach</td>
+          <td>Quarterly</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- FOOTER -->
+  <section style="background:linear-gradient(135deg,rgba(14,165,233,.05),rgba(249,115,22,.05)); text-align:center;">
+    <div style="font-size:32px; margin-bottom:16px;">🚀</div>
+    <h2 style="font-size:28px; font-weight:900; margin-bottom:12px;">You Have Everything You Need.</h2>
+    <p style="font-size:15px; color:var(--muted); max-width:600px; margin:0 auto 32px; line-height:1.7;">30 marketing files. 3 buyer personas. 6 landing pages. ₹20L campaign. 3,000 lead target. 750 Hormozi ads. The strategy is complete — now execute.</p>
+    
+    <div style="margin:32px 0;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:12px;">
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px;">
+          <div style="font-size:11px; color:#F97316; font-weight:700; margin-bottom:6px;">🔥 DO FIRST (Week 1)</div>
+          <div style="font-size:12px; color:var(--muted); line-height:1.8;">Film Hormozi Batch 1<br>Deploy landing pages<br>Launch cold outreach</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px;">
+          <div style="font-size:11px; color:#0EA5E9; font-weight:700; margin-bottom:6px;">📅 DO NEXT (Week 2-4)</div>
+          <div style="font-size:12px; color:var(--muted); line-height:1.8;">Launch Meta Ads<br>WhatsApp sequences<br>Book Webinar 1</div>
+        </div>
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px;">
+          <div style="font-size:11px; color:#10B981; font-weight:700; margin-bottom:6px;">📊 TRACK WEEKLY</div>
+          <div style="font-size:12px; color:var(--muted); line-height:1.8;">CPL &lt; ₹300<br>Demo 15%<br>ROAS 3x+</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="border-top:1px solid var(--border); margin-top:40px; padding-top:32px;">
+      <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-bottom:8px;">
+        <div style="width:32px; height:32px; border-radius:8px; background:linear-gradient(135deg,#0EA5E9,#F97316); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:900; color:#fff;">R</div>
+        <span style="font-size:18px; font-weight:800;">RealEstate<span style="background:linear-gradient(90deg,#0EA5E9,#F97316); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">Flow OS</span></span>
+      </div>
+      <div style="font-size:12px; color:var(--muted);">India's Real Estate Operating System · Mumbai · Pune · Delhi · Dubai</div>
+      <div style="font-size:11px; color:#1E3050; margin-top:8px;">Generated: February 2026 · cloudberryitsolutions@gmail.com</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+// Active nav on scroll
+const navItems = document.querySelectorAll('.nav-item');
+const sections = document.querySelectorAll('section[id]');
+
+function updateActiveNav() {
+  const viewportCenter = window.innerHeight / 2;
+  let current = '';
+
+  sections.forEach(section => {
+    const rect = section.getBoundingClientRect();
+    if (rect.top <= viewportCenter && rect.bottom >= viewportCenter) {
+      current = section.getAttribute('id');
+    }
+  });
+
+  if (!current) {
+    sections.forEach(section => {
+      if (window.scrollY >= section.offsetTop - 200) {
+        current = section.getAttribute('id');
+      }
+    });
+  }
+
+  navItems.forEach(item => {
+    item.classList.remove('active');
+    if (item.getAttribute('href') === '#' + current) {
+      item.classList.add('active');
+      item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  });
+}
+
+let scrollTimeout;
+window.addEventListener('scroll', () => {
+  if (scrollTimeout) clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(updateActiveNav, 50);
+}, { passive: true });
+
+// Smooth scroll on click
+navItems.forEach(item => {
+  item.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(item.getAttribute('href'));
+    if (target) {
+      navItems.forEach(i => i.classList.remove('active'));
+      item.classList.add('active');
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
+updateActiveNav();
+</script>
+
+</body>
+</html>

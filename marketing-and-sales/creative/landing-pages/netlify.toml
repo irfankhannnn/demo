@@ -1,0 +1,35 @@
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/agency-owners"
+  to = "/agency-owners/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/agents"
+  to = "/agents/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/ai-employee"
+  to = "/ai-employee/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/enterprise"
+  to = "/enterprise/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/demo"
+  to = "/demo/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
