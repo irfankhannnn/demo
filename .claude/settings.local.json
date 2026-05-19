@@ -28,7 +28,9 @@
       "Bash(rm -rf /c/Users/qures/Downloads/nabi-app-git/cloudberry-real-estate/.claude/skills/meta-ads-setup)",
       "Bash(rm -rf /c/Users/qures/Downloads/nabi-app-git/cloudberry-real-estate/.claude/skills/marketingskills)",
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\qures\\\\Downloads\\\\nabi-app-git\\\\cloudberry-real-estate\" -Directory)",
-      "Bash(Select-Object -ExpandProperty Name)"
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(Get-ChildItem *)",
+      "Bash(Find \"real-estate-crm-app/src\" -name \"App.tsx\" -o -name \"main.tsx\")"
     ]
   },
   "enabledMcpjsonServers": [
