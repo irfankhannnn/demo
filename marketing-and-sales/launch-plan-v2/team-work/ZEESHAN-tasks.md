@@ -80,35 +80,58 @@
 - **Phase:** Pre-Launch → T-8
 - **Priority:** High
 - **Source File:** `pre-launch-prep/P10-analytics-events.md`
-- **Context:** Wire a fully typed analytics layer across all LPs, the CRM SPA, and the server. Gated by cookie consent banner (ZEE-006). Uses PostHog, GA4, Meta Pixel, LinkedIn Tag, Sentry. Every key user action must fire a named event with properties — this is the measurement backbone for all Week 2+ decisions.
+- **Context:** Wire analytics across LP, CRM SPA, and server. **Critical architecture rule:** GA4, Meta Pixel, LinkedIn Insight Tag, and Hotjar are LP-only trackers — never loaded in the CRM SPA. PostHog is the only tracker in the CRM. PostHog bridges the two surfaces via `posthog.identify()` post-login. Sentry goes in CRM + Server only (not LP).
+
+#### Architecture Summary
+| What | Where | Tools |
+|---|---|---|
+| LP analytics snippet | `creative/landing-pages/_partials/head-analytics.hbs` (vanilla JS) | PostHog + GA4 + Pixel + LinkedIn + Hotjar (all consent-gated) |
+| CRM analytics module | `real-estate-crm-app/src/lib/analytics.ts` (TypeScript) | **PostHog ONLY** — no GA4, no Pixel, no LinkedIn, no Hotjar |
+| Server analytics | `server/lib/posthog.js` (Node) | PostHog Node SDK |
+| Error tracking | `src/main.tsx` + `server/lambda-handler.js` | Sentry (CRM + Server only) |
 
 #### Tasks
-- [ ] **ZEE-003-T1** — Write `real-estate-crm-app/src/lib/analytics.ts`
-  - `trackEvent(name: EventName, properties: Record<string, unknown>)` — dispatches to PostHog, GA4, Pixel, LinkedIn based on consent flags from `localStorage.cookieConsent`
-  - Typed `EventName` union: `page_viewed | signup_started | signup_completed | otp_verified | onboarding_completed | feature_first_use | paywall_shown | subscription_started | trial_reminder_clicked | grievance_submitted | ai_employee_provisioned | seat_limit_hit`
-  - `identifyUser(userId, traits)` — PostHog identify call (called once post-login)
+- [ ] **ZEE-003-T1** — Write `real-estate-crm-app/src/lib/analytics.ts` **(PostHog ONLY)**
+  - `initAnalytics()` — initialise PostHog from `VITE_POSTHOG_KEY`; reads consent from `localStorage.cookieConsent.analytics` to set session recording mode; **do NOT initialise GA4/Pixel/LinkedIn/Hotjar here**
+  - `trackEvent(name: EventName, properties: Record<string, unknown>)` — calls `posthog.capture()` only; no GA4 `gtag()`, no `fbq()`, no `lintrk()` in this module
+  - `identifyUser(userId: string, traits: UserTraits)` — `posthog.identify(userId, {...traits, utm_source, utm_campaign})` — this stitches the anonymous LP PostHog session to the CRM user
+  - `resetAnalytics()` — `posthog.reset()` on logout
+  - Typed `EventName` union for all CRM SPA events in P10 catalogue
   - No PII in event properties (email/phone go only in `identifyUser`)
-- [ ] **ZEE-003-T2** — Instrument LP events in `creative/landing-pages/` pages
-  - Inject `page_viewed` on each LP load (via inline script) with `{page_name, source, utm_*}`
-  - `cta_clicked` on all primary CTA buttons with `{cta_label, page, position}`
-  - `form_submitted` on Netlify form submits with `{form_name}`
-  - `pricing_viewed` when `/pricing` page loads
-- [ ] **ZEE-003-T3** — Instrument SPA events
-  - `signup_started` in signup form first keystroke
+- [ ] **ZEE-003-T2** — LP analytics snippet (via P10 AI prompt output)
+  - The LP snippet lives in `creative/landing-pages/_partials/head-analytics.hbs` — **NOT in React**
+  - This partial contains vanilla JS for PostHog + GA4 + Pixel + LinkedIn + Hotjar, all consent-gated
+  - Zeeshan's job: ensure the partial is included in all 12 LP `<head>` sections via ZEE-008 LP rewrite
+  - LP CTAs must fire `cta_click` via PostHog AND GA4 simultaneously from the LP snippet
+- [ ] **ZEE-003-T3** — Capture UTM params in CRM signup entry point
+  - In `src/pages/PhoneLogin.tsx` (CRM signup page): on mount, read `utm_source`, `utm_campaign`, `utm_medium` from URL search params → store in `sessionStorage`
+  - Pass to `signup_started` event properties
+  - Pass to `identifyUser(userId, {utm_source, utm_campaign, ...})` after signup completes
+  - This enables PostHog to link `lp-main` page_view → `signup_completed` in the same funnel
+- [ ] **ZEE-003-T4** — Instrument CRM SPA events (using `analytics.ts`)
+  - `signup_started` in `PhoneLogin.tsx` on mount
   - `otp_verified` in OTP confirm handler
-  - `onboarding_completed` after agency setup save
-  - `feature_first_use` when first buyer/property/lead is created
-  - `paywall_shown` when `PaywallModal` renders (ZEE-007)
+  - `onboarding_completed` after agency setup save in `RegisterAdmin.tsx`
+  - `feature_first_use` (first-time-only flag via localStorage) when first buyer/property/lead is created
+  - `trial_paywall_shown` when `PaywallModal` renders
   - `subscription_started` on Razorpay success callback
-- [ ] **ZEE-003-T4** — Write `server/lib/posthog.js` (server-side PostHog)
+  - `seat_limit_hit` on 402 from invite endpoint (ZEE-005)
+  - All via `trackEvent()` from `analytics.ts` (PostHog only)
+- [ ] **ZEE-003-T5** — Write `server/lib/posthog.js` (server-side PostHog)
   - PostHog Node SDK wrapper
   - `serverTrack(distinctId, event, properties)` — called from billing webhook, grievance route
-  - Used by P11 (`ai_employee_provisioned`), P12 (`paywall_seat_limit_hit`)
-- [ ] **ZEE-003-T5** — Write `tests/analytics.spec.ts` (Playwright)
-  - Accept all cookies → walk full signup → assert PostHog events fire (via network intercept of PostHog API call)
-  - Reject cookies → assert GA4/Pixel/LinkedIn scripts not loaded (network tab check)
-  - PII safety: assert no event contains raw `email` or `phone` field
-- **Acceptance:** PostHog Live Events feed shows all catalogue events in a single test session; cookie gating verified; Playwright suite 100% pass.
+  - Used by P11 (`ai_employee_provisioned`), P12 (`seat_limit_hit`)
+- [ ] **ZEE-003-T6** — Wire Sentry into CRM + Server
+  - `src/main.tsx`: initialise Sentry with `VITE_SENTRY_DSN`
+  - `server/lambda-handler.js`: initialise Sentry with `SENTRY_DSN_SERVER`
+  - **Do NOT add Sentry to LP HTML**
+- [ ] **ZEE-003-T7** — Write `tests/analytics.spec.ts` (Playwright)
+  - LP: Accept cookies → assert PostHog + GA4 + Pixel + LinkedIn + Hotjar all load (network intercept)
+  - LP: Reject cookies → assert only PostHog loads (in restricted mode); GA4/Pixel/LinkedIn/Hotjar do NOT load
+  - CRM: Sign up → assert `signup_started` + `identifyUser` PostHog calls fired; **assert NO GA4/Pixel/LinkedIn network calls in CRM**
+  - CRM: Reject CRM cookies → assert PostHog has `disable_session_recording` flag
+  - PII safety: assert no `trackEvent` call contains raw `email` or `phone`
+- **Acceptance:** PostHog shows full funnel from LP `page_view` → CRM `signup_completed` in one project; CRM has zero GA4/Pixel/LinkedIn/Hotjar calls; Playwright 100% pass.
 
 ---
 
@@ -194,26 +217,34 @@
 - **Phase:** Pre-Launch → T-8
 - **Priority:** High
 - **Source File:** `pre-launch-prep/P17-cookie-consent-banner.md`
-- **Context:** DPDP Act 2023 requires explicit consent before non-essential trackers load. Build one banner used across all 5 LPs (plain HTML partial) and the CRM SPA (React component). Gates PostHog session recording, GA4, Meta Pixel, LinkedIn Insight Tag, Hotjar.
+- **Context:** DPDP Act 2023 requires explicit consent before non-essential trackers load. Two banner variants: LP (vanilla JS, gates 5 trackers) and CRM (React, gates PostHog session recording only). The CRM banner has fewer toggles because GA4/Pixel/LinkedIn/Hotjar are NOT loaded in the CRM.
 
 #### Tasks
-- [ ] **ZEE-006-T1** — Write `creative/landing-pages/_partials/cookie-banner.html`
+- [ ] **ZEE-006-T1** — Write `creative/landing-pages/_partials/cookie-banner.html` **(LP variant — 5 tracker toggles)**
   - Plain HTML + inline JS + inline CSS; injected at end of LP `<body>`
   - 3 buttons: "Accept all" (green), "Reject non-essential" (outline), "Customize" (text link)
-  - "Customize" opens a modal with 4 toggles: Essential (locked), Functional, Analytics, Marketing
-  - Stores in `localStorage.cookieConsent = {essential, functional, analytics, marketing, version, timestamp}`
-  - On Accept: initializes PostHog (full), GA4, Pixel, LinkedIn, Hotjar
-  - On Reject: PostHog runs with `disable_session_recording: true`; no other trackers load
+  - "Customize" modal with 4 toggles: Essential (locked), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn)
+  - Stores: `localStorage.cookieConsent = {essential: true, functional: bool, analytics: bool, marketing: bool, version: 1, timestamp}`
+  - On Accept: dispatches `cookie-consent-analytics`, `cookie-consent-marketing`, `cookie-consent-functional` custom events → `head-analytics.hbs` snippet listens + loads corresponding trackers
+  - On Reject: only `cookie-consent-analytics` fired with all false → PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load
   - ARIA roles, keyboard-navigable (Tab/Enter/Esc), dark mode, mobile bottom-sheet
-- [ ] **ZEE-006-T2** — Write `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
-  - React equivalent of the above, using same consent logic
-  - Renders as bottom-fixed bar within `App.tsx` layout
-  - Persists consent to `localStorage`; re-prompts only when `version` increments
+- [ ] **ZEE-006-T2** — Write `real-estate-crm-app/src/components/CookieConsentBanner.tsx` **(CRM variant — PostHog only)**
+  - React component with same 3 buttons
+  - "Customize" modal: **only 2 toggles** — Essential (locked) + Analytics ("Product usage analytics via PostHog — no ads, no retargeting")
+  - **NO Marketing toggle** — GA4/Pixel/LinkedIn are not loaded in the CRM
+  - On Accept: PostHog full mode (session recording enabled)
+  - On Reject: PostHog `disable_session_recording: true` only
+  - Same `localStorage.cookieConsent` key → `analytics.ts` reads `.analytics` flag
+  - Renders as bottom-fixed bar in `App.tsx` layout; re-prompts only on `version` increment
   - "Cookie preferences" link in app footer → re-opens Customize modal
-- [ ] **ZEE-006-T3** — Inject banner into all 5 LPs (`creative/landing-pages/*/index.html`) via the partial
+- [ ] **ZEE-006-T3** — Inject LP banner via the partial into all 12 LP pages (done via ZEE-008 LP rewrite template)
 - [ ] **ZEE-006-T4** — Mount `<CookieConsentBanner />` in `real-estate-crm-app/src/App.tsx`
-- [ ] **ZEE-006-T5** — Write tests: first visit → banner renders; Accept → no banner on second visit; Reject → assert PostHog/GA4/Pixel not loaded (network intercept)
-- **Acceptance:** All 5 LPs + SPA show banner on first visit; consent gates all non-essential trackers correctly; no dark patterns (reject same visual weight as accept).
+- [ ] **ZEE-006-T5** — Tests `tests/cookie-consent.spec.ts`:
+  - LP: first visit → banner shows; Accept → GA4 + Pixel + LinkedIn + Hotjar + PostHog all load
+  - LP: Reject → only PostHog loads (restricted); GA4/Pixel/LinkedIn/Hotjar do NOT load
+  - CRM: Reject → only PostHog session recording disabled; assert zero GA4/Pixel/LinkedIn/Hotjar network calls (they should never be there)
+  - Verify same `localStorage.cookieConsent` key across LP and CRM
+- **Acceptance:** LP banner gates all 5 trackers correctly; CRM banner gates PostHog session recording only; no dark patterns; Playwright 100% pass.
 
 ---
 
@@ -264,26 +295,39 @@
 - **Phase:** Pre-Launch → T-11 (draft) → T-2 (deploy)
 - **Priority:** High
 - **Source File:** `pre-launch-prep/P15-landing-pages-rewrite.md`
-- **Context:** Existing LPs use Tailwind CDN (slow) + Hinglish copy + wrong pricing. Rewrite 5 retained pages in English + build 7 new pages. Replace CDN with a built CSS pipeline. Wire real analytics IDs, OG tags, JSON-LD schema (from ZEE-009), cookie banner (ZEE-006), Netlify Forms, inline SVG logo.
+- **Context:** Existing LPs use Tailwind CDN (slow) + Hinglish copy + wrong pricing. Rewrite 5 retained pages in English + build 7 new pages. Replace CDN with a built CSS pipeline. LP analytics snippet (P10/ZEE-003), cookie banner (ZEE-006), OG tags, JSON-LD schema (ZEE-009), Netlify Forms, inline SVG logo.
+
+**CTA Deep-Link Convention (mandatory for ALL primary trial CTAs):**
+```html
+<a href="https://app.realestateflow.in/signup?utm_source=lp-{PAGE_SLUG}&utm_campaign=launch&utm_medium=cta"
+   data-cta-id="hero-primary">
+  Start 14-day Free Trial — no card
+</a>
+```
+This deep-links to the CRM signup page (not just the CRM root) so PostHog can attribute LP → signup conversions. Use `lp-main`, `lp-agency-owners`, `lp-agents`, `lp-ai-employee`, `lp-demo`, `lp-pricing` as `utm_source` per page.
+
+Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netlify Forms — this is separate from the trial CTA.
 
 #### Tasks
 - [ ] **ZEE-008-T1** — Set up built CSS pipeline (Vite or PostCSS) for `creative/landing-pages/`
   - Replace all `<script src="https://cdn.tailwindcss.com">` with compiled `<link rel="stylesheet" href="/assets/main.css">`
   - Add `npm run build:lps` script to `package.json`
+  - Create `creative/landing-pages/.env.example` with build-time analytics IDs: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`
 - [ ] **ZEE-008-T2** — Rewrite 5 existing LPs: `main`, `agency-owners`, `agents`, `ai-employee`, `demo`
   - English copy (coordinate with Madhu for final copy text)
   - All pricing from `pricing.json` — no hardcoded numbers
   - Trial copy: "14-day free trial — no card" everywhere
   - Refund copy: "1 month money-back guarantee" (never "6-month")
   - Mumbai-first social proof until Day 14: "Mumbai-built · early-access launch"
-  - Real analytics IDs in `<head>` (env-var driven: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_INSIGHT_ID`, `HOTJAR_ID`)
+  - Analytics snippet: include `_partials/head-analytics.hbs` in `<head>` (env-var driven IDs — NOT hardcoded)
+  - All primary trial CTAs use deep-link convention above (not just `https://app.realestateflow.in`)
   - `cal.com/{{FOUNDER_HANDLE}}` replacing placeholder
   - Real WhatsApp number `wa.me/{NUMBER}` + `tel:` links
   - Real email `info@realestateflow.in`
   - Inline SVG logo (from Madhu/P8 output)
   - OG meta tags per page with P8 OG image paths
   - `_partials/cookie-banner.html` injected in `<body>`
-  - Netlify Forms: `lead-capture-main`, `demo-booking`, `agency-signup`, `agent-signup`, `ai-employee-interest`
+  - Netlify Forms: `lead-capture-main`, `demo-booking`, `agency-signup`, `agent-signup`, `ai-employee-interest` (these are lead capture only, not trial signup)
 - [ ] **ZEE-008-T3** — Create 7 new pages
   - `/pricing` — full tier comparison (copy from Madhu P2 output: `pre-launch/02-pricing/page-copy.md`)
   - `/legal/terms`, `/legal/privacy`, `/legal/refund`, `/legal/cookies` — content from P1 output
@@ -450,11 +494,25 @@
 ## Dependency Order (Execution Sequence)
 
 ```
-ZEE-006 (cookie banner)  ──►  ZEE-003 (analytics)  ──►  ZEE-012 (analytics final)
-ZEE-002 (grievance)       ──►  ZEE-010 (security audit)
-ZEE-001 (demo env)        ──►  [Founder deploys demo infra]
-ZEE-004 (billing webhook) ──►  ZEE-005 (seat cap)  ──►  ZEE-007 (paywall)
-ZEE-009 (SEO/schema)      ──►  ZEE-008 (LP rewrite)  ──►  ZEE-013 (LP deploy)
-                                                           ZEE-011 (Day 2 fixes)
-                                                           ZEE-014 (Day 7 audit)
+ZEE-006 (cookie banner — 2 variants)  ──►  ZEE-003 (analytics — LP snippet + CRM module)  ──►  ZEE-012 (analytics final)
+ZEE-002 (grievance)                    ──►  ZEE-010 (security audit)
+ZEE-001 (demo env)                     ──►  [Founder deploys demo infra — config only after ZEE-001 YAML exists]
+ZEE-004 (billing webhook)              ──►  ZEE-005 (seat cap)  ──►  ZEE-007 (paywall)
+ZEE-009 (SEO/schema)                   ──►  ZEE-008 (LP rewrite + correct CTA UTM links)  ──►  ZEE-013 (LP deploy)
+                                                                         ZEE-011 (Day 2 fixes)
+                                                                         ZEE-014 (Day 7 audit)
 ```
+
+## Analytics Architecture Quick Reference
+
+| File | Surface | Trackers |
+|---|---|---|
+| `creative/landing-pages/_partials/head-analytics.hbs` | LP (vanilla JS) | PostHog + GA4 + Meta Pixel + LinkedIn + Hotjar |
+| `creative/landing-pages/_partials/cookie-banner.html` | LP (vanilla JS) | Gates all 5 LP trackers |
+| `real-estate-crm-app/src/lib/analytics.ts` | CRM SPA (TypeScript) | **PostHog ONLY** |
+| `real-estate-crm-app/src/components/CookieConsentBanner.tsx` | CRM SPA (React) | Gates PostHog session recording only |
+| `server/lib/posthog.js` | Server (Node) | PostHog Node SDK |
+| `src/main.tsx` | CRM SPA | Sentry (error tracking) |
+| `server/lambda-handler.js` | Server | Sentry (error tracking) |
+
+**Rule:** Never add GA4 gtag, Meta Pixel fbq, LinkedIn lintrk, or Hotjar to any file in `real-estate-crm-app/`. These are LP-only.

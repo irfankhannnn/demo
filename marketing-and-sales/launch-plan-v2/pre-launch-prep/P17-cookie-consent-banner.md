@@ -6,8 +6,19 @@
 > **Skill(s):** `analytics-tracking` + `copywriting`
 > **Estimated time:** 0.25h founder · 2h AI
 
+## Architecture: Two Banner Variants — LP vs CRM
+
+The LP (`realestateflow.in`) and CRM (`app.realestateflow.in`) run different tracker sets, so the consent banner has two distinct variants with different toggle options:
+
+| Surface | What it gates | Implementation |
+|---|---|---|
+| **LP** (`realestateflow.in`) | PostHog session recording + GA4 + Meta Pixel + LinkedIn + Hotjar | `creative/landing-pages/_partials/cookie-banner.html` (vanilla HTML+JS) |
+| **CRM** (`app.realestateflow.in`) | PostHog session recording ONLY — GA4/Pixel/LinkedIn/Hotjar are not loaded in the CRM | `real-estate-crm-app/src/components/CookieConsentBanner.tsx` (React) |
+
+Both use the same `localStorage.cookieConsent` key so the choice persists on same-device cross-domain visits. The CRM banner has fewer toggles (no "Marketing" category) because ad-platform trackers are not present in the CRM.
+
 ## Objective
-Build a single cookie-consent banner used across all 5 LPs + the CRM SPA that gates non-essential trackers (PostHog session recording, GA4, Meta Pixel, LinkedIn Insight Tag, Hotjar) until the user makes an explicit choice — DPDP Act 2023 + ePrivacy-style compliant.
+Build two cookie-consent banner variants — LP (vanilla JS, gates 5 trackers) and CRM (React, gates PostHog session recording only) — DPDP Act 2023 + ePrivacy-style compliant.
 
 ## Why This Matters for RealEstateFlow
 DPDP Act mandates explicit consent for non-essential personal data processing. ePrivacy-style banners are also expected by enterprise prospects' security reviews. A clean accept/reject UX without dark patterns earns trust and stays compliant.
@@ -16,22 +27,33 @@ DPDP Act mandates explicit consent for non-essential personal data processing. e
 As a first-time visitor to `realestateflow.in`, I want a clear cookie banner with Accept All / Reject Non-Essential / Customize options that doesn't obstruct content + remembers my choice, so I trust the brand and analytics works for consenting users.
 
 ## Acceptance Criteria
+
+### LP Banner (`creative/landing-pages/_partials/cookie-banner.html`)
 - [ ] Banner appears on first visit at bottom of viewport (sticky, doesn't block content above)
 - [ ] 3 buttons: "Accept all" (primary green), "Reject non-essential" (secondary outline), "Customize" (tertiary text-link)
-- [ ] Customize opens a modal with 4 toggles: Essential (locked-on), Functional, Analytics, Marketing
+- [ ] Customize opens a modal with 4 toggles: Essential (locked-on), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn)
 - [ ] Choice stored in `localStorage.cookieConsent = {essential: true, functional: bool, analytics: bool, marketing: bool, version: 1, timestamp: ISO}`
-- [ ] Re-prompts only if `version` increments (used when sub-processor list changes)
 - [ ] On Accept all: PostHog (full mode), GA4, Pixel, LinkedIn, Hotjar all initialise
-- [ ] On Reject: only essential cookies (auth, CSRF) — PostHog runs with `disable_session_recording: true` + no person identify
-- [ ] On Customize: per-toggle initialisation (e.g., Marketing on → Pixel + LinkedIn; Analytics on → GA4 + PostHog)
-- [ ] Banner accessible: ARIA roles, keyboard navigation (Tab/Enter/Esc), screen-reader text
+- [ ] On Reject: only essential cookies — PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load
+- [ ] No dark patterns: "Reject" same visual prominence as "Accept" (per DPDP guidance)
+- [ ] Footer of every LP page has "Cookie preferences" link → re-opens Customize modal
+
+### CRM Banner (`real-estate-crm-app/src/components/CookieConsentBanner.tsx`)
+- [ ] Same 3 buttons: "Accept all" / "Reject non-essential" / "Customize"
+- [ ] Customize opens modal with only **2 meaningful toggles**: Essential (locked) + Analytics ("We measure product usage via PostHog — no ads, no retargeting")
+- [ ] **NO Marketing toggle** in CRM banner — GA4/Pixel/LinkedIn are NOT present in the CRM
+- [ ] On Accept: PostHog full mode (session recording enabled)
+- [ ] On Reject: PostHog `disable_session_recording: true` only
+- [ ] Same `localStorage.cookieConsent` key with same schema — persists across LP and CRM on same device
+
+### Both Surfaces
+- [ ] Re-prompts only if `version` increments in `localStorage.cookieConsent`
+- [ ] ARIA roles, keyboard navigation (Tab/Enter/Esc), screen-reader text
 - [ ] Mobile-responsive: 100vw bottom sheet on small screens
 - [ ] Dark mode support
-- [ ] No dark patterns: "Reject" same prominence as "Accept" (per DPDP guidance + EU ePrivacy)
-- [ ] Footer of every page has "Cookie preferences" link → opens Customize modal
-- [ ] `/legal/cookies` page (P1 + P15) explains every cookie used (table)
-- [ ] Banner copy in English (Mumbai launch is English-first); Hinglish version drafted but not deployed M1
-- [ ] Tests: render banner on first visit, click Accept → no banner on second visit; click Reject → assert PostHog/GA4/Pixel not loaded
+- [ ] `/legal/cookies` page (P1 + P15) explains every cookie (table)
+- [ ] Banner copy in English (Mumbai launch English-first); Hinglish drafted but not deployed M1
+- [ ] Tests: first visit → banner visible; Accept → no banner second visit; Reject → assert LP gates all 5 trackers; Reject in CRM → assert only PostHog session recording disabled
 
 ## AI Prompt (🤖)
 
@@ -111,8 +133,14 @@ Plain HTML+JS+inline-CSS banner injected into all 5 LPs `<body>` end:
 
 (Expand the `openCustomizeModal()` body to render a full overlay modal with the 4 checkboxes.)
 
-## 2. SPA version `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
-React equivalent (P10 already specified — confirm consistency). Same UX, same localStorage key, same custom events, but emits via React context for analytics.ts to consume.
+## 2. CRM version `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+React component — **different toggles from the LP banner**:
+- Same 3 buttons (Accept / Reject / Customize)
+- Customize modal shows only 2 toggles: Essential (locked) + Analytics ("PostHog product usage analytics — no ads")
+- NO Marketing toggle (GA4/Pixel/LinkedIn are never loaded in the CRM)
+- Same `localStorage.cookieConsent` key; reads `.analytics` flag to control PostHog session recording
+- `applyConsent(c)` in React version ONLY calls `posthog.setPersonPropertiesForFlags({...})` and controls `capture_pageview` + session recording — no GA4/Pixel/LinkedIn dispatch
+- Emits `cookieConsentChanged` event for `analytics.ts` to consume
 
 ## 3. `marketing-and-sales/launch-implement/pre-launch/17-cookie-banner/copy.md`
 Banner + customize-modal copy in English + Hinglish (Hinglish for M1+1 month if we test bilingual UX):

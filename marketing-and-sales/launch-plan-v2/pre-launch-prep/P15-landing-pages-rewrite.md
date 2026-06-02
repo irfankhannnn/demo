@@ -6,8 +6,24 @@
 > **Skill(s):** `landing-page` + `copywriting`
 > **Estimated time:** 1h founder · 12h AI
 
+## Architecture Context (read before implementing)
+
+The public website (`realestateflow.in`) and the CRM app (`app.realestateflow.in`) are **two separate Netlify deployments**:
+- LPs live in `creative/landing-pages/` → deployed to `realestateflow.in`
+- CRM SPA lives in `real-estate-crm-app/` → deployed to `app.realestateflow.in`
+
+All LP "Start trial" CTAs must deep-link to the CRM signup with UTM params so PostHog can stitch the LP session to the CRM signup session:
+```
+https://app.realestateflow.in/signup?utm_source=lp-{page}&utm_campaign=launch&utm_medium=cta
+```
+Page-specific values: `lp-main`, `lp-agency-owners`, `lp-agents`, `lp-ai-employee`, `lp-demo`, `lp-pricing`.
+
+The LP also has a **secondary lead-capture Netlify Form** (for visitors not ready to sign up). This is separate from the "Start trial" CTA and posts to Netlify Forms only — it does NOT go to the CRM signup flow.
+
+LP analytics (GA4, Meta Pixel, LinkedIn, Hotjar, PostHog) all live **on the LP only** — none of these go into the CRM SPA. See P10 for full analytics architecture.
+
 ## Objective
-Rewrite the 5 retained landing pages (`main`, `agency-owners`, `agents`, `ai-employee`, `demo`) in English with the new ₹999/₹1,999+₹500/₹7,999 pricing, 14-day trial / 1-month refund / Mumbai-first social proof, real GA4/Pixel/Hotjar IDs, real Cal.com handle, real WhatsApp number, real `info@realestateflow.in`, OG image per page, JSON-LD schema (P16), inline SVG logo (P8), built-CSS pipeline (replacing Tailwind CDN), and add new pages (`/pricing`, `/legal/*`, `/grievance`, `/vs/*`, `/about`).
+Rewrite the 5 retained landing pages (`main`, `agency-owners`, `agents`, `ai-employee`, `demo`) in English with the new ₹999/₹1,999+₹500/₹7,999 pricing, 14-day trial / 1-month refund / Mumbai-first social proof, analytics IDs from build env (P10 `_partials/head-analytics.hbs`), real Cal.com handle, real WhatsApp number, real `info@realestateflow.in`, OG image per page, JSON-LD schema (P16), inline SVG logo (P8), built-CSS pipeline (replacing Tailwind CDN), and add new pages (`/pricing`, `/legal/*`, `/grievance`, `/vs/*`, `/about`).
 
 ## Why This Matters for RealEstateFlow
 Existing LPs at `creative/landing-pages/` are Hinglish + ₹3,000-based + Mumbai-Pune-Delhi-Dubai social proof. Conflicts with v2 plan locked decisions. Without rewrite, the launch would deliver mixed messaging, wrong pricing, GDPR compliance gaps, and broken share previews.
@@ -22,7 +38,9 @@ As a Mumbai broker who clicked a Day-17 cold email link to `realestateflow.in`, 
 - [ ] All trial copy says "14-day free trial — no card" (Solo/Team/Team+) and "Paid from day 1 — concierge setup" (AI Employee)
 - [ ] All refund copy says "1 month money-back guarantee" (Solo/Team/Team+) — never 6-month
 - [ ] Mumbai-first social proof until Day 14 (replaces "200+ Agencies · Mumbai · Delhi · Pune · Dubai" → "Mumbai-built · early-access launch")
-- [ ] Real GA4 + Pixel + Hotjar + LinkedIn Insight Tag IDs in `<head>` (env-var driven where possible)
+- [ ] Analytics snippet from P10 `_partials/head-analytics.hbs` in `<head>` of all LPs (PostHog + GA4 + Pixel + LinkedIn + Hotjar, all gated by cookie consent, all IDs from build env vars — do NOT hardcode IDs)
+- [ ] **No GA4, Meta Pixel, LinkedIn, Hotjar tags in the CRM SPA** — LP-only
+- [ ] LP `.env.example` documents all required build-time IDs: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`
 - [ ] Real Cal.com handle (`cal.com/{{HANDLE}}`) replacing `YOUR_CALENDLY_USERNAME`
 - [ ] Real WhatsApp number (`+91 9XXXXXXXXX`) replacing `919999999999` placeholder — `wa.me/{number}` and `tel:` links work
 - [ ] Real email `info@realestateflow.in` replacing `hello@realestateflow.in` placeholder
@@ -78,12 +96,23 @@ Produce these outputs:
 ## 2. Rewrite each LP — single template engine + per-page overrides
 
 Use a simple Handlebars-like include system (or static partials). Create:
-- `creative/landing-pages/_partials/head.hbs` (meta tags, analytics, cookie banner, schema slot)
+- `creative/landing-pages/_partials/head.hbs` (meta tags, canonical, OG tags, cookie banner, schema slot)
+- `creative/landing-pages/_partials/head-analytics.hbs` (P10 analytics snippet — PostHog + GA4 + Pixel + LinkedIn + Hotjar, gated by cookie consent, IDs from build env vars)
 - `_partials/header.hbs` (logo, nav, CTAs)
 - `_partials/footer.hbs` (legal links, GO disclosure, social, contact)
 - `_partials/cta-block.hbs`
 - `_partials/pricing-cards.hbs` (reads pricing.json)
 - `_partials/faq.hbs`
+
+**CTA convention for ALL primary "Start Trial" buttons across all LPs:**
+```html
+<a href="https://app.realestateflow.in/signup?utm_source=lp-{PAGE_SLUG}&utm_campaign=launch&utm_medium=cta" 
+   data-cta-id="hero-primary" class="btn-primary">
+  Start 14-day Free Trial — no card
+</a>
+```
+Replace `{PAGE_SLUG}` with: `main`, `agency-owners`, `agents`, `ai-employee`, `demo`, `pricing`.
+This deep-links to the CRM signup page (not just the CRM root) so PostHog can attribute the conversion.
 
 Then each LP = data file + template; build script renders.
 
@@ -93,7 +122,10 @@ For each page produce:
 H1: "Hire an AI Employee for Your Real Estate Agency."
 H2: "It runs your CRM, qualifies leads on WhatsApp, follows up buyers, and closes your Khata book — without hiring another agent. Built in Mumbai, for Mumbai brokers first."
 Sections:
-- Hero with primary CTA "Start 14-day Free Trial — no card" + secondary "Book a 15-min Demo"
+- Hero with:
+  - Primary CTA → `app.realestateflow.in/signup?utm_source=lp-main&utm_campaign=launch&utm_medium=cta`
+  - Secondary "Book a 15-min Demo" → `cal.com/{{FOUNDER_HANDLE}}`
+  - Tertiary "Explore live demo (no signup)" → `demo.realestateflow.in`
 - Trust strip "Mumbai-built · GST invoices · 1-month money-back · Data stays in India"
 - 3-feature row (CRM, AI Employee, Khata Book)
 - 90-sec demo video embed
@@ -194,8 +226,12 @@ Stop here. Do NOT replace placeholders with values you don't have — leave `{{H
 - 12 LPs at `creative/landing-pages/{main,agency-owners,agents,ai-employee,demo,pricing,legal/*,vs/*,about}/index.html`
 - `creative/landing-pages/build/` (Vite pipeline)
 - `creative/landing-pages/dist/` (deploy artefacts)
+- `creative/landing-pages/_partials/` (head, head-analytics, header, footer, cta-block, pricing-cards, faq, cookie-banner)
+- `creative/landing-pages/.env.example` (documents all build-time IDs: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`)
 - Updated `netlify.toml`
 - `sitemap.xml`, `robots.txt`, `llms.txt` (stub — P16 fills llms.txt)
+
+**Not in outputs (lives in CRM, not LP):** `real-estate-crm-app/src/lib/analytics.ts`, `CookieConsentBanner.tsx` — those are CRM-only and built by P10/ZEE-003/ZEE-006.
 
 ## Success Criterion
 12 URLs return 200; Lighthouse mobile ≥90 across all 4 categories; OG previews render correctly; analytics fires; cookie banner blocks until consent.

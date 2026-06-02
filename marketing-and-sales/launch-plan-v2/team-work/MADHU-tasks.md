@@ -130,7 +130,10 @@
 - [ ] **MAD-005-T2** — Review all generated assets for brand accuracy
   - Logo must feel premium, clean, real-estate-relevant
   - OG images must include: logo, page title, one-line value prop, brand colours
-- [ ] **MAD-005-T3** — Save all assets to `creative/landing-pages/assets/brand/` (LPs) and `real-estate-crm-app/public/` (SPA)
+- [ ] **MAD-005-T3** — Save all assets:
+  - LP assets: `creative/landing-pages/assets/brand/` (logos, favicons, OG images used by `realestateflow.in`)
+  - CRM SPA assets: `real-estate-crm-app/public/` (favicon, manifest — for `app.realestateflow.in` browser tab)
+  - Source assets: `marketing-and-sales/realestateflow/assets/` (canonical source, referenced by both)
 - [ ] **MAD-005-T4** — Create LinkedIn banner (1584×396 px) for Founder's profile using brand kit (for MAD-006)
   - Use `nano-banana-pro` with brand kit colors + "Building RealEstateFlow — AI for Mumbai Brokers"
 - [ ] **MAD-005-T5** — Hand all assets to Zeeshan with file paths + usage instructions for ZEE-008 + ZEE-009
@@ -221,21 +224,25 @@
 - **Phase:** Pre-Launch → T-8
 - **Priority:** Medium
 - **Source File:** `pre-launch-prep/P17-cookie-consent-banner.md`
-- **Context:** Madhu writes the banner copy, cookie inventory table (`/legal/cookies` content), and the compliance review. Zeeshan builds the component (ZEE-006). The copy must be plain English — no dark patterns, no "by continuing you agree" patterns, no hiding Reject button.
+- **Context:** Two banner variants exist — LP and CRM. Madhu writes copy for both variants. Zeeshan builds both components (ZEE-006). Copy must be plain English — no dark patterns.
+
+**Architecture note:** The LP banner has 4 toggles (Essential, Functional, Analytics, Marketing). The CRM banner has only 2 (Essential + Analytics) because GA4/Pixel/LinkedIn/Hotjar are not loaded in the CRM.
 
 #### Tasks
 - [ ] **MAD-009-T1** — Run the AI Prompt from `P17-cookie-consent-banner.md` (copy output portion)
-  - Output: Banner button copy ("Accept all", "Reject non-essential", "Customize" + modal toggle labels)
-  - Output: Cookie inventory table for `/legal/cookies` (name, provider, purpose, duration, category for all trackers)
+  - Output: **LP banner copy** — button labels + 4-toggle modal labels (Essential, Functional/Hotjar, Analytics/PostHog+GA4, Marketing/Pixel+LinkedIn)
+  - Output: **CRM banner copy** — button labels + 2-toggle modal labels (Essential, Analytics/PostHog only — no Marketing toggle)
+  - Output: Cookie inventory table for `/legal/cookies` (all trackers used across both surfaces)
   - Output: Hinglish version drafted (not deployed M1, ready for M2)
-- [ ] **MAD-009-T2** — Review banner copy: confirm no dark patterns
+- [ ] **MAD-009-T2** — Review both banner variants: confirm no dark patterns
   - "Reject non-essential" must be same visual weight as "Accept all" (per DPDP guidance)
   - No "by continuing to use this site you accept cookies" language
-  - Customize modal must show clear explanations per toggle category
-- [ ] **MAD-009-T3** — Hand cookie inventory table to Madhu's own task MAD-001 for inclusion in Privacy Policy
-- [ ] **MAD-009-T4** — Hand all copy to Zeeshan as inputs for ZEE-006 implementation
-- [ ] **MAD-009-T5** — Verify published banner: first visit from incognito → banner appears; Reject → no tracker cookies visible in browser dev tools
-- **Acceptance:** Banner copy ready for Zeeshan; DPDP compliance verified; cookie inventory table in Privacy Policy.
+  - LP Customize: 4 toggles with clear descriptions; CRM Customize: 2 toggles — Analytics description must NOT mention "ads" (PostHog is product analytics only)
+- [ ] **MAD-009-T3** — Hand cookie inventory table to MAD-001 for inclusion in Privacy Policy
+- [ ] **MAD-009-T4** — Hand both copy variants to Zeeshan (ZEE-006-T1 uses LP copy, ZEE-006-T2 uses CRM copy)
+- [ ] **MAD-009-T5** — Verify published LP banner: first visit from incognito → banner appears; Reject → GA4/Pixel/LinkedIn/Hotjar scripts do NOT load in network tab
+- [ ] **MAD-009-T6** — Verify published CRM banner: first visit → banner appears; Reject → PostHog session recording disabled; confirm zero GA4/Pixel/LinkedIn/Hotjar network calls (they should never appear in CRM regardless of consent)
+- **Acceptance:** Both copy variants ready for Zeeshan; DPDP compliance verified; cookie inventory table in Privacy Policy.
 
 ---
 
