@@ -2,6 +2,8 @@
 
 Section-by-section pass over `HappyProperties-MasterPrompt.md`, comparing each requirement against the existing plan. Every row is tagged: ✅ EXISTS / 🔁 CHANGE / ➕ ADD / 🔧 FEATURE / ⚠️ DECISION / 🇮🇳 ADAPTED (see README legend).
 
+> **Naming correction:** the master prompt used **"Happy Properties"** as if it were the product. It is not. The product is **RealEstateFlow**; "Happy Properties" is the **first/pilot broker client** (and the sample agency name in the product's own signup/profile forms). All rows below assume RealEstateFlow as the product.
+
 ---
 
 ## Section 0 — Agent's four tasks (the spine)
@@ -102,7 +104,7 @@ The master prompt's 10 epics, mapped against what the plan already covers:
 
 | Master-prompt element | Status | Notes |
 |---|---|---|
-| Company name "Happy Properties" | ⚠️ DECISION | Conflicts with locked **RealEstateFlow**. See `01` — recommend keeping RealEstateFlow. |
+| Company name "Happy Properties" | ✅ RESOLVED | Prompt error. Product = **RealEstateFlow**; Happy Properties = first/pilot broker client. No decision. See `01`. |
 | Tagline "AI-Native OS for Real Estate Teams" | 🔁 CHANGE | Can serve as **secondary** tagline under the existing wedge. See `01`. |
 | Colour palette (navy #0D1B2A + amber #F4A261) | ⚠️ DECISION | Conflicts with locked green `#22C55E` + navy `#0F3A66`. **Recommend keeping RealEstateFlow palette**; do not adopt amber. See `01`. |
 | Typography (Sora / DM Sans / JetBrains Mono) | 🔁 CHANGE / ⚠️ DECISION | `.brand` uses Inter. Optional upgrade; low priority, founder call. See `01`. |
@@ -138,10 +140,12 @@ The master prompt's final checklist is re-expressed as an **apply-order checklis
 - `00-PLAN-OVERVIEW.md`: add secondary umbrella tagline + AI/CRM dual framing note
 - `linkedin-posts/` + content: weave in 2026 market-reality stats
 
+**Resolved (no longer a decision):**
+- Product name = **RealEstateFlow** (master prompt's "Happy Properties" was a mislabel; it is the first/pilot broker client).
+
 **Decisions required (⚠️ DECISION):**
-- D1: Brand name — Happy Properties vs RealEstateFlow (**recommend: RealEstateFlow**)
-- D2: Brand palette/typography — adopt master's navy+amber/Sora or keep existing (**recommend: keep existing**)
-- D3: Launch-scale targets — 50-in-launch-week vs existing 3–5 M1 (**recommend: keep existing conservative targets**)
+- D1: Brand palette/typography — adopt master's navy+amber/Sora or keep existing (**recommend: keep existing green/navy + Inter**)
+- D2: Launch-scale targets — 50-in-launch-week vs existing 3–5 M1 (**recommend: keep existing conservative targets**)
 
 **Out of scope for India M1 (drop from master prompt):**
 - Rightmove/Zoopla/OnTheMarket connectors (UK portals) → replace with Indian portals

@@ -33,7 +33,7 @@ The master prompt's 8-week linear shape is a *simplification* of the existing T-
 
 ---
 
-## 2. ⚠️ Scale-target reconciliation (DECISION D3)
+## 2. ⚠️ Scale-target reconciliation (DECISION D2)
 
 | Metric | Master prompt | Existing plan (`00-PLAN-OVERVIEW.md` §5) | Recommendation |
 |---|---|---|---|
@@ -42,7 +42,7 @@ The master prompt's 8-week linear shape is a *simplification* of the existing T-
 | Month-6 paying | 200 | (M3–6 city expansion; no hard 200 number) | Set a *stretch* M6 goal (e.g., 50–100) once PMF gate clears; don't hard-commit 200 |
 | Paid ads in launch | implied | **₹0 in M1** (locked) | Keep ₹0 M1; paid is PMF-gated (`M2-paid-ads-readiness.md`) |
 
-**Why:** the existing plan has a locked **PMF gate** (≥3 paying / ≥40% activation / ≥10% reply / ≥1 promoter) before any paid spend (`00-PLAN-OVERVIEW.md` §4). The master prompt's aggressive numbers assume a funded GTM motion. Preserve the gate; treat master numbers as *aspirational ceilings*, not commitments. **Log D3.**
+**Why:** the existing plan has a locked **PMF gate** (≥3 paying / ≥40% activation / ≥10% reply / ≥1 promoter) before any paid spend (`00-PLAN-OVERVIEW.md` §4). The master prompt's aggressive numbers assume a funded GTM motion. Preserve the gate; treat master numbers as *aspirational ceilings*, not commitments. **Log D2.**
 
 ---
 
@@ -107,7 +107,7 @@ PMF GATE between Phase 2 and Phase 3 paid spend (unchanged)
 | Change | Target |
 |---|---|
 | Add phase-view mapping | `00-PLAN-OVERVIEW.md` §3 |
-| Log scale-target decision (D3) | `00-DECISIONS-LOG.md` |
+| Log scale-target decision (D2) | `00-DECISIONS-LOG.md` |
 | New task: onboarding wizard | `week-1-foundation/` (new day file) + backlog E04-02 |
 | New task: welcome sequence | `week-2-soft-launch/` (new day file) + E04-03 |
 | New task: press release | `week-3-public-launch/` (new day file) + E09-03 |

@@ -75,9 +75,9 @@ P15 only has testimonial placeholders. Add a **labelled stat bar** above them.
 
 **Testimonial (placeholder until Day-14 swap, per P15):**
 > *"We haven't missed a single after-hours WhatsApp enquiry since going live. The AI booked three site visits over one weekend while we were off."*
-> — [Beta Agency Name], Mumbai
+> — [Pilot Agency], Mumbai
 
-> 🇮🇳 Until real beta quotes land (week-2 `day-14-collect-testimonials.md`), keep "Mumbai-built · early-access launch" framing per P15 AC (no fake "200+ agencies").
+> 🇮🇳 The first/pilot broker client is **Happy Properties** — target it as the first named testimonial + case study once results land (week-2 `day-14-collect-testimonials.md`, `day-25` case study). Until real beta quotes land, keep "Mumbai-built · early-access launch" framing per P15 AC (no fake "200+ agencies").
 
 ---
 

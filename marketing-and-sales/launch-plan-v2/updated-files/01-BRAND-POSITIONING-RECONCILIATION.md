@@ -2,78 +2,89 @@
 
 Maps to master-prompt **§1 (Company & Product Context)** and **§6 (Branding & Positioning Update)**.
 
-The master prompt carries a complete brand system for **"Happy Properties" (UK)**. The repo already has **three** brand layers. This file resolves them into one canonical decision set and lists what to adopt from the master prompt.
+The master prompt carried a brand system labelled **"Happy Properties"** and applied it as if that were the product. That is incorrect. **The product is RealEstateFlow.** "Happy Properties" is a **broker company — the first client / pilot user** of the CRM (it appears as the sample agency name in `real-estate-crm-app/src/pages/Profile.tsx` and `onboarding-page/web/index.html`). This file confirms the product brand, resolves the legacy-vs-canonical brand layers, and lists what to adopt from the master prompt.
 
 ---
 
-## 1. The three brand layers in the repo
+## 1. Product brand layers in the repo
+
+There are **two product-brand layers** (one superseded, one canonical). "Happy Properties" is **not** a brand layer — it is a customer.
 
 | Layer | Source | Name | Market | Colours | Voice | Status |
 |---|---|---|---|---|---|---|
 | Legacy | `.brand/brand-kit.md`, `.brand/positioning.md`, `CLAUDE.md` | **RealtyFlow** | India multi-city + Dubai | Royal Blue `#2563EB` + Emerald | **Hinglish** | Superseded |
-| **Canonical** | `launch-plan-v2/README.md`, `00-PLAN-OVERVIEW.md`, `pricing.json` | **RealEstateFlow** | **India / Mumbai-first** | Green `#22C55E` + Navy `#0F3A66` + Dark `#07111E` | **English** | **Locked (v2)** |
-| Incoming | `HappyProperties-MasterPrompt.md` | **Happy Properties** | UK (£, Rightmove/Zoopla) | Navy `#0D1B2A` + Amber `#F4A261` | English | Template only |
+| **Canonical** | `launch-plan-v2/README.md`, `00-PLAN-OVERVIEW.md`, `pricing.json` | **RealEstateFlow** | **India / Mumbai-first** | Green `#22C55E` + Navy `#0F3A66` + Dark `#07111E` | **English** | **Locked (v2) — the product** |
 
-The v2 plan's `00-FINAL-REPORT.md` explicitly records the migration from legacy RealtyFlow → RealEstateFlow (English, new pricing, Mumbai-only, DPDP-first). That migration is the source of truth.
+| Not a brand | Source | What it actually is |
+|---|---|---|
+| "Happy Properties" | `HappyProperties-MasterPrompt.md`, `Profile.tsx`, `onboarding-page/` | **First/pilot broker client** + the in-product sample agency name. Use it as a pilot/testimonial reference, not as the product name. |
+
+The v2 plan's `00-FINAL-REPORT.md` records the migration legacy RealtyFlow → canonical **RealEstateFlow** (English, new pricing, Mumbai-only, DPDP-first). That migration is the source of truth.
 
 ---
 
-## 2. Decisions required
+## 2. Brand name — RESOLVED
 
-### ⚠️ D1 — Brand name
+✅ **The product is `RealEstateFlow` / `realestateflow.in`.** No decision needed. The earlier "brand name" decision is closed.
 
-**Recommendation: keep `RealEstateFlow` / `realestateflow.in`.**
+The master prompt's UK constructs are still localised away (this is *not* a brand question, just market fit):
 
-Reasons:
-- The entire v2 plan, domain, GST/legal entity (`P1`, `P7`), demo subdomain (`demo.realestateflow.in`), grievance email (`info@realestateflow.in`), OG assets (`P8`), and landing pages (`P15`) are RealEstateFlow.
-- "Happy Properties" is a UK template artefact, not a deliberate rebrand request.
-- Renaming now would invalidate ~70 plan files and live infra for zero market gain in India.
+| Master-prompt item | Action |
+|---|---|
+| Name used as product = "Happy Properties" | Corrected → product is **RealEstateFlow**; Happy Properties = first broker client |
+| GBP £ pricing | 🇮🇳 INR per `pricing.json` |
+| GDPR framing | 🇮🇳 **DPDP** (already in `P1`/`P17`) |
+| UK portals (Rightmove/Zoopla) | 🇮🇳 99acres / MagicBricks / Housing.com |
+| Stripe | 🇮🇳 Razorpay (already the plan's choice) |
+| IDX / MLS feed ingestion | Dropped (not the Indian broker workflow) |
 
-**If the founder *does* want "Happy Properties"** (e.g., for a UK expansion or a fresh identity): treat it as a separate program — it forces a domain, legal-entity, payments-KYC, and asset-regeneration cascade. Log the decision and a migration epic before any other delta in this pack is applied. **Do not apply this pack under a half-renamed brand.**
+---
 
-> Action: log D1 in `../00-DECISIONS-LOG.md`. The rest of this pack assumes **RealEstateFlow**.
+## 3. Decisions required (2 remaining)
 
-### ⚠️ D2 — Colour palette & typography
+### ⚠️ D1 — Colour palette & typography
 
 **Recommendation: keep the RealEstateFlow palette** (green `#22C55E`, navy `#0F3A66`, dark `#07111E`). Do **not** adopt the master prompt's amber `#F4A261` / navy `#0D1B2A`.
 
 - The locked palette already flows through `P8` (logo/favicons/OG), `P15` (LPs), and the brand kit. Swapping introduces rework + inconsistency.
-- Typography: `.brand` uses **Inter**. The master prompt suggests Sora / DM Sans / JetBrains Mono. This is an *optional* visual-polish upgrade — low priority, founder's call. If adopted, it only touches the `P15` build pipeline's font import + the brand kit; defer to post-PMF.
+- Typography: `.brand` uses **Inter**. The master prompt suggests Sora / DM Sans / JetBrains Mono — an *optional* visual-polish upgrade, low priority. If adopted, it only touches the `P15` build pipeline's font import + the brand kit; defer to post-PMF.
 
-> Action: log D2. Default = keep existing palette + Inter.
+> Action: log D1. Default = keep existing palette + Inter.
 
-### ⚠️ D3 — Launch-scale targets
+### ⚠️ D2 — Launch-scale targets
 
-See `03-LAUNCH-PLAN-DELTA.md` §Scale. **Recommendation: keep existing M1 targets (3–5 paying, ₹0 ads, solo founder).** The master prompt's "50 paying in launch week / 200 by M6" assumes a funded team + paid media and is incompatible with the locked solo-founder constraint.
+See `03-LAUNCH-PLAN-DELTA.md` §2. **Recommendation: keep existing M1 targets (3–5 paying, ₹0 ads, solo founder, PMF gate).** The master prompt's "50 paying in launch week / 200 by M6" assumes a funded team + paid media and is incompatible with the locked solo-founder constraint.
+
+> Action: log D2.
 
 ---
 
-## 3. What to ADOPT from the master prompt (brand-safe, no decision needed)
+## 4. What to ADOPT from the master prompt (no decision needed)
 
 These do not conflict with RealEstateFlow and sharpen the plan.
 
-### 3.1 Dual "AI Employee + CRM" framing (➕ from §1, §4.3)
+### 4.1 Dual "AI Employee + CRM" framing (➕ from §1, §4.3)
 The existing wedge front-runs the AI Employee. The master prompt's **equal-billing split** ("Not a chatbot. A genuine AI… + a purpose-built CRM") is a stronger homepage device. Adopt the two-column split (see `04` §4.3) while keeping the AI-Employee-on-WhatsApp wedge as the headline.
 
-### 3.2 Brand-voice principles (🔁 reinforces v2 English direction)
+### 4.2 Brand-voice principles (🔁 reinforces v2 English direction)
 Adopt verbatim into the brand kit + every copy task:
 - **Confident but approachable** — "a brilliant colleague, not a pitch deck."
 - **Outcome-first** — lead with deals closed / hours saved, not features.
-- **Trustworthy & local** — trust language; India = WhatsApp-native, GST, data-in-India, DPDP.
+- **Trustworthy & local** — trust language; India = WhatsApp-native, GST, data-in-India (AWS `ap-south-1`), DPDP.
 - **Anti-jargon** — no "leverage synergies"; say "your AI handles the follow-up so you focus on closing."
 
 > Note: this **supersedes** the legacy `.brand/brand-kit.md` Hinglish-website rule for the **website** (v2 locked English). Hinglish remains allowed for **ads** only (per `00-PLAN-OVERVIEW.md`: 60% English / 25% Hinglish / 15% Marathi).
 
-### 3.3 Secondary umbrella tagline (🔁 from §6)
+### 4.3 Secondary umbrella tagline (🔁 from §6)
 Keep the wedge as primary; add the master's positioning line as an **umbrella tagline** for decks/about page:
 
 - **Primary wedge (unchanged):** "An AI Employee that runs your broking agency on WhatsApp + Telegram."
 - **Umbrella tagline (new, optional):** "The AI-native operating system for real estate teams."
 - **Mission (adopt):** "Eliminate the gap between a lead arriving and a deal closing."
 
-### 3.4 Messaging hierarchy L1/L2/L3 (➕ from §6) — **adopt, India-localised**
+### 4.4 Messaging hierarchy L1/L2/L3 (➕ from §6) — **adopt, India-localised**
 
-Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP hero (`P15`), sales chat, and the about page.
+Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP hero (`P15`), sales chat, and the about page. All naming is **RealEstateFlow**.
 
 **Level 1 — Elevator (one sentence):**
 > RealEstateFlow is the AI that qualifies your leads on WhatsApp, books your site visits, and updates your CRM and Khata book — automatically, around the clock.
@@ -84,7 +95,7 @@ Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP h
 **Level 3 — Full pitch (one paragraph):**
 > RealEstateFlow is a real-estate-native AI platform that pairs an autonomous AI Employee with a purpose-built CRM for Indian brokers. The AI Employee handles every stage of lead engagement on WhatsApp and Telegram — instant response, qualification, site-visit booking, and follow-up — without manual input. The CRM centralises every lead (portals, WhatsApp, web, calls), scores prospects, routes them to the right agent, keeps the Khata book and settlements current, and gives owners full pipeline visibility. For broking teams tired of Excel, missed follow-ups, and patchwork tools, RealEstateFlow is the single system that works while you sleep — starting at ₹999/month, with an optional AI Employee add-on at ₹7,999/month.
 
-### 3.5 Audience-segment mapping (🇮🇳 from §1)
+### 4.5 Audience-segment mapping (🇮🇳 from §1)
 
 | Master-prompt segment | RealEstateFlow equivalent | Tier | Persona |
 |---|---|---|---|
@@ -93,25 +104,25 @@ Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP h
 | Brokerages (10–50) | Growing agencies | Team+ (₹500/seat) | "Rajesh bhai" |
 | Property managers | Rental/tenant-heavy brokers | any + Rented Properties module | — |
 
+> Pilot mapping: **Happy Properties** is the first agency to land in this funnel — treat it as the lead beta agency (E09-01) and the first case-study / testimonial source (`04` §4.4, `day-14`, `day-25`).
+
 ---
 
-## 4. What to REJECT / localise from the master prompt's brand layer
+## 5. Logo, photography (already owned — no plan change)
 
 | Master-prompt item | Action |
 |---|---|
-| Name "Happy Properties" | ⚠️ Reject (D1) unless founder chooses rebrand |
-| Amber `#F4A261` / navy `#0D1B2A` | ⚠️ Reject (D2) — keep RealEstateFlow palette |
-| GBP £ pricing | 🇮🇳 Reject — INR per `pricing.json` |
-| GDPR framing | 🇮🇳 Replace with **DPDP** (already in `P1`/`P17`) |
-| UK portals (Rightmove/Zoopla) in brand copy | 🇮🇳 Replace with 99acres / MagicBricks / Housing.com |
+| Logo mark concept (house + neural node) | ✅ `P8-logo-and-favicons.md` already owns logo; master's concept can inform the P8 brief. RealEstateFlow logo only. |
+| Photography style (real agents, real product, warm light) | ✅ Aligns with existing creative briefs; no change. |
 
 ---
 
-## 5. Apply targets
+## 6. Apply targets
 
 | Change | Target existing file |
 |---|---|
 | Add brand-voice principles + dual framing note | `00-PLAN-OVERVIEW.md` (§1 wedge) and brand kit `creative/realestateflow-launch/brand-kit.md` |
 | Add L1/L2/L3 messaging ladder | new section in `pre-launch-prep/P4-competitive-positioning.md` outputs (wedge.md) |
 | Add umbrella tagline + mission | `00-PLAN-OVERVIEW.md`, `/about` page brief in `P15` |
-| Log D1/D2/D3 | `00-DECISIONS-LOG.md` |
+| Note Happy Properties as pilot client | beta list `week-2/day-08`, case study `day-25`, testimonial in `P15` |
+| Log D1 (palette/typography) + D2 (scale) | `00-DECISIONS-LOG.md` |
