@@ -2,22 +2,18 @@
 
 Maps to master-prompt **§1 (Company & Product Context)** and **§6 (Branding & Positioning Update)**.
 
-The master prompt carried a brand system labelled **"Happy Properties"** and applied it as if that were the product. That is incorrect. **The product is RealEstateFlow.** "Happy Properties" is a **broker company — the first client / pilot user** of the CRM (it appears as the sample agency name in `real-estate-crm-app/src/pages/Profile.tsx` and `onboarding-page/web/index.html`). This file confirms the product brand, resolves the legacy-vs-canonical brand layers, and lists what to adopt from the master prompt.
+The master prompt applied an incorrect product name. **The product is RealEstateFlow.** This file confirms the product brand, resolves the legacy-vs-canonical brand layers, and lists what to adopt from the master prompt.
 
 ---
 
 ## 1. Product brand layers in the repo
 
-There are **two product-brand layers** (one superseded, one canonical). "Happy Properties" is **not** a brand layer — it is a customer.
+There are **two product-brand layers** (one superseded, one canonical).
 
 | Layer | Source | Name | Market | Colours | Voice | Status |
 |---|---|---|---|---|---|---|
 | Legacy | `.brand/brand-kit.md`, `.brand/positioning.md`, `CLAUDE.md` | **RealtyFlow** | India multi-city + Dubai | Royal Blue `#2563EB` + Emerald | **Hinglish** | Superseded |
 | **Canonical** | `launch-plan-v2/README.md`, `00-PLAN-OVERVIEW.md`, `pricing.json` | **RealEstateFlow** | **India / Mumbai-first** | Green `#22C55E` + Navy `#0F3A66` + Dark `#07111E` | **English** | **Locked (v2) — the product** |
-
-| Not a brand | Source | What it actually is |
-|---|---|---|
-| "Happy Properties" | `HappyProperties-MasterPrompt.md`, `Profile.tsx`, `onboarding-page/` | **First/pilot broker client** + the in-product sample agency name. Use it as a pilot/testimonial reference, not as the product name. |
 
 The v2 plan's `00-FINAL-REPORT.md` records the migration legacy RealtyFlow → canonical **RealEstateFlow** (English, new pricing, Mumbai-only, DPDP-first). That migration is the source of truth.
 
@@ -31,7 +27,7 @@ The master prompt's UK constructs are still localised away (this is *not* a bran
 
 | Master-prompt item | Action |
 |---|---|
-| Name used as product = "Happy Properties" | Corrected → product is **RealEstateFlow**; Happy Properties = first broker client |
+| Incorrect product name in prompt | Corrected → product is **RealEstateFlow** |
 | GBP £ pricing | 🇮🇳 INR per `pricing.json` |
 | GDPR framing | 🇮🇳 **DPDP** (already in `P1`/`P17`) |
 | UK portals (Rightmove/Zoopla) | 🇮🇳 99acres / MagicBricks / Housing.com |
@@ -104,7 +100,7 @@ Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP h
 | Brokerages (10–50) | Growing agencies | Team+ (₹500/seat) | "Rajesh bhai" |
 | Property managers | Rental/tenant-heavy brokers | any + Rented Properties module | — |
 
-> Pilot mapping: **Happy Properties** is the first agency to land in this funnel — treat it as the lead beta agency (E09-01) and the first case-study / testimonial source (`04` §4.4, `day-14`, `day-25`).
+> Pilot mapping: the first beta agency to land in this funnel becomes the lead beta agency (E09-01) and the first case-study / testimonial source (`04` §4.4, `day-14`, `day-25`).
 
 ---
 
@@ -124,5 +120,5 @@ Use this ladder as the canonical pitch for cold email (`day-09`, `day-17`), LP h
 | Add brand-voice principles + dual framing note | `00-PLAN-OVERVIEW.md` (§1 wedge) and brand kit `creative/realestateflow-launch/brand-kit.md` |
 | Add L1/L2/L3 messaging ladder | new section in `pre-launch-prep/P4-competitive-positioning.md` outputs (wedge.md) |
 | Add umbrella tagline + mission | `00-PLAN-OVERVIEW.md`, `/about` page brief in `P15` |
-| Note Happy Properties as pilot client | beta list `week-2/day-08`, case study `day-25`, testimonial in `P15` |
+| Capture first pilot agency for testimonial/case study | beta list `week-2/day-08`, case study `day-25`, testimonial in `P15` |
 | Log D1 (palette/typography) + D2 (scale) | `00-DECISIONS-LOG.md` |

@@ -8,7 +8,7 @@ Maps to master-prompt **§0 + §7**. The master prompt's final checklist re-expr
 
 ## Step 0 — Resolve decisions (do first)
 
-- [x] **Product name — RESOLVED:** the product is **RealEstateFlow**. The master prompt's "Happy Properties" was a mislabel — Happy Properties is the **first/pilot broker client** (and the in-product sample agency name). No rebrand; nothing to decide.
+- [x] **Product name — RESOLVED:** the product is **RealEstateFlow**. The master prompt used a different name in error; no rebrand, nothing to decide.
 - [ ] **D1 — Palette/typography:** confirm keep green `#22C55E` + navy `#0F3A66` + Inter (recommended) vs adopt master's navy+amber/Sora. Log in `../00-DECISIONS-LOG.md`.
 - [ ] **D2 — Launch-scale targets:** confirm keep M1 = 3–5 paying / ₹0 ads / PMF gate (recommended) vs master's 50-in-launch-week. Log.
 
@@ -101,7 +101,7 @@ Reference: `05`. Keep India-adapted targets; do not import UK volume goals whole
 |---|---|
 | Editing existing `P*`/`day-*` files | This pack is additive; deltas tell you *how* to edit, applied deliberately after decisions are logged |
 | Building any product feature | Out of scope per founder; routed to separate conversation (🔧 stories) |
-| Renaming the product | Not needed — product is **RealEstateFlow**; "Happy Properties" is the first/pilot broker client, not a brand |
+| Renaming the product | Not needed — product is **RealEstateFlow**; the prompt's product name was an error |
 | Adopting GBP pricing / GDPR / UK portals / IDX-MLS / Stripe | Localised to INR / DPDP / Indian portals / Razorpay; UK-only constructs dropped |
 | Committing to 50-in-launch-week / 200-by-M6 | Incompatible with locked solo-founder + ₹0-ads + PMF gate (D2) |
 
@@ -109,4 +109,4 @@ Reference: `05`. Keep India-adapted targets; do not import UK volume goals whole
 
 ## One-line summary for the founder
 
-> The product is **RealEstateFlow** (the master prompt's "Happy Properties" was a mislabel — that's your first/pilot broker client). Your `launch-plan-v2` already covers ~66% of the master prompt for the India market. The real adds are: **(1) a Jira backlog** (new), **(2) onboarding wizard + welcome sequence + in-product dashboards**, **(3) a few landing-page copy sections** (problem/agitation, stat bar, AI/CRM split, localised FAQ), and **(4) the 90-day content calendar + YouTube + explicit AI-bot robots.txt**. Keep RealEstateFlow's brand, INR pricing, and conservative M1 targets — the master prompt's UK/GBP/50-customer assumptions don't fit your locked constraints.
+> The product is **RealEstateFlow** (the master prompt used a different name in error). Your `launch-plan-v2` already covers ~66% of the master prompt for the India market. The real adds are: **(1) a Jira backlog** (new), **(2) onboarding wizard + welcome sequence + in-product dashboards**, **(3) a few landing-page copy sections** (problem/agitation, stat bar, AI/CRM split, localised FAQ), and **(4) the 90-day content calendar + YouTube + explicit AI-bot robots.txt**. Keep RealEstateFlow's brand, INR pricing, and conservative M1 targets — the master prompt's UK/GBP/50-customer assumptions don't fit your locked constraints.

@@ -1,8 +1,8 @@
 # 00 — Gap Analysis: Master Prompt → Existing `launch-plan-v2/`
 
-Section-by-section pass over `HappyProperties-MasterPrompt.md`, comparing each requirement against the existing plan. Every row is tagged: ✅ EXISTS / 🔁 CHANGE / ➕ ADD / 🔧 FEATURE / ⚠️ DECISION / 🇮🇳 ADAPTED (see README legend).
+Section-by-section pass over the uploaded master prompt, comparing each requirement against the existing plan. Every row is tagged: ✅ EXISTS / 🔁 CHANGE / ➕ ADD / 🔧 FEATURE / ⚠️ DECISION / 🇮🇳 ADAPTED (see README legend).
 
-> **Naming correction:** the master prompt used **"Happy Properties"** as if it were the product. It is not. The product is **RealEstateFlow**; "Happy Properties" is the **first/pilot broker client** (and the sample agency name in the product's own signup/profile forms). All rows below assume RealEstateFlow as the product.
+> **Naming correction:** the master prompt used a different product name in error. The product is **RealEstateFlow**, and all rows below assume RealEstateFlow as the product.
 
 ---
 
@@ -104,7 +104,7 @@ The master prompt's 10 epics, mapped against what the plan already covers:
 
 | Master-prompt element | Status | Notes |
 |---|---|---|
-| Company name "Happy Properties" | ✅ RESOLVED | Prompt error. Product = **RealEstateFlow**; Happy Properties = first/pilot broker client. No decision. See `01`. |
+| Product name in prompt | ✅ RESOLVED | Prompt used an incorrect name. Product = **RealEstateFlow**. No decision. See `01`. |
 | Tagline "AI-Native OS for Real Estate Teams" | 🔁 CHANGE | Can serve as **secondary** tagline under the existing wedge. See `01`. |
 | Colour palette (navy #0D1B2A + amber #F4A261) | ⚠️ DECISION | Conflicts with locked green `#22C55E` + navy `#0F3A66`. **Recommend keeping RealEstateFlow palette**; do not adopt amber. See `01`. |
 | Typography (Sora / DM Sans / JetBrains Mono) | 🔁 CHANGE / ⚠️ DECISION | `.brand` uses Inter. Optional upgrade; low priority, founder call. See `01`. |
@@ -141,7 +141,7 @@ The master prompt's final checklist is re-expressed as an **apply-order checklis
 - `linkedin-posts/` + content: weave in 2026 market-reality stats
 
 **Resolved (no longer a decision):**
-- Product name = **RealEstateFlow** (master prompt's "Happy Properties" was a mislabel; it is the first/pilot broker client).
+- Product name = **RealEstateFlow** (the master prompt used a different name in error).
 
 **Decisions required (⚠️ DECISION):**
 - D1: Brand palette/typography — adopt master's navy+amber/Sora or keep existing (**recommend: keep existing green/navy + Inter**)
