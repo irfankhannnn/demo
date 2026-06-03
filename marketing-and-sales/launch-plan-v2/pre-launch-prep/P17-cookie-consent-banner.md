@@ -29,31 +29,31 @@ As a first-time visitor to `realestateflow.in`, I want a clear cookie banner wit
 ## Acceptance Criteria
 
 ### LP Banner (`creative/landing-pages/_partials/cookie-banner.html`)
-- [ ] Banner appears on first visit at bottom of viewport (sticky, doesn't block content above)
-- [ ] 3 buttons: "Accept all" (primary green), "Reject non-essential" (secondary outline), "Customize" (tertiary text-link)
-- [ ] Customize opens a modal with 4 toggles: Essential (locked-on), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn)
-- [ ] Choice stored in `localStorage.cookieConsent = {essential: true, functional: bool, analytics: bool, marketing: bool, version: 1, timestamp: ISO}`
-- [ ] On Accept all: PostHog (full mode), GA4, Pixel, LinkedIn, Hotjar all initialise
-- [ ] On Reject: only essential cookies — PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load
-- [ ] No dark patterns: "Reject" same visual prominence as "Accept" (per DPDP guidance)
-- [ ] Footer of every LP page has "Cookie preferences" link → re-opens Customize modal
+- [x] Banner appears on first visit at bottom of viewport (sticky, doesn't block content above)
+- [x] 3 buttons: "Accept all" (primary green), "Reject non-essential" (secondary outline), "Customize" (tertiary text-link)
+- [x] Customize opens a modal with 4 toggles: Essential (locked-on), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn)
+- [x] Choice stored in `localStorage.cookieConsent = {essential: true, functional: bool, analytics: bool, marketing: bool, version: 1, timestamp: ISO}`
+- [ ] On Accept all: PostHog (full mode), GA4, Pixel, LinkedIn, Hotjar all initialise _(banner dispatches `cookie-consent-done`; tracker init lives in `head-analytics.hbs` — PR-E)_
+- [ ] On Reject: only essential cookies — PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load _(tracker gating in `head-analytics.hbs` — PR-E)_
+- [x] No dark patterns: "Reject" same visual prominence as "Accept" (per DPDP guidance)
+- [ ] Footer of every LP page has "Cookie preferences" link → re-opens Customize modal _(`window.openCookiePreferences()` exposed; footer wiring in LP rewrite — PR-I)_
 
 ### CRM Banner (`real-estate-crm-app/src/components/CookieConsentBanner.tsx`)
-- [ ] Same 3 buttons: "Accept all" / "Reject non-essential" / "Customize"
-- [ ] Customize opens modal with only **2 meaningful toggles**: Essential (locked) + Analytics ("We measure product usage via PostHog — no ads, no retargeting")
-- [ ] **NO Marketing toggle** in CRM banner — GA4/Pixel/LinkedIn are NOT present in the CRM
-- [ ] On Accept: PostHog full mode (session recording enabled)
-- [ ] On Reject: PostHog `disable_session_recording: true` only
-- [ ] Same `localStorage.cookieConsent` key with same schema — persists across LP and CRM on same device
+- [x] Same 3 buttons: "Accept all" / "Reject non-essential" / "Customize"
+- [x] Customize opens modal with only **2 meaningful toggles**: Essential (locked) + Analytics ("We measure product usage via PostHog — no ads, no retargeting")
+- [x] **NO Marketing toggle** in CRM banner — GA4/Pixel/LinkedIn are NOT present in the CRM
+- [ ] On Accept: PostHog full mode (session recording enabled) _(banner dispatches `cookieConsentChanged`; PostHog init in `analytics.ts` — PR-E)_
+- [ ] On Reject: PostHog `disable_session_recording: true` only _(handled by `analytics.ts` listener — PR-E)_
+- [x] Same `localStorage.cookieConsent` key with same schema — persists across LP and CRM on same device
 
 ### Both Surfaces
-- [ ] Re-prompts only if `version` increments in `localStorage.cookieConsent`
-- [ ] ARIA roles, keyboard navigation (Tab/Enter/Esc), screen-reader text
-- [ ] Mobile-responsive: 100vw bottom sheet on small screens
-- [ ] Dark mode support
-- [ ] `/legal/cookies` page (P1 + P15) explains every cookie (table)
-- [ ] Banner copy in English (Mumbai launch English-first); Hinglish drafted but not deployed M1
-- [ ] Tests: first visit → banner visible; Accept → no banner second visit; Reject → assert LP gates all 5 trackers; Reject in CRM → assert only PostHog session recording disabled
+- [x] Re-prompts only if `version` increments in `localStorage.cookieConsent`
+- [x] ARIA roles, keyboard navigation (Tab/Enter/Esc), screen-reader text
+- [x] Mobile-responsive: 100vw bottom sheet on small screens
+- [x] Dark mode support
+- [ ] `/legal/cookies` page (P1 + P15) explains every cookie (table) _(separate page — P1/P15 / PR-I)_
+- [x] Banner copy in English (Mumbai launch English-first); Hinglish drafted but not deployed M1
+- [x] Tests: first visit → banner visible; Accept → no banner second visit; Reject → consent persisted (analytics/marketing=false). _Tracker-load network assertions deferred to PR-E (head-analytics.hbs / analytics.ts)._
 
 ## AI Prompt (🤖)
 
