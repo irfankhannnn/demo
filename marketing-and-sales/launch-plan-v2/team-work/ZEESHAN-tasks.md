@@ -47,27 +47,27 @@
 - **Context:** DPDP Act 2023 mandates a public grievance portal. Build the `/grievance` public page (hCaptcha-gated form), a Lambda route to store submissions in DynamoDB, an admin UI in the CRM to view/resolve tickets, and auto-acknowledgement email via Brevo. No auth required to submit — this is a public form.
 
 #### Tasks
-- [ ] **ZEE-002-T1** — Write `server/grievanceDynamodbService.js`
+- [x] **ZEE-002-T1** — Write `server/grievanceDynamodbService.js`
   - `createGrievance({name, email, phone, description, category})` → stores in `Grievances` DDB table with `PK=grievanceId (ULID), status=open, createdAt, tenantId=null (public)`
   - `listGrievances({status, page})` → admin read (requires auth)
   - `updateGrievanceStatus(grievanceId, {status, resolution, resolvedBy})`
-- [ ] **ZEE-002-T2** — Write `server/routes/grievance.js`
+- [x] **ZEE-002-T2** — Write `server/routes/grievance.js`
   - `POST /api/grievance` — public, rate-limited (6/hr per IP), hCaptcha verify, calls `createGrievance`, triggers Brevo auto-ack email
   - `GET /api/grievance` — admin-only (validateToken + role=ADMIN), calls `listGrievances`
   - `PUT /api/grievance/:id` — admin-only, updates status + resolution
   - Mount in `server/server.js`
-- [ ] **ZEE-002-T3** — Write `real-estate-crm-app/src/pages/public/Grievance.tsx`
+- [x] **ZEE-002-T3** — Write `real-estate-crm-app/src/pages/public/Grievance.tsx`
   - Public page at route `/grievance` (no auth wrapper)
   - Form fields: Name, Email, Phone, Category (dropdown), Description (textarea)
   - hCaptcha widget integration (key from env `VITE_HCAPTCHA_SITE_KEY`)
   - Success state: "Your grievance #GRIEVANCE-ID has been logged. We will respond within 7 working days."
   - Footer must show Grievance Officer name, email, address (provided by Founder — placeholder `{{GO_NAME}}`, `{{GO_EMAIL}}`, `{{GO_ADDRESS}}`)
-- [ ] **ZEE-002-T4** — Write `real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
+- [x] **ZEE-002-T4** — Write `real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
   - Admin-only page at `/admin/grievances`
   - Table: ID, name, email, category, date, status badge (open/in-review/resolved)
   - "Resolve" action opens inline form for resolution text + status update
   - Role-gate: ADMIN only (using existing auth context pattern)
-- [ ] **ZEE-002-T5** — Write `tests/grievance.spec.ts` (Playwright)
+- [x] **ZEE-002-T5** — Write `tests/grievance.spec.ts` (Playwright)
   - Submit valid form → assert success message + DDB row created
   - Submit 7th request from same IP within 1h → assert 429
   - Submit with invalid hCaptcha token → assert 400

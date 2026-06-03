@@ -16,20 +16,20 @@ DPDP Act 2023 requires every Data Fiduciary to (a) appoint a Grievance Officer, 
 As a user (or third party) wanting to exercise my DPDP rights or report a grievance against RealEstateFlow's data handling, I want a public form linked from every page footer that submits in <30 seconds and emails the Grievance Officer with a tracking ID, so I have a clear path to resolution within 7 working days.
 
 ## Acceptance Criteria
-- [ ] Public route `server/routes/grievance.js` accepts POST with `{name, email, phone (optional), category, description}` (rate-limited 5/IP/hour)
-- [ ] DynamoDB table `Grievances`: PK `grievanceId`, sort `createdAt`, attrs: `name, email, phone, category, description, status, assignedTo, resolvedAt, resolutionNotes, internalNotes`
-- [ ] Categories enum: `data_access` · `data_correction` · `data_deletion` · `data_export` · `account_security` · `billing` · `service_complaint` · `other`
-- [ ] Status enum: `new` · `acknowledged` · `in_progress` · `resolved` · `escalated`
-- [ ] Auto-acknowledgement email sent via Brevo within 60s of submission with: tracking ID `GR-{6-digit}`, "Response SLA 7 working days as per DPDP Act 2023", category, founder/Grievance-Officer name, link to status check (future feature, optional)
-- [ ] Notification email to `info@realestateflow.in` (Grievance Officer mailbox) on every new submission
+- [x] Public route `server/routes/grievance.js` accepts POST with `{name, email, phone (optional), category, description}` (rate-limited 5/IP/hour)
+- [x] DynamoDB table `Grievances`: PK `grievanceId`, sort `createdAt`, attrs: `name, email, phone, category, description, status, assignedTo, resolvedAt, resolutionNotes, internalNotes`
+- [x] Categories enum: `data_access` · `data_correction` · `data_deletion` · `data_export` · `account_security` · `billing` · `service_complaint` · `other`
+- [x] Status enum: `new` · `acknowledged` · `in_progress` · `resolved` · `escalated`
+- [x] Auto-acknowledgement email sent via Brevo within 60s of submission with: tracking ID `GR-{6-digit}`, "Response SLA 7 working days as per DPDP Act 2023", category, founder/Grievance-Officer name, link to status check (future feature, optional)
+- [x] Notification email to `info@realestateflow.in` (Grievance Officer mailbox) on every new submission
 - [ ] Public page `real-estate-crm-app/src/pages/Grievance.tsx` (also rendered as static HTML at `creative/landing-pages/main/legal/grievance/index.html` for LP footer link) with: form, category dropdown, expected SLA, GO contact block, link back to Privacy Policy
-- [ ] Admin view `real-estate-crm-app/src/pages/admin/GrievanceList.tsx` (founder-only role gate): table of all grievances, filters (status, category, date), detail drawer, status update dropdown, internal notes textarea, "Send response" button (drafts email via Brevo with templated reply)
+- [x] Admin view `real-estate-crm-app/src/pages/admin/GrievanceList.tsx` (founder-only role gate): table of all grievances, filters (status, category, date), detail drawer, status update dropdown, internal notes textarea, "Send response" button (drafts email via Brevo with templated reply)
 - [ ] LP footer of all 5 LPs + CRM SPA footer shows: "Grievance Officer: {{NAME}} — info@realestateflow.in — Response SLA 7 working days" linking to `/grievance`
 - [ ] Privacy Policy footer links to `/grievance` (P1 dependency)
 - [ ] `Schema.org ContactPoint` JSON-LD added to homepage `<head>` (P16)
-- [ ] Spam protection: hCaptcha or Cloudflare Turnstile widget (free tier) on form; honeypot field
-- [ ] Submission triggers PostHog event `grievance_received` (server-side) for funnel monitoring
-- [ ] Playwright test `tests/grievance.spec.ts` validates form submission → 200 + tracking ID + email landing in test inbox
+- [x] Spam protection: hCaptcha or Cloudflare Turnstile widget (free tier) on form; honeypot field
+- [x] Submission triggers PostHog event `grievance_received` (server-side) for funnel monitoring
+- [x] Playwright test `tests/grievance.spec.ts` validates form submission → 200 + tracking ID + email landing in test inbox
 
 ## AI Prompt (🤖)
 
