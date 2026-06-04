@@ -309,10 +309,11 @@ This deep-links to the CRM signup page (not just the CRM root) so PostHog can at
 Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netlify Forms — this is separate from the trial CTA.
 
 #### Tasks
-- [ ] **ZEE-008-T1** — Set up built CSS pipeline (Vite or PostCSS) for `creative/landing-pages/`
-  - Replace all `<script src="https://cdn.tailwindcss.com">` with compiled `<link rel="stylesheet" href="/assets/main.css">`
-  - Add `npm run build:lps` script to `package.json`
-  - Create `creative/landing-pages/.env.example` with build-time analytics IDs: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`
+- [x] **ZEE-008-T1** — Set up built CSS pipeline (Vite or PostCSS) for `creative/landing-pages/` _(PR-D)_
+  - [x] Vite + Tailwind pipeline in `build/` (compiles `src/styles.css` → `dist/assets/main.css`); `_partials/*.hbs` + env-var injection via `build/scripts/process-partials.js`
+  - [x] `npm run build:lps` script added (`build/package.json`); verified runs clean → `dist/`
+  - [x] `creative/landing-pages/.env.example` created with `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY` (+ pricing/legal placeholders)
+  - _CDN→compiled `<link>` swap happens when pages are rewritten in PR-I (head.hbs already references `/assets/main.css`)_
 - [ ] **ZEE-008-T2** — Rewrite 5 existing LPs: `main`, `agency-owners`, `agents`, `ai-employee`, `demo`
   - English copy (coordinate with Madhu for final copy text)
   - All pricing from `pricing.json` — no hardcoded numbers
@@ -333,9 +334,9 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
   - `/legal/terms`, `/legal/privacy`, `/legal/refund`, `/legal/cookies` — content from P1 output
   - `/vs/sell-do`, `/vs/zoho-crm`, `/vs/excel-spreadsheet` — from P4 vs-pages drafts
   - `/about` — founder story + LocalBusiness schema
-- [ ] **ZEE-008-T4** — Add `sitemap.xml`, `robots.txt`, `llms.txt` at LP root
+- [x] **ZEE-008-T4** — Add `sitemap.xml`, `robots.txt`, `llms.txt` at LP root _(PR-D: robots.txt complete; sitemap.xml + llms.txt are stubs — PR-I fills all 12 URLs / AEO links)_
 - [ ] **ZEE-008-T5** — Delete `enterprise/` folder + remove from `netlify.toml`
-- [ ] **ZEE-008-T6** — Update `netlify.toml` with all 12 page routes + redirect rules
+- [x] **ZEE-008-T6** — Update `netlify.toml` with all 12 page routes + redirect rules _(PR-D: pretty-URL redirects for all documented pages + `/legal`→terms & `/help`→grievance 301s + security headers (HSTS/CSP/X-Frame); enterprise redirect removed. Target page files land in PR-I.)_
 - [ ] **ZEE-008-T7** — Run Lighthouse mobile on all 12 pages; fix until all 4 categories ≥90
 - **Acceptance:** All 12 pages return 200; Lighthouse mobile ≥90 all categories; LCP <2.5s, INP <200ms, CLS <0.1; no placeholder strings remain.
 
