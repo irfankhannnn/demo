@@ -1,0 +1,4 @@
+# LP build artifacts & local env
+dist/
+node_modules/
+.env

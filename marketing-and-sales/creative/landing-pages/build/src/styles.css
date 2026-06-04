@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand typography (fonts loaded via <link> in head.hbs) */
+@layer base {
+  * {
+    font-family: 'Inter', sans-serif;
+  }
+  h1,
+  h2,
+  h3,
+  .font-poppins {
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+@layer components {
+  /* Gradient text used in LP headlines */
+  .gt {
+    background: linear-gradient(135deg, #0f3a66, #22c55e);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .btn-primary {
+    background: #22c55e;
+    color: #fff;
+  }
+  .btn-primary:hover {
+    background: #16a34a;
+  }
+
+  .nav-cta {
+    background: #22c55e;
+    color: #fff;
+    transition: background 0.2s;
+  }
+  .nav-cta:hover {
+    background: #16a34a;
+  }
+}
+
+@layer utilities {
+  /* FAQ accordion (faq.hbs) */
+  .faq-answer {
+    display: none;
+  }
+  .faq-item.open .faq-answer {
+    display: block;
+  }
+  .faq-item.open .faq-icon {
+    transform: rotate(45deg);
+  }
+  .faq-icon {
+    transition: transform 0.2s;
+  }
+}
