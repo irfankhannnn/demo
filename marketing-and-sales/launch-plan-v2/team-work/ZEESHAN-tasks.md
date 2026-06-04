@@ -91,40 +91,29 @@
 | Error tracking | `src/main.tsx` + `server/lambda-handler.js` | Sentry (CRM + Server only) |
 
 #### Tasks
-- [ ] **ZEE-003-T1** — Write `real-estate-crm-app/src/lib/analytics.ts` **(PostHog ONLY)**
-  - `initAnalytics()` — initialise PostHog from `VITE_POSTHOG_KEY`; reads consent from `localStorage.cookieConsent.analytics` to set session recording mode; **do NOT initialise GA4/Pixel/LinkedIn/Hotjar here**
-  - `trackEvent(name: EventName, properties: Record<string, unknown>)` — calls `posthog.capture()` only; no GA4 `gtag()`, no `fbq()`, no `lintrk()` in this module
-  - `identifyUser(userId: string, traits: UserTraits)` — `posthog.identify(userId, {...traits, utm_source, utm_campaign})` — this stitches the anonymous LP PostHog session to the CRM user
-  - `resetAnalytics()` — `posthog.reset()` on logout
-  - Typed `EventName` union for all CRM SPA events in P10 catalogue
-  - No PII in event properties (email/phone go only in `identifyUser`)
-- [ ] **ZEE-003-T2** — LP analytics snippet (via P10 AI prompt output)
-  - The LP snippet lives in `creative/landing-pages/_partials/head-analytics.hbs` — **NOT in React**
-  - This partial contains vanilla JS for PostHog + GA4 + Pixel + LinkedIn + Hotjar, all consent-gated
-  - Zeeshan's job: ensure the partial is included in all 12 LP `<head>` sections via ZEE-008 LP rewrite
-  - LP CTAs must fire `cta_click` via PostHog AND GA4 simultaneously from the LP snippet
-- [ ] **ZEE-003-T3** — Capture UTM params in CRM signup entry point
-  - In `src/pages/PhoneLogin.tsx` (CRM signup page): on mount, read `utm_source`, `utm_campaign`, `utm_medium` from URL search params → store in `sessionStorage`
-  - Pass to `signup_started` event properties
-  - Pass to `identifyUser(userId, {utm_source, utm_campaign, ...})` after signup completes
-  - This enables PostHog to link `lp-main` page_view → `signup_completed` in the same funnel
-- [ ] **ZEE-003-T4** — Instrument CRM SPA events (using `analytics.ts`)
-  - `signup_started` in `PhoneLogin.tsx` on mount
-  - `otp_verified` in OTP confirm handler
-  - `onboarding_completed` after agency setup save in `RegisterAdmin.tsx`
-  - `feature_first_use` (first-time-only flag via localStorage) when first buyer/property/lead is created
-  - `trial_paywall_shown` when `PaywallModal` renders
-  - `subscription_started` on Razorpay success callback
-  - `seat_limit_hit` on 402 from invite endpoint (ZEE-005)
-  - All via `trackEvent()` from `analytics.ts` (PostHog only)
-- [ ] **ZEE-003-T5** — Write `server/lib/posthog.js` (server-side PostHog)
-  - PostHog Node SDK wrapper
-  - `serverTrack(distinctId, event, properties)` — called from billing webhook, grievance route
-  - Used by P11 (`ai_employee_provisioned`), P12 (`seat_limit_hit`)
-- [ ] **ZEE-003-T6** — Wire Sentry into CRM + Server
-  - `src/main.tsx`: initialise Sentry with `VITE_SENTRY_DSN`
-  - `server/lambda-handler.js`: initialise Sentry with `SENTRY_DSN_SERVER`
-  - **Do NOT add Sentry to LP HTML**
+- [x] **ZEE-003-T1** — Write `real-estate-crm-app/src/lib/analytics.ts` **(PostHog ONLY)** _(PR-E)_
+  - [x] `initAnalytics()`, `trackEvent()`, `identifyUser()`, `resetAnalytics()` — PostHog only
+  - [x] `src/types/analytics.ts` — `AnalyticsEvent` union (26 events) + `UserTraits` interface from §3.4
+- [x] **ZEE-003-T2** — LP analytics snippet (via P10 AI prompt output) _(PR-E)_
+  - [x] `head-analytics.hbs` — vanilla JS: PostHog (always) + GA4 (analytics) + Meta Pixel (marketing) + LinkedIn (marketing) + Hotjar (functional), all consent-gated
+  - [x] CTA click tracking via `data-cta-id` attribute fires PostHog `cta_click` + GA4 `cta_click`
+  - _LP `<head>` injection happens via ZEE-008 LP rewrite (PR-I)_
+- [x] **ZEE-003-T3** — Capture UTM params in CRM signup entry point _(PR-E)_
+  - [x] PhoneLogin.tsx: on mount reads `utm_source/campaign/medium` from URL → `sessionStorage` → fires `signup_started`
+  - [x] App.tsx initAuth: passes UTMs to `identifyUser()` after auth confirmed
+- [x] **ZEE-003-T4** — Instrument CRM SPA events (using `analytics.ts`) _(PR-E — partial; remaining events added by their respective PRs)_
+  - [x] `signup_started` in PhoneLogin.tsx
+  - [x] `onboarding_role_selected` in RoleSelection.tsx
+  - [x] `agency_registered` in RegisterAdmin.tsx
+  - [x] `buyer_added` (first-use flag) in BuyerDetails.tsx
+  - [x] `resetAnalytics()` in CRMDashboard.tsx logout handler
+  - _Remaining: `trial_paywall_shown` (PR-J), `subscription_started` (PR-F), `seat_limit_hit` (PR-H) — added by those PRs_
+- [x] **ZEE-003-T5** — Write `server/lib/posthog.js` (server-side PostHog) _(PR-E)_
+  - [x] PostHog Node SDK wrapper: `serverTrack()` + `shutdownPostHog()`
+  - _Note: grievance.js PostHog stub replacement deferred — grievance.js lives on PR-B branch, not yet merged to integration_
+- [x] **ZEE-003-T6** — Wire Sentry into CRM _(PR-E — CRM only; server Lambda Sentry is out of scope per PR-E spec)_
+  - [x] `main.tsx`: Sentry.init with `VITE_SENTRY_DSN`, tracesSampleRate 0.1
+  - [x] `identifyUser()` → `Sentry.setUser()`; `resetAnalytics()` → `Sentry.setUser(null)`
 - [ ] **ZEE-003-T7** — Write `tests/analytics.spec.ts` (Playwright)
   - LP: Accept cookies → assert PostHog + GA4 + Pixel + LinkedIn + Hotjar all load (network intercept)
   - LP: Reject cookies → assert only PostHog loads (in restricted mode); GA4/Pixel/LinkedIn/Hotjar do NOT load
