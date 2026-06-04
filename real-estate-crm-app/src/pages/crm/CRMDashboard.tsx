@@ -28,6 +28,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
 import { getUserProfile, clearAuthSilently } from '../../utils/authStorage';
+import { resetAnalytics } from '../../lib/analytics';
 import { redirectToLogout } from '../../utils/cognitoAuth';
 
 interface UnifiedCrmCounts {
@@ -100,6 +101,7 @@ export default function CRMDashboard() {
   };
 
   const handleLogout = () => {
+    resetAnalytics();
     clearAuthSilently();
     redirectToLogout();
   };

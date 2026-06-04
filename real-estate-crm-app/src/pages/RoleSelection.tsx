@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIdToken } from '../utils/authStorage';
+import { trackEvent } from '../lib/analytics';
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
@@ -20,9 +21,7 @@ export default function RoleSelection() {
       }
 
       console.log('[ONBOARDING] User selected ADMIN role');
-      
-      // For now, we'll navigate to a form to collect agency name
-      // In the next step, we'll create the RegisterAdmin component
+      trackEvent('onboarding_role_selected', { role: 'admin' });
       navigate('/onboarding/register-admin', { replace: true });
     } catch (err) {
       console.error('[ONBOARDING] Admin selection error:', err);
@@ -42,6 +41,7 @@ export default function RoleSelection() {
       }
 
       console.log('[ONBOARDING] User selected MEMBER role, checking for invites...');
+      trackEvent('onboarding_role_selected', { role: 'member' });
 
       // Check if user has any pending invites
       const response = await fetch(`${AUTH_API_URL}/auth/check-invite`, {

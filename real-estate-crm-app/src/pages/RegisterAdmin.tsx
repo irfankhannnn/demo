@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getIdToken } from '../utils/authStorage';
 import { callMe } from '../utils/cognitoAuth';
 import { setUserProfile } from '../utils/authStorage';
+import { trackEvent } from '../lib/analytics';
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
@@ -44,6 +45,7 @@ export default function RegisterAdmin() {
 
       const data = await response.json();
       console.log('[REGISTER_ADMIN] Registration successful:', data);
+      trackEvent('agency_registered', { plan_intent: 'solo' });
 
       // Fetch full profile
       const meResult = await callMe(idToken);
