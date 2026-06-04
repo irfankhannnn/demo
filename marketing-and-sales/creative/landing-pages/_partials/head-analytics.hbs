@@ -1,0 +1,87 @@
+<!-- Analytics (all consent-gated) — IDs injected at build time from .env -->
+<script>
+(function() {
+  var CONSENT_VERSION = 1;
+  var consent = JSON.parse(localStorage.getItem('cookieConsent') || 'null');
+
+  // --- PostHog (always init — session recording gated) ---
+  function initPostHog() {
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+
+    posthog.init('{{POSTHOG_KEY}}', {
+      api_host: 'https://eu.i.posthog.com',
+      disable_session_recording: !(consent && consent.analytics),
+      capture_pageview: false
+    });
+
+    posthog.capture('page_view', {
+      page: window.location.pathname,
+      referrer: document.referrer,
+      utm_source: new URLSearchParams(window.location.search).get('utm_source')
+    });
+  }
+
+  // --- GA4 (analytics consent) ---
+  function initGA4() {
+    if (!(consent && consent.analytics)) return;
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id={{GA4_ID}}';
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    window.gtag = gtag;
+    gtag('js', new Date());
+    gtag('config', '{{GA4_ID}}', { send_page_view: true });
+  }
+
+  // --- Meta Pixel (marketing consent) ---
+  function initPixel() {
+    if (!(consent && consent.marketing)) return;
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '{{META_PIXEL_ID}}');
+    fbq('track', 'PageView');
+  }
+
+  // --- LinkedIn Insight (marketing consent) ---
+  function initLinkedIn() {
+    if (!(consent && consent.marketing)) return;
+    window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+    window._linkedin_data_partner_ids.push('{{LINKEDIN_PARTNER_ID}}');
+    (function(l){if(!l){window.lintrk=function(a,b){window.lintrk.q.push([a,b])};window.lintrk.q=[]}var s=document.getElementsByTagName('script')[0];var b=document.createElement('script');b.type='text/javascript';b.async=true;b.src='https://snap.licdn.com/li.lms-analytics/insight.min.js';s.parentNode.insertBefore(b,s)})(window.lintrk);
+  }
+
+  // --- Hotjar (functional consent) ---
+  function initHotjar() {
+    if (!(consent && consent.functional)) return;
+    (function(h,o,t,j,a,r){h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};h._hjSettings={hjid:parseInt('{{HOTJAR_ID}}'),hjsv:parseInt('{{HOTJAR_SV}}')};a=o.getElementsByTagName('head')[0];r=o.createElement('script');r.async=1;r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;a.appendChild(r)})(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');
+  }
+
+  // Always init PostHog
+  initPostHog();
+
+  // If consent already stored, init gated trackers immediately
+  if (consent && consent.version === CONSENT_VERSION) {
+    initGA4(); initPixel(); initLinkedIn(); initHotjar();
+  }
+
+  // Otherwise wait for cookie-consent-done event from cookie-banner.html (PR-C)
+  window.addEventListener('cookie-consent-done', function() {
+    consent = JSON.parse(localStorage.getItem('cookieConsent') || 'null');
+    initGA4(); initPixel(); initLinkedIn(); initHotjar();
+  });
+
+  // CTA click tracking — fire on any element with data-cta-id
+  document.addEventListener('click', function(e) {
+    var el = e.target.closest ? e.target.closest('[data-cta-id]') : null;
+    if (el) {
+      posthog.capture('cta_click', {
+        cta_id: el.getAttribute('data-cta-id'),
+        cta_label: el.textContent.trim(),
+        page: window.location.pathname
+      });
+      if (typeof gtag !== 'undefined') gtag('event', 'cta_click', { cta_id: el.getAttribute('data-cta-id') });
+    }
+  });
+})();
+</script>
