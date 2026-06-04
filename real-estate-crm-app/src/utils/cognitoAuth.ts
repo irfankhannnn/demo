@@ -210,6 +210,38 @@ export async function callRegisterAdmin(
 }
 
 /**
+ * Refresh tokens using the refresh token via the auth microservice.
+ */
+export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+  const tokenUrl = `${AUTH_API_URL}/auth/refresh`;
+  const body = {
+    refresh_token: refreshToken,
+  };
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(`Token refresh failed (${response.status}): ${errorBody}`);
+  }
+
+  const data = await response.json();
+
+  const tokens: AuthTokens = {
+    idToken: data.id_token,
+    accessToken: data.access_token,
+    refreshToken, // Keep the same refresh token
+    expiresIn: data.expires_in,
+  };
+
+  return tokens;
+}
+
+/**
  * Redirect the browser to the Cognito Hosted UI logout endpoint, then back to login page.
  */
 export function redirectToLogout(): void {

@@ -21,6 +21,7 @@ import {
   getPropertyContacts,
   getOwners,
   getCustomers,
+  getContactActivityTimeline,
 } from '../crmDynamodbService.js';
 
 const router = express.Router();
@@ -37,10 +38,11 @@ const upload = multer({
 // Get all contacts with optional filters
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { role, status } = req.query;
+    const { role, status, area } = req.query;
     const filters = {};
     if (role) filters.role = role;
     if (status) filters.status = status;
+    if (area) filters.area = area;
 
     const contacts = await getContacts(req.tenantId, filters);
     res.json(contacts);
@@ -369,7 +371,7 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     }
 
     // Migrate customers
-    const customers = await getCustomers(req.tenantId);
+    const { customers } = await getCustomers(req.tenantId);
     for (const customer of customers) {
       try {
         await migrateCustomerToContact(req.tenantId, customer.customerId);
@@ -382,6 +384,35 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     res.json(results);
   } catch (error) {
     console.error('Migrate all error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// ============== Contact Activity Timeline Route ==============
+
+router.get('/:id/activity', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { entityType, entityId } = req.query;
+
+    let contactId = id;
+
+    // If entityType and entityId are provided, resolve the contactId
+    if (entityType && entityId) {
+      const resolvedContactId = await getContactIdForEntity(req.tenantId, entityType, entityId);
+      if (resolvedContactId) {
+        contactId = resolvedContactId;
+      } else {
+        // If no contactId resolved, return empty array
+        res.json([]);
+        return;
+      }
+    }
+
+    const activity = await getContactActivityTimeline(req.tenantId, contactId);
+    res.json(activity);
+  } catch (error) {
+    console.error('Get contact activity error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

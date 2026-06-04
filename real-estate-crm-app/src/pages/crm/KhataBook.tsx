@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {
@@ -109,6 +109,9 @@ export default function KhataBook() {
     if (filters.propertyId) {
       filtered = filtered.filter(e => e.propertyId === filters.propertyId);
     }
+    if (filters.categoryId) {
+      filtered = filtered.filter(e => e.categoryId === filters.categoryId);
+    }
 
     // Apply search
     if (debouncedSearchQuery) {
@@ -123,16 +126,12 @@ export default function KhataBook() {
     }
 
     // Apply pagination - limit to visibleCount unless filters are active
-    const hasActiveFilters = filters.settlementStatus || filters.transactionType || filters.partyType || filters.propertyId || debouncedSearchQuery;
+    const hasActiveFilters = filters.settlementStatus || filters.transactionType || filters.partyType || filters.propertyId || filters.categoryId || debouncedSearchQuery;
     if (!hasActiveFilters) {
       filtered = filtered.slice(0, visibleCount);
     }
 
     setFilteredEntries(filtered);
-  };
-
-  const handleSettle = (entry: KhataEntry) => {
-    setSettlementEntry(entry);
   };
 
   const handleSettlementConfirm = async (settlementData: SettlementData) => {
@@ -342,6 +341,19 @@ export default function KhataBook() {
           >
             Settled
           </button>
+          <button
+            onClick={() => {
+              setFilters({ categoryId: 'predefined-0' });
+              setVisibleCount(10);
+            }}
+            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+              filters.categoryId === 'predefined-0' ? 
+                'bg-purple-100 text-purple-700 border border-purple-300 shadow-md' : 
+                'bg-white/60 text-gray-700 border border-gray-300 hover:bg-white/80'
+            }`}
+          >
+            Brokerage
+          </button>
         </div>
 
         {/* Filters & Search */}
@@ -492,7 +504,12 @@ export default function KhataBook() {
                     <div className="space-y-2 mb-3">
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Property:</span>
-                        <span className="text-gray-900">{entry.property?.title || 'N/A'}</span>
+                        <span
+                          className="text-gray-900 cursor-pointer hover:text-purple-600 hover:underline"
+                          onClick={() => entry.propertyId && navigate(`/crm/properties/${entry.propertyId}`)}
+                        >
+                          {entry.property?.title || 'N/A'}
+                        </span>
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-500">Category:</span>
@@ -563,7 +580,12 @@ export default function KhataBook() {
                           {formatDate(entry.createdAt)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{entry.property?.title || 'N/A'}</div>
+                          <div
+                            className="text-sm font-medium text-gray-900 cursor-pointer hover:text-purple-600 hover:underline"
+                            onClick={() => entry.propertyId && navigate(`/crm/properties/${entry.propertyId}`)}
+                          >
+                            {entry.property?.title || 'N/A'}
+                          </div>
                           <div className="text-sm text-gray-500">{entry.property?.flatNumber}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

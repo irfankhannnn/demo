@@ -228,15 +228,15 @@ export default function Hierarchy() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30 flex-shrink-0">
@@ -244,7 +244,7 @@ export default function Hierarchy() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Property Hierarchy</h1>
-                  <p className="text-xs sm:text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">
                     Navigate: City → Area → Building → Units
                   </p>
                 </div>
@@ -474,12 +474,19 @@ export default function Hierarchy() {
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          property.status === 'available' ? 'bg-green-100 text-green-800' :
-                          property.status === 'rented' ? 'bg-blue-100 text-blue-800' :
-                          property.status === 'on_hold' ? 'bg-yellow-100 text-yellow-800' :
+                          property.status === 'available' ? 'bg-emerald-100 text-emerald-800' :
+                          property.status === 'for-sale' ? 'bg-blue-100 text-blue-800' :
+                          property.status === 'for-rent' ? 'bg-yellow-100 text-yellow-800' :
+                          property.status === 'rented' ? 'bg-indigo-100 text-indigo-800' :
+                          property.status === 'sold' ? 'bg-red-100 text-red-800' :
+                          property.status === 'on-hold' ? 'bg-amber-100 text-amber-800' :
                           'bg-gray-100 text-gray-800'
                         }`}>
-                          {property.status?.replace('_', ' ')}
+                          {property.status === 'for-sale' ? 'For Sale' :
+                           property.status === 'for-rent' ? 'For Rent' :
+                           property.status === 'on-hold' ? 'On Hold' :
+                           property.status === 'out-of-stock' ? 'Out of Stock' :
+                           property.status}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">

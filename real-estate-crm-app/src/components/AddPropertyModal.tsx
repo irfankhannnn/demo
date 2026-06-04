@@ -125,6 +125,11 @@ export default function AddPropertyModal({
         ownerId: selectedOwnerId || undefined,
         latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
         longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
+        availableFrom: formData.availableFrom ? new Date(formData.availableFrom).toISOString() : undefined,
+        rentalInfo: {
+          expectedRent: formData.rentAmount || 0,
+          securityDeposit: formData.depositAmount || 0,
+        },
       });
 
       if (addAnother) {

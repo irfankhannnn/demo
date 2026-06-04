@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
 import { CRMMeeting, CRMCustomerNote, CRMOwnerNote, CRMEnquiryNote, CRMLeadNote } from '../../types/crm';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
@@ -347,6 +348,10 @@ export default function Calendar() {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [historyMeetingId, setHistoryMeetingId] = useState<string | null>(null);
   const [rescheduleMeeting, setRescheduleMeeting] = useState<CRMMeeting | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -420,7 +425,7 @@ export default function Calendar() {
       await loadData();
     } catch (e) {
       console.error('Failed to update meeting status', e);
-      alert('Failed to update meeting status');
+      showToast('Failed to update meeting status', 'error');
     }
   };
 
@@ -573,7 +578,7 @@ export default function Calendar() {
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
                 <ChevronLeft className="w-5 h-5 text-gray-600" />
               </button>
@@ -1016,6 +1021,9 @@ export default function Calendar() {
           loadData();
         }}
       />
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

@@ -1,8 +1,8 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
-import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession } from './utils/authStorage';
-import { callMe } from './utils/cognitoAuth';
+import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, getRefreshToken, setTokens } from './utils/authStorage';
+import { callMe, refreshTokens } from './utils/cognitoAuth';
 
 // Pages
 import AdminLogin from './pages/AdminLogin';
@@ -70,12 +70,6 @@ function App() {
   useEffect(() => {
     async function initAuth() {
       console.log('[App] initAuth called');
-      if (!checkAuth()) {
-        console.log('[App] No auth found - setting unauthenticated');
-        setAuthState('unauthenticated');
-        return;
-      }
-
       const onboardingActive = hasOnboardingSession();
       console.log('[App] Onboarding session active:', onboardingActive);
 
@@ -89,13 +83,40 @@ function App() {
         return;
       }
 
-      // Profile is stale or missing — refresh via /auth/me
+      // Check if we have tokens (even if expired)
       const idToken = getIdToken();
-      console.log('[App] ID token exists:', !!idToken);
-      if (idToken) {
+      const refreshToken = getRefreshToken();
+      console.log('[App] ID token exists:', !!idToken, 'Refresh token exists:', !!refreshToken);
+
+      // If no tokens at all, unauthenticated
+      if (!idToken && !refreshToken) {
+        console.log('[App] No auth tokens found - setting unauthenticated');
+        setAuthState('unauthenticated');
+        return;
+      }
+
+      // If token exists but is expired, attempt refresh
+      if (idToken && !checkAuth() && refreshToken && !onboardingActive) {
+        try {
+          console.log('[App] Token expired, attempting refresh...');
+          const newTokens = await refreshTokens(refreshToken);
+          setTokens(newTokens);
+          console.log('[App] Token refresh successful');
+        } catch (refreshErr) {
+          console.log('[App] Token refresh failed:', refreshErr);
+          // Refresh failed, clear auth and set unauthenticated
+          clearAuth();
+          setAuthState('unauthenticated');
+          return;
+        }
+      }
+
+      // Profile is stale or missing — refresh via /auth/me
+      const currentIdToken = getIdToken();
+      if (currentIdToken) {
         try {
           console.log('[App] Calling /auth/me...');
-          const meResult = await callMe(idToken);
+          const meResult = await callMe(currentIdToken);
           const meData = meResult.data || meResult;
           console.log('[App] /auth/me success');
           setUserProfile({
@@ -115,6 +136,37 @@ function App() {
           return;
         } catch (err) {
           console.log('[App] /auth/me failed:', err);
+          // Attempt to refresh token if /auth/me fails (likely due to expired token)
+          const currentRefreshToken = getRefreshToken();
+          if (currentRefreshToken && !onboardingActive) {
+            try {
+              console.log('[App] Attempting token refresh after /auth/me failure...');
+              const newTokens = await refreshTokens(currentRefreshToken);
+              setTokens(newTokens);
+              console.log('[App] Token refresh successful, retrying /auth/me...');
+              const meResult = await callMe(newTokens.idToken);
+              const meData = meResult.data || meResult;
+              console.log('[App] /auth/me success after refresh');
+              setUserProfile({
+                userId: meData.user.userId,
+                cognitoSub: meData.user.cognitoSub,
+                email: meData.user.email,
+                phoneNumber: meData.user.phoneNumber,
+                role: meData.user.role,
+                tenantId: meData.user.tenantId,
+                displayName: meData.user.displayName,
+                status: meData.user.status,
+                createdAt: meData.user.createdAt,
+                lastLoginAt: meData.user.lastLoginAt,
+                agency: meData.agency,
+              });
+              setAuthState('authenticated');
+              return;
+            } catch (refreshErr) {
+              console.log('[App] Token refresh failed:', refreshErr);
+            }
+          }
+
           if (onboardingActive) {
             console.log('[App] Onboarding active - preserving auth state');
             setAuthState('authenticated');

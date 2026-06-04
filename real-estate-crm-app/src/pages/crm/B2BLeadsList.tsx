@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
 import { CRMMeeting } from '../../types/crm';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 
@@ -54,6 +55,10 @@ export default function B2BLeadsList() {
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [selectedLead, setSelectedLead] = useState<B2BLead | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [updating, setUpdating] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [showScheduleMeeting, setShowScheduleMeeting] = useState(false);
@@ -155,7 +160,7 @@ export default function B2BLeadsList() {
       setSelectedLead(updatedLead);
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      showToast('Failed to update status', 'error');
     } finally {
       setUpdating(false);
     }
@@ -171,7 +176,7 @@ export default function B2BLeadsList() {
       setSelectedLead(updatedLead);
     } catch (error) {
       console.error('Error updating priority:', error);
-      alert('Failed to update priority');
+      showToast('Failed to update priority', 'error');
     } finally {
       setUpdating(false);
     }
@@ -188,7 +193,7 @@ export default function B2BLeadsList() {
       setNewNote('');
     } catch (error) {
       console.error('Error adding note:', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     } finally {
       setUpdating(false);
     }
@@ -249,15 +254,15 @@ export default function B2BLeadsList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0">
@@ -284,7 +289,7 @@ export default function B2BLeadsList() {
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                 <Briefcase className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -295,7 +300,7 @@ export default function B2BLeadsList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center shadow-lg shadow-sky-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                 <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -306,7 +311,7 @@ export default function B2BLeadsList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                 <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -317,7 +322,7 @@ export default function B2BLeadsList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                 <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -328,7 +333,7 @@ export default function B2BLeadsList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group col-span-2 sm:col-span-1">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group col-span-2 sm:col-span-1">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -752,6 +757,9 @@ export default function B2BLeadsList() {
           entityPhone={selectedLead.mobile}
           entityEmail={selectedLead.email}
         />
+      )}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );

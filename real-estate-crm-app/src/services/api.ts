@@ -7,6 +7,8 @@ import type {
   CreatePropertyData,
   UpdatePropertyData,
 } from '../types/crm';
+import { getRefreshToken, setTokens } from '../utils/authStorage';
+import { refreshTokens } from '../utils/cognitoAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 
@@ -15,8 +17,20 @@ if (!API_BASE_URL) {
 }
 
 class ApiService {
+  private isRefreshing = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
+
   private get token(): string | null {
     return localStorage.getItem('auth_id_token');
+  }
+
+  private subscribeTokenRefresh(callback: (token: string) => void) {
+    this.refreshSubscribers.push(callback);
+  }
+
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach(callback => callback(token));
+    this.refreshSubscribers = [];
   }
 
   async getEnquiryNotes(enquiryId: string) {
@@ -84,13 +98,55 @@ class ApiService {
   private async handleResponse(response: Response) {
     if (!response.ok) {
       if (response.status === 401) {
-        this.clearToken();
-        window.location.href = '/login';
+        // Attempt to refresh the token
+        const refreshToken = getRefreshToken();
+        if (refreshToken) {
+          try {
+            if (!this.isRefreshing) {
+              this.isRefreshing = true;
+              const newTokens = await refreshTokens(refreshToken);
+              setTokens(newTokens);
+              this.isRefreshing = false;
+              this.onTokenRefreshed(newTokens.idToken);
+              // Retry the original request with new token
+              return this.retryRequest(response);
+            } else {
+              // Wait for the refresh to complete
+              return new Promise((resolve) => {
+                this.subscribeTokenRefresh(() => {
+                  resolve(this.retryRequest(response));
+                });
+              });
+            }
+          } catch (refreshError) {
+            console.error('[ApiService] Token refresh failed:', refreshError);
+            this.isRefreshing = false;
+            this.clearToken();
+            window.location.href = '/login';
+            throw new Error('Session expired. Please log in again.');
+          }
+        } else {
+          // No refresh token available, clear auth and redirect
+          this.clearToken();
+          window.location.href = '/login';
+        }
       }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
       throw new Error(error.error || `HTTP ${response.status}`);
     }
     return response.json();
+  }
+
+  private async retryRequest(originalResponse: Response): Promise<any> {
+    // Clone the original request and retry with new token
+    const url = originalResponse.url;
+    const options: RequestInit = {
+      method: originalResponse.type === 'basic' ? 'GET' : 'POST',
+      headers: this.getHeaders(),
+    };
+
+    const response = await fetch(url, options);
+    return this.handleResponse(response);
   }
 
   private stripDynamoFields<T extends Record<string, any>>(data: T): Partial<T> {
@@ -604,6 +660,13 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async getPropertyRentalHistory(propertyId: string) {
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/rental-history`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   async createCRMProperty(data: CreatePropertyData) {
     const response = await fetch(`${API_BASE_URL}/crm/properties`, {
       method: 'POST',
@@ -762,6 +825,15 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async createBuyerListing(buyerId: string, propertyId: string, listingType: 'rent' | 'sale') {
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/list-property`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ propertyId, listingType }),
+    });
+    return this.handleResponse(response);
+  }
+
   // Seller document methods removed - use Owner document methods instead
 
   // ============== Properties with Details (for Dashboard) ==============
@@ -876,6 +948,62 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents/${documentId}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // ============== Property Status Management Endpoints ==============
+
+  async listPropertyForSale(propertyId: string, listedPrice: number) {
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/list-for-sale`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ listedPrice }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async listPropertyForRent(propertyId: string, expectedRent: number, securityDeposit: number) {
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/list-for-rent`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ expectedRent, securityDeposit }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async markPropertySold(propertyId: string, data: {
+    soldPrice: number;
+    buyerId?: string | null;
+    saleType?: 'direct' | 'third_party';
+    reasonLost?: string | null;
+    notes?: string | null;
+    brokerageAmount?: number;
+    brokerageLost?: number;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/mark-sold`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse(response);
+  }
+
+  async markPropertyRented(propertyId: string, data: {
+    customerId: string;
+    rentalDetails: {
+      monthlyRent: number;
+      leaseStartDate?: string;
+      leaseEndDate?: string;
+      securityDeposit?: number;
+      brokeragePaid?: number;
+      notes?: string;
+    };
+  }) {
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/mark-rented`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
     });
     return this.handleResponse(response);
   }
@@ -1104,6 +1232,7 @@ class ApiService {
     description?: string;
     reminderAt?: string;
     reminderNote?: string;
+    sourceRef?: string;
   }) {
     const response = await fetch(`${API_BASE_URL}/khata/entries`, {
       method: 'POST',
@@ -1651,6 +1780,20 @@ class ApiService {
   async deleteContactNote(contactId: string, noteId: string) {
     const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes/${noteId}`, {
       method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Contact activity timeline
+  async getContactActivity(contactId: string, entityType?: string, entityId?: string) {
+    const params = new URLSearchParams();
+    if (entityType && entityId) {
+      params.append('entityType', entityType);
+      params.append('entityId', entityId);
+    }
+    const queryString = params.toString();
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/activity${queryString ? `?${queryString}` : ''}`, {
       headers: this.getHeaders(),
     });
     return this.handleResponse(response);

@@ -17,7 +17,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DEPLOY_LAMBDA=false
+DEPLOY_LAMBDA=true
 
 
 # -----------------------------------------------------------------------------

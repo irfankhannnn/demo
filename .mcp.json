@@ -11,6 +11,11 @@
     "blotato": {
       "type": "http",
       "url": "https://mcp.blotato.com/sse"
+    },
+    "git": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@mseep/git-mcp-server"]
     }
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import {
@@ -15,9 +15,11 @@ import {
   Plus,
   ShieldCheck,
   Calendar,
+  Key,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMProperty, CRMOwner, CRMCustomer, CRMPropertyDocument } from '../../types/crm';
+import { KhataPartyType } from '../../types/khata';
 import GoogleMapPicker from '../../components/GoogleMapPicker';
 import CreateOwnerModal from '../../components/CreateOwnerModal';
 import CreateTenantModal from '../../components/CreateTenantModal';
@@ -28,7 +30,7 @@ import { PermissionGuard } from '../../components/PermissionGuard';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
-type PropertyStatus = 'available' | 'on_hold' | 'out_of_stock' | 'rented';
+type PropertyStatus = 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
 type AgreementStatus = 'pending' | 'done';
 type VerificationStatus = 'pending' | 'done' | 'not_done';
 
@@ -73,6 +75,33 @@ export default function PropertyDetails() {
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
+  // Sale Modal States
+  const [buyers, setBuyers] = useState<any[]>([]);
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [savingSale, setSavingSale] = useState(false);
+  const [saleForm, setSaleForm] = useState<{
+    saleType: 'direct' | 'third_party';
+    soldPrice: number;
+    buyerId: string;
+    brokerageAmount: number;
+    brokerageLost: number;
+    reasonLost: string;
+    customReasonLost: string;
+    notes: string;
+  }>({
+    saleType: 'direct',
+    soldPrice: 0,
+    buyerId: '',
+    brokerageAmount: 0,
+    brokerageLost: 0,
+    reasonLost: '',
+    customReasonLost: '',
+    notes: ''
+  });
+  
+  // Track original status to detect changes for auto-brokerage
+  const [originalStatus, setOriginalStatus] = useState<string>('');
+  
   // Document uploads for new properties (before property is created)
   const [pendingAgreementDocs, setPendingAgreementDocs] = useState<File[]>([]);
   const [pendingVerificationDocs, setPendingVerificationDocs] = useState<File[]>([]);
@@ -99,6 +128,8 @@ export default function PropertyDetails() {
     availableFrom: string;
     status: PropertyStatus;
     tenantCustomerId: string;
+    brokerageAmount: number;
+    expectedBrokerage: number;
     agreementStatus: AgreementStatus;
     verificationStatus: VerificationStatus;
     featured: boolean;
@@ -127,6 +158,8 @@ export default function PropertyDetails() {
     availableFrom: new Date().toISOString().split('T')[0],
     status: 'available',
     tenantCustomerId: '',
+    brokerageAmount: 0,
+    expectedBrokerage: 0,
     agreementStatus: 'pending',
     verificationStatus: 'pending',
     featured: false,
@@ -171,6 +204,7 @@ export default function PropertyDetails() {
   useEffect(() => {
     loadOwners();
     loadCustomers();
+    loadBuyers();
     if (isEditing && id) {
       loadProperty();
       loadDocuments();
@@ -212,12 +246,22 @@ export default function PropertyDetails() {
     }
   };
 
+  const loadBuyers = async () => {
+    try {
+      const data = await api.getBuyers();
+      setBuyers(data || []);
+    } catch (error) {
+      console.error('Error loading buyers:', error);
+    }
+  };
+
   const loadProperty = async () => {
     if (!id) return;
     try {
       setLoading(true);
       const data = await api.getCRMProperty(id);
       setProperty(data);
+      setOriginalStatus(data.status);
       setFormData({
         ownerId: data.ownerId || '',
         title: data.title,
@@ -233,13 +277,15 @@ export default function PropertyDetails() {
         latitude: data.latitude ? String(data.latitude) : '',
         longitude: data.longitude ? String(data.longitude) : '',
         carpetArea: data.carpetArea,
-        rentAmount: data.rentAmount,
-        depositAmount: data.depositAmount,
+        rentAmount: data.rentalInfo?.expectedRent ?? data.rentAmount ?? 0,
+        depositAmount: data.rentalInfo?.securityDeposit ?? data.depositAmount ?? 0,
         furnishing: data.furnishing,
         amenities: data.amenities || [],
-        availableFrom: data.availableFrom || new Date().toISOString().split('T')[0],
+        availableFrom: data.availableFrom ? new Date(data.availableFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         status: data.status,
         tenantCustomerId: data.tenantCustomerId || '',
+        brokerageAmount: data.brokerageAmount || 0,
+        expectedBrokerage: data.expectedBrokerage || 0,
         agreementStatus: data.agreementStatus || 'pending',
         verificationStatus: data.verificationStatus || 'pending',
         featured: data.featured || false,
@@ -270,25 +316,166 @@ export default function PropertyDetails() {
     }
   };
 
+  const handleMarkAsSoldConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+
+    if (saleForm.saleType === 'direct' && !saleForm.buyerId) {
+      alert('Please select a buyer.');
+      return;
+    }
+
+    try {
+      setSavingSale(true);
+      
+      const finalReasonLost = saleForm.reasonLost === 'other' 
+        ? saleForm.customReasonLost 
+        : saleForm.reasonLost;
+
+      const payload = {
+        soldPrice: Number(saleForm.soldPrice) || 0,
+        buyerId: saleForm.saleType === 'direct' ? saleForm.buyerId : null,
+        saleType: saleForm.saleType,
+        brokerageAmount: saleForm.brokerageAmount || undefined,
+        brokerageLost: saleForm.saleType === 'third_party' ? (saleForm.brokerageLost || undefined) : undefined,
+        reasonLost: saleForm.saleType === 'third_party' ? finalReasonLost : null,
+        notes: saleForm.notes || null,
+      };
+
+      const updatedProp = await api.markPropertySold(id, payload);
+      
+      const createdBrokerage = (saleForm.saleType === 'direct' && Number(saleForm.soldPrice) > 0) || 
+                               (saleForm.saleType === 'third_party' && saleForm.brokerageLost && Number(saleForm.brokerageLost) > 0);
+
+      setProperty(updatedProp);
+      setOriginalStatus('sold');
+      setFormData(prev => ({
+        ...prev,
+        status: 'sold',
+        ownerId: updatedProp.ownerId || '',
+      }));
+
+      setShowSaleModal(false);
+      setToast({ 
+        message: `Property successfully marked as sold!${createdBrokerage ? ' Auto-created brokerage entry in Khata.' : ''}`, 
+        type: 'success' 
+      });
+    } catch (err) {
+      console.error('Error marking property as sold:', err);
+      setToast({ message: 'Failed to mark property as sold.', type: 'error' });
+    } finally {
+      setSavingSale(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Owner is now optional - can create properties without owner (unassigned)
 
     // Convert form data to API format (string lat/lng to numbers)
-    const apiData = {
+    const apiData: any = {
       ...formData,
-      ownerId: formData.ownerId || null, // Allow null for unassigned properties
+      ownerId: formData.ownerId || null,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
       tenantCustomerId: formData.tenantCustomerId || undefined,
       tenantMoveInDate: formData.tenantMoveInDate || undefined,
       tenureMonths: formData.tenureMonths || undefined,
+      availableFrom: formData.availableFrom ? new Date(formData.availableFrom).toISOString() : undefined,
+      brokerageAmount: formData.brokerageAmount || undefined,
+      expectedBrokerage: formData.expectedBrokerage || undefined,
+      rentalInfo: {
+        expectedRent: formData.rentAmount || 0,
+        securityDeposit: formData.depositAmount || 0,
+      },
     };
 
     try {
       setSaving(true);
       if (isEditing && id) {
         await api.updateCRMProperty(id, apiData);
+        
+        // Auto-create brokerage khata entry when property status changes to 'sold' or 'rented'
+        if ((formData.status === 'sold' || formData.status === 'rented') && originalStatus !== formData.status && formData.ownerId) {
+          try {
+            let brokerageAmount = 0;
+            let partyType: KhataPartyType = 'OWNER';
+            let description = '';
+
+            if (formData.status === 'sold') {
+              // Calculate brokerage as 1% of sale price
+              const salePrice = property?.saleInfo?.listedPrice || 0;
+              brokerageAmount = salePrice > 0 ? Math.round(salePrice * 0.01) : 0;
+              partyType = 'SELLER';
+              description = `Auto-generated brokerage for property sale: ${formData.title}`;
+            } else if (formData.status === 'rented') {
+              // Use manual brokerage if provided, otherwise default to 1 month rent
+              brokerageAmount = formData.brokerageAmount > 0 ? formData.brokerageAmount : (formData.rentAmount || 0);
+              partyType = 'OWNER';
+              description = `Auto-generated brokerage for property rental: ${formData.title}`;
+            }
+            
+            if (brokerageAmount > 0) {
+              await api.createKhataEntry({
+                propertyId: id,
+                partyType,
+                partyId: formData.ownerId,
+                partyName: selectedOwner?.name || 'Owner',
+                transactionType: 'TO_TAKE',
+                amount: brokerageAmount,
+                categoryId: 'predefined-0', // Brokerage category
+                categoryName: 'Brokerage',
+                description,
+                lineItems: [{
+                  categoryId: 'predefined-0',
+                  categoryName: 'Brokerage',
+                  amount: brokerageAmount,
+                }],
+                sourceRef: `property-status-change:${id}:${formData.status}`,
+              });
+              setToast({ message: `Property updated! Auto-created ${formData.status === 'sold' ? 'sale' : 'rental'} brokerage entry.`, type: 'success' });
+            } else {
+              setToast({ message: 'Property updated successfully!', type: 'success' });
+            }
+          } catch (khataError) {
+            console.error('Error creating auto-brokerage entry:', khataError);
+            setToast({ message: 'Property updated, but failed to create brokerage entry.', type: 'error' });
+          }
+        } else if (formData.status === 'rented' && originalStatus === 'rented' && formData.ownerId) {
+          // Tenant changed or brokerage changed on already-rented property
+          const tenantChanged = property?.tenantCustomerId !== formData.tenantCustomerId;
+          const brokerageChanged = (property?.brokerageAmount || 0) !== formData.brokerageAmount;
+          if ((tenantChanged || brokerageChanged) && formData.brokerageAmount > 0) {
+            try {
+              await api.createKhataEntry({
+                propertyId: id,
+                partyType: 'OWNER',
+                partyId: formData.ownerId,
+                partyName: selectedOwner?.name || 'Owner',
+                transactionType: 'TO_TAKE',
+                amount: formData.brokerageAmount,
+                categoryId: 'predefined-0',
+                categoryName: 'Brokerage',
+                description: `Brokerage for property rental${tenantChanged ? ' (new tenant)' : ' (brokerage updated)'}: ${formData.title}`,
+                lineItems: [{
+                  categoryId: 'predefined-0',
+                  categoryName: 'Brokerage',
+                  amount: formData.brokerageAmount,
+                }],
+                sourceRef: `property-rental-update:${id}:${Date.now()}`,
+              });
+              setToast({ message: `Property updated! Auto-created rental brokerage entry${tenantChanged ? ' for new tenant' : ''}.`, type: 'success' });
+            } catch (khataError) {
+              console.error('Error creating rental brokerage khata entry:', khataError);
+              setToast({ message: 'Property updated, but failed to create brokerage entry.', type: 'error' });
+            }
+          } else {
+            setToast({ message: 'Property updated successfully!', type: 'success' });
+          }
+        } else {
+          setToast({ message: 'Property updated successfully!', type: 'success' });
+        }
+        
         // Upload any pending images/videos for editing
         if (pendingImages.length > 0) {
           await api.uploadPropertyImages(id, pendingImages);
@@ -298,7 +485,6 @@ export default function PropertyDetails() {
           await api.uploadPropertyVideos(id, pendingVideos);
           setPendingVideos([]);
         }
-        setToast({ message: 'Property updated successfully!', type: 'success' });
       } else {
         // Create property first, then upload pending media and documents
         const newProperty = await api.createCRMProperty(apiData);
@@ -382,7 +568,7 @@ export default function PropertyDetails() {
       e.target.value = ''; // Reset input
     } catch (error) {
       console.error('Error uploading images:', error);
-      alert('Failed to upload images');
+      setToast({ message: 'Failed to upload images', type: 'error' });
     } finally {
       setUploadingImages(false);
     }
@@ -403,7 +589,7 @@ export default function PropertyDetails() {
         navigate('/login');
         return;
       }
-      alert('Failed to upload videos');
+      setToast({ message: 'Failed to upload videos', type: 'error' });
     } finally {
       setUploadingVideos(false);
     }
@@ -417,7 +603,7 @@ export default function PropertyDetails() {
       await loadProperty();
     } catch (error) {
       console.error('Error deleting image:', error);
-      alert('Failed to delete image');
+      setToast({ message: 'Failed to delete image', type: 'error' });
     }
   };
 
@@ -429,7 +615,7 @@ export default function PropertyDetails() {
       await loadProperty();
     } catch (error) {
       console.error('Error deleting video:', error);
-      alert('Failed to delete video');
+      setToast({ message: 'Failed to delete video', type: 'error' });
     }
   };
 
@@ -449,7 +635,7 @@ export default function PropertyDetails() {
       await loadDocuments();
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Failed to upload document');
+      setToast({ message: 'Failed to upload document', type: 'error' });
     } finally {
       setUploadingDocument(false);
     }
@@ -462,7 +648,7 @@ export default function PropertyDetails() {
       await loadDocuments();
     } catch (error) {
       console.error('Error deleting document:', error);
-      alert('Failed to delete document');
+      setToast({ message: 'Failed to delete document', type: 'error' });
     }
   };
 
@@ -519,25 +705,25 @@ export default function PropertyDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/properties')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/25 flex-shrink-0 animate-gentlePulse">
                   <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight truncate">
                     {isEditing ? 'Edit Property' : 'New Property'}
                   </h1>
-                  <p className="text-xs sm:text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">
                     {isEditing ? 'Update property information' : 'Add a new property listing'}
                   </p>
                 </div>
@@ -553,7 +739,7 @@ export default function PropertyDetails() {
             {/* Main Form */}
             <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Basic Info */}
-              <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl p-4 sm:p-6">
+              <div className="glass-premium rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h2>
 
                 <div className="space-y-4">
@@ -879,6 +1065,19 @@ export default function PropertyDetails() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Expected Brokerage (₹)
+                    </label>
+                    <NumericInput
+                      min={0}
+                      value={formData.expectedBrokerage}
+                      onChange={(val) => setFormData({ ...formData, expectedBrokerage: val })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="Enter expected brokerage"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
                       Furnishing
                     </label>
                     <select
@@ -918,27 +1117,45 @@ export default function PropertyDetails() {
                     </label>
                     <select
                       value={formData.status}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          status: e.target.value as
-                            | 'available'
-                            | 'on_hold'
-                            | 'out_of_stock'
-                            | 'rented',
-                        })
-                      }
+                      onChange={(e) => {
+                        const newStatus = e.target.value as PropertyStatus;
+                        if (newStatus === 'sold') {
+                          if (!id) {
+                            alert('Please save the property details first before marking it as sold.');
+                            return;
+                          }
+                          setSaleForm({
+                            saleType: 'direct',
+                            soldPrice: property?.saleInfo?.listedPrice || property?.rentAmount || 0,
+                            buyerId: '',
+                            brokerageAmount: 0,
+                            brokerageLost: 0,
+                            reasonLost: '',
+                            customReasonLost: '',
+                            notes: ''
+                          });
+                          setShowSaleModal(true);
+                        } else {
+                          setFormData({
+                            ...formData,
+                            status: newStatus,
+                          });
+                        }
+                      }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
                       <option value="available">Available</option>
-                      <option value="on_hold">On Hold</option>
-                      <option value="out_of_stock">Out of Stock</option>
+                      <option value="for-sale">For Sale</option>
+                      <option value="for-rent">For Rent</option>
                       <option value="rented">Rented</option>
+                      <option value="sold">Sold</option>
+                      <option value="on-hold">On Hold</option>
+                      <option value="out-of-stock">Out of Stock</option>
                     </select>
                   </div>
 
                   {/* Tenant Selection */}
-                  {formData.status !== 'available' && (
+                  {(formData.status === 'rented' || formData.status === 'on-hold') && (
                     <>
                       {/* Tenant Selection */}
                       <div className="relative md:col-span-2" ref={tenantDropdownRef}>
@@ -1019,6 +1236,21 @@ export default function PropertyDetails() {
                           </button>
                         </div>
                       </div>
+
+                      {/* Brokerage (for rental deals) */}
+                      {formData.status === 'rented' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Brokerage (&#x20B9;) <span className="text-xs text-gray-400 font-normal">— leave 0 for auto 1 month rent</span>
+                          </label>
+                          <NumericInput
+                            value={formData.brokerageAmount}
+                            onChange={(val) => setFormData({ ...formData, brokerageAmount: val })}
+                            placeholder="0"
+                            className="w-full"
+                          />
+                        </div>
+                      )}
 
                       {/* Agreement Status */}
                       <div className="relative">
@@ -1561,6 +1793,101 @@ export default function PropertyDetails() {
                 </div>
               )}
 
+              {/* Ownership History */}
+              {isEditing && property?.ownershipHistory && property.ownershipHistory.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Users className="h-5 w-5 text-purple-600" />
+                    Ownership History
+                  </h2>
+                  <div className="space-y-4">
+                    {property.ownershipHistory.map((entry, idx) => (
+                      <div key={idx} className="relative pl-6 border-l-2 border-gray-200">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-purple-600 border-2 border-white" />
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">
+                              {entry.soldVia === 'direct' ? 'Sold via Us' : 'Third-Party Sale'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(entry.saleDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-800 font-medium">
+                            {entry.fromOwnerName || 'Unassigned'} 
+                            <span className="text-gray-400 mx-1">&rarr;</span> 
+                            {entry.toOwnerName || 'Third-Party'}
+                          </p>
+                          {entry.salePrice && (
+                            <p className="text-sm text-gray-600 mt-1">
+                              Sold for <span className="font-semibold text-gray-900">&#x20B9;{entry.salePrice.toLocaleString()}</span>
+                            </p>
+                          )}
+                          {entry.reasonLost && (
+                            <p className="text-sm text-red-600 mt-1">
+                              Reason: {entry.reasonLost}
+                            </p>
+                          )}
+                          {entry.notes && (
+                            <p className="text-sm text-gray-500 mt-1 italic">
+                              &ldquo;{entry.notes}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Rental History */}
+              {isEditing && property?.rentalHistory && property.rentalHistory.length > 0 && (
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Key className="h-5 w-5 text-teal-600" />
+                    Rental History
+                  </h2>
+                  <div className="space-y-4">
+                    {property.rentalHistory.slice().reverse().map((entry, idx) => (
+                      <div key={idx} className="relative pl-6 border-l-2 border-gray-200">
+                        <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-teal-600 border-2 border-white" />
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-teal-700 uppercase tracking-wide">
+                              {entry.leaseEndDate && new Date(entry.leaseEndDate) < new Date() ? 'Lease Completed' : 'Active Lease'}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {entry.leaseStartDate ? new Date(entry.leaseStartDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                              {entry.leaseEndDate ? ` - ${new Date(entry.leaseEndDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ' (Ongoing)'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-800 font-medium">
+                            Tenant: <span className="text-gray-900 font-semibold">{entry.tenantName || 'Unknown Tenant'}</span>
+                          </p>
+                          <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                            {entry.monthlyRent && (
+                              <p>
+                                Rent: <span className="font-semibold text-gray-900">&#x20B9;{entry.monthlyRent.toLocaleString()}</span> /mo
+                              </p>
+                            )}
+                            {entry.securityDeposit && (
+                              <p>
+                                Deposit: <span className="font-semibold text-gray-900">&#x20B9;{entry.securityDeposit.toLocaleString()}</span>
+                              </p>
+                            )}
+                            {entry.brokeragePaid && (
+                              <p className="col-span-2">
+                                Brokerage Paid: <span className="font-semibold text-green-700">&#x20B9;{entry.brokeragePaid.toLocaleString()}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {!isEditing && (
                 <div className="space-y-6">
                   {/* Agreement Document Upload for New Property */}
@@ -1727,6 +2054,190 @@ export default function PropertyDetails() {
           onClose={() => setShowTenantModal(false)}
           onTenantCreated={handleTenantCreated}
         />
+      )}
+
+      {/* Sale Modal */}
+      {showSaleModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Mark Property as Sold</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowSaleModal(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleMarkAsSoldConfirm} className="space-y-5">
+                {/* Sale Type */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sale Type</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setSaleForm({ ...saleForm, saleType: 'direct' })}
+                      className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                        saleForm.saleType === 'direct'
+                          ? 'border-purple-600 bg-purple-50 text-purple-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      Sold via Us
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSaleForm({ ...saleForm, saleType: 'third_party' })}
+                      className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                        saleForm.saleType === 'third_party'
+                          ? 'border-red-500 bg-red-50 text-red-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                      }`}
+                    >
+                      Third-Party Sale
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sold Price */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sold Price (&#x20B9;)
+                  </label>
+                  <NumericInput
+                    value={saleForm.soldPrice}
+                    onChange={(value) => setSaleForm({ ...saleForm, soldPrice: value })}
+                    placeholder="Enter final sold price"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Brokerage Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Brokerage (&#x20B9;) <span className="text-xs text-gray-400 font-normal">— leave 0 for auto 1%</span>
+                  </label>
+                  <NumericInput
+                    value={saleForm.brokerageAmount}
+                    onChange={(value) => setSaleForm({ ...saleForm, brokerageAmount: value })}
+                    placeholder="0"
+                    className="w-full"
+                  />
+                </div>
+
+                {/* Direct Sale: Buyer Selection */}
+                {saleForm.saleType === 'direct' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Select Buyer <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={saleForm.buyerId}
+                      onChange={(e) => setSaleForm({ ...saleForm, buyerId: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      required
+                    >
+                      <option value="">Choose a buyer...</option>
+                      {buyers.map((b: any) => (
+                        <option key={b.buyerId} value={b.buyerId}>
+                          {b.name} {b.phone ? `(${b.phone})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {buyers.length === 0 && (
+                      <p className="text-xs text-red-500 mt-1">No buyers found. Please create a buyer first.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Third-Party: Reason Lost */}
+                {saleForm.saleType === 'third_party' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Reason We Couldn&apos;t Serve
+                      </label>
+                      <select
+                        value={saleForm.reasonLost}
+                        onChange={(e) => setSaleForm({ ...saleForm, reasonLost: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      >
+                        <option value="">Select a reason...</option>
+                        <option value="Client went with competitor">Client went with competitor</option>
+                        <option value="Price too high">Price too high</option>
+                        <option value="Client decided not to sell">Client decided not to sell</option>
+                        <option value="Property not suitable for buyer">Property not suitable for buyer</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+
+                    {saleForm.reasonLost === 'other' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Specify Reason
+                        </label>
+                        <input
+                          type="text"
+                          value={saleForm.customReasonLost}
+                          onChange={(e) => setSaleForm({ ...saleForm, customReasonLost: e.target.value })}
+                          placeholder="Enter custom reason..."
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Brokerage Lost (&#x20B9;)
+                      </label>
+                      <NumericInput
+                        value={saleForm.brokerageLost}
+                        onChange={(value) => setSaleForm({ ...saleForm, brokerageLost: value })}
+                        placeholder="Enter brokerage amount lost"
+                        className="w-full"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Notes (for both types) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    value={saleForm.notes}
+                    onChange={(e) => setSaleForm({ ...saleForm, notes: e.target.value })}
+                    placeholder="Any additional notes about this sale..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSaleModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingSale || (saleForm.saleType === 'direct' && !saleForm.buyerId)}
+                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium"
+                  >
+                    {savingSale ? 'Saving...' : 'Confirm Sale'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast Notification */}

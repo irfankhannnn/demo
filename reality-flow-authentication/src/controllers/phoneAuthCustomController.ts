@@ -444,6 +444,28 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       console.error('[onboard] Invalid invite: missing TenantId');
       return internalError(res, 'Invalid invitation data. Please contact support.');
     }
+
+    // Check if email or phone is already registered in another agency
+    const { findUserByEmail, findUserByPhone } = await import('../models/usersModel');
+    if (invite.inviteeEmail) {
+      const existingByEmail = await findUserByEmail(invite.inviteeEmail);
+      if (existingByEmail && existingByEmail.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+      }
+    }
+
+    const existingByPhone = await findUserByPhone(phoneNumber);
+    if (existingByPhone && existingByPhone.TenantId !== invite.TenantId) {
+      return forbidden(
+        res,
+        'PHONE_ALREADY_REGISTERED',
+        'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+      );
+    }
     
     console.log('[onboard] Found valid invite, resolving MEMBER under tenant:', invite.TenantId);
 
@@ -458,6 +480,26 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     );
 
     if (result.isNewMember === null) {
+      // Check if it failed due to duplicate email/phone
+      const dupeCheckEmail = invite.inviteeEmail ? await findUserByEmail(invite.inviteeEmail) : null;
+      const dupeCheckPhone = await findUserByPhone(phoneNumber);
+
+      if (dupeCheckEmail && dupeCheckEmail.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+      }
+
+      if (dupeCheckPhone && dupeCheckPhone.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'PHONE_ALREADY_REGISTERED',
+          'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+        );
+      }
+
       return internalError(res, 'Failed to resolve member');
     }
 

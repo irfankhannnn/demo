@@ -20,7 +20,10 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
+import ConfirmDialog from '../../components/ConfirmDialog';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
+import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { CRMOwner, CRMOwnerNote, CRMMeeting } from '../../types/crm';
 import AddPropertyModal from '../../components/AddPropertyModal';
 import DocumentUploadSection from '../../components/DocumentUploadSection';
@@ -58,6 +61,17 @@ export default function OwnerDetails() {
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
   const [listingType, setListingType] = useState<'sale' | 'rent'>('sale');
   const [listingPrice, setListingPrice] = useState('');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
+  const [lookingUp, setLookingUp] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
   const [expectedRent, setExpectedRent] = useState('');
   const [securityDeposit, setSecurityDeposit] = useState('');
   const [newMeeting, setNewMeeting] = useState({
@@ -102,9 +116,33 @@ export default function OwnerDetails() {
     }
   };
 
+  const handlePhoneLookup = async (phone: string) => {
+    if (!phone || phone.length < 10 || !isNew) return;
+    try {
+      setLookingUp(true);
+      const result = await api.getOwnerByPhone(phone);
+      if (result?.found && result?.owner) {
+        const ownerName = result.owner.name || result.owner.phone || 'Unnamed';
+        setConfirmDialog({
+          isOpen: true,
+          title: 'Owner Already Exists',
+          message: `An owner with this phone number already exists: "${ownerName}".\n\nDo you want to navigate to their profile instead of creating a new owner?`,
+          onConfirm: () => {
+            navigate(`/crm/owners/${result.owner.ownerId}`, { replace: true });
+            setConfirmDialog(null);
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error looking up phone:', error);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!owner.name || !owner.phone) {
-      alert('Name and phone are required');
+      showToast('Name and phone are required', 'error');
       return;
     }
 
@@ -126,7 +164,7 @@ export default function OwnerDetails() {
       }
     } catch (error) {
       console.error('Error saving owner:', error);
-      alert('Failed to save owner');
+      showToast('Failed to save owner', 'error');
     } finally {
       setSaving(false);
     }
@@ -146,7 +184,7 @@ export default function OwnerDetails() {
 
   const handleScheduleMeeting = async () => {
     if (!id || !newMeeting.meetingDate || !newMeeting.meetingTime || !newMeeting.title) {
-      alert('Meeting date, time, and title are required');
+      showToast('Meeting date, time, and title are required', 'error');
       return;
     }
 
@@ -165,7 +203,7 @@ export default function OwnerDetails() {
       setShowMeetingForm(false);
     } catch (error) {
       console.error('Error scheduling meeting:', error);
-      alert('Failed to schedule meeting');
+      showToast('Failed to schedule meeting', 'error');
     }
   };
 
@@ -216,7 +254,7 @@ export default function OwnerDetails() {
       window.scrollTo(0, scrollPosition);
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Failed to upload document. Please try again.');
+      showToast('Failed to upload document. Please try again.', 'error');
     } finally {
       setUploadingDoc(null);
     }
@@ -245,37 +283,22 @@ export default function OwnerDetails() {
     if (!selectedProperty) return;
 
     try {
-      const token = localStorage.getItem('token');
-      const headers = {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      };
-
       if (listingType === 'sale') {
         if (!listingPrice) {
-          alert('Please enter listing price');
+          showToast('Please enter listing price', 'error');
           return;
         }
-        const response = await fetch(`/api/crm/properties/${selectedProperty.propertyId}/list-for-sale`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ listedPrice: Number(listingPrice) })
-        });
-        if (!response.ok) throw new Error('Failed to list property');
+        await api.listPropertyForSale(selectedProperty.propertyId, Number(listingPrice));
       } else {
         if (!expectedRent || !securityDeposit) {
-          alert('Please enter rent and security deposit');
+          showToast('Please enter rent and security deposit', 'error');
           return;
         }
-        const response = await fetch(`/api/crm/properties/${selectedProperty.propertyId}/list-for-rent`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ 
-            expectedRent: Number(expectedRent),
-            securityDeposit: Number(securityDeposit)
-          })
-        });
-        if (!response.ok) throw new Error('Failed to list property');
+        await api.listPropertyForRent(
+          selectedProperty.propertyId,
+          Number(expectedRent),
+          Number(securityDeposit)
+        );
       }
       setShowListingModal(false);
       setSelectedProperty(null);
@@ -283,23 +306,24 @@ export default function OwnerDetails() {
       setExpectedRent('');
       setSecurityDeposit('');
       await loadOwnerProperties();
+      showToast('Property listed successfully', 'success');
     } catch (error) {
       console.error('Error listing property:', error);
-      alert('Failed to list property');
+      showToast('Failed to list property', 'error');
     }
   };
 
   const getPropertyStatusBadge = (status: string) => {
     const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      'vacant': { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Vacant' },
-      'owner-occupied': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Owner Occupied' },
+      'available': { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Available' },
       'for-sale': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'For Sale' },
       'for-rent': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'For Rent' },
-      'rented': { bg: 'bg-green-100', text: 'text-green-800', label: 'Rented' },
+      'rented': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Rented' },
       'sold': { bg: 'bg-red-100', text: 'text-red-800', label: 'Sold' },
-      'under-construction': { bg: 'bg-orange-100', text: 'text-orange-800', label: 'Under Construction' },
+      'on-hold': { bg: 'bg-amber-100', text: 'text-amber-800', label: 'On Hold' },
+      'out-of-stock': { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Out of Stock' },
     };
-    const config = statusConfig[status] || statusConfig['vacant'];
+    const config = statusConfig[status] || statusConfig['available'];
     return (
       <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
         {config.label}
@@ -317,26 +341,26 @@ export default function OwnerDetails() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/owners')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25 flex-shrink-0 animate-gentlePulse">
                   <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight truncate">
                     {isNew ? 'New Owner' : owner.name || 'Owner Details'}
                   </h1>
                   {!isNew && owner.phone && (
-                    <p className="text-xs sm:text-sm text-gray-500">{owner.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{owner.phone}</p>
                   )}
                 </div>
               </div>
@@ -344,7 +368,7 @@ export default function OwnerDetails() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/40 disabled:opacity-50 font-medium"
+              className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 shadow-lg shadow-blue-500/20 hover:shadow-xl hover:shadow-blue-500/30 disabled:opacity-50 btn-press font-semibold"
             >
               <Save className="h-4 w-4 sm:h-5 sm:w-5" />
               <span className="text-sm sm:text-base">{saving ? 'Saving...' : 'Save'}</span>
@@ -356,7 +380,7 @@ export default function OwnerDetails() {
       <main className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
         {/* All Sections in Single Page */}
         {/* Profile Section */}
-        <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl p-4 sm:p-6 space-y-6 mb-4">
+        <div className="glass-premium rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 space-y-6 mb-4">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
               <User className="h-5 w-5 mr-2 text-blue-600" />
@@ -371,7 +395,7 @@ export default function OwnerDetails() {
                     type="text"
                     value={owner.name || ''}
                     onChange={(e) => setOwner({ ...owner, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                    className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(59,130,246,0.10)] focus:border-blue-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
                     placeholder="Full name"
                   />
                 </div>
@@ -385,8 +409,10 @@ export default function OwnerDetails() {
                       type="tel"
                       value={owner.phone || ''}
                       onChange={(e) => setOwner({ ...owner, phone: e.target.value })}
+                      onBlur={(e) => isNew && handlePhoneLookup(e.target.value)}
                       className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
                       placeholder="Phone number"
+                      disabled={lookingUp}
                     />
                   </div>
                 </div>
@@ -555,7 +581,7 @@ export default function OwnerDetails() {
                         View Details
                       </button>
                       
-                      {(property.status === 'vacant' || property.status === 'owner-occupied') && (
+                      {(property.status === 'available' || property.status === 'on-hold') && (
                         <>
                           <button
                             onClick={() => handleListForSale(property)}
@@ -575,10 +601,19 @@ export default function OwnerDetails() {
                       )}
                       
                       {property.status === 'for-sale' && property.saleInfo?.listedPrice && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-900 rounded">
-                          <DollarSign className="h-3 w-3" />
-                          Listed: ₹{property.saleInfo.listedPrice.toLocaleString()}
-                        </div>
+                        <>
+                          <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-900 rounded">
+                            <DollarSign className="h-3 w-3" />
+                            Listed: ₹{property.saleInfo.listedPrice.toLocaleString()}
+                          </div>
+                          <button
+                            onClick={() => navigate(`/crm/properties/${property.propertyId}`)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                          >
+                            <CheckCircle className="h-3 w-3" />
+                            Mark as Sold
+                          </button>
+                        </>
                       )}
                       
                       {property.status === 'for-rent' && property.rentalInfo?.expectedRent && (
@@ -794,6 +829,17 @@ export default function OwnerDetails() {
                 ))}
               </div>
             )}
+
+          {/* Unified Activity Timeline */}
+          {!isNew && (
+            <div className="mt-6 pt-4 border-t">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-purple-600" />
+                Unified Activity Timeline
+              </h3>
+              <ContactActivityTimeline entityType="owner" entityId={id} />
+            </div>
+          )}
         </div>
       </main>
 
@@ -890,6 +936,20 @@ export default function OwnerDetails() {
             </div>
           </div>
         </div>
+      )}
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
+      {confirmDialog && (
+        <ConfirmDialog
+          isOpen={confirmDialog.isOpen}
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel="Go to Profile"
+          cancelLabel="Cancel"
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
       )}
     </div>
   );

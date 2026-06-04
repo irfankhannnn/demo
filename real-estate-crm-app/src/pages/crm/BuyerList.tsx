@@ -188,11 +188,11 @@ export default function BuyerList() {
   const filterContent = (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Status</label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(249,115,22,0.10)] focus:border-orange-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Status</option>
           <option value="active">Active</option>
@@ -205,23 +205,23 @@ export default function BuyerList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-amber-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/30 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0 animate-gentlePulse">
                   <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Buyers</h1>
-                  <p className="text-xs sm:text-sm text-gray-500">{filteredBuyers.length} total</p>
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight truncate">Buyers</h1>
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">{filteredBuyers.length} total</p>
                 </div>
               </div>
             </div>
@@ -229,17 +229,17 @@ export default function BuyerList() {
               <button
                 onClick={loadBuyers}
                 disabled={loading}
-                className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
+                className="p-2 sm:p-2.5 glass-premium border border-white/40 rounded-xl hover:bg-white/80 transition-all duration-200 shadow-sm"
                aria-label="Refresh data">
-                <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => navigate('/crm/buyers/new')}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl hover:from-orange-600 hover:to-amber-700 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40"
+                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-orange-500 to-amber-600 text-white rounded-xl hover:from-orange-600 hover:to-amber-700 transition-all duration-300 shadow-lg shadow-orange-500/20 hover:shadow-xl hover:shadow-orange-500/30 btn-press font-semibold"
               >
                 <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline font-medium text-sm sm:text-base">Add Buyer</span>
-                <span className="sm:hidden font-medium text-sm">New</span>
+                <span className="hidden sm:inline text-sm sm:text-base">Add Buyer</span>
+                <span className="sm:hidden text-sm">New</span>
               </button>
             </div>
           </div>
@@ -248,48 +248,48 @@ export default function BuyerList() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6 stagger-children">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{buyers.length}</p>
-                <p className="text-xs text-gray-500">Total Buyers</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{buyers.length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Total Buyers</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600">{buyers.filter(b => b.status === 'active').length}</p>
-                <p className="text-xs text-gray-500">Active</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{buyers.filter(b => b.status === 'active').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Active</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <Users className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-purple-600">{buyers.filter(b => b.roles.owner || b.roles.tenant).length}</p>
-                <p className="text-xs text-gray-500">Multi-Role</p>
+                <p className="text-xl sm:text-2xl font-bold text-purple-600 tracking-tight">{buyers.filter(b => b.roles.owner || b.roles.tenant).length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Multi-Role</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <IndianRupee className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-amber-600">{buyers.filter(b => b.buyerProfile?.budget).length}</p>
-                <p className="text-xs text-gray-500">With Budget</p>
+                <p className="text-xl sm:text-2xl font-bold text-amber-600 tracking-tight">{buyers.filter(b => b.buyerProfile?.budget).length}</p>
+                <p className="text-xs text-slate-400 font-semibold">With Budget</p>
               </div>
             </div>
           </div>

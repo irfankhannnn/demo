@@ -440,7 +440,7 @@ export async function getRentalList() {
       for (const tenantId of allTenants) {
         const properties = await crmDb.getProperties(tenantId);
         const rentedProperties = properties.filter(p => 
-          p.status === 'rented' || p.status === 'on_hold'
+          p.status === 'rented' || p.status === 'on-hold'
         );
         
         // Convert CRM properties to rental list format

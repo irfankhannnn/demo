@@ -93,35 +93,35 @@ echo ""
 # 2. Install dependencies and build
 # -----------------------------------------------------------------------------
 echo "[1/6] Installing dependencies..."
-# cd "$PROJECT_DIR"
-# "$NPM_BIN" ci
+cd "$PROJECT_DIR"
+"$NPM_BIN" ci
 
 echo "[2/6] Building TypeScript..."
-# "$NPM_BIN" run build
+"$NPM_BIN" run build
 
 # -----------------------------------------------------------------------------
 # 3. Package Lambda bundle
 # -----------------------------------------------------------------------------
 echo "[3/6] Packaging function.zip..."
-# rm -f "$PROJECT_DIR/function.zip"
-# cd "$PROJECT_DIR"
-# zip -r function.zip node_modules dist package.json -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*"
+rm -f "$PROJECT_DIR/function.zip"
+cd "$PROJECT_DIR"
+zip -r function.zip node_modules dist package.json -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*"
 
 # -----------------------------------------------------------------------------
 # 4. Upload to S3
 # -----------------------------------------------------------------------------
-# S3_KEY="${SERVICE_NAME}/function.zip"
-# echo "[4/6] Uploading function.zip to s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${S3_KEY}..."
-# "$AWS_BIN" s3 cp "$PROJECT_DIR/function.zip" "s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${S3_KEY}" --region "$AWS_REGION" --no-cli-pager
+S3_KEY="${SERVICE_NAME}/function.zip"
+echo "[4/6] Uploading function.zip to s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${S3_KEY}..."
+"$AWS_BIN" s3 cp "$PROJECT_DIR/function.zip" "s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${S3_KEY}" --region "$AWS_REGION" --no-cli-pager
 
 echo "[4b/6] Forcing Lambda code update..."
-# LAMBDA_NAME="${ENV}-${SERVICE_NAME}-lambda"
-# "$AWS_BIN" lambda update-function-code \
-#   --function-name "$LAMBDA_NAME" \
-#   --s3-bucket "$LAMBDA_PACKAGES_BUCKET_NAME" \
-#   --s3-key "$S3_KEY" \
-#   --region "$AWS_REGION" \
-#   --no-cli-pager || echo "Note: Lambda may not exist yet (first deploy)"
+LAMBDA_NAME="${ENV}-${SERVICE_NAME}-lambda"
+"$AWS_BIN" lambda update-function-code \
+  --function-name "$LAMBDA_NAME" \
+  --s3-bucket "$LAMBDA_PACKAGES_BUCKET_NAME" \
+  --s3-key "$S3_KEY" \
+  --region "$AWS_REGION" \
+  --no-cli-pager || echo "Note: Lambda may not exist yet (first deploy)"
 
 # Upload nested template for explicit API Gateway routes
 NESTED_TEMPLATE_KEY="${SERVICE_NAME}/auth-explicit-routes.yaml"

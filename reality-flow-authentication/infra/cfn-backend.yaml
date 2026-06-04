@@ -1002,7 +1002,7 @@ Resources:
         CognitoAuthorizerId: !Ref CognitoAuthorizer
         AllowOrigin: "*"
         AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Access-Token"
-        AllowMethods: "GET,POST,PUT,DELETE,OPTIONS"
+        AllowMethods: "GET,POST,PATCH,PUT,DELETE,OPTIONS"
 
   # ===========================================================================
   # 13. Cognito Trigger Lambda Permissions

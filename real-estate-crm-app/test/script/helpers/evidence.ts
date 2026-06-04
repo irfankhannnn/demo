@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Page } from '@playwright/test';
 
-export type LogStatus = 'PASS' | 'FAIL' | 'INFO';
+export type LogStatus = 'PASS' | 'FAIL' | 'INFO' | 'WARN';
 
 export interface EvidenceCtx {
   feature: string;

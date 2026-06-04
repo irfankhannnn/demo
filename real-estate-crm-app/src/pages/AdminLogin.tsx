@@ -25,23 +25,27 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-10 border border-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50/30 to-slate-100 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient background orbs */}
+      <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-200/20 blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-200/20 blur-[100px] pointer-events-none" />
+
+      <div className="relative glass-premium rounded-3xl w-full max-w-md p-10 animate-scaleIn">
         {/* Logo/Icon */}
         <div className="text-center mb-8">
-          <div className="bg-gradient-to-br from-indigo-600 to-purple-600 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-            <Lock className="w-10 h-10 text-white" />
+          <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 w-[72px] h-[72px] rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-500/25 animate-float">
+            <Lock className="w-9 h-9 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Welcome</h1>
-          <p className="text-slate-500">Sign in to access your CRM dashboard</p>
+          <h1 className="text-[28px] font-bold text-slate-900 mb-1.5 tracking-tight">Welcome back</h1>
+          <p className="text-slate-500 text-[15px]">Sign in to access your CRM dashboard</p>
         </div>
 
         <div className="space-y-4">
-          {/* Google Sign-In via Cognito Hosted UI */}
+          {/* Google Sign-In */}
           <button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-3"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -64,13 +68,13 @@ export default function AdminLogin() {
             )}
           </button>
 
-          {/* Divider */}
-          <div className="relative">
+          {/* Premium Divider */}
+          <div className="relative py-1">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full border-t border-slate-200/80" />
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+            <div className="relative flex justify-center text-xs">
+              <span className="px-4 bg-white/80 text-slate-400 font-semibold uppercase tracking-wider">or</span>
             </div>
           </div>
 
@@ -78,14 +82,14 @@ export default function AdminLogin() {
           <button
             onClick={() => navigate('/phone-login')}
             disabled={loading}
-            className="w-full bg-white border-2 border-indigo-600 text-indigo-600 py-3.5 rounded-xl font-semibold hover:bg-indigo-50 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
+            className="w-full bg-white/80 border-2 border-indigo-100 text-indigo-600 py-3.5 rounded-2xl font-semibold hover:bg-indigo-50/80 hover:border-indigo-200 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-3"
           >
             <Smartphone className="w-5 h-5" />
             Continue with Phone
           </button>
 
-          <div className="text-center">
-            <p className="text-xs text-slate-400">
+          <div className="text-center pt-1">
+            <p className="text-[11px] text-slate-400 font-medium tracking-wide">
               By signing in, you agree to our terms of service.
             </p>
           </div>

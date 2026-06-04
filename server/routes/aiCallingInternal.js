@@ -228,7 +228,7 @@ router.get('/properties/search', async (req, res) => {
       return res.status(400).json({ error: 'Search query required' });
     }
     
-    const properties = await getProperties(req.tenantId);
+    const { properties } = await getProperties(req.tenantId);
     const searchTerm = q.toLowerCase();
     
     const matches = properties.filter(p => 

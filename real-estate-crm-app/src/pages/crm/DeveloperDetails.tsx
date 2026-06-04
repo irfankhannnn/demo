@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Building2, ArrowLeft, Save, Trash2, Upload, Youtube } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
 import { PermissionGuard } from '../../components/PermissionGuard';
 import { Developer } from '../../types/realEstate';
 import MediaUploadSection from '../../components/MediaUploadSection';
@@ -13,6 +14,10 @@ export default function DeveloperDetails() {
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<Partial<Developer>>({
@@ -65,7 +70,7 @@ export default function DeveloperDetails() {
       navigate('/crm/developers');
     } catch (error) {
       console.error('Error saving developer:', error);
-      alert('Failed to save developer');
+      showToast('Failed to save developer', 'error');
     } finally {
       setSaving(false);
     }
@@ -89,7 +94,7 @@ export default function DeveloperDetails() {
       await loadDeveloper();
     } catch (error) {
       console.error('Error uploading logo:', error);
-      alert('Failed to upload logo');
+      showToast('Failed to upload logo', 'error');
     } finally {
       setUploadingLogo(false);
     }
@@ -359,6 +364,9 @@ export default function DeveloperDetails() {
           </div>
         )}
       </main>
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

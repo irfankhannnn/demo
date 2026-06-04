@@ -23,7 +23,7 @@ const router = express.Router();
 // Get all leads with optional filters + pagination
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { leadType, status, priority, excludeConverted, limit, offset } = req.query;
+    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, search, assignedTo, source } = req.query;
     const filters = {};
     if (leadType) filters.leadType = leadType;
     if (status) filters.status = status;
@@ -31,6 +31,22 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
     if (excludeConverted === 'true') filters.excludeConverted = true;
     if (limit) filters.limit = limit;
     if (offset) filters.offset = offset;
+    if (sortBy) filters.sortBy = sortBy;
+    if (sortOrder) filters.sortOrder = sortOrder;
+    if (fromDate) filters.fromDate = fromDate;
+    if (toDate) filters.toDate = toDate;
+    if (minBudget) filters.minBudget = minBudget;
+    if (maxBudget) filters.maxBudget = maxBudget;
+    if (area) filters.area = area;
+    if (search) filters.search = search;
+    if (assignedTo) filters.assignedTo = assignedTo;
+    if (source) filters.source = source;
+    if (city) filters.city = city;
+    if (propertyType) filters.propertyType = propertyType;
+    if (propertySubType) filters.propertySubType = propertySubType;
+    if (createdBy) filters.createdBy = createdBy;
+    if (updatedBy) filters.updatedBy = updatedBy;
+    if (converted === 'true') filters.converted = true;
 
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
@@ -251,14 +267,14 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
 // IMPORTANT: Buyer and Tenant conversions now require transaction details
 router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { 
+    const {
       existingContactId,
       purchaseDetails,    // Required for buyer conversion
       leaseDetails,       // Required for tenant conversion
       kycDetails,         // Optional KYC info during conversion
-      createPropertyListing // For seller-type leads (default true)
+      createPropertyListing, // For seller-type leads (default true)
     } = req.body;
-    
+
     const options = {
       existingContactId,
       convertedBy: req.user?.username || 'Admin',

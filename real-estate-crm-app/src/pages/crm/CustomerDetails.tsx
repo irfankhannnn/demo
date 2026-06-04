@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
 import { CRMCustomerNote } from '../../types/crm';
 import { isValidEmail, isValidIndianMobile, isValidName, normalizeEmail, normalizeIndianPhone, normalizeName } from '../../utils/validation';
 import DocumentUploadSection from '../../components/DocumentUploadSection';
@@ -23,6 +24,10 @@ export default function CustomerDetails() {
   const { id } = useParams();
   const isEditing = !!id;
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [loading, setLoading] = useState(isEditing);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState<CRMCustomerNote[]>([]);
@@ -107,17 +112,17 @@ export default function CustomerDetails() {
     const cleanedEmail = formData.email ? normalizeEmail(formData.email) : '';
 
     if (!isValidName(cleanedName)) {
-      alert('Please enter a valid full name.');
+      showToast('Please enter a valid full name.', 'error');
       return;
     }
 
     if (!isValidIndianMobile(formData.phone)) {
-      alert('Please enter a valid Indian mobile number (10 digits).');
+      showToast('Please enter a valid Indian mobile number (10 digits).', 'error');
       return;
     }
 
     if (cleanedEmail && !isValidEmail(cleanedEmail)) {
-      alert('Please enter a valid email address.');
+      showToast('Please enter a valid email address.', 'error');
       return;
     }
 
@@ -141,7 +146,7 @@ export default function CustomerDetails() {
       navigate('/crm/customers');
     } catch (error) {
       console.error('Error saving customer:', error);
-      alert('Failed to save customer');
+      showToast('Failed to save customer', 'error');
     } finally {
       setSaving(false);
     }
@@ -160,7 +165,7 @@ export default function CustomerDetails() {
       await loadNotes();
     } catch (error) {
       console.error('Error adding note:', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     }
   };
 
@@ -183,10 +188,10 @@ export default function CustomerDetails() {
       // Reload customer data to get updated document URLs
       await loadCustomer();
 
-      alert(`${docType.charAt(0).toUpperCase() + docType.slice(1)} uploaded successfully`);
+      showToast(`${docType.charAt(0).toUpperCase() + docType.slice(1)} uploaded successfully`, 'success');
     } catch (error) {
       console.error('Error uploading document:', error);
-      alert('Failed to upload document. Please try again.');
+      showToast('Failed to upload document. Please try again.', 'error');
     } finally {
       setUploadingDoc(null);
     }
@@ -203,15 +208,15 @@ export default function CustomerDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-emerald-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/customers')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/30 flex-shrink-0">
@@ -221,7 +226,7 @@ export default function CustomerDetails() {
                   <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                     {isEditing ? 'Edit Customer' : 'New Customer'}
                   </h1>
-                  <p className="text-xs sm:text-sm text-gray-500">
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">
                     {isEditing ? 'Update customer information' : 'Add a new customer to CRM'}
                   </p>
                 </div>
@@ -235,7 +240,7 @@ export default function CustomerDetails() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Customer Form */}
           <div className="lg:col-span-2">
-            <form onSubmit={handleSubmit} className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl p-4 sm:p-6">
+            <form onSubmit={handleSubmit} className="glass-premium rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-6">Customer Information</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -482,6 +487,9 @@ export default function CustomerDetails() {
           </div>
         </div>
       </main>
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

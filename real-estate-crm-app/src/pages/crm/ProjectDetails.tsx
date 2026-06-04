@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Briefcase, ArrowLeft, Save, Trash2, Youtube } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
 import { PermissionGuard } from '../../components/PermissionGuard';
 import { Project, Developer, RealEstateArea } from '../../types/realEstate';
 import MediaUploadSection from '../../components/MediaUploadSection';
@@ -14,6 +15,10 @@ export default function ProjectDetails() {
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [developers, setDevelopers] = useState<Developer[]>([]);
   const [areas, setAreas] = useState<RealEstateArea[]>([]);
   const [formData, setFormData] = useState<Partial<Project>>({
@@ -78,7 +83,7 @@ export default function ProjectDetails() {
       navigate('/crm/projects');
     } catch (error) {
       console.error('Error saving project:', error);
-      alert('Failed to save project');
+      showToast('Failed to save project', 'error');
     } finally {
       setSaving(false);
     }
@@ -386,6 +391,9 @@ export default function ProjectDetails() {
           </div>
         )}
       </main>
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

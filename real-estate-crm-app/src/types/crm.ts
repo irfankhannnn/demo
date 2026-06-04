@@ -12,6 +12,7 @@ export interface CRMCustomer {
     leaseEndDate?: string;
     monthlyRent: number;
     securityDeposit: number;
+    brokeragePaid?: number;
     leaseAgreementS3Key?: string;
     leaseAgreementUrl?: string;
     depositReceiptS3Key?: string;
@@ -28,6 +29,7 @@ export interface CRMCustomer {
     leaseEndDate?: string;
     monthlyRent: number;
     securityDeposit: number;
+    brokeragePaid?: number;
     notes?: string;
   }>;
   
@@ -40,7 +42,7 @@ export interface CRMCustomer {
   policeVerificationS3Key?: string;
   policeVerificationUrl?: string;
   
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'vacated';
   source?: string;
   createdFrom?: string;
   notes?: string;
@@ -95,8 +97,32 @@ export interface CRMOwner {
   notes?: string;
   status: 'active' | 'inactive';
   propertyCount?: number;
+  isConvertedFromBuyer?: boolean;
+  convertedFromBuyerId?: string;
+  acquisitionHistory?: CRMAcquisitionHistory[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface CRMAcquisitionHistory {
+  propertyId: string;
+  acquiredFromOwnerId: string | null;
+  acquisitionDate: string;
+  acquisitionPrice: number;
+  originalRole: 'buyer';
+}
+
+export interface CRMPropertyOwnershipHistory {
+  fromOwnerId: string | null;
+  toOwnerId: string | null;
+  fromOwnerName?: string | null;
+  toOwnerName?: string | null;
+  saleDate: string;
+  salePrice?: number | null;
+  soldVia: 'direct' | 'third_party';
+  buyerId?: string | null;
+  reasonLost?: string | null;
+  notes?: string | null;
 }
 
 export interface CRMPropertyMedia {
@@ -125,10 +151,41 @@ export interface CRMProperty {
   carpetArea: number;
   rentAmount: number;
   depositAmount: number;
+  expectedBrokerage?: number;
+  brokerageAmount?: number;
+  rentalInfo?: {
+    expectedRent?: number;
+    currentRent?: number | null;
+    currentTenantId?: string | null;
+    leaseStartDate?: string | null;
+    leaseEndDate?: string | null;
+    securityDeposit?: number;
+  } | null;
+  saleInfo?: {
+    listedPrice?: number | null;
+    soldPrice?: number | null;
+    soldDate?: string | null;
+    soldToBuyerId?: string | null;
+    soldVia?: 'direct' | 'third_party' | null;
+    brokeragePaid?: number | null;
+    brokerageLost?: number | null;
+    reasonLost?: string | null;
+    thirdPartyNotes?: string | null;
+  } | null;
+  ownershipHistory?: CRMPropertyOwnershipHistory[];
+  rentalHistory?: Array<{
+    tenantId: string;
+    tenantName?: string;
+    leaseStartDate?: string;
+    leaseEndDate?: string;
+    monthlyRent?: number;
+    securityDeposit?: number;
+    brokeragePaid?: number;
+  }>;
   furnishing: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities: string[];
   availableFrom: string;
-  status: 'available' | 'on_hold' | 'out_of_stock' | 'rented';
+  status: 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
   agreementStatus: 'pending' | 'done';
   verificationStatus: 'pending' | 'done' | 'not_done';
   tenantMoveInDate?: string;
@@ -139,6 +196,8 @@ export interface CRMProperty {
   featured: boolean;
   verified: boolean;
   views: number;
+  ownerSnapshot?: { name?: string | null; phone?: string | null } | null;
+  convertedFromLeadId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -152,10 +211,15 @@ export interface CRMMetrics {
   availableProperties: number;
   onHoldProperties: number;
   rentedProperties: number;
+  soldProperties: number;
   agreementsDone: number;
   agreementsPending: number;
   verificationsDone: number;
   verificationsPending: number;
+  leadsCount: number;
+  buyersCount: number;
+  sellersCount: number;
+  tenantsCount: number;
 }
 
 // Property Agreement
@@ -272,15 +336,21 @@ export interface CreatePropertyData {
   carpetArea?: number;
   rentAmount: number;
   depositAmount?: number;
+  rentalInfo?: {
+    expectedRent?: number;
+    securityDeposit?: number;
+  };
   furnishing?: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities?: string[];
   availableFrom?: string;
-  status?: 'available' | 'on_hold' | 'out_of_stock' | 'rented';
+  status?: 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
   tenantCustomerId?: string;
   tenantMoveInDate?: string;
   tenureMonths?: number;
   featured?: boolean;
   verified?: boolean;
+  ownerSnapshot?: { name?: string | null; phone?: string | null };
+  convertedFromLeadId?: string;
 }
 
 export interface UpdatePropertyData {
@@ -300,10 +370,14 @@ export interface UpdatePropertyData {
   carpetArea?: number;
   rentAmount?: number;
   depositAmount?: number;
+  rentalInfo?: {
+    expectedRent?: number;
+    securityDeposit?: number;
+  };
   furnishing?: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities?: string[];
   availableFrom?: string;
-  status?: 'available' | 'on_hold' | 'out_of_stock' | 'rented';
+  status?: 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
   tenantCustomerId?: string;
   tenantMoveInDate?: string;
   tenureMonths?: number;
@@ -311,6 +385,7 @@ export interface UpdatePropertyData {
   verificationStatus?: 'pending' | 'done' | 'not_done';
   featured?: boolean;
   verified?: boolean;
+  ownerSnapshot?: { name?: string | null; phone?: string | null };
 }
 
 // Agreement Data Types
@@ -483,6 +558,20 @@ export interface CRMContact {
   // Migration references
   linkedOwnerId?: string;
   linkedCustomerId?: string;
+  // Purchase history (for buyers)
+  purchaseHistory?: Array<{
+    propertyId: string;
+    propertyName?: string;
+    area?: string;
+    saleAmount: number;
+    purchaseDate: string;
+    registrationDate?: string | null;
+    registrationNumber?: string | null;
+    stampDutyPaid?: number;
+    registrationCharges?: number;
+    brokeragePaid?: number;
+    notes?: string;
+  }>;
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -565,6 +654,14 @@ export interface SellerProperty {
   timelineValue?: number;
   timelineUnit?: 'days' | 'months';
   notes?: string;
+  bhk?: number;
+  buildingName?: string;
+  flatNumber?: string;
+  floor?: string;
+  furnishing?: string;
+  carpetArea?: number;
+  city?: string;
+  address?: string;
 }
 
 export interface TenantRequirement {
@@ -579,6 +676,15 @@ export interface OwnerProperty {
   area?: string;
   rentExpected?: number;
   notes?: string;
+  bhk?: number;
+  buildingName?: string;
+  flatNumber?: string;
+  floor?: string;
+  furnishing?: string;
+  carpetArea?: number;
+  city?: string;
+  address?: string;
+  securityDeposit?: number;
 }
 
 export interface LeadHistoryEntry {
@@ -613,6 +719,9 @@ export interface CRMLead {
   // Conversion tracking
   convertedAt?: string | null;
   convertedTo?: LeadConversion | null;
+  // Lost tracking
+  lostReason?: string | null;
+  lostAt?: string | null;
   // Notes and history
   notes?: string;
   history?: LeadHistoryEntry[];

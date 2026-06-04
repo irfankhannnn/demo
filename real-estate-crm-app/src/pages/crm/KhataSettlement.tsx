@@ -614,7 +614,7 @@ export default function KhataSettlement() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button onClick={() => navigate('/crm/khata')} className="p-2 hover:bg-white/50 rounded-xl transition-colors">
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Settlement Intelligence</h1>

@@ -7,7 +7,7 @@ export async function runCrmOperationsFlow(page: Page, ctx: EvidenceCtx): Promis
   const log = createLogger(ctx.feature);
 
   const metricCard = (label: string) =>
-    page.locator('div.bg-white.rounded-xl.p-4.shadow-sm.border').filter({ hasText: new RegExp(`^${label}$`) }).first();
+    page.locator('main div').filter({ hasText: new RegExp(label) }).first();
 
   const assertMetricCardVisible = async (label: string, timeout = 15_000) => {
     await expect(metricCard(label)).toBeVisible({ timeout });

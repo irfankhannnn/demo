@@ -281,15 +281,19 @@ export default function PhoneLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8 border border-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/60 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Ambient orbs */}
+      <div className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] rounded-full bg-indigo-200/15 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-15%] left-[-10%] w-[55%] h-[55%] rounded-full bg-purple-200/15 blur-[120px] pointer-events-none" />
+
+      <div className="relative glass-premium rounded-3xl w-full max-w-md p-8 animate-scaleIn shadow-2xl shadow-black/5">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Smartphone className="w-8 h-8 text-indigo-600" />
+          <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 w-[60px] h-[60px] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/25 animate-float">
+            <Smartphone className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Phone Login</h1>
-          <p className="text-gray-600">
+          <h1 className="text-[26px] font-bold text-slate-900 mb-1.5 tracking-tight">Phone Login</h1>
+          <p className="text-slate-500 text-[15px] leading-relaxed">
             {step === 'phone' && 'Enter your mobile number to get started'}
             {step === 'otp' && 'Enter the OTP sent to your phone'}
             {step === 'details' && 'Complete your profile'}
@@ -298,25 +302,28 @@ export default function PhoneLogin() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="mb-6 p-4 bg-rose-50/80 border border-rose-200/60 rounded-2xl flex items-start gap-3 animate-fadeIn">
+            <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+            <p className="text-sm text-rose-700 font-medium">{error}</p>
           </div>
         )}
 
         {/* Step 1: Phone Number */}
         {step === 'phone' && (
-          <div className="space-y-6">
+          <div className="space-y-5 animate-fadeInUp">
             <PhoneInput value={phoneNumber} onChange={setPhoneNumber} error={error ? ' ' : ''} disabled={loading} />
 
             <button
               onClick={handleSendOTP}
               disabled={loading || phoneNumber.length !== 10}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
                   Sending OTP...
                 </>
               ) : (
@@ -331,10 +338,10 @@ export default function PhoneLogin() {
 
         {/* Step 2: OTP Verification */}
         {step === 'otp' && (
-          <div className="space-y-6">
-            <div className="text-center mb-4">
-              <p className="text-sm text-gray-600">
-                OTP sent to <span className="font-semibold">+91 {phoneNumber}</span>
+          <div className="space-y-5 animate-fadeInUp">
+            <div className="text-center">
+              <p className="text-sm text-slate-500 font-medium">
+                OTP sent to <span className="font-bold text-slate-700">+91 {phoneNumber}</span>
               </p>
             </div>
 
@@ -343,22 +350,29 @@ export default function PhoneLogin() {
             <button
               onClick={handleVerifyOTP}
               disabled={loading || otp.length !== 6}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
             >
               {loading ? 'Verifying...' : 'Verify OTP'}
             </button>
 
             <div className="text-center">
               {resendTimer > 0 ? (
-                <p className="text-sm text-gray-500">Resend OTP in {resendTimer}s</p>
+                <p className="text-sm text-slate-400 font-medium">Resend OTP in {resendTimer}s</p>
               ) : (
-                <button onClick={handleResendOTP} disabled={loading} className="text-sm text-indigo-600 hover:text-indigo-700 font-medium">
+                <button
+                  onClick={handleResendOTP}
+                  disabled={loading}
+                  className="text-sm text-indigo-600 hover:text-indigo-700 font-semibold transition-colors duration-200"
+                >
                   Resend OTP
                 </button>
               )}
             </div>
 
-            <button onClick={() => setStep('phone')} className="w-full text-gray-600 hover:text-gray-800 text-sm font-medium flex items-center justify-center gap-2">
+            <button
+              onClick={() => setStep('phone')}
+              className="w-full text-slate-500 hover:text-slate-800 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200 py-2"
+            >
               <ArrowLeft className="w-4 h-4" />
               Change Phone Number
             </button>
@@ -367,24 +381,24 @@ export default function PhoneLogin() {
 
         {/* Step 3: Uninvited/Not Onboarded Message */}
         {step === 'uninvited' && (
-          <div className="space-y-6">
-            <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="space-y-5 animate-fadeInUp">
+            <div className="p-5 bg-amber-50/70 border border-amber-200/50 rounded-2xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-amber-800 mb-1">Not Onboarded</h3>
-                <p className="text-sm text-amber-700">
-                  You are not registered in the system for <span className="font-semibold">+91 {phoneNumber}</span>.
+                <h3 className="font-bold text-amber-800 mb-1">Not Onboarded</h3>
+                <p className="text-sm text-amber-700 leading-relaxed">
+                  You are not registered in the system for <span className="font-bold">+91 {phoneNumber}</span>.
                 </p>
-                <p className="mt-2 text-sm text-amber-700">
+                <p className="mt-2 text-sm text-amber-700 leading-relaxed">
                   Please contact your administrator to get onboarded before you can access the CRM.
                 </p>
               </div>
             </div>
-            
+
             <div className="text-center">
-              <button 
+              <button
                 onClick={() => setStep('phone')}
-                className="w-full text-gray-600 hover:text-gray-800 py-3 text-sm font-medium flex items-center justify-center gap-2"
+                className="w-full text-slate-500 hover:text-slate-800 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Try Different Phone Number
@@ -395,28 +409,28 @@ export default function PhoneLogin() {
 
         {/* Step 4: User Details (for invited members only) */}
         {step === 'details' && (
-          <div className="space-y-6">
-            <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
-              <p className="text-sm text-indigo-700">
+          <div className="space-y-5 animate-fadeInUp">
+            <div className="p-4 bg-indigo-50/60 border border-indigo-200/40 rounded-2xl">
+              <p className="text-sm text-indigo-700 font-medium">
                 You have been invited to join. Please complete your profile below.
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Full Name *</label>
+              <label className="block text-sm font-semibold text-slate-700 mb-2">Full Name *</label>
               <input
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Enter your full name"
-                className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 focus:outline-none"
+                className="w-full px-4 py-3 border-2 border-slate-200 rounded-2xl focus:border-indigo-400 focus:shadow-[0_0_0_4px_rgba(99,102,241,0.10)] focus:outline-none transition-all duration-200 bg-white/80 text-slate-800 placeholder:text-slate-400 font-medium"
               />
             </div>
 
             <button
               onClick={handleOnboard}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
             >
               {loading ? 'Creating Account...' : 'Complete Registration'}
             </button>
@@ -425,7 +439,10 @@ export default function PhoneLogin() {
 
         {/* Back to Login */}
         <div className="mt-8 text-center">
-          <Link to="/login" className="text-sm text-gray-600 hover:text-indigo-600 font-medium flex items-center justify-center gap-2">
+          <Link
+            to="/login"
+            className="text-sm text-slate-500 hover:text-indigo-600 font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
+          >
             <ArrowLeft className="w-4 h-4" />
             Back to Login Options
           </Link>

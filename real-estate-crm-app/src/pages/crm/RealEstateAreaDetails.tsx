@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MapPin, ArrowLeft, Save, Trash2, Youtube } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
 import { PermissionGuard } from '../../components/PermissionGuard';
 import { RealEstateArea } from '../../types/realEstate';
 import MediaUploadSection from '../../components/MediaUploadSection';
@@ -13,6 +14,10 @@ export default function RealEstateAreaDetails() {
 
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [formData, setFormData] = useState<Partial<RealEstateArea>>({
     name: '',
     city: '',
@@ -58,7 +63,7 @@ export default function RealEstateAreaDetails() {
       navigate('/crm/real-estate-areas');
     } catch (error) {
       console.error('Error saving area:', error);
-      alert('Failed to save area');
+      showToast('Failed to save area', 'error');
     } finally {
       setSaving(false);
     }
@@ -261,6 +266,9 @@ export default function RealEstateAreaDetails() {
           </div>
         )}
       </main>
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

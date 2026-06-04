@@ -261,7 +261,7 @@ export default function KhataEntryForm() {
               onClick={() => navigate('/crm/khata')}
               className="p-2 hover:bg-white/50 rounded-xl transition-colors"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+              <ArrowLeft className="h-5 w-5 text-slate-500" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">

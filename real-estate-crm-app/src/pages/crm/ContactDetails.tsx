@@ -24,6 +24,8 @@ import {
 import { api } from '../../services/api';
 import { CRMContact, CRMContactNote } from '../../types/crm';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
+import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { PermissionGuard } from '../../components/PermissionGuard';
 
 export default function ContactDetails() {
@@ -31,6 +33,10 @@ export default function ContactDetails() {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
 
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [contact, setContact] = useState<Partial<CRMContact>>({
     name: '',
     phone: '',
@@ -87,7 +93,7 @@ export default function ContactDetails() {
 
   const handleSave = async () => {
     if (!contact.name || !contact.phone) {
-      alert('Name and phone are required');
+      showToast('Name and phone are required', 'error');
       return;
     }
 
@@ -116,7 +122,7 @@ export default function ContactDetails() {
       navigate('/crm/contacts');
     } catch (error) {
       console.error('Error saving contact:', error);
-      alert('Failed to save contact');
+      showToast('Failed to save contact', 'error');
     } finally {
       setSaving(false);
     }
@@ -206,15 +212,15 @@ export default function ContactDetails() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/contacts')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
@@ -225,7 +231,7 @@ export default function ContactDetails() {
                     {isNew ? 'New Contact' : contact.name || 'Contact Details'}
                   </h1>
                   {!isNew && contact.phone && (
-                    <p className="text-xs sm:text-sm text-gray-500">{contact.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{contact.phone}</p>
                   )}
                 </div>
               </div>
@@ -264,7 +270,7 @@ export default function ContactDetails() {
 
         {/* Profile Tab */}
         {activeTab === 'profile' && (
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl p-4 sm:p-6 space-y-6">
+          <div className="glass-premium rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 space-y-6">
             {/* Basic Info */}
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
@@ -607,9 +613,23 @@ export default function ContactDetails() {
                 ))}
               </div>
             )}
+
+            {/* Unified Activity Timeline */}
+            {!isNew && (
+              <div className="mt-6 pt-4 border-t">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <FileText className="h-5 w-5 mr-2 text-purple-600" />
+                  Unified Activity Timeline
+                </h3>
+                <ContactActivityTimeline contactId={id} />
+              </div>
+            )}
           </div>
         )}
       </main>
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

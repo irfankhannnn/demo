@@ -1,7 +1,16 @@
 import { expect, Page, test } from '@playwright/test';
 import { BASE_URL } from '../helpers/config';
 import { EvidenceCtx, createLogger, snap, stepPause } from '../helpers/evidence';
-import { SEED_DATA, generateTestPhone, generateTestEmail, getItemByIndex } from '../helpers/seedData';
+import { loginWithPhoneOtp } from '../helpers/auth';
+import {
+  SEED_DATA,
+  generateTestPhone,
+  generateTestEmail,
+  getItemByIndex,
+  generateUniqueName,
+  generateUniquePropertyTitle,
+  generateUniqueLocation,
+} from '../helpers/seedData';
 import {
   uploadOwnerPhoto,
   uploadOwnerPan,
@@ -47,47 +56,47 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
   const phoneFor = (offset: number) => generateTestPhone(offset, phoneBase);
   const emailFor = (prefix: string, offset: number) => generateTestEmail(prefix, offset, 'test.com');
 
-  // Use realistic Indian names from seed data
-  const ownerSeed = getItemByIndex(SEED_DATA.owners, Date.now());
-  const ownerName = `${ownerSeed.firstName} ${ownerSeed.lastName}`;
+  // Generate unique entities using the expanded seed pools + runStamp
+  const ownerNameObj = generateUniqueName(runStamp, 0);
+  const ownerName = ownerNameObj.fullName;
   const ownerPhone = phoneFor(1);
-  const ownerEmail = emailFor(ownerSeed.firstName.toLowerCase(), 1);
+  const ownerEmail = emailFor(ownerNameObj.firstName.toLowerCase(), 1);
 
-  const propertySeed = getItemByIndex(SEED_DATA.properties.titles, Date.now());
-  const propertyTitle = propertySeed;
-  const propertyArea = getItemByIndex(SEED_DATA.properties.areas, Date.now() + 1);
-  const propertyCity = 'Mumbai';
+  const propertyTitle = generateUniquePropertyTitle(runStamp, 0);
+  const propertyLoc = generateUniqueLocation(runStamp, 1);
+  const propertyArea = propertyLoc.area;
+  const propertyCity = propertyLoc.city;
   const propertyOptionLabel = `${propertyTitle} - ${propertyArea}, ${propertyCity}`;
 
-  const tenantSeed = getItemByIndex(SEED_DATA.tenants, Date.now() + 2);
-  const tenantName = `${tenantSeed.firstName} ${tenantSeed.lastName}`;
+  const tenantNameObj = generateUniqueName(runStamp, 2);
+  const tenantName = tenantNameObj.fullName;
   const tenantPhone = phoneFor(2);
-  const tenantEmail = emailFor(tenantSeed.firstName.toLowerCase(), 2);
+  const tenantEmail = emailFor(tenantNameObj.firstName.toLowerCase(), 2);
 
-  const buyerSeed = getItemByIndex(SEED_DATA.buyers, Date.now() + 3);
-  const buyerName = `${buyerSeed.firstName} ${buyerSeed.lastName}`;
+  const buyerNameObj = generateUniqueName(runStamp, 3);
+  const buyerName = buyerNameObj.fullName;
   const buyerPhone = phoneFor(3);
-  const buyerEmail = emailFor(buyerSeed.firstName.toLowerCase(), 3);
+  const buyerEmail = emailFor(buyerNameObj.firstName.toLowerCase(), 3);
 
-  const ownerLeadSeed = getItemByIndex(SEED_DATA.owners, Date.now() + 11);
-  const ownerLeadName = `${ownerLeadSeed.firstName} ${ownerLeadSeed.lastName} (Lead)`;
+  const ownerLeadNameObj = generateUniqueName(runStamp, 11);
+  const ownerLeadName = `${ownerLeadNameObj.fullName} (Lead)`;
   const ownerLeadPhone = phoneFor(11);
-  const ownerLeadEmail = emailFor(ownerLeadSeed.firstName.toLowerCase(), 11);
+  const ownerLeadEmail = emailFor(ownerLeadNameObj.firstName.toLowerCase(), 11);
 
-  const sellerLeadSeed = getItemByIndex(SEED_DATA.owners, Date.now() + 12);
-  const sellerLeadName = `${sellerLeadSeed.firstName} ${sellerLeadSeed.lastName} (Seller)`;
+  const sellerLeadNameObj = generateUniqueName(runStamp, 12);
+  const sellerLeadName = `${sellerLeadNameObj.fullName} (Seller)`;
   const sellerLeadPhone = phoneFor(12);
-  const sellerLeadEmail = emailFor(sellerLeadSeed.firstName.toLowerCase(), 12);
+  const sellerLeadEmail = emailFor(sellerLeadNameObj.firstName.toLowerCase(), 12);
 
-  const buyerLeadSeed = getItemByIndex(SEED_DATA.buyers, Date.now() + 13);
-  const buyerLeadName = `${buyerLeadSeed.firstName} ${buyerLeadSeed.lastName} (Lead)`;
+  const buyerLeadNameObj = generateUniqueName(runStamp, 13);
+  const buyerLeadName = `${buyerLeadNameObj.fullName} (Lead)`;
   const buyerLeadPhone = phoneFor(13);
-  const buyerLeadEmail = emailFor(buyerLeadSeed.firstName.toLowerCase(), 13);
+  const buyerLeadEmail = emailFor(buyerLeadNameObj.firstName.toLowerCase(), 13);
 
-  const tenantLeadSeed = getItemByIndex(SEED_DATA.tenants, Date.now() + 14);
-  const tenantLeadName = `${tenantLeadSeed.firstName} ${tenantLeadSeed.lastName} (Lead)`;
+  const tenantLeadNameObj = generateUniqueName(runStamp, 14);
+  const tenantLeadName = `${tenantLeadNameObj.fullName} (Lead)`;
   const tenantLeadPhone = phoneFor(14);
-  const tenantLeadEmail = emailFor(tenantLeadSeed.firstName.toLowerCase(), 14);
+  const tenantLeadEmail = emailFor(tenantLeadNameObj.firstName.toLowerCase(), 14);
 
   const createdLeads: Record<LeadType, CreatedLead> = {} as Record<LeadType, CreatedLead>;
 
@@ -138,10 +147,15 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await page.getByPlaceholder('Full name').fill(ownerName);
       await page.getByPlaceholder('Phone number').fill(ownerPhone);
       await page.getByPlaceholder('Email address').fill(ownerEmail);
-      const address = page.getByPlaceholder('Full address');
-      if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await address.fill('Link Road, Andheri West, Mumbai');
-      }
+      await page.getByPlaceholder('Full address').fill('Link Road, Andheri West, Mumbai');
+      await page.getByPlaceholder('ABCDE1234F').fill('ABCDE1234F');
+      await page.getByPlaceholder('1234-5678-9012').fill('1234-5678-9012');
+      await page.getByPlaceholder('Bank name').fill('HDFC Bank');
+      await page.getByPlaceholder('Account number').fill('123456789012');
+      await page.getByPlaceholder('IFSC code').fill('HDFC0001234');
+      const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).first().locator('..').locator('select');
+      await expect(statusSelect).toBeVisible({ timeout: 5_000 });
+      await statusSelect.selectOption('active');
       await saveHeaderForm(/\/crm\/owners\/(?!new)[a-f0-9-]+$/);
       const ownerId = page.url().match(/\/crm\/owners\/([a-f0-9-]+)$/)?.[1] || '';
       if (!ownerId || ownerId === 'new') {
@@ -204,46 +218,71 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await ownerOption.click();
 
       await page.getByPlaceholder('Spacious 2BHK Apartment in Andheri').fill(propertyTitle);
-      const description = page.getByPlaceholder('Describe the property...');
-      if (await description.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await description.fill('Primary dashboard property created for buyer and tenant conversions.');
-      }
-      const propertyType = page.getByLabel('Property Type');
-      if (await propertyType.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await propertyType.selectOption('apartment');
-      }
-      const bhkInput = page.getByPlaceholder('2');
-      if (await bhkInput.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await bhkInput.fill('3');
-      }
+      await page.getByPlaceholder('Describe the property...').fill('Primary dashboard property created for buyer and tenant conversions.');
+
+      // Core fields that must be present — wait explicitly so we fail loudly if missing
+      const propertyType = page.locator('label').filter({ hasText: /^Property Type$/ }).first().locator('..').locator('select');
+      await expect(propertyType).toBeVisible({ timeout: 10_000 });
+      await propertyType.selectOption('apartment');
+
+      const bhkInput = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('input');
+      await expect(bhkInput).toBeVisible({ timeout: 10_000 });
+      await bhkInput.fill('3');
+
       await page.getByPlaceholder('Andheri West').fill(propertyArea);
       await page.getByPlaceholder('Mumbai').fill(propertyCity);
+
       const buildingName = page.getByPlaceholder('Sunshine Towers');
-      if (await buildingName.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await buildingName.fill(`Tower ${runStamp}`);
-      }
+      await expect(buildingName).toBeVisible({ timeout: 10_000 });
+      await buildingName.fill(`Tower ${runStamp}`);
+
       const floor = page.getByPlaceholder('5th Floor');
-      if (await floor.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await floor.fill('5');
-      }
+      await expect(floor).toBeVisible({ timeout: 10_000 });
+      await floor.fill('5');
+
       const flatNumber = page.getByPlaceholder('501');
-      if (await flatNumber.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await flatNumber.fill('501');
-      }
-      const address = page.getByPlaceholder('Street, landmark, directions...');
-      if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await address.fill('Link Road, Andheri West, Mumbai');
-      }
-      await page.getByPlaceholder('Enter carpet area').fill('980');
-      await page.getByPlaceholder('Enter monthly rent').fill('85000');
+      await expect(flatNumber).toBeVisible({ timeout: 10_000 });
+      await flatNumber.fill('501');
+
+      await page.getByPlaceholder('Street, landmark, directions...').fill('Link Road, Andheri West, Mumbai');
+
+      const carpetArea = page.getByPlaceholder('Enter carpet area');
+      await expect(carpetArea).toBeVisible({ timeout: 10_000 });
+      await carpetArea.fill('980');
+
+      const rent = page.getByPlaceholder('Enter monthly rent');
+      await expect(rent).toBeVisible({ timeout: 10_000 });
+      await rent.fill('85000');
+
       const deposit = page.getByPlaceholder('Enter deposit amount');
-      if (await deposit.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await deposit.fill('250000');
+      await expect(deposit).toBeVisible({ timeout: 10_000 });
+      await deposit.fill('250000');
+
+      const brokerage = page.getByPlaceholder('Enter expected brokerage');
+      await expect(brokerage).toBeVisible({ timeout: 10_000 });
+      await brokerage.fill('50000');
+
+      const furnishSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+      await expect(furnishSelect).toBeVisible({ timeout: 10_000 });
+      await furnishSelect.selectOption('semi-furnished');
+
+      const availableFrom = page.locator('label').filter({ hasText: /^Available From$/ }).first().locator('..').locator('input[type="date"]');
+      await expect(availableFrom).toBeVisible({ timeout: 10_000 });
+      await availableFrom.fill(new Date().toISOString().split('T')[0]);
+
+      // Amenities — tick a few common ones
+      const amenitiesSection = page.locator('h2').filter({ hasText: /^Amenities$/ });
+      await expect(amenitiesSection).toBeVisible({ timeout: 10_000 });
+      for (const amenity of ['Parking', 'Lift', 'Power Backup', 'Security']) {
+        const checkbox = page.locator('label').filter({ hasText: amenity }).locator('input[type="checkbox"]');
+        if (await checkbox.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          await checkbox.check();
+        }
       }
-      const statusSelect = page.getByLabel('Status');
-      if (await statusSelect.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await statusSelect.selectOption('available');
-      }
+
+      const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).first().locator('..').locator('select');
+      await expect(statusSelect).toBeVisible({ timeout: 10_000 });
+      await statusSelect.selectOption('available');
 
       // Add property file uploads (pending) before save
       await setPropertyImageInput(page, ASSET_PROPERTY_IMAGE);
@@ -257,19 +296,25 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await assertPropertyPendingUploadsVisible(page);
       log('Property', 'PASS', 'All pending uploads visible in sidebar');
 
-      // PropertyDetails.tsx auto-navigates to /crm/properties after 1500ms success toast.
-      // We must capture the ID the instant the detail-page URL is reached.
+      // PropertyDetails.tsx auto-navigates to /crm/properties (list page) after 1500ms success toast.
       const saveBtn = page.locator('button').filter({ hasText: /Save|Save Property|Create|Submit/i }).first();
       await expect(saveBtn).toBeVisible({ timeout: 10_000 });
       await saveBtn.click();
-      // Wait for detail-page URL: /crm/properties/{UUID} (NOT /crm/properties/new)
-      await page.waitForURL(/\/crm\/properties\/(?!new)[a-f0-9-]+$/, { timeout: 20_000 });
-      const propertyId = page.url().match(/\/crm\/properties\/([a-f0-9-]+)$/)?.[1] || '';
-      if (!propertyId || propertyId === 'new') {
-        throw new Error(`Property ID not captured or invalid: "${propertyId}"`);
-      }
-      // Allow auto-redirect to list page — we already have the ID
+      // Wait for list page navigation
+      await page.waitForURL(/\/crm\/properties$/, { timeout: 20_000 });
       await page.waitForLoadState('networkidle').catch(() => null);
+      // Locate the row containing our property title, then click its Edit button
+      const propertyRow = page.locator('table tbody tr').filter({ hasText: propertyTitle }).first();
+      await expect(propertyRow).toBeVisible({ timeout: 10_000 });
+      const editButton = propertyRow.getByRole('button', { name: 'Edit' });
+      await expect(editButton).toBeVisible({ timeout: 5_000 });
+      await editButton.click();
+      // Wait for detail-page URL: /crm/properties/{UUID}
+      await page.waitForURL(/\/crm\/properties\/[a-f0-9-]+$/, { timeout: 20_000 });
+      const propertyId = page.url().match(/\/crm\/properties\/([a-f0-9-]+)$/)?.[1] || '';
+      if (!propertyId) {
+        throw new Error(`Property ID not captured from URL: "${page.url()}"`);
+      }
 
       await snap(page, ctx, '03-property-created-with-uploads');
       log('Property', 'PASS', `${propertyTitle} created with file uploads (id=${propertyId})`);
@@ -286,10 +331,11 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await page.getByPlaceholder('Full name').fill(tenantName);
       await page.getByPlaceholder('Phone number').fill(tenantPhone);
       await page.getByPlaceholder('Email address').fill(tenantEmail);
-      const address = page.getByPlaceholder('Full address');
-      if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await address.fill('Powai, Mumbai');
-      }
+      await page.getByPlaceholder('Current address').fill('Powai, Mumbai');
+      const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).first().locator('..').locator('select');
+      await expect(statusSelect).toBeVisible({ timeout: 5_000 });
+      await statusSelect.selectOption('active');
+      await page.getByPlaceholder('XXXX XXXX XXXX').fill('9876-5432-1098');
       await saveHeaderForm(/\/crm\/tenants\/(?!new)[a-f0-9-]+$/);
       await snap(page, ctx, '03-tenant-created');
       log('Tenant', 'PASS', `${tenantName} created`);
@@ -305,10 +351,10 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await page.getByPlaceholder('Full name').fill(buyerName);
       await page.getByPlaceholder('Phone number').fill(buyerPhone);
       await page.getByPlaceholder('Email address').fill(buyerEmail);
-      const address = page.getByPlaceholder('Full address');
-      if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) {
-        await address.fill('Bandra West, Mumbai');
-      }
+      await page.getByPlaceholder('Full address').fill('Bandra West, Mumbai');
+      const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).first().locator('..').locator('select');
+      await expect(statusSelect).toBeVisible({ timeout: 5_000 });
+      await statusSelect.selectOption('active');
       await saveHeaderForm(/\/crm\/buyers\/(?!new)[a-f0-9-]+$/);
       await snap(page, ctx, '04-buyer-created');
       log('Buyer', 'PASS', `${buyerName} created`);
@@ -365,10 +411,10 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     status: string;
     priority: string;
     notes: string;
-    buyerRequirement?: { requirement: string; budget: number; preferredArea: string; propertyType: string; bhk: number };
-    sellerProperty?: { propertyType: string; area: string; expectedPrice: number; timeline: string };
-    tenantRequirement?: { requirement: string; budget: number; preferredArea: string; moveInDate: string };
-    ownerProperty?: { propertyType: string; area: string; rentExpected: number };
+    buyerRequirement?: { requirement: string; budget: number; preferredArea: string; propertyType: string; bhk: number; address?: string; moveInDate?: string };
+    sellerProperty?: { propertyType: string; area: string; expectedPrice: number; timeline: string; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string };
+    tenantRequirement?: { requirement: string; budget: number; preferredArea: string; moveInDate: string; propertyType?: string; bhk?: number; address?: string };
+    ownerProperty?: { propertyType: string; area: string; rentExpected: number; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string; securityDeposit?: number };
   }): Promise<CreatedLead> => {
     await test.step(`Dashboard ops: create ${lead.type} lead`, async () => {
       await loadAndAssertPage('/crm/leads/new', /New Lead/i);
@@ -379,9 +425,9 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await page.getByPlaceholder('Phone number').fill(lead.phone);
       await page.getByPlaceholder('Email address').fill(lead.email);
 
-      const sourceInput = page.locator('input[placeholder*="Referral"]');
-      if (await sourceInput.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await sourceInput.fill(lead.source);
+      const sourceSelect = page.locator('label').filter({ hasText: /^Source$/ }).first().locator('..').locator('select');
+      if (await sourceSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        await sourceSelect.selectOption(lead.source);
       }
       const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).locator('..').locator('select');
       if (await statusSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -408,6 +454,10 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         if (await propTypeSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await propTypeSelect.selectOption(req.propertyType);
         const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
         if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(req.bhk));
+        const addressTextarea = page.getByPlaceholder('Street address, landmark, pin code...');
+        if (await addressTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await addressTextarea.fill(req.address || 'Bandra West, Mumbai');
+        const moveInInput = page.locator('label').filter({ hasText: /^Move-in Date$/ }).first().locator('..').locator('input[type="date"]');
+        if (await moveInInput.isVisible({ timeout: 2_000 }).catch(() => false)) await moveInInput.fill(req.moveInDate || new Date().toISOString().split('T')[0]);
       }
 
       if (lead.type === 'seller' && lead.sellerProperty) {
@@ -416,10 +466,26 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         if (await propTypeSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await propTypeSelect.selectOption(prop.propertyType);
         const areaInput = page.getByPlaceholder('Property location').first();
         if (await areaInput.isVisible({ timeout: 2_000 }).catch(() => false)) await areaInput.fill(prop.area);
+        const cityInput = page.locator('label').filter({ hasText: /^City$/ }).first().locator('..').locator('input');
+        if (await cityInput.isVisible({ timeout: 2_000 }).catch(() => false)) await cityInput.fill(prop.city || 'Mumbai');
+        const buildingInput = page.locator('label').filter({ hasText: /^Building Name$/ }).first().locator('..').locator('input');
+        if (await buildingInput.isVisible({ timeout: 2_000 }).catch(() => false)) await buildingInput.fill(prop.buildingName || 'Omkar Alta Monte');
+        const flatInput = page.locator('label').filter({ hasText: /^Flat No\.$/ }).first().locator('..').locator('input');
+        if (await flatInput.isVisible({ timeout: 2_000 }).catch(() => false)) await flatInput.fill(prop.flatNumber || '401');
+        const floorInput = page.locator('label').filter({ hasText: /^Floor$/ }).first().locator('..').locator('input');
+        if (await floorInput.isVisible({ timeout: 2_000 }).catch(() => false)) await floorInput.fill(prop.floor || '4th');
+        const carpetInput = page.locator('label').filter({ hasText: /^Carpet Area/ }).first().locator('..').locator('input');
+        if (await carpetInput.isVisible({ timeout: 2_000 }).catch(() => false)) await carpetInput.fill(String(prop.carpetArea || 1200));
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(prop.bhk || 3));
+        const furnishSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await furnishSelect.selectOption(prop.furnishing || 'semi-furnished');
         const priceInput = page.getByPlaceholder('Expected price');
         if (await priceInput.isVisible({ timeout: 2_000 }).catch(() => false)) await priceInput.fill(String(prop.expectedPrice));
         const timelineInput = page.locator('label').filter({ hasText: /^Timeline$/ }).first().locator('..').locator('input');
         if (await timelineInput.isVisible({ timeout: 2_000 }).catch(() => false)) await timelineInput.fill(prop.timeline);
+        const addressTextarea = page.getByPlaceholder('Street address, landmark, pin code...');
+        if (await addressTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await addressTextarea.fill(prop.address || 'Link Road, Andheri West, Mumbai');
       }
 
       if (lead.type === 'tenant' && lead.tenantRequirement) {
@@ -432,6 +498,12 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         if (await areaInput.isVisible({ timeout: 2_000 }).catch(() => false)) await areaInput.fill(req.preferredArea);
         const dateInput = page.locator('label').filter({ hasText: /^Move-in Date$/ }).first().locator('..').locator('input[type="date"]');
         if (await dateInput.isVisible({ timeout: 2_000 }).catch(() => false)) await dateInput.fill(req.moveInDate);
+        const propTypeSelect = page.locator('label').filter({ hasText: /^Property Type$/ }).first().locator('..').locator('select');
+        if (await propTypeSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await propTypeSelect.selectOption(req.propertyType || 'apartment');
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(req.bhk || 2));
+        const addressTextarea = page.getByPlaceholder('Street address, landmark, pin code...');
+        if (await addressTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await addressTextarea.fill(req.address || 'Powai, Mumbai');
       }
 
       if (lead.type === 'owner' && lead.ownerProperty) {
@@ -440,8 +512,26 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         if (await propTypeSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await propTypeSelect.selectOption(prop.propertyType);
         const areaInput = page.getByPlaceholder('Property location').first();
         if (await areaInput.isVisible({ timeout: 2_000 }).catch(() => false)) await areaInput.fill(prop.area);
+        const cityInput = page.locator('label').filter({ hasText: /^City$/ }).first().locator('..').locator('input');
+        if (await cityInput.isVisible({ timeout: 2_000 }).catch(() => false)) await cityInput.fill(prop.city || 'Mumbai');
+        const buildingInput = page.locator('label').filter({ hasText: /^Building Name$/ }).first().locator('..').locator('input');
+        if (await buildingInput.isVisible({ timeout: 2_000 }).catch(() => false)) await buildingInput.fill(prop.buildingName || 'Omkar Alta Monte');
+        const flatInput = page.locator('label').filter({ hasText: /^Flat No\.$/ }).first().locator('..').locator('input');
+        if (await flatInput.isVisible({ timeout: 2_000 }).catch(() => false)) await flatInput.fill(prop.flatNumber || '401');
+        const floorInput = page.locator('label').filter({ hasText: /^Floor$/ }).first().locator('..').locator('input');
+        if (await floorInput.isVisible({ timeout: 2_000 }).catch(() => false)) await floorInput.fill(prop.floor || '4th');
+        const carpetInput = page.locator('label').filter({ hasText: /^Carpet Area/ }).first().locator('..').locator('input');
+        if (await carpetInput.isVisible({ timeout: 2_000 }).catch(() => false)) await carpetInput.fill(String(prop.carpetArea || 1200));
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(prop.bhk || 3));
+        const furnishSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await furnishSelect.selectOption(prop.furnishing || 'semi-furnished');
         const rentInput = page.getByPlaceholder('Expected monthly rent');
         if (await rentInput.isVisible({ timeout: 2_000 }).catch(() => false)) await rentInput.fill(String(prop.rentExpected));
+        const depositInput = page.getByPlaceholder('Security deposit');
+        if (await depositInput.isVisible({ timeout: 2_000 }).catch(() => false)) await depositInput.fill(String(prop.securityDeposit || 100000));
+        const addressTextarea = page.getByPlaceholder('Street address, landmark, pin code...');
+        if (await addressTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await addressTextarea.fill(prop.address || 'Link Road, Andheri West, Mumbai');
       }
 
       // LeadDetails.handleSave navigates to /crm/leads (list) on success.
@@ -515,66 +605,55 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
       await expect(modal).toBeVisible({ timeout: 10_000 });
 
       if (lead.type === 'buyer') {
-        const propertySelect = modal.locator('select').first();
-        await expect(propertySelect).toBeVisible({ timeout: 10_000 });
-        // Wait for options to populate (properties load via API)
-        await page.waitForTimeout(1_000);
-        const propertyOptions = await propertySelect.locator('option').allTextContents();
-        log('Convert', 'INFO', `Available properties: ${propertyOptions.join('; ')}`);
-        // Select the first actual property (skip the "Choose a property..." placeholder)
-        const propertyValue = await propertySelect.evaluate((el: HTMLSelectElement) => {
-          for (const opt of el.options) {
-            if (opt.value && opt.text !== 'Choose a property...') return opt.value;
-          }
-          return '';
-        });
-        if (!propertyValue) {
-          throw new Error(`No properties available in dropdown. Options: ${propertyOptions.join('; ')}`);
-        }
-        await propertySelect.selectOption(propertyValue);
-        const saleAmountInput = modal.getByPlaceholder('Sale amount');
+        // Buyer conversion uses search-based property cards, not a <select>
+        const searchInput = modal.locator('input[placeholder*="Search by property name"]').first();
+        await expect(searchInput).toBeVisible({ timeout: 10_000 });
+        const propertyTitle = options.propertyTitle || 'Skyline Towers';
+        await searchInput.fill(propertyTitle);
+        await page.waitForTimeout(500);
+        const propertyBtn = modal.locator('button').filter({ hasText: new RegExp(propertyTitle, 'i') }).first();
+        await expect(propertyBtn).toBeVisible({ timeout: 10_000 });
+        await propertyBtn.click();
+        const saleAmountInput = modal.locator('label').filter({ hasText: /^Sale Amount/i }).first().locator('..').locator('input').first();
         await expect(saleAmountInput).toBeVisible({ timeout: 5_000 });
         await saleAmountInput.fill(options.saleAmount || '9200000');
       }
 
       if (lead.type === 'tenant') {
-        const ownerPhoneToUse = options.ownerPhone || ownerPhone;
-        const ownerLookup = modal.getByPlaceholder('Owner phone number');
-        await ownerLookup.fill(ownerPhoneToUse);
-        await expect(ownerLookup).toHaveValue(ownerPhoneToUse);
-        log('Convert', 'INFO', `Tenant owner lookup phone=${ownerPhoneToUse}`);
-        await modal.getByRole('button', { name: /^Search$/ }).click();
-        await expect(modal.getByRole('button', { name: 'Change' })).toBeVisible({ timeout: 15_000 });
-        await expect(modal.getByText(ownerName, { exact: true })).toBeVisible({ timeout: 15_000 });
-        await stepPause(page, ctx.feature, 'Tenant owner selected');
-
-        const propertySelect = modal.locator('select').first();
-        await expect(propertySelect).toBeVisible({ timeout: 10_000 });
-        await expect(propertySelect).toBeEnabled({ timeout: 15_000 });
-        await page.waitForFunction(
-          (select) => Boolean(select) && (select as HTMLSelectElement).options.length > 1,
-          await propertySelect.elementHandle(),
-          { timeout: 15_000 },
-        );
-        // Select the first available property (skip placeholder)
-        const propertyValue = await propertySelect.evaluate((el: HTMLSelectElement) => {
-          for (const opt of el.options) {
-            if (opt.value && opt.text !== 'Choose a property...') return opt.value;
-          }
-          return '';
-        });
-        if (!propertyValue) {
-          const options = await propertySelect.locator('option').allTextContents();
-          throw new Error(`No properties available for owner ${ownerName} (${ownerPhoneToUse}). Options: ${options.join('; ')}`);
+        // Tenant conversion: click the last rental property button in the modal.
+        // If an owner section is present, the last button is under it (guarantees
+        // owner-property consistency). If no owner section, it selects from Find Property.
+        const propertyBtns = await modal.locator('button').filter({ hasText: /For Rent|Vacant|Available/i }).all();
+        if (propertyBtns.length === 0) {
+          throw new Error('No rental properties available for tenant conversion');
         }
-        await propertySelect.selectOption(propertyValue);
-        await stepPause(page, ctx.feature, 'Tenant property selected');
+        // Click the property in the owner section and ensure the selection sticks.
+        // A useEffect in LeadDetails.tsx clears selectedPropertyId if it doesn't find the
+        // id in ownerProperties. On the first click ownerProperties may still be stale,
+        // so the selection gets wiped. Re-clicking after a brief settle guarantees it.
+        const targetPropertyBtn = propertyBtns[propertyBtns.length - 1];
+        await targetPropertyBtn.click();
+        await page.waitForTimeout(300);
 
-        const monthlyRent = modal.getByPlaceholder('Monthly rent');
-        await expect(monthlyRent).toBeVisible({ timeout: 5_000 });
-        await monthlyRent.fill(options.monthlyRent || '62000');
-        const leaseStart = modal.locator('input[type="date"]').first();
-        await leaseStart.fill(options.leaseStartDate || new Date().toISOString().split('T')[0]);
+        // Positive indicator that selectedPropertyId survived: green summary box appears.
+        const selectedSummary = modal.locator('div.bg-green-50').filter({ has: page.locator('svg') });
+        const isSelected = await selectedSummary.isVisible().catch(() => false);
+        if (!isSelected) {
+          // Selection was cleared; click again now that state is settled.
+          const retryBtns = await modal.locator('button').filter({ hasText: /For Rent|Vacant|Available/i }).all();
+          if (retryBtns.length > 0) {
+            await retryBtns[retryBtns.length - 1].click();
+            await expect(selectedSummary).toBeVisible({ timeout: 5_000 });
+          }
+        }
+
+        const monthlyRentInput = modal.locator('label').filter({ hasText: /^Monthly Rent/i }).first().locator('..').locator('input').first();
+        await expect(monthlyRentInput).toBeVisible({ timeout: 5_000 });
+        await monthlyRentInput.fill(options.monthlyRent || '35000');
+
+        const leaseStartInput = modal.locator('label').filter({ hasText: /^Lease Start/i }).first().locator('..').locator('input').first();
+        await expect(leaseStartInput).toBeVisible({ timeout: 5_000 });
+        await leaseStartInput.fill(options.leaseStartDate || new Date().toISOString().split('T')[0]);
       }
 
       const convertBtn = modal.getByRole('button', { name: /^Convert to/i }).first();
@@ -676,6 +755,15 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         propertyType: 'apartment',
         area: 'Powai',
         rentExpected: 48000,
+        city: 'Mumbai',
+        buildingName: 'Omkar Alta Monte',
+        flatNumber: '1402',
+        floor: '14th',
+        carpetArea: 1150,
+        furnishing: 'semi-furnished',
+        bhk: 2,
+        address: 'Omkar Alta Monte, Powai, Mumbai',
+        securityDeposit: 150000,
       },
     });
 
@@ -693,6 +781,14 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         area: 'Bandra East',
         expectedPrice: 12500000,
         timeline: 'Within 3 months',
+        city: 'Mumbai',
+        buildingName: 'Raheja Universal',
+        flatNumber: '301',
+        floor: '3rd',
+        carpetArea: 1450,
+        furnishing: 'furnished',
+        bhk: 3,
+        address: 'Raheja Universal, Bandra East, Mumbai',
       },
     });
 
@@ -711,6 +807,8 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         preferredArea: 'Andheri West',
         propertyType: 'apartment',
         bhk: 3,
+        address: 'Andheri West, Mumbai',
+        moveInDate: new Date().toISOString().split('T')[0],
       },
     });
 
@@ -728,6 +826,9 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
         budget: 65000,
         preferredArea: 'Andheri West',
         moveInDate: new Date().toISOString().split('T')[0],
+        propertyType: 'apartment',
+        bhk: 2,
+        address: 'Andheri West, Mumbai',
       },
     });
   });

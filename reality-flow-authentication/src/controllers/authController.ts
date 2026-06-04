@@ -274,6 +274,28 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Check if email or phone is already registered in another agency
+    const existingByEmail = await findUserByEmail(email);
+    const existingByPhone = phone_number ? await findUserByPhone(phone_number) : null;
+
+    if (existingByEmail && existingByEmail.TenantId !== matchingInvite.TenantId) {
+      forbidden(
+        res,
+        'EMAIL_ALREADY_REGISTERED',
+        'This email is already registered with another agency. Please use a different email or contact support.'
+      );
+      return;
+    }
+
+    if (existingByPhone && existingByPhone.TenantId !== matchingInvite.TenantId) {
+      forbidden(
+        res,
+        'PHONE_ALREADY_REGISTERED',
+        'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+      );
+      return;
+    }
+
     // Use resolveMemberUser to create/link member
     const result = await resolveMemberUser(
       sub,
@@ -285,6 +307,28 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
     );
 
     if (result.isNewMember === null) {
+      // Check if it failed due to duplicate email/phone
+      const dupeCheckEmail = await findUserByEmail(email);
+      const dupeCheckPhone = phone_number ? await findUserByPhone(phone_number) : null;
+
+      if (dupeCheckEmail && dupeCheckEmail.TenantId !== matchingInvite.TenantId) {
+        forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+        return;
+      }
+
+      if (dupeCheckPhone && dupeCheckPhone.TenantId !== matchingInvite.TenantId) {
+        forbidden(
+          res,
+          'PHONE_ALREADY_REGISTERED',
+          'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+        );
+        return;
+      }
+
       internalError(res, 'Failed to resolve member');
       return;
     }

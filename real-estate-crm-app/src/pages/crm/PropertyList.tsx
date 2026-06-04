@@ -149,20 +149,35 @@ export default function PropertyList() {
       render: (property) => {
         const statusStyles: Record<string, string> = {
           available: 'bg-emerald-100 text-emerald-700',
-          on_hold: 'bg-amber-100 text-amber-700',
-          out_of_stock: 'bg-gray-100 text-gray-600',
-          rented: 'bg-blue-100 text-blue-700',
+          'for-sale': 'bg-blue-100 text-blue-700',
+          'for-rent': 'bg-yellow-100 text-yellow-700',
+          rented: 'bg-indigo-100 text-indigo-700',
+          sold: 'bg-red-100 text-red-700',
+          'on-hold': 'bg-amber-100 text-amber-700',
+          'out-of-stock': 'bg-gray-100 text-gray-600',
         };
         const dotStyles: Record<string, string> = {
           available: 'bg-emerald-500',
-          on_hold: 'bg-amber-500',
-          out_of_stock: 'bg-gray-400',
-          rented: 'bg-blue-500',
+          'for-sale': 'bg-blue-500',
+          'for-rent': 'bg-yellow-500',
+          rented: 'bg-indigo-500',
+          sold: 'bg-red-500',
+          'on-hold': 'bg-amber-500',
+          'out-of-stock': 'bg-gray-400',
+        };
+        const statusLabels: Record<string, string> = {
+          available: 'Available',
+          'for-sale': 'For Sale',
+          'for-rent': 'For Rent',
+          rented: 'Rented',
+          sold: 'Sold',
+          'on-hold': 'On Hold',
+          'out-of-stock': 'Out of Stock',
         };
         return (
           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[property.status] || 'bg-gray-100 text-gray-600'}`}>
             <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${dotStyles[property.status] || 'bg-gray-400'}`}></span>
-            {property.status.replace('_', ' ')}
+            {statusLabels[property.status] || property.status}
           </span>
         );
       },
@@ -170,14 +185,19 @@ export default function PropertyList() {
     {
       key: 'owner',
       header: 'Owner',
-      render: (property) => property.owner ? (
-        <div className="text-sm">
-          <p className="font-medium text-gray-900">{property.owner.name}</p>
-          <p className="text-xs text-gray-500">{property.owner.phone}</p>
-        </div>
-      ) : (
-        <span className="text-xs text-gray-400 italic">Unassigned</span>
-      ),
+      render: (property) => {
+        const p = property as any;
+        const ownerName = p.ownerSnapshot?.name || p.ownerName || p.owner?.name;
+        const ownerPhone = p.ownerSnapshot?.phone || p.ownerPhone || p.owner?.phone;
+        return ownerName ? (
+          <div className="text-sm">
+            <p className="font-medium text-gray-900">{ownerName}</p>
+            {ownerPhone && <p className="text-xs text-gray-500">{ownerPhone}</p>}
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400 italic">Unassigned</span>
+        );
+      },
     },
     {
       key: 'tenant',
@@ -213,25 +233,28 @@ export default function PropertyList() {
   const filterContent = (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Status</label>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all"
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(168,85,247,0.10)] focus:border-purple-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Status</option>
           <option value="available">Available</option>
-          <option value="on_hold">On Hold</option>
-          <option value="out_of_stock">Out of Stock</option>
+          <option value="for-sale">For Sale</option>
+          <option value="for-rent">For Rent</option>
           <option value="rented">Rented</option>
+          <option value="sold">Sold</option>
+          <option value="on-hold">On Hold</option>
+          <option value="out-of-stock">Out of Stock</option>
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">BHK</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">BHK</label>
         <select
           value={bhkFilter}
           onChange={(e) => setBhkFilter(e.target.value)}
-          className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all"
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(168,85,247,0.10)] focus:border-purple-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All BHK</option>
           {uniqueBhks.map((bhk) => (
@@ -240,11 +263,11 @@ export default function PropertyList() {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Area</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Area</label>
         <select
           value={areaFilter}
           onChange={(e) => setAreaFilter(e.target.value)}
-          className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all"
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(168,85,247,0.10)] focus:border-purple-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Areas</option>
           {uniqueAreas.map((area) => (
@@ -253,11 +276,11 @@ export default function PropertyList() {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Owner</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Owner</label>
         <select
           value={ownerFilter}
           onChange={(e) => setOwnerFilter(e.target.value)}
-          className="w-full px-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 transition-all"
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(168,85,247,0.10)] focus:border-purple-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Owners</option>
           <option value="assigned">Has Owner</option>
@@ -270,23 +293,23 @@ export default function PropertyList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-purple-50 to-indigo-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/30 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/25 flex-shrink-0 animate-gentlePulse">
                   <Package className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Properties</h1>
-                  <p className="text-xs sm:text-sm text-gray-500">{filteredProperties.length} total</p>
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight truncate">Properties</h1>
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">{filteredProperties.length} total</p>
                 </div>
               </div>
             </div>
@@ -294,17 +317,17 @@ export default function PropertyList() {
               <button
                 onClick={loadProperties}
                 disabled={loading}
-                className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
+                className="p-2 sm:p-2.5 glass-premium border border-white/40 rounded-xl hover:bg-white/80 transition-all duration-200 shadow-sm"
                aria-label="Refresh data">
-                <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 sm:h-5 sm:w-5 text-slate-600 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => navigate('/crm/properties/new')}
-                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:from-purple-600 hover:to-indigo-700 transition-all shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40"
+                className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-purple-500 to-indigo-600 text-white rounded-xl hover:from-purple-600 hover:to-indigo-700 transition-all duration-300 shadow-lg shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/30 btn-press font-semibold"
               >
                 <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline font-medium text-sm sm:text-base">Add Property</span>
-                <span className="sm:hidden font-medium text-sm">New</span>
+                <span className="hidden sm:inline text-sm sm:text-base">Add Property</span>
+                <span className="sm:hidden text-sm">New</span>
               </button>
             </div>
           </div>
@@ -313,48 +336,59 @@ export default function PropertyList() {
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6">
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6 stagger-children">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-gray-900">{properties.length}</p>
-                <p className="text-xs text-gray-500">Total Properties</p>
+                <p className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">{properties.length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Total Properties</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600">{properties.filter(p => p.status === 'available').length}</p>
-                <p className="text-xs text-gray-500">Available</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{properties.filter(p => p.status === 'available' || p.status === 'for-sale' || p.status === 'for-rent').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Available / Listed</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <Home className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-blue-600">{properties.filter(p => p.status === 'rented').length}</p>
-                <p className="text-xs text-gray-500">Rented</p>
+                <p className="text-xl sm:text-2xl font-bold text-blue-600 tracking-tight">{properties.filter(p => p.status === 'rented').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Rented</p>
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
             <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-rose-500 to-red-600 flex items-center justify-center shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xl sm:text-2xl font-bold text-rose-600 tracking-tight">{properties.filter(p => p.status === 'sold').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Sold</p>
+              </div>
+            </div>
+          </div>
+          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
                 <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-amber-600">{properties.filter(p => p.status === 'on_hold').length}</p>
-                <p className="text-xs text-gray-500">On Hold</p>
+                <p className="text-xl sm:text-2xl font-bold text-amber-600 tracking-tight">{properties.filter(p => p.status === 'on-hold').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">On Hold</p>
               </div>
             </div>
           </div>

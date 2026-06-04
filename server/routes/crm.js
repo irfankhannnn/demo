@@ -89,8 +89,30 @@ const upload = multer({
 // Get all customers
 router.get('/customers', validateToken, extractTenantId, async (req, res) => {
   try {
-    const customers = await getCustomers(req.tenantId);
-    res.json(customers);
+    const { area, status, search, source, tag, hasCurrentRental, hasRentalHistory, leaseEndingWithinDays, propertyId, monthlyRentMin, monthlyRentMax, createdFrom, createdTo, sortBy, sortOrder, limit, offset } = req.query;
+
+    const dbFilters = {};
+    if (area) dbFilters.area = area;
+    if (status) dbFilters.status = status;
+    if (search) dbFilters.search = search;
+    if (source) dbFilters.source = source;
+    if (tag) dbFilters.tag = tag;
+    if (hasCurrentRental) dbFilters.hasCurrentRental = hasCurrentRental;
+    if (hasRentalHistory) dbFilters.hasRentalHistory = hasRentalHistory;
+    if (leaseEndingWithinDays) dbFilters.leaseEndingWithinDays = leaseEndingWithinDays;
+    if (propertyId) dbFilters.propertyId = propertyId;
+    if (monthlyRentMin) dbFilters.monthlyRentMin = monthlyRentMin;
+    if (monthlyRentMax) dbFilters.monthlyRentMax = monthlyRentMax;
+    if (createdFrom) dbFilters.createdFrom = createdFrom;
+    if (createdTo) dbFilters.createdTo = createdTo;
+    if (sortBy) dbFilters.sortBy = sortBy;
+    if (sortOrder) dbFilters.sortOrder = sortOrder;
+    if (limit) dbFilters.limit = limit;
+    if (offset) dbFilters.offset = offset;
+
+    const { customers, total, limit: appliedLimit, offset: appliedOffset } = await getCustomers(req.tenantId, dbFilters);
+
+    res.json({ customers, total, limit: appliedLimit, offset: appliedOffset });
   } catch (error) {
     console.error('Get customers error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -182,23 +204,45 @@ router.delete('/customers/:id/notes/:noteId', validateToken, extractTenantId, as
 
 // ============== Owner Routes ==============
 
-// Get all owners
+// Get all owners (query-first API)
 router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
+    const {
+      status, source, area, search,
+      createdFrom, createdTo,
+      hasProperties, seller,
+      propertyType, listingType, bhk, furnishing,
+      minProperties, maxProperties,
+      tag,
+      hasPAN, hasAadhar, hasBankDetails,
+      sortBy, sortOrder,
+      limit, offset
+    } = req.query;
+
     const normalizePhone = (phone) => String(phone || '').replace(/[^0-9]/g, '').slice(-10);
 
-    // Option B: Ensure converted leads (stored as CONTACT with roles.owner=true or roles.seller=true) are visible in legacy Owner UI.
-    // We backfill/create a legacy OWNER record (deduped by phone) for any owner/seller-contact not already present.
+    // Build DB filters (pre-property-count)
+    const dbFilters = {};
+    if (status) dbFilters.status = status;
+    if (source) dbFilters.source = source;
+    if (area) dbFilters.area = area;
+    if (search) dbFilters.search = search;
+    if (createdFrom) dbFilters.createdFrom = createdFrom;
+    if (createdTo) dbFilters.createdTo = createdTo;
+    if (tag) dbFilters.tag = tag;
+    if (sortBy) dbFilters.sortBy = sortBy;
+    if (sortOrder) dbFilters.sortOrder = sortOrder;
+
+    // Fetch all matching owners (no pagination yet — we need to compute counts first)
     const [ownersInitial, properties, ownerContacts, sellerContacts] = await Promise.all([
-      getOwners(req.tenantId),
+      getOwners(req.tenantId, dbFilters),
       getProperties(req.tenantId),
       getContacts(req.tenantId, { role: 'owner' }),
       getContacts(req.tenantId, { role: 'seller' }),
     ]);
 
-    const ownersByPhone = new Set((ownersInitial || []).map((o) => normalizePhone(o.phone)).filter(Boolean));
-
-    // Combine owner and seller contacts for backfill
+    // Backfill: ensure converted leads stored as CONTACT are visible
+    const ownersByPhone = new Set((ownersInitial.owners || []).map((o) => normalizePhone(o.phone)).filter(Boolean));
     const allContactsToCheck = [...(ownerContacts || []), ...(sellerContacts || [])];
     const contactsToBackfill = allContactsToCheck.filter((c) => {
       const phone = normalizePhone(c.phone);
@@ -219,8 +263,13 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       ));
     }
 
-    const owners = contactsToBackfill.length ? await getOwners(req.tenantId) : ownersInitial;
+    // Re-fetch after backfill with same filters
+    const ownersResult = contactsToBackfill.length
+      ? await getOwners(req.tenantId, dbFilters)
+      : ownersInitial;
+    let owners = ownersResult.owners;
 
+    // Compute property counts
     const propertyCounts = properties.reduce((acc, property) => {
       const ownerId = property.ownerId;
       if (!ownerId) return acc;
@@ -228,19 +277,67 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       return acc;
     }, {});
 
-    const ownersWithCounts = owners.map((owner) => ({
+    // Identify sellers (owners with for-sale/sold properties)
+    const forSaleProperties = properties.filter(p => p.status === 'for-sale' || p.status === 'sold');
+    const sellerOwnerIds = new Set(forSaleProperties.map(p => p.ownerId).filter(Boolean));
+
+    // Attach counts
+    owners = owners.map((owner) => ({
       ...owner,
       propertyCount: propertyCounts[owner.ownerId] || 0,
+      isSeller: sellerOwnerIds.has(owner.ownerId),
     }));
 
-    // Calculate seller count (owners with for-sale properties)
-    const forSaleProperties = properties.filter(p => p.status === 'for-sale');
-    const sellerOwnerIds = new Set(forSaleProperties.map(p => p.ownerId).filter(Boolean));
-    const sellerCount = owners.filter(o => sellerOwnerIds.has(o.ownerId)).length;
+    // Apply post-DB filters
+    if (hasProperties === 'true') {
+      owners = owners.filter(o => o.propertyCount > 0);
+    }
+    if (seller === 'true') {
+      owners = owners.filter(o => o.isSeller);
+    }
+
+    // Property-attribute filters (join against properties)
+    if (propertyType || listingType || bhk || furnishing) {
+      const matchingOwnerIds = new Set(
+        properties.filter(p => {
+          if (propertyType && p.propertyType !== propertyType) return false;
+          if (listingType && p.listingType !== listingType) return false;
+          if (bhk && String(p.bhk) !== String(bhk)) return false;
+          if (furnishing && p.furnishing !== furnishing) return false;
+          return true;
+        }).map(p => p.ownerId).filter(Boolean)
+      );
+      owners = owners.filter(o => matchingOwnerIds.has(o.ownerId));
+    }
+
+    // Property-count filters
+    if (minProperties !== undefined) {
+      const min = parseInt(minProperties);
+      if (!isNaN(min)) owners = owners.filter(o => o.propertyCount >= min);
+    }
+    if (maxProperties !== undefined) {
+      const max = parseInt(maxProperties);
+      if (!isNaN(max)) owners = owners.filter(o => o.propertyCount <= max);
+    }
+
+    // Document / KYC filters
+    if (hasPAN === 'true') owners = owners.filter(o => !!o.panNumber);
+    if (hasAadhar === 'true') owners = owners.filter(o => !!o.aadharNumber);
+    if (hasBankDetails === 'true') {
+      owners = owners.filter(o => !!(o.bankName && o.accountNumber && o.ifscCode));
+    }
+
+    const total = owners.length;
+    const pageLimit = parseInt(limit) || 50;
+    const pageOffset = parseInt(offset) || 0;
+    const paginated = owners.slice(pageOffset, pageOffset + pageLimit);
 
     res.json({
-      owners: ownersWithCounts,
-      sellerCount,
+      owners: paginated,
+      total,
+      limit: pageLimit,
+      offset: pageOffset,
+      sellerCount: owners.filter(o => o.isSeller).length,
     });
   } catch (error) {
     console.error('Get owners error:', error);
@@ -411,51 +508,63 @@ router.get('/owners/:id/properties', validateToken, extractTenantId, async (req,
 
 // ============== Property Routes ==============
 
-// Get all properties (CRM - with owner & tenant info)
+// Get all properties (query-first API)
 router.get('/properties', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { status } = req.query;
-    let properties;
-    
-    if (status) {
-      properties = await getPropertiesByStatus(req.tenantId, status);
-    } else {
-      properties = await getProperties(req.tenantId);
-    }
-    
-    // Enrich with owner, tenant data and signed URLs
-    const enrichedProperties = await Promise.all(
-      properties.map(async (property) => {
-        // Handle null/unassigned owner gracefully
-        const owner = property.ownerId 
-          ? await getOwner(req.tenantId, property.ownerId)
-          : null;
-        const tenant = property.tenantCustomerId
-          ? await getCustomer(req.tenantId, property.tenantCustomerId)
-          : null;
-        const images = await Promise.all(
-          (property.images || []).map(async (key) => ({
-            key,
-            url: await getS3SignedUrl(key),
-          }))
-        );
-        const videos = await Promise.all(
-          (property.videos || []).map(async (key) => ({
-            key,
-            url: await getS3SignedUrl(key),
-          }))
-        );
-        return {
-          ...property,
-          owner,
-          tenant,
-          images,
-          videos,
-        };
-      })
-    );
-    
-    res.json(enrichedProperties);
+    const {
+      status, propertyType, bhk, furnishing,
+      area, city, ownerId, search,
+      minRent, maxRent, minSalePrice, maxSalePrice,
+      createdFrom, createdTo, tag,
+      sortBy, sortOrder,
+      limit, offset
+    } = req.query;
+
+    const dbFilters = {};
+    if (status) dbFilters.status = status;
+    if (propertyType) dbFilters.propertyType = propertyType;
+    if (bhk) dbFilters.bhk = bhk;
+    if (furnishing) dbFilters.furnishing = furnishing;
+    if (area) dbFilters.area = area;
+    if (city) dbFilters.city = city;
+    if (ownerId) dbFilters.ownerId = ownerId;
+    if (search) dbFilters.search = search;
+    if (minRent) dbFilters.minRent = minRent;
+    if (maxRent) dbFilters.maxRent = maxRent;
+    if (minSalePrice) dbFilters.minSalePrice = minSalePrice;
+    if (maxSalePrice) dbFilters.maxSalePrice = maxSalePrice;
+    if (createdFrom) dbFilters.createdFrom = createdFrom;
+    if (createdTo) dbFilters.createdTo = createdTo;
+    if (tag) dbFilters.tag = tag;
+    if (sortBy) dbFilters.sortBy = sortBy;
+    if (sortOrder) dbFilters.sortOrder = sortOrder;
+    if (limit) dbFilters.limit = limit;
+    if (offset) dbFilters.offset = offset;
+
+    const { properties, total } = await getProperties(req.tenantId, dbFilters);
+
+    // Light enrichment: owner name/phone only (avoid N+1 signed URLs for lists)
+    const { owners } = await getOwners(req.tenantId);
+    const ownerMap = new Map(owners.map(o => [o.ownerId, o]));
+
+    const enriched = properties.map(p => {
+      const owner = ownerMap.get(p.ownerId);
+      return {
+        ...p,
+        ownerName: owner?.name || p.ownerName || null,
+        ownerPhone: owner?.phone || p.ownerPhone || null,
+      };
+    });
+
+    const pageLimit = parseInt(limit) || 50;
+    const pageOffset = parseInt(offset) || 0;
+
+    res.json({
+      properties: enriched,
+      total,
+      limit: pageLimit,
+      offset: pageOffset,
+    });
   } catch (error) {
     console.error('Get properties error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -473,8 +582,8 @@ router.get('/properties/public/list', extractTenantIdOptional, async (req, res) 
     // By default, include all properties for map display.
     // If a status query is provided, filter by that status.
     const { status } = req.query;
-    const properties = status
-      ? await getPropertiesByStatus(req.tenantId, status)
+    const { properties } = status
+      ? await getProperties(req.tenantId, { status })
       : await getProperties(req.tenantId);
     
     // Generate signed URLs but DON'T include owner data
@@ -538,9 +647,39 @@ router.get('/properties/:id', validateToken, extractTenantId, async (req, res) =
       }))
     );
     
-    res.json({ ...property, owner, tenant, images, videos });
+    res.json({
+      ...property,
+      ownerName: owner?.name || property.ownerName || null,
+      ownerPhone: owner?.phone || property.ownerPhone || null,
+      owner,
+      tenant,
+      images,
+      videos,
+    });
   } catch (error) {
     console.error('Get property error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Get property rental history
+router.get('/properties/:id/rental-history', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const property = await getProperty(req.tenantId, req.params.id);
+    if (!property) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+    res.json({
+      rentalHistory: property.rentalHistory || [],
+      currentRental: property.rentalInfo?.currentTenantId ? {
+        tenantId: property.rentalInfo.currentTenantId,
+        leaseStartDate: property.rentalInfo.leaseStartDate,
+        leaseEndDate: property.rentalInfo.leaseEndDate,
+        monthlyRent: property.rentalInfo.currentRent,
+      } : null,
+    });
+  } catch (error) {
+    console.error('Get property rental history error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -553,7 +692,7 @@ router.get('/properties/public/:id', extractTenantIdOptional, async (req, res) =
     }
     
     const property = await getProperty(req.tenantId, req.params.id);
-    if (!property || property.status !== 'available') {
+    if (!property || !['available', 'for-sale', 'for-rent'].includes(property.status)) {
       return res.status(404).json({ error: 'Property not found' });
     }
     
@@ -1199,10 +1338,10 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
 router.get('/analytics/business', validateToken, extractTenantId, async (req, res) => {
   try {
     // Get all properties with basic details
-    const properties = await getProperties(req.tenantId);
-    const customers = await getCustomers(req.tenantId);
-    const owners = await getOwners(req.tenantId);
-    
+    const { properties } = await getProperties(req.tenantId);
+    const { customers } = await getCustomers(req.tenantId);
+    const { owners } = await getOwners(req.tenantId);
+
     // Create maps for quick lookup
     const ownerMap = new Map(owners.map(o => [o.ownerId, o]));
     const customerMap = new Map(customers.map(c => [c.customerId, c]));
@@ -1226,7 +1365,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     // Process each property and fetch its agreements and verifications
     for (const property of properties) {
       // Calculate revenue for rented properties
-      if (property.status === 'rented' && property.monthlyRent) {
+      if ((property.status === 'rented') && property.monthlyRent) {
         totalRevenue += property.monthlyRent;
         activeProperties++;
       }
@@ -1346,8 +1485,12 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
       monthlyRevenue: [],
       propertyStatusDistribution: [
         { status: 'available', count: properties.filter(p => p.status === 'available').length },
+        { status: 'for-sale', count: properties.filter(p => p.status === 'for-sale').length },
+        { status: 'for-rent', count: properties.filter(p => p.status === 'for-rent').length },
         { status: 'rented', count: properties.filter(p => p.status === 'rented').length },
-        { status: 'on_hold', count: properties.filter(p => p.status === 'on_hold').length },
+        { status: 'sold', count: properties.filter(p => p.status === 'sold').length },
+        { status: 'on-hold', count: properties.filter(p => p.status === 'on-hold').length },
+        { status: 'out-of-stock', count: properties.filter(p => p.status === 'out-of-stock').length },
       ],
     };
     
@@ -1571,11 +1714,19 @@ router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, asy
 // Mark property as sold
 router.post('/properties/:id/mark-sold', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { soldPrice, buyerId } = req.body;
+    const { soldPrice, buyerId, saleType, reasonLost, notes, brokerageAmount, brokerageLost } = req.body;
+    
+    // Validate request
     if (!soldPrice) {
       return res.status(400).json({ error: 'Sold price is required' });
     }
-    await markPropertySold(req.tenantId, req.params.id, soldPrice, buyerId || null);
+    
+    const type = saleType || 'direct';
+    if (type === 'direct' && !buyerId) {
+      return res.status(400).json({ error: 'Buyer ID is required for a direct sale' });
+    }
+
+    await markPropertySold(req.tenantId, req.params.id, soldPrice, buyerId || null, type, reasonLost || null, notes || null, brokerageAmount || null, brokerageLost || null);
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {

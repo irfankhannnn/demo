@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, Link, useLocation } from 'react-router-dom';
 import {
   Target,
   ArrowLeft,
@@ -21,27 +21,35 @@ import {
   X,
   Pencil,
   Trash2,
+  Search,
+  MessageSquare,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
+import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } from '../../types/crm';
 
 export default function LeadDetails() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
 
+  // Get initial data from navigation state (e.g., when converting from enquiry)
+  const initialData = location.state?.initialData;
+
   const [lead, setLead] = useState<Partial<CRMLead>>({
-    leadType: 'buyer',
-    name: '',
-    phone: '',
-    email: '',
-    source: '',
+    leadType: initialData?.leadType || 'buyer',
+    name: initialData?.name || '',
+    phone: initialData?.phone || '',
+    email: initialData?.email || '',
+    source: initialData?.source || '',
     status: 'new',
     priority: 'medium',
-    notes: '',
+    notes: initialData?.notes || '',
     buyerRequirement: {},
     sellerProperty: {},
     tenantRequirement: {},
@@ -67,6 +75,8 @@ export default function LeadDetails() {
   const [outcomeMeeting, setOutcomeMeeting] = useState<CRMMeeting | null>(null);
   const [outcomeText, setOutcomeText] = useState('');
   const [updatingMeeting, setUpdatingMeeting] = useState(false);
+  const [customSource, setCustomSource] = useState('');
+  const SOURCE_OPTIONS = ['Website', 'Referral', 'Walk-in', 'Google Ads', 'Social Media', 'Property Portal', 'Broker Network', 'Other'];
 
   useEffect(() => {
     if (!showConvertModal && !showOutcomeModal) return;
@@ -87,13 +97,20 @@ export default function LeadDetails() {
   }, [showConvertModal, showOutcomeModal]);
   
   // Conversion form state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [selectedPropertyId, setSelectedPropertyId] = useState('');
-  const [ownerLookupPhone, setOwnerLookupPhone] = useState('');
-  const [ownerLookupLoading, setOwnerLookupLoading] = useState(false);
-  const [ownerLookupError, setOwnerLookupError] = useState<string | null>(null);
   const [selectedOwner, setSelectedOwner] = useState<any | null>(null);
   const [ownerProperties, setOwnerProperties] = useState<any[]>([]);
   const [ownerPropertiesLoading, setOwnerPropertiesLoading] = useState(false);
+  const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
+  const [ownerSearchResults, setOwnerSearchResults] = useState<any[]>([]);
+  const [ownerSearchLoading, setOwnerSearchLoading] = useState(false);
+  const [buyerDirectSearchQuery, setBuyerDirectSearchQuery] = useState('');
+  const [tenantDirectSearchQuery, setTenantDirectSearchQuery] = useState('');
+
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [purchaseDetails, setPurchaseDetails] = useState({
     saleAmount: '',
     purchaseDate: '',
@@ -107,12 +124,12 @@ export default function LeadDetails() {
     leaseEndDate: '',
     monthlyRent: '',
     securityDeposit: '',
+    brokeragePaid: '',
   });
   const [kycDetails, setKycDetails] = useState({
     panNumber: '',
     aadharNumber: '',
   });
-
   useEffect(() => {
     if (isNew) {
       setLoading(false);
@@ -121,7 +138,6 @@ export default function LeadDetails() {
     
     if (id) {
       loadLead();
-      loadProperties();
       loadMeetings();
     }
   }, [id, isNew]);
@@ -147,7 +163,7 @@ export default function LeadDetails() {
       await loadMeetings();
     } catch (e) {
       console.error('Failed to update meeting status', e);
-      alert('Failed to update meeting');
+      showToast('Failed to update meeting', 'error');
     } finally {
       setUpdatingMeeting(false);
     }
@@ -173,30 +189,65 @@ export default function LeadDetails() {
       await loadMeetings();
     } catch (e) {
       console.error('Failed to save meeting outcome', e);
-      alert('Failed to save meeting summary');
+      showToast('Failed to save meeting summary', 'error');
     } finally {
       setUpdatingMeeting(false);
     }
   };
 
   useEffect(() => {
-    if (isNew || !id) return;
+    if (isNew || !id || loading || !lead.name) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('convert') === '1') {
-      setShowConvertModal(true);
+      if (!lead.phone) {
+        showToast('Please add a phone number to the lead before converting.', 'error');
+        // Clean up URL to avoid repeating toast on reload
+        navigate(`/crm/leads/${id}`, { replace: true });
+      } else {
+        setShowConvertModal(true);
+      }
     }
-  }, [id, isNew]);
+  }, [id, isNew, loading, lead, navigate]);
 
   useEffect(() => {
     if (!showConvertModal) return;
+
+    // Load correct properties for this lead type when modal opens
+    loadProperties(lead.leadType);
+
     if (lead.leadType !== 'tenant') return;
 
     // Reset owner + property selection when opening the tenant conversion modal
+    setTenantDirectSearchQuery('');
     setOwnerLookupPhone(lead.phone || '');
     setOwnerLookupError(null);
     setSelectedOwner(null);
     setOwnerProperties([]);
     setSelectedPropertyId('');
+    setLeaseDetails({
+      leaseStartDate: '',
+      leaseEndDate: '',
+      monthlyRent: '',
+      securityDeposit: '',
+      brokeragePaid: '',
+    });
+  }, [showConvertModal, lead.leadType]);
+
+  useEffect(() => {
+    if (!showConvertModal) return;
+    if (lead.leadType !== 'buyer') return;
+    setBuyerDirectSearchQuery('');
+    setSelectedOwner(null);
+    setOwnerProperties([]);
+    setSelectedPropertyId('');
+    setPurchaseDetails({
+      saleAmount: '',
+      purchaseDate: '',
+      registrationDate: '',
+      registrationNumber: '',
+      stampDutyPaid: '',
+      brokeragePaid: '',
+    });
   }, [showConvertModal, lead.leadType]);
 
   useEffect(() => {
@@ -229,51 +280,93 @@ export default function LeadDetails() {
     });
   }, [lead.leadType, selectedPropertyId, properties]);
 
-  const loadProperties = async () => {
+  const loadProperties = async (type?: string) => {
     try {
-      const allProperties = await api.getCRMProperties();
-      setProperties(allProperties || []);
+      const isTenant = type === 'tenant';
+      const [setA, setB] = await Promise.all([
+        api.getCRMProperties('available'),
+        api.getCRMProperties(isTenant ? 'for-rent' : 'for-sale'),
+      ]);
+
+      const mergedMap = new Map<string, any>();
+      (setA || []).forEach((p: any) => {
+        if (p.propertyId) mergedMap.set(p.propertyId, p);
+      });
+      (setB || []).forEach((p: any) => {
+        if (p.propertyId) mergedMap.set(p.propertyId, p);
+      });
+
+      setProperties(Array.from(mergedMap.values()));
     } catch (error) {
       console.error('Error loading properties:', error);
     }
   };
 
-  const lookupOwnerByPhone = async () => {
+  const handleOwnerSearch = async (query: string) => {
+    setOwnerSearchQuery(query);
+    const cleanQuery = query.trim();
+    if (!cleanQuery) {
+      setOwnerSearchResults([]);
+      return;
+    }
+
     try {
-      const phone = (ownerLookupPhone || '').trim();
-      if (!phone) {
-        setOwnerLookupError('Enter owner phone number');
-        return;
-      }
+      setOwnerSearchLoading(true);
+      const results = await api.searchOwners(cleanQuery);
+      setOwnerSearchResults(Array.isArray(results) ? results : []);
+    } catch (e) {
+      console.error('Owner search failed:', e);
+    } finally {
+      setOwnerSearchLoading(false);
+    }
+  };
 
-      setOwnerLookupLoading(true);
-      setOwnerLookupError(null);
-
-      const result = await api.getOwnerByPhone(phone);
-      const owner = result?.owner || null;
-
-      if (!result?.found || !owner) {
-        setSelectedOwner(null);
-        setOwnerProperties([]);
-        setSelectedPropertyId('');
-        setOwnerLookupError('Owner not found for this phone number');
-        return;
-      }
-
-      setSelectedOwner(owner);
-      setOwnerPropertiesLoading(true);
+  const handleSelectOwner = async (owner: any) => {
+    setSelectedOwner(owner);
+    setOwnerSearchResults([]);
+    setOwnerSearchQuery('');
+    setOwnerPropertiesLoading(true);
+    try {
       const props = await api.getOwnerProperties(owner.ownerId);
       setOwnerProperties(Array.isArray(props) ? props : []);
       setSelectedPropertyId('');
     } catch (e) {
-      console.error('Owner lookup failed:', e);
-      setOwnerLookupError(e instanceof Error ? e.message : 'Failed to lookup owner');
-      setSelectedOwner(null);
-      setOwnerProperties([]);
-      setSelectedPropertyId('');
+      console.error('Failed to load owner properties:', e);
+      showToast('Failed to load properties for this owner', 'error');
     } finally {
-      setOwnerLookupLoading(false);
       setOwnerPropertiesLoading(false);
+    }
+  };
+
+  const handleSelectPropertyDirectly = async (propertyId: string) => {
+    setSelectedPropertyId(propertyId);
+    if (!propertyId) {
+      return;
+    }
+
+    const prop = properties.find(p => p.propertyId === propertyId);
+    if (prop) {
+      if (prop.ownerId) {
+        const ownerObj = {
+          ownerId: prop.ownerId,
+          name: prop.ownerName || 'Owner',
+          phone: prop.ownerPhone || '',
+        };
+        setSelectedOwner(ownerObj);
+        
+        setOwnerPropertiesLoading(true);
+        try {
+          const props = await api.getOwnerProperties(prop.ownerId);
+          setOwnerProperties(Array.isArray(props) ? props : []);
+        } catch (e) {
+          console.error('Failed to load properties for resolved owner:', e);
+        } finally {
+          setOwnerPropertiesLoading(false);
+        }
+      } else {
+        setSelectedOwner(null);
+        setOwnerProperties([]);
+      }
     }
   };
 
@@ -282,6 +375,8 @@ export default function LeadDetails() {
     setOwnerProperties([]);
     setSelectedPropertyId('');
     setOwnerLookupError(null);
+    setOwnerSearchQuery('');
+    setOwnerSearchResults([]);
   };
 
   const loadLead = async () => {
@@ -305,7 +400,7 @@ export default function LeadDetails() {
 
   const handleSave = async () => {
     if (!lead.name || !lead.leadType) {
-      alert('Name and lead type are required');
+      showToast('Name and lead type are required', 'error');
       return;
     }
 
@@ -319,6 +414,8 @@ export default function LeadDetails() {
         source: lead.source,
         status: lead.status,
         priority: lead.priority,
+        lostReason: lead.status === 'lost' ? lead.lostReason : null,
+        lostAt: lead.status === 'lost' ? (lead.lostAt || new Date().toISOString()) : null,
         buyerRequirement: lead.buyerRequirement || undefined,
         sellerProperty: lead.sellerProperty || undefined,
         tenantRequirement: lead.tenantRequirement || undefined,
@@ -342,7 +439,7 @@ export default function LeadDetails() {
       navigate('/crm/leads');
     } catch (error) {
       console.error('Error saving lead:', error);
-      alert('Failed to save lead');
+      showToast('Failed to save lead', 'error');
     } finally {
       setSaving(false);
     }
@@ -400,7 +497,7 @@ export default function LeadDetails() {
       // Buyer conversion - requires purchase details
       if (lead.leadType === 'buyer') {
         if (!selectedPropertyId || !purchaseDetails.saleAmount) {
-          alert('Property and sale amount are required for buyer conversion');
+          showToast('Property and sale amount are required for buyer conversion', 'error');
           return;
         }
         payload.purchaseDetails = {
@@ -421,16 +518,12 @@ export default function LeadDetails() {
       }
       // Tenant conversion - requires lease details
       else if (lead.leadType === 'tenant') {
-        if (!selectedOwner) {
-          alert('Owner is required for tenant conversion');
-          return;
-        }
         if (!selectedPropertyId || !leaseDetails.monthlyRent || !leaseDetails.leaseStartDate) {
-          alert('Property, rent, and lease start date are required for tenant conversion');
+          showToast('Property, rent, and lease start date are required for tenant conversion', 'error');
           return;
         }
-        if (!ownerProperties.some((p) => p.propertyId === selectedPropertyId)) {
-          alert('Please select a property that belongs to the selected owner');
+        if (selectedOwner && !ownerProperties.some((p) => p.propertyId === selectedPropertyId)) {
+          showToast('Please select a property that belongs to the selected owner', 'error');
           return;
         }
         payload.leaseDetails = {
@@ -439,6 +532,7 @@ export default function LeadDetails() {
           leaseEndDate: leaseDetails.leaseEndDate || undefined,
           monthlyRent: Number(leaseDetails.monthlyRent),
           securityDeposit: leaseDetails.securityDeposit ? Number(leaseDetails.securityDeposit) : undefined,
+          brokeragePaid: leaseDetails.brokeragePaid ? Number(leaseDetails.brokeragePaid) : undefined,
         };
         if (kycDetails.aadharNumber) {
           payload.kycDetails = {
@@ -458,6 +552,13 @@ export default function LeadDetails() {
       const entityType = result?.entityType;
       const entity = result?.entity;
 
+      // Notify user about Khata Book brokerage entry
+      if (lead.leadType === 'buyer' && purchaseDetails.brokeragePaid) {
+        showToast(`Lead converted! Brokerage of ₹${Number(purchaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`, 'success');
+      } else if (lead.leadType === 'tenant' && leaseDetails.brokeragePaid) {
+        showToast(`Lead converted! Brokerage of ₹${Number(leaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`, 'success');
+      }
+
       if (entityType === 'buyer' && entity?.buyerId) {
         navigate(`/crm/buyers/${entity.buyerId}`);
       } else if (entityType === 'tenant' && entity?.customerId) {
@@ -471,7 +572,7 @@ export default function LeadDetails() {
       setShowConvertModal(false);
     } catch (error) {
       console.error('Error converting lead:', error);
-      alert('Failed to convert lead');
+      showToast('Failed to convert lead', 'error');
     } finally {
       setConverting(false);
     }
@@ -482,27 +583,34 @@ export default function LeadDetails() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50 to-orange-50">
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/leads')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/30 flex-shrink-0">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25 flex-shrink-0 animate-gentlePulse">
                   <Target className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 tracking-tight truncate">
                     {isNew ? 'New Lead' : lead.name || 'Lead Details'}
                   </h1>
                   {!isNew && lead.leadType && (
-                    <p className="text-xs sm:text-sm text-gray-500 capitalize">{lead.leadType} Lead</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold capitalize">{lead.leadType} Lead</p>
                   )}
                 </div>
               </div>
@@ -512,7 +620,7 @@ export default function LeadDetails() {
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all shadow-lg shadow-amber-500/30 disabled:opacity-50 font-medium"
+                  className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl hover:from-amber-600 hover:to-orange-700 transition-all duration-300 shadow-lg shadow-amber-500/20 hover:shadow-xl hover:shadow-amber-500/30 disabled:opacity-50 btn-press font-semibold"
                 >
                   <Save className="h-4 w-4 sm:h-5 sm:w-5" />
                   <span className="text-sm">{saving ? 'Saving...' : 'Save'}</span>
@@ -520,7 +628,7 @@ export default function LeadDetails() {
                 {!isNew && (
                   <button
                     onClick={() => setShowConvertModal(true)}
-                    className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl hover:from-emerald-600 hover:to-green-700 transition-all shadow-lg shadow-emerald-500/30 font-medium"
+                    className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl hover:from-emerald-600 hover:to-green-700 transition-all duration-300 shadow-lg shadow-emerald-500/20 hover:shadow-xl hover:shadow-emerald-500/30 btn-press font-semibold"
                   >
                     <CheckCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span className="text-sm">Convert</span>
@@ -541,7 +649,33 @@ export default function LeadDetails() {
               <div>
                 <p className="font-medium text-green-800">Lead Converted</p>
                 <p className="text-sm text-green-600">
-                  Converted to {lead.convertedTo?.role} on {new Date(lead.convertedAt!).toLocaleDateString()}
+                  Converted to{' '}
+                  {lead.convertedTo?.contactId ? (
+                    <Link
+                      to={`/crm/${lead.convertedTo.role === 'buyer' ? 'buyers' : lead.convertedTo.role === 'tenant' || lead.convertedTo.role === 'customer' ? 'tenants' : 'owners'}/${lead.convertedTo.contactId}`}
+                      className="underline font-medium hover:text-green-800"
+                    >
+                      {lead.convertedTo.role}
+                    </Link>
+                  ) : (
+                    lead.convertedTo?.role
+                  )}{' '}
+                  on {new Date(lead.convertedAt!).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Enquiry Conversion Banner */}
+        {isNew && initialData?.enquiryId && (
+          <div className="mb-4 p-4 bg-white/60 backdrop-blur-xl border border-orange-200/50 rounded-xl shadow-lg">
+            <div className="flex items-center">
+              <MessageSquare className="h-5 w-5 text-orange-600 mr-2" />
+              <div>
+                <p className="font-medium text-orange-800">Converting from Enquiry</p>
+                <p className="text-sm text-orange-600">
+                  Pre-filled data from enquiry. Review and save to create the lead.
                 </p>
               </div>
             </div>
@@ -593,16 +727,16 @@ export default function LeadDetails() {
                         </div>
 
                         <div className="flex flex-col gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setRescheduleMeeting(m)}
-                            className="px-3 py-1.5 text-xs bg-white border rounded hover:bg-gray-100"
-                            disabled={updatingMeeting}
-                          >
-                            Reschedule
-                          </button>
                           {m.status === 'scheduled' && (
                             <>
+                              <button
+                                type="button"
+                                onClick={() => setRescheduleMeeting(m)}
+                                className="px-3 py-1.5 text-xs bg-white border rounded hover:bg-gray-100"
+                                disabled={updatingMeeting}
+                              >
+                                Reschedule
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => openOutcome(m)}
@@ -630,14 +764,30 @@ export default function LeadDetails() {
           </div>
         )}
 
-        {/* Lead Type Selection (only for new leads) */}
-        {isNew && (
+        {/* Lead Type Selection */}
+        {!isConverted && (
           <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Lead Type</h3>
             <div className="max-w-xs">
               <select
                 value={lead.leadType || 'buyer'}
-                onChange={(e) => setLead({ ...lead, leadType: e.target.value as LeadType })}
+                onChange={(e) => {
+                  const newType = e.target.value as LeadType;
+                  if (!isNew) {
+                    const confirmChange = window.confirm(
+                      'Changing the lead type will reset any type-specific requirements (like budget or property preferences) for this lead. Do you want to proceed?'
+                    );
+                    if (!confirmChange) return;
+                  }
+                  setLead({
+                    ...lead,
+                    leadType: newType,
+                    buyerRequirement: null,
+                    sellerProperty: null,
+                    tenantRequirement: null,
+                    ownerProperty: null,
+                  });
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
               >
                 <option value="buyer">Buyer</option>
@@ -699,20 +849,54 @@ export default function LeadDetails() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
-              <input
-                type="text"
-                value={lead.source || ''}
-                onChange={(e) => setLead({ ...lead, source: e.target.value })}
+              <select
+                value={lead.source && SOURCE_OPTIONS.includes(lead.source) ? lead.source : lead.source ? 'Other' : ''}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'Other') {
+                    setLead({ ...lead, source: customSource || '' });
+                  } else {
+                    setLead({ ...lead, source: val });
+                  }
+                }}
                 disabled={isConverted}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-                placeholder="e.g., Referral, Website, Walk-in"
-              />
+              >
+                <option value="">Select source</option>
+                {SOURCE_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              {(lead.source && !SOURCE_OPTIONS.includes(lead.source)) || (!lead.source && customSource) ? (
+                <input
+                  type="text"
+                  value={customSource}
+                  onChange={(e) => {
+                    setCustomSource(e.target.value);
+                    setLead({ ...lead, source: e.target.value });
+                  }}
+                  disabled={isConverted}
+                  className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="Enter custom source"
+                />
+              ) : null}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
                 value={lead.status || 'new'}
-                onChange={(e) => setLead({ ...lead, status: e.target.value as LeadStatus })}
+                onChange={(e) => {
+                  const newStatus = e.target.value as LeadStatus;
+                  const updates: any = { status: newStatus };
+                  if (newStatus === 'lost') {
+                    updates.lostAt = new Date().toISOString();
+                    updates.lostReason = 'Price too high'; // default option
+                  } else {
+                    updates.lostAt = null;
+                    updates.lostReason = null;
+                  }
+                  setLead({ ...lead, ...updates });
+                }}
                 disabled={isConverted}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
               >
@@ -723,6 +907,40 @@ export default function LeadDetails() {
                 <option value="lost">Lost</option>
               </select>
             </div>
+            {lead.status === 'lost' && (
+              <div>
+                <label className="block text-sm font-medium text-red-700 mb-1">Reason for Loss</label>
+                <select
+                  value={['Price too high', 'Found another property', 'Not interested anymore', 'Couldn\'t reach'].includes(lead.lostReason || '') ? lead.lostReason || '' : lead.lostReason ? 'Other' : 'Price too high'}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'Other') {
+                      setLead({ ...lead, lostReason: '' });
+                    } else {
+                      setLead({ ...lead, lostReason: val });
+                    }
+                  }}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
+                >
+                  <option value="Price too high">Price too high</option>
+                  <option value="Found another property">Found another property</option>
+                  <option value="Not interested anymore">Not interested anymore</option>
+                  <option value="Couldn't reach">Couldn't reach</option>
+                  <option value="Other">Other</option>
+                </select>
+                {!['Price too high', 'Found another property', 'Not interested anymore', 'Couldn\'t reach'].includes(lead.lostReason || '') ? (
+                  <input
+                    type="text"
+                    value={lead.lostReason || ''}
+                    onChange={(e) => setLead({ ...lead, lostReason: e.target.value })}
+                    disabled={isConverted}
+                    className="mt-2 w-full px-3 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 disabled:bg-gray-100"
+                    placeholder="Enter custom reason"
+                  />
+                ) : null}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
               <select
@@ -863,6 +1081,100 @@ export default function LeadDetails() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">BHK</label>
+                <select
+                  value={lead.sellerProperty?.bhk || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, bhk: Number(e.target.value) }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select BHK</option>
+                  <option value="1">1 BHK</option>
+                  <option value="2">2 BHK</option>
+                  <option value="3">3 BHK</option>
+                  <option value="4">4 BHK</option>
+                  <option value="5">5+ BHK</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Building Name</label>
+                <input
+                  type="text"
+                  value={lead.sellerProperty?.buildingName || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, buildingName: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. Sea Breeze"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Flat No.</label>
+                  <input
+                    type="text"
+                    value={lead.sellerProperty?.flatNumber || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      sellerProperty: { ...lead.sellerProperty, flatNumber: e.target.value }
+                    })}
+                    disabled={isConverted}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="e.g. 401"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Floor</label>
+                  <input
+                    type="text"
+                    value={lead.sellerProperty?.floor || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      sellerProperty: { ...lead.sellerProperty, floor: e.target.value }
+                    })}
+                    disabled={isConverted}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="e.g. 4th"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Furnishing</label>
+                <select
+                  value={lead.sellerProperty?.furnishing || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, furnishing: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select furnishing</option>
+                  <option value="furnished">Furnished</option>
+                  <option value="semi-furnished">Semi-furnished</option>
+                  <option value="unfurnished">Unfurnished</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Carpet Area (sq ft)</label>
+                <input
+                  type="number"
+                  value={lead.sellerProperty?.carpetArea || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, carpetArea: Number(e.target.value) }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. 1200"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Area/Location</label>
                 <input
                   type="text"
@@ -874,6 +1186,20 @@ export default function LeadDetails() {
                   disabled={isConverted}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   placeholder="Property location"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  value={lead.sellerProperty?.city || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, city: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. Mumbai"
                 />
               </div>
               <div>
@@ -905,6 +1231,20 @@ export default function LeadDetails() {
                   disabled={isConverted}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   placeholder="e.g., Within 3 months"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Detailed Address</label>
+                <textarea
+                  value={lead.sellerProperty?.address || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    sellerProperty: { ...lead.sellerProperty, address: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="Street address, landmark, pin code..."
                 />
               </div>
             </div>
@@ -1009,6 +1349,100 @@ export default function LeadDetails() {
                 </select>
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">BHK</label>
+                <select
+                  value={lead.ownerProperty?.bhk || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, bhk: Number(e.target.value) }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select BHK</option>
+                  <option value="1">1 BHK</option>
+                  <option value="2">2 BHK</option>
+                  <option value="3">3 BHK</option>
+                  <option value="4">4 BHK</option>
+                  <option value="5">5+ BHK</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Building Name</label>
+                <input
+                  type="text"
+                  value={lead.ownerProperty?.buildingName || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, buildingName: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. Sea Breeze"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Flat No.</label>
+                  <input
+                    type="text"
+                    value={lead.ownerProperty?.flatNumber || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      ownerProperty: { ...lead.ownerProperty, flatNumber: e.target.value }
+                    })}
+                    disabled={isConverted}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="e.g. 401"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Floor</label>
+                  <input
+                    type="text"
+                    value={lead.ownerProperty?.floor || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      ownerProperty: { ...lead.ownerProperty, floor: e.target.value }
+                    })}
+                    disabled={isConverted}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="e.g. 4th"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Furnishing</label>
+                <select
+                  value={lead.ownerProperty?.furnishing || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, furnishing: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                >
+                  <option value="">Select furnishing</option>
+                  <option value="furnished">Furnished</option>
+                  <option value="semi-furnished">Semi-furnished</option>
+                  <option value="unfurnished">Unfurnished</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Carpet Area (sq ft)</label>
+                <input
+                  type="number"
+                  value={lead.ownerProperty?.carpetArea || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, carpetArea: Number(e.target.value) }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. 1200"
+                />
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Area/Location</label>
                 <input
                   type="text"
@@ -1020,6 +1454,20 @@ export default function LeadDetails() {
                   disabled={isConverted}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   placeholder="Property location"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <input
+                  type="text"
+                  value={lead.ownerProperty?.city || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, city: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="e.g. Mumbai"
                 />
               </div>
               <div>
@@ -1038,6 +1486,37 @@ export default function LeadDetails() {
                     placeholder="Expected monthly rent"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Security Deposit</label>
+                <div className="relative">
+                  <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="number"
+                    value={lead.ownerProperty?.securityDeposit || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      ownerProperty: { ...lead.ownerProperty, securityDeposit: Number(e.target.value) }
+                    })}
+                    disabled={isConverted}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="Security deposit"
+                  />
+                </div>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Detailed Address</label>
+                <textarea
+                  value={lead.ownerProperty?.address || ''}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    ownerProperty: { ...lead.ownerProperty, address: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  rows={2}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  placeholder="Street address, landmark, pin code..."
+                />
               </div>
             </div>
           </div>
@@ -1150,6 +1629,17 @@ export default function LeadDetails() {
             </div>
           )}
 
+          {/* Unified Activity Timeline */}
+          {!isNew && (
+            <div className="mt-6 pt-4 border-t">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                <Clock className="h-5 w-5 mr-2 text-purple-600" />
+                Unified Activity Timeline
+              </h3>
+              <ContactActivityTimeline entityType="lead" entityId={id} />
+            </div>
+          )}
+
           {/* History */}
           {lead.history && lead.history.length > 0 && (
             <div className="mt-6 pt-4 border-t">
@@ -1175,135 +1665,387 @@ export default function LeadDetails() {
 
       {/* Convert Modal */}
       {showConvertModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl border border-white/30 bg-white/70 shadow-2xl backdrop-blur-xl">
-            <div className="sticky top-0 bg-white/50 backdrop-blur-xl border-b px-5 py-4 flex justify-between items-center">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Convert {lead.leadType} Lead to {lead.leadType === 'seller' ? 'Owner' : lead.leadType}
-              </h3>
+        <div className="fixed inset-0 bg-black/50 z-50 p-4 flex items-center justify-center">
+          <div className="w-full max-w-md max-h-[90vh] rounded-2xl bg-white shadow-2xl flex flex-col overflow-hidden">
+            <div className="shrink-0 border-b px-5 py-4 flex justify-between items-center bg-white">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Convert {lead.leadType} Lead
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">{lead.name} · {lead.phone}</p>
+              </div>
               <button
                 onClick={() => setShowConvertModal(false)}
-                className="p-1 hover:bg-gray-100 rounded"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X className="h-5 w-5 text-gray-500" />
               </button>
             </div>
 
-            <div className="p-5 space-y-6 overflow-y-auto max-h-[calc(80vh-64px)]">
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {/* Buyer Conversion Form */}
               {lead.leadType === 'buyer' && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Property <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedPropertyId}
-                      onChange={(e) => setSelectedPropertyId(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    >
-                      <option value="">Choose a property...</option>
-                      {properties.map((prop) => (
-                        <option key={prop.propertyId} value={prop.propertyId}>
-                          {prop.title} - {prop.area}, {prop.city}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Direct Property Search */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Home className="h-4 w-4 text-green-600" />
+                      <h4 className="text-sm font-semibold text-gray-800">Find Property</h4>
+                    </div>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                        <Search className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        value={buyerDirectSearchQuery}
+                        onChange={(e) => {
+                          setBuyerDirectSearchQuery(e.target.value);
+                          if (e.target.value === '') setSelectedPropertyId('');
+                        }}
+                        className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 text-sm transition-all"
+                        placeholder="Search by property name, area, or city..."
+                      />
+                    </div>
+                    {(() => {
+                      const query = buyerDirectSearchQuery.trim().toLowerCase();
+                      const filtered = query
+                        ? properties.filter((p) =>
+                            [p.title, p.area, p.city, p.ownerName]
+                              .filter(Boolean)
+                              .some((field) => field.toLowerCase().includes(query))
+                          )
+                        : properties;
+                      if (query && filtered.length === 0) {
+                        return (
+                          <div className="text-center py-6 bg-gray-50 rounded-xl">
+                            <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No properties match your search</p>
+                            <p className="text-xs text-gray-400 mt-1">Try a different area, city, or owner name</p>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {filtered.slice(0, 10).map((prop) => (
+                            <button
+                              key={prop.propertyId}
+                              type="button"
+                              onClick={() => handleSelectPropertyDirectly(prop.propertyId)}
+                              className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 group ${
+                                selectedPropertyId === prop.propertyId
+                                  ? 'border-green-500 bg-green-50 shadow-sm'
+                                  : 'border-transparent bg-gray-50 hover:bg-gray-100 hover:border-gray-200'
+                              }`}
+                            >
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                selectedPropertyId === prop.propertyId
+                                  ? 'bg-green-600 text-white'
+                                  : 'bg-white text-gray-500 group-hover:text-gray-700'
+                              }`}>
+                                {selectedPropertyId === prop.propertyId ? (
+                                  <CheckCircle className="h-4 w-4" />
+                                ) : (
+                                  <Home className="h-4 w-4" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-gray-900 text-sm truncate">{prop.title}</p>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium shrink-0 ${
+                                    prop.status === 'for-sale'
+                                      ? 'bg-blue-50 text-blue-700'
+                                      : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {prop.status === 'for-sale' ? 'For Sale' : 'Available'}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">{prop.area}, {prop.city}</p>
+                                {prop.ownerName && (
+                                  <p className="text-xs text-gray-400 mt-0.5">Owner: {prop.ownerName}</p>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                          {filtered.length > 10 && (
+                            <p className="text-xs text-gray-400 text-center py-2">
+                              +{filtered.length - 10} more results — refine your search
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Purchase Details</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                  {!selectedPropertyId && (
+                    <div className="relative flex py-2 items-center">
+                      <div className="flex-grow border-t border-gray-100"></div>
+                      <span className="flex-shrink mx-3 text-[10px] text-gray-400 font-medium">or search by owner</span>
+                      <div className="flex-grow border-t border-gray-100"></div>
+                    </div>
+                  )}
+
+                  {!selectedPropertyId && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-green-600" />
+                        <h4 className="text-sm font-semibold text-gray-800">Search Owner First</h4>
+                      </div>
+
+                      {!selectedOwner ? (
+                        <div>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                              <Search className="h-4 w-4" />
+                            </span>
+                            <input
+                              type="text"
+                              value={ownerSearchQuery}
+                              onChange={(e) => handleOwnerSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 text-sm transition-all"
+                              placeholder="Type owner's name or phone..."
+                            />
+                          </div>
+                          {ownerSearchLoading && (
+                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                              <span className="w-3 h-3 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                              Searching...
+                            </p>
+                          )}
+                          {ownerSearchResults.length > 0 && (
+                            <div className="mt-2 space-y-1.5 max-h-44 overflow-y-auto">
+                              {ownerSearchResults.map((owner) => (
+                                <button
+                                  key={owner.ownerId}
+                                  type="button"
+                                  onClick={() => handleSelectOwner(owner)}
+                                  className="w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all flex items-center gap-3 group"
+                                >
+                                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 text-green-700 font-semibold text-xs">
+                                    {owner.name?.charAt(0)?.toUpperCase() || 'O'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 text-sm">{owner.name}</p>
+                                    <p className="text-xs text-gray-500">{owner.phone}</p>
+                                  </div>
+                                  <span className="text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-lg shrink-0 group-hover:bg-green-100 transition-colors">
+                                    Select
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="p-3.5 bg-green-50 rounded-xl border border-green-100">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+                                {selectedOwner.name?.charAt(0)?.toUpperCase() || 'O'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-900 text-sm">{selectedOwner.name}</p>
+                                <p className="text-xs text-gray-500">{selectedOwner.phone}</p>
+                                <p className="text-xs text-green-700 mt-0.5">
+                                  {ownerPropertiesLoading
+                                    ? 'Loading...'
+                                    : `${ownerProperties.filter((p) => p.status === 'available' || p.status === 'for-sale').length} properties for sale`}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={clearOwnerSelection}
+                                className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Select a Property</p>
+                            {ownerPropertiesLoading ? (
+                              <div className="flex items-center gap-2 py-3 text-gray-500">
+                                <span className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-sm">Loading properties...</span>
+                              </div>
+                            ) : ownerProperties.filter((p) => p.status === 'available' || p.status === 'for-sale').length === 0 ? (
+                              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                                <p className="text-sm text-amber-800 font-medium">No sale properties found</p>
+                                <p className="text-xs text-amber-600 mt-1">This owner has no properties listed for sale or available.</p>
+                              </div>
+                            ) : (
+                              ownerProperties
+                                .filter((p) => p.status === 'available' || p.status === 'for-sale')
+                                .map((prop) => (
+                                  <button
+                                    key={prop.propertyId}
+                                    type="button"
+                                    onClick={() => setSelectedPropertyId(prop.propertyId)}
+                                    className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 ${
+                                      selectedPropertyId === prop.propertyId
+                                        ? 'border-green-500 bg-green-50'
+                                        : 'border-transparent bg-gray-50 hover:bg-gray-100 hover:border-gray-200'
+                                    }`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                      selectedPropertyId === prop.propertyId
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-white text-gray-500'
+                                    }`}>
+                                      {selectedPropertyId === prop.propertyId ? (
+                                        <CheckCircle className="h-4 w-4" />
+                                      ) : (
+                                        <Home className="h-4 w-4" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 text-sm">{prop.title}</p>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium shrink-0 ${
+                                          prop.status === 'for-sale'
+                                            ? 'bg-blue-50 text-blue-700'
+                                            : 'bg-amber-50 text-amber-700'
+                                        }`}>
+                                          {prop.status === 'for-sale' ? 'For Sale' : 'Available'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-0.5">{prop.area}, {prop.city}</p>
+                                    </div>
+                                  </button>
+                                ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selected Property Summary */}
+                  {selectedPropertyId && (
+                    <div className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-center gap-2.5">
+                      <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-green-800 truncate">
+                          {properties.find((p) => p.propertyId === selectedPropertyId)?.title}
+                        </p>
+                        <p className="text-xs text-green-600">
+                          {properties.find((p) => p.propertyId === selectedPropertyId)?.area}, {properties.find((p) => p.propertyId === selectedPropertyId)?.city}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPropertyId(''); setBuyerDirectSearchQuery(''); clearOwnerSelection(); }}
+                        className="text-xs font-medium text-green-700 hover:text-green-900 px-2 py-1 rounded-lg hover:bg-green-100 transition-colors shrink-0"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Purchase Details */}
+                  <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4 text-gray-700" />
+                      <h4 className="text-sm font-semibold text-gray-800">Purchase Details</h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
                           Sale Amount <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
                           <input
                             type="number"
                             value={purchaseDetails.saleAmount}
                             onChange={(e) => setPurchaseDetails({...purchaseDetails, saleAmount: e.target.value})}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                            placeholder="Sale amount"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Purchase Date</label>
                         <input
                           type="date"
                           value={purchaseDetails.purchaseDate}
                           onChange={(e) => setPurchaseDetails({...purchaseDetails, purchaseDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Registration Date</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Registration Date</label>
                         <input
                           type="date"
                           value={purchaseDetails.registrationDate}
                           onChange={(e) => setPurchaseDetails({...purchaseDetails, registrationDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Registration Number</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Registration No.</label>
                         <input
                           type="text"
                           value={purchaseDetails.registrationNumber}
                           onChange={(e) => setPurchaseDetails({...purchaseDetails, registrationNumber: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                           placeholder="REG-2024-001"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Stamp Duty Paid</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Stamp Duty</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
                           <input
                             type="number"
                             value={purchaseDetails.stampDutyPaid}
                             onChange={(e) => setPurchaseDetails({...purchaseDetails, stampDutyPaid: e.target.value})}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Brokerage Paid</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Brokerage</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
                           <input
                             type="number"
                             value={purchaseDetails.brokeragePaid}
                             onChange={(e) => setPurchaseDetails({...purchaseDetails, brokeragePaid: e.target.value})}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-900 mb-3">KYC Details (Optional)</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* KYC Details */}
+                  <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-gray-700" />
+                      <h4 className="text-sm font-semibold text-gray-800">KYC Details <span className="text-xs font-normal text-gray-400">(Optional)</span></h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">PAN Number</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">PAN Number</label>
                         <input
                           type="text"
                           value={kycDetails.panNumber}
                           onChange={(e) => setKycDetails({...kycDetails, panNumber: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm uppercase"
                           placeholder="ABCDE1234F"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Aadhar Number</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Aadhar Number</label>
                         <input
                           type="text"
                           value={kycDetails.aadharNumber}
                           onChange={(e) => setKycDetails({...kycDetails, aadharNumber: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                           placeholder="1234-5678-9012"
                         />
                       </div>
@@ -1315,140 +2057,357 @@ export default function LeadDetails() {
               {/* Tenant Conversion Form */}
               {lead.leadType === 'tenant' && (
                 <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Owner (search by phone) <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="tel"
-                        value={ownerLookupPhone}
-                        onChange={(e) => setOwnerLookupPhone(e.target.value)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                        placeholder="Owner phone number"
-                      />
-                      <button
-                        type="button"
-                        onClick={lookupOwnerByPhone}
-                        disabled={ownerLookupLoading}
-                        className="px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 disabled:opacity-50"
-                      >
-                        {ownerLookupLoading ? 'Searching...' : 'Search'}
-                      </button>
+                  {/* Direct Property Search */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Home className="h-4 w-4 text-green-600" />
+                      <h4 className="text-sm font-semibold text-gray-800">Find Property</h4>
                     </div>
-                    {ownerLookupError && (
-                      <p className="text-sm text-red-600 mt-2">{ownerLookupError}</p>
-                    )}
-                    {selectedOwner && (
-                      <div className="mt-3 p-3 bg-white/60 rounded-xl border border-white/30">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-900">{selectedOwner.name || 'Owner'}</p>
-                            <p className="text-xs text-gray-600 mt-0.5">{selectedOwner.phone}</p>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                        <Search className="h-4 w-4" />
+                      </span>
+                      <input
+                        type="text"
+                        value={tenantDirectSearchQuery}
+                        onChange={(e) => {
+                          setTenantDirectSearchQuery(e.target.value);
+                          if (e.target.value === '') setSelectedPropertyId('');
+                        }}
+                        className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 text-sm transition-all"
+                        placeholder="Search by property name, area, or city..."
+                      />
+                    </div>
+                    {(() => {
+                      const query = tenantDirectSearchQuery.trim().toLowerCase();
+                      const tenantProperties = properties.filter(
+                        (p) => p.status === 'available' || p.status === 'for-rent' || p.status === 'vacant'
+                      );
+                      const filtered = query
+                        ? tenantProperties.filter((p) =>
+                            [p.title, p.area, p.city, p.ownerName]
+                              .filter(Boolean)
+                              .some((field) => field.toLowerCase().includes(query))
+                          )
+                        : tenantProperties;
+                      if (query && filtered.length === 0) {
+                        return (
+                          <div className="text-center py-6 bg-gray-50 rounded-xl">
+                            <Search className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                            <p className="text-sm text-gray-500">No properties match your search</p>
+                            <p className="text-xs text-gray-400 mt-1">Try a different area, city, or owner name</p>
                           </div>
-                          <button
-                            type="button"
-                            onClick={clearOwnerSelection}
-                            className="px-3 py-1.5 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-                          >
-                            Change
-                          </button>
+                        );
+                      }
+                      return (
+                        <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                          {filtered.length === 0 ? (
+                            <div className="text-center py-6 bg-gray-50 rounded-xl">
+                              <Home className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                              <p className="text-sm text-gray-500">No rental properties available</p>
+                            </div>
+                          ) : (
+                            filtered.slice(0, 10).map((prop) => (
+                              <button
+                                key={prop.propertyId}
+                                type="button"
+                                onClick={() => handleSelectPropertyDirectly(prop.propertyId)}
+                                className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 group ${
+                                  selectedPropertyId === prop.propertyId
+                                    ? 'border-green-500 bg-green-50 shadow-sm'
+                                    : 'border-transparent bg-gray-50 hover:bg-gray-100 hover:border-gray-200'
+                                }`}
+                              >
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                  selectedPropertyId === prop.propertyId
+                                    ? 'bg-green-600 text-white'
+                                    : 'bg-white text-gray-500 group-hover:text-gray-700'
+                                }`}>
+                                  {selectedPropertyId === prop.propertyId ? (
+                                    <CheckCircle className="h-4 w-4" />
+                                  ) : (
+                                    <Home className="h-4 w-4" />
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-gray-900 text-sm truncate">{prop.title}</p>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium shrink-0 ${
+                                      prop.status === 'for-rent'
+                                        ? 'bg-purple-50 text-purple-700'
+                                        : 'bg-amber-50 text-amber-700'
+                                    }`}>
+                                      {prop.status === 'for-rent' ? 'For Rent' : prop.status === 'vacant' ? 'Vacant' : 'Available'}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-gray-500 mt-0.5">{prop.area}, {prop.city}</p>
+                                  {prop.ownerName && (
+                                    <p className="text-xs text-gray-400 mt-0.5">Owner: {prop.ownerName}</p>
+                                  )}
+                                </div>
+                              </button>
+                            ))
+                          )}
+                          {filtered.length > 10 && (
+                            <p className="text-xs text-gray-400 text-center py-1">
+                              +{filtered.length - 10} more results — refine your search
+                            </p>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-600 mt-2">
-                          Properties: {ownerPropertiesLoading ? 'Loading…' : ownerProperties.length}
+                      );
+                    })()}
+                  </div>
+
+                  {!selectedPropertyId && (
+                    <div className="relative flex py-2 items-center">
+                      <div className="flex-grow border-t border-gray-100"></div>
+                      <span className="flex-shrink mx-3 text-[10px] text-gray-400 font-medium">or search by owner</span>
+                      <div className="flex-grow border-t border-gray-100"></div>
+                    </div>
+                  )}
+
+                  {!selectedPropertyId && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-green-600" />
+                        <h4 className="text-sm font-semibold text-gray-800">Search Owner First</h4>
+                      </div>
+
+                      {!selectedOwner ? (
+                        <div>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                              <Search className="h-4 w-4" />
+                            </span>
+                            <input
+                              type="text"
+                              value={ownerSearchQuery}
+                              onChange={(e) => handleOwnerSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-gray-50 text-sm transition-all"
+                              placeholder="Type owner's name or phone..."
+                            />
+                          </div>
+                          {ownerSearchLoading && (
+                            <p className="text-xs text-gray-500 mt-2 flex items-center gap-1.5">
+                              <span className="w-3 h-3 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                              Searching...
+                            </p>
+                          )}
+                          {ownerSearchResults.length > 0 && (
+                            <div className="mt-2 space-y-1.5 max-h-44 overflow-y-auto">
+                              {ownerSearchResults.map((owner) => (
+                                <button
+                                  key={owner.ownerId}
+                                  type="button"
+                                  onClick={() => handleSelectOwner(owner)}
+                                  className="w-full text-left p-3 rounded-xl bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-gray-200 transition-all flex items-center gap-3 group"
+                                >
+                                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center shrink-0 text-green-700 font-semibold text-xs">
+                                    {owner.name?.charAt(0)?.toUpperCase() || 'O'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-gray-900 text-sm">{owner.name}</p>
+                                    <p className="text-xs text-gray-500">{owner.phone}</p>
+                                  </div>
+                                  <span className="text-xs font-medium text-green-700 bg-green-50 px-2.5 py-1 rounded-lg shrink-0 group-hover:bg-green-100 transition-colors">
+                                    Select
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="p-3.5 bg-green-50 rounded-xl border border-green-100">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+                                {selectedOwner.name?.charAt(0)?.toUpperCase() || 'O'}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-900 text-sm">{selectedOwner.name}</p>
+                                <p className="text-xs text-gray-500">{selectedOwner.phone}</p>
+                                <p className="text-xs text-green-700 mt-0.5">
+                                  {ownerPropertiesLoading
+                                    ? 'Loading...'
+                                    : `${ownerProperties.filter((p) => p.status === 'available' || p.status === 'for-rent' || p.status === 'vacant').length} rental properties`}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={clearOwnerSelection}
+                                className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
+                              >
+                                Change
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Select a Property</p>
+                            {ownerPropertiesLoading ? (
+                              <div className="flex items-center gap-2 py-3 text-gray-500">
+                                <span className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                                <span className="text-sm">Loading properties...</span>
+                              </div>
+                            ) : ownerProperties.filter((p) => p.status === 'available' || p.status === 'for-rent' || p.status === 'vacant').length === 0 ? (
+                              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100">
+                                <p className="text-sm text-amber-800 font-medium">No rental properties found</p>
+                                <p className="text-xs text-amber-600 mt-1">This owner has no properties available for rent.</p>
+                              </div>
+                            ) : (
+                              ownerProperties
+                                .filter((p) => p.status === 'available' || p.status === 'for-rent' || p.status === 'vacant')
+                                .map((prop) => (
+                                  <button
+                                    key={prop.propertyId}
+                                    type="button"
+                                    onClick={() => setSelectedPropertyId(prop.propertyId)}
+                                    className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 ${
+                                      selectedPropertyId === prop.propertyId
+                                        ? 'border-green-500 bg-green-50'
+                                        : 'border-transparent bg-gray-50 hover:bg-gray-100 hover:border-gray-200'
+                                    }`}
+                                  >
+                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                      selectedPropertyId === prop.propertyId
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-white text-gray-500'
+                                    }`}>
+                                      {selectedPropertyId === prop.propertyId ? (
+                                        <CheckCircle className="h-4 w-4" />
+                                      ) : (
+                                        <Home className="h-4 w-4" />
+                                      )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-gray-900 text-sm">{prop.title}</p>
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-medium shrink-0 ${
+                                          prop.status === 'for-rent'
+                                            ? 'bg-purple-50 text-purple-700'
+                                            : 'bg-amber-50 text-amber-700'
+                                        }`}>
+                                          {prop.status === 'for-rent' ? 'For Rent' : prop.status === 'vacant' ? 'Vacant' : 'Available'}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-gray-500 mt-0.5">{prop.area}, {prop.city}</p>
+                                    </div>
+                                  </button>
+                                ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Selected Property Summary */}
+                  {selectedPropertyId && (
+                    <div className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-center gap-2.5">
+                      <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-green-800 truncate">
+                          {properties.find((p) => p.propertyId === selectedPropertyId)?.title}
+                        </p>
+                        <p className="text-xs text-green-600">
+                          {properties.find((p) => p.propertyId === selectedPropertyId)?.area}, {properties.find((p) => p.propertyId === selectedPropertyId)?.city}
                         </p>
                       </div>
-                    )}
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => { setSelectedPropertyId(''); setTenantDirectSearchQuery(''); clearOwnerSelection(); }}
+                        className="text-xs font-medium text-green-700 hover:text-green-900 px-2 py-1 rounded-lg hover:bg-green-100 transition-colors shrink-0"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Property <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={selectedPropertyId}
-                      onChange={(e) => setSelectedPropertyId(e.target.value)}
-                      disabled={!selectedOwner || ownerPropertiesLoading}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                    >
-                      <option value="">{!selectedOwner ? 'Select an owner first...' : ownerPropertiesLoading ? 'Loading properties...' : 'Choose a property...'}</option>
-                      {ownerProperties
-                        .filter(p => p.status === 'available' || p.status === 'for-rent' || p.status === 'vacant')
-                        .map((prop) => (
-                        <option key={prop.propertyId} value={prop.propertyId}>
-                          {prop.title} - {prop.area}, {prop.city}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedOwner && !ownerPropertiesLoading && ownerProperties.length === 0 && (
-                      <p className="text-sm text-amber-700 mt-2">
-                        This owner has no properties yet. Add properties to the owner first.
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-900 mb-3">Lease Details</h4>
-                    <div className="grid grid-cols-2 gap-4">
+                  {/* Lease Details */}
+                  <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <IndianRupee className="h-4 w-4 text-gray-700" />
+                      <h4 className="text-sm font-semibold text-gray-800">Lease Details</h4>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
                           Monthly Rent <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
                           <input
                             type="number"
                             value={leaseDetails.monthlyRent}
                             onChange={(e) => setLeaseDetails({...leaseDetails, monthlyRent: e.target.value})}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
-                            placeholder="Monthly rent"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Security Deposit</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Security Deposit</label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₹</span>
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
                           <input
                             type="number"
                             value={leaseDetails.securityDeposit}
                             onChange={(e) => setLeaseDetails({...leaseDetails, securityDeposit: e.target.value})}
-                            className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
                           />
                         </div>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Lease Start Date <span className="text-red-500">*</span>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Brokerage</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">₹</span>
+                          <input
+                            type="number"
+                            value={leaseDetails.brokeragePaid}
+                            onChange={(e) => setLeaseDetails({...leaseDetails, brokeragePaid: e.target.value})}
+                            className="w-full pl-7 pr-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                          Lease Start <span className="text-red-500">*</span>
                         </label>
                         <input
                           type="date"
                           value={leaseDetails.leaseStartDate}
                           onChange={(e) => setLeaseDetails({...leaseDetails, leaseStartDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Lease End Date</label>
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">Lease End</label>
                         <input
                           type="date"
                           value={leaseDetails.leaseEndDate}
                           onChange={(e) => setLeaseDetails({...leaseDetails, leaseEndDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                         />
                       </div>
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
-                    <h4 className="font-medium text-gray-900 mb-3">KYC Details (Optional)</h4>
+                  {/* KYC Details */}
+                  <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-gray-700" />
+                      <h4 className="text-sm font-semibold text-gray-800">KYC Details <span className="text-xs font-normal text-gray-400">(Optional)</span></h4>
+                    </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Aadhar Number</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Aadhar Number</label>
                       <input
                         type="text"
                         value={kycDetails.aadharNumber}
                         onChange={(e) => setKycDetails({...kycDetails, aadharNumber: e.target.value})}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
+                        className="w-full px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent bg-white text-sm"
                         placeholder="1234-5678-9012"
                       />
                     </div>
@@ -1494,18 +2453,18 @@ export default function LeadDetails() {
               )}
             </div>
 
-            <div className="sticky bottom-0 bg-gray-50 border-t px-6 py-4 flex gap-3">
+            <div className="shrink-0 bg-gray-50 border-t px-6 py-4 flex gap-3">
               <button
                 onClick={handleConvert}
                 disabled={converting}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {converting ? 'Converting...' : `Convert to ${lead.leadType === 'seller' ? 'Owner' : lead.leadType}`}
               </button>
               <button
                 onClick={() => setShowConvertModal(false)}
                 disabled={converting}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50"
+                className="px-5 py-2.5 bg-white text-gray-700 rounded-xl font-medium border border-gray-200 hover:bg-gray-50 active:bg-gray-100 disabled:opacity-50 transition-colors"
               >
                 Cancel
               </button>

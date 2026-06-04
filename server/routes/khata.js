@@ -499,7 +499,8 @@ router.post('/entries', async (req, res) => {
       lineItems,
       description,
       reminderAt,
-      reminderNote
+      reminderNote,
+      sourceRef
     } = req.body;
 
     // Validation
@@ -545,6 +546,25 @@ router.post('/entries', async (req, res) => {
       return res.status(400).json({ error: 'Amount must be greater than 0' });
     }
 
+    // Check for duplicate sourceRef to ensure idempotency
+    if (sourceRef) {
+      try {
+        const checkResult = await ddbDocClient.send(new ScanCommand({
+          TableName: KHATA_TABLE,
+          FilterExpression: 'PK = :pk AND sourceRef = :sourceRef',
+          ExpressionAttributeValues: {
+            ':pk': `TENANT#${tenantId}`,
+            ':sourceRef': sourceRef,
+          },
+        }));
+        if (checkResult.Items && checkResult.Items.length > 0) {
+          return res.json(checkResult.Items[0]);
+        }
+      } catch (checkError) {
+        console.error('Error checking duplicate entry:', checkError);
+      }
+    }
+
     const primaryCategoryId = normalizedLineItems ? normalizedLineItems[0].categoryId : categoryId;
     const primaryCategoryName = normalizedLineItems ? (normalizedLineItems[0].categoryName || categoryName) : categoryName;
 
@@ -573,6 +593,7 @@ router.post('/entries', async (req, res) => {
       settlementStatus: 'PENDING',
       reminderAt: reminderAt || null,
       reminderNote: reminderNote || null,
+      sourceRef: sourceRef || null,
       createdAt: now,
       createdBy: username,
       updatedAt: now
@@ -617,7 +638,8 @@ router.put('/entries/:entryId', async (req, res) => {
       lineItems,
       description,
       reminderAt,
-      reminderNote
+      reminderNote,
+      sourceRef
     } = req.body;
 
     const updateExpressions = [];
@@ -625,6 +647,11 @@ router.put('/entries/:entryId', async (req, res) => {
     const expressionAttributeValues = {
       ':updatedAt': new Date().toISOString()
     };
+
+    if (sourceRef !== undefined) {
+      updateExpressions.push('sourceRef = :sourceRef');
+      expressionAttributeValues[':sourceRef'] = sourceRef || null;
+    }
 
     if (propertyId !== undefined) {
       updateExpressions.push('#propertyId = :propertyId');

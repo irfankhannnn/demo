@@ -11,6 +11,7 @@ import {
   getBuyerNotes,
   findPersonByPhone,
 } from '../crmDynamodbService.js';
+import { createListingFromPurchase } from '../crmHelpers.js';
 import { uploadToS3, getSignedUrl as getS3SignedUrl } from '../s3Service.js';
 
 const router = express.Router();
@@ -22,14 +23,33 @@ const upload = multer({
 // Get all buyers with optional filters
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { status, priority, propertyType } = req.query;
+    const {
+      status, priority, propertyType, source, bhk, furnishing, area,
+      search, minBudget, maxBudget, createdFrom, createdTo, tag,
+      sortBy, sortOrder, limit, offset,
+    } = req.query;
+
     const filters = {};
     if (status) filters.status = status;
     if (priority) filters.priority = priority;
     if (propertyType) filters.propertyType = propertyType;
+    if (source) filters.source = source;
+    if (bhk) filters.bhk = bhk;
+    if (furnishing) filters.furnishing = furnishing;
+    if (area) filters.area = area;
+    if (search) filters.search = search;
+    if (minBudget) filters.minBudget = minBudget;
+    if (maxBudget) filters.maxBudget = maxBudget;
+    if (createdFrom) filters.createdFrom = createdFrom;
+    if (createdTo) filters.createdTo = createdTo;
+    if (tag) filters.tag = tag;
+    if (sortBy) filters.sortBy = sortBy;
+    if (sortOrder) filters.sortOrder = sortOrder;
+    if (limit) filters.limit = limit;
+    if (offset) filters.offset = offset;
 
-    const buyers = await getBuyers(req.tenantId, filters);
-    res.json(buyers);
+    const result = await getBuyers(req.tenantId, filters);
+    res.json(result);
   } catch (error) {
     console.error('Get buyers error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -148,8 +168,8 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
 // Get buyer metrics
 router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) => {
   try {
-    const buyers = await getBuyers(req.tenantId);
-    
+    const { buyers } = await getBuyers(req.tenantId);
+
     const metrics = {
       total: buyers.length,
       byStatus: {},
@@ -157,7 +177,7 @@ router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) 
       byPropertyType: {},
       avgBudget: 0,
     };
-    
+
     buyers.forEach(buyer => {
       // Count by status
       metrics.byStatus[buyer.status] = (metrics.byStatus[buyer.status] || 0) + 1;
@@ -270,6 +290,38 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
     res.json(buyerWithUrls);
   } catch (error) {
     console.error('Get buyer with documents error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Create an owner listing from a buyer's purchased property
+router.post('/:id/list-property', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { propertyId, listingType } = req.body;
+    if (!propertyId) {
+      return res.status(400).json({ error: 'propertyId is required' });
+    }
+    if (!listingType || !['rent', 'sale'].includes(listingType)) {
+      return res.status(400).json({ error: "listingType must be 'rent' or 'sale'" });
+    }
+
+    const result = await createListingFromPurchase(
+      req.tenantId,
+      req.params.id,
+      propertyId,
+      listingType,
+      req.user?.username || 'Admin'
+    );
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Create listing from purchase error:', error);
+    if (error.message === 'Buyer not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Property not found in buyer purchase history') {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
