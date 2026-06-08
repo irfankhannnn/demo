@@ -25,6 +25,9 @@ jobs:
         working-directory: real-estate-crm-app
         run: npm ci
 
+      - name: Install Playwright at root
+        run: npm install --no-save @playwright/test
+
       - name: Build CRM app
         working-directory: real-estate-crm-app
         run: npm run build
@@ -35,7 +38,6 @@ jobs:
           VITE_RAZORPAY_KEY_ID: test_key
 
       - name: Install Playwright browsers
-        working-directory: real-estate-crm-app
         run: npx playwright install --with-deps chromium
 
       - name: Start preview server
@@ -48,12 +50,9 @@ jobs:
         run: sleep 3
 
       - name: Run Playwright tests
-        working-directory: .
         run: |
-          # Run all available test specs in tests/ directory
-          # Individual specs (analytics, cookie-consent, grievance, nps, paywall) are added by their respective PRs
           if ls tests/*.spec.ts 1>/dev/null 2>&1; then
-            npx playwright test tests/
+            npx playwright test
           else
             echo "No test specs found — skipping (specs are added by feature PRs)"
           fi
