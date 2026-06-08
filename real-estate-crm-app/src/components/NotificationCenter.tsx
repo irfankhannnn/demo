@@ -230,7 +230,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
                   disabled={processing}
                   className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors disabled:opacity-50"
                   title="Refresh notifications"
-                >
+                 aria-label="Refresh data">
                   <RefreshCw className={`w-4 h-4 ${processing ? 'animate-spin' : ''}`} />
                 </button>
                 {unreadCount > 0 && (

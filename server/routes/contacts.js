@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { uploadToS3, getSignedUrl } from '../s3Service.js';
 import {
@@ -35,7 +35,7 @@ const upload = multer({
 // ============== Contact CRUD Routes ==============
 
 // Get all contacts with optional filters
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { role, status } = req.query;
     const filters = {};
@@ -51,7 +51,7 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get contacts by role (convenience endpoints)
-router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const contacts = await getContacts(req.tenantId, { role: 'owner' });
     res.json(contacts);
@@ -61,7 +61,7 @@ router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/sellers', validateToken, extractTenantId, async (req, res) => {
   try {
     const contacts = await getContacts(req.tenantId, { role: 'seller' });
     res.json(contacts);
@@ -71,7 +71,7 @@ router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/buyers', validateToken, extractTenantId, async (req, res) => {
   try {
     const contacts = await getContacts(req.tenantId, { role: 'buyer' });
     res.json(contacts);
@@ -81,7 +81,7 @@ router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/tenants', validateToken, extractTenantId, async (req, res) => {
   try {
     const contacts = await getContacts(req.tenantId, { role: 'tenant' });
     res.json(contacts);
@@ -92,7 +92,7 @@ router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Lookup contact by phone
-router.get('/lookup/by-phone', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/lookup/by-phone', validateToken, extractTenantId, async (req, res) => {
   try {
     const { phone } = req.query;
     if (!phone) {
@@ -110,7 +110,7 @@ router.get('/lookup/by-phone', authenticateToken, extractTenantId, async (req, r
 });
 
 // Get single contact
-router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await getContact(req.tenantId, req.params.id);
     if (!contact) {
@@ -124,7 +124,7 @@ router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get contact with signed document URLs
-router.get('/:id/with-documents', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/with-documents', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await getContact(req.tenantId, req.params.id);
     if (!contact) {
@@ -151,7 +151,7 @@ router.get('/:id/with-documents', authenticateToken, extractTenantId, async (req
 });
 
 // Create contact
-router.post('/', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await createContact(req.tenantId, req.body);
     res.status(201).json(contact);
@@ -162,7 +162,7 @@ router.post('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Create or update contact by phone (dedupe)
-router.post('/upsert-by-phone', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/upsert-by-phone', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await createOrUpdateContactByPhone(req.tenantId, req.body);
     res.status(contact.wasExisting ? 200 : 201).json(contact);
@@ -173,7 +173,7 @@ router.post('/upsert-by-phone', authenticateToken, extractTenantId, async (req, 
 });
 
 // Update contact
-router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await updateContact(req.tenantId, req.params.id, req.body);
     res.json(contact);
@@ -184,7 +184,7 @@ router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Update contact role
-router.put('/:id/role', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id/role', validateToken, extractTenantId, async (req, res) => {
   try {
     const { role, enabled, profileData } = req.body;
     if (!role) {
@@ -205,7 +205,7 @@ router.put('/:id/role', authenticateToken, extractTenantId, async (req, res) => 
 });
 
 // Delete contact
-router.delete('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteContact(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -218,7 +218,7 @@ router.delete('/:id', authenticateToken, extractTenantId, async (req, res) => {
 // ============== Contact Document Upload Routes ==============
 
 // Upload contact documents (photo, PAN, Aadhar)
-router.post('/:id/documents', authenticateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -285,7 +285,7 @@ router.post('/:id/documents', authenticateToken, extractTenantId, upload.fields(
 
 // ============== Contact Notes Routes ==============
 
-router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getContactNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -295,7 +295,7 @@ router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) =>
   }
 });
 
-router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const note = await createContactNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -305,7 +305,7 @@ router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) =
   }
 });
 
-router.put('/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     const updated = await updateContactNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -315,7 +315,7 @@ router.put('/:id/notes/:noteId', authenticateToken, extractTenantId, async (req,
   }
 });
 
-router.delete('/:id/notes/:noteId', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteContactNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -328,7 +328,7 @@ router.delete('/:id/notes/:noteId', authenticateToken, extractTenantId, async (r
 // ============== Migration Routes ==============
 
 // Migrate a single owner to contact
-router.post('/migrate/owner/:ownerId', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await migrateOwnerToContact(req.tenantId, req.params.ownerId);
     res.json(contact);
@@ -339,7 +339,7 @@ router.post('/migrate/owner/:ownerId', authenticateToken, extractTenantId, async
 });
 
 // Migrate a single customer to contact
-router.post('/migrate/customer/:customerId', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/customer/:customerId', validateToken, extractTenantId, async (req, res) => {
   try {
     const contact = await migrateCustomerToContact(req.tenantId, req.params.customerId);
     res.json(contact);
@@ -350,7 +350,7 @@ router.post('/migrate/customer/:customerId', authenticateToken, extractTenantId,
 });
 
 // Migrate all owners and customers to contacts
-router.post('/migrate/all', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => {
   try {
     const results = {
       owners: { migrated: 0, errors: [] },

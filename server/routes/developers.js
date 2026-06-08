@@ -12,7 +12,7 @@ import {
   updateDeveloperProjectStats,
 } from '../developersDynamodbService.js';
 import { getProjectsByDeveloper } from '../projectsDynamodbService.js';
-import { authMiddleware } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, deleteFromS3, getSignedUrl } from '../s3Service.js';
 
 const router = express.Router();
@@ -27,13 +27,17 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-router.use(authMiddleware);
+// router.use(validateToken);
+
+/*
+// ============== COMMENTED OUT: Developers feature disabled ==============
+// All routes below are commented out as part of removing developers/projects/areas functionality
 
 /**
  * @route GET /api/crm/developers
  * @desc Get all developers with optional filters
  * @access Private
- */
+ *\/
 router.get('/', async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
@@ -535,5 +539,6 @@ router.delete('/:developerId/videos', async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+*/
 
 export default router;

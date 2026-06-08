@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import {
   ArrowLeft,
   Save,
@@ -23,6 +24,7 @@ import CreateTenantModal from '../../components/CreateTenantModal';
 import Toast from '../../components/Toast';
 import NumericInput from '../../components/NumericInput';
 import FullscreenMediaViewer from '../../components/FullscreenMediaViewer';
+import { PermissionGuard } from '../../components/PermissionGuard';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
@@ -509,13 +511,7 @@ export default function PropertyDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading property...</p>
-        </div>
+        <LoadingSpinner message="Loading property..." />
       </div>
     );
   }
@@ -1264,13 +1260,15 @@ export default function PropertyDetails() {
                             Download
                           </a>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteImage(img.key)}
-                          className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
+                        <PermissionGuard permission="delete">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteImage(img.key)}
+                            className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </PermissionGuard>
                       </div>
                     ))
                   ) : (!isEditing && pendingImages.length === 0) || (isEditing && (!property?.images || property.images.length === 0)) ? (
@@ -1376,13 +1374,15 @@ export default function PropertyDetails() {
                                 Download
                               </a>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteVideo(vid.key)}
-                              className="p-1 text-red-600 hover:bg-red-50 rounded"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
+                            <PermissionGuard permission="delete">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVideo(vid.key)}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </PermissionGuard>
                           </div>
                         </div>
                       </div>
@@ -1534,13 +1534,15 @@ export default function PropertyDetails() {
                                           Download
                                         </a>
                                       )}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleDeleteDocument(doc.documentId)}
-                                        className="p-1 text-red-600 hover:bg-red-50 rounded"
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </button>
+                                      <PermissionGuard permission="delete">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteDocument(doc.documentId)}
+                                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </button>
+                                      </PermissionGuard>
                                     </div>
                                   </div>
                                 ))}

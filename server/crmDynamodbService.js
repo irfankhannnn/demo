@@ -2616,6 +2616,44 @@ export async function getLeadNotes(tenantId, leadId) {
   return result.Items || [];
 }
 
+export async function updateLeadNote(tenantId, leadId, noteId, data) {
+  if (!tenantId) {
+    throw new Error('Tenant ID is required');
+  }
+  await docClient.send(new UpdateCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#LEAD#${leadId}`,
+      SK: `NOTE#${noteId}`,
+    },
+    UpdateExpression: 'SET #content = :content, #updatedAt = :updatedAt',
+    ExpressionAttributeNames: {
+      '#content': 'content',
+      '#updatedAt': 'updatedAt',
+    },
+    ExpressionAttributeValues: {
+      ':content': data.content,
+      ':updatedAt': new Date().toISOString(),
+    },
+  }));
+  const notes = await getLeadNotes(tenantId, leadId);
+  return notes.find(n => n.noteId === noteId) || null;
+}
+
+export async function deleteLeadNote(tenantId, leadId, noteId) {
+  if (!tenantId) {
+    throw new Error('Tenant ID is required');
+  }
+  await docClient.send(new DeleteCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#LEAD#${leadId}`,
+      SK: `NOTE#${noteId}`,
+    },
+  }));
+  return true;
+}
+
 // ============== Migration Helpers ==============
 
 /**

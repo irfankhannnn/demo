@@ -4,7 +4,7 @@ import { loadEnv } from 'vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const port = Number(env.VITE_PORT) || 8085;
+  const port = Number(env.VITE_PORT) || 3000;
 
   return {
     plugins: [react({ jsxRuntime: 'automatic' })],

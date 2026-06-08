@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import LoadingSpinner from '../../../components/LoadingSpinner';
 import {
   Phone,
   PhoneCall,
@@ -133,13 +134,7 @@ export default function CallDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse font-medium">Loading call details...</p>
-        </div>
+        <LoadingSpinner message="Loading call details..." />
       </div>
     );
   }

@@ -1,5 +1,5 @@
 import express from 'express';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import {
   createLead,
@@ -10,6 +10,9 @@ import {
   convertLead,
   createLeadNote,
   getLeadNotes,
+  updateLeadNote,
+  deleteLeadNote,
+  searchLeads,
   getContacts,
 } from '../crmDynamodbService.js';
 
@@ -17,15 +20,17 @@ const router = express.Router();
 
 // ============== Lead CRUD Routes ==============
 
-// Get all leads with optional filters
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+// Get all leads with optional filters + pagination
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { leadType, status, priority, excludeConverted } = req.query;
+    const { leadType, status, priority, excludeConverted, limit, offset } = req.query;
     const filters = {};
     if (leadType) filters.leadType = leadType;
     if (status) filters.status = status;
     if (priority) filters.priority = priority;
     if (excludeConverted === 'true') filters.excludeConverted = true;
+    if (limit) filters.limit = limit;
+    if (offset) filters.offset = offset;
 
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
@@ -35,8 +40,34 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
+// Search leads by name, phone, or email
+router.get('/search', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.json([]);
+    }
+    const results = await searchLeads(req.tenantId, q);
+    res.json(results);
+  } catch (error) {
+    console.error('Search leads error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Get available agents for assignedTo dropdown
+router.get('/agents', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const username = req.user?.username || 'Admin';
+    res.json([{ username, label: username }]);
+  } catch (error) {
+    console.error('Get agents error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 // Get leads by type (convenience endpoints)
-router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/buyers', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'buyer' };
@@ -51,7 +82,7 @@ router.get('/buyers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/sellers', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'seller' };
@@ -66,7 +97,7 @@ router.get('/sellers', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/tenants', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'tenant' };
@@ -81,7 +112,7 @@ router.get('/tenants', authenticateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, excludeConverted } = req.query;
     const filters = { leadType: 'owner' };
@@ -97,9 +128,16 @@ router.get('/owners', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get lead metrics
-router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
   try {
-    const allLeads = await getLeads(req.tenantId);
+    const { from, to } = req.query;
+    let allLeads = await getLeads(req.tenantId);
+    if (from) {
+      allLeads = allLeads.filter(l => l.createdAt >= from);
+    }
+    if (to) {
+      allLeads = allLeads.filter(l => l.createdAt <= to);
+    }
 
     const metrics = {
       total: allLeads.length,
@@ -153,7 +191,7 @@ router.get('/metrics', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get single lead
-router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.id);
     if (!lead) {
@@ -167,8 +205,15 @@ router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Create lead
-router.post('/', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
+    const { name, leadType } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    if (!leadType || !['buyer', 'seller', 'tenant', 'owner'].includes(leadType)) {
+      return res.status(400).json({ error: 'leadType must be buyer, seller, tenant, or owner' });
+    }
     const leadData = {
       ...req.body,
       createdBy: req.user?.username || 'Admin',
@@ -177,12 +222,15 @@ router.post('/', authenticateToken, extractTenantId, async (req, res) => {
     res.status(201).json(lead);
   } catch (error) {
     console.error('Create lead error:', error);
+    if (error.message && error.message.startsWith('A lead with this phone number already exists')) {
+      return res.status(409).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Update lead
-router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -201,7 +249,7 @@ router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
 
 // Convert lead to buyer/tenant/owner
 // IMPORTANT: Buyer and Tenant conversions now require transaction details
-router.post('/:id/convert', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => {
   try {
     const { 
       existingContactId,
@@ -238,7 +286,7 @@ router.post('/:id/convert', authenticateToken, extractTenantId, async (req, res)
 });
 
 // Get contacts for linking during conversion
-router.get('/:id/matching-contacts', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/matching-contacts', validateToken, extractTenantId, async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.id);
     if (!lead) {
@@ -263,19 +311,22 @@ router.get('/:id/matching-contacts', authenticateToken, extractTenantId, async (
 });
 
 // Delete lead
-router.delete('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     await deleteLead(req.tenantId, req.params.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Delete lead error:', error);
+    if (error.message === 'Cannot delete a converted lead' || error.message === 'Lead not found') {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // ============== Lead Notes Routes ==============
 
-router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getLeadNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -285,7 +336,7 @@ router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) =>
   }
 });
 
-router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const noteData = {
       ...req.body,
@@ -295,6 +346,30 @@ router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) =
     res.status(201).json(note);
   } catch (error) {
     console.error('Create lead note error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: 'Content is required' });
+    }
+    const note = await updateLeadNote(req.tenantId, req.params.id, req.params.noteId, { content });
+    res.json(note);
+  } catch (error) {
+    console.error('Update lead note error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+  try {
+    await deleteLeadNote(req.tenantId, req.params.id, req.params.noteId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete lead note error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

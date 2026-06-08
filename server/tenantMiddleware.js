@@ -1,10 +1,25 @@
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+};
+
 /**
- * Middleware to extract and validate tenant_id from request headers
+ * Middleware to extract and validate tenant_id
+ * Priority: server-derived tenantId from validateToken > x-tenant-id header
+ * This prevents client header spoofing when validateToken is used.
  */
 export function extractTenantId(req, res, next) {
+  // If validateToken already set tenantId (server-derived from /auth/me), use it
+  if (req.tenantId) {
+    return next();
+  }
+  
+  // Otherwise fall back to header (for backwards compatibility or non-auth endpoints)
   const tenantId = req.headers['x-tenant-id'];
   
   if (!tenantId) {
+    res.set(CORS_HEADERS);
     return res.status(400).json({ 
       error: 'Tenant ID is required. Please include x-tenant-id header.' 
     });
@@ -17,9 +32,13 @@ export function extractTenantId(req, res, next) {
 
 /**
  * Optional tenant extraction (for public endpoints)
+ * Priority: server-derived tenantId from validateToken > x-tenant-id header
  */
 export function extractTenantIdOptional(req, res, next) {
-  const tenantId = req.headers['x-tenant-id'];
-  req.tenantId = tenantId || null;
+  // If validateToken already set tenantId, use it
+  if (!req.tenantId) {
+    const tenantId = req.headers['x-tenant-id'];
+    req.tenantId = tenantId || null;
+  }
   next();
 }

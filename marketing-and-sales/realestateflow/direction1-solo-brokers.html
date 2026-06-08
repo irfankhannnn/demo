@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Direction 1: Solo Brokers - Authority on Budget</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #F8FAFC; color: #111827; }
+    .container { max-width: 1200px; margin: 0 auto; }
+
+    /* HEADER BANNER */
+    .header-banner {
+      background: linear-gradient(135deg, #0F3A66 0%, #1E40AF 100%);
+      color: white;
+      padding: 30px 20px;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .header-banner h1 { font-size: 32px; margin-bottom: 8px; font-weight: 700; }
+    .header-banner p { font-size: 14px; opacity: 0.9; }
+
+    /* SECTION CONTAINER */
+    .section-container {
+      background: white;
+      border-radius: 8px;
+      padding: 40px;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0F3A66;
+      margin-bottom: 24px;
+      font-family: 'Poppins';
+    }
+
+    /* INSTAGRAM POSTS GRID */
+    .ig-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .ig-mockup {
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .ig-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border-bottom: 1px solid #E2E8F0;
+      background: white;
+    }
+
+    .ig-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #0F3A66, #1E40AF);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .ig-body {
+      aspect-ratio: 1;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      text-align: center;
+    }
+
+    .ig-body h3 {
+      font-size: 24px;
+      font-weight: 700;
+      color: #0F3A66;
+      margin-bottom: 12px;
+      font-family: 'Poppins';
+    }
+
+    .ig-body p {
+      font-size: 13px;
+      color: #475569;
+      line-height: 1.6;
+      margin-bottom: 20px;
+    }
+
+    .ig-cta {
+      background: #0F3A66;
+      color: white;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .ig-footer {
+      padding: 12px;
+      border-top: 1px solid #E2E8F0;
+      background: white;
+      font-size: 12px;
+    }
+
+    .ig-footer strong { display: block; font-weight: 600; }
+    .ig-footer .subtitle { font-size: 11px; color: #64748B; }
+
+    /* WEBSITE MOCKUP */
+    .website-section {
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .website-nav {
+      background: white;
+      padding: 16px 32px;
+      border-bottom: 1px solid #E2E8F0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .website-nav .logo {
+      font-family: 'Poppins';
+      font-weight: 700;
+      color: #0F3A66;
+      font-size: 18px;
+    }
+
+    .website-nav .links { display: flex; gap: 24px; }
+    .website-nav a { color: #475569; text-decoration: none; font-size: 14px; }
+    .website-nav .btn {
+      background: #0F3A66;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .website-hero {
+      background: linear-gradient(135deg, #F8FAFC 0%, #E0E7FF 100%);
+      padding: 60px 32px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      align-items: center;
+    }
+
+    .hero-content h1 {
+      font-size: 40px;
+      font-weight: 800;
+      color: #0F3A66;
+      margin-bottom: 16px;
+      line-height: 1.2;
+      font-family: 'Poppins';
+    }
+
+    .hero-content p {
+      font-size: 16px;
+      color: #475569;
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: #0F3A66;
+      color: white;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-secondary {
+      background: white;
+      color: #0F3A66;
+      padding: 12px 24px;
+      border: 2px solid #0F3A66;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .hero-image {
+      background: linear-gradient(135deg, #0F3A66, #1E40AF);
+      border-radius: 8px;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 14px;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .trust-section {
+      background: #F8FAFC;
+      padding: 40px 32px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      border-top: 1px solid #E2E8F0;
+    }
+
+    .trust-item h3 { font-size: 20px; font-weight: 700; color: #0F3A66; margin-bottom: 8px; }
+    .trust-item p { font-size: 13px; color: #475569; }
+
+    .cta-section {
+      background: #0F3A66;
+      color: white;
+      padding: 48px 32px;
+      text-align: center;
+    }
+
+    .cta-section h2 { font-size: 32px; margin-bottom: 16px; font-weight: 700; font-family: 'Poppins'; }
+    .cta-section p { font-size: 16px; margin-bottom: 24px; opacity: 0.9; }
+    .cta-button {
+      background: white;
+      color: #0F3A66;
+      padding: 14px 32px;
+      border: none;
+      border-radius: 4px;
+      font-weight: 700;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .footer { background: #111827; color: #9CA3AF; padding: 24px; text-align: center; font-size: 12px; }
+
+    @media (max-width: 900px) {
+      .website-hero { grid-template-columns: 1fr; }
+      .website-nav .links { display: none; }
+      .hero-content h1 { font-size: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="header-banner">
+  <h1>Direction 1: Solo Brokers</h1>
+  <p>Authority on Budget • Minimalist Professional • Navy #0F3A66</p>
+</div>
+
+<div class="container">
+
+  <!-- INSTAGRAM POSTS SECTION -->
+  <div class="section-container">
+    <div class="section-title">📱 Instagram Post Examples</div>
+
+    <div class="ig-grid">
+      <!-- Post 1 -->
+      <div class="ig-mockup">
+        <div class="ig-header">
+          <div class="ig-avatar">VK</div>
+          <div style="flex: 1; text-align: left;">
+            <div style="font-weight: 600; font-size: 13px;">vikram.broker</div>
+          </div>
+        </div>
+        <div class="ig-body">
+          <h3>20+ Years of Trust</h3>
+          <p>Direct broker.<br>Personal attention.<br>No middlemen.</p>
+          <button class="ig-cta">Call Now</button>
+        </div>
+        <div class="ig-footer">
+          <strong>Vikram Kumar</strong>
+          <span class="subtitle">RERA #MH-ABC123 • Est. 2003</span>
+        </div>
+      </div>
+
+      <!-- Post 2 -->
+      <div class="ig-mockup">
+        <div class="ig-header">
+          <div class="ig-avatar">VK</div>
+          <div style="flex: 1; text-align: left;">
+            <div style="font-weight: 600; font-size: 13px;">vikram.broker</div>
+          </div>
+        </div>
+        <div class="ig-body">
+          <h3>अपका सपना घर</h3>
+          <p>Direct broker से बात करो।<br>Sab kuch transparent।<br>No hidden charges.</p>
+          <button class="ig-cta">Whatsapp करो</button>
+        </div>
+        <div class="ig-footer">
+          <strong>Vikram Kumar • Broker</strong>
+          <span class="subtitle">20+ years experience • RERA certified</span>
+        </div>
+      </div>
+
+      <!-- Post 3 -->
+      <div class="ig-mockup">
+        <div class="ig-header">
+          <div class="ig-avatar">VK</div>
+          <div style="flex: 1; text-align: left;">
+            <div style="font-weight: 600; font-size: 13px;">vikram.broker</div>
+          </div>
+        </div>
+        <div class="ig-body">
+          <h3>Direct Access</h3>
+          <p>Why deal with<br>middlemen?<br>Call broker directly.</p>
+          <button class="ig-cta">Schedule Call</button>
+        </div>
+        <div class="ig-footer">
+          <strong>Vikram Kumar</strong>
+          <span class="subtitle">Professional Broker • Personal Service</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WEBSITE DESIGN SECTION -->
+  <div class="section-container">
+    <div class="section-title">🌐 Website Design Mockup</div>
+
+    <div class="website-section">
+      <!-- Navigation -->
+      <div class="website-nav">
+        <div class="logo">Vikram Broker</div>
+        <div class="links">
+          <a href="#">Properties</a>
+          <a href="#">About</a>
+          <a href="#">Contact</a>
+        </div>
+        <button class="btn">Call Now</button>
+      </div>
+
+      <!-- Hero Section -->
+      <div class="website-hero">
+        <div class="hero-content">
+          <h1>Your Trust, My Priority</h1>
+          <p>20+ years of real estate expertise. Direct broker. Personal attention. No middlemen. Transparent process from start to finish.</p>
+          <div class="hero-buttons">
+            <button class="btn-primary">Schedule Call</button>
+            <button class="btn-secondary">Learn More</button>
+          </div>
+          <p style="font-size: 12px; color: #64748B; margin-top: 16px;">✓ RERA License #MH-ABC123 • Est. 2003</p>
+        </div>
+        <div class="hero-image">
+          Dashboard Preview<br>Properties • Clients • Deals
+        </div>
+      </div>
+
+      <!-- Trust Section -->
+      <div class="trust-section">
+        <div class="trust-item">
+          <h3>20+</h3>
+          <p>Years of Experience</p>
+        </div>
+        <div class="trust-item">
+          <h3>500+</h3>
+          <p>Happy Clients</p>
+        </div>
+        <div class="trust-item">
+          <h3>100%</h3>
+          <p>Transparent Process</p>
+        </div>
+        <div class="trust-item">
+          <h3>Direct</h3>
+          <p>Access to Broker</p>
+        </div>
+      </div>
+
+      <!-- CTA Section -->
+      <div class="cta-section">
+        <h2>Ready to Find Your Dream Property?</h2>
+        <p>Direct broker. Personal attention. Guaranteed results.</p>
+        <button class="cta-button">Schedule Free Consultation</button>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <strong>Vikram Kumar • Real Estate Broker</strong><br>
+        RERA #MH-ABC123 | Est. 2003<br>
+        South Mumbai | Phone: 98765-12345
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

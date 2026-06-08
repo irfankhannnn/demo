@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import {
   createBuyer,
@@ -20,7 +20,7 @@ const upload = multer({
 });
 
 // Get all buyers with optional filters
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { status, priority, propertyType } = req.query;
     const filters = {};
@@ -37,7 +37,7 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get single buyer
-router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const buyer = await getBuyer(req.tenantId, req.params.id);
     if (!buyer) {
@@ -51,7 +51,7 @@ router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Create buyer
-router.post('/', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const buyerData = {
       ...req.body,
@@ -89,7 +89,7 @@ router.post('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Update buyer
-router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -104,7 +104,7 @@ router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Lookup buyer by phone (for auto-fill and cross-role detection)
-router.get('/lookup/by-phone', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/lookup/by-phone', validateToken, extractTenantId, async (req, res) => {
   try {
     const { phone } = req.query;
     if (!phone) {
@@ -120,7 +120,7 @@ router.get('/lookup/by-phone', authenticateToken, extractTenantId, async (req, r
 });
 
 // Get buyer notes
-router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const notes = await getBuyerNotes(req.tenantId, req.params.id);
     res.json(notes);
@@ -131,7 +131,7 @@ router.get('/:id/notes', authenticateToken, extractTenantId, async (req, res) =>
 });
 
 // Create buyer note
-router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
     const noteData = {
       ...req.body,
@@ -146,7 +146,7 @@ router.post('/:id/notes', authenticateToken, extractTenantId, async (req, res) =
 });
 
 // Get buyer metrics
-router.get('/metrics/summary', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) => {
   try {
     const buyers = await getBuyers(req.tenantId);
     
@@ -189,7 +189,7 @@ router.get('/metrics/summary', authenticateToken, extractTenantId, async (req, r
 // ============== Buyer Document Upload Routes ==============
 
 // Upload buyer documents (photo, PAN, Aadhar)
-router.post('/:id/documents', authenticateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -253,7 +253,7 @@ router.post('/:id/documents', authenticateToken, extractTenantId, upload.fields(
 });
 
 // Get buyer with documents and presigned URLs
-router.get('/:id/with-documents', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id/with-documents', validateToken, extractTenantId, async (req, res) => {
   try {
     const buyer = await getBuyer(req.tenantId, req.params.id);
     if (!buyer) {

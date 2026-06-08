@@ -2,7 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import * as dynamodb from '../dynamodbService.js';
 import * as s3Service from '../s3Service.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 
 const router = express.Router();
@@ -12,8 +12,12 @@ const upload = multer({
 });
 
 // All routes require authentication
-router.use(authenticateToken);
-router.use(extractTenantId);
+// router.use(validateToken);
+// router.use(extractTenantId);
+
+/*
+// ============== COMMENTED OUT: Flats/Buildings/Areas hierarchy disabled ==============
+// All routes below are commented out as part of removing flats/buildings/areas functionality
 
 // ============== Flat CRUD ==============
 
@@ -496,6 +500,7 @@ router.delete('/:flatId/documents/:documentType/:documentId', async (req, res) =
     await dynamodb.deleteDocument(flatId, documentType, documentId);
     res.json({ success: true });
   } catch (error) {
+*/
     console.error('Error deleting document:', error);
     res.status(500).json({ error: 'Failed to delete document' });
   }

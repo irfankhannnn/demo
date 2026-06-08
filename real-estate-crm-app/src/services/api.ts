@@ -15,10 +15,8 @@ if (!API_BASE_URL) {
 }
 
 class ApiService {
-  private token: string | null = null;
-
-  constructor() {
-    this.token = localStorage.getItem('admin_token');
+  private get token(): string | null {
+    return localStorage.getItem('auth_id_token');
   }
 
   async getEnquiryNotes(enquiryId: string) {
@@ -55,12 +53,15 @@ class ApiService {
   }
 
   setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('admin_token', token);
+    localStorage.setItem('auth_id_token', token);
   }
 
   clearToken() {
-    this.token = null;
+    localStorage.removeItem('auth_id_token');
+    localStorage.removeItem('auth_access_token');
+    localStorage.removeItem('auth_refresh_token');
+    localStorage.removeItem('auth_token_expiry');
+    localStorage.removeItem('auth_user_profile');
     localStorage.removeItem('admin_token');
   }
 
@@ -82,8 +83,9 @@ class ApiService {
 
   private async handleResponse(response: Response) {
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
+      if (response.status === 401) {
         this.clearToken();
+        window.location.href = '/login';
       }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
       throw new Error(error.error || `HTTP ${response.status}`);
@@ -117,41 +119,6 @@ class ApiService {
     return cleaned as Partial<T>;
   }
 
-  // Auth endpoints
-  async login(username: string, password: string) {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await this.handleResponse(response);
-    this.setToken(data.token);
-    return data;
-  }
-
-  async changePassword(
-    username: string,
-    currentPassword: string,
-    newPassword: string,
-    newUsername?: string
-  ) {
-    const body: {
-      username: string;
-      currentPassword: string;
-      newPassword: string;
-      newUsername?: string;
-    } = { username, currentPassword, newPassword };
-    if (newUsername && newUsername !== username) {
-      body.newUsername = newUsername;
-    }
-    const response = await fetch(`${API_BASE_URL}/auth/change-password`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(body),
-    });
-    return this.handleResponse(response);
-  }
-
   // Dashboard
   async getDashboardMetrics() {
     const response = await fetch(`${API_BASE_URL}/dashboard/metrics`, {
@@ -160,6 +127,7 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  /* ============== DISABLED: Flats/Buildings/Areas hierarchy removed ==============
   // Rental List
   async getRentalList() {
     const response = await fetch(`${API_BASE_URL}/rentals`, {
@@ -420,6 +388,7 @@ class ApiService {
     });
     return this.handleResponse(response);
   }
+  */
 
   // ============== CRM Endpoints ==============
 
@@ -1210,6 +1179,31 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  // Settlement Intelligence
+  async getKhataAging() {
+    const response = await fetch(`${API_BASE_URL}/khata/settlement/aging`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getKhataSettlementTrends() {
+    const response = await fetch(`${API_BASE_URL}/khata/settlement/trends`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getKhataSettlementHistory(limit?: number) {
+    const url = limit
+      ? `${API_BASE_URL}/khata/settlement/history?limit=${limit}`
+      : `${API_BASE_URL}/khata/settlement/history`;
+    const response = await fetch(url, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   // Search parties by name or phone
   async searchKhataParties(query: string, partyType?: string) {
     const queryParams = new URLSearchParams({ query });
@@ -1834,6 +1828,39 @@ class ApiService {
     return this.handleResponse(response);
   }
 
+  async updateLeadNote(leadId: string, noteId: string, data: { content: string }) {
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    });
+    return this.handleResponse(response);
+  }
+
+  async deleteLeadNote(leadId: string, noteId: string) {
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Search leads by name, phone, or email
+  async searchLeads(q: string) {
+    const response = await fetch(`${API_BASE_URL}/crm/leads/search?q=${encodeURIComponent(q)}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // Get available agents for assignedTo dropdown
+  async getLeadAgents(): Promise<Array<{ username: string; label: string }>> {
+    const response = await fetch(`${API_BASE_URL}/crm/leads/agents`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
   // ============== Buyer Endpoints ==============
 
   async getBuyers(filters?: { status?: string; priority?: string; propertyType?: string }) {
@@ -1951,7 +1978,7 @@ class ApiService {
     return this.handleResponse(response);
   }
 
-  // ============== Real Estate Management - Developers ==============
+  /* ============== DISABLED: Real Estate Management - Developers ==============
 
   async getDevelopers(filters?: { status?: string; country?: string }) {
     const params = new URLSearchParams();
@@ -2471,6 +2498,7 @@ class ApiService {
     });
     return this.handleResponse(response);
   }
+  */
 }
 
 export const api = new ApiService();

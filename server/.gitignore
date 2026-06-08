@@ -15,3 +15,9 @@ npm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+# Build artifacts
+function.zip
+
+# Demo seeder runtime trace
+scripts/node-trace.json

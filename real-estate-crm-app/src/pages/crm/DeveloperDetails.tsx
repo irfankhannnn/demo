@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Building2, ArrowLeft, Save, Trash2, Upload, Youtube } from 'lucide-react';
 import { api } from '../../services/api';
+import { PermissionGuard } from '../../components/PermissionGuard';
 import { Developer } from '../../types/realEstate';
 import MediaUploadSection from '../../components/MediaUploadSection';
 
@@ -141,10 +142,12 @@ export default function DeveloperDetails() {
               </h1>
             </div>
             {!isNew && (
-              <button onClick={handleDelete} className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 flex items-center gap-2">
-                <Trash2 className="h-4 w-4" />
-                Delete
-              </button>
+              <PermissionGuard permission="delete">
+                <button onClick={handleDelete} className="px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 flex items-center gap-2">
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </button>
+              </PermissionGuard>
             )}
           </div>
         </div>

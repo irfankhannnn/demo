@@ -19,6 +19,10 @@ import {
 
 const router = express.Router();
 
+/*
+// ============== COMMENTED OUT: AI Calling Internal API disabled ==============
+// All routes below are commented out as part of removing AI calling functionality
+
 // Internal API key validation middleware
 const validateInternalApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
@@ -427,6 +431,7 @@ router.get('/owners', async (req, res) => {
       })),
     });
   } catch (error) {
+*/
     console.error('List owners error:', error);
     res.status(500).json({ error: error.message || 'Failed to list owners' });
   }

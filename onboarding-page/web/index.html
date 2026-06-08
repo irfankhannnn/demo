@@ -123,7 +123,7 @@
       <div class="header">
         <div>
           <div class="title">Tenant Onboarding</div>
-          <div class="subtitle">Creates tenant credentials in DynamoDB AgencyConfig table for CRM login.</div>
+          <div class="subtitle">Provisions a new agency tenant. Admin can then login via Google or Phone OTP.</div>
         </div>
         <div class="chip">POST /api/onboard</div>
       </div>
@@ -136,24 +136,16 @@
 
             <div class="row">
               <div>
-                <label>Admin Username</label>
-                <input name="adminUsername" placeholder="admin" required />
+                <label>Admin Email (for Google login)</label>
+                <input name="adminEmail" placeholder="admin@agency.com" type="email" />
               </div>
               <div>
-                <label>Admin Password</label>
-                <input name="adminPassword" placeholder="min 6 chars" type="password" required />
+                <label>Admin Phone (for Phone OTP login)</label>
+                <input name="adminPhone" placeholder="+919876543210" type="tel" />
               </div>
             </div>
-
-            <div class="row">
-              <div>
-                <label>Contact Email (optional)</label>
-                <input name="contactEmail" placeholder="admin@agency.com" type="email" />
-              </div>
-              <div>
-                <label>Contact Phone (optional)</label>
-                <input name="contactPhone" placeholder="+91..." />
-              </div>
+            <div class="hint" style="margin-top:6px; color: #f59e0b;">
+              At least one of Email or Phone is required. Both can be provided.
             </div>
 
             <button class="btn" id="submit" type="submit">Create Tenant</button>
@@ -169,15 +161,15 @@
         <div class="card">
           <div class="kpi">
             <div class="kpiBox">
-              <div class="kpiTitle">How CRM will login</div>
+              <div class="kpiTitle">How Admin will login</div>
               <div class="small">
-                Send header <b>x-tenant-id</b> with the generated tenantId, then call <b>/api/auth/login</b> with username/password.
+                Admin goes to CRM login page and uses <b>Google OAuth</b> (if email provided) or <b>Phone OTP</b> (if phone provided).
               </div>
             </div>
             <div class="kpiBox">
               <div class="kpiTitle">DynamoDB write</div>
               <div class="small">
-                Writes item with PK <b>TenantId</b> into table in <b>AGENCY_CONFIG_DYNAMODB_TABLE_NAME</b>.
+                Writes to auth agency table (<b>dev-reality-flow-auth-agency-config</b>) with TenantId, adminEmail, adminPhone.
               </div>
             </div>
             <div class="kpiBox">
@@ -207,6 +199,10 @@
         const data = Object.fromEntries(new FormData(form).entries());
 
         try {
+          // Client-side validation: at least one of email or phone required
+          if (!data.adminEmail?.trim() && !data.adminPhone?.trim()) {
+            throw new Error('At least one of Admin Email or Admin Phone is required');
+          }
           const res = await fetch('/api/onboard', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

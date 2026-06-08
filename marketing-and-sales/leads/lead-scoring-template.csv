@@ -1,0 +1,16 @@
+lead_id,company_name,broker_name,contact_phone,contact_email,agents_count,annual_revenue_band,location,current_crm,firmographic_score,behavioral_score,timing_score,total_score,lead_grade,source,capture_date,status,last_contacted,next_action,persona_type,priority_tier
+1001,Patel Estates,Priya Patel,9876543210,priya@patel.in,5,50l-5cr,South Mumbai,Sheets,25,12,8,45,B,LinkedIn,2026-02-15,Contacted,2026-02-18,Schedule Demo,Priya,Tier 1
+1002,Mumbai Luxe Properties,Rajesh Shah,9845678923,rajesh@luxe.in,2,20l-50l,Bandra,WhatsApp+Calls,15,8,5,28,C,Google Search,2026-02-16,Lead,Not Contacted,Arjun,Tier 2
+1003,Sharma Real Estate,Suresh Sharma,9823456789,suresh@sharma.in,12,2cr-5cr,Central Mumbai,Excel+Phone,32,15,18,65,A,Warm Intro,2026-02-17,Discovery Call,2026-02-18,Follow-up Demo,Suresh,Tier 1
+1004,Prime Properties,Arjun Desai,9912345678,arjun@prime.in,1,30l-80l,Powai,Zoho CRM,12,22,10,44,B,Agent Referral,2026-02-18,Contacted,2026-02-19,Free Trial Signup,Arjun,Tier 1
+1005,Young Mumbai Brokers,Akshay Iyer,9834567890,akshay@youngmumbai.in,3,50l-1cr,Andheri,Sheets,18,6,8,32,C,Cold Email,2026-02-19,Lead,Not Contacted,Priya,Tier 2
+1006,Heritage Properties Co,Deepak Gupta,9845123456,deepak@heritage.in,8,1cr-2cr,Thane,None - Manual,22,10,12,44,B,LinkedIn,2026-02-20,Contacted,2026-02-20,Product Demo,Priya,Tier 1
+1007,Boutique Realty Mumbai,Vikram Nair,9876234567,vikram@boutique.in,4,30l-80l,Bandra,WhatsApp Groups,14,14,9,37,C,Industry Event,2026-02-20,Lead,Not Contacted,Arjun,Tier 2
+1008,Skyline Developers Realty,Meera Singh,9823789456,meera@skyline.in,15,5cr+,South Mumbai,Salesforce,28,20,16,64,A,Warm Intro,2026-02-21,Discovery Call,2026-02-21,Enterprise Demo,Suresh,Tier 1
+1009,Quick Deals Agency,Nikhil Patil,9845678901,nikhil@quickdeals.in,2,20l-50l,Navi Mumbai,Sheets,12,4,3,19,D,Cold Email,2026-02-21,Lead,Not Contacted,Arjun,Tier 3
+1010,Metro Real Estate Group,Shankar Rao,9812345670,shankar@metro.in,18,3cr-5cr,Pune (Satellite),Zoho CRM,26,16,14,56,A,LinkedIn,2026-02-22,Contacted,2026-02-22,Demo Scheduled,Suresh,Tier 1
+1011,Residential Plus Brokers,Anjali Mehta,9876543222,anjali@respplus.in,6,80l-1.5cr,Western Suburbs,Google Sheets,20,11,10,41,B,Social Media,2026-02-22,Lead,Not Contacted,Priya,Tier 1
+1012,Thane Properties Inc,Amit Deshmukh,9845673456,amit@thaneprops.in,7,60l-1.2cr,Thane,Manual Tracking,19,7,9,35,C,Google Search,2026-02-23,Contacted,2026-02-23,Follow-up,Priya,Tier 2
+1013,South Mumbai Luxury,Vikram Chopra,9876789012,vikram@smugluxury.in,1,80l-3cr,Colaba,None - Portfolio,8,18,7,33,C,Referral,2026-02-24,Lead,Not Contacted,Arjun,Tier 2
+1014,Eastern Express Realty,Rajesh Kumar,9834561234,rajesh@eerealty.in,4,40l-80l,Eastern Suburbs,WhatsApp+Email,16,9,8,33,C,Cold Outreach,2026-02-24,Lead,Not Contacted,Priya,Tier 2
+1015,Family Firm Real Estate,Ramesh Nair,9845612340,ramesh@familyfirm.in,11,1.5cr-3cr,Vile Parle,Manual+Calls,24,8,14,46,B,Warm Referral,2026-02-25,Discovery Call,2026-02-25,Full Demo,Suresh,Tier 1

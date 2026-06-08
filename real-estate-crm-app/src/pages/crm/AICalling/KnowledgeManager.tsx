@@ -135,7 +135,7 @@ export default function KnowledgeManager() {
               onClick={loadDocuments}
               className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
               title="Refresh"
-            >
+             aria-label="Refresh data">
               <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
             </button>
           </div>

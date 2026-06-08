@@ -17,6 +17,7 @@ import {
   CalendarPlus,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { CRMMeeting } from '../../types/crm';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 
@@ -238,16 +239,12 @@ export default function B2BLeadsList() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-blue-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading B2B leads...</p>
-        </div>
+        <LoadingSpinner message="Loading B2B leads..." />
       </div>
     );
   }
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -276,7 +273,7 @@ export default function B2BLeadsList() {
               <button
                 onClick={fetchLeads}
                 className="p-2 sm:p-2.5 bg-white/80 backdrop-blur-sm border border-white/20 rounded-xl hover:bg-white transition-all shadow-sm"
-              >
+               aria-label="Refresh data">
                 <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
               </button>
             </div>

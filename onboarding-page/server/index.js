@@ -8,10 +8,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Reuse dependencies installed in the main backend (server/node_modules)
-const require = createRequire(path.join(__dirname, '..', '..', 'server', 'package.json'));
-const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
+import express from 'express';
+import cors from 'cors';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
@@ -28,18 +27,14 @@ app.post('/api/onboard', async (req, res) => {
   try {
     const {
       agencyName,
-      adminUsername,
-      adminPassword,
-      contactEmail,
-      contactPhone,
+      adminEmail,
+      adminPhone,
     } = req.body || {};
 
     const result = await onboardTenant({
       agencyName,
-      adminUsername,
-      adminPassword,
-      contactEmail,
-      contactPhone,
+      adminEmail,
+      adminPhone,
     });
 
     res.json(result);

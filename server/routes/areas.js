@@ -8,7 +8,7 @@ import {
   updateArea,
   getAreaByName,
 } from '../areasDynamodbService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, deleteFromS3, getSignedUrl } from '../s3Service.js';
 import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
 
@@ -64,7 +64,7 @@ router.get('/public/list', extractTenantIdOptional, async (req, res) => {
 
 /*
 // Get all areas for CRM
-router.get('/', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { city } = req.query;
     let areas;
@@ -94,7 +94,7 @@ router.get('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Get single area
-router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const area = await getArea(req.tenantId, req.params.id);
     if (!area) {
@@ -110,7 +110,7 @@ router.get('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Create area
-router.post('/', authenticateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
     const { areaName, city, description } = req.body;
 
@@ -138,7 +138,7 @@ router.post('/', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Update area
-router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const { areaName, city, description } = req.body;
     const updates = {};
@@ -162,7 +162,7 @@ router.put('/:id', authenticateToken, extractTenantId, async (req, res) => {
 });
 
 // Upload area banner image
-router.post('/:id/banner', authenticateToken, extractTenantId, upload.single('banner'), async (req, res) => {
+router.post('/:id/banner', validateToken, extractTenantId, upload.single('banner'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No banner file provided' });
@@ -196,7 +196,7 @@ router.post('/:id/banner', authenticateToken, extractTenantId, upload.single('ba
 });
 
 // Delete area banner
-router.delete('/:id/banner', authenticateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/banner', validateToken, extractTenantId, async (req, res) => {
   try {
     const area = await getArea(req.tenantId, req.params.id);
     if (!area) {

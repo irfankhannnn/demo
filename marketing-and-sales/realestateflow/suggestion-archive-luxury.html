@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RealtyFlow — Premium Branding Directions (High-End Instagram Posts)</title>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Cormorant+Garamond:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600;700&family=Lato:wght@300;400;700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lato', system-ui, sans-serif;
+      background: #FAFAF8;
+      color: #2D2D2D;
+      padding: 40px 20px;
+      line-height: 1.6;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    /* ===== HEADER ===== */
+    .header {
+      background: white;
+      color: #2D2D2D;
+      padding: 50px 40px;
+      text-align: center;
+      margin-bottom: 50px;
+      border-radius: 0;
+      border-top: 3px solid #D4AF37;
+    }
+
+    .header h1 {
+      font-size: 42px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      font-family: 'Playfair Display';
+      letter-spacing: -0.5px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.8;
+      margin-bottom: 8px;
+      letter-spacing: 0.5px;
+    }
+
+    .header .subtitle {
+      font-size: 13px;
+      opacity: 0.7;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ===== DIRECTION SECTION ===== */
+    .direction-section {
+      background: white;
+      border-radius: 2px;
+      padding: 50px 45px;
+      margin-bottom: 45px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .direction-header {
+      margin-bottom: 35px;
+      border-bottom: 2px solid;
+      padding-bottom: 20px;
+    }
+
+    .direction-title {
+      font-size: 32px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      font-family: 'Playfair Display';
+      letter-spacing: -0.5px;
+    }
+
+    .direction-desc {
+      font-size: 15px;
+      color: #666;
+      margin-bottom: 16px;
+      font-weight: 300;
+      letter-spacing: 0.3px;
+    }
+
+    .direction-meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      font-size: 12px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .meta-label {
+      color: #999;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 11px;
+    }
+
+    .meta-value {
+      color: #2D2D2D;
+      font-weight: 500;
+      font-size: 13px;
+    }
+
+    /* ===== COLOR PALETTE DISPLAY ===== */
+    .palette-section {
+      margin-bottom: 35px;
+    }
+
+    .palette-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #999;
+      margin-bottom: 18px;
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .color-swatch {
+      border-radius: 0;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      color: white;
+      font-size: 11px;
+      font-weight: 500;
+      min-height: 120px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .color-swatch-light {
+      color: #2D2D2D;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid #E8E8E8;
+    }
+
+    .color-name {
+      display: block;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    .color-hex {
+      font-family: 'Courier New', monospace;
+      font-size: 10px;
+      opacity: 0.85;
+    }
+
+    /* ===== INSTAGRAM POST GRID ===== */
+    .post-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+      gap: 30px;
+      margin-bottom: 28px;
+    }
+
+    .post-mockup-frame {
+      background: #FAFAF8;
+      border-radius: 0;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    }
+
+    .post-label {
+      padding: 14px 18px;
+      background: #F5F5F2;
+      border-bottom: 1px solid #E8E8E6;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #999;
+    }
+
+    .ig-post {
+      width: 100%;
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Instagram Header */
+    .ig-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 1px solid #F0F0ED;
+      background: white;
+    }
+
+    .ig-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .ig-username {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    /* Instagram Body */
+    .ig-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 32px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .ig-body h3 {
+      font-size: 26px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      font-family: 'Playfair Display';
+      line-height: 1.3;
+      letter-spacing: -0.5px;
+    }
+
+    .ig-body p {
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      opacity: 0.85;
+      letter-spacing: 0.3px;
+      font-weight: 300;
+    }
+
+    .ig-cta {
+      padding: 12px 28px;
+      border-radius: 2px;
+      border: none;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+      font-family: 'Montserrat';
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    .ig-footer {
+      padding: 14px 16px;
+      border-top: 1px solid #F0F0ED;
+      font-size: 12px;
+      background: white;
+    }
+
+    .ig-footer strong {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .ig-footer .location {
+      font-size: 11px;
+      opacity: 0.7;
+      letter-spacing: 0.3px;
+    }
+
+    /* ===== DIRECTION SPECIFIC STYLES ===== */
+
+    /* DIRECTION 1: Luxury Minimalist */
+    .dir1-header { border-color: #D4AF37; }
+    .dir1-avatar { background: #D4AF37; }
+    .dir1-body {
+      background: white;
+      color: #2D2D2D;
+    }
+    .dir1-body h3 { color: #2D2D2D; }
+    .dir1-body p { color: #666; }
+    .dir1-cta { background: #D4AF37; color: #2D2D2D; }
+
+    /* DIRECTION 2: Dark Luxury */
+    .dir2-header { border-color: #C9A961; }
+    .dir2-avatar { background: #1A1A1A; }
+    .dir2-body {
+      background: #1A1A1A;
+      color: #E8E8E8;
+    }
+    .dir2-body h3 { color: #D4AF37; }
+    .dir2-body p { color: #B8B8B8; }
+    .dir2-cta { background: #D4AF37; color: #1A1A1A; }
+
+    /* DIRECTION 3: Jewel Tone Elegance */
+    .dir3-header { border-color: #1A3A4A; }
+    .dir3-avatar { background: #1A3A4A; }
+    .dir3-body {
+      background: #F8F9FA;
+      color: #2D2D2D;
+    }
+    .dir3-body h3 { color: #1A3A4A; }
+    .dir3-body p { color: #666; }
+    .dir3-cta { background: #1A3A4A; color: white; }
+
+    /* DIRECTION 4: Soft Luxury */
+    .dir4-header { border-color: #8B7355; }
+    .dir4-avatar { background: #8B7355; }
+    .dir4-body {
+      background: #F5F1ED;
+      color: #2D2D2D;
+    }
+    .dir4-body h3 { color: #8B7355; }
+    .dir4-body p { color: #666; }
+    .dir4-cta { background: #8B7355; color: white; }
+
+    /* DIRECTION 5: Monochrome Premium */
+    .dir5-header { border-color: #4A4A4A; }
+    .dir5-avatar { background: #2D2D2D; }
+    .dir5-body {
+      background: #F9F9F9;
+      color: #2D2D2D;
+    }
+    .dir5-body h3 { color: #2D2D2D; }
+    .dir5-body p { color: #666; }
+    .dir5-cta { background: #2D2D2D; color: white; }
+
+    /* ===== FOOTER ===== */
+    .footer {
+      text-align: center;
+      padding: 32px;
+      color: #999;
+      font-size: 12px;
+      margin-top: 50px;
+      border-top: 1px solid #E8E8E6;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      .post-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .direction-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .header h1 { font-size: 28px; }
+      .direction-title { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <div class="header">
+      <h1>Premium Branding Directions</h1>
+      <p>5 Luxury Design Approaches for RealtyFlow</p>
+      <div class="subtitle">Elegant Aesthetics • Maximum Whitespace • High-End Positioning</div>
+    </div>
+
+    <!-- ===== DIRECTION 1: LUXURY MINIMALIST ===== -->
+    <div class="direction-section">
+      <div class="direction-header dir1-header">
+        <div class="direction-title">Pure Luxury Minimalist</div>
+        <div class="direction-desc">Ultimate sophistication: Pure white with gold accents. Maximum whitespace. CEO-level positioning.</div>
+        <div class="direction-meta">
+          <div class="meta-item">
+            <span class="meta-label">Primary</span>
+            <span class="meta-value">Pure White #FFFFFF</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Accent</span>
+            <span class="meta-value">Gold #D4AF37</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Typography</span>
+            <span class="meta-value">Playfair Display (serif elegance)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Whitespace</span>
+            <span class="meta-value">60-70% of design</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Tone</span>
+            <span class="meta-value">"Timeless. Exclusive. Premium."</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best For</span>
+            <span class="meta-value">Luxury brokers, premium positioning, LinkedIn</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-title">Color Palette</div>
+        <div class="palette-grid">
+          <div class="color-swatch color-swatch-light" style="background: #FFFFFF; border: 1px solid #E8E8E6;">
+            <span class="color-name">White</span>
+            <span class="color-hex">#FFFFFF</span>
+          </div>
+          <div class="color-swatch" style="background: #D4AF37;">
+            <span class="color-name">Gold</span>
+            <span class="color-hex">#D4AF37</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #F9F9F7; border: 1px solid #E8E8E6;">
+            <span class="color-name">Off-White</span>
+            <span class="color-hex">#F9F9F7</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #E8E8E8; border: 1px solid #D8D8D8;">
+            <span class="color-name">Gray</span>
+            <span class="color-hex">#E8E8E8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="post-grid">
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 1</div>
+          <div class="ig-post dir1-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir1-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir1-body">
+              <h3>Elegant Control</h3>
+              <p>Every detail tracked. Nothing forgotten.</p>
+              <button class="ig-cta dir1-cta">Schedule Consultation</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Premium Real Estate Management</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 1 (Variant)</div>
+          <div class="ig-post dir1-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir1-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir1-body">
+              <h3>Clarity Above All</h3>
+              <p>Your business. Perfectly organized.</p>
+              <button class="ig-cta dir1-cta">Learn More</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">For Discerning Brokers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DIRECTION 2: DARK LUXURY ===== -->
+    <div class="direction-section">
+      <div class="direction-header dir2-header">
+        <div class="direction-title">Dark Luxury</div>
+        <div class="direction-desc">Deep charcoal with gold accents. Sophisticated, exclusive, premium feel. High contrast elegance.</div>
+        <div class="direction-meta">
+          <div class="meta-item">
+            <span class="meta-label">Primary</span>
+            <span class="meta-value">Deep Charcoal #1A1A1A</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Accent</span>
+            <span class="meta-value">Gold #D4AF37</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Typography</span>
+            <span class="meta-value">Playfair Display (luxe serif)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Whitespace</span>
+            <span class="meta-value">55% (balanced elegance)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Tone</span>
+            <span class="meta-value">"Powerful. Refined. Exclusive."</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best For</span>
+            <span class="meta-value">Premium brokers, Instagram, luxury market</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-title">Color Palette</div>
+        <div class="palette-grid">
+          <div class="color-swatch" style="background: #1A1A1A;">
+            <span class="color-name">Charcoal</span>
+            <span class="color-hex">#1A1A1A</span>
+          </div>
+          <div class="color-swatch" style="background: #D4AF37;">
+            <span class="color-name">Gold</span>
+            <span class="color-hex">#D4AF37</span>
+          </div>
+          <div class="color-swatch" style="background: #2D2D2D;">
+            <span class="color-name">Dark Gray</span>
+            <span class="color-hex">#2D2D2D</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #E8E8E8; border: 1px solid #D8D8D8;">
+            <span class="color-name">Light</span>
+            <span class="color-hex">#E8E8E8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="post-grid">
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 2</div>
+          <div class="ig-post dir2-body">
+            <div class="ig-header" style="background: #1A1A1A;">
+              <div class="ig-avatar dir2-avatar">RF</div>
+              <div class="ig-username" style="color: #E8E8E8;">realestateflow</div>
+            </div>
+            <div class="ig-body dir2-body">
+              <h3>Refined Precision</h3>
+              <p>Where sophistication meets systems.</p>
+              <button class="ig-cta dir2-cta">Discover Luxury</button>
+            </div>
+            <div class="ig-footer" style="background: #1A1A1A; color: #E8E8E8;">
+              <strong>RealtyFlow</strong>
+              <span class="location">Exclusive Real Estate Operating System</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 2 (Variant)</div>
+          <div class="ig-post dir2-body">
+            <div class="ig-header" style="background: #1A1A1A;">
+              <div class="ig-avatar dir2-avatar">RF</div>
+              <div class="ig-username" style="color: #E8E8E8;">realestateflow</div>
+            </div>
+            <div class="ig-body dir2-body">
+              <h3>Pure Authority</h3>
+              <p>Trusted by elite brokers worldwide.</p>
+              <button class="ig-cta dir2-cta">Get Started</button>
+            </div>
+            <div class="ig-footer" style="background: #1A1A1A; color: #E8E8E8;">
+              <strong>RealtyFlow</strong>
+              <span class="location">The Operating System for Leaders</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DIRECTION 3: JEWEL TONE ELEGANCE ===== -->
+    <div class="direction-section">
+      <div class="direction-header dir3-header">
+        <div class="direction-title">Jewel Tone Elegance</div>
+        <div class="direction-desc">Deep teal-blue with light neutral backgrounds. Sophisticated, modern, professional. Corporate luxury.</div>
+        <div class="direction-meta">
+          <div class="meta-item">
+            <span class="meta-label">Primary</span>
+            <span class="meta-value">Deep Teal #1A3A4A</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Secondary</span>
+            <span class="meta-value">Soft Gray #F8F9FA</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Typography</span>
+            <span class="meta-value">Playfair Display (serif)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Whitespace</span>
+            <span class="meta-value">65% (very spacious)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Tone</span>
+            <span class="meta-value">"Professional. Trustworthy. Premium."</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best For</span>
+            <span class="meta-value">Corporate brokers, B2B, LinkedIn, professional market</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-title">Color Palette</div>
+        <div class="palette-grid">
+          <div class="color-swatch" style="background: #1A3A4A;">
+            <span class="color-name">Teal</span>
+            <span class="color-hex">#1A3A4A</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #F8F9FA; border: 1px solid #E8E8E6;">
+            <span class="color-name">Soft Gray</span>
+            <span class="color-hex">#F8F9FA</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #FFFFFF; border: 1px solid #E8E8E6;">
+            <span class="color-name">White</span>
+            <span class="color-hex">#FFFFFF</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #E8E8E8; border: 1px solid #D8D8D8;">
+            <span class="color-name">Light Gray</span>
+            <span class="color-hex">#E8E8E8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="post-grid">
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 3</div>
+          <div class="ig-post dir3-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir3-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir3-body">
+              <h3>Strategic Control</h3>
+              <p>Professional systems for professional brokers.</p>
+              <button class="ig-cta dir3-cta">Schedule Consultation</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Enterprise-Grade Real Estate Platform</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 3 (Variant)</div>
+          <div class="ig-post dir3-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir3-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir3-body">
+              <h3>Trusted Excellence</h3>
+              <p>500+ premium brokers managing ₹200Cr+ in deals.</p>
+              <button class="ig-cta dir3-cta">Join Leaders</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Trusted by India's Top Brokers</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DIRECTION 4: SOFT LUXURY ===== -->
+    <div class="direction-section">
+      <div class="direction-header dir4-header">
+        <div class="direction-title">Soft Luxury</div>
+        <div class="direction-desc">Warm brown with cream backgrounds. Approachable premium. Sophisticated but human. Luxury that feels accessible.</div>
+        <div class="direction-meta">
+          <div class="meta-item">
+            <span class="meta-label">Primary</span>
+            <span class="meta-value">Warm Brown #8B7355</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Secondary</span>
+            <span class="meta-value">Warm Cream #F5F1ED</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Typography</span>
+            <span class="meta-value">Playfair Display (warm serif)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Whitespace</span>
+            <span class="meta-value">60% (generous spacing)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Tone</span>
+            <span class="meta-value">"Warm. Refined. Accessible."</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best For</span>
+            <span class="meta-value">Premium but human brand, Instagram, lifestyle positioning</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-title">Color Palette</div>
+        <div class="palette-grid">
+          <div class="color-swatch" style="background: #8B7355;">
+            <span class="color-name">Brown</span>
+            <span class="color-hex">#8B7355</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #F5F1ED; border: 1px solid #E8E8E6;">
+            <span class="color-name">Cream</span>
+            <span class="color-hex">#F5F1ED</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #FFFFFF; border: 1px solid #E8E8E6;">
+            <span class="color-name">White</span>
+            <span class="color-hex">#FFFFFF</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #E8DDD8; border: 1px solid #D8D0CA;">
+            <span class="color-name">Beige</span>
+            <span class="color-hex">#E8DDD8</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="post-grid">
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 4</div>
+          <div class="ig-post dir4-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir4-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir4-body">
+              <h3>Refined Simplicity</h3>
+              <p>Premium doesn't need to be complicated.</p>
+              <button class="ig-cta dir4-cta">Explore the Difference</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Sophisticated Real Estate Solutions</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 4 (Variant)</div>
+          <div class="ig-post dir4-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir4-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir4-body">
+              <h3>Elegance in Control</h3>
+              <p>Your business, elevated.</p>
+              <button class="ig-cta dir4-cta">Get Started</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Premium Broker Platform</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== DIRECTION 5: MONOCHROME PREMIUM ===== -->
+    <div class="direction-section">
+      <div class="direction-header dir5-header">
+        <div class="direction-title">Monochrome Premium</div>
+        <div class="direction-desc">Black, white, and gray only. Ultra-sophisticated. Timeless. Extremely exclusive and modern.</div>
+        <div class="direction-meta">
+          <div class="meta-item">
+            <span class="meta-label">Primary</span>
+            <span class="meta-value">Black #2D2D2D</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Secondary</span>
+            <span class="meta-value">Grays (6 shades)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Typography</span>
+            <span class="meta-value">Playfair Display (serif) + Montserrat (sans)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Whitespace</span>
+            <span class="meta-value">70% (maximum breathing room)</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Tone</span>
+            <span class="meta-value">"Timeless. Iconic. Minimalist."</span>
+          </div>
+          <div class="meta-item">
+            <span class="meta-label">Best For</span>
+            <span class="meta-value">Ultra-premium, fashion, modern luxury, Instagram</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-title">Color Palette</div>
+        <div class="palette-grid">
+          <div class="color-swatch" style="background: #2D2D2D;">
+            <span class="color-name">Black</span>
+            <span class="color-hex">#2D2D2D</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #F9F9F9; border: 1px solid #E8E8E6;">
+            <span class="color-name">Off White</span>
+            <span class="color-hex">#F9F9F9</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #D8D8D8; border: 1px solid #C8C8C8;">
+            <span class="color-name">Light Gray</span>
+            <span class="color-hex">#D8D8D8</span>
+          </div>
+          <div class="color-swatch color-swatch-light" style="background: #666666; border: 1px solid #555555;">
+            <span class="color-name">Dark Gray</span>
+            <span class="color-hex">#666666</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="post-grid">
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 5</div>
+          <div class="ig-post dir5-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir5-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir5-body">
+              <h3>Iconic Simplicity</h3>
+              <p>Everything you need. Nothing else.</p>
+              <button class="ig-cta dir5-cta">Begin Now</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">Timeless Real Estate Operating System</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="post-mockup-frame">
+          <div class="post-label">Premium Post — Direction 5 (Variant)</div>
+          <div class="ig-post dir5-body">
+            <div class="ig-header">
+              <div class="ig-avatar dir5-avatar">RF</div>
+              <div class="ig-username">realestateflow</div>
+            </div>
+            <div class="ig-body dir5-body">
+              <h3>Pure Elegance</h3>
+              <p>For brokers with impeccable standards.</p>
+              <button class="ig-cta dir5-cta">Discover</button>
+            </div>
+            <div class="ig-footer">
+              <strong>RealtyFlow</strong>
+              <span class="location">The Premium Choice</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer">
+      <strong style="font-size: 13px; color: #2D2D2D;">Which premium direction resonates most?</strong><br>
+      Once you choose, we'll build complete landing pages, ad sets, and marketing materials in that style. 🎨<br><br>
+      <strong>My Recommendation:</strong> Directions 1, 2, or 5 = Most premium & distinctive in market<br><br>
+      RealtyFlow Premium Branding Options | May 2026
+    </div>
+
+  </div>
+
+</body>
+</html>

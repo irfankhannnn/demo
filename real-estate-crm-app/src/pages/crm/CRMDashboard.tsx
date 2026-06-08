@@ -20,11 +20,15 @@ import {
   Calendar,
   ShoppingCart,
   PhoneCall,
+  UserPlus,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
+import { getUserProfile, clearAuthSilently } from '../../utils/authStorage';
+import { redirectToLogout } from '../../utils/cognitoAuth';
 
 interface UnifiedCrmCounts {
   buyers: number;
@@ -36,6 +40,8 @@ interface UnifiedCrmCounts {
 
 export default function CRMDashboard() {
   const navigate = useNavigate();
+  const profile = getUserProfile();
+  const isAdmin = profile?.role === 'ADMIN';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -94,21 +100,14 @@ export default function CRMDashboard() {
   };
 
   const handleLogout = () => {
-    api.clearToken();
-    localStorage.removeItem('user_profile');
-    navigate('/login');
+    clearAuthSilently();
+    redirectToLogout();
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-indigo-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse font-medium">Loading Dashboard...</p>
-        </div>
+        <LoadingSpinner message="Loading Dashboard..." />
       </div>
     );
   }
@@ -164,6 +163,27 @@ export default function CRMDashboard() {
               </div>
               
               <NotificationCenter />
+
+              {isAdmin && (
+                <>
+                  <Link
+                    to="/admin/invites"
+                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    title="Team Invites"
+                  >
+                    <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline text-sm">Invites</span>
+                  </Link>
+                  <Link
+                    to="/admin/members"
+                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    title="Members"
+                  >
+                    <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline text-sm">Members</span>
+                  </Link>
+                </>
+              )}
               
               <Link
                 to="/profile"
@@ -510,7 +530,8 @@ export default function CRMDashboard() {
           </div>
         </div>
 
-        {/* Real Estate Management - NEW SECTION */}
+        {/* Real Estate Management - DISABLED */}
+        {/*
         <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 rounded-2xl shadow-lg border border-white/20 p-6 mt-6 sm:mt-8 backdrop-blur-sm">
           <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
             <Building2 className="w-5 h-5 text-purple-600" />
@@ -554,6 +575,7 @@ export default function CRMDashboard() {
             </button>
           </div>
         </div>
+        */}
 
         {/* Quick Links - Moved to Bottom */}
         <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mt-6 sm:mt-8">
@@ -640,16 +662,6 @@ export default function CRMDashboard() {
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
             </button>
             <button 
-              onClick={() => navigate('/crm/leads')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
-            >
-              <span className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-gray-400 group-hover:text-amber-500" />
-                Leads
-              </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-amber-400" />
-            </button>
-            <button 
               onClick={() => navigate('/crm/hierarchy')} 
               className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
             >
@@ -679,6 +691,8 @@ export default function CRMDashboard() {
               </span>
               <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
             </button>
+            {/* AI Calling - DISABLED */}
+            {/*
             <button 
               onClick={() => navigate('/crm/ai-calling')} 
               className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-green-200 bg-green-50"
@@ -689,6 +703,7 @@ export default function CRMDashboard() {
               </span>
               <ChevronRight className="w-4 h-4 text-green-300 group-hover:text-green-500" />
             </button>
+            */}
           </div>
         </div>
       </main>

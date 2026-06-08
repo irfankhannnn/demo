@@ -202,115 +202,102 @@ await convertLead(tenantId, leadId, {
 
 ---
 
-## 🚧 IN PROGRESS: Backend Routes
+## ✅ COMPLETED: Backend Routes
 
-### Pending Route Updates
+### All Routes Implemented in `server/routes/crm.js`
 
-#### 1. `server/routes/leads.js` - Conversion Endpoint
-**Status:** Needs update for new conversion requirements
+#### 1. `server/routes/leads.js` - Conversion Endpoint ✅
+- `/convert` POST endpoint accepts `purchaseDetails`, `leaseDetails`, `kycDetails`, `createPropertyListing`
+- Validation for required transaction fields included
 
-**Required Changes:**
-- Update `/convert` POST endpoint to accept `purchaseDetails`, `leaseDetails`, `kycDetails`
-- Add validation for required transaction fields
-- Update error messages
-
-#### 2. `server/routes/properties.js` - Status Management
-**Status:** Needs new endpoints
-
-**Required Endpoints:**
+#### 2. Property Status Management ✅ (in `server/routes/crm.js`)
 ```javascript
-POST   /api/crm/properties/:id/list-for-sale
-POST   /api/crm/properties/:id/list-for-rent
-POST   /api/crm/properties/:id/mark-sold
-POST   /api/crm/properties/:id/mark-rented
-POST   /api/crm/properties/:id/vacate
+POST   /api/crm/properties/:id/list-for-sale    ✅
+POST   /api/crm/properties/:id/list-for-rent     ✅
+POST   /api/crm/properties/:id/mark-sold          ✅
+POST   /api/crm/properties/:id/mark-rented        ✅
+POST   /api/crm/properties/:id/vacate             ✅
 ```
 
-#### 3. `server/routes/buyers.js` - Purchase Management
-**Status:** Needs new endpoints
-
-**Required Endpoints:**
+#### 3. Buyer Purchase Management ✅ (in `server/routes/crm.js`)
 ```javascript
-POST   /api/crm/buyers/:id/purchases
-PUT    /api/crm/buyers/:id/purchases/:propertyId
-GET    /api/crm/buyers/:id/purchases
+GET    /api/crm/buyers/:id/purchases              ✅
+POST   /api/crm/buyers/:id/purchases              ✅
+PUT    /api/crm/buyers/:id/purchases/:propertyId   ✅
 ```
 
-#### 4. `server/routes/customers.js` - Rental Management
-**Status:** Needs new endpoints
-
-**Required Endpoints:**
+#### 4. Tenant Rental Management ✅ (in `server/routes/crm.js`)
 ```javascript
-PUT    /api/crm/customers/:id/current-rental
-POST   /api/crm/customers/:id/archive-rental
-GET    /api/crm/customers/:id/rental-history
+PUT    /api/crm/customers/:id/current-rental       ✅
+POST   /api/crm/customers/:id/archive-rental       ✅
+GET    /api/crm/customers/:id/rental-history        ✅
 ```
+
+### CFN / API Gateway ✅
+- `server/cfn/nested/apigw-explicit-resources.yaml` uses `{proxy+}` catch-all for `/api/crm/*`
+- No CFN changes needed for new routes
 
 ---
 
-## 📋 TODO: Frontend Implementation
+## ✅ COMPLETED: Frontend Implementation
 
-### Phase 1: Remove Seller Pages
-- [ ] Delete `real-estate-crm-app/src/pages/crm/SellerList.tsx`
-- [ ] Delete `real-estate-crm-app/src/pages/crm/SellerDetails.tsx`
-- [ ] Update `real-estate-crm-app/src/App.tsx` - remove `/crm/sellers` routes
-- [ ] Update `real-estate-crm-app/src/pages/crm/CRMDashboard.tsx` - remove Sellers navigation
-- [ ] Update `real-estate-crm-app/src/services/api.ts` - remove seller API methods
-- [ ] Update `real-estate-crm-app/src/types/crm.ts` - remove CRMSeller type
+### Phase 1: Remove Seller Pages ✅
+- [x] `SellerList.tsx` and `SellerDetails.tsx` do not exist (never created or already removed)
+- [x] `App.tsx` has no `/crm/sellers` routes
+- [x] `api.ts` - seller entity methods removed, comments document removal
+- [x] `types/crm.ts` - `SellerProfile` removed (comment: "SellerProfile removed - sellers are now owners with properties listed for sale")
+- [x] `CRMDashboard.tsx` - "Sellers" card shows count from `getOwners()` + `getSellerCount()` (owners with for-sale properties)
 
-### Phase 2: Refactor BuyerDetails
+### Phase 2: Refactor BuyerDetails ✅
 **File:** `real-estate-crm-app/src/pages/crm/BuyerDetails.tsx`
 
-**Remove:**
-- Buyer Requirements section (budget, preferredArea, bhk, timeline)
-- Priority field
-- Status dropdown (negotiation, site-visit, etc.)
+- [x] Purchases List section loads actual purchase records from `GET /crm/buyers/:id/purchases`
+- [x] Purchase details display (saleAmount, registrationDate, stampDuty, brokerage, loanBank, notes)
+- [x] Loading state and empty state handled
+- [x] `BuyerPurchase` type added to `types/crm.ts`
 
-**Add:**
-- Purchases List section showing all property purchases
-- Purchase details display (saleAmount, registrationDate, documents)
-- "Add Purchase" modal/form
-- KYC documents upload section
-
-### Phase 3: Refactor TenantDetails
+### Phase 3: Refactor TenantDetails ✅
 **File:** `real-estate-crm-app/src/pages/crm/TenantDetails.tsx`
 
-**Remove:**
-- Tenant Requirements section (budget, preferredArea)
+- [x] Current Rental section shows active lease details (propertyId, rent, dates, deposit)
+- [x] Rental History table shows past leases
+- [x] "Archive Rental to History" button with confirmation dialog
+- [x] `archiveTenantRental()` API method wired up
 
-**Add:**
-- Current Rental section (active lease details)
-- Rental History table (past leases)
-- "Update Lease" button
-- "Archive Rental" button
-- Police verification document upload
-
-### Phase 4: Enhance OwnerDetails
+### Phase 4: Enhance OwnerDetails ✅
 **File:** `real-estate-crm-app/src/pages/crm/OwnerDetails.tsx`
 
-**Add:**
-- Properties List section (all properties owned)
-- Property listing management:
-  - "List for Sale" button with price input
-  - "List for Rent" button with rent input
-  - Property status badges
-- Bank details section (for rent/sale payments)
+- [x] Properties List section shows all properties owned by this owner
+- [x] "List for Sale" / "List for Rent" buttons with modal input
+- [x] Property status badges (vacant, for-sale, for-rent, rented, sold, etc.)
+- [x] Sale/rent info displayed on property cards
+- [x] Listing modal fixed to use `api.listPropertyForSale()` / `api.listPropertyForRent()` (was using raw fetch with wrong auth)
+- [x] Bank details section (bankName, accountNumber, ifscCode)
+- [x] KYC section (PAN, Aadhar)
+- [x] Document upload section
 
-### Phase 5: Update LeadDetails Conversion
+### Phase 5: Update LeadDetails Conversion ✅
 **File:** `real-estate-crm-app/src/pages/crm/LeadDetails.tsx`
 
-**Update Conversion Modal:**
-- Buyer conversion: Add transaction capture form
-  - Property selection dropdown
-  - Sale amount, registration details
-  - Loan details
-  - KYC fields
-- Tenant conversion: Add lease capture form
-  - Property selection dropdown
-  - Lease dates, rent, security deposit
-  - KYC fields
-- Seller conversion: Show property creation preview
-- Owner conversion: Keep simple (no extra fields)
+- [x] Buyer conversion: Transaction capture form (property selection, saleAmount, registrationDate, stampDuty, brokerage, KYC)
+- [x] Tenant conversion: Lease capture form (owner lookup, property selection, rent, dates, deposit, KYC)
+- [x] Seller conversion: Creates OWNER + PROPERTY with `createPropertyListing: true`
+- [x] Owner conversion: Simple (no extra fields)
+
+### Frontend API Service ✅
+**File:** `real-estate-crm-app/src/services/api.ts`
+
+- [x] `listPropertyForSale()`, `listPropertyForRent()`, `markPropertySold()`, `markPropertyRented()`, `vacateProperty()`
+- [x] `getBuyerPurchases()`, `addBuyerPurchase()`, `updateBuyerPurchase()`
+- [x] `updateTenantCurrentRental()`, `archiveTenantRental()`, `getTenantRentalHistory()`
+
+### Frontend Types ✅
+**File:** `real-estate-crm-app/src/types/crm.ts`
+
+- [x] `CRMProperty.status` updated with lifecycle enum (`vacant`, `for-sale`, `for-rent`, `rented`, `sold`, etc.)
+- [x] `CRMProperty` updated with `saleInfo`, `rentalInfo`, `listingStatus`, `ownerName`, `ownerPhone`
+- [x] `BuyerPurchase` interface added
+- [x] `CreatePropertyData` and `UpdatePropertyData` updated with new status values
 
 ---
 

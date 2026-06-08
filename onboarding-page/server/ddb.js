@@ -1,23 +1,17 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Reuse dependencies installed in the main backend (server/node_modules)
-const require = createRequire(path.join(__dirname, '..', '..', 'server', 'package.json'));
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
-const dotenv = require('dotenv');
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import * as dotenv from 'dotenv';
 
 dotenv.config();
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
+
+// Points to auth agency table (dev-reality-flow-auth-agency-config)
+// This is the source of truth for tenant provisioning
 const TABLE = process.env.AGENCY_CONFIG_DYNAMODB_TABLE_NAME;
 
 if (!TABLE) {
-  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env');
+  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env (should be dev-reality-flow-auth-agency-config)');
 }
 
 // Uses AWS SDK default credential provider chain.

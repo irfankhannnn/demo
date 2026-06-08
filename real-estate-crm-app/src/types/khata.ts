@@ -129,3 +129,79 @@ export interface KhataFilters {
   settlementStatus?: KhataSettlementStatus;
   categoryId?: string;
 }
+
+// ============== Settlement Intelligence Types ==============
+
+export interface AgingEntry {
+  entryId: string;
+  propertyId: string;
+  propertyTitle: string;
+  partyName: string;
+  partyType: KhataPartyType;
+  transactionType: KhataTransactionType;
+  amount: number;
+  categoryName: string;
+  daysPending: number;
+  createdAt: string;
+  reminderAt: string | null;
+}
+
+export interface AgingBucket {
+  bucket: string;
+  label: string;
+  count: number;
+  amount: number;
+  entries: AgingEntry[];
+}
+
+export interface AgingData {
+  buckets: AgingBucket[];
+  totalPending: number;
+  totalAmount: number;
+  avgDaysPending: number;
+  oldestEntryDays: number;
+}
+
+export interface SettlementTrendMonth {
+  month: string;
+  settledCount: number;
+  settledAmount: number;
+  avgDaysToSettle: number;
+}
+
+export interface SettlementMonthSummary {
+  month: string;
+  settledCount: number;
+  settledAmount: number;
+}
+
+export interface SettlementTrendsData {
+  trends: SettlementTrendMonth[];
+  overallAvgDaysToSettle: number;
+  settlementRate: number;
+  totalSettled: number;
+  totalPending: number;
+  currentMonth: SettlementMonthSummary;
+  previousMonth: SettlementMonthSummary;
+}
+
+export interface SettlementHistoryEntry {
+  entryId: string;
+  propertyId: string;
+  propertyTitle: string;
+  partyName: string;
+  partyType: KhataPartyType;
+  transactionType: KhataTransactionType;
+  amount: number;
+  categoryName: string;
+  createdAt: string;
+  settledAt: string;
+  settledBy: string;
+  settlementNotes: string;
+  daysToSettle: number;
+}
+
+export interface SettlementHistoryData {
+  history: SettlementHistoryEntry[];
+  total: number;
+}

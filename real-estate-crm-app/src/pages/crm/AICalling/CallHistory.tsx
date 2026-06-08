@@ -117,7 +117,7 @@ export default function CallHistory() {
               <button
                 onClick={loadCalls}
                 className="p-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-              >
+               aria-label="Refresh data">
                 <RefreshCw className="w-5 h-5" />
               </button>
             </div>

@@ -10,6 +10,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import { CRMCustomerNote } from '../../types/crm';
 import { isValidEmail, isValidIndianMobile, isValidName, normalizeEmail, normalizeIndianPhone, normalizeName } from '../../utils/validation';
 import DocumentUploadSection from '../../components/DocumentUploadSection';
@@ -194,13 +195,7 @@ export default function CustomerDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-emerald-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-teal-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading customer...</p>
-        </div>
+        <LoadingSpinner message="Loading customer..." />
       </div>
     );
   }

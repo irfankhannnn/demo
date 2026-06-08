@@ -16,6 +16,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import LoadingSpinner from '../../components/LoadingSpinner';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import { CRMContact, CRMContactNote } from '../../types/crm';
 
@@ -153,13 +154,7 @@ export default function BuyerDetails() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-amber-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="relative w-16 h-16 mx-auto">
-            <div className="absolute inset-0 rounded-full border-4 border-gray-200"></div>
-            <div className="absolute inset-0 rounded-full border-4 border-orange-500 border-t-transparent animate-spin"></div>
-          </div>
-          <p className="mt-4 text-gray-600 animate-pulse">Loading buyer...</p>
-        </div>
+        <LoadingSpinner message="Loading buyer..." />
       </div>
     );
   }
@@ -358,7 +353,7 @@ export default function BuyerDetails() {
                   onClick={handleAddNote}
                   disabled={!newNote.trim()}
                   className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+                 aria-label="Add">
                   <Plus className="h-5 w-5" />
                 </button>
               )}

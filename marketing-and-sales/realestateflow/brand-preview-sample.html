@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RealEstateFlow — Brand Preview & Sample Assets</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #0F172A;
+      --primaryAlt: #1E293B;
+      --blue: #2563EB;
+      --blueLight: #3B82F6;
+      --accent: #22C55E;
+      --accentLight: #4ADE80;
+      --warning: #EAB308;
+      --danger: #EF4444;
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --surfaceSecondary: #F1F5F9;
+      --border: #E2E8F0;
+      --borderDark: #CBD5E1;
+      --text: #111827;
+      --textSecondary: #475569;
+      --textTertiary: #64748B;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+    h1, h2, h3, h4 { font-family: 'Poppins', sans-serif; font-weight: 700; color: var(--primary); }
+
+    /* ===== BRAND BAR ===== */
+    .brand-bar {
+      background: var(--primary);
+      color: #fff;
+      padding: 12px 0;
+      text-align: center;
+      font-family: 'Poppins', sans-serif;
+      font-weight: 700;
+      font-size: 14px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ===== PAGE HEADER ===== */
+    .page-header {
+      background: linear-gradient(135deg, #F8FAFC 0%, #E0E7FF 100%);
+      padding: 48px 0 32px;
+      text-align: center;
+    }
+    .page-header h1 { font-size: 40px; font-weight: 800; margin-bottom: 8px; }
+    .page-header p { color: var(--textSecondary); font-size: 18px; max-width: 640px; margin: 0 auto; }
+
+    /* ===== SECTIONS ===== */
+    .section { padding: 48px 0; }
+    .section-title {
+      font-size: 24px;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-subtitle { color: var(--textSecondary); font-size: 14px; margin-bottom: 28px; }
+
+    /* ===== DESIGN TOKENS ===== */
+    .tokens-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .token-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+    }
+    .token-swatch { width: 48px; height: 48px; border-radius: 10px; margin: 0 auto 10px; }
+    .token-name { font-size: 12px; font-weight: 600; color: var(--textSecondary); }
+    .token-hex { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--textTertiary); }
+
+    /* ===== TYPOGRAPHY SHOWCASE ===== */
+    .type-showcase {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 32px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+    }
+    .type-h1 { font-family: 'Poppins'; font-size: 48px; font-weight: 800; line-height: 1.2; letter-spacing: -0.5px; }
+    .type-h2 { font-family: 'Poppins'; font-size: 32px; font-weight: 700; line-height: 1.3; margin-top: 16px; }
+    .type-h3 { font-family: 'Poppins'; font-size: 20px; font-weight: 700; line-height: 1.4; margin-top: 16px; }
+    .type-body { font-family: 'Inter'; font-size: 16px; line-height: 1.5; color: var(--textSecondary); margin-top: 12px; }
+    .type-hinglish {
+      font-family: 'Poppins'; font-size: 18px; font-weight: 600;
+      color: var(--blue); margin-top: 12px;
+    }
+
+    /* ===== INSTAGRAM SQUARE POST ===== */
+    .mockup-frame {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+    }
+    .mockup-label {
+      font-family: 'Poppins'; font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: 1px;
+      color: var(--textTertiary); margin-bottom: 16px;
+    }
+
+    .ig-post {
+      width: 360px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--surface);
+      font-family: 'Inter', sans-serif;
+    }
+    .ig-header {
+      display: flex; align-items: center; gap: 10px; padding: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .ig-avatar {
+      width: 32px; height: 32px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 12px; font-weight: 700;
+    }
+    .ig-user { font-weight: 600; font-size: 13px; }
+    .ig-body {
+      aspect-ratio: 1;
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px; text-align: center; position: relative;
+    }
+    .ig-body .chaos-badge {
+      position: absolute; top: 16px; left: 16px;
+      background: var(--danger); color: white;
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+    .ig-body .solution-badge {
+      position: absolute; top: 16px; right: 16px;
+      background: var(--accent); color: white;
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+    .ig-body h3 {
+      color: white; font-family: 'Poppins'; font-size: 20px;
+      font-weight: 800; line-height: 1.3; margin-bottom: 12px;
+    }
+    .ig-body p {
+      color: #94A3B8; font-size: 13px; line-height: 1.5; margin-bottom: 20px;
+    }
+    .ig-cta {
+      background: var(--blue); color: white;
+      padding: 10px 20px; border-radius: 6px;
+      font-weight: 600; font-size: 13px;
+      border: none; font-family: 'Poppins';
+    }
+    .ig-footer {
+      padding: 12px; font-size: 13px;
+      border-top: 1px solid var(--border);
+      color: var(--textSecondary);
+    }
+
+    /* ===== INSTAGRAM STORY ===== */
+    .ig-story {
+      width: 225px; height: 400px;
+      border-radius: 10px; overflow: hidden;
+      background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%);
+      position: relative; display: flex;
+      flex-direction: column; justify-content: center;
+      align-items: center; padding: 24px; text-align: center;
+      font-family: 'Poppins', sans-serif;
+    }
+    .story-top-bar {
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 4px; background: rgba(255,255,255,0.2);
+    }
+    .story-top-bar::after {
+      content: ''; position: absolute; left: 0; top: 0;
+      width: 60%; height: 100%; background: white; border-radius: 2px;
+    }
+    .story-badge {
+      background: var(--accent); color: white;
+      padding: 5px 14px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; margin-bottom: 20px;
+    }
+    .story-headline {
+      color: white; font-size: 22px; font-weight: 800;
+      line-height: 1.25; margin-bottom: 14px;
+    }
+    .story-sub {
+      color: #94A3B8; font-size: 13px;
+      font-family: 'Inter'; line-height: 1.5; margin-bottom: 24px;
+    }
+    .story-swipe {
+      position: absolute; bottom: 20px;
+      background: white; color: var(--primary);
+      padding: 10px 24px; border-radius: 24px;
+      font-weight: 700; font-size: 13px;
+    }
+
+    /* ===== LANDING PAGE HERO MOCKUP ===== */
+    .lp-mockup {
+      border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      background: var(--surface);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.1);
+    }
+    .lp-nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lp-logo { font-family: 'Poppins'; font-weight: 800; font-size: 18px; color: var(--primary); }
+    .lp-links { display: flex; gap: 24px; }
+    .lp-links a {
+      color: var(--textSecondary); text-decoration: none;
+      font-size: 14px; font-weight: 500;
+    }
+    .lp-btn {
+      background: var(--blue); color: white; border: none;
+      padding: 8px 16px; border-radius: 6px;
+      font-family: 'Poppins'; font-weight: 600; font-size: 13px; cursor: pointer;
+    }
+    .lp-hero {
+      background: linear-gradient(135deg, #F8FAFC 0%, #E0E7FF 100%);
+      padding: 60px 32px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center;
+    }
+    .lp-hero h1 {
+      font-size: 40px; font-weight: 800; line-height: 1.15;
+      color: var(--primary); margin-bottom: 16px;
+    }
+    .lp-hero p {
+      font-size: 17px; color: var(--textSecondary);
+      line-height: 1.6; margin-bottom: 28px;
+    }
+    .lp-hero .hero-btn {
+      background: var(--blue); color: white; border: none;
+      padding: 14px 28px; border-radius: 8px;
+      font-family: 'Poppins'; font-weight: 700; font-size: 15px;
+      cursor: pointer;
+    }
+    .lp-hero .hero-btn-secondary {
+      background: transparent; color: var(--blue);
+      border: 2px solid var(--blue); margin-left: 10px;
+      padding: 12px 24px; border-radius: 8px;
+      font-family: 'Poppins'; font-weight: 600; font-size: 15px;
+    }
+    .lp-hero-img {
+      background: linear-gradient(135deg, var(--primaryAlt) 0%, var(--primary) 100%);
+      border-radius: 12px; height: 240px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-family: 'Poppins'; font-size: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      position: relative; overflow: hidden;
+    }
+    .lp-hero-img::before {
+      content: '';
+      position: absolute; inset: 16px;
+      border: 1px dashed rgba(255,255,255,0.15); border-radius: 8px;
+    }
+    .lp-metrics {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+      padding: 32px; background: var(--surface);
+    }
+    .lp-metric {
+      background: var(--surfaceSecondary); border-radius: 10px;
+      padding: 20px; text-align: center;
+    }
+    .lp-metric-label { font-size: 12px; color: var(--textSecondary); margin-bottom: 6px; }
+    .lp-metric-value { font-size: 28px; font-weight: 800; color: var(--primary); font-family: 'Poppins'; }
+
+    /* ===== SPLIT-SCREEN AD CREATIVE ===== */
+    .split-ad {
+      display: grid; grid-template-columns: 1fr 1fr;
+      width: 600px; height: 340px; border-radius: 10px; overflow: hidden;
+      font-family: 'Poppins', sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    .split-left {
+      background: #FEE2E2;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px; text-align: center; position: relative;
+    }
+    .split-left .emoji-stack { font-size: 42px; margin-bottom: 14px; }
+    .split-left h4 { color: #991B1B; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .split-left p { color: #B91C1C; font-size: 13px; font-family: 'Inter'; line-height: 1.5; }
+    .split-right {
+      background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 28px; text-align: center;
+    }
+    .split-right .logo-mark {
+      width: 44px; height: 44px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--blue), var(--accent));
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 18px; font-weight: 800; margin-bottom: 14px;
+    }
+    .split-right h4 { color: white; font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .split-right p { color: #94A3B8; font-size: 13px; font-family: 'Inter'; line-height: 1.5; }
+    .split-badge {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: var(--danger); color: white;
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+    }
+
+    /* ===== WHATSAPP CARD ===== */
+    .wa-card {
+      width: 320px;
+      background: linear-gradient(180deg, #DCFCE7 0%, #D1FAE5 100%);
+      border-radius: 14px; padding: 24px;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .wa-card::before {
+      content: ''; position: absolute; top: 0; left: 24px; right: 24px;
+      height: 4px; background: var(--accent); border-radius: 2px;
+    }
+    .wa-card h4 { font-family: 'Poppins'; font-size: 16px; font-weight: 700; margin-bottom: 8px; color: #065F46; }
+    .wa-card p { font-size: 13px; color: #047857; line-height: 1.6; margin-bottom: 16px; }
+    .wa-btn {
+      background: #065F46; color: white; border: none;
+      padding: 10px 18px; border-radius: 24px;
+      font-weight: 600; font-size: 13px; cursor: pointer;
+    }
+
+    /* ===== LAYOUT UTILS ===== */
+    .flex-row { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+    .flex-col { display: flex; flex-direction: column; gap: 24px; }
+    .label-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surfaceSecondary); border: 1px solid var(--border);
+      padding: 4px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; color: var(--textSecondary);
+      margin-bottom: 16px;
+    }
+    .divider {
+      height: 1px; background: var(--border); margin: 32px 0;
+    }
+    .footer-bar {
+      background: var(--primary); color: #94A3B8;
+      padding: 24px; text-align: center; font-size: 13px;
+      margin-top: 48px;
+    }
+
+    @media (max-width: 900px) {
+      .lp-hero { grid-template-columns: 1fr; }
+      .split-ad { width: 100%; grid-template-columns: 1fr; height: auto; }
+      .flex-row { flex-direction: column; align-items: stretch; }
+      .ig-post, .ig-story, .wa-card { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Brand Bar -->
+  <div class="brand-bar">RealEstateFlow — Real Estate Operating System</div>
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="container">
+      <h1>Brand Identity & Asset Preview</h1>
+      <p>Based on RealEstateFlow positioning, design tokens, and component library. Every pixel below uses the approved palette, typography, and messaging system.</p>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- ===== 1. DESIGN TOKENS ===== -->
+    <div class="section">
+      <div class="section-title">🎨 Design Tokens</div>
+      <div class="section-subtitle">Colors, fonts, and spacing used across all assets. Source: <code>design-tokens.json</code></div>
+
+      <div class="tokens-grid">
+        <div class="token-card">
+          <div class="token-swatch" style="background:#0F172A"></div>
+          <div class="token-name">Primary</div>
+          <div class="token-hex">#0F172A</div>
+        </div>
+        <div class="token-card">
+          <div class="token-swatch" style="background:#2563EB"></div>
+          <div class="token-name">Blue</div>
+          <div class="token-hex">#2563EB</div>
+        </div>
+        <div class="token-card">
+          <div class="token-swatch" style="background:#22C55E"></div>
+          <div class="token-name">Accent</div>
+          <div class="token-hex">#22C55E</div>
+        </div>
+        <div class="token-card">
+          <div class="token-swatch" style="background:#F8FAFC;border:1px solid #E2E8F0"></div>
+          <div class="token-name">Background</div>
+          <div class="token-hex">#F8FAFC</div>
+        </div>
+        <div class="token-card">
+          <div class="token-swatch" style="background:#FFFFFF;border:1px solid #E2E8F0"></div>
+          <div class="token-name">Surface</div>
+          <div class="token-hex">#FFFFFF</div>
+        </div>
+        <div class="token-card">
+          <div class="token-swatch" style="background:#EF4444"></div>
+          <div class="token-name">Danger</div>
+          <div class="token-hex">#EF4444</div>
+        </div>
+      </div>
+
+      <div class="type-showcase">
+        <div class="type-h1">Apne Real Estate Business Ko Next Level Le Jaao</div>
+        <div class="type-h2">Your business is bigger than WhatsApp</div>
+        <div class="type-h3">Track deals, manage leads, close faster</div>
+        <div class="type-body">RealEstateFlow helps real estate brokers move their entire business out of WhatsApp into one structured system where they can track every deal, payment, client, and document.</div>
+        <div class="type-hinglish">Ek platform mein sab kuch — properties, leads, follow-ups</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 2. INSTAGRAM SQUARE POST ===== -->
+    <div class="section">
+      <div class="section-title">📸 Instagram Square Post (1080×1080)</div>
+      <div class="section-subtitle">Split-screen problem/solution format. Angle: "WhatsApp chaos vs system clarity."</div>
+
+      <div class="flex-row">
+        <div class="mockup-frame">
+          <div class="mockup-label">Instagram Feed Post — Mockup</div>
+          <div class="ig-post">
+            <div class="ig-header">
+              <div class="ig-avatar">RF</div>
+              <div class="ig-user">realestateflow.india</div>
+            </div>
+            <div class="ig-body">
+              <div class="chaos-badge">BEFORE</div>
+              <div class="solution-badge">AFTER</div>
+              <h3>Your business is<br>bigger than WhatsApp</h3>
+              <p>Stop losing deals in chats.<br>Track everything in one place.</p>
+              <div class="ig-cta">Get Free Demo</div>
+            </div>
+            <div class="ig-footer">
+              <strong>RealEstateFlow</strong> — Real Estate Operating System<br>
+              <span style="color:var(--textTertiary)">Mumbai · Pune · Thane</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-col" style="max-width: 360px;">
+          <div class="label-pill">🎯 Positioning</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Primary message:</strong> "Your business is bigger than WhatsApp"<br><br>
+            <strong>Visual:</strong> Dark slate background with gradient edge. Problem badge (red) and solution badge (green) create split-screen tension.<br><br>
+            <strong>CTA:</strong> Direct demo request — no feature dump.<br><br>
+            <strong>Copy rule:</strong> Lead with problem, end with outcome.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 3. INSTAGRAM STORY ===== -->
+    <div class="section">
+      <div class="section-title">📱 Instagram Story (1080×1920)</div>
+      <div class="section-subtitle">15-second story hook. Problem-first, direct CTA. Swipe-up to landing page.</div>
+
+      <div class="flex-row">
+        <div class="mockup-frame">
+          <div class="mockup-label">Instagram Story — Mockup</div>
+          <div class="ig-story">
+            <div class="story-top-bar"></div>
+            <div class="story-badge">STOP THE CHAOS</div>
+            <div class="story-headline">Missing payments?<br>Lost deals?</div>
+            <div class="story-sub">Brokers running multi-lakh businesses on WhatsApp. No system. No control.</div>
+            <div class="story-swipe">Get Demo &rarr;</div>
+          </div>
+        </div>
+
+        <div class="flex-col" style="max-width: 360px;">
+          <div class="label-pill">📝 Messaging Notes</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Hook:</strong> Fear-based agitation — "Missing payments? Lost deals?"<br><br>
+            <strong>Body:</strong> Problem identification — running business on WhatsApp with no system.<br><br>
+            <strong>CTA:</strong> "Get Demo" swipe-up. Short, action-oriented, no explanation needed.<br><br>
+            <strong>Colors:</strong> Dark slate background maintains brand recognition. Green badge signals solution ahead.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 4. SPLIT-SCREEN AD CREATIVE ===== -->
+    <div class="section">
+      <div class="section-title">🖼️ Split-Screen Ad Creative</div>
+      <div class="section-subtitle">Preferred format for Meta ads. Left = pain, Right = solution. High contrast for scroll-stopping.</div>
+
+      <div class="flex-row">
+        <div class="mockup-frame">
+          <div class="mockup-label">Meta Ad — 1:1 Split Creative</div>
+          <div class="split-ad">
+            <div class="split-left">
+              <div class="split-badge">Current Reality</div>
+              <div class="emoji-stack">📱💬🤯</div>
+              <h4>Running on WhatsApp</h4>
+              <p>Deals lost in chats.<br>Payments forgotten.<br>No visibility.</p>
+            </div>
+            <div class="split-right">
+              <div class="logo-mark">RF</div>
+              <h4>RealEstateFlow</h4>
+              <p>One system.<br>Every deal tracked.<br>Full control.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex-col" style="max-width: 360px;">
+          <div class="label-pill">🎨 Creative Rules</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Left side:</strong> Light red tint (#FEE2E2) signals pain. Emojis replace screenshots for universal readability.<br><br>
+            <strong>Right side:</strong> Dark slate gradient signals authority and solution. Logo mark with blue-to-green gradient = brand identity.<br><br>
+            <strong>Contrast:</strong> Warm pain vs cool solution. Stops the scroll.<br><br>
+            <strong>Text:</strong> Max 6 words per line. Readable on mobile.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 5. LANDING PAGE HERO ===== -->
+    <div class="section">
+      <div class="section-title">🌐 Landing Page — Hero + Metrics</div>
+      <div class="section-subtitle">Top-of-funnel landing page. Problem → Solution → Proof → CTA. Mobile-first, scannable.</div>
+
+      <div class="mockup-frame" style="padding: 16px;">
+        <div class="mockup-label">Landing Page — Browser Mockup</div>
+        <div class="lp-mockup">
+          <!-- Nav -->
+          <div class="lp-nav">
+            <div class="lp-logo">RealEstateFlow</div>
+            <div class="lp-links">
+              <a href="#">Features</a>
+              <a href="#">Pricing</a>
+              <a href="#">About</a>
+            </div>
+            <button class="lp-btn">Get Demo</button>
+          </div>
+
+          <!-- Hero -->
+          <div class="lp-hero">
+            <div>
+              <h1>Your business is bigger than WhatsApp</h1>
+              <p>RealEstateFlow is the operating system for real estate brokers. Track every deal, payment, client, and document — in one structured system.</p>
+              <button class="hero-btn">Get Started Free</button>
+              <button class="hero-btn-secondary">Watch Demo</button>
+              <p style="margin-top:16px;font-size:12px;color:var(--textTertiary)">Trusted by 500+ agents in Mumbai, Pune & Thane</p>
+            </div>
+            <div class="lp-hero-img">
+              <div style="text-align:center;z-index:1">
+                <div style="font-size:28px;font-weight:800;margin-bottom:8px">Dashboard Preview</div>
+                <div style="font-size:12px;opacity:0.7;font-family:'Inter'">Deals · Payments · Documents · Clients</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Metrics -->
+          <div class="lp-metrics">
+            <div class="lp-metric">
+              <div class="lp-metric-label">Active Deals Tracked</div>
+              <div class="lp-metric-value">2,435</div>
+            </div>
+            <div class="lp-metric">
+              <div class="lp-metric-label">Brokers Onboarded</div>
+              <div class="lp-metric-value">500+</div>
+            </div>
+            <div class="lp-metric">
+              <div class="lp-metric-label">Payments Never Missed</div>
+              <div class="lp-metric-value" style="color:var(--accent)">₹12Cr+</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex-row" style="margin-top: 24px;">
+        <div style="max-width: 320px;">
+          <div class="label-pill">📐 Layout Rules</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Nav:</strong> Logo left, minimal links, one CTA right.<br><br>
+            <strong>Hero:</strong> H1 max 8 words. Subhead = one sentence. Two buttons max.<br><br>
+            <strong>Social proof:</strong> One line of trust signal below buttons.<br><br>
+            <strong>Metrics:</strong> 3 numbers max. Readable at a glance.
+          </p>
+        </div>
+        <div style="max-width: 320px;">
+          <div class="label-pill">📝 Copy Notes</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Headline:</strong> Problem-aware — calls out WhatsApp directly.<br><br>
+            <strong>Subhead:</strong> Positions as "operating system" (not just CRM).<br><br>
+            <strong>CTAs:</strong> "Get Started Free" (low friction) + "Watch Demo" (education).<br><br>
+            <strong>No jargon:</strong> "Deals, payments, clients, documents" — every broker understands.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 6. WHATSAPP BROADCAST CARD ===== -->
+    <div class="section">
+      <div class="section-title">💬 WhatsApp Broadcast Graphic</div>
+      <div class="section-subtitle">Used in WhatsApp status / broadcast messages. Green = WhatsApp-native trust.</div>
+
+      <div class="flex-row">
+        <div class="mockup-frame">
+          <div class="mockup-label">WhatsApp Status — Mockup</div>
+          <div class="wa-card">
+            <h4>Stop losing deals in chats</h4>
+            <p>Brokers in Mumbai & Pune are moving their business into RealEstateFlow. One system. Full control. Zero chaos.</p>
+            <button class="wa-btn">Book Free Demo</button>
+          </div>
+        </div>
+
+        <div class="flex-col" style="max-width: 360px;">
+          <div class="label-pill">📱 WhatsApp Strategy</div>
+          <p style="font-size:14px;color:var(--textSecondary);line-height:1.7">
+            <strong>Color:</strong> Green gradient matches WhatsApp UI — feels native, not intrusive.<br><br>
+            <strong>Copy:</strong> Peer pressure angle — "Brokers in Mumbai & Pune are moving..."<br><br>
+            <strong>CTA:</strong> "Book Free Demo" — low commitment, high intent.<br><br>
+            <strong>Format:</strong> Square image for status, or 16:9 for broadcast lists.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ===== 7. BRAND POSITIONING SUMMARY ===== -->
+    <div class="section">
+      <div class="section-title">📘 Positioning Quick Reference</div>
+      <div class="section-subtitle">Everything on this page is derived from <code>BRAND-POSITIONING.md</code></div>
+
+      <div class="type-showcase" style="padding: 28px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;">
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Identity</h4>
+            <p style="font-size:15px;font-weight:600;color:var(--primary)">Real Estate Operating System</p>
+          </div>
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Enemy</h4>
+            <p style="font-size:15px;font-weight:600;color:var(--danger)">WhatsApp-based operations</p>
+          </div>
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Primary Message</h4>
+            <p style="font-size:15px;font-weight:600;color:var(--blue)">"Your business is bigger than WhatsApp"</p>
+          </div>
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Pillars</h4>
+            <p style="font-size:14px;color:var(--textSecondary)">Control · Visibility · Risk Reduction · Growth</p>
+          </div>
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Target</h4>
+            <p style="font-size:14px;color:var(--textSecondary)">Brokers & agencies, 2–15 team, Mumbai/Pune/Thane</p>
+          </div>
+          <div>
+            <h4 style="font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--textTertiary);margin-bottom:8px;">Tone</h4>
+            <p style="font-size:14px;color:var(--textSecondary)">Direct, practical, clear, confident — Hinglish</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-bar">
+    RealEstateFlow Brand Preview v1.0 &nbsp;·&nbsp; Generated from <code>marketing-and-sales/realestateflow/</code> &nbsp;·&nbsp; May 2026
+  </div>
+
+</body>
+</html>

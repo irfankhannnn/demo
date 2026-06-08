@@ -9,7 +9,7 @@ import {
   QueryCommand,
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { wrapAwsClient } from '../awsClientWrapper.js';
 
 const router = express.Router();
@@ -165,7 +165,7 @@ router.post('/b2b-leads', async (req, res) => {
 });
 
 // Get all B2B leads (CRM - requires auth)
-router.get('/b2b-leads', authenticateToken, async (req, res) => {
+router.get('/b2b-leads', validateToken, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'];
     
@@ -191,7 +191,7 @@ router.get('/b2b-leads', authenticateToken, async (req, res) => {
 });
 
 // Get single B2B lead (CRM - requires auth)
-router.get('/b2b-leads/:leadId', authenticateToken, async (req, res) => {
+router.get('/b2b-leads/:leadId', validateToken, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'];
     const { leadId } = req.params;
@@ -223,7 +223,7 @@ router.get('/b2b-leads/:leadId', authenticateToken, async (req, res) => {
 });
 
 // Update B2B lead (CRM - requires auth)
-router.put('/b2b-leads/:leadId', authenticateToken, async (req, res) => {
+router.put('/b2b-leads/:leadId', validateToken, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'];
     const { leadId } = req.params;
@@ -309,7 +309,7 @@ router.put('/b2b-leads/:leadId', authenticateToken, async (req, res) => {
 });
 
 // Add note to B2B lead (CRM - requires auth)
-router.post('/b2b-leads/:leadId/notes', authenticateToken, async (req, res) => {
+router.post('/b2b-leads/:leadId/notes', validateToken, async (req, res) => {
   try {
     const tenantId = req.headers['x-tenant-id'];
     const { leadId } = req.params;

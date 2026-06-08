@@ -2,17 +2,18 @@
 // This tenant ID will be passed with every API request via x-tenant-id header
 // Each organization/user gets their own tenant ID for data isolation
 
-const TENANT_ID = import.meta.env.VITE_TENANT_ID;
+import { getUserProfile } from '../utils/authStorage';
 
-if (!TENANT_ID) {
-  throw new Error('VITE_TENANT_ID is not defined. Set it in your .env file.');
-}
+// Fallback for dev/legacy cases where auth profile isn't available yet
+const FALLBACK_TENANT_ID = import.meta.env.VITE_TENANT_ID as string | undefined;
 
-export { TENANT_ID };
-
-// Add tenant_id to request headers
+// Get tenant headers - derives from authenticated user's profile (primary)
+// Falls back to VITE_TENANT_ID only if profile not available
 export function getTenantHeaders(): Record<string, string> {
-  return {
-    'x-tenant-id': TENANT_ID,
-  };
+  const profile = getUserProfile();
+  const tenantId = profile?.tenantId || FALLBACK_TENANT_ID;
+
+  // Only include header if tenantId exists
+  // Server will reject with 400 if missing (safer than sending wrong tenant)
+  return tenantId ? { 'x-tenant-id': tenantId } : {};
 }

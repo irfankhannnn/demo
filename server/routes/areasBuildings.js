@@ -1,11 +1,15 @@
 import express from 'express';
 import * as dynamodb from '../dynamodbService.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 
 const router = express.Router();
 
 // All routes require authentication
-router.use(authenticateToken);
+// router.use(validateToken);
+
+/*
+// ============== COMMENTED OUT: Areas/Buildings hierarchy disabled ==============
+// All routes below are commented out as part of removing flats/buildings/areas functionality
 
 // ============== Dashboard Metrics ==============
 
@@ -259,6 +263,7 @@ router.get('/search', async (req, res) => {
       areas: matchingAreas,
     });
   } catch (error) {
+*/
     console.error('Error searching:', error);
     res.status(500).json({ error: 'Failed to search' });
   }

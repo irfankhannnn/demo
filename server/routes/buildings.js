@@ -1,12 +1,37 @@
 import express from 'express';
 import multer from 'multer';
 import db from '../database.js';
-import { authenticateToken } from '../middleware/auth.js';
+import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, getPresignedUrl } from '../s3Service.js';
 // import { deleteFromS3 } from '../s3Service.js'; // DISABLED: Delete operations not allowed
 import { extractTenantId } from '../tenantMiddleware.js';
+import { logger } from '../logger.js';
 
 const router = express.Router();
+
+logger.warn('sqlite.route.buildings.module_loaded', {
+  file: 'routes/buildings.js',
+});
+
+router.use((req, res, next) => {
+  const log = req.log || logger.child({
+    requestId: req.headers['x-request-id'] || req.headers['X-Request-Id'],
+    method: req.method,
+    path: req.originalUrl,
+    tenantId: req.headers['x-tenant-id'],
+  });
+
+  log.warn('sqlite.route.buildings.request', {
+    hasAuthHeader: !!req.headers?.authorization,
+    hasTenantHeader: !!req.headers?.['x-tenant-id'],
+  });
+
+  next();
+});
+
+/*
+// ============== COMMENTED OUT: Buildings (SQLite) feature disabled ==============
+// All routes below are commented out as part of removing flats/buildings/areas functionality
 
 // Configure multer for memory storage
 const upload = multer({
@@ -29,7 +54,9 @@ const upload = multer({
 });
 
 // Get all buildings with area info
-router.get('/', authenticateToken, (req, res) => {
+router.get('/', validateToken, (req, res) => {
+  const log = req.log || logger;
+  log.warn('sqlite.buildings.list.start');
   try {
     const buildings = db.prepare(`
       SELECT b.*, a.name as area_name 
@@ -37,22 +64,30 @@ router.get('/', authenticateToken, (req, res) => {
       LEFT JOIN areas a ON b.area_id = a.id 
       ORDER BY b.created_at DESC
     `).all();
+    log.warn('sqlite.buildings.list.end', { count: buildings?.length ?? 0 });
     res.json(buildings);
   } catch (error) {
-    console.error('Get buildings error:', error);
+    log.error('sqlite.buildings.list.error', {
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Search buildings by name or customer name
-router.get('/search', authenticateToken, (req, res) => {
+router.get('/search', validateToken, (req, res) => {
   const { query } = req.query;
+  const log = req.log || logger;
 
   if (!query) {
+    log.warn('sqlite.buildings.search.missing_query');
     return res.status(400).json({ error: 'Search query is required' });
   }
 
   try {
+    log.warn('sqlite.buildings.search.start', { query: String(query) });
     const buildings = db.prepare(`
       SELECT b.*, a.name as area_name 
       FROM buildings b 
@@ -60,19 +95,26 @@ router.get('/search', authenticateToken, (req, res) => {
       WHERE b.name LIKE ? OR b.customer_name LIKE ?
       ORDER BY b.created_at DESC
     `).all(`%${query}%`, `%${query}%`);
-    
+
+    log.warn('sqlite.buildings.search.end', { count: buildings?.length ?? 0 });
     res.json(buildings);
   } catch (error) {
-    console.error('Search buildings error:', error);
+    log.error('sqlite.buildings.search.error', {
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Get single building with documents
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', validateToken, async (req, res) => {
   const { id } = req.params;
+  const log = req.log || logger;
 
   try {
+    log.warn('sqlite.buildings.get.start', { id });
     const building = db.prepare(`
       SELECT b.*, a.name as area_name 
       FROM buildings b 
@@ -81,6 +123,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     `).get(id);
 
     if (!building) {
+      log.warn('sqlite.buildings.get.not_found', { id });
       return res.status(404).json({ error: 'Building not found' });
     }
 
@@ -96,25 +139,42 @@ router.get('/:id', authenticateToken, async (req, res) => {
       }))
     );
 
+    log.warn('sqlite.buildings.get.end', {
+      id,
+      docCount: documents?.length ?? 0,
+    });
+
     res.json({
       ...building,
       documents: documentsWithUrls,
     });
   } catch (error) {
-    console.error('Get building error:', error);
+    log.error('sqlite.buildings.get.error', {
+      id,
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Create new building
-router.post('/', authenticateToken, (req, res) => {
+router.post('/', validateToken, (req, res) => {
   const { name, area_id, customer_name } = req.body;
+  const log = req.log || logger;
 
   if (!name || !area_id || !customer_name) {
+    log.warn('sqlite.buildings.create.validation_error', {
+      hasName: !!name,
+      hasAreaId: !!area_id,
+      hasCustomerName: !!customer_name,
+    });
     return res.status(400).json({ error: 'Name, area, and customer name are required' });
   }
 
   try {
+    log.warn('sqlite.buildings.create.start', { area_id });
     const result = db.prepare(
       'INSERT INTO buildings (name, area_id, customer_name) VALUES (?, ?, ?)'
     ).run(name, area_id, customer_name);
@@ -126,23 +186,37 @@ router.post('/', authenticateToken, (req, res) => {
       WHERE b.id = ?
     `).get(result.lastInsertRowid);
 
+    log.warn('sqlite.buildings.create.end', { id: result.lastInsertRowid });
+
     res.status(201).json(building);
   } catch (error) {
-    console.error('Create building error:', error);
+    log.error('sqlite.buildings.create.error', {
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Update building
-router.put('/:id', authenticateToken, (req, res) => {
+router.put('/:id', validateToken, (req, res) => {
   const { id } = req.params;
   const { name, area_id, customer_name } = req.body;
+  const log = req.log || logger;
 
   if (!name || !area_id || !customer_name) {
+    log.warn('sqlite.buildings.update.validation_error', {
+      id,
+      hasName: !!name,
+      hasAreaId: !!area_id,
+      hasCustomerName: !!customer_name,
+    });
     return res.status(400).json({ error: 'Name, area, and customer name are required' });
   }
 
   try {
+    log.warn('sqlite.buildings.update.start', { id, area_id });
     db.prepare(
       'UPDATE buildings SET name = ?, area_id = ?, customer_name = ? WHERE id = ?'
     ).run(name, area_id, customer_name, id);
@@ -155,33 +229,48 @@ router.put('/:id', authenticateToken, (req, res) => {
     `).get(id);
 
     if (!building) {
+      log.warn('sqlite.buildings.update.not_found', { id });
       return res.status(404).json({ error: 'Building not found' });
     }
 
+    log.warn('sqlite.buildings.update.end', { id });
     res.json(building);
   } catch (error) {
-    console.error('Update building error:', error);
+    log.error('sqlite.buildings.update.error', {
+      id,
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // Delete building - DISABLED: Delete operations are not allowed
-// router.delete('/:id', authenticateToken, async (req, res) => {
+// router.delete('/:id', validateToken, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
 
 // Upload document for building
-router.post('/:id/documents', authenticateToken, extractTenantId, upload.single('file'), async (req, res) => {
+router.post('/:id/documents', validateToken, extractTenantId, upload.single('file'), async (req, res) => {
   const { id } = req.params;
+  const log = req.log || logger;
 
   if (!req.file) {
+    log.warn('sqlite.buildings.documents.upload.missing_file', { id });
     return res.status(400).json({ error: 'No file uploaded' });
   }
 
   try {
+    log.warn('sqlite.buildings.documents.upload.start', {
+      id,
+      fileSize: req.file.size,
+      mimeType: req.file.mimetype,
+    });
     // Check if building exists
     const building = db.prepare('SELECT id FROM buildings WHERE id = ?').get(id);
     if (!building) {
+      log.warn('sqlite.buildings.documents.upload.building_not_found', { id });
       return res.status(404).json({ error: 'Building not found' });
     }
 
@@ -209,19 +298,31 @@ router.post('/:id/documents', authenticateToken, extractTenantId, upload.single(
 
     const document = db.prepare('SELECT * FROM documents WHERE id = ?').get(result.lastInsertRowid);
 
+    log.warn('sqlite.buildings.documents.upload.end', {
+      id,
+      documentId: result.lastInsertRowid,
+      s3Key: document?.s3_key,
+    });
+
     res.status(201).json({
       ...document,
       url: await getPresignedUrl(document.s3_key),
     });
   } catch (error) {
-    console.error('Upload document error:', error);
+    log.error('sqlite.buildings.documents.upload.error', {
+      id,
+      errorMessage: error?.message,
+      errorName: error?.name,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Delete document - DISABLED: Delete operations are not allowed
-// router.delete('/:buildingId/documents/:documentId', authenticateToken, async (req, res) => {
+// router.delete('/:buildingId/documents/:documentId', validateToken, async (req, res) => {
 //   res.status(403).json({ error: 'Delete operations are not allowed' });
 // });
+*/
 
 export default router;

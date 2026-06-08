@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RealtyFlow - 5 Instagram Posts</title>
+    <link rel="stylesheet" href="../assets/realtyflow.css">
+    <style>
+        body {
+            background: #f0f0f0;
+            padding: 40px 20px;
+        }
+        .posts-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        .post-wrapper {
+            background: white;
+            padding: 20px;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .instagram-post {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            font-family: 'Poppins', sans-serif;
+            position: relative;
+            overflow: hidden;
+            text-align: center;
+        }
+        .post-title {
+            font-size: 12px;
+            color: #64748B;
+            margin-top: 15px;
+            font-weight: 600;
+        }
+
+        /* Post 1: Pain Point */
+        .post-1 {
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+            color: white;
+        }
+        .post-1 .headline {
+            font-size: 42px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.2;
+            color: #EF4444;
+        }
+        .post-1 .subtext {
+            font-size: 16px;
+            margin-bottom: 25px;
+            color: #E2E8F0;
+        }
+        .post-1 .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+        }
+        .post-1 .cta {
+            background: #EF4444;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Post 2: Solution */
+        .post-2 {
+            background: linear-gradient(135deg, #F8FAFC 0%, #FFFFFF 100%);
+            color: #0F172A;
+        }
+        .post-2 .headline {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            color: #0F172A;
+        }
+        .post-2 .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        .post-2 .dashboard-item {
+            background: #2563EB;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .post-2 .cta {
+            background: #22C55E;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Post 3: Feature */
+        .post-3 {
+            background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+            color: white;
+        }
+        .post-3 .headline {
+            font-size: 40px;
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+        .post-3 .features {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+        .post-3 .feature-badge {
+            background: rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            flex: 1;
+            min-width: 100px;
+        }
+        .post-3 .cta {
+            background: #22C55E;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Post 4: Social Proof */
+        .post-4 {
+            background: linear-gradient(135deg, #F8FAFC 0%, #E0E7FF 100%);
+            color: #0F172A;
+        }
+        .post-4 .headline {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 25px;
+            color: #22C55E;
+        }
+        .post-4 .testimonial {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        .post-4 .quote {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #0F172A;
+            line-height: 1.5;
+        }
+        .post-4 .author {
+            font-size: 12px;
+            color: #64748B;
+            font-weight: 500;
+        }
+        .post-4 .cta {
+            background: #2563EB;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        /* Post 5: Before/After */
+        .post-5 {
+            background: linear-gradient(90deg, #0F172A 0%, #22C55E 100%);
+            color: white;
+            padding: 30px;
+        }
+        .post-5 .headline {
+            font-size: 36px;
+            font-weight: 800;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        .post-5 .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .post-5 .before, .post-5 .after {
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        .post-5 .before {
+            background: rgba(239, 68, 68, 0.3);
+            border: 2px solid #EF4444;
+            text-align: center;
+        }
+        .post-5 .after {
+            background: rgba(34, 197, 94, 0.3);
+            border: 2px solid #22C55E;
+            text-align: center;
+        }
+        .post-5 .cta {
+            background: #22C55E;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .logo {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            font-size: 11px;
+            font-weight: 700;
+            opacity: 0.7;
+        }
+
+        .post-1 .logo { color: #E2E8F0; }
+        .post-2 .logo { color: #0F172A; }
+        .post-3 .logo { color: white; }
+        .post-4 .logo { color: #0F172A; }
+        .post-5 .logo { color: white; }
+    </style>
+</head>
+<body>
+    <div class="posts-container">
+
+        <!-- POST 1: PAIN POINT -->
+        <div class="post-wrapper">
+            <div class="instagram-post post-1">
+                <div class="logo">RealtyFlow</div>
+                <div class="icon">⚠️</div>
+                <div class="headline">You lost how much to missed payments?</div>
+                <div class="subtext">Payments miss ho rahe hain WhatsApp par</div>
+                <div class="cta">Swipe to see solution ↗</div>
+            </div>
+            <div class="post-title">Post 1: Pain Point (Fear-based)</div>
+        </div>
+
+        <!-- POST 2: SOLUTION -->
+        <div class="post-wrapper">
+            <div class="instagram-post post-2">
+                <div class="logo">RealtyFlow</div>
+                <div class="headline">Everything in one place</div>
+                <div class="dashboard">
+                    <div class="dashboard-item">📍 Properties</div>
+                    <div class="dashboard-item">👥 Clients</div>
+                    <div class="dashboard-item">💰 Payments</div>
+                    <div class="dashboard-item">📄 Documents</div>
+                </div>
+                <div style="font-size: 14px; color: #475569; margin-bottom: 15px;">Ek platform mein sab kuch</div>
+                <div class="cta">See how ↗</div>
+            </div>
+            <div class="post-title">Post 2: Solution (Control-based)</div>
+        </div>
+
+        <!-- POST 3: FEATURE -->
+        <div class="post-wrapper">
+            <div class="instagram-post post-3">
+                <div class="logo">RealtyFlow</div>
+                <div class="headline">Track every deal.<br>Never miss a payment.</div>
+                <div class="features">
+                    <div class="feature-badge">✓ Deals track karna easy ho gaya</div>
+                    <div class="feature-badge">✓ Payments automatic</div>
+                </div>
+                <div style="font-size: 14px; margin-bottom: 15px; opacity: 0.9;">Complete visibility in one system</div>
+                <div class="cta">Get demo ↗</div>
+            </div>
+            <div class="post-title">Post 3: Feature (Demo-based)</div>
+        </div>
+
+        <!-- POST 4: SOCIAL PROOF -->
+        <div class="post-wrapper">
+            <div class="instagram-post post-4">
+                <div class="logo">RealtyFlow</div>
+                <div class="headline">500+ brokers already closed more deals</div>
+                <div class="testimonial">
+                    <div class="quote">"My business grew 40% in 3 months"</div>
+                    <div class="author">– Rajesh Kumar, Mumbai</div>
+                </div>
+                <div style="font-size: 13px; color: #475569; margin-bottom: 15px;">Real agents, real deals, real results</div>
+                <div class="cta">Join them ↗</div>
+            </div>
+            <div class="post-title">Post 4: Social Proof (Authority)</div>
+        </div>
+
+        <!-- POST 5: BEFORE/AFTER -->
+        <div class="post-wrapper">
+            <div class="instagram-post post-5">
+                <div class="logo">RealtyFlow</div>
+                <div class="headline">Before vs After</div>
+                <div class="split">
+                    <div class="before">
+                        ❌ Scattered data<br>❌ Missed deals<br>❌ Chaos
+                    </div>
+                    <div class="after">
+                        ✓ Organized<br>✓ Visible<br>✓ In control
+                    </div>
+                </div>
+                <div style="font-size: 13px; margin-bottom: 15px;">Chaos se clarity - apne business ka transformation</div>
+                <div class="cta">Start free trial ↗</div>
+            </div>
+            <div class="post-title">Post 5: Comparison (Split-screen)</div>
+        </div>
+
+    </div>
+</body>
+</html>

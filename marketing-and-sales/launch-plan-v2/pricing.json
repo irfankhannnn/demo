@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "lastUpdated": "2026-05-18",
+  "currency": "INR",
+  "gst": {
+    "rate": 0.18,
+    "hsn": "998314",
+    "label": "GST 18%"
+  },
+  "trial": {
+    "lengthDays": 14,
+    "requiresCard": false,
+    "appliesTo": ["solo", "team", "teamplus"]
+  },
+  "refund": {
+    "windowDays": 30,
+    "appliesTo": ["solo", "team", "teamplus"],
+    "antiAbuse": "First-time subscribers only. Refund denied if user exported >100 records or sent >50 outbound WhatsApp during trial."
+  },
+  "annualDiscount": {
+    "rate": 0.20,
+    "appliesTo": ["solo", "team", "teamplus"]
+  },
+  "tiers": [
+    {
+      "id": "solo",
+      "name": "Solo",
+      "price": 999,
+      "billingCycle": "monthly",
+      "trial": true,
+      "seats": 1,
+      "extraSeatPrice": null,
+      "description": "1 member, unlimited properties, full CRM",
+      "features": [
+        "Tenants, Owners, Properties, Buyers, Leads",
+        "B2B Leads, Khata Book + Settlement",
+        "Calendar, Hierarchy, Business Analytics",
+        "Rented Properties",
+        "Phone OTP auth, Invite & Member management",
+        "GST invoicing, 1-month money-back",
+        "Free onboarding, training videos, chat & email support"
+      ]
+    },
+    {
+      "id": "team",
+      "name": "Team",
+      "price": 1999,
+      "billingCycle": "monthly",
+      "trial": true,
+      "seats": 3,
+      "extraSeatPrice": null,
+      "description": "Up to 3 members, all Solo features + multi-agent hierarchy",
+      "features": [
+        "Everything in Solo",
+        "Up to 3 team members",
+        "Member-level activity reports",
+        "Multi-agent Hierarchy view",
+        "Shared Khata book"
+      ]
+    },
+    {
+      "id": "teamplus",
+      "name": "Team+",
+      "price": 1999,
+      "billingCycle": "monthly",
+      "trial": true,
+      "seats": 3,
+      "extraSeatPrice": 500,
+      "description": "4+ members, prorated extra-seat billing",
+      "features": [
+        "Everything in Team",
+        "₹500/month per additional member, prorated",
+        "Unlimited members",
+        "Priority chat support"
+      ]
+    },
+    {
+      "id": "ai_employee_addon",
+      "name": "AI Employee",
+      "price": 7999,
+      "billingCycle": "monthly",
+      "trial": false,
+      "seats": null,
+      "extraSeatPrice": null,
+      "description": "AI Employee that runs your broking agency on WhatsApp + Telegram. 1 instance per agency, configured by RealEstateFlow support within 24h.",
+      "features": [
+        "Standalone AI Employee (1 per agency)",
+        "Runs CRM via WhatsApp + Telegram",
+        "Qualifies inbound leads automatically",
+        "Sends follow-ups + meeting reminders",
+        "Updates Khata book + settlement",
+        "Concierge setup (24h SLA)",
+        "Loom walkthrough on go-live",
+        "No trial — paid from Day 1",
+        "No refund (manual-config cost is sunk)"
+      ],
+      "addOnTo": ["solo", "team", "teamplus"],
+      "limit": "Capped at 3 new AI Employee signups per week in M1"
+    }
+  ],
+  "currencySymbol": "₹",
+  "displayFormat": {
+    "monthly": "₹{price}/mo + 18% GST",
+    "annual": "₹{annualPrice}/yr + 18% GST (save 20%)",
+    "addOn": "+ ₹{price}/mo (no trial)"
+  },
+  "paymentProcessor": "razorpay",
+  "supportedPaymentMethods": ["upi", "card", "netbanking", "wallet"]
+}
