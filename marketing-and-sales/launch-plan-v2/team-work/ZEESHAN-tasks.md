@@ -21,21 +21,21 @@
 - **Context:** Spin up `demo.realestateflow.in` with a fully populated fake-data tenant so prospects can self-tour the product. The demo tenant must reset itself daily at 2:00 AM IST so it's always clean and doesn't accumulate junk. This is the AI Employee wedge showcase environment.
 
 #### Tasks
-- [ ] **ZEE-001-T1** — Write `server/scripts/seed-demo-tenant.js`
+- [x] **ZEE-001-T1** — Write `server/scripts/seed-demo-tenant.js`
   - Generates 1 agency, 3 agents, 5 buyers, 4 properties (Andheri/Bandra/Powai/Thane), 8 leads (mixed pipeline stages), 2 Khata entries, 1 pending commission
   - Uses Mumbai-realistic data (localities, property names, INR prices)
   - Idempotent: wipes existing demo-tenant DDB rows before re-seeding
   - Reads `DEMO_TENANT_ID` from env var
-- [ ] **ZEE-001-T2** — Write `server/scripts/reset-demo-tenant.js`
+- [x] **ZEE-001-T2** — Write `server/scripts/reset-demo-tenant.js`
   - Deletes all records for `DEMO_TENANT_ID` then calls `seed-demo-tenant.js`
   - Designed to be invoked by Lambda cron
-- [ ] **ZEE-001-T3** — Write `cron/reset-demo.yaml` (EventBridge / Lambda cron definition)
+- [x] **ZEE-001-T3** — Write `cron/reset-demo.yaml` (EventBridge / Lambda cron definition)
   - Schedule: `cron(30 20 * * ? *)` = 2:00 AM IST daily
   - Wraps `reset-demo-tenant.js` in a Lambda handler
-- [ ] **ZEE-001-T4** — Write `real-estate-crm-app/src/components/DemoBanner.tsx`
+- [x] **ZEE-001-T4** — Write `real-estate-crm-app/src/components/DemoBanner.tsx`
   - Sticky yellow banner: "You're viewing a demo account — data resets daily at 2 AM"
   - Reads `VITE_IS_DEMO` env flag; hides on production
-- [ ] **ZEE-001-T5** — Unit test: run seed → confirm DDB has exactly the expected record counts
+- [x] **ZEE-001-T5** — Unit test: run seed → confirm DDB has exactly the expected record counts
 - **Acceptance:** Demo URL loads with populated data; cron verified in AWS EventBridge; banner shows on demo subdomain only.
 
 ---
