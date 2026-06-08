@@ -5,7 +5,7 @@
  * Step 3: User details (if invited member)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, Smartphone, Shield, AlertCircle } from 'lucide-react';
 import PhoneInput from '../components/PhoneInput';
@@ -28,6 +28,18 @@ export default function PhoneLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+
+  // PR-L: Capture UTM params from LP deep-links for cross-domain attribution
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get('utm_source');
+    const utmCampaign = params.get('utm_campaign');
+    const utmMedium = params.get('utm_medium');
+
+    if (utmSource) sessionStorage.setItem('utm_source', utmSource);
+    if (utmCampaign) sessionStorage.setItem('utm_campaign', utmCampaign);
+    if (utmMedium) sessionStorage.setItem('utm_medium', utmMedium);
+  }, []);
 
   const handleSendOTP = async () => {
     if (phoneNumber.length !== 10) {

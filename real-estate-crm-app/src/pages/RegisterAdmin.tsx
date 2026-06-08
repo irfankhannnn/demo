@@ -5,6 +5,7 @@ import { callMe } from '../utils/cognitoAuth';
 import { setUserProfile } from '../utils/authStorage';
 
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
+const API_URL = import.meta.env.VITE_API_URL as string;
 
 export default function RegisterAdmin() {
   const [formData, setFormData] = useState({
@@ -28,13 +29,18 @@ export default function RegisterAdmin() {
 
       console.log('[REGISTER_ADMIN] Submitting registration:', formData);
 
+      // PR-L: Pass UTM attribution from sessionStorage (captured in PhoneLogin)
+      const utm_source = sessionStorage.getItem('utm_source') || undefined;
+      const utm_campaign = sessionStorage.getItem('utm_campaign') || undefined;
+      const utm_medium = sessionStorage.getItem('utm_medium') || undefined;
+
       const response = await fetch(`${AUTH_API_URL}/auth/register-admin`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, utm_source, utm_campaign, utm_medium }),
       });
 
       if (!response.ok) {
@@ -62,6 +68,26 @@ export default function RegisterAdmin() {
         lastLoginAt: meData.user.lastLoginAt,
         agency: meData.agency,
       });
+
+      // PR-L: Fire post-registration hook to add Brevo contact + pass UTM attribution
+      if (API_URL) {
+        fetch(`${API_URL}/api/auth/post-registration`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({
+            email: meData.user.email,
+            displayName: meData.user.displayName,
+            phone: meData.user.phoneNumber,
+            utm_source, utm_campaign, utm_medium,
+            tenantId: meData.user.tenantId,
+          }),
+        }).catch(() => {}); // fire-and-forget — must not block signup
+      }
+
+      // PR-L: Clear UTM sessionStorage — attribution already captured by server
+      sessionStorage.removeItem('utm_source');
+      sessionStorage.removeItem('utm_campaign');
+      sessionStorage.removeItem('utm_medium');
 
       console.log('[REGISTER_ADMIN] Navigating to /admin/dashboard');
       navigate('/admin/dashboard', { replace: true });
