@@ -7,6 +7,10 @@ import { callMe } from './utils/cognitoAuth';
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
 import DemoBanner from './components/DemoBanner';
+// PR-J
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import TrialCountdownBanner from './components/TrialCountdownBanner';
+import PaywallModal from './components/PaywallModal';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
 // Pages
@@ -191,6 +195,10 @@ function App() {
         {/* === [LAUNCH LAYOUT COMPONENTS] === */}
         {/* PR-A */}
         <DemoBanner />
+        {/* PR-J */}
+        <SubscriptionProvider>
+          <TrialCountdownBanner />
+          <PaywallModal />
         {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
         <Routes>
           {/* Public Routes */}
@@ -282,6 +290,7 @@ function App() {
           {/* <Route path="/crm/ai-calling/knowledge" element={<ProtectedRoute><KnowledgeManager /></ProtectedRoute>} /> */}
           {/* <Route path="/crm/ai-calling/settings" element={<ProtectedRoute><AICallingSettings /></ProtectedRoute>} /> */}
         </Routes>
+        </SubscriptionProvider>
       </Router>
     </GoogleMapsProvider>
   );
