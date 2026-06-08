@@ -7,6 +7,9 @@ import { callMe } from './utils/cognitoAuth';
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
 import DemoBanner from './components/DemoBanner';
+// PR-K
+import NpsModal from './components/NpsModal';
+import NpsEmailLanding from './pages/public/NpsEmailLanding';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
 // Pages
@@ -191,12 +194,16 @@ function App() {
         {/* === [LAUNCH LAYOUT COMPONENTS] === */}
         {/* PR-A */}
         <DemoBanner />
+        {/* PR-K */}
+        <NpsModal />
         {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
         <Routes>
           {/* Public Routes */}
           {/* === [LAUNCH PUBLIC ROUTES] === */}
           {/* PR-B */}
           <Route path="/grievance" element={<Grievance />} />
+          {/* PR-K */}
+          <Route path="/nps" element={<NpsEmailLanding />} />
           {/* === [/LAUNCH PUBLIC ROUTES] === */}
           <Route path="/login" element={<AdminLogin />} />
           <Route path="/phone-login" element={<PhoneLogin />} />

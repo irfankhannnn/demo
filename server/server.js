@@ -25,6 +25,8 @@ import notificationsRoutes from './routes/notifications.js';
 // === [LAUNCH ROUTES IMPORTS] ===
 // PR-B
 import grievanceRoutes from './routes/grievance.js';
+// PR-K
+import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 // import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
 // import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
@@ -109,6 +111,9 @@ app.use('/api/notifications', notificationsRoutes);
 // === [LAUNCH ROUTES MOUNTS] ===
 // PR-B
 app.use('/api', grievanceRoutes);
+// PR-K
+app.use('/api/feedback', feedbackRoutes);
+app.use('/api/nps', feedbackRoutes);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware
