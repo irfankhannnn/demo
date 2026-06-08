@@ -4,6 +4,11 @@ import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession } from './utils/authStorage';
 import { callMe } from './utils/cognitoAuth';
 
+// === [LAUNCH COMPONENT IMPORTS] ===
+// PR-A
+import DemoBanner from './components/DemoBanner';
+// === [/LAUNCH COMPONENT IMPORTS] ===
+
 // Pages
 import AdminLogin from './pages/AdminLogin';
 import PhoneLogin from './pages/PhoneLogin';
@@ -177,6 +182,10 @@ function App() {
   return (
     <GoogleMapsProvider>
       <Router>
+        {/* === [LAUNCH LAYOUT COMPONENTS] === */}
+        {/* PR-A */}
+        <DemoBanner />
+        {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<AdminLogin />} />

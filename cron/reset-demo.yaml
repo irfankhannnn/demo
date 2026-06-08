@@ -1,0 +1,68 @@
+# reset-demo.yaml — Daily reset of the RealEstateFlow demo tenant
+# ================================================================
+# Source task: ZEE-001 (PR-A) — marketing-and-sales/launch-plan-v2/pre-launch-prep/P5-demo-environment.md
+#
+# Purpose: every night, purge the demo tenant's data and re-seed a clean
+# dataset so prospects always see a pristine demo at demo.realestateflow.in.
+#
+# ----------------------------------------------------------------------------
+# TIMEZONE MATH
+# ----------------------------------------------------------------------------
+# EventBridge cron() expressions are ALWAYS in UTC. India Standard Time (IST)
+# is UTC+5:30. We want the reset at 2:00 AM IST:
+#
+#   02:00 IST  ==  02:00 - 05:30  ==  20:30 UTC (previous day)
+#
+# => cron(30 20 * * ? *)   # 20:30 UTC daily = 02:00 IST daily
+#
+# (Note: the older P5 story referenced 03:00 IST. The coding-agent-brief / PR-A
+#  spec — the single source of truth for implementation — specifies 2:00 AM IST,
+#  which is what the DemoBanner copy and this schedule use. If you later prefer
+#  03:00 IST, change the expression to cron(30 21 * * ? *).)
+# ----------------------------------------------------------------------------
+
+# ====== Plain spec to paste into the AWS Console (EventBridge -> Rules) ======
+EventBridgeRule:
+  Name: realestateflow-demo-daily-reset
+  Description: "Resets the RealEstateFlow demo tenant daily at 02:00 IST"
+  ScheduleExpression: "cron(30 20 * * ? *)" # 20:30 UTC = 02:00 IST
+  State: ENABLED
+  Target:
+    LambdaFunction: realestateflow-demo-reset
+    Input: "{}"
+
+LambdaPermission:
+  # Allows EventBridge to invoke the reset Lambda
+  Action: lambda:InvokeFunction
+  FunctionName: realestateflow-demo-reset
+  Principal: events.amazonaws.com
+  SourceArn: "arn:aws:events:ap-south-1:<ACCOUNT_ID>:rule/realestateflow-demo-daily-reset"
+
+Lambda:
+  FunctionName: realestateflow-demo-reset
+  Handler: server/scripts/reset-demo-tenant.handler
+  Runtime: nodejs22.x
+  Timeout: 60        # seconds
+  MemorySize: 256    # MB
+  Environment:
+    AWS_REGION: ap-south-1
+    DEMO_TENANT_ID: DEMO_REALESTATEFLOW
+    CRM_DYNAMODB_TABLE_NAME: <CRM_TABLE_NAME>
+    KHATA_TABLE_NAME: cloudberry-real-estate-khata
+    NOTIFICATIONS_TABLE_NAME: cloudberry-real-estate-notifications
+  # The execution role needs DynamoDB Scan/BatchWriteItem/PutItem on the three
+  # tables above (scoped to the demo tenant where possible).
+
+# ====== Equivalent serverless.yml snippet (Serverless Framework) ======
+# functions:
+#   demoReset:
+#     handler: server/scripts/reset-demo-tenant.handler
+#     timeout: 60
+#     memorySize: 256
+#     environment:
+#       DEMO_TENANT_ID: DEMO_REALESTATEFLOW
+#       CRM_DYNAMODB_TABLE_NAME: ${env:CRM_DYNAMODB_TABLE_NAME}
+#       KHATA_TABLE_NAME: cloudberry-real-estate-khata
+#       NOTIFICATIONS_TABLE_NAME: cloudberry-real-estate-notifications
+#     events:
+#       - schedule: cron(30 20 * * ? *)   # 20:30 UTC = 02:00 IST daily
