@@ -1,0 +1,49 @@
+# Trial Reminder Cron — EventBridge Rule
+# Schedule: 09:00 IST daily (03:30 UTC)
+# Sends trial reminder emails at Day 10, 12, 14 + reactivation at Day 3 post-expiry
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trial reminder email cron — daily at 09:00 IST'
+
+Resources:
+  TrialReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-trial-reminder
+      Description: 'Trigger trial reminder Lambda daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TrialReminderFunction.Arn
+          Id: TrialReminderTarget
+
+  TrialReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-trial-reminder
+      Runtime: nodejs20.x
+      Handler: trial-reminder-cron.handler
+      Timeout: 60
+      MemorySize: 128
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          BREVO_API_KEY: !Ref BrevoApiKey
+          BREVO_SENDER_EMAIL: 'noreply@realestateflow.in'
+          AWS_REGION_OVERRIDE: 'ap-south-1'
+
+  TrialReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TrialReminderFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt TrialReminderRule.Arn
+
+Parameters:
+  SubscriptionsTableName:
+    Type: String
+    Default: 'Subscriptions'
+  BrevoApiKey:
+    Type: String
+    NoEcho: true
