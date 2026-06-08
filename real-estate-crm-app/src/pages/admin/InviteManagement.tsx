@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, Mail, Phone, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield, Pencil } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
+import SeatCounter from '../../components/SeatCounter';
+import SeatUpgradeModal from '../../components/SeatUpgradeModal';
 
 interface Invite {
   inviteCode: string;
@@ -28,6 +30,9 @@ export default function InviteManagement() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeOptions, setUpgradeOptions] = useState<Array<{ planId: string; label: string; price: number }> | null>(null);
+  const [upgradeTier, setUpgradeTier] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     loadInvites();
@@ -166,6 +171,25 @@ export default function InviteManagement() {
         return;
       }
 
+      // PR-H: Pre-invite seat availability check
+      const API_URL = import.meta.env.VITE_API_URL as string;
+      if (API_URL) {
+        try {
+          const seatCheck = await fetch(`${API_URL}/api/subscriptions/check-seat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+          });
+          if (seatCheck.status === 402) {
+            const seatData = await seatCheck.json();
+            setUpgradeOptions(seatData.upgradeOptions || null);
+            setUpgradeTier(seatData.tier);
+            setShowUpgradeModal(true);
+            setCreating(false);
+            return;
+          }
+        } catch { /* seat check optional — continue with invite if service unavailable */ }
+      }
+
       // Build request body with both fields if provided
       const body: { email?: string; phone?: string } = {};
       if (email) body.email = email;
@@ -298,6 +322,17 @@ export default function InviteManagement() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* PR-H: Seat counter */}
+        <div className="mb-4">
+          <SeatCounter onUpgradeClick={() => setShowUpgradeModal(true)} />
+        </div>
+        {/* PR-H: Seat upgrade modal */}
+        <SeatUpgradeModal
+          open={showUpgradeModal}
+          options={upgradeOptions}
+          tier={upgradeTier}
+          onClose={() => setShowUpgradeModal(false)}
+        />
         {/* Success/Error Messages */}
         {success && (
           <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-r-lg">

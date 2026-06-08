@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Users, User, Mail, Phone, Plus, CheckCircle, Clock } from 'lucide-react';
 import { getIdToken, getUserProfile } from '../../utils/authStorage';
 import { adminStartEmailLink, adminStartPhoneLink } from '../../services/contactLinkApi';
+import SeatCounter from '../../components/SeatCounter';
 
 type Role = 'ADMIN' | 'MEMBER';
 type Status = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
@@ -217,6 +218,10 @@ export default function MemberManagement() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* PR-H: Seat counter */}
+        <div className="mb-4">
+          <SeatCounter />
+        </div>
         {success && (
           <div className="mb-6 bg-green-50 border-l-4 border-green-500 text-green-700 px-4 py-3 rounded-r-lg">
             <p className="text-sm font-medium">{success}</p>
