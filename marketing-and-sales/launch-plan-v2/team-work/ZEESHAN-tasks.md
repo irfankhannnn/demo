@@ -441,7 +441,7 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
 - **Context:** Day 6 deploys all 12 LPs to production and activates the welcome drip. Zeeshan owns the backend code change that fires signup events to Brevo + the final deploy pipeline execution.
 
 #### Tasks
-- [ ] **ZEE-013-T1** — Update `server/routes/auth.js` registration success handler
+- [x] **ZEE-013-T1** — Update `server/routes/auth.js` registration success handler
   - On successful signup: `POST https://api.brevo.com/v3/contacts` with list ID `BREVO_TRIAL_LIST_ID` (env var)
   - Fields: `email`, `firstName`, `phone`, `SIGNUP_DATE` (Brevo contact attribute)
   - Fire PostHog `signup_completed` server-side event here
