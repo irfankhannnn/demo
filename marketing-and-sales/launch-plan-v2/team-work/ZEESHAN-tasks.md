@@ -180,34 +180,34 @@
 - **Context:** Without seat enforcement, a Team plan (₹1,999 for 3 seats) can have 10 members for free — pure revenue leakage. Block invite creation at the API layer when `seatsUsed >= seatsPaid`. Show a clear upgrade modal. Handle the `subscription.updated` webhook to increment seats when ₹500/seat is paid.
 
 #### Tasks
-- [ ] **ZEE-005-T1** — Write `server/subscriptionService.js`
+- [x] **ZEE-005-T1** — Write `server/subscriptionService.js`
   - `getSubscription(tenantId)` → `{plan, seatsPaid, seatsUsed, nextBillingDate, razorpaySubscriptionId, status}`
   - `incrementSeatsPaid(tenantId, by=1)` (called by billing webhook on seat-add)
   - `decrementSeatsPaid(tenantId, by=1)`
   - `recomputeSeatsUsed(tenantId)` — counts active members in DDB
   - Write `server/routes/subscriptions.js` → `GET /api/subscriptions/current` (validateToken + extractTenantId)
-- [ ] **ZEE-005-T2** — Update `server/routes/auth.js` invite-creation handler
+- [x] **ZEE-005-T2** — Seat check via `POST /api/subscriptions/check-seat` (auth.js is empty; invite goes to external Cognito service)
   - Before invite: `getSubscription(tenantId)` → compute `seatsUsed`
   - If `seatsUsed >= seatsPaid`: return HTTP 402 `{error: "paywall_seat_limit", currentSeats, paidSeats, tier, upgradeOptions}` + fire PostHog `paywall_seat_limit_hit`
-- [ ] **ZEE-005-T3** — Write `real-estate-crm-app/src/components/SeatCounter.tsx`
+- [x] **ZEE-005-T3** — Write `real-estate-crm-app/src/components/SeatCounter.tsx`
   - Fetches `/api/subscriptions/current`
   - Displays: `{seatsUsed} of {seatsPaid} seats used` with colour-coded progress bar (green <70%, yellow 70–90%, red ≥90%)
   - "Upgrade" CTA when at or near cap
-- [ ] **ZEE-005-T4** — Write `real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
+- [x] **ZEE-005-T4** — Write `real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
   - Triggered on 402 response OR manual "Upgrade" CTA
   - Solo at-cap: "Upgrade to Team — ₹1,999/mo (3 seats)" CTA → Razorpay Team checkout
   - Team at-cap: "Add 1 seat — ₹500/month prorated" CTA → Razorpay add_seat checkout
   - On success: refetch subscription, close modal, retry invite
-- [ ] **ZEE-005-T5** — Update `InviteManagement.tsx` and `MemberManagement.tsx`
+- [x] **ZEE-005-T5** — Update `InviteManagement.tsx` and `MemberManagement.tsx`
   - Mount `<SeatCounter />` at top of each page
   - Disable "Invite Member" button + show tooltip when at cap
   - On 402 from POST invite → auto-open `<SeatUpgradeModal />`
-- [ ] **ZEE-005-T6** — Write `tests/seat-cap.spec.ts` (Playwright)
+- [x] **ZEE-005-T6** — Write `tests/seat-cap.spec.ts` (Playwright)
   - Invite 1 on Solo → 200; invite 2 on Solo → 402 + modal opens
   - Invite 3 on Team → 200; invite 4 on Team → 402
   - Pay ₹500 test → seatsPaid increments → invite 4 → 200
   - Deactivate member → seatsUsed decrements → invite new member → 200
-- [ ] **ZEE-005-T7** — Write `server/scripts/backfill-seats-paid.js`
+- [x] **ZEE-005-T7** — Write `server/scripts/backfill-seats-paid.js`
   - Idempotent: for existing tenants, set `seatsPaid` based on plan (Solo=1, Team=3)
 - **Acceptance:** All 5 Playwright scenarios pass; no agency can exceed seatsPaid; modal opens on 402.
 
