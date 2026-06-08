@@ -21,6 +21,12 @@ import enquiriesRoutes from './routes/enquiries.js';
 import b2bLeadsRoutes from './routes/b2bLeads.js';
 import khataRoutes from './routes/khata.js';
 import notificationsRoutes from './routes/notifications.js';
+
+// === [LAUNCH ROUTES IMPORTS] ===
+// PR-F
+import billingRoutes from './routes/billing.js';
+import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
+// === [/LAUNCH ROUTES IMPORTS] ===
 // import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
 // import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
 // import realEstateAreasRoutes from './routes/realEstateAreas.js'; // DISABLED: Developers/Projects/Areas removed
@@ -100,6 +106,13 @@ app.use('/api/notifications', notificationsRoutes);
 // app.use('/api/internal', aiCallingInternalRoutes); // DISABLED: Internal API for AI Calling Service
 // logger.info('routes.mount', { basePath: '/api', router: 'areasBuildings' }); // DISABLED
 // app.use('/api', areasBuildings); // DISABLED
+
+// === [LAUNCH ROUTES MOUNTS] ===
+// PR-F — billing webhook BEFORE any auth middleware
+app.use('/api/billing', billingRoutes);
+// PR-F — AI Employee status (after auth)
+app.use('/api/ai-employee', aiEmployeeStatusRoutes);
+// === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware
 app.use(errorHandler);
