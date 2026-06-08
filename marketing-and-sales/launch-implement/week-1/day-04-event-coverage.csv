@@ -1,0 +1,12 @@
+event,file:line,properties_match,missing_properties,notes
+grievance_received,server/routes/grievance.js:224,Y,,PostHog server-side event on grievance submission
+signup_started,real-estate-crm-app/src/pages/PhoneLogin.tsx:N/A,N,utm_source/utm_campaign,"PR-L adds UTM capture but trackEvent call deferred (analytics.ts from PR-E needed)"
+signup_completed,server/routes/auth.js:N/A,N,tenantId/role/utm_source,"PostHog serverTrack deferred (requires PR-E posthog.js merge)"
+nps_response,real-estate-crm-app/src/components/NpsModal.tsx:N/A,N,score/free_text_present,"PostHog trackEvent deferred (analytics.ts from PR-E needed)"
+page_view,real-estate-crm-app/src/lib/analytics.ts:N/A,N,page/referrer,"PR-E creates analytics.ts with page_view auto-tracking via PostHog"
+cta_click,marketing-and-sales/creative/landing-pages/*/index.html:N/A,N,cta_id/page,"LP analytics snippet from PR-E needed"
+cookie_consent_given,real-estate-crm-app/src/components/CookieConsentBanner.tsx:N/A,N,analytics/marketing,"PR-C creates banner; trackEvent deferred to PR-E merge"
+billing_checkout_started,real-estate-crm-app/src/components/PaywallModal.tsx:N/A,N,plan/billing_cycle,"PR-J creates modal; trackEvent deferred"
+seat_upgrade_requested,real-estate-crm-app/src/components/SeatUpgradeModal.tsx:N/A,N,current_plan/upgrade_target,"PR-H creates modal; trackEvent deferred"
+trial_banner_shown,real-estate-crm-app/src/components/TrialCountdownBanner.tsx:N/A,N,days_left,"PR-J creates banner; trackEvent deferred"
+demo_banner_dismissed,real-estate-crm-app/src/components/DemoBanner.tsx:N/A,N,,"PR-A creates banner; trackEvent deferred"
