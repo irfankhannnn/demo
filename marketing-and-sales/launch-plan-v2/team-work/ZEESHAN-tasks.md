@@ -244,36 +244,36 @@
 - **Context:** Trials silently lapse without an in-product paywall. Add a sticky countdown banner (Day 8–14 of trial) that turns red at Day 12, then a full-page blocking modal at Day 15 (trial expired). The modal shows 3 plan tiers from `pricing.json` and opens Razorpay checkout. Wire 3 trial reminder emails via a daily cron. Paywall MUST NOT block: `/profile`, `/billing`, `/legal/*`, `/grievance`, `/integrations/ai-employee`.
 
 #### Tasks
-- [ ] **ZEE-007-T1** — Update `server/routes/subscriptions.js` — add `GET /api/subscriptions/trial-status`
+- [x] **ZEE-007-T1** — Update `server/routes/subscriptions.js` — add `GET /api/subscriptions/trial-status`
   - Returns: `{trialDaysLeft, trialEndsAt, plan, isPaying, gracePeriodActive, paymentStatus}`
   - `trialDaysLeft = ceil((trialEndsAt - now) / 86400000)`, clamped to 0
-- [ ] **ZEE-007-T2** — Write `real-estate-crm-app/src/hooks/useSubscription.ts`
+- [x] **ZEE-007-T2** — Write `real-estate-crm-app/src/hooks/useSubscription.ts`
   - Fetches `/api/subscriptions/trial-status` on mount + every 5 min
   - Exposes: `{subscription, isPaying, isTrialing, trialDaysLeft, isTrialExpired, refetch}`
   - Cached in React context (wrap in provider in `App.tsx`)
-- [ ] **ZEE-007-T3** — Write `real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
+- [x] **ZEE-007-T3** — Write `real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
   - Returns null if `isPaying` OR `trialDaysLeft > 7`
   - Yellow (7≥days>3): neutral copy + "Upgrade now" CTA
   - Red (3≥days>0): bold copy + "Upgrade for ₹{Solo.price}/month"
   - Clicking CTA → opens `PaywallModal`
-- [ ] **ZEE-007-T4** — Write `real-estate-crm-app/src/components/PaywallModal.tsx`
+- [x] **ZEE-007-T4** — Write `real-estate-crm-app/src/components/PaywallModal.tsx`
   - Renders when `isTrialExpired && !isPaying && !gracePeriodActive`
   - Route whitelist: allow `/profile`, `/billing`, `/legal/*`, `/grievance`, `/integrations/ai-employee`, `/auth/logout`
   - Content: Annual/Monthly toggle + 3 tier cards from `pricing.json` + "Add AI Employee ₹7,999/mo" toggle
   - "What happens to my data?" expandable FAQ + WhatsApp CTA
   - On CTA: call `openRazorpayCheckout(planId)` → on success: `refetch()` → close modal
   - If AI Employee toggle ON: chain second Razorpay subscription after main plan succeeds; redirect to `/integrations/ai-employee`
-- [ ] **ZEE-007-T5** — Write `real-estate-crm-app/src/lib/razorpay.ts`
+- [x] **ZEE-007-T5** — Write `real-estate-crm-app/src/lib/razorpay.ts`
   - `openCheckout({planId, name, email, prefill, onSuccess, onFailure})` — loads Razorpay.js dynamically, wraps subscription checkout
   - Key from `import.meta.env.VITE_RAZORPAY_KEY_ID`
-- [ ] **ZEE-007-T6** — Mount in `App.tsx`
+- [x] **ZEE-007-T6** — Mount in `App.tsx`
   - `<TrialCountdownBanner />` at top of authenticated layout
   - `<PaywallModal />` at root level with route whitelist check
-- [ ] **ZEE-007-T7** — Write `server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
+- [x] **ZEE-007-T7** — Write `server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
   - Daily 09:00 IST: query `Subscriptions` for `isTrialing && trialEndsAt` within window
   - Sends Day-10, Day-12, Day-14 emails via Brevo; Day-3-post-expiry reactivation email
   - Idempotent via `last_email_sent` flag per user
-- [ ] **ZEE-007-T8** — Write `tests/paywall.spec.ts` (Playwright)
+- [x] **ZEE-007-T8** — Write `tests/paywall.spec.ts` (Playwright)
   - `trialDaysLeft=8` → no banner; `=7` → yellow banner; `=3` → red banner; `=0` → modal blocks `/crm` but allows `/billing`
   - Mock Razorpay success → modal closes; subscription refetch shows `isPaying=true`
 - **Acceptance:** Banner shows at correct days; modal blocks at Day 15 with whitelist respected; Razorpay flow completes E2E; 4 Brevo cron emails fire on schedule.

@@ -8,6 +8,10 @@ import { identifyUser } from './lib/analytics';
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
 import DemoBanner from './components/DemoBanner';
+// PR-J
+import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import TrialCountdownBanner from './components/TrialCountdownBanner';
+import PaywallModal from './components/PaywallModal';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
 // === [LAUNCH COMPONENT IMPORTS] ===
@@ -264,7 +268,10 @@ function App() {
         <DemoBanner />
         {/* PR-C */}
         <CookieConsentBanner />
-        {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
+        {/* PR-J */}
+        <SubscriptionProvider>
+          <TrialCountdownBanner />
+          <PaywallModal />
         <Routes>
           {/* Public Routes */}
           {/* === [LAUNCH PUBLIC ROUTES] === */}
@@ -360,6 +367,7 @@ function App() {
           {/* === [/LAUNCH PROTECTED ROUTES] === */}
 
         </Routes>
+      </SubscriptionProvider>
       </Router>
     </GoogleMapsProvider>
   );
