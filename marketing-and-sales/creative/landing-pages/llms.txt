@@ -5,10 +5,27 @@
 ## Core
 - [Homepage](https://realestateflow.in)
 - [Pricing](https://realestateflow.in/pricing)
+- [For Agency Owners](https://realestateflow.in/agency-owners)
+- [For Solo Agents](https://realestateflow.in/agents)
+- [AI Employee](https://realestateflow.in/ai-employee)
+- [Demo](https://realestateflow.in/demo)
+- [About](https://realestateflow.in/about)
+
+## Comparisons
+- [vs Sell.Do](https://realestateflow.in/vs/sell-do)
+- [vs Zoho CRM](https://realestateflow.in/vs/zoho-crm)
+- [vs Excel/Spreadsheet](https://realestateflow.in/vs/excel-spreadsheet)
 
 ## AEO Answers
-- [Coming in M2]
+- [Best CRM India](https://realestateflow.in/answers/best-crm-india)
+- [WhatsApp Leads Mumbai](https://realestateflow.in/answers/whatsapp-leads-mumbai)
+- [Cost of Real Estate CRM India](https://realestateflow.in/answers/cost-of-real-estate-crm-india)
+- [Cheapest AI Agent for Real Estate](https://realestateflow.in/answers/cheapest-ai-agent-realestate)
+- [Khata Book Software](https://realestateflow.in/answers/khata-book-software)
 
 ## Legal
-- [Privacy Policy](https://realestateflow.in/legal/privacy)
+- [Terms](https://realestateflow.in/legal/terms)
+- [Privacy](https://realestateflow.in/legal/privacy)
+- [Refund](https://realestateflow.in/legal/refund)
+- [Cookies](https://realestateflow.in/legal/cookies)
 - [Grievance](https://realestateflow.in/grievance)

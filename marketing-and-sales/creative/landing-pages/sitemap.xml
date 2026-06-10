@@ -1,9 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- STUB — PR-I (ZEE-009) fills these with real lastmod and all 12 page URLs -->
-  <url>
-    <loc>https://realestateflow.in/</loc>
-    <changefreq>weekly</changefreq>
-    <priority>1.0</priority>
-  </url>
+  <url><loc>https://realestateflow.in/</loc><priority>1.0</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://realestateflow.in/pricing</loc><priority>0.9</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/agency-owners</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/agents</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/ai-employee</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/demo</loc><priority>0.8</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/about</loc><priority>0.6</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/vs/sell-do</loc><priority>0.7</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/vs/zoho-crm</loc><priority>0.7</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/vs/excel-spreadsheet</loc><priority>0.7</priority><changefreq>monthly</changefreq></url>
+  <url><loc>https://realestateflow.in/legal/terms</loc><priority>0.3</priority><changefreq>yearly</changefreq></url>
+  <url><loc>https://realestateflow.in/legal/privacy</loc><priority>0.3</priority><changefreq>yearly</changefreq></url>
+  <url><loc>https://realestateflow.in/legal/refund</loc><priority>0.3</priority><changefreq>yearly</changefreq></url>
+  <url><loc>https://realestateflow.in/legal/cookies</loc><priority>0.3</priority><changefreq>yearly</changefreq></url>
+  <url><loc>https://realestateflow.in/grievance</loc><priority>0.3</priority><changefreq>yearly</changefreq></url>
 </urlset>

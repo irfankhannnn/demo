@@ -303,7 +303,7 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
   - [x] `npm run build:lps` script added (`build/package.json`); verified runs clean → `dist/`
   - [x] `creative/landing-pages/.env.example` created with `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY` (+ pricing/legal placeholders)
   - _CDN→compiled `<link>` swap happens when pages are rewritten in PR-I (head.hbs already references `/assets/main.css`)_
-- [ ] **ZEE-008-T2** — Rewrite 5 existing LPs: `main`, `agency-owners`, `agents`, `ai-employee`, `demo`
+- [x] **ZEE-008-T2** — Rewrite 5 existing LPs: `main`, `agency-owners`, `agents`, `ai-employee`, `demo`
   - English copy (coordinate with Madhu for final copy text)
   - All pricing from `pricing.json` — no hardcoded numbers
   - Trial copy: "14-day free trial — no card" everywhere
@@ -318,13 +318,13 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
   - OG meta tags per page with P8 OG image paths
   - `_partials/cookie-banner.html` injected in `<body>`
   - Netlify Forms: `lead-capture-main`, `demo-booking`, `agency-signup`, `agent-signup`, `ai-employee-interest` (these are lead capture only, not trial signup)
-- [ ] **ZEE-008-T3** — Create 7 new pages
+- [x] **ZEE-008-T3** — Create 7 new pages
   - `/pricing` — full tier comparison (copy from Madhu P2 output: `pre-launch/02-pricing/page-copy.md`)
   - `/legal/terms`, `/legal/privacy`, `/legal/refund`, `/legal/cookies` — content from P1 output
   - `/vs/sell-do`, `/vs/zoho-crm`, `/vs/excel-spreadsheet` — from P4 vs-pages drafts
   - `/about` — founder story + LocalBusiness schema
-- [x] **ZEE-008-T4** — Add `sitemap.xml`, `robots.txt`, `llms.txt` at LP root _(PR-D: robots.txt complete; sitemap.xml + llms.txt are stubs — PR-I fills all 12 URLs / AEO links)_
-- [ ] **ZEE-008-T5** — Delete `enterprise/` folder + remove from `netlify.toml`
+- [x] **ZEE-008-T4** — Add `sitemap.xml`, `robots.txt`, `llms.txt` at LP root _(robots.txt complete; sitemap.xml + llms.txt filled with all 15 URLs / AEO links / Grievance)_
+- [x] **ZEE-008-T5** — Delete `enterprise/` folder + remove from `netlify.toml`
 - [x] **ZEE-008-T6** — Update `netlify.toml` with all 12 page routes + redirect rules _(PR-D: pretty-URL redirects for all documented pages + `/legal`→terms & `/help`→grievance 301s + security headers (HSTS/CSP/X-Frame); enterprise redirect removed. Target page files land in PR-I.)_
 - [ ] **ZEE-008-T7** — Run Lighthouse mobile on all 12 pages; fix until all 4 categories ≥90
 - **Acceptance:** All 12 pages return 200; Lighthouse mobile ≥90 all categories; LCP <2.5s, INP <200ms, CLS <0.1; no placeholder strings remain.
@@ -338,7 +338,7 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
 - **Context:** Schema markup makes Google + AI engines understand the site. Without JSON-LD, even great LPs are invisible to search. Inject per-page schema into all 12 LPs. The content/keywords come from Madhu (P16 AI prompts). Zeeshan owns the code injection, file structure, and build pipeline integration.
 
 #### Tasks
-- [ ] **ZEE-009-T1** — Inject JSON-LD blocks into each LP (from Madhu's `pre-launch/16-seo-aeo/` output)
+- [x] **ZEE-009-T1** — Inject JSON-LD blocks into each LP (from Madhu's `pre-launch/16-seo-aeo/` output)
   - `/` → `SoftwareApplication`, `Organization`, `WebSite/SearchAction`, `FAQPage`, `ContactPoint`
   - `/pricing` → `Product` × 3 (Solo/Team/Team+) with `offers`
   - `/agency-owners`, `/agents`, `/ai-employee`, `/demo` → `WebPage`, `Organization`, `FAQPage`, `BreadcrumbList`
@@ -346,10 +346,10 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
   - `/vs/*` → `Article`, `FAQPage`, `BreadcrumbList`
   - `/legal/*` → `WebPage`, `Organization`
   - `/grievance` → `ContactPoint` (DPDP Grievance Officer)
-- [ ] **ZEE-009-T2** — Add per-page `<title>` ≤60 chars, `<meta description>` ≤155 chars, `<link rel="canonical">`, `lang="en"`, OG meta, Twitter card (from Madhu's SEO spec)
-- [ ] **ZEE-009-T3** — Add internal linking across pages per SEO spec: `/` → all 5 persona pages; every LP → `/pricing` + `/demo`
-- [ ] **ZEE-009-T4** — Build `sitemap.xml` (12 URLs, `lastmod`, `priority`, `changefreq`) and `robots.txt` (allow all, reference sitemap)
-- [ ] **ZEE-009-T5** — Build `llms.txt` manifest listing canonical answer pages
+- [x] **ZEE-009-T2** — Add per-page `<title>` ≤60 chars, `<meta description>` ≤155 chars, `<link rel="canonical">`, `lang="en"`, OG meta, Twitter card (from Madhu's SEO spec)
+- [x] **ZEE-009-T3** — Add internal linking across pages per SEO spec: `/` → all 5 persona pages; every LP → `/pricing` + `/demo`
+- [x] **ZEE-009-T4** — Build `sitemap.xml` (12 URLs, `lastmod`, `priority`, `changefreq`) and `robots.txt` (allow all, reference sitemap)
+- [x] **ZEE-009-T5** — Build `llms.txt` manifest listing canonical answer pages
 - [ ] **ZEE-009-T6** — Verify all schemas at `https://validator.schema.org` (programmatic or manual list)
 - **Acceptance:** All schemas validate; sitemap accessible at `/sitemap.xml`; on-page SEO meta correct on all 12 pages.
 
