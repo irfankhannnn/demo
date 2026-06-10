@@ -409,17 +409,17 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
 - **Context:** Days 1–3 introduced new code. Day 4 locks down analytics: confirm every event in the P10 catalogue fires correctly across all surfaces, ensure cookie consent gating still works, add the Playwright analytics test to CI as a required check.
 
 #### Tasks
-- [ ] **ZEE-012-T1** — Run event coverage audit: for each event in P10 catalogue, locate `trackEvent(...)` call in codebase
+- [x] **ZEE-012-T1** — Run event coverage audit: for each event in P10 catalogue, locate `trackEvent(...)` call in codebase
   - Produce `marketing-and-sales/launch-implement/week-1/day-04-event-coverage.csv` with: event, file:line, properties_match (Y/N), missing_properties
   - Generate fix-PR diffs for any missing or misnamed events
-- [ ] **ZEE-012-T2** — Cookie consent verification audit: trace `CookieConsentBanner → analytics.ts → trackEvent`
+- [x] **ZEE-012-T2** — Cookie consent verification audit: trace `CookieConsentBanner → analytics.ts → trackEvent`
   - Confirm: with `cookieConsent.analytics=false`, GA4/Pixel/LinkedIn NOT loaded; PostHog in `disable_session_recording` mode
   - If any tracker leaks past consent gate: fix-PR diff
-- [ ] **ZEE-012-T3** — PII safety scan: grep all `trackEvent(...)` calls for email/phone/gstin/full-name in properties
+- [x] **ZEE-012-T3** — PII safety scan: grep all `trackEvent(...)` calls for email/phone/gstin/full-name in properties
   - Generate fix-PR diffs for violations (move PII to `identifyUser`)
-- [ ] **ZEE-012-T4** — Run `npx playwright test tests/analytics.spec.ts` — 100% pass
-- [ ] **ZEE-012-T5** — Add `tests/analytics.spec.ts` to GitHub Actions CI as required check on all PRs
-- [ ] **ZEE-012-T6** — Write `daily-log/day04.md` standup entry
+- [x] **ZEE-012-T4** — Run `npx playwright test tests/analytics.spec.ts` — 100% pass
+- [x] **ZEE-012-T5** — Add `tests/analytics.spec.ts` to GitHub Actions CI as required check on all PRs
+- [x] **ZEE-012-T6** — Write `daily-log/day04.md` standup entry
 - **Acceptance:** 100% event coverage; cookie gating airtight; Playwright 100% pass; CI gate active.
 
 ---
