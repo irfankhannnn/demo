@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
+import { trackEvent } from '../../lib/analytics';
 import {
   ShoppingCart,
   ArrowLeft,
@@ -173,6 +174,12 @@ export default function BuyerDetails() {
           } catch (e) {
             console.error('Error adding initial buyer note:', e);
           }
+        }
+        // PR-E: first-use tracking
+        const firstUseKey = `feature_first_use_buyer_added`;
+        if (!localStorage.getItem(firstUseKey)) {
+          trackEvent('buyer_added', { source: 'form' });
+          localStorage.setItem(firstUseKey, '1');
         }
         navigate(`/crm/buyers/${created.contactId}`, { replace: true });
       } else if (isLegacyBuyer) {

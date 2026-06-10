@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, getRefreshToken, setTokens } from './utils/authStorage';
 import { callMe, refreshTokens } from './utils/cognitoAuth';
+import { identifyUser } from './lib/analytics';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
@@ -143,6 +144,16 @@ function App() {
             agency: meData.agency,
           });
           setAuthState('authenticated');
+
+          // PR-E: stitch LP anonymous session to CRM user
+          identifyUser(meData.user.userId, {
+            tenantId: meData.user.tenantId,
+            role: meData.user.role,
+            plan: meData.agency?.plan || 'free',
+            agencyName: meData.agency?.name,
+            utm_source: sessionStorage.getItem('utm_source') || undefined,
+            utm_campaign: sessionStorage.getItem('utm_campaign') || undefined,
+          });
           return;
         } catch (err) {
           console.log('[App] /auth/me failed:', err);

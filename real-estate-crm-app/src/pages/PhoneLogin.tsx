@@ -5,8 +5,9 @@
  * Step 3: User details (if invited member)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { trackEvent } from '../lib/analytics';
 import { ArrowLeft, Smartphone, Shield, AlertCircle } from 'lucide-react';
 import PhoneInput from '../components/PhoneInput';
 import OTPInput from '../components/OTPInput';
@@ -28,6 +29,18 @@ export default function PhoneLogin() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+
+  // PR-E: capture UTM params + fire signup_started
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const utmSource = params.get('utm_source');
+    const utmCampaign = params.get('utm_campaign');
+    const utmMedium = params.get('utm_medium');
+    if (utmSource) sessionStorage.setItem('utm_source', utmSource);
+    if (utmCampaign) sessionStorage.setItem('utm_campaign', utmCampaign);
+    if (utmMedium) sessionStorage.setItem('utm_medium', utmMedium);
+    trackEvent('signup_started', { utm_source: utmSource || undefined });
+  }, []);
 
   const handleSendOTP = async () => {
     if (phoneNumber.length !== 10) {
