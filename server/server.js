@@ -30,6 +30,8 @@ import billingRoutes from './routes/billing.js';
 import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
 // PR-H
 import subscriptionsRoutes from './routes/subscriptions.js';
+// PR-K
+import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 // import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
 // import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
@@ -125,6 +127,11 @@ app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // PR-H
 logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscriptionsRoutes' });
 app.use('/api/subscriptions', subscriptionsRoutes);
+// PR-K
+logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
+app.use('/api/feedback', feedbackRoutes);
+logger.info('routes.mount', { basePath: '/api/nps', router: 'feedbackRoutes' });
+app.use('/api/nps', feedbackRoutes);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware

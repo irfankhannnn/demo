@@ -12,11 +12,11 @@ import DemoBanner from './components/DemoBanner';
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
 import TrialCountdownBanner from './components/TrialCountdownBanner';
 import PaywallModal from './components/PaywallModal';
-// === [/LAUNCH COMPONENT IMPORTS] ===
-
-// === [LAUNCH COMPONENT IMPORTS] ===
 // PR-C
 import CookieConsentBanner from './components/CookieConsentBanner';
+// PR-K
+import NpsModal from './components/NpsModal';
+import NpsEmailLanding from './pages/public/NpsEmailLanding';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
 // Pages
@@ -268,6 +268,8 @@ function App() {
         <DemoBanner />
         {/* PR-C */}
         <CookieConsentBanner />
+        {/* PR-K */}
+        <NpsModal />
         {/* PR-J */}
         <SubscriptionProvider>
           <TrialCountdownBanner />
@@ -277,6 +279,8 @@ function App() {
           {/* === [LAUNCH PUBLIC ROUTES] === */}
           {/* PR-B */}
           <Route path="/grievance" element={<Grievance />} />
+          {/* PR-K */}
+          <Route path="/nps" element={<NpsEmailLanding />} />
           {/* === [/LAUNCH PUBLIC ROUTES] === */}
           <Route path="/login" element={<AdminLogin />} />
           <Route path="/phone-login" element={<PhoneLogin />} />
