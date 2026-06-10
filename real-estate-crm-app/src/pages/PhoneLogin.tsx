@@ -31,6 +31,7 @@ export default function PhoneLogin() {
   const [resendTimer, setResendTimer] = useState(0);
 
   // PR-E: capture UTM params + fire signup_started
+  // PR-L: Capture UTM params from LP deep-links for cross-domain attribution
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const utmSource = params.get('utm_source');
