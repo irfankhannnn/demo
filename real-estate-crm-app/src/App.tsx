@@ -9,6 +9,11 @@ import { callMe, refreshTokens } from './utils/cognitoAuth';
 import DemoBanner from './components/DemoBanner';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
+// === [LAUNCH COMPONENT IMPORTS] ===
+// PR-C
+import CookieConsentBanner from './components/CookieConsentBanner';
+// === [/LAUNCH COMPONENT IMPORTS] ===
+
 // Pages
 import AdminLogin from './pages/AdminLogin';
 import PhoneLogin from './pages/PhoneLogin';
@@ -237,6 +242,8 @@ function App() {
         {/* === [LAUNCH LAYOUT COMPONENTS] === */}
         {/* PR-A */}
         <DemoBanner />
+        {/* PR-C */}
+        <CookieConsentBanner />
         {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
         <Routes>
           {/* Public Routes */}

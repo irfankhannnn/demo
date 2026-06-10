@@ -220,7 +220,7 @@
 - **Context:** DPDP Act 2023 requires explicit consent before non-essential trackers load. Two banner variants: LP (vanilla JS, gates 5 trackers) and CRM (React, gates PostHog session recording only). The CRM banner has fewer toggles because GA4/Pixel/LinkedIn/Hotjar are NOT loaded in the CRM.
 
 #### Tasks
-- [ ] **ZEE-006-T1** — Write `creative/landing-pages/_partials/cookie-banner.html` **(LP variant — 5 tracker toggles)**
+- [x] **ZEE-006-T1** — Write `creative/landing-pages/_partials/cookie-banner.html` **(LP variant — 5 tracker toggles)**
   - Plain HTML + inline JS + inline CSS; injected at end of LP `<body>`
   - 3 buttons: "Accept all" (green), "Reject non-essential" (outline), "Customize" (text link)
   - "Customize" modal with 4 toggles: Essential (locked), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn)
@@ -228,7 +228,7 @@
   - On Accept: dispatches `cookie-consent-analytics`, `cookie-consent-marketing`, `cookie-consent-functional` custom events → `head-analytics.hbs` snippet listens + loads corresponding trackers
   - On Reject: only `cookie-consent-analytics` fired with all false → PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load
   - ARIA roles, keyboard-navigable (Tab/Enter/Esc), dark mode, mobile bottom-sheet
-- [ ] **ZEE-006-T2** — Write `real-estate-crm-app/src/components/CookieConsentBanner.tsx` **(CRM variant — PostHog only)**
+- [x] **ZEE-006-T2** — Write `real-estate-crm-app/src/components/CookieConsentBanner.tsx` **(CRM variant — PostHog only)**
   - React component with same 3 buttons
   - "Customize" modal: **only 2 toggles** — Essential (locked) + Analytics ("Product usage analytics via PostHog — no ads, no retargeting")
   - **NO Marketing toggle** — GA4/Pixel/LinkedIn are not loaded in the CRM
@@ -237,9 +237,9 @@
   - Same `localStorage.cookieConsent` key → `analytics.ts` reads `.analytics` flag
   - Renders as bottom-fixed bar in `App.tsx` layout; re-prompts only on `version` increment
   - "Cookie preferences" link in app footer → re-opens Customize modal
-- [ ] **ZEE-006-T3** — Inject LP banner via the partial into all 12 LP pages (done via ZEE-008 LP rewrite template)
-- [ ] **ZEE-006-T4** — Mount `<CookieConsentBanner />` in `real-estate-crm-app/src/App.tsx`
-- [ ] **ZEE-006-T5** — Tests `tests/cookie-consent.spec.ts`:
+- [ ] **ZEE-006-T3** — Inject LP banner via the partial into all 12 LP pages (done via ZEE-008 LP rewrite template) — _out of PR-C scope; handled in LP rewrite (PR-I)_
+- [x] **ZEE-006-T4** — Mount `<CookieConsentBanner />` in `real-estate-crm-app/src/App.tsx`
+- [x] **ZEE-006-T5** — Tests `tests/cookie-consent.spec.ts`: _(7/7 pass — 4 LP + 3 CRM; tracker-load network assertions deferred to PR-E where head-analytics.hbs / analytics.ts are created)_
   - LP: first visit → banner shows; Accept → GA4 + Pixel + LinkedIn + Hotjar + PostHog all load
   - LP: Reject → only PostHog loads (restricted); GA4/Pixel/LinkedIn/Hotjar do NOT load
   - CRM: Reject → only PostHog session recording disabled; assert zero GA4/Pixel/LinkedIn/Hotjar network calls (they should never be there)
