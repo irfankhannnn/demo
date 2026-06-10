@@ -140,7 +140,11 @@ export async function runAdminUiFlow(page: Page, ctx: EvidenceCtx): Promise<void
     await page.waitForTimeout(1_000);
     await snap(page, ctx, '05-members-final');
 
-    const finalCountText = await page.locator('h2').filter({ hasText: /^All Members \(/i }).textContent();
+    const heading = page.locator('h2').filter({ hasText: /^All Members \(/i });
+    let finalCountText: string | null = null;
+    if (await heading.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      finalCountText = await heading.textContent();
+    }
     const finalMatch = finalCountText?.match(/All Members \((\d+)\)/);
     if (finalMatch) {
       log('Admin', 'PASS', `Final member count: ${finalMatch[1]}`);

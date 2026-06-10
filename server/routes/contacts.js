@@ -360,7 +360,8 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     };
 
     // Migrate owners
-    const owners = await getOwners(req.tenantId);
+    const ownersResult = await getOwners(req.tenantId);
+    const owners = ownersResult.owners || [];
     for (const owner of owners) {
       try {
         await migrateOwnerToContact(req.tenantId, owner.ownerId);

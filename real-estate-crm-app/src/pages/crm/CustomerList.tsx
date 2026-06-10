@@ -40,7 +40,9 @@ export default function CustomerList() {
     try {
       setLoading(true);
       const data = await api.getCustomers();
-      setCustomers(data);
+      // Backend returns { customers, total, limit, offset }
+      const customerList = Array.isArray(data) ? data : (data.customers || []);
+      setCustomers(customerList);
     } catch (error) {
       console.error('Error loading customers:', error);
       if (error instanceof Error && error.message.includes('token')) {

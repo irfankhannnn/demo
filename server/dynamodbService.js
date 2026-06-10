@@ -438,8 +438,9 @@ export async function getRentalList() {
       const allTenants = await getAllTenantIds();
       
       for (const tenantId of allTenants) {
-        const properties = await crmDb.getProperties(tenantId);
-        const rentedProperties = properties.filter(p => 
+        const propertiesResult = await crmDb.getProperties(tenantId);
+        const properties = propertiesResult.properties || [];
+        const rentedProperties = properties.filter(p =>
           p.status === 'rented' || p.status === 'on-hold'
         );
         

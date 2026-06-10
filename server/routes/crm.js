@@ -234,12 +234,13 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     if (sortOrder) dbFilters.sortOrder = sortOrder;
 
     // Fetch all matching owners (no pagination yet — we need to compute counts first)
-    const [ownersInitial, properties, ownerContacts, sellerContacts] = await Promise.all([
+    const [ownersInitial, propertiesResult, ownerContacts, sellerContacts] = await Promise.all([
       getOwners(req.tenantId, dbFilters),
       getProperties(req.tenantId),
       getContacts(req.tenantId, { role: 'owner' }),
       getContacts(req.tenantId, { role: 'seller' }),
     ]);
+    const properties = propertiesResult.properties || [];
 
     // Backfill: ensure converted leads stored as CONTACT are visible
     const ownersByPhone = new Set((ownersInitial.owners || []).map((o) => normalizePhone(o.phone)).filter(Boolean));
@@ -1364,8 +1365,9 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     
     // Process each property and fetch its agreements and verifications
     for (const property of properties) {
-      // Calculate revenue for rented properties
-      if ((property.status === 'rented') && property.monthlyRent) {
+      // Calculate revenue for occupied properties (status=rented OR has a tenant linked)
+      const isOccupied = property.status === 'rented' || !!property.tenantCustomerId;
+      if (isOccupied && property.monthlyRent) {
         totalRevenue += property.monthlyRent;
         activeProperties++;
       }
@@ -1462,7 +1464,9 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
       ? Math.round(totalRevenue / activeProperties)
       : 0;
     
-    const totalTenants = customers.filter(c => c.status === 'active').length;
+    const totalTenants = customers.filter(c =>
+      c.status === 'active' && properties.some(p => p.tenantCustomerId === c.customerId)
+    ).length;
     
     const analytics = {
       metrics: {

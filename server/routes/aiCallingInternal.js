@@ -419,7 +419,8 @@ router.get('/owners/:ownerId', async (req, res) => {
 // List owners (replaces deprecated sellers list)
 router.get('/owners', async (req, res) => {
   try {
-    const owners = await getOwners(req.tenantId);
+    const ownersResult = await getOwners(req.tenantId);
+    const owners = ownersResult.owners || [];
     res.json({
       count: owners.length,
       owners: owners.map(o => ({

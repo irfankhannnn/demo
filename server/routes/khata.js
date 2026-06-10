@@ -64,10 +64,11 @@ router.get('/parties/search', async (req, res) => {
 
     // Search based on party type
     if (!normalizedPartyType || normalizedPartyType === 'OWNER') {
-      const [owners, contacts] = await Promise.all([
+      const [ownersResult, contacts] = await Promise.all([
         crmService.getOwners(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const owners = ownersResult.owners || [];
 
       const matchingOwners = owners
         .filter(matchesSearch)
@@ -92,10 +93,11 @@ router.get('/parties/search', async (req, res) => {
     }
 
     if (!normalizedPartyType || normalizedPartyType === 'TENANT') {
-      const [tenants, contacts] = await Promise.all([
+      const [tenantsResult, contacts] = await Promise.all([
         crmService.getCustomers(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const tenants = tenantsResult.customers || [];
 
       const matchingTenants = tenants
         .filter(matchesSearch)
@@ -120,7 +122,8 @@ router.get('/parties/search', async (req, res) => {
     }
 
     if (!normalizedPartyType || normalizedPartyType === 'BUYER') {
-      const buyers = await crmService.getBuyers(tenantId);
+      const buyersResult = await crmService.getBuyers(tenantId);
+      const buyers = buyersResult.buyers || [];
       const matchingBuyers = buyers
         .filter(matchesSearch)
         .map((buyer) => ({
@@ -134,11 +137,13 @@ router.get('/parties/search', async (req, res) => {
 
     // Seller is represented by owners with for-sale/sold properties
     if (!normalizedPartyType || normalizedPartyType === 'SELLER') {
-      const [owners, properties, contacts] = await Promise.all([
+      const [ownersResult, propertiesResult, contacts] = await Promise.all([
         crmService.getOwners(tenantId),
         crmService.getProperties(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const owners = ownersResult.owners || [];
+      const properties = propertiesResult.properties || [];
 
       const sellerOwnerIds = new Set(
         (properties || [])
@@ -198,10 +203,11 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
     let properties = [];
 
     if (normalizedPartyType === 'OWNER') {
-      const [ownerProperties, allProperties] = await Promise.all([
+      const [ownerProperties, allPropertiesResult] = await Promise.all([
         crmService.getPropertiesByOwner(tenantId, partyId).catch(() => []),
         crmService.getProperties(tenantId),
       ]);
+      const allProperties = allPropertiesResult.properties || [];
 
       const contactOwnedProperties = (allProperties || []).filter(
         (property) => property?.ownerContactId === partyId
@@ -215,7 +221,8 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
         ).values()
       );
     } else if (normalizedPartyType === 'TENANT') {
-      const allProperties = await crmService.getProperties(tenantId);
+      const allPropertiesResult = await crmService.getProperties(tenantId);
+      const allProperties = allPropertiesResult.properties || [];
       properties = (allProperties || []).filter(
         (property) =>
           property?.tenantCustomerId === partyId ||
@@ -223,11 +230,13 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
           property?.rentalInfo?.currentTenantId === partyId
       );
     } else if (normalizedPartyType === 'BUYER') {
-      const [buyer, buyers, allProperties] = await Promise.all([
+      const [buyer, buyersResult, allPropertiesResult] = await Promise.all([
         crmService.getBuyer(tenantId, partyId).catch(() => null),
-        crmService.getBuyers(tenantId).catch(() => []),
+        crmService.getBuyers(tenantId).catch(() => ({ buyers: [] })),
         crmService.getProperties(tenantId),
       ]);
+      const buyers = buyersResult.buyers || [];
+      const allProperties = allPropertiesResult.properties || [];
 
       const buyerFromList = (buyers || []).find((candidate) => candidate?.buyerId === partyId) || null;
 
@@ -259,10 +268,11 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
       }
     } else if (normalizedPartyType === 'SELLER') {
       // Seller maps to owner/contact; prefer sale-related properties, fallback to all linked properties
-      const [ownerProperties, allProperties] = await Promise.all([
+      const [ownerProperties, allPropertiesResult] = await Promise.all([
         crmService.getPropertiesByOwner(tenantId, partyId).catch(() => []),
         crmService.getProperties(tenantId),
       ]);
+      const allProperties = allPropertiesResult.properties || [];
 
       const contactOwnerProperties = (allProperties || []).filter(
         (property) => property?.ownerContactId === partyId

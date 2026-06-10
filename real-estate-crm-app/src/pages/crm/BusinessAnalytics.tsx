@@ -329,7 +329,12 @@ export default function BusinessAnalytics() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Completion Rate</span>
                 <span className="font-bold text-indigo-600">
-                  {Math.round(((metrics?.completedVerifications || 0) / ((metrics?.completedVerifications || 0) + (metrics?.pendingVerifications || 1))) * 100)}%
+                  {(() => {
+                    const total = (metrics?.completedVerifications || 0) + (metrics?.pendingVerifications || 0);
+                    return total > 0
+                      ? Math.round(((metrics?.completedVerifications || 0) / total) * 100) + '%'
+                      : 'N/A';
+                  })()}
                 </span>
               </div>
             </div>
@@ -354,7 +359,7 @@ export default function BusinessAnalytics() {
                 <span className="font-bold text-gray-900">₹{(metrics?.averageRent || 0).toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Properties</span>
+                <span className="text-sm text-gray-600">Rented Properties</span>
                 <span className="font-bold text-gray-900">{metrics?.activeProperties || 0}</span>
               </div>
             </div>

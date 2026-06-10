@@ -46,11 +46,14 @@ export default function TenantList() {
   const loadTenants = async () => {
     try {
       setLoading(true);
-      const [customers, upcomingMeetings] = await Promise.all([
+      const [customersResult, upcomingMeetings] = await Promise.all([
         api.getCustomers(),
         api.getUpcomingMeetings(30),
       ]);
-      
+
+      // Backend returns { customers, total, limit, offset }
+      const customers = Array.isArray(customersResult) ? customersResult : (customersResult.customers || []);
+
       // Attach next meeting to each tenant
       const tenantsWithMeetings = customers.map((customer: CRMCustomer) => {
         const nextMeeting = upcomingMeetings

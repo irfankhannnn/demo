@@ -111,17 +111,29 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
 
       const sourceSelect = page.locator('label').filter({ hasText: /^Source$/ }).first().locator('..').locator('select');
       if (await sourceSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await sourceSelect.selectOption(lead.source);
+        const opts = await sourceSelect.locator('option').allTextContents();
+        const valid = opts.find(o => o.toLowerCase() === lead.source.toLowerCase())
+                      || opts.find(o => !o.toLowerCase().includes('select'))
+                      || opts[0];
+        if (valid) await sourceSelect.selectOption(valid);
       }
 
       const statusSelect = page.locator('label').filter({ hasText: /^Status$/ }).locator('..').locator('select');
       if (await statusSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await statusSelect.selectOption(lead.status);
+        const opts = await statusSelect.locator('option').allTextContents();
+        const valid = opts.find(o => o.toLowerCase() === lead.status.toLowerCase())
+                      || opts.find(o => !o.toLowerCase().includes('select'))
+                      || opts[0];
+        if (valid) await statusSelect.selectOption(valid);
       }
 
       const prioritySelect = page.locator('label').filter({ hasText: /^Priority$/ }).locator('..').locator('select');
       if (await prioritySelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
-        await prioritySelect.selectOption(lead.priority);
+        const opts = await prioritySelect.locator('option').allTextContents();
+        const valid = opts.find(o => o.toLowerCase() === lead.priority.toLowerCase())
+                      || opts.find(o => !o.toLowerCase().includes('select'))
+                      || opts[0];
+        if (valid) await prioritySelect.selectOption(valid);
       }
 
       if (lead.notes) {

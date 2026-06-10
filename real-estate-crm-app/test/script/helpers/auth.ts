@@ -38,6 +38,13 @@ export async function loginWithPhoneOtp(
   await page.waitForLoadState('networkidle');
   if (ctx) await snap(page, ctx, `${snapPrefix}-01-login-page`);
 
+  // If already authenticated (e.g. another flow in the same spec already logged in), skip login
+  const logoutBtn = page.getByRole('button', { name: /^Logout$/ }).first();
+  if (await logoutBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    log('Login', 'PASS', 'Already authenticated – skipping login');
+    return;
+  }
+
   // Handle the Welcome page and move through the client-side phone-login route.
   const continueWithPhone = page.getByRole('button', { name: 'Continue with Phone' });
   if (await continueWithPhone.isVisible({ timeout: 5_000 }).catch(() => false)) {

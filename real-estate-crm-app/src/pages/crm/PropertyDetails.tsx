@@ -240,7 +240,9 @@ export default function PropertyDetails() {
   const loadCustomers = async () => {
     try {
       const data = await api.getCustomers();
-      setCustomers(data);
+      // Backend returns { customers, total, limit, offset }
+      const customerList = Array.isArray(data) ? data : (data.customers || []);
+      setCustomers(customerList);
     } catch (error) {
       console.error('Error loading customers:', error);
     }
