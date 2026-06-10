@@ -131,31 +131,31 @@
 - **Context:** When an agency pays for AI Employee (₹7,999/mo), a Razorpay `subscription.activated` webhook must auto-create a provisioning row in DynamoDB, email the founder, add the tenant to an AiSensy broadcast list, and fire a PostHog event. A status page in the CRM shows the tenant their setup progress. A 6-hour escalation cron auto-escalates if 24h SLA is missed.
 
 #### Tasks
-- [ ] **ZEE-004-T1** — Write `server/routes/billing.js`
+- [x] **ZEE-004-T1** — Write `server/routes/billing.js`
   - `POST /api/billing/webhook` — public, HMAC-SHA256 signature verify using `RAZORPAY_WEBHOOK_SECRET`
   - Idempotent: store each `event.id` in `WebhookLog` DDB table before processing; skip if already processed
   - Branches: `subscription.activated` (AI Employee plan) → create `AIEmployeeProvisioning` row + email + AiSensy + PostHog; `subscription.charged` → `subscription_paid` event; `payment.captured/failed` → PostHog events; `subscription.cancelled` → update `Subscriptions` + PostHog; `subscription.updated` (seat add) → call `incrementSeatsPaid`
   - Mount in `server/server.js` BEFORE auth middleware (must be public)
-- [ ] **ZEE-004-T2** — Write `server/aiEmployeeProvisioningService.js`
+- [x] **ZEE-004-T2** — Write `server/aiEmployeeProvisioningService.js`
   - DDB table: `AIEmployeeProvisioning` PK=`tenantId`
   - `createProvisioningRow({tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, planId, razorpaySubscriptionId})`
   - `getProvisioningByTenant(tenantId)`
   - `updateProvisioning(tenantId, {status, internalNotes, loomUrl, liveAt})`
   - `listPendingProvisioning()` (for escalation cron)
-- [ ] **ZEE-004-T3** — Write `server/routes/aiEmployeeStatus.js`
+- [x] **ZEE-004-T3** — Write `server/routes/aiEmployeeStatus.js`
   - `GET /api/ai-employee/status` — validateToken + extractTenantId
   - Returns provisioning row for current tenant or 404 if tenant has not paid
-- [ ] **ZEE-004-T4** — Write `real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
+- [x] **ZEE-004-T4** — Write `real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
   - Route: `/integrations/ai-employee`
   - Fetches `/api/ai-employee/status`
   - 3 states: 🟡 pending (progress bar + "we're setting up your AI Employee"), 🟢 live (Loom embed + WhatsApp/Telegram numbers), 🔴 escalated ("We missed our 24h SLA — ₹500 credited")
   - Read-only; no mutation buttons
   - Footer: "Need help? WhatsApp us" + Crisp trigger
-- [ ] **ZEE-004-T5** — Write `server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
+- [x] **ZEE-004-T5** — Write `server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
   - Every 6h: scan `AIEmployeeProvisioning` where `status=pending` AND `now > expectedSLAEnd`
   - On breach: update `status=escalated`, send escalation email to founder + customer apology, Razorpay ₹500 credit note, PostHog `ai_employee_escalated`
   - Runs as scheduled Lambda (mirror P5 cron pattern)
-- [ ] **ZEE-004-T6** — Write `server/middleware/apiKeyAuth.js`
+- [x] **ZEE-004-T6** — Write `server/middleware/apiKeyAuth.js`
   - Validates `Bearer` token from OpenClaw HTTP requests via `TenantApiKeys` DDB lookup
   - Sets `req.tenantId` on match; 401 on failure
 - **Acceptance:** Test webhook → DDB row created + email sent + PostHog event fired in <60s; status page renders all 3 states correctly; escalation cron updates status.

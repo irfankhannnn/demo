@@ -63,6 +63,9 @@ import LeadDetails from './pages/crm/LeadDetails';
 // import ProjectList from './pages/crm/ProjectList';
 // import ProjectDetails from './pages/crm/ProjectDetails';
 
+// PR-F
+import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
+
 // AI Calling Module - DISABLED
 /*
 import {
@@ -337,6 +340,11 @@ function App() {
           {/* <Route path="/crm/ai-calling/history" element={<ProtectedRoute><CallHistory /></ProtectedRoute>} /> */}
           {/* <Route path="/crm/ai-calling/knowledge" element={<ProtectedRoute><KnowledgeManager /></ProtectedRoute>} /> */}
           {/* <Route path="/crm/ai-calling/settings" element={<ProtectedRoute><AICallingSettings /></ProtectedRoute>} /> */}
+          {/* === [LAUNCH PROTECTED ROUTES] === */}
+          {/* PR-F */}
+          <Route path="/integrations/ai-employee" element={<ProtectedRoute><AIEmployeeStatus /></ProtectedRoute>} />
+          {/* === [/LAUNCH PROTECTED ROUTES] === */}
+
         </Routes>
       </Router>
     </GoogleMapsProvider>
