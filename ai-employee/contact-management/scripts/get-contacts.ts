@@ -14,10 +14,12 @@ async function main() {
   if (role) params.role = role;
   if (status) params.status = status;
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/contacts`, params };
   const res = await axios.get(`${BASE}/api/crm/contacts`, {
     params,
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const contacts = res.data;
   if (!contacts || contacts.length === 0) {
@@ -35,6 +37,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   console.error('Error fetching contacts:', e.response?.data?.error || e.message);
   process.exit(1);
 });
