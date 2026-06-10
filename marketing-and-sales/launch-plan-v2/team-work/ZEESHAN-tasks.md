@@ -47,27 +47,27 @@
 - **Context:** DPDP Act 2023 mandates a public grievance portal. Build the `/grievance` public page (hCaptcha-gated form), a Lambda route to store submissions in DynamoDB, an admin UI in the CRM to view/resolve tickets, and auto-acknowledgement email via Brevo. No auth required to submit — this is a public form.
 
 #### Tasks
-- [ ] **ZEE-002-T1** — Write `server/grievanceDynamodbService.js`
+- [x] **ZEE-002-T1** — Write `server/grievanceDynamodbService.js`
   - `createGrievance({name, email, phone, description, category})` → stores in `Grievances` DDB table with `PK=grievanceId (ULID), status=open, createdAt, tenantId=null (public)`
   - `listGrievances({status, page})` → admin read (requires auth)
   - `updateGrievanceStatus(grievanceId, {status, resolution, resolvedBy})`
-- [ ] **ZEE-002-T2** — Write `server/routes/grievance.js`
+- [x] **ZEE-002-T2** — Write `server/routes/grievance.js`
   - `POST /api/grievance` — public, rate-limited (6/hr per IP), hCaptcha verify, calls `createGrievance`, triggers Brevo auto-ack email
   - `GET /api/grievance` — admin-only (validateToken + role=ADMIN), calls `listGrievances`
   - `PUT /api/grievance/:id` — admin-only, updates status + resolution
   - Mount in `server/server.js`
-- [ ] **ZEE-002-T3** — Write `real-estate-crm-app/src/pages/public/Grievance.tsx`
+- [x] **ZEE-002-T3** — Write `real-estate-crm-app/src/pages/public/Grievance.tsx`
   - Public page at route `/grievance` (no auth wrapper)
   - Form fields: Name, Email, Phone, Category (dropdown), Description (textarea)
   - hCaptcha widget integration (key from env `VITE_HCAPTCHA_SITE_KEY`)
   - Success state: "Your grievance #GRIEVANCE-ID has been logged. We will respond within 7 working days."
   - Footer must show Grievance Officer name, email, address (provided by Founder — placeholder `{{GO_NAME}}`, `{{GO_EMAIL}}`, `{{GO_ADDRESS}}`)
-- [ ] **ZEE-002-T4** — Write `real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
+- [x] **ZEE-002-T4** — Write `real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
   - Admin-only page at `/admin/grievances`
   - Table: ID, name, email, category, date, status badge (open/in-review/resolved)
   - "Resolve" action opens inline form for resolution text + status update
   - Role-gate: ADMIN only (using existing auth context pattern)
-- [ ] **ZEE-002-T5** — Write `tests/grievance.spec.ts` (Playwright)
+- [x] **ZEE-002-T5** — Write `tests/grievance.spec.ts` (Playwright)
   - Submit valid form → assert success message + DDB row created
   - Submit 7th request from same IP within 1h → assert 429
   - Submit with invalid hCaptcha token → assert 400
@@ -169,34 +169,34 @@
 - **Context:** Without seat enforcement, a Team plan (₹1,999 for 3 seats) can have 10 members for free — pure revenue leakage. Block invite creation at the API layer when `seatsUsed >= seatsPaid`. Show a clear upgrade modal. Handle the `subscription.updated` webhook to increment seats when ₹500/seat is paid.
 
 #### Tasks
-- [ ] **ZEE-005-T1** — Write `server/subscriptionService.js`
+- [x] **ZEE-005-T1** — Write `server/subscriptionService.js`
   - `getSubscription(tenantId)` → `{plan, seatsPaid, seatsUsed, nextBillingDate, razorpaySubscriptionId, status}`
   - `incrementSeatsPaid(tenantId, by=1)` (called by billing webhook on seat-add)
   - `decrementSeatsPaid(tenantId, by=1)`
   - `recomputeSeatsUsed(tenantId)` — counts active members in DDB
   - Write `server/routes/subscriptions.js` → `GET /api/subscriptions/current` (validateToken + extractTenantId)
-- [ ] **ZEE-005-T2** — Update `server/routes/auth.js` invite-creation handler
+- [x] **ZEE-005-T2** — Seat check via `POST /api/subscriptions/check-seat` (auth.js is empty; invite goes to external Cognito service)
   - Before invite: `getSubscription(tenantId)` → compute `seatsUsed`
   - If `seatsUsed >= seatsPaid`: return HTTP 402 `{error: "paywall_seat_limit", currentSeats, paidSeats, tier, upgradeOptions}` + fire PostHog `paywall_seat_limit_hit`
-- [ ] **ZEE-005-T3** — Write `real-estate-crm-app/src/components/SeatCounter.tsx`
+- [x] **ZEE-005-T3** — Write `real-estate-crm-app/src/components/SeatCounter.tsx`
   - Fetches `/api/subscriptions/current`
   - Displays: `{seatsUsed} of {seatsPaid} seats used` with colour-coded progress bar (green <70%, yellow 70–90%, red ≥90%)
   - "Upgrade" CTA when at or near cap
-- [ ] **ZEE-005-T4** — Write `real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
+- [x] **ZEE-005-T4** — Write `real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
   - Triggered on 402 response OR manual "Upgrade" CTA
   - Solo at-cap: "Upgrade to Team — ₹1,999/mo (3 seats)" CTA → Razorpay Team checkout
   - Team at-cap: "Add 1 seat — ₹500/month prorated" CTA → Razorpay add_seat checkout
   - On success: refetch subscription, close modal, retry invite
-- [ ] **ZEE-005-T5** — Update `InviteManagement.tsx` and `MemberManagement.tsx`
+- [x] **ZEE-005-T5** — Update `InviteManagement.tsx` and `MemberManagement.tsx`
   - Mount `<SeatCounter />` at top of each page
   - Disable "Invite Member" button + show tooltip when at cap
   - On 402 from POST invite → auto-open `<SeatUpgradeModal />`
-- [ ] **ZEE-005-T6** — Write `tests/seat-cap.spec.ts` (Playwright)
+- [x] **ZEE-005-T6** — Write `tests/seat-cap.spec.ts` (Playwright)
   - Invite 1 on Solo → 200; invite 2 on Solo → 402 + modal opens
   - Invite 3 on Team → 200; invite 4 on Team → 402
   - Pay ₹500 test → seatsPaid increments → invite 4 → 200
   - Deactivate member → seatsUsed decrements → invite new member → 200
-- [ ] **ZEE-005-T7** — Write `server/scripts/backfill-seats-paid.js`
+- [x] **ZEE-005-T7** — Write `server/scripts/backfill-seats-paid.js`
   - Idempotent: for existing tenants, set `seatsPaid` based on plan (Solo=1, Team=3)
 - **Acceptance:** All 5 Playwright scenarios pass; no agency can exceed seatsPaid; modal opens on 402.
 

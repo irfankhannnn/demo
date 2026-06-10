@@ -23,9 +23,13 @@ import khataRoutes from './routes/khata.js';
 import notificationsRoutes from './routes/notifications.js';
 
 // === [LAUNCH ROUTES IMPORTS] ===
+// PR-B
+import grievanceRoutes from './routes/grievance.js';
 // PR-F
 import billingRoutes from './routes/billing.js';
 import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
+// PR-H
+import subscriptionsRoutes from './routes/subscriptions.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 // import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
 // import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
@@ -72,6 +76,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
+// Billing webhook (MUST be before express.json() to preserve raw body for HMAC)
+logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
+app.use('/api/billing', billingRoutes);
+
 // Routes
 logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
 app.use('/api/auth', authRoutes);
@@ -108,10 +116,15 @@ app.use('/api/notifications', notificationsRoutes);
 // app.use('/api', areasBuildings); // DISABLED
 
 // === [LAUNCH ROUTES MOUNTS] ===
-// PR-F — billing webhook BEFORE any auth middleware
-app.use('/api/billing', billingRoutes);
+// PR-B
+logger.info('routes.mount', { basePath: '/api', router: 'grievanceRoutes' });
+app.use('/api', grievanceRoutes);
 // PR-F — AI Employee status (after auth)
+logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
+// PR-H
+logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscriptionsRoutes' });
+app.use('/api/subscriptions', subscriptionsRoutes);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware

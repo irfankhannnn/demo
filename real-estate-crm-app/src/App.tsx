@@ -34,6 +34,12 @@ import NoAccess from './pages/member/NoAccess';
 import InviteManagement from './pages/admin/InviteManagement';
 import MemberManagement from './pages/admin/MemberManagement';
 
+// === [LAUNCH COMPONENT IMPORTS] ===
+// PR-B
+import Grievance from './pages/public/Grievance';
+import GrievanceList from './pages/admin/GrievanceList';
+// === [/LAUNCH COMPONENT IMPORTS] ===
+
 // CRM Pages
 import CRMDashboard from './pages/crm/CRMDashboard';
 import TenantList from './pages/crm/TenantList';
@@ -261,6 +267,10 @@ function App() {
         {/* === [/LAUNCH LAYOUT COMPONENTS] === */}
         <Routes>
           {/* Public Routes */}
+          {/* === [LAUNCH PUBLIC ROUTES] === */}
+          {/* PR-B */}
+          <Route path="/grievance" element={<Grievance />} />
+          {/* === [/LAUNCH PUBLIC ROUTES] === */}
           <Route path="/login" element={<AdminLogin />} />
           <Route path="/phone-login" element={<PhoneLogin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -283,6 +293,10 @@ function App() {
           <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
           
           {/* Admin Routes */}
+          {/* === [LAUNCH PROTECTED ROUTES] === */}
+          {/* PR-B */}
+          <Route path="/admin/grievances" element={<ProtectedRoute><GrievanceList /></ProtectedRoute>} />
+          {/* === [/LAUNCH PROTECTED ROUTES] === */}
           <Route path="/admin/invites" element={<ProtectedRoute><InviteManagement /></ProtectedRoute>} />
           <Route path="/admin/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
           

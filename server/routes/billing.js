@@ -71,9 +71,19 @@ async function sendAiSensyBroadcast(campaignName, userName, userPhoneNumber) {
 }
 
 // POST /webhook — Razorpay sends all subscription + payment events here
-router.post('/webhook', async (req, res) => {
+// Mounted before express.json() in server.js — use express.raw to preserve body for HMAC
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   try {
-    // 1. Verify HMAC signature
+    // 1. Parse raw body (Buffer from express.raw)
+    const rawBody = req.body;
+    let body;
+    try {
+      body = JSON.parse(rawBody.toString());
+    } catch {
+      return res.status(400).json({ error: 'invalid_json' });
+    }
+
+    // 2. Verify HMAC signature against raw body
     const signature = req.headers['x-razorpay-signature'];
     const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
     if (!secret) {
@@ -83,7 +93,7 @@ router.post('/webhook', async (req, res) => {
 
     const expectedSig = crypto
       .createHmac('sha256', secret)
-      .update(JSON.stringify(req.body))
+      .update(rawBody)
       .digest('hex');
 
     if (signature !== expectedSig) {
@@ -91,8 +101,8 @@ router.post('/webhook', async (req, res) => {
       return res.status(401).json({ error: 'invalid_signature' });
     }
 
-    // 2. Idempotency check
-    const eventId = req.body.event_id || req.body.id;
+    // 3. Idempotency check
+    const eventId = body.event_id || body.id;
     if (!eventId) {
       return res.status(400).json({ error: 'missing_event_id' });
     }
@@ -103,9 +113,9 @@ router.post('/webhook', async (req, res) => {
       return res.json({ received: true, duplicate: true });
     }
 
-    // 3. Route to handler based on event type
-    const eventType = req.body.event;
-    const payload = req.body.payload;
+    // 4. Route to handler based on event type
+    const eventType = body.event;
+    const payload = body.payload;
 
     switch (eventType) {
       case 'subscription.activated': {
