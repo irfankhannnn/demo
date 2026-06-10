@@ -1,0 +1,13 @@
+<!-- Analytics snippet — filled by PR-E (ZEE-003) -->
+<!-- PostHog + GA4 + Meta Pixel + LinkedIn + Hotjar — all consent-gated -->
+<!-- IDs from build-time env: POSTHOG_KEY, GA4_ID, META_PIXEL_ID, LINKEDIN_PARTNER_ID, HOTJAR_ID -->
+<!--
+  Loading order (implemented in PR-E):
+    1. Read localStorage.cookieConsent (set by _partials/cookie-banner.html, PR-C).
+    2. Listen for the `cookie-consent-done` CustomEvent.
+    3. Only initialise each tracker when its consent category is true:
+         analytics  -> PostHog + GA4
+         marketing  -> Meta Pixel + LinkedIn Insight
+         functional -> Hotjar
+    4. On Reject, PostHog (if loaded) runs with disable_session_recording: true.
+-->
