@@ -72,32 +72,41 @@
 - **Phase:** Pre-Launch → T-21 (start) → T-7 (complete)
 - **Priority:** Critical
 - **Source File:** `pre-launch-prep/P18-cloud-infra-checklist.md` (Track A)
-- **Context:** P18 is the master infra tracker. Every infra item has an owner (Founder) and a status. Review this daily during pre-launch. Most launch slips are infra slips: KYC pending, DNS not propagated, IAM denied. Block 0 cannot complete without P18 being green.
+- **Status:** ✅ **Existing CFN deployed — base infra is live.** Remaining items are config-only (CloudWatch alarms, WAF rules, new DDB tables for new services) and Lambda cron deployments (blocked on Zeeshan's YAML files).
 
-#### Tasks
-- [ ] **FND-002-T1** — AWS account confirm: region = `ap-south-1` (Mumbai); MFA enabled on root + founder IAM user
-- [ ] **FND-002-T2** — IAM: create founder admin user; create Lambda service roles (least-privilege per function)
-  - Lambda policy: DynamoDB CRUD on specific tables (not `*`), SES/Brevo send, CloudWatch logs, S3 specific bucket
-- [ ] **FND-002-T3** — DynamoDB: create all 7 new tables from `FND-001-T1` schema doc
-  - For each: on-demand billing, encryption at rest (AWS-owned key), PITR enabled
-  - Verify in AWS Console: Backups → PITR = Enabled for all tables
-- [ ] **FND-002-T4** — Cognito: confirm production user pool active; create `realestateflow-demo` pool for P5 (demo env)
-  - Both pools: MFA optional, password policy ≥10 chars, SRP_AUTH flow enabled
-- [ ] **FND-002-T5** — S3: create bucket `cloudberry-real-estate-launch` (ap-south-1)
-  - Settings: BlockPublicAccess=true, versioning=enabled
-  - Lifecycle rule: `archive/*` → Glacier after 90 days
-- [ ] **FND-002-T6** — Lambda: deploy existing API handler; create Lambda functions for 3 crons (demo-reset, trial-reminder, escalation-openclaw) from Zeeshan's `cron/*.yaml` definitions
-- [ ] **FND-002-T7** — EventBridge: create 3 rules (one per cron Lambda) with schedule from `cron-architecture.md`
-- [ ] **FND-002-T8** — API Gateway: confirm domain `api.realestateflow.in` mapped; apply throttling 1000 req/min/IP default; per-route overrides for `/api/grievance`, `/api/auth/phone-login`, `/api/billing/webhook`
-- [ ] **FND-002-T9** — WAF: attach to API Gateway; managed rule sets (Common, Bad Inputs, IP Reputation); custom rate-limit rule (100 req/5min per IP for grievance + phone-login)
-- [ ] **FND-002-T10** — CloudWatch alarms per `P13-multitenancy-security-audit.md` spec:
-  - 5xx rate >1%/min → SNS email to founder
+#### Tasks — ✅ DONE (existing CFN deployed)
+- [x] **FND-002-T1** — AWS account confirmed in `ap-south-1`; MFA enabled; IAM roles active
+- [x] **FND-002-T2** — Existing Lambda service roles active; existing API Lambda deployed
+- [x] **FND-002-T4** — Production Cognito user pool active; existing DDB CRM tables live
+- [x] **FND-002-T5** — S3 bucket `cloudberry-real-estate-launch` confirmed (ap-south-1, BPA=true, versioning=on)
+- [x] **FND-002-T8 (partial)** — API Gateway domain `api.realestateflow.in` mapped
+
+#### Tasks — 🔲 REMAINING (config-only, run in parallel with coding)
+- [ ] **FND-002-T3-NEW** — DynamoDB: create **7 new tables** not yet in existing CFN (can run immediately — no code dependency):
+  - `Grievances` (PK=grievanceId, from P9)
+  - `AIEmployeeProvisioning` (PK=tenantId, from P11)
+  - `WebhookLog` (PK=webhookEventId, from P11 idempotency)
+  - `TenantApiKeys` (PK=tenantId, from P11)
+  - `Subscriptions` (PK=tenantId, from P12)
+  - `NPSResponses` (PK=responseId, from Day-28)
+  - `BetaInvites` (PK=email, from Week-2)
+  - For each: on-demand billing, PITR enabled, encryption at rest
+- [ ] **FND-002-T4-DEMO** — Cognito: create `realestateflow-demo` user pool (separate from production, for P5 demo env); capture `DEMO_USER_POOL_ID`, `DEMO_CLIENT_ID`
+- [ ] **FND-002-T6** — Lambda cron functions (⚠️ **blocked on Zeeshan's ZEE-001/004/007 YAML files being written first**):
+  - `demo-reset` cron Lambda (from ZEE-001 `cron/reset-demo.yaml`)
+  - `trial-reminder` cron Lambda (from ZEE-007 `cron/trial-reminder.yaml`)
+  - `escalation-openclaw` cron Lambda (from ZEE-004 `cron/escalate-openclaw.yaml`)
+- [ ] **FND-002-T7** — EventBridge: create 3 rules (one per cron) — ⚠️ **blocked on T6**
+- [ ] **FND-002-T8-THROTTLE** — API Gateway per-route throttling: 100 req/5min for `/api/grievance` + `/api/auth/phone-login` + `/api/billing/webhook` (config-only, independent)
+- [ ] **FND-002-T9** — WAF: managed rule sets (Common, Bad Inputs, IP Reputation) + custom rate-limit rule for grievance + phone-login (config-only, independent)
+- [ ] **FND-002-T10** — CloudWatch alarms (config-only, independent — spec in P13):
+  - 5xx rate >1%/min → SNS → founder email
   - Lambda error count >5/5min → SNS
   - DDB throttle events → SNS
   - Cognito sign-in failure spike → SNS
-  - Cross-tenant 403 spike >10/min from same IP → auto-block via WAF + SNS
-- [ ] **FND-002-T11** — Smoke test: `aws sts get-caller-identity` + `aws s3 ls s3://cloudberry-real-estate-launch` + `aws dynamodb describe-table --table-name Grievances` → all pass
-- **Acceptance:** All DDB tables created with PITR; Lambda + EventBridge crons registered; API Gateway + WAF configured; CloudWatch alarms active.
+  - Cross-tenant 403 spike >10/min → WAF auto-block + SNS
+- [ ] **FND-002-T11** — Smoke test new tables: `aws dynamodb describe-table --table-name Grievances` + 6 other new tables → all pass
+- **Acceptance:** 7 new DDB tables with PITR; 3 cron Lambdas + EventBridge rules active (after Zeeshan delivers YAMLs); WAF + CloudWatch alarms configured.
 
 ---
 
@@ -173,29 +182,43 @@
 - **Phase:** Pre-Launch → T-14
 - **Priority:** High
 - **Source File:** `pre-launch-prep/P10-analytics-events.md`
-- **Context:** Zeeshan needs IDs/keys from all analytics vendors to wire up the events layer (ZEE-003). Founder must create all accounts and hand the IDs to Zeeshan + Madhu. Do this before T-14 so Zeeshan can start instrumentation.
+- **Context:** Zeeshan needs API keys to wire the events layer. **Critical:** GA4/Pixel/LinkedIn/Hotjar keys go into the LP build env ONLY — not the CRM. PostHog and Sentry keys go to CRM + Server. This task can run in parallel with all coding (code uses placeholder env vars until keys are available).
+
+**Env var routing (where each key lives):**
+| Key | LP `.env` | CRM `.env` | Server Lambda |
+|---|---|---|---|
+| `POSTHOG_KEY` | ✅ | ✅ (`VITE_POSTHOG_KEY`) | ✅ (`POSTHOG_KEY_SERVER`) |
+| `GA4_ID` | ✅ | ❌ | ❌ |
+| `META_PIXEL_ID` | ✅ | ❌ | ❌ |
+| `LINKEDIN_PARTNER_ID` | ✅ | ❌ | ❌ |
+| `HOTJAR_ID` + `HOTJAR_SV` | ✅ | ❌ | ❌ |
+| `VITE_SENTRY_DSN` | ❌ | ✅ | ❌ |
+| `SENTRY_DSN_SERVER` | ❌ | ❌ | ✅ |
 
 #### Tasks
-- [ ] **FND-005-T1** — Create **PostHog** project at https://posthog.com (free tier)
-  - Capture: `POSTHOG_API_KEY` (client), `POSTHOG_PROJECT_ID`, `POSTHOG_HOST`
+- [ ] **FND-005-T1** — Create **PostHog** project at https://posthog.com (free tier, EU region for DPDP)
+  - Capture: `POSTHOG_KEY` (used as both `VITE_POSTHOG_KEY` and `POSTHOG_KEY_SERVER`), `POSTHOG_HOST`
   - Enable session recording, funnel analysis, cohorts
+  - Hand to Zeeshan: add to LP `.env`, CRM `.env`, Lambda env
 - [ ] **FND-005-T2** — Create **GA4** property at https://analytics.google.com
-  - Capture: `GA4_MEASUREMENT_ID` (G-XXXXXXXXXX)
-  - Create conversion events: `signup_completed`, `subscription_started`
+  - Capture: `GA4_ID` (format: G-XXXXXXXXXX)
+  - Hand to Zeeshan: add to LP `.env` ONLY
 - [ ] **FND-005-T3** — Create **Meta Pixel** at https://business.facebook.com (Events Manager)
   - Capture: `META_PIXEL_ID`
-  - Configure conversion events: `Lead`, `Subscribe`, `Purchase`
+  - Hand to Zeeshan: add to LP `.env` ONLY
 - [ ] **FND-005-T4** — Create **LinkedIn Insight Tag** at https://linkedin.com/campaignmanager
   - Capture: `LINKEDIN_PARTNER_ID`
-  - Configure conversion actions: `signup_completed`, `subscription_started`
-- [ ] **FND-005-T5** — Create **Sentry** projects (one for SPA, one for server) at https://sentry.io
-  - Capture: `VITE_SENTRY_DSN` (SPA), `SENTRY_DSN_SERVER`
-  - Configure alerts: any P0 issue → email + WhatsApp founder immediately
+  - Hand to Zeeshan: add to LP `.env` ONLY
+- [ ] **FND-005-T5** — Create **Sentry** projects (one for CRM SPA, one for server Lambda) at https://sentry.io
+  - Capture: `VITE_SENTRY_DSN` (for CRM `.env`), `SENTRY_DSN_SERVER` (for Lambda env)
+  - Configure alerts: any P0 issue → founder email + WhatsApp
+  - Hand to Zeeshan: add to CRM `.env` + Lambda env; do NOT add to LP `.env`
 - [ ] **FND-005-T6** — Create **Hotjar** project at https://hotjar.com
-  - Capture: `HOTJAR_ID` + `HOTJAR_SV`
-- [ ] **FND-005-T7** — Write all IDs to `.env` (SPA + server) and update Lambda environment variables
-  - Do NOT commit raw keys; use AWS Secrets Manager or Lambda env config
-- **Acceptance:** All 6 vendor accounts active; all IDs in env; Zeeshan can start ZEE-003 instrumentation.
+  - Capture: `HOTJAR_ID`, `HOTJAR_SV`
+  - Hand to Zeeshan: add to LP `.env` ONLY
+- [ ] **FND-005-T7** — Write all IDs to `marketing-and-sales/launch-implement/pre-launch/env-config.md` (reference doc; do NOT commit raw keys to git)
+  - Populate real values in: LP `creative/landing-pages/.env`, CRM `real-estate-crm-app/.env`, Lambda env vars
+- **Acceptance:** All 6 vendor accounts active; keys in correct env files (GA4/Pixel/LinkedIn/Hotjar LP-only; PostHog all 3; Sentry CRM+Server only); ZEE-003 can run with real IDs.
 
 ---
 
@@ -235,23 +258,28 @@
 - **Phase:** Pre-Launch → T-7
 - **Priority:** High
 - **Source File:** `pre-launch-prep/P5-demo-environment.md`
-- **Context:** Zeeshan writes the seed scripts (ZEE-001). Founder must provision the AWS infra: a separate Cognito user pool for the demo tenant, a separate DynamoDB namespace or dedicated prefix for demo data, a separate Netlify site for `demo.realestateflow.in`, and register the EventBridge cron for daily reset.
+- **Context:** Zeeshan writes the seed scripts (ZEE-001). Founder provisions the remaining infra. Most AWS infra is already live (existing CFN); the demo-specific items are the only outstanding pieces.
 
-#### Tasks
-- [ ] **FND-007-T1** — Create `realestateflow-demo` Cognito user pool (separate from production)
-  - Configure: MFA optional, same auth flow as production
+#### Tasks — 🔲 REMAINING
+
+- [ ] **FND-007-T1** — Create `realestateflow-demo` Cognito user pool (separate from production — config-only, no code dependency)
+  - Configure: MFA optional, SRP_AUTH, password policy ≥10 chars
   - Capture: `DEMO_USER_POOL_ID`, `DEMO_CLIENT_ID`
-- [ ] **FND-007-T2** — Create `DEMO_TENANT_ID` (a fixed ULID) → add to Lambda env vars as a constant
-  - All seed data from ZEE-001 uses this tenant ID
-- [ ] **FND-007-T3** — Deploy Zeeshan's seed script as a one-off Lambda; run it once to populate initial demo data; verify data in DDB console
-- [ ] **FND-007-T4** — Register EventBridge cron rule for daily reset (from Zeeshan's `cron/reset-demo.yaml`)
+  - Add both IDs to Lambda env vars (as demo-specific env vars)
+- [ ] **FND-007-T2** — Generate `DEMO_TENANT_ID` (a fixed ULID, e.g. `01J...`) → add to Lambda env vars
+  - All seed data from ZEE-001 uses this fixed tenant ID — no code changes needed, just env var
+- [ ] **FND-007-T3** — ⚠️ **Blocked on ZEE-001 being complete.** Once Zeeshan's `server/scripts/seed-demo-tenant.js` exists:
+  - Deploy seed script as a one-off Lambda invocation (or run locally with production DDB access)
+  - Verify data in DDB console: check buyer count, property count, lead count
+- [ ] **FND-007-T4** — ⚠️ **Blocked on ZEE-001 being complete.** Register EventBridge cron for daily reset from Zeeshan's `cron/reset-demo.yaml`
   - Schedule: `cron(30 20 * * ? *)` (2:00 AM IST)
-  - Confirm rule is active; manually trigger once to verify reset runs without error
-- [ ] **FND-007-T5** — Deploy demo SPA to Netlify with env vars pointing to demo Cognito pool
-  - Custom domain: `demo.realestateflow.in`
-  - `VITE_IS_DEMO=true` → triggers Zeeshan's DemoBanner component
-- [ ] **FND-007-T6** — Smoke test: visit `demo.realestateflow.in` → login with demo credentials → see populated data + demo banner → confirm reset runs the next day
-- **Acceptance:** Demo URL live; populated data visible; daily reset cron registered + tested; DemoBanner shows on demo subdomain.
+  - Manually trigger once to verify reset runs without error
+- [ ] **FND-007-T5** — Deploy demo SPA to Netlify
+  - Separate Netlify site pointing to demo Cognito pool env vars
+  - Custom domain: `demo.realestateflow.in` (add CNAME in Cloudflare)
+  - Env vars: `VITE_IS_DEMO=true`, `VITE_COGNITO_USER_POOL_ID=$DEMO_USER_POOL_ID`, `VITE_COGNITO_CLIENT_ID=$DEMO_CLIENT_ID`
+- [ ] **FND-007-T6** — Smoke test: visit `demo.realestateflow.in` → login → populated data + DemoBanner visible
+- **Acceptance:** Demo URL live; DemoBanner shows; daily reset cron active; data verified in DDB console.
 
 ---
 
@@ -419,6 +447,65 @@
 
 ---
 
+---
+
+## Manual Tasks → Parallel Execution Guide
+
+> **How to read this:** The AI agent (Zeeshan) runs all coding in parallel with your manual tasks. Your manual task outputs go into config/env files — they do NOT block code writing (code uses placeholder env vars). Only DEPLOYMENT is blocked until real keys exist.
+
+### Group A — Run Immediately (Zero Code Dependency)
+These can and should start on Day 1 (T-21):
+
+| Task | Output | Where output lands |
+|---|---|---|
+| FND-002-T3-NEW | Create 7 new DDB tables | AWS DDB console → no code change needed |
+| FND-002-T4-DEMO | Create demo Cognito pool | AWS → `DEMO_USER_POOL_ID` env var |
+| FND-002-T8-THROTTLE | API Gateway throttling overrides | AWS API Gateway console |
+| FND-002-T9 | WAF rules | AWS WAF console |
+| FND-002-T10 | CloudWatch alarms | AWS CloudWatch console |
+| FND-003 | Cloudflare DNS records | Cloudflare dashboard |
+| FND-004 | Razorpay KYC + Products/Plans | Razorpay → plan IDs → `pricing.json.razorpayPlanIds` |
+| FND-005 | All analytics vendor accounts | Keys → LP `.env` + CRM `.env` + Lambda env vars |
+| FND-006-T2 | hCaptcha account | `VITE_HCAPTCHA_SITE_KEY` + `HCAPTCHA_SECRET_KEY` → env vars |
+| FND-006-T3 | AiSensy account | `AISENSY_API_KEY` + `AISENSY_BROADCAST_LIST_ID` → env vars |
+| FND-006-T5 | Cal.com booking setup | `{{FOUNDER_HANDLE}}` → hand to Madhu for LP copy |
+| FND-008-T1 | Company legal details to Madhu | Madhu runs P1 AI prompt |
+| FND-009 | Pricing lock + founder details | `pricing.json` already done; hand Cal.com/WhatsApp/Loom to Madhu |
+
+### Group B — Blocked on Zeeshan's YAML/Code (start after code is written)
+
+| Task | Blocked on | What to do after unblocked |
+|---|---|---|
+| FND-002-T6 | ZEE-001, ZEE-004, ZEE-007 cron YAML files | Deploy cron Lambdas from YAML definitions |
+| FND-002-T7 | FND-002-T6 | Register EventBridge rules |
+| FND-007-T3 | ZEE-001 seed script | Run seed script once |
+| FND-007-T4 | ZEE-001 cron YAML | Register EventBridge reset cron |
+| FND-011 | ZEE-004 (billing webhook) + ZEE-007 (paywall) deployed | Switch Razorpay to live mode + ₹1 test |
+
+### Group C — Human-only (cannot be coded or config-paralleled)
+
+| Task | Why manual-only |
+|---|---|
+| FND-004 Razorpay KYC | Requires human identity documents + bank account |
+| FND-008-T2/T3 Lawyer engagement | Requires human legal review + sign-off |
+| FND-010 Day 1 product walkthrough | Requires founder physically using the product |
+| FND-011 Day 3 payment go-live | Requires founder paying with real card + CA sign-off |
+| FND-013 Day 7 Go/No-Go | Requires founder review + sign-off decision |
+
+### Config Flow Summary
+All manual task outputs funnel into 4 config locations (no git commits for secrets):
+
+```
+AWS Console actions           → AWS DDB tables + Lambda env vars (via AWS Console)
+Vendor account signups        → creative/landing-pages/.env  (LP build-time IDs)
+                              → real-estate-crm-app/.env     (CRM runtime IDs)
+                              → Lambda env vars              (Server IDs)
+Founder details (Cal, phone)  → hands to Madhu for LP copy + ZEE-008 placeholders
+Razorpay live plan IDs        → marketing-and-sales/launch-plan-v2/pricing.json (razorpayPlanIds.live)
+```
+
+---
+
 ## Reference: Key Files to Read Before Starting
 
 | Task | Read First |
@@ -440,15 +527,21 @@
 ## Critical Path (What Blocks Everything Else)
 
 ```
-FND-009 (pricing lock, T-14)       ──► MAD-002 (pricing copy) ──► ZEE-007 (paywall)
-FND-008 (legal inputs, T-14)       ──► MAD-001 (legal drafts) ──► ZEE-008 (LP publish)
-FND-001 (architecture, T-14)       ──► ZEE-002/004/005/007 (all new services)
-FND-002 + FND-003 (infra, T-21)    ──► ZEE-001/002/004 (demo, grievance, billing)
-FND-005 + FND-006 (accounts, T-14) ──► ZEE-003 + ZEE-006 (analytics, cookie banner)
-FND-004 (Razorpay KYC, T-21)       ──► FND-011 (Day 3 payment go-live)
-FND-010 (Day 1 walkthrough)        ──► ZEE-011 (Day 2 P0 fixes)
-FND-011 (Day 3 payment live)       ──► FND-013 (Day 7 go/no-go)
-FND-013 (Day 7 go/no-go = GO)      ──► Day 9 beta invites
+FND-009 (pricing lock, T-14)            ──► MAD-002 (pricing copy) ──► ZEE-007 (paywall)
+FND-008 (legal inputs, T-14)            ──► MAD-001 (legal drafts) ──► ZEE-008 (LP publish)
+FND-001 (architecture, T-14)            ──► ZEE-002/004/005/007 (all new services)
+FND-002-T3-NEW (new DDB tables, T-14)   ──► ZEE-002/004/005 deploy (need tables to exist)
+FND-005 + FND-006 (accounts, T-14)      ──► ZEE-003 + ZEE-006 (fill env vars; code proceeds with placeholders)
+FND-004 (Razorpay KYC, T-21)           ──► FND-011 (Day 3 payment go-live)
+ZEE-001/004/007 YAML files             ──► FND-002-T6/T7 (Lambda cron deploy)
+FND-010 (Day 1 walkthrough)            ──► ZEE-011 (Day 2 P0 fixes)
+FND-011 (Day 3 payment live)           ──► FND-013 (Day 7 go/no-go)
+FND-013 (Day 7 go/no-go = GO)          ──► Day 9 beta invites
+
+✅ NOT on critical path (existing CFN live):
+  FND-002-T1/T2/T4/T5/T8 (base AWS infra — already done)
+  FND-003 (Cloudflare DNS — can proceed in parallel)
+  FND-002-T9/T10 (WAF + CloudWatch alarms — config-only, non-blocking)
 ```
 
 ## Key Handoffs (What Founder Delivers to Zeeshan + Madhu)

@@ -16,22 +16,22 @@ Cold outreach replies that ask "can I see it first" need a 30-second click-throu
 As a Mumbai broker who clicked a `/demo` link from cold outreach, I want a live, populated, no-signup-required demo of the CRM, so I can decide in 60 seconds whether to book a real call.
 
 ## Acceptance Criteria
-- [ ] `server/scripts/seed-demo-tenant.js` exists (idempotent — re-running drops existing demo data and re-seeds)
-- [ ] Seed tenant ID = `DEMO_REALESTATEFLOW`
-- [ ] 20 buyers with realistic Mumbai context (locality, budget ₹50L-₹4Cr, status mix)
-- [ ] 15 owners with realistic property listings
-- [ ] 10 Mumbai properties: 1 each in Andheri (W), Bandra (W), Powai, Thane, Borivali (W), Goregaon (E), Lower Parel, Worli, Juhu, Vashi
-- [ ] 8 pipeline tasks across stages: New / Contacted / Site Visit Scheduled / Negotiating / Closed-Won / Closed-Lost
-- [ ] 5 simulated AI-Employee → buyer WhatsApp transcripts (English, realistic broker context, 8-15 messages each)
-- [ ] Dashboard metrics: ₹12.5 Cr pipeline value, 8 active deals, 3 closing this month
-- [ ] No real PII (all phones `9XXXXXXXXX`, emails `demo+{N}@realestateflow.in`)
-- [ ] `--reset` flag drops + re-seeds in <30 seconds
-- [ ] Cron `cron/reset-demo.yaml` runs daily at 03:00 IST (UTC 21:30 prev day)
-- [ ] Demo deployed at `demo.realestateflow.in` (separate Cognito user pool with sandbox login `demo@realestateflow.in` / password printed at top of dashboard)
-- [ ] Read-only flag on sensitive entities (e.g., Khata settlement actions show "Read-only in demo")
-- [ ] Demo tenant has banner: "🟡 DEMO TENANT — data resets at 03:00 IST daily. Do not enter real data."
-- [ ] Daily reset event posts to PostHog `demo_tenant_reset` so we know it ran
-- [ ] Founder verifies demo loads on slow 4G mobile in <5s
+- [x] `server/scripts/seed-demo-tenant.js` exists (idempotent — re-running drops existing demo data and re-seeds)
+- [x] Seed tenant ID = `DEMO_REALESTATEFLOW`
+- [x] 20 buyers with realistic Mumbai context (locality, budget ₹50L-₹4Cr, status mix)
+- [x] 15 owners with realistic property listings
+- [x] 10 Mumbai properties: 1 each in Andheri (W), Bandra (W), Powai, Thane, Borivali (W), Goregaon (E), Lower Parel, Worli, Juhu, Vashi
+- [x] 8 pipeline tasks across stages: New / Contacted / Site Visit Scheduled / Negotiating / Closed-Won / Closed-Lost
+- [x] 5 simulated AI-Employee → buyer WhatsApp transcripts (English, realistic broker context, 8-15 messages each)
+- [ ] Dashboard metrics: ₹12.5 Cr pipeline value, 8 active deals, 3 closing this month _(render/verify at deploy time)_
+- [x] No real PII (all phones `9XXXXXXXXX`, emails `demo+{N}@realestateflow.in`)
+- [x] `--reset` flag drops + re-seeds in <30 seconds _(verified ~0.5s against DynamoDB Local)_
+- [x] Cron `cron/reset-demo.yaml` runs daily _(reconciled to 2:00 AM IST per PR-A / ZEE-001 → `cron(30 20 * * ? *)`)_
+- [ ] Demo deployed at `demo.realestateflow.in` (separate Cognito user pool with sandbox login `demo@realestateflow.in` / password printed at top of dashboard) _(founder manual deploy)_
+- [ ] Read-only flag on sensitive entities (e.g., Khata settlement actions show "Read-only in demo") _(out of PR-A scope)_
+- [x] Demo tenant has banner: "🟡 DEMO TENANT — data resets daily at 2:00 AM IST. Do not enter real data." _(DemoBanner.tsx, gated on `VITE_IS_DEMO`)_
+- [ ] Daily reset event posts to PostHog `demo_tenant_reset` so we know it ran _(out of PR-A scope)_
+- [ ] Founder verifies demo loads on slow 4G mobile in <5s _(founder manual)_
 
 ## Manual Steps (🧍)
 
