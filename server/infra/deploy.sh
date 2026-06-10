@@ -225,13 +225,40 @@ echo "Forcing API Gateway deployments..."
 PUBLIC_API_ID=$("$AWS_BIN" cloudformation describe-stack-resources --region "$AWS_REGION" --stack-name "$STACK_NAME" --logical-resource-id RealEstatePublicRestApi --query "StackResources[0].PhysicalResourceId" --output text)
 CRM_API_ID=$("$AWS_BIN" cloudformation describe-stack-resources --region "$AWS_REGION" --stack-name "$STACK_NAME" --logical-resource-id RealEstateCrmRestApi --query "StackResources[0].PhysicalResourceId" --output text)
 
+# Retry helper for API Gateway create-deployment (handles TooManyRequestsException)
+apigw_deploy_with_retry() {
+  local api_id="$1"
+  local stage_name="$2"
+  local attempt=1
+  local max_attempts=5
+  local delay=5
+
+  while [ $attempt -le $max_attempts ]; do
+    if "$AWS_BIN" apigateway create-deployment --region "$AWS_REGION" --rest-api-id "$api_id" --stage-name "$stage_name" --description "deploy.sh $TIMESTAMP" > /dev/null 2>&1; then
+      echo "  Deployment successful for API $api_id (stage: $stage_name)"
+      return 0
+    fi
+
+    if [ $attempt -eq $max_attempts ]; then
+      echo "  ERROR: API Gateway deployment failed for $api_id after $max_attempts attempts"
+      return 1
+    fi
+
+    echo "  Rate limited on API $api_id, retrying in ${delay}s... (attempt $attempt/$max_attempts)"
+    sleep $delay
+    delay=$((delay * 2))
+    attempt=$((attempt + 1))
+  done
+}
+
 if [ "$PUBLIC_API_ID" != "None" ] && [ -n "$PUBLIC_API_ID" ]; then
-  "$AWS_BIN" apigateway create-deployment --region "$AWS_REGION" --rest-api-id "$PUBLIC_API_ID" --stage-name "$PUBLIC_API_STAGE_NAME" --description "deploy.sh $TIMESTAMP" > /dev/null
+  sleep 3
+  apigw_deploy_with_retry "$PUBLIC_API_ID" "$PUBLIC_API_STAGE_NAME"
 fi
 
 if [ "$CRM_API_ID" != "None" ] && [ -n "$CRM_API_ID" ]; then
   sleep 5
-  "$AWS_BIN" apigateway create-deployment --region "$AWS_REGION" --rest-api-id "$CRM_API_ID" --stage-name "$CRM_API_STAGE_NAME" --description "deploy.sh $TIMESTAMP" > /dev/null
+  apigw_deploy_with_retry "$CRM_API_ID" "$CRM_API_STAGE_NAME"
 fi
 
 echo ""

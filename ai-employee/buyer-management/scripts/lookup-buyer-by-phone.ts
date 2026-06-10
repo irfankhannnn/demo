@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'lookup-buyer-by-phone';
+let lastRequestLog: any = null;
 
 async function main() {
   const phone = process.argv[2];
@@ -12,10 +15,12 @@ async function main() {
 
   const normalizedPhone = phone.replace(/[\s-]/g, '');
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/buyers/lookup/by-phone`, params: { phone: normalizedPhone } };
   const res = await axios.get(`${BASE}/api/crm/buyers/lookup/by-phone`, {
     params: { phone: normalizedPhone },
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const { found, roles } = res.data;
   if (!found || !roles?.length) {
@@ -42,6 +47,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   console.error('Error:', e.response?.data?.error || e.message);
   process.exit(1);
 });

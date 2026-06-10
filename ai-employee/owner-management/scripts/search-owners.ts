@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'search-owners';
+let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
 
@@ -77,10 +80,12 @@ async function main() {
     process.exit(1);
   }
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/owners`, params: { search: q, limit: String(limit) } };
   const res = await axios.get(`${BASE}/api/crm/owners`, {
     params: { search: q, limit: String(limit) },
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const { owners, total, limit: pageLimit, offset } = res.data;
   if (!owners || owners.length === 0) {
@@ -107,6 +112,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   console.error('Error searching owners:', e.response?.data?.error || e.message);
   process.exit(1);
 });

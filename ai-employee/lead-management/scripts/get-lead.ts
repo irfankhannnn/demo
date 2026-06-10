@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'get-lead';
+let lastRequestLog: any = null;
 
 async function main() {
   const leadId = process.argv[2];
@@ -10,9 +13,11 @@ async function main() {
     process.exit(1);
   }
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/leads/${leadId}` };
   const res = await axios.get(`${BASE}/api/crm/leads/${leadId}`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const l = res.data;
   const budget =
@@ -51,6 +56,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   const status = e.response?.status;
   if (status === 404) console.error('Lead not found.');
   else console.error('Error:', e.response?.data?.error || e.message);

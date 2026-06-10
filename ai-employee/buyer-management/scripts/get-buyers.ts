@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'get-buyers';
+let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
 
@@ -111,10 +114,12 @@ async function main() {
     if (filters[key] !== undefined) params[queryKey] = String(filters[key]);
   }
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/buyers`, params };
   const res = await axios.get(`${BASE}/api/crm/buyers`, {
     params,
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const buyers = res.data.buyers ?? [];
   const total = res.data.total ?? buyers.length;
@@ -145,6 +150,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   console.error('Error fetching buyers:', e.response?.data?.error || e.message);
   process.exit(1);
 });

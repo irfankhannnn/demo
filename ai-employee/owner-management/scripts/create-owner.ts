@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'create-owner';
+let lastRequestLog: any = null;
 
 async function main() {
   const raw = process.argv[2];
@@ -16,9 +19,11 @@ async function main() {
     process.exit(1);
   }
 
+  lastRequestLog = { method: 'POST', url: `${BASE}/api/crm/owners`, body: payload };
   const res = await axios.post(`${BASE}/api/crm/owners`, payload, {
     headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const o = res.data;
   console.log(`Owner created: ${o.name} [${o.ownerId}]`);
@@ -27,6 +32,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   console.error('Error creating owner:', e.response?.data?.error || e.message);
   process.exit(1);
 });

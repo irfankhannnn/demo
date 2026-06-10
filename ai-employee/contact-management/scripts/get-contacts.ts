@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'get-contacts';
+let lastRequestLog: any = null;
 
 async function main() {
   const raw = process.argv[2] || '{}';

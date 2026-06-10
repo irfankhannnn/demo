@@ -23,7 +23,7 @@ const router = express.Router();
 // Get all leads with optional filters + pagination
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, search, assignedTo, source } = req.query;
+    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, city, search, assignedTo, source, propertyType, propertySubType, createdBy, updatedBy, converted } = req.query;
     const filters = {};
     if (leadType) filters.leadType = leadType;
     if (status) filters.status = status;

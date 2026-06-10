@@ -45,7 +45,7 @@ export default function PropertyList() {
       setLoading(true);
       const status = statusFilter !== 'all' ? statusFilter : undefined;
       const data = await api.getCRMProperties(status);
-      setProperties(data);
+      setProperties(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading properties:', error);
       if (error instanceof Error && error.message.includes('token')) {

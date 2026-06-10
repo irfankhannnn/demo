@@ -1,7 +1,10 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
+const SCRIPT_NAME = 'get-owner';
+let lastRequestLog: any = null;
 
 async function main() {
   const ownerId = process.argv[2];
@@ -10,9 +13,11 @@ async function main() {
     process.exit(1);
   }
 
+  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/owners/${ownerId}` };
   const res = await axios.get(`${BASE}/api/crm/owners/${ownerId}`, {
     headers: { Authorization: `Bearer ${TOKEN}` },
   });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
 
   const o = res.data;
   console.log(`Owner: ${o.name} [${o.ownerId}]`);
@@ -33,6 +38,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   const status = e.response?.status;
   if (status === 404) console.error('Owner not found.');
   else console.error('Error:', e.response?.data?.error || e.message);

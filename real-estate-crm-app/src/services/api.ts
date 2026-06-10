@@ -650,7 +650,8 @@ class ApiService {
     const response = await fetch(url, {
       headers: this.getHeaders(),
     });
-    return this.handleResponse(response);
+    const data = await this.handleResponse(response);
+    return Array.isArray(data) ? data : (data.properties || []);
   }
 
   async getCRMProperty(propertyId: string) {

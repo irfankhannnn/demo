@@ -1,8 +1,11 @@
 import axios from 'axios';
+import { logApiCall, logApiError } from '../../utils/logger';
 
 const BASE = process.env.CRM_API_BASE;
 const TOKEN = process.env.CRM_TOKEN;
 const headers = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
+const SCRIPT_NAME = 'tenant-rental';
+let lastRequestLog: any = null;
 
 async function main() {
   const raw = process.argv[2];
@@ -15,7 +18,9 @@ async function main() {
   if (!customerId) { console.error('Error: customerId is required.'); process.exit(1); }
 
   if (action === 'history') {
+    lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/customers/${customerId}/rental-history` };
     const res = await axios.get(`${BASE}/api/crm/customers/${customerId}/rental-history`, { headers });
+    logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
     const { currentRental, rentalHistory } = res.data;
     if (currentRental) {
       console.log(`Current rental: Property [${currentRental.propertyId}] | ₹${currentRental.monthlyRent}/mo`);
@@ -36,12 +41,16 @@ async function main() {
     if (rest.monthlyRent) rentalDetails.monthlyRent = rest.monthlyRent;
     if (rest.securityDeposit !== undefined) rentalDetails.securityDeposit = rest.securityDeposit;
 
-    await axios.put(`${BASE}/api/crm/customers/${customerId}/current-rental`, rentalDetails, { headers });
+    lastRequestLog = { method: 'PUT', url: `${BASE}/api/crm/customers/${customerId}/current-rental`, body: rentalDetails };
+    const updRes = await axios.put(`${BASE}/api/crm/customers/${customerId}/current-rental`, rentalDetails, { headers });
+    logApiCall(SCRIPT_NAME, lastRequestLog, updRes.data);
     console.log(`Rental updated for tenant [${customerId}].`);
     console.log(`Fields: ${Object.keys(rentalDetails).join(', ')}`);
 
   } else if (action === 'archive') {
+    lastRequestLog = { method: 'POST', url: `${BASE}/api/crm/customers/${customerId}/archive-rental`, body: {} };
     const res = await axios.post(`${BASE}/api/crm/customers/${customerId}/archive-rental`, {}, { headers });
+    logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
     console.log(`Rental archived for tenant [${customerId}]. ${res.data.message || ''}`);
 
   } else {
@@ -51,6 +60,7 @@ async function main() {
 }
 
 main().catch(e => {
+  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
   const status = e.response?.status;
   if (status === 404) console.error('Tenant not found.');
   else console.error('Error:', e.response?.data?.error || e.message);
