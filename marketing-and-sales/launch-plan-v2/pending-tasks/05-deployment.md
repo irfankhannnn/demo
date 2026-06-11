@@ -6,6 +6,11 @@ All deployment tasks run after the corresponding coding PRs are merged and env v
 
 ## DEPLOY-01: Add Tagged Extension Blocks to Shared Files (Pre-coding Setup)
 **Priority:** Critical — Must happen before ANY coding agent starts (see `03-ANTI-CONFLICT-RULES.md`)
+**Status:** [x] Completed — 2026-06-11 (pre-existing; verified)
+
+Tagged blocks confirmed in `server/server.js` (`LAUNCH ROUTES IMPORTS` / `MOUNTS`) and `real-estate-crm-app/src/App.tsx` (`LAUNCH PUBLIC/PROTECTED ROUTES`, `LAUNCH LAYOUT COMPONENTS`).
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 Add two tagged comment blocks to `server/server.js`:
 ```javascript

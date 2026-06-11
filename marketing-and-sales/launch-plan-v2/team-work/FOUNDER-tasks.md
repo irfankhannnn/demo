@@ -2,6 +2,8 @@
 ## Role: Architecture Design + Team Management + All Remaining Work
 ## Phases: Pre-Launch (P1–P18) + Week 1 (Day 1–7)
 
+> **Batch update 2026-06-11:** Signup funnel unblocked (self-serve trial). Deploy `server/infra/launch-tables-cfn.yaml` to unblock production. Fill `{{PLACEHOLDER}}` in legal docs before lawyer review. ~40% founder manual tasks complete (base CFN live).
+
 > **How to use this file:**
 > - Each Jira Story has an ID, phase, priority, source reference, and sub-tasks.
 > - "Source File" = the exact `.md` file in `marketing-and-sales/launch-plan-v2/` to read before starting.
@@ -82,7 +84,8 @@
 - [x] **FND-002-T8 (partial)** — API Gateway domain `api.realestateflow.in` mapped
 
 #### Tasks — 🔲 REMAINING (config-only, run in parallel with coding)
-- [ ] **FND-002-T3-NEW** — DynamoDB: create **7 new tables** not yet in existing CFN (can run immediately — no code dependency):
+- [x] **FND-002-T3-NEW** — DynamoDB: CloudFormation template ready (`server/infra/launch-tables-cfn.yaml`) — **deploy to AWS Console/CLI**
+- [ ] **FND-002-T3-DEPLOY** — Run CloudFormation deploy (was FND-002-T3-NEW manual console steps):
   - `Grievances` (PK=grievanceId, from P9)
   - `AIEmployeeProvisioning` (PK=tenantId, from P11)
   - `WebhookLog` (PK=webhookEventId, from P11 idempotency)

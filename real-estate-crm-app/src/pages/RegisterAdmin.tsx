@@ -13,12 +13,17 @@ export default function RegisterAdmin() {
     agencyName: '',
     displayName: '',
   });
+  const [consentAccepted, setConsentAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!consentAccepted) {
+      setError('Please accept the Terms of Service and Privacy Policy to continue.');
+      return;
+    }
     setLoading(true);
     setError('');
 
@@ -41,7 +46,13 @@ export default function RegisterAdmin() {
           'Authorization': `Bearer ${idToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...formData, utm_source, utm_campaign, utm_medium }),
+        body: JSON.stringify({
+          ...formData,
+          consentAccepted: true,
+          utm_source,
+          utm_campaign,
+          utm_medium,
+        }),
       });
 
       if (!response.ok) {
@@ -80,8 +91,11 @@ export default function RegisterAdmin() {
             email: meData.user.email,
             displayName: meData.user.displayName,
             phone: meData.user.phoneNumber,
-            utm_source, utm_campaign, utm_medium,
+            utm_source,
+            utm_campaign,
+            utm_medium,
             tenantId: meData.user.tenantId,
+            consentAccepted: true,
           }),
         }).catch(() => {}); // fire-and-forget — must not block signup
       }
@@ -157,9 +171,30 @@ export default function RegisterAdmin() {
             />
           </div>
 
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={consentAccepted}
+              onChange={(e) => setConsentAccepted(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              disabled={loading}
+              required
+            />
+            <span className="text-sm text-slate-600 leading-relaxed">
+              I agree to the{' '}
+              <a href="https://realestateflow.in/legal/terms" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                Terms of Service
+              </a>{' '}
+              and{' '}
+              <a href="https://realestateflow.in/legal/privacy" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                Privacy Policy
+              </a>
+            </span>
+          </label>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !consentAccepted}
             className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
           >
             {loading ? (

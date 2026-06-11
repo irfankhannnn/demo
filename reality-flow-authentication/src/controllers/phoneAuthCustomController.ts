@@ -10,11 +10,13 @@
 
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { validateAndFormatIndianPhone } from '../utils/phoneValidation';
-import { ok, badRequest, forbidden, internalError } from '../utils/http';
-import { getAgencyConfig } from '../models/agencyConfigModel';
+import { ok, badRequest, forbidden, internalError, conflict } from '../utils/http';
+import { getAgencyConfig, createAgencyConfig } from '../models/agencyConfigModel';
 import { findInvitesByPhone, findInvitesByEmail, deleteInvite } from '../models/invitesModel';
-import { findIdentityBySub } from '../models/authIdentitiesModel';
+import { findIdentityBySub, createIdentity } from '../models/authIdentitiesModel';
+import { createAdminUser, findUserByPhone } from '../models/usersModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
 import { extractClaims } from '../utils/cognito';
@@ -82,6 +84,7 @@ const onboardSchema = z.object({
   displayName: z.string().min(1, 'displayName is required'),
   role: z.enum(['ADMIN', 'MEMBER']),
   agencyName: z.string().optional(),
+  consentAccepted: z.literal(true).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -307,10 +310,6 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
       console.error('[confirm] Failed to check invites:', inviteErr);
     }
 
-    if (pendingInvites.length === 0) {
-      return forbidden(res, 'NOT_ONBOARDED', 'You are not onboarded. Please contact the administrator to get onboarded.');
-    }
-
     await markPhoneVerifiedIfPossible();
 
     return ok(res, {
@@ -324,7 +323,7 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
       existingUser: false,
       newUser: true,
       needsOnboarding: true,
-      hasPendingInvite: true,
+      hasPendingInvite: pendingInvites.length > 0,
       pendingInvitesCount: pendingInvites.length,
     });
   } catch (error: any) {
@@ -410,9 +409,62 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       return badRequest(res, 'Unable to retrieve phone number from your account. Please re-login.');
     }
 
-    // Block self-admin onboarding - admins must be pre-onboarded via onboarding page
     if (role === 'ADMIN') {
-      return forbidden(res, 'NOT_ONBOARDED', 'Admin self-registration is not allowed. Please contact the SaaS administrator to get onboarded.');
+      if (!agencyName) {
+        return badRequest(res, 'agencyName is required for admin registration');
+      }
+      if (!parsed.data.consentAccepted) {
+        return badRequest(res, 'Terms and Privacy Policy consent is required');
+      }
+
+      const phoneTaken = await findUserByPhone(phoneNumber);
+      if (phoneTaken) {
+        return conflict(res, 'Phone number already registered');
+      }
+
+      const tenantId = uuidv4();
+      const userId = uuidv4();
+      const email = `${phoneNumber.replace(/\D/g, '')}@phone.realestateflow.in`;
+
+      const [user, agency] = await Promise.all([
+        createAdminUser({
+          tenantId,
+          cognitoSub: sub,
+          userId,
+          email,
+          displayName,
+          phoneNumber,
+          authMethod: 'phone',
+        }),
+        createAgencyConfig({
+          tenantId,
+          agencyName,
+          adminEmail: email,
+        }),
+      ]);
+
+      await createIdentity({
+        sub,
+        userId,
+        tenantId,
+        provider: 'phone',
+        phone: phoneNumber,
+      });
+
+      return ok(res, {
+        message: 'Admin registered successfully',
+        user: {
+          userId: user.userId,
+          sub: user.cognitoSub,
+          phoneNumber: user.phoneNumber,
+          displayName: user.displayName,
+          role: user.role,
+          tenantId: user.TenantId,
+          status: user.status,
+        },
+        agency: { agencyName: agency.agencyName, status: agency.status },
+        newUser: true,
+      });
     }
 
     // --- Member onboarding (requires invite) ---

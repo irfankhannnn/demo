@@ -6,6 +6,13 @@ All accounts below can be created in parallel. Outputs (API keys, IDs) go into e
 
 ## ACCT-01: PostHog
 **Priority:** Critical — Required before any analytics works
+**Status:** [ ] Human-dependent — Updated 2026-06-11
+
+### Updated Implementation Guidance (2026)
+- Sign up at [posthog.com](https://posthog.com) → **EU cloud** (`eu.i.posthog.com`) for DPDP data residency
+- Setup checklist: `launch-implement/pre-launch/10-analytics/setup-checklist.md`
+- Dashboard funnel spec: `launch-implement/pre-launch/10-analytics/posthog-dashboard.md`
+- Same project key in LP `.env`, CRM `VITE_POSTHOG_KEY`, Lambda `POSTHOG_KEY_SERVER`
 
 - Sign up at posthog.com (free tier, EU region for DPDP)
 - Create project `RealEstateFlow`

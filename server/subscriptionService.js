@@ -72,7 +72,7 @@ export async function recomputeSeatsUsed(tenantId) {
 /**
  * Create a trial subscription row for a new tenant.
  */
-export async function createTrialSubscription(tenantId, plan = 'solo') {
+export async function createTrialSubscription(tenantId, plan = 'solo', options = {}) {
   const seatDefaults = { solo: 1, team: 3, teamplus: 5, free: 1 };
   const now = new Date();
   const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 14-day trial
@@ -88,6 +88,7 @@ export async function createTrialSubscription(tenantId, plan = 'solo') {
     paymentStatus: 'trialing',
     razorpaySubscriptionId: null,
     nextBillingDate: null,
+    consentSignedAt: options.consentSignedAt || null,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -100,6 +101,30 @@ export async function createTrialSubscription(tenantId, plan = 'solo') {
 
   logger.info('subscription.trial.created', { tenantId, plan, trialEndsAt });
   return item;
+}
+
+/**
+ * Record DPDP consent timestamp on an existing or new subscription row.
+ */
+export async function setConsentSignedAt(tenantId, consentSignedAt = new Date().toISOString()) {
+  const existing = await getSubscription(tenantId);
+  if (!existing) {
+    return createTrialSubscription(tenantId, 'solo', { consentSignedAt });
+  }
+
+  const result = await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { tenantId },
+    UpdateExpression: 'SET consentSignedAt = :consent, updatedAt = :now',
+    ExpressionAttributeValues: {
+      ':consent': consentSignedAt,
+      ':now': new Date().toISOString(),
+    },
+    ReturnValues: 'ALL_NEW',
+  }));
+
+  logger.info('subscription.consent.recorded', { tenantId, consentSignedAt });
+  return result.Attributes;
 }
 
 /**

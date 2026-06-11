@@ -6,6 +6,12 @@ These tasks require running the AI prompts defined in the source files, then hum
 
 ## CONTENT-01: Legal Foundation Drafts (MAD-001)
 **Priority:** Critical — Blocks lawyer review (LEGAL-02)
+**Status:** [x] Completed — 2026-06-11
+
+- [x] AI drafts generated at `launch-implement/pre-launch/01-legal/` (tos, privacy, refund, cookies, dpa-template, _lawyer-handoff)
+- [ ] Human: replace `{{PLACEHOLDER}}` with founder details; send to lawyer (LEGAL-02)
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 - Run AI Prompt from `pre-launch-prep/P1-legal-foundation.md` with all company details from LEGAL-01
 - Outputs: `tos.md`, `privacy.md`, `refund.md`, `cookies.md`, `dpa-template.md`, `_lawyer-handoff.md`
@@ -18,6 +24,11 @@ These tasks require running the AI prompts defined in the source files, then hum
 
 ## CONTENT-02: Pricing Copy + Razorpay Products Checklist (MAD-002)
 **Priority:** Critical — Blocks Razorpay product creation (ACCT-07) + LP pages (PR-I)
+**Status:** [x] Completed — 2026-06-11
+
+- [x] Outputs at `launch-implement/pre-launch/02-pricing/page-copy.md`, `tiers.md`, `razorpay-products.md`
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 - Run AI Prompt from `pre-launch-prep/P2-pricing-strategy.md`
 - Outputs: `page-copy.md` (full /pricing page copy + FAQs), `tiers.md` (rationale), `razorpay-products.md` (product/plan config checklist)
@@ -30,6 +41,12 @@ These tasks require running the AI prompts defined in the source files, then hum
 
 ## CONTENT-03: Email Deliverability Docs (MAD-003)
 **Priority:** Critical — DNS records needed before Cloudflare setup (INFRA-06)
+**Status:** [x] Completed — 2026-06-11
+
+- [x] Outputs at `launch-implement/pre-launch/03-deliverability/` (dns-records, warmup-plan, signature.html, warmup-progress)
+- **Research correction:** SPF must be a single merged TXT record; Brevo auth is DKIM-primary in 2026
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 - Run AI Prompt from `pre-launch-prep/P3-email-deliverability.md`
 - Outputs: `dns-records.md` (exact Cloudflare records), `warmup-plan.md` (21-day ramp), `signature.html` (founder email signature), `warmup-progress.md` (tracker)
@@ -42,6 +59,11 @@ These tasks require running the AI prompts defined in the source files, then hum
 
 ## CONTENT-04: Competitive Positioning + Battle Cards + VS-Pages (MAD-004)
 **Priority:** High — Required by PR-I (LP /vs/* pages) + cold outreach (Day 17+)
+**Status:** [x] Completed — 2026-06-11
+
+- [x] wedge.md + 4 battle cards + 3 VS-page drafts at `launch-implement/pre-launch/04-positioning/`
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 - Run AI Prompt from `pre-launch-prep/P4-competitive-positioning.md`
 - Outputs: `wedge.md`, 4 battle cards (Sell.do, Zoho, LeadSquared, Excel), 3 VS-page drafts
@@ -55,6 +77,15 @@ These tasks require running the AI prompts defined in the source files, then hum
 
 ## CONTENT-05: Logo SVG + Favicons + OG Images (MAD-005)
 **Priority:** High — Required by PR-I (LP pages reference logo + OG images)
+**Status:** [ ] Human-dependent — Updated 2026-06-11
+
+### Current Status
+Requires Higgsfield MCP OAuth (`.mcp.json`). AI cannot generate assets without authenticated image MCP.
+
+### Updated Steps
+1. Authenticate Higgsfield MCP at mcp.higgsfield.ai
+2. Run P8 prompt with brand kit (#2563EB, Inter font)
+3. Output to `marketing-and-sales/realestateflow/assets/` + copy to LP/CRM public folders
 
 - Run AI Prompt from `pre-launch-prep/P8-logo-and-favicons.md` using nano-banana-pro (Higgsfield MCP)
 - Generate: `logo.svg` (light + dark), favicon set (9 sizes), 6 OG PNGs (1200×630 each), `manifest.json`, `meta-tag-snippet.html`

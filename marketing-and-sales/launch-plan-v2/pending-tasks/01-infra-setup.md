@@ -4,6 +4,21 @@
 
 ## INFRA-01: Create 7 New DynamoDB Tables
 **Priority:** Critical — Blocks all coding PRs from deploying
+**Status:** [x] AI-complete (CloudFormation) — 2026-06-11 · Human deploy pending
+
+CloudFormation template created at `server/infra/launch-tables-cfn.yaml` with all 7 tables, PITR, GSIs, and WebhookLog TTL.
+
+**Founder deploy command:**
+```bash
+aws cloudformation deploy \
+  --template-file server/infra/launch-tables-cfn.yaml \
+  --stack-name realestateflow-launch-tables \
+  --region ap-south-1
+```
+
+**Files Changed:** `server/infra/launch-tables-cfn.yaml`
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
 
 Tables required (not yet in existing CFN):
 `Grievances`, `AIEmployeeProvisioning`, `WebhookLog`, `TenantApiKeys`, `Subscriptions`, `NPSResponses`, `BetaInvites`
@@ -22,6 +37,18 @@ Tables required (not yet in existing CFN):
 
 ## INFRA-02: Create Demo Cognito User Pool
 **Priority:** High — Blocks demo env deployment (PR-A YAML)
+**Status:** [ ] Human-dependent — Updated 2026-06-11
+
+### Current Status
+Awaiting Founder AWS Console action. PR-A cron YAML and seed scripts are merged.
+
+### Updated Implementation Guidance (2026)
+- [AWS Cognito User Pools](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools.html): create pool in `ap-south-1`; use `ALLOW_USER_SRP_AUTH`; optional MFA
+- Password policy: minimum 10 characters per P5 spec
+- After creation: add `DEMO_USER_POOL_ID`, `DEMO_CLIENT_ID`, `DEMO_TENANT_ID` to Lambda env (never commit)
+
+### Notes For Human Owner
+Demo SPA build uses `VITE_IS_DEMO=true` + demo pool IDs. Seed once via `node server/scripts/seed-demo-tenant.js --reset`.
 
 - AWS Console → Cognito → Create user pool `realestateflow-demo`
 - Config: MFA optional, SRP_AUTH, password ≥10 chars
