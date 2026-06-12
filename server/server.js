@@ -3,16 +3,12 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createDefaultAdmin } from './dynamodbService.js';
 import { ensureRequestId } from './requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './expressError.js';
 import { logger } from './logger.js';
+import { deepHealthCheck } from './healthcheck.js';
 import authRoutes from './routes/auth.js';
-// import areasRoutes from './routes/areas.js'; // Commented out - areas are auto-created from properties
-// import publicAreasRoutes from './routes/publicAreas.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
-// import areasBuildings from './routes/areasBuildings.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
-// import flatsRoutes from './routes/flats.js'; // DISABLED: Areas/Buildings/Flats hierarchy removed
 import crmRoutes from './routes/crm.js';
 import contactsRoutes from './routes/contacts.js';
 import leadsRoutes from './routes/leads.js';
@@ -33,10 +29,6 @@ import subscriptionsRoutes from './routes/subscriptions.js';
 // PR-K
 import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
-// import aiCallingInternalRoutes from './routes/aiCallingInternal.js'; // DISABLED: AI Calling removed
-// import developersRoutes from './routes/developers.js'; // DISABLED: Developers/Projects/Areas removed
-// import realEstateAreasRoutes from './routes/realEstateAreas.js'; // DISABLED: Developers/Projects/Areas removed
-// import projectsRoutes from './routes/projects.js'; // DISABLED: Developers/Projects/Areas removed
 
 // Load environment variables
 dotenv.config();
@@ -54,46 +46,57 @@ logger.info('server.startup', {
   nodeEnv: process.env.NODE_ENV,
 });
 
-// Middleware - Configure CORS to allow all origins and methods
+// Middleware - Configure CORS with allowlist
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, false);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id'],
-  credentials: false,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
   maxAge: 86400
 }));
 app.use(ensureRequestId);
 app.use(requestLogger);
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Billing webhook MUST be before express.json() to preserve raw body for HMAC
+logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
+app.use('/api/billing', billingRoutes);
+
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Serve static public assets (e.g. /public/area/<city>_<area>.png)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Initialize DynamoDB default admin
-createDefaultAdmin().catch(console.error);
+// Rate limiting for API routes (billing webhook excluded — mounted earlier)
+import rateLimit from './middleware/rateLimiter.js';
+app.use('/api', rateLimit);
+
+// Security headers (CSP, X-Frame-Options, etc.)
+import cspMiddleware from './middleware/csp.js';
+app.use(cspMiddleware);
 
 // Health check (public - no auth required)
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Server is running' });
 });
 
-// Billing webhook (MUST be before express.json() to preserve raw body for HMAC)
-logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
-app.use('/api/billing', billingRoutes);
+app.get('/api/health/deep', deepHealthCheck);
 
 // Routes
 logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
 app.use('/api/auth', authRoutes);
 logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
-app.use('/api', b2bLeadsRoutes); // Register b2b-leads BEFORE areasBuildings to avoid auth middleware conflict
-// app.use('/api/areas', areasRoutes); // Commented out - areas are auto-created from properties, no manual management needed
-// logger.info('routes.mount', { basePath: '/api/areas/public', router: 'publicAreasRoutes' }); // DISABLED
-// app.use('/api/areas/public', publicAreasRoutes); // DISABLED
+app.use('/api', b2bLeadsRoutes);
 logger.info('routes.mount', { basePath: '/api/enquiries', router: 'enquiriesRoutes' });
 app.use('/api/enquiries', enquiriesRoutes);
-// logger.info('routes.mount', { basePath: '/api/flats', router: 'flatsRoutes' }); // DISABLED
-// app.use('/api/flats', flatsRoutes); // DISABLED
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });
@@ -102,20 +105,10 @@ logger.info('routes.mount', { basePath: '/api/crm/leads', router: 'leadsRoutes' 
 app.use('/api/crm/leads', leadsRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/buyers', router: 'buyersRoutes' });
 app.use('/api/crm/buyers', buyersRoutes);
-// logger.info('routes.mount', { basePath: '/api/crm/developers', router: 'developersRoutes' }); // DISABLED
-// app.use('/api/crm/developers', developersRoutes); // DISABLED
-// logger.info('routes.mount', { basePath: '/api/crm/real-estate-areas', router: 'realEstateAreasRoutes' }); // DISABLED
-// app.use('/api/crm/real-estate-areas', realEstateAreasRoutes); // DISABLED
-// logger.info('routes.mount', { basePath: '/api/crm/projects', router: 'projectsRoutes' }); // DISABLED
-// app.use('/api/crm/projects', projectsRoutes); // DISABLED
 logger.info('routes.mount', { basePath: '/api/khata', router: 'khataRoutes' });
 app.use('/api/khata', khataRoutes);
 logger.info('routes.mount', { basePath: '/api/notifications', router: 'notificationsRoutes' });
 app.use('/api/notifications', notificationsRoutes);
-// logger.info('routes.mount', { basePath: '/api/internal', router: 'aiCallingInternalRoutes' }); // DISABLED
-// app.use('/api/internal', aiCallingInternalRoutes); // DISABLED: Internal API for AI Calling Service
-// logger.info('routes.mount', { basePath: '/api', router: 'areasBuildings' }); // DISABLED
-// app.use('/api', areasBuildings); // DISABLED
 
 // === [LAUNCH ROUTES MOUNTS] ===
 // PR-B
@@ -130,21 +123,34 @@ app.use('/api/subscriptions', subscriptionsRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);
-logger.info('routes.mount', { basePath: '/api/nps', router: 'feedbackRoutes' });
-app.use('/api/nps', feedbackRoutes);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware
 app.use(errorHandler);
 
 // Start server
+let server;
 if (!isLambda) {
-  app.listen(PORT, () => {
+  server = app.listen(PORT, () => {
     logger.info('server.listening', {
       port: PORT,
       healthCheck: `http://localhost:${PORT}/api/health`,
     });
   });
+
+  // 30s timeout for idle/slow connections
+  server.timeout = 30000;
+
+  // Graceful shutdown for SIGTERM/SIGINT (ECS, Docker, local)
+  const shutdown = (signal) => {
+    logger.info('server.shutdown', { signal });
+    server.close(() => {
+      logger.info('server.closed');
+      process.exit(0);
+    });
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 export default app;

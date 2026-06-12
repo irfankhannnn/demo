@@ -3,6 +3,8 @@ import axios from 'axios';
 import { getConfig } from '../config/config';
 import { ok, badRequest, internalError } from '../utils/http';
 import { GOOGLE_AUTH_ERRORS } from '../types/errors';
+import { setRefreshTokenCookie, getRefreshTokenFromCookie, clearRefreshTokenCookie } from '../utils/cookies';
+import { logger } from '../utils/logger';
 
 /**
  * POST /auth/token
@@ -11,9 +13,6 @@ import { GOOGLE_AUTH_ERRORS } from '../types/errors';
  */
 export async function exchangeToken(req: Request, res: Response): Promise<void> {
   const { code, code_verifier, redirect_uri } = req.body;
-
-  console.log(`CODE: ${code},CODE VERIFIER: ${code_verifier}, REDIRECT URI ${redirect_uri}`);
-  
 
   if (!code || !code_verifier || !redirect_uri) {
     badRequest(res, 'Missing required fields: code, code_verifier, redirect_uri');
@@ -48,16 +47,20 @@ export async function exchangeToken(req: Request, res: Response): Promise<void> 
       }
     );
 
-    // Return tokens to frontend
+    // Set refresh token as httpOnly cookie (not accessible to JS)
+    if (response.data.refresh_token) {
+      setRefreshTokenCookie(res, response.data.refresh_token);
+    }
+
+    // Return tokens to frontend (refresh_token intentionally omitted)
     ok(res, {
       id_token: response.data.id_token,
       access_token: response.data.access_token,
-      refresh_token: response.data.refresh_token,
       expires_in: response.data.expires_in,
       token_type: response.data.token_type,
     });
   } catch (error: any) {
-    console.error('[TOKEN_EXCHANGE] Failed:', error.response?.data || error.message);
+    logger.error('token.exchange_failed', { error: error.response?.data || error.message });
     
     if (error.response) {
       const cognitoError = error.response.data;
@@ -110,7 +113,7 @@ export async function exchangeToken(req: Request, res: Response): Promise<void> 
  * Refreshes access token using refresh token
  */
 export async function refreshToken(req: Request, res: Response): Promise<void> {
-  const { refresh_token } = req.body;
+  const refresh_token = getRefreshTokenFromCookie(req) || req.body?.refresh_token;
 
   if (!refresh_token) {
     badRequest(res, 'Missing refresh_token');
@@ -142,6 +145,11 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
       }
     );
 
+    // Rotate refresh token: set new one as cookie if provided
+    if (response.data.refresh_token) {
+      setRefreshTokenCookie(res, response.data.refresh_token);
+    }
+
     ok(res, {
       id_token: response.data.id_token,
       access_token: response.data.access_token,
@@ -149,7 +157,7 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
       token_type: response.data.token_type,
     });
   } catch (error: any) {
-    console.error('[TOKEN_REFRESH] Failed:', error.response?.data || error.message);
+    logger.error('token.refresh_failed', { error: error.response?.data || error.message });
     
     if (error.response) {
       res.status(error.response.status).json({

@@ -2,6 +2,7 @@ import express from 'express';
 import rateLimit from 'express-rate-limit';
 import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
+import { requireAdmin } from '../middleware/requireRole.js';
 import {
   createGrievance,
   getGrievanceById,
@@ -26,7 +27,7 @@ async function serverTrack(distinctId, event, properties) {
   try {
     if (process.env.POSTHOG_KEY_SERVER) {
       // PR-E fills this in — for now just log.
-      console.log('[PostHog stub]', event, { distinctId, ...properties });
+      logger.info('posthog.stub', { event, distinctId, ...properties });
     }
   } catch (err) {
     logger.warn('grievance.posthog_stub_failed', { error: err.message });
@@ -45,6 +46,25 @@ function getClientIp(req) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\d{10}$/;
+
+function escapeHtml(text) {
+  if (typeof text !== 'string') return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function isValidLastEvaluatedKey(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof key !== 'string') return false;
+    if (typeof value !== 'string' && typeof value !== 'number') return false;
+  }
+  return true;
+}
 
 /**
  * Validate + normalise the public grievance payload.
@@ -135,11 +155,11 @@ async function sendBrevoEmail({ to, subject, htmlContent }) {
 
 function ackEmailHtml({ name, trackingId, category }) {
   return `
-    <p>Hi ${name},</p>
-    <p>We have received your grievance and assigned it tracking ID <strong>${trackingId}</strong>.</p>
-    <p>Category: <strong>${category}</strong></p>
+    <p>Hi ${escapeHtml(name)},</p>
+    <p>We have received your grievance and assigned it tracking ID <strong>${escapeHtml(trackingId)}</strong>.</p>
+    <p>Category: <strong>${escapeHtml(category)}</strong></p>
     <p>As per the DPDP Act 2023, our Grievance Officer will respond within <strong>7 working days</strong>.</p>
-    <p>Regards,<br/>${FROM_NAME} Grievance Team</p>
+    <p>Regards,<br/>${escapeHtml(FROM_NAME)} Grievance Team</p>
   `;
 }
 
@@ -147,31 +167,21 @@ function notifyEmailHtml({ name, email, phone, category, description, trackingId
   return `
     <p>New grievance submitted.</p>
     <ul>
-      <li><strong>Tracking ID:</strong> ${trackingId}</li>
-      <li><strong>Name:</strong> ${name}</li>
-      <li><strong>Email:</strong> ${email}</li>
-      <li><strong>Phone:</strong> ${phone || '—'}</li>
-      <li><strong>Category:</strong> ${category}</li>
+      <li><strong>Tracking ID:</strong> ${escapeHtml(trackingId)}</li>
+      <li><strong>Name:</strong> ${escapeHtml(name)}</li>
+      <li><strong>Email:</strong> ${escapeHtml(email)}</li>
+      <li><strong>Phone:</strong> ${escapeHtml(phone) || '—'}</li>
+      <li><strong>Category:</strong> ${escapeHtml(category)}</li>
     </ul>
     <p><strong>Description:</strong></p>
-    <p>${description}</p>
+    <p>${escapeHtml(description).replace(/\n/g, '<br/>')}</p>
   `;
-}
-
-// ============== Role gate (admin) ==============
-const ADMIN_ROLES = new Set(['founder', 'admin', 'owner']);
-function requireAdmin(req, res, next) {
-  const role = (req.user?.role || '').toString().toLowerCase();
-  if (!ADMIN_ROLES.has(role)) {
-    return res.status(403).json({ error: 'Forbidden', details: 'Admin role required' });
-  }
-  return next();
 }
 
 // ============== Public POST /api/grievance ==============
 const publicLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // 5 requests per IP per hour
+  windowMs: Number(process.env.GRIEVANCE_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000, // 1 hour
+  max: Number(process.env.GRIEVANCE_RATE_LIMIT_MAX) || 5, // 5 requests per IP per hour
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => getClientIp(req),
@@ -249,6 +259,9 @@ router.get('/admin/grievances', validateToken, requireAdmin, async (req, res) =>
         startKey = JSON.parse(lastEvaluatedKey);
       } catch {
         return res.status(400).json({ error: 'Invalid lastEvaluatedKey' });
+      }
+      if (!isValidLastEvaluatedKey(startKey)) {
+        return res.status(400).json({ error: 'Invalid lastEvaluatedKey shape' });
       }
     }
 

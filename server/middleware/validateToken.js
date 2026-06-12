@@ -1,8 +1,9 @@
 import axios from 'axios';
+import { logger } from '../logger.js';
 
-// In-memory cache for validated tokens (60 second TTL)
+// In-memory cache for validated tokens (5 second TTL to limit revocation window)
 const tokenCache = new Map();
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const CACHE_TTL_MS = 5 * 1000; // 5 seconds
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -39,9 +40,11 @@ async function validateToken(req, res, next) {
 
     // Call auth microservice to validate token
     const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+    const requestId = req.headers['x-request-id'] || req.id;
     const response = await axios.get(`${authServiceUrl}/auth/me`, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        ...(requestId && { 'x-request-id': requestId }),
       },
       timeout: 3000 // 3 second timeout
     });
@@ -92,7 +95,7 @@ async function validateToken(req, res, next) {
     if (error.response) {
       // Auth service returned an error response
       const status = error.response.status;
-      console.error('[validateToken] Auth service error:', {
+      logger.error('[validateToken] Auth service error', {
         status,
         statusText: error.response.statusText,
         data: error.response.data,
@@ -114,16 +117,34 @@ async function validateToken(req, res, next) {
 
     if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
       // Auth service is down or unreachable
-      console.error('[validateToken] Auth service unreachable:', error.message);
+      logger.error('[validateToken] Auth service unreachable', { error: error.message });
+
+      // Graceful fallback: if we have a stale cached entry, use it for up to 5 minutes
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const cached = tokenCache.get(token);
+        if (cached) {
+          const staleGraceMs = 5 * 60 * 1000; // 5 minutes
+          if (Date.now() < cached.expiresAt + staleGraceMs) {
+            logger.warn('[validateToken] Using stale cache fallback for token');
+            req.user = cached.user;
+            req.agency = cached.agency;
+            req.tenantId = cached.tenantId;
+            return next();
+          }
+        }
+      }
+
       res.set(CORS_HEADERS);
-      return res.status(503).json({ 
-        error: 'Service Unavailable', 
-        message: 'Authentication service is currently unavailable' 
+      return res.status(503).json({
+        error: 'Service Unavailable',
+        message: 'Authentication service is currently unavailable'
       });
     }
 
     // Unknown error
-    console.error('[validateToken] Unexpected error:', error);
+    logger.error('[validateToken] Unexpected error', { error: error.message });
     res.set(CORS_HEADERS);
     return res.status(500).json({ 
       error: 'Internal Server Error', 

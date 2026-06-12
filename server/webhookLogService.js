@@ -47,3 +47,32 @@ export async function logEvent(webhookEventId, eventType, tenantId) {
     },
   }));
 }
+
+/**
+ * Atomic idempotency check + log. Returns { isDuplicate: true } if already processed.
+ * Uses DynamoDB ConditionExpression to prevent race conditions.
+ */
+export async function logEventIfNotProcessed(webhookEventId, eventType, tenantId) {
+  const now = new Date().toISOString();
+  const ttl = Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60;
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        webhookEventId,
+        processedAt: now,
+        eventType,
+        tenantId: tenantId || null,
+        ttl,
+      },
+      ConditionExpression: 'attribute_not_exists(webhookEventId)',
+    }));
+    return { processed: true, isDuplicate: false };
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      return { processed: false, isDuplicate: true };
+    }
+    throw err;
+  }
+}

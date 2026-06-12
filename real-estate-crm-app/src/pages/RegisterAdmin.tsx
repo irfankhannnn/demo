@@ -73,7 +73,7 @@ export default function RegisterAdmin() {
 
       // PR-L: Fire post-registration hook to add Brevo contact + pass UTM attribution
       if (API_URL) {
-        fetch(`${API_URL}/api/auth/post-registration`, {
+        fetch(`${API_URL}/auth/post-registration`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           body: JSON.stringify({

@@ -14,6 +14,17 @@ interface ImportMetaEnv {
   readonly VITE_HCAPTCHA_SITE_KEY?: string;
   readonly VITE_GRIEVANCE_OFFICER_NAME?: string;
   readonly VITE_IS_DEMO?: string;
+
+  // Auth configuration
+  readonly VITE_AUTH_API_URL: string;
+  readonly VITE_COGNITO_DOMAIN: string;
+  readonly VITE_COGNITO_CLIENT_ID: string;
+  readonly VITE_AUTH_REDIRECT_URI: string;
+  readonly VITE_AUTH_LOGOUT_URI: string;
+
+  // AI Calling (optional)
+  readonly VITE_AI_CALLING_ENABLED?: string;
+  readonly VITE_AI_CALLING_API_URL?: string;
 }
 
 interface ImportMeta {

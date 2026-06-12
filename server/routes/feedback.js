@@ -2,7 +2,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
-import { validateToken } from '../middleware/validateToken.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
 
@@ -14,9 +14,16 @@ const client = new DynamoDBClient({
 });
 const docClient = DynamoDBDocumentClient.from(client);
 const NPS_TABLE = process.env.NPS_TABLE || 'NPSResponses';
-const NPS_HMAC_SECRET = process.env.NPS_HMAC_SECRET || 'nps-default-secret';
+const NPS_HMAC_SECRET = process.env.NPS_HMAC_SECRET;
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const FOUNDER_EMAIL = process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in';
+
+function requireNpsSecret() {
+  if (!NPS_HMAC_SECRET) {
+    throw new Error('NPS_HMAC_SECRET environment variable is required');
+  }
+  return NPS_HMAC_SECRET;
+}
 
 // POST /api/feedback/nps — authenticated NPS submission
 router.post('/nps', validateToken, extractTenantId, async (req, res) => {
@@ -90,7 +97,7 @@ router.get('/', (req, res) => {
   }
 
   const expectedToken = crypto
-    .createHmac('sha256', NPS_HMAC_SECRET)
+    .createHmac('sha256', requireNpsSecret())
     .update(`${userId}${score}`)
     .digest('hex');
 

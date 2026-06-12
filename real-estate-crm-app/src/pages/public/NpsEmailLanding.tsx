@@ -11,6 +11,7 @@ export default function NpsEmailLanding() {
   const [shareTestimonial, setShareTestimonial] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
 
   const urlScore = searchParams.get('score');
   const token = searchParams.get('token');
@@ -22,7 +23,7 @@ export default function NpsEmailLanding() {
       return;
     }
 
-    fetch(`${API_URL}/api/nps?score=${urlScore}&token=${token}&userId=${userId}`)
+    fetch(`${API_URL}/feedback?score=${urlScore}&token=${token}&userId=${userId}`)
       .then((res) => {
         if (res.ok) {
           setScore(Number(urlScore));
@@ -36,8 +37,9 @@ export default function NpsEmailLanding() {
 
   const handleSubmit = async () => {
     setSubmitting(true);
+    setError('');
     try {
-      await fetch(`${API_URL}/api/feedback/nps`, {
+      const res = await fetch(`${API_URL}/feedback/nps`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -48,9 +50,13 @@ export default function NpsEmailLanding() {
           userId,
         }),
       });
+      if (!res.ok) {
+        setError('Failed to submit feedback. Please try again.');
+        return;
+      }
       setSubmitted(true);
     } catch {
-      // silent
+      setError('Network error. Please check your connection and try again.');
     } finally {
       setSubmitting(false);
     }
@@ -128,6 +134,9 @@ export default function NpsEmailLanding() {
             />
             <span className="text-xs text-gray-600">May we share your testimonial?</span>
           </label>
+        )}
+        {error && (
+          <p className="mt-3 text-sm text-red-600">{error}</p>
         )}
         <button
           onClick={handleSubmit}

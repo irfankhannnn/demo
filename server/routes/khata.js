@@ -1,10 +1,17 @@
 import express from 'express';
+import { z } from 'zod';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { scheduleKhataReminder, cancelKhataReminder } from '../notificationDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  createKhataEntrySchema,
+  updateKhataEntrySchema,
+  settleKhataEntrySchema,
+} from '../validation/otherSchemas.js';
 
 const router = express.Router();
 
@@ -322,7 +329,7 @@ router.get('/categories', async (req, res) => {
 });
 
 // Create new category
-router.post('/categories', async (req, res) => {
+router.post('/categories', validateBody(z.object({ name: z.string().min(1).max(200) })), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { name } = req.body;
@@ -493,7 +500,7 @@ router.get('/entries/:entryId', async (req, res) => {
 });
 
 // Create new entry
-router.post('/entries', async (req, res) => {
+router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const username = req.user?.username || 'system';
@@ -632,7 +639,7 @@ router.post('/entries', async (req, res) => {
 });
 
 // Update entry
-router.put('/entries/:entryId', async (req, res) => {
+router.put('/entries/:entryId', validateBody(updateKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { entryId } = req.params;
@@ -800,7 +807,7 @@ router.put('/entries/:entryId', async (req, res) => {
 });
 
 // Settle entry
-router.post('/entries/:entryId/settle', async (req, res) => {
+router.post('/entries/:entryId/settle', validateBody(settleKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const username = req.user?.username || 'system';

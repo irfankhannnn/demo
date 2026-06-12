@@ -113,7 +113,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
   echo "[2/6] Packaging function.zip..."
   rm -f "$PROJECT_DIR/function.zip"
   cd "$PROJECT_DIR"
-  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ \
+  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*"
 
@@ -171,6 +171,14 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "CrmApiBasePath", "ParameterValue": "${CRM_API_BASE_PATH}" },
   { "ParameterKey": "CrmApiStageName", "ParameterValue": "${CRM_API_STAGE_NAME}" },
   { "ParameterKey": "AuthServiceUrl", "ParameterValue": "${AUTH_SERVICE_URL}" },
+  { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS}" },
+  { "ParameterKey": "NpsHmacSecret", "ParameterValue": "${NPS_HMAC_SECRET}" },
+  { "ParameterKey": "BrevoApiKey", "ParameterValue": "${BREVO_API_KEY}" },
+  { "ParameterKey": "FounderNotificationEmail", "ParameterValue": "${FOUNDER_NOTIFICATION_EMAIL}" },
+  { "ParameterKey": "RazorpayWebhookSecret", "ParameterValue": "${RAZORPAY_WEBHOOK_SECRET}" },
+  { "ParameterKey": "BrevoFromEmail", "ParameterValue": "${BREVO_FROM_EMAIL}" },
+  { "ParameterKey": "BrevoFromName", "ParameterValue": "${BREVO_FROM_NAME}" },
+  { "ParameterKey": "HcaptchaSecretKey", "ParameterValue": "${HCAPTCHA_SECRET_KEY}" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" }
 ]
 EOF
@@ -204,6 +212,14 @@ PARAM_OVERRIDES=(
   "CrmApiBasePath=${CRM_API_BASE_PATH}"
   "CrmApiStageName=${CRM_API_STAGE_NAME}"
   "AuthServiceUrl=${AUTH_SERVICE_URL}"
+  "AllowedOrigins=${ALLOWED_ORIGINS}"
+  "NpsHmacSecret=${NPS_HMAC_SECRET}"
+  "BrevoApiKey=${BREVO_API_KEY}"
+  "FounderNotificationEmail=${FOUNDER_NOTIFICATION_EMAIL}"
+  "RazorpayWebhookSecret=${RAZORPAY_WEBHOOK_SECRET}"
+  "BrevoFromEmail=${BREVO_FROM_EMAIL}"
+  "BrevoFromName=${BREVO_FROM_NAME}"
+  "HcaptchaSecretKey=${HCAPTCHA_SECRET_KEY}"
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
 )
 

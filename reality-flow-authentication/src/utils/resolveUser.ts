@@ -12,6 +12,7 @@ import {
   UserItem,
 } from '../models/usersModel';
 import { findAgencyByAdminEmail, findAgencyByAdminPhone, getAgencyConfig, AgencyConfigItem } from '../models/agencyConfigModel';
+import { logger } from '../utils/logger';
 
 export interface ResolveUserResult {
   user: UserItem;
@@ -63,7 +64,7 @@ export async function resolveUser(
 
       // Update last login
       await updateLastLogin(user.TenantId, user.userId).catch((e) =>
-        console.error('[resolveUser] updateLastLogin error:', e)
+        logger.error('[resolveUser] updateLastLogin error', { error: e })
       );
 
       // Phase 4: If Google login email matches pendingEmail, promote it
@@ -77,7 +78,7 @@ export async function resolveUser(
         if (emailFree) {
           const promoted = await promotePendingEmail(user.TenantId, user.userId, normalizedEmail);
           if (promoted) {
-            console.log('[resolveUser] Promoted pendingEmail to canonical:', normalizedEmail);
+            logger.info('[resolveUser] Promoted pendingEmail to canonical', { email: normalizedEmail });
           }
         }
       }
@@ -86,7 +87,7 @@ export async function resolveUser(
       await enrichUserProfile(user.TenantId, user.userId, {
         email: normalizedEmail,
         phoneNumber: phone,
-      }).catch((e) => console.error('[resolveUser] enrichUserProfile error:', e));
+      }).catch((e) => logger.error('[resolveUser] enrichUserProfile error', { error: e }));
 
       // Re-fetch user to capture any promotions
       const refreshed = await findUserByUserId(user.userId);
@@ -94,7 +95,7 @@ export async function resolveUser(
     }
 
     // Identity row exists but user record is missing — data inconsistency
-    console.error('[resolveUser] Identity found but user missing. sub:', sub, 'userId:', existingIdentity.userId);
+    logger.error('[resolveUser] Identity found but user missing', { sub, userId: existingIdentity.userId });
     return { isNewUser: true };
   }
 
@@ -117,7 +118,7 @@ export async function resolveUser(
     if (phone) {
       const userByPhone = await findUserByPhone(phone);
       if (userByPhone) {
-        console.log('[resolveUser] Found existing user by canonical phone, linking new sub. userId:', userByPhone.userId);
+        logger.info('[resolveUser] Found existing user by canonical phone, linking new sub', { userId: userByPhone.userId });
 
         let linkedIdentity: AuthIdentityItem;
         try {
@@ -145,7 +146,7 @@ export async function resolveUser(
 
         const linkedAgency = await getAgencyConfig(userByPhone.TenantId);
         await updateLastLogin(userByPhone.TenantId, userByPhone.userId).catch((e) =>
-          console.error('[resolveUser] updateLastLogin error:', e)
+          logger.error('[resolveUser] updateLastLogin error', { error: e })
         );
         const refreshedLinked = (await findUserByUserId(userByPhone.userId)) || userByPhone;
         return { user: refreshedLinked, agency: linkedAgency, identity: linkedIdentity, isNewUser: false };
@@ -153,7 +154,7 @@ export async function resolveUser(
     }
 
     // No tenant and no canonical phone match — new user not yet onboarded
-    console.log('[resolveUser] No pre-onboarded agency found. sub:', sub, 'email:', normalizedEmail, 'phone:', phone);
+    logger.info('[resolveUser] No pre-onboarded agency found', { sub, email: normalizedEmail, phone });
     return { isNewUser: true };
   }
 
@@ -168,7 +169,7 @@ export async function resolveUser(
   // Step 4a: Admin already exists — just link this new sub to them
   // -------------------------------------------------------------------------
   if (existingAdmin) {
-    console.log('[resolveUser] Linking new sub to existing admin. userId:', existingAdmin.userId, 'sub:', sub);
+    logger.info('[resolveUser] Linking new sub to existing admin', { userId: existingAdmin.userId, sub });
 
     let identity: AuthIdentityItem;
     try {
@@ -196,14 +197,14 @@ export async function resolveUser(
     }
 
     await updateLastLogin(tenantId, existingAdmin.userId).catch((e) =>
-      console.error('[resolveUser] updateLastLogin error:', e)
+      logger.error('[resolveUser] updateLastLogin error:', e)
     );
 
     // Enrich any missing fields on the canonical user record
     await enrichUserProfile(tenantId, existingAdmin.userId, {
       email: normalizedEmail,
       phoneNumber: phone,
-    }).catch((e) => console.error('[resolveUser] enrichUserProfile error:', e));
+    }).catch((e) => logger.error('[resolveUser] enrichUserProfile error:', e));
 
     // Re-fetch to return enriched version
     const refreshedUser = (await findUserByUserId(existingAdmin.userId)) || existingAdmin;
@@ -213,7 +214,7 @@ export async function resolveUser(
   // -------------------------------------------------------------------------
   // Step 4b: No admin for this tenant — create new admin + link identity
   // -------------------------------------------------------------------------
-  console.log('[resolveUser] Creating new admin for tenant:', tenantId, 'sub:', sub);
+  logger.info('[resolveUser] Creating new admin for tenant', { tenantId, sub });
 
   const userId = uuidv4();
   const email_ = normalizedEmail || agency.adminEmail || `${userId}@unknown.user`;
@@ -257,3 +258,4 @@ export async function resolveUser(
 
   return { user: newAdmin, agency, identity, isNewUser: false };
 }
+

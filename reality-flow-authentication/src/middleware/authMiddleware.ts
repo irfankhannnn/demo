@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import jwksClient from 'jwks-rsa';
 import { getConfig } from '../config/config';
+import { logger } from '../utils/logger';
 
 let _jwksClient: jwksClient.JwksClient | null = null;
 
@@ -65,13 +66,14 @@ export async function localAuthMiddleware(
       return;
     }
 
-    const { COGNITO_USER_POOL_ID, AWS_REGION } = getConfig();
+    const { COGNITO_USER_POOL_ID, AWS_REGION, COGNITO_CLIENT_ID } = getConfig();
     const expectedIssuer = `https://cognito-idp.${AWS_REGION}.amazonaws.com/${COGNITO_USER_POOL_ID}`;
     
     const signingKey = await getSigningKey(decoded.header.kid);
 
     const verified = jwt.verify(token, signingKey, {
       issuer: expectedIssuer,
+      audience: COGNITO_CLIENT_ID,
     }) as jwt.JwtPayload;
 
     // Set claims as header for downstream extraction by cognito.ts
@@ -87,7 +89,8 @@ export async function localAuthMiddleware(
 
     next();
   } catch (error) {
-    console.error('Token verification failed:', error);
+    logger.error('Token verification failed', { error });
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
+

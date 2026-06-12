@@ -1,6 +1,6 @@
 import express from 'express';
 import multer from 'multer';
-import db from '../database.js';
+// import db from '../database.js'; // DISABLED: SQLite removed (database.js deleted)
 import validateToken from '../middleware/validateToken.js';
 import { uploadToS3, getPresignedUrl } from '../s3Service.js';
 // import { deleteFromS3 } from '../s3Service.js'; // DISABLED: Delete operations not allowed

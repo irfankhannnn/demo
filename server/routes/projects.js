@@ -20,6 +20,7 @@ import {
   getProjectDetailedMetrics,
 } from '../projectsDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
+import { extractTenantId } from '../tenantMiddleware.js';
 import { uploadToS3, deleteFromS3, getSignedUrl } from '../s3Service.js';
 
 const router = express.Router();
@@ -34,7 +35,8 @@ const upload = multer({
 });
 
 // Apply auth middleware to all routes
-// router.use(validateToken);
+router.use(validateToken);
+router.use(extractTenantId);
 
 /*
 // ============== COMMENTED OUT: Projects feature disabled ==============
@@ -47,7 +49,7 @@ const upload = multer({
  *\/
 router.get('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -93,7 +95,7 @@ router.get('/', async (req, res) => {
  */
 router.get('/metrics', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -113,7 +115,7 @@ router.get('/metrics', async (req, res) => {
  */
 router.get('/search', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -138,7 +140,7 @@ router.get('/search', async (req, res) => {
  */
 router.get('/slug/:slug', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -162,7 +164,7 @@ router.get('/slug/:slug', async (req, res) => {
  */
 router.get('/developer/:developerId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -182,7 +184,7 @@ router.get('/developer/:developerId', async (req, res) => {
  */
 router.get('/area/:areaId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -202,7 +204,7 @@ router.get('/area/:areaId', async (req, res) => {
  */
 router.get('/status/:status', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -222,7 +224,7 @@ router.get('/status/:status', async (req, res) => {
  */
 router.get('/:projectId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -246,7 +248,7 @@ router.get('/:projectId', async (req, res) => {
  */
 router.get('/:projectId/metrics', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -269,7 +271,7 @@ router.get('/:projectId/metrics', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -300,7 +302,7 @@ router.post('/', async (req, res) => {
  */
 router.put('/:projectId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -331,7 +333,7 @@ router.put('/:projectId', async (req, res) => {
  */
 router.patch('/:projectId/status', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -367,7 +369,7 @@ router.patch('/:projectId/status', async (req, res) => {
  */
 router.patch('/:projectId/inventory', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -390,7 +392,7 @@ router.patch('/:projectId/inventory', async (req, res) => {
  */
 router.post('/:projectId/mark-sold', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -414,7 +416,7 @@ router.post('/:projectId/mark-sold', async (req, res) => {
  */
 router.post('/:projectId/view', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -434,7 +436,7 @@ router.post('/:projectId/view', async (req, res) => {
  */
 router.post('/:projectId/enquiry', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -454,7 +456,7 @@ router.post('/:projectId/enquiry', async (req, res) => {
  */
 router.delete('/:projectId', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -480,7 +482,7 @@ router.delete('/:projectId', async (req, res) => {
  */
 router.post('/:projectId/images', upload.array('images', 20), async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -537,7 +539,7 @@ router.post('/:projectId/images', upload.array('images', 20), async (req, res) =
  */
 router.post('/:projectId/videos', upload.array('videos', 10), async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -594,7 +596,7 @@ router.post('/:projectId/videos', upload.array('videos', 10), async (req, res) =
  */
 router.post('/:projectId/brochure', upload.single('brochure'), async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -659,7 +661,7 @@ router.post('/:projectId/brochure', upload.single('brochure'), async (req, res) 
  */
 router.post('/:projectId/floor-plans', upload.array('floorPlans', 10), async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -719,7 +721,7 @@ router.post('/:projectId/floor-plans', upload.array('floorPlans', 10), async (re
  */
 router.delete('/:projectId/images', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -755,7 +757,7 @@ router.delete('/:projectId/images', async (req, res) => {
  */
 router.delete('/:projectId/videos', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }
@@ -791,7 +793,7 @@ router.delete('/:projectId/videos', async (req, res) => {
  */
 router.delete('/:projectId/floor-plans', async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'] || req.user?.tenantId;
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ success: false, message: 'Tenant ID is required' });
     }

@@ -6,6 +6,7 @@
 import { listPendingProvisioning, updateProvisioning } from '../aiEmployeeProvisioningService.js';
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { serverTrack, shutdownPostHog } from '../lib/posthog.js';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
@@ -13,14 +14,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-async function serverTrack(distinctId, event, properties = {}) {
-  try {
-    const { serverTrack: phTrack } = await import('../lib/posthog.js');
-    await phTrack(distinctId, event, properties);
-  } catch {
-    console.log('[posthog stub]', distinctId, event, properties);
-  }
-}
 
 async function sendBrevoEmail(templateId, to, params) {
   if (!templateId || !process.env.BREVO_API_KEY) return;
@@ -54,9 +47,9 @@ async function runEscalation() {
       // Update status to escalated
       await updateProvisioning(row.tenantId, { status: 'escalated' });
 
-      // Email founder with escalation notice
+      // Email founder with escalation notice (use founder-specific template)
       await sendBrevoEmail(
-        process.env.BREVO_AI_EMPLOYEE_ESCALATED_TEMPLATE_ID,
+        process.env.BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID,
         process.env.FOUNDER_EMAIL || 'info@realestateflow.in',
         {
           tenantId: row.tenantId,
@@ -68,10 +61,10 @@ async function runEscalation() {
         }
       );
 
-      // Customer apology email
+      // Customer apology email (use customer-specific template)
       if (row.contactEmail) {
         await sendBrevoEmail(
-          process.env.BREVO_AI_EMPLOYEE_ESCALATED_TEMPLATE_ID,
+          process.env.BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID,
           row.contactEmail,
           {
             agencyName: row.agencyName,
@@ -100,9 +93,12 @@ async function runEscalation() {
 
 // Lambda handler
 export async function handler(event) {
-  await runEscalation();
-  return { statusCode: 200, body: JSON.stringify({ escalated: true }) };
-}
+  try {
+    await runEscalation();
+    return { statusCode: 200, body: JSON.stringify({ escalated: true }) };
+  } finally {
+    await shutdownPostHog();
+  }
 
 // Direct execution
 if (process.argv[1] && process.argv[1].includes('escalation-cron')) {

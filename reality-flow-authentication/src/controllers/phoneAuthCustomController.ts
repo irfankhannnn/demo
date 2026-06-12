@@ -18,6 +18,8 @@ import { findIdentityBySub } from '../models/authIdentitiesModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
 import { extractClaims } from '../utils/cognito';
+import { setRefreshTokenCookie } from '../utils/cookies';
+import { logger } from '../utils/logger';
 import AWS from 'aws-sdk';
 
 const cognito = new AWS.CognitoIdentityServiceProvider({ region: 'ap-south-1' });
@@ -32,7 +34,7 @@ async function resolvePhoneNumberFromAccessToken(accessToken: string): Promise<s
     const phoneAttr = userResult.UserAttributes?.find(attr => attr.Name === 'phone_number');
     return phoneAttr?.Value || null;
   } catch (error) {
-    console.error('[resolvePhone] Error getting user attributes:', error);
+    logger.error('[resolvePhone] Error getting user attributes', { error });
     return null;
   }
 }
@@ -133,7 +135,7 @@ export async function startPhoneAuthHandler(req: Request, res: Response) {
           })
           .promise();
       } else {
-        console.error('[start] Error checking/creating Cognito user:', error);
+        logger.error('[start] Error checking/creating Cognito user', { error });
         return internalError(res, 'Failed to prepare user account');
       }
     }
@@ -158,11 +160,11 @@ export async function startPhoneAuthHandler(req: Request, res: Response) {
         expiresIn: 300,
       });
     } else {
-      console.error('[start] Unexpected challenge:', authResult);
+      logger.error('[start] Unexpected challenge', { authResult });
       return internalError(res, 'Unexpected authentication challenge');
     }
   } catch (error) {
-    console.error('[start] Error:', error);
+    logger.error('[start] Error', { error });
     return internalError(res, 'Failed to start phone authentication');
   }
 }
@@ -207,9 +209,9 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
             UserAttributes: [{ Name: 'phone_number_verified', Value: 'true' }],
           })
           .promise();
-        console.log('[confirm] Marked phone_number_verified=true for:', formattedPhone);
+        logger.info('[confirm] Marked phone_number_verified=true for', { phone: formattedPhone });
       } catch (e) {
-        console.error('[confirm] Failed to mark phone_number_verified:', e);
+        logger.error('[confirm] Failed to mark phone_number_verified', { error: e });
       }
     }
 
@@ -238,7 +240,7 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
 
     // OTP correct – must have tokens
     if (!authResult.AuthenticationResult) {
-      console.error('[confirm] Unexpected auth result:', authResult);
+      logger.error('[confirm] Unexpected auth result', { authResult });
       return internalError(res, 'Authentication failed');
     }
 
@@ -262,23 +264,25 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
     try {
       resolved = await resolveUser(sub, 'phone', undefined, formattedPhone);
     } catch (resolveErr) {
-      console.error('[confirm] resolveUser error:', resolveErr);
+      logger.error('[confirm] resolveUser error', { error: resolveErr });
       return internalError(res, 'Failed to resolve user identity');
     }
 
     if (resolved.isNewUser === false) {
       // --- Existing or auto-linked user ---
       const { user, agency } = resolved;
-      console.log('[confirm] Resolved existing user:', user.userId, '| role:', user.role);
 
       await markPhoneVerifiedIfPossible();
+
+      if (authResult.AuthenticationResult?.RefreshToken) {
+        setRefreshTokenCookie(res, authResult.AuthenticationResult.RefreshToken);
+      }
 
       return ok(res, {
         message: 'Login successful',
         tokens: {
           idToken,
           accessToken,
-          refreshToken: authResult.AuthenticationResult.RefreshToken,
         },
         user: {
           userId: user.userId,
@@ -297,14 +301,14 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
     }
 
     // --- New user: check for pending phone invites ---
-    console.log('[confirm] New user (not resolved):', sub);
+    logger.info('[confirm] New user (not resolved)', { sub });
 
     let pendingInvites: any[] = [];
     try {
       pendingInvites = await findInvitesByPhone(formattedPhone);
-      console.log(`[confirm] Found ${pendingInvites.length} pending invites for phone ${formattedPhone}`);
+      logger.info(`[confirm] Found ${pendingInvites.length} pending invites for phone ${formattedPhone}`);
     } catch (inviteErr) {
-      console.error('[confirm] Failed to check invites:', inviteErr);
+      logger.error('[confirm] Failed to check invites', { error: inviteErr });
     }
 
     if (pendingInvites.length === 0) {
@@ -313,12 +317,15 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
 
     await markPhoneVerifiedIfPossible();
 
+    if (authResult.AuthenticationResult?.RefreshToken) {
+      setRefreshTokenCookie(res, authResult.AuthenticationResult.RefreshToken);
+    }
+
     return ok(res, {
       message: 'Phone verified successfully',
       tokens: {
         idToken,
         accessToken,
-        refreshToken: authResult.AuthenticationResult.RefreshToken,
       },
       user: { sub, phoneNumber: formattedPhone },
       existingUser: false,
@@ -328,7 +335,7 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
       pendingInvitesCount: pendingInvites.length,
     });
   } catch (error: any) {
-    console.error('[confirm] Error:', error);
+    logger.error('[confirm] Error', { error });
 
     if (error.code === 'NotAuthorizedException') {
       return badRequest(res, 'Invalid or expired OTP');
@@ -381,7 +388,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     if (existingIdentity) {
       const { findUserByUserId } = await import('../models/usersModel');
       const existingUser = await findUserByUserId(existingIdentity.userId);
-      console.log('[onboard] User already onboarded:', sub);
+      logger.info('[onboard] User already onboarded', { sub });
       const agency = existingUser ? await getAgencyConfig(existingUser.TenantId) : null;
       return ok(res, {
         message: 'User already onboarded',
@@ -402,11 +409,11 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     }
 
     // Reliably resolve phone number from token
-    console.log('[onboard] Resolving phone number from token for user:', sub);
+    logger.info('[onboard] Resolving phone number from token for user', { sub });
     const phoneNumber = await resolvePhoneNumberFromAccessToken(accessToken);
     
     if (!phoneNumber) {
-      console.error('[onboard] Failed to resolve phone number from token for user:', sub);
+      logger.error('[onboard] Failed to resolve phone number from token for user', { sub });
       return badRequest(res, 'Unable to retrieve phone number from your account. Please re-login.');
     }
 
@@ -416,7 +423,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     }
 
     // --- Member onboarding (requires invite) ---
-    console.log('[onboard] Looking up phone invites for:', phoneNumber);
+    logger.info('[onboard] Looking up phone invites for', { phoneNumber });
     let pendingInvites = await findInvitesByPhone(phoneNumber);
     
     // Filter invites to ensure they are valid (PENDING + not expired)
@@ -426,7 +433,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       invite.expiresAt > now
     );
     
-    console.log(`[onboard] Found ${pendingInvites.length} valid pending invites after filtering`);
+    logger.info(`[onboard] Found ${pendingInvites.length} valid pending invites after filtering`);
     
     if (pendingInvites.length === 0) {
       return res.status(403).json({
@@ -441,7 +448,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     
     // Validate tenant integrity
     if (!invite.TenantId) {
-      console.error('[onboard] Invalid invite: missing TenantId');
+      logger.error('[onboard] Invalid invite: missing TenantId');
       return internalError(res, 'Invalid invitation data. Please contact support.');
     }
 
@@ -467,7 +474,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       );
     }
     
-    console.log('[onboard] Found valid invite, resolving MEMBER under tenant:', invite.TenantId);
+    logger.info('[onboard] Found valid invite, resolving MEMBER under tenant', { tenantId: invite.TenantId });
 
     // Use resolveMemberUser to create/link member
     const result = await resolveMemberUser(
@@ -504,7 +511,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     }
 
     await deleteInvite(invite.TenantId, invite.inviteCode);
-    console.log('[onboard] Member resolved, invite deleted');
+    logger.info('[onboard] Member resolved, invite deleted');
 
     return ok(res, {
       message: 'Member registered successfully',
@@ -521,7 +528,9 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       newUser: result.isNewMember,
     });
   } catch (error) {
-    console.error('[onboard] Error:', error);
+    logger.error('[onboard] Error', { error });
     return internalError(res, 'Failed to complete onboarding');
   }
 }
+
+

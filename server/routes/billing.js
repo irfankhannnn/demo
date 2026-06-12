@@ -2,15 +2,11 @@ import express from 'express';
 import crypto from 'crypto';
 import axios from 'axios';
 import { createProvisioningRow } from '../aiEmployeeProvisioningService.js';
-import { isEventProcessed, logEvent } from '../webhookLogService.js';
+import { logEventIfNotProcessed } from '../webhookLogService.js';
+import { incrementSeatsPaid } from '../subscriptionService.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
-
-// Stub — PR-H creates the real subscriptionService
-async function incrementSeatsPaid(tenantId, by) {
-  logger.info('[subscriptionService stub] incrementSeatsPaid', { tenantId, by });
-}
 
 /**
  * Server-side PostHog tracking. PR-E creates the real module;
@@ -101,14 +97,26 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       return res.status(401).json({ error: 'invalid_signature' });
     }
 
-    // 3. Idempotency check
+    // 3. Timestamp validation — reject events older than 5 minutes to prevent replay attacks
+    const eventCreatedAt = body.created_at || body.payload?.payment?.entity?.created_at;
+    if (eventCreatedAt) {
+      const eventTimeMs = typeof eventCreatedAt === 'number' ? eventCreatedAt * 1000 : Date.parse(eventCreatedAt);
+      const now = Date.now();
+      const maxAgeMs = 5 * 60 * 1000; // 5 minutes
+      if (now - eventTimeMs > maxAgeMs) {
+        logger.warn('Webhook event too old, possible replay attack', { eventId: body.event_id, eventCreatedAt });
+        return res.status(401).json({ error: 'event_too_old' });
+      }
+    }
+
+    // 4. Atomic idempotency check + log
     const eventId = body.event_id || body.id;
     if (!eventId) {
       return res.status(400).json({ error: 'missing_event_id' });
     }
 
-    const alreadyProcessed = await isEventProcessed(eventId);
-    if (alreadyProcessed) {
+    const { isDuplicate } = await logEventIfNotProcessed(eventId, body.event, null);
+    if (isDuplicate) {
       logger.info('Duplicate webhook event, skipping', { eventId });
       return res.json({ received: true, duplicate: true });
     }
@@ -240,12 +248,23 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const newQuantity = subscription?.quantity;
         const previousQuantity = payload?.subscription?.previousQuantity;
 
-        if (tenantId && newQuantity && previousQuantity && newQuantity > previousQuantity) {
+        if (
+          tenantId &&
+          typeof newQuantity === 'number' &&
+          typeof previousQuantity === 'number' &&
+          newQuantity > previousQuantity
+        ) {
           const seatsAdded = newQuantity - previousQuantity;
           await incrementSeatsPaid(tenantId, seatsAdded);
           await serverTrack(tenantId, 'seat_added', {
             seatsAdded,
             newTotal: newQuantity,
+          });
+        } else if (tenantId && (typeof newQuantity !== 'number' || typeof previousQuantity !== 'number')) {
+          logger.warn('subscription.updated.invalid_quantities', {
+            tenantId,
+            newQuantity,
+            previousQuantity,
           });
         }
         break;
@@ -255,17 +274,11 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         logger.info('Unhandled webhook event type', { eventType });
     }
 
-    // Log event as processed
-    const tenantId = payload?.subscription?.entity?.notes?.tenantId
-      || payload?.payment?.entity?.notes?.tenantId
-      || null;
-    await logEvent(eventId, eventType, tenantId);
-
     res.json({ received: true });
   } catch (err) {
     logger.error('Webhook processing error', { error: err.message, stack: err.stack });
-    // Return 200 to prevent Razorpay retries on internal errors
-    res.json({ received: true, error: 'internal_processing_error' });
+    // Return 500 so Razorpay retries; on retry the atomic idempotency check will return 200
+    return res.status(500).json({ error: 'internal_processing_error' });
   }
 });
 

@@ -11,20 +11,17 @@ import type { AnalyticsEvent, UserTraits } from '../types/analytics';
 /** Call from main.tsx once on app load. */
 export function initAnalytics(): void {
   const consent = JSON.parse(localStorage.getItem('cookieConsent') || 'null');
-  const analyticsAllowed = consent?.analytics ?? false;
+  const analyticsAllowed = consent?.analytics === true;
 
-  // Always init PostHog — session recording is gated by consent.
+  if (!analyticsAllowed) {
+    return;
+  }
+
   posthog.init(import.meta.env.VITE_POSTHOG_KEY || '', {
     api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
     capture_pageview: false,
-    disable_session_recording: !analyticsAllowed,
-    persistence: 'localStorage',
-  });
-
-  // Re-evaluate when the cookie banner emits a consent change.
-  window.addEventListener('cookieConsentChanged', (e: Event) => {
-    const detail = (e as CustomEvent).detail;
-    posthog.set_config({ disable_session_recording: !detail.analytics });
+    disable_session_recording: false,
+    persistence: 'memory',
   });
 }
 

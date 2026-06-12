@@ -46,7 +46,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const res = await fetch(`${API_URL}/api/subscriptions/trial-status`, {
+      const res = await fetch(`${API_URL}/subscriptions/trial-status`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 

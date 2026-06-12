@@ -16,7 +16,7 @@
   { "ParameterKey": "ProjectsTableName", "ParameterValue": "cloudberry-dev-real-estate-projects" },
   { "ParameterKey": "S3BucketName", "ParameterValue": "cloudberry-dev-real-estate-agency-bucket" },
   { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "rewaro-cicd-artifacts" },
-  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "cloudberry-dev-real-estate-agency/function-20260610130954.zip" },
+  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "cloudberry-dev-real-estate-agency/function-20260611144958.zip" },
   { "ParameterKey": "PublicApiDomainName", "ParameterValue": "services-api.cloudberrysolutions.in" },
   { "ParameterKey": "PublicApiBasePath", "ParameterValue": "devrealestateagency" },
   { "ParameterKey": "PublicApiStageName", "ParameterValue": "dev" },
@@ -24,5 +24,13 @@
   { "ParameterKey": "CrmApiBasePath", "ParameterValue": "devrealestatecrm" },
   { "ParameterKey": "CrmApiStageName", "ParameterValue": "dev" },
   { "ParameterKey": "AuthServiceUrl", "ParameterValue": "https://61usipojvl.execute-api.ap-south-1.amazonaws.com/dev" },
+  { "ParameterKey": "AllowedOrigins", "ParameterValue": "http://localhost:3000,http://localhost:5173,https://app.realestateflow.in" },
+  { "ParameterKey": "NpsHmacSecret", "ParameterValue": "dummy-nps-secret-change-me" },
+  { "ParameterKey": "BrevoApiKey", "ParameterValue": "dummy-brevo-key" },
+  { "ParameterKey": "FounderNotificationEmail", "ParameterValue": "info@realestateflow.in" },
+  { "ParameterKey": "RazorpayWebhookSecret", "ParameterValue": "dummy-razorpay-secret" },
+  { "ParameterKey": "BrevoFromEmail", "ParameterValue": "no-reply@realestateflow.in" },
+  { "ParameterKey": "BrevoFromName", "ParameterValue": "RealEstateFlow" },
+  { "ParameterKey": "HcaptchaSecretKey", "ParameterValue": "dummy-hcaptcha-secret" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "https://s3.ap-south-1.amazonaws.com/rewaro-cicd-artifacts/cloudberry-dev-real-estate-agency/apigw-explicit-routes.yaml" }
 ]

@@ -353,6 +353,27 @@ export async function listUsersByTenant(tenantId: string): Promise<UserItem[]> {
 }
 
 /**
+ * Count users for a tenant (used for seat limit enforcement).
+ */
+export async function countUsersByTenant(tenantId: string): Promise<number> {
+  const { USERS_TABLE } = getConfig();
+
+  const result = await dynamodb
+    .query({
+      TableName: USERS_TABLE,
+      KeyConditionExpression: 'TenantId = :tid AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':tid': tenantId,
+        ':prefix': 'USER#',
+      },
+      Select: 'COUNT',
+    })
+    .promise();
+
+  return result.Count || 0;
+}
+
+/**
  * Update user profile fields (displayName only).
  * Does NOT allow updating role, tenantId, email, phoneNumber, or status.
  */

@@ -1,3 +1,6 @@
+// TODO(MED-1): Replace ScanCommand + FilterExpression with QueryCommand on a
+// 'tenant-index' GSI (PK=tenantId, SK=EntityType) once the GSI is added via CFN.
+// This applies to all list/getAll functions below that currently scan the full table.
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
@@ -32,6 +35,16 @@ if (!CRM_TABLE_NAME) {
 
 const client = wrapAwsClient(new DynamoDBClient({ region: REGION }), 'DynamoDB', { tableName: CRM_TABLE_NAME });
 const docClient = DynamoDBDocumentClient.from(client);
+
+// Keys that must never be modified by an update request (defense against mass assignment)
+const FORBIDDEN_UPDATE_KEYS = new Set(['PK', 'SK', 'tenantId', 'EntityType', 'createdAt', 'createdBy']);
+
+function rejectForbiddenKeys(data) {
+  const forbidden = Object.keys(data).filter(k => FORBIDDEN_UPDATE_KEYS.has(k));
+  if (forbidden.length > 0) {
+    throw new Error(`Forbidden keys in update payload: ${forbidden.join(', ')}`);
+  }
+}
 
 /**
  * CRM DynamoDB Single Table Design (Multi-Tenant):
@@ -263,7 +276,8 @@ export async function updateCustomer(tenantId, customerId, data) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+  rejectForbiddenKeys(data);
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -472,6 +486,7 @@ export async function updateCustomerNote(tenantId, customerId, noteId, data) {
   if (noteId === 'PROFILE_NOTES') {
     throw new Error('PROFILE_NOTES cannot be edited');
   }
+  rejectForbiddenKeys(data);
 
   const result = await docClient.send(new UpdateCommand({
     TableName: CRM_TABLE_NAME,
@@ -528,6 +543,7 @@ export async function updateOwnerNote(tenantId, ownerId, noteId, data) {
   if (noteId === 'PROFILE_NOTES') {
     throw new Error('PROFILE_NOTES cannot be edited');
   }
+  rejectForbiddenKeys(data);
 
   const result = await docClient.send(new UpdateCommand({
     TableName: CRM_TABLE_NAME,
@@ -753,7 +769,8 @@ export async function updateOwner(tenantId, ownerId, data) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+  rejectForbiddenKeys(data);
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -1143,7 +1160,8 @@ export async function updateProperty(tenantId, propertyId, data) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+  rejectForbiddenKeys(data);
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -1354,17 +1372,81 @@ export async function getCRMMetrics(tenantId) {
     throw new Error('Tenant ID is required');
   }
   
-  const [customersResult, ownersResult, propertiesResult, leads, buyersResult] = await Promise.all([
-    getCustomers(tenantId),
-    getOwners(tenantId),
-    getProperties(tenantId),
-    getLeads(tenantId),
-    getBuyers(tenantId),
+  const [
+    customersResult,
+    ownersResult,
+    propertiesResult,
+    leadsResult,
+    buyersResult,
+  ] = await Promise.all([
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'CUSTOMER', ':tenantId': tenantId },
+      ProjectionExpression: '#s',
+      ExpressionAttributeNames: { '#s': 'status' },
+    })),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'OWNER', ':tenantId': tenantId },
+      ProjectionExpression: 'ownerId, contactId, #s',
+      ExpressionAttributeNames: { '#s': 'status' },
+    })),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'PROPERTY', ':tenantId': tenantId },
+      ProjectionExpression: '#s, agreementStatus, verificationStatus, ownerId, listingType',
+      ExpressionAttributeNames: { '#s': 'status' },
+    })),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'LEAD', ':tenantId': tenantId },
+      Select: 'COUNT',
+    })),
+    Promise.all([
+      docClient.send(new ScanCommand({
+        TableName: CRM_TABLE_NAME,
+        FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+        ExpressionAttributeValues: { ':type': 'BUYER', ':tenantId': tenantId },
+        ProjectionExpression: 'phone, buyerId',
+      })),
+      docClient.send(new ScanCommand({
+        TableName: CRM_TABLE_NAME,
+        FilterExpression: 'EntityType = :type AND tenantId = :tenantId AND #roles.#buyer = :isBuyer',
+        ExpressionAttributeNames: { '#roles': 'roles', '#buyer': 'buyer' },
+        ExpressionAttributeValues: { ':type': 'CONTACT', ':tenantId': tenantId, ':isBuyer': true },
+        ProjectionExpression: 'phone, contactId',
+      })),
+    ]),
   ]);
-  const customers = customersResult.customers;
-  const owners = ownersResult.owners;
-  const properties = propertiesResult.properties;
-  const buyers = buyersResult.buyers;
+  const customers = customersResult.Items || [];
+  const owners = ownersResult.Items || [];
+  const properties = propertiesResult.Items || [];
+  const leadsCount = leadsResult.Count || 0;
+
+  const legacyBuyers = buyersResult[0].Items || [];
+  const buyerContacts = buyersResult[1].Items || [];
+  const phoneMap = new Map();
+  for (const b of legacyBuyers) {
+    const phone = normalizePhone(b.phone);
+    if (phone && !phoneMap.has(phone)) {
+      phoneMap.set(phone, b);
+    } else if (!phone) {
+      phoneMap.set(b.buyerId, b);
+    }
+  }
+  for (const c of buyerContacts) {
+    const phone = normalizePhone(c.phone);
+    if (phone && !phoneMap.has(phone)) {
+      phoneMap.set(phone, c);
+    } else if (!phone) {
+      phoneMap.set(c.contactId, c);
+    }
+  }
+  const buyersCount = phoneMap.size;
 
   const activeCustomers = customers.filter(c => c.status === 'active').length;
   const activeOwners = owners.filter(o => o.status === 'active').length;
@@ -1397,8 +1479,8 @@ export async function getCRMMetrics(tenantId) {
     agreementsPending,
     verificationsDone,
     verificationsPending,
-    leadsCount: leads.length,
-    buyersCount: buyers.length,
+    leadsCount,
+    buyersCount,
     sellersCount,
     tenantsCount: customers.length,
   };
@@ -1462,7 +1544,8 @@ export async function updatePropertyAgreement(tenantId, propertyId, agreementId,
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+  rejectForbiddenKeys(data);
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -1553,7 +1636,8 @@ export async function updatePropertyVerification(tenantId, propertyId, verificat
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+  rejectForbiddenKeys(data);
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -2012,6 +2096,7 @@ export async function updateMeeting(tenantId, meetingId, data) {
   if (!tenantId || !meetingId) {
     throw new Error('Tenant ID and Meeting ID are required');
   }
+  rejectForbiddenKeys(data);
 
   const before = await getMeeting(tenantId, meetingId);
 
@@ -3961,6 +4046,7 @@ export async function getBuyer(tenantId, buyerId) {
 
 export async function updateBuyer(tenantId, buyerId, data) {
   if (!tenantId) throw new Error('Tenant ID is required');
+  rejectForbiddenKeys(data);
 
   // Detect if this buyerId is a CONTACT-as-buyer or legacy BUYER
   const existing = await getBuyer(tenantId, buyerId);
@@ -4337,6 +4423,7 @@ export async function updateBuyerProjectInterest(tenantId, buyerId, projectId, u
   if (!tenantId) throw new Error('Tenant ID is required');
   if (!buyerId) throw new Error('Buyer ID is required');
   if (!projectId) throw new Error('Project ID is required');
+  rejectForbiddenKeys(updates);
 
   const buyer = await getBuyer(tenantId, buyerId);
   if (!buyer) throw new Error('Buyer not found');

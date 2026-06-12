@@ -80,7 +80,7 @@ export default function NpsModal() {
     setError('');
     try {
       const idToken = getIdToken();
-      await fetch(`${API_URL}/api/feedback/nps`, {
+      await fetch(`${API_URL}/feedback/nps`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

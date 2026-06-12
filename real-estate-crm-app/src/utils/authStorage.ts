@@ -6,7 +6,7 @@
 // --- Token keys ---
 const ID_TOKEN_KEY = 'auth_id_token';
 const ACCESS_TOKEN_KEY = 'auth_access_token';
-const REFRESH_TOKEN_KEY = 'auth_refresh_token';
+// Refresh token is stored in httpOnly cookie (server-side) — NEVER in localStorage
 const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
 const USER_PROFILE_KEY = 'auth_user_profile';
 const PROFILE_TIMESTAMP_KEY = 'auth_profile_timestamp';
@@ -18,7 +18,7 @@ const LEGACY_ADMIN_TOKEN_KEY = 'admin_token';
 export interface AuthTokens {
   idToken: string;
   accessToken: string;
-  refreshToken?: string;
+  refreshToken?: string; // kept for type compat; always undefined now
   expiresIn: number; // seconds
 }
 
@@ -57,7 +57,6 @@ export interface UserProfile {
 }
 
 export function setOnboardingSession(active: boolean, notify = true): void {
-  console.log('[authStorage] setOnboardingSession:', active);
   if (active) {
     localStorage.setItem(ONBOARDING_SESSION_KEY, 'true');
   } else {
@@ -70,9 +69,7 @@ export function setOnboardingSession(active: boolean, notify = true): void {
 }
 
 export function hasOnboardingSession(): boolean {
-  const result = localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
-  console.log('[authStorage] hasOnboardingSession:', result);
-  return result;
+  return localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
 }
 
 // --- Token operations ---
@@ -80,14 +77,13 @@ export function hasOnboardingSession(): boolean {
 export function setTokens(tokens: AuthTokens): void {
   localStorage.setItem(ID_TOKEN_KEY, tokens.idToken);
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  if (tokens.refreshToken) {
-    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-  }
+  // Refresh token is stored in httpOnly cookie by the server — do NOT store in localStorage
   const expiryTime = Date.now() + tokens.expiresIn * 1000;
   localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 
-  // Clean up legacy token
+  // Clean up legacy tokens (including any old refresh tokens)
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  localStorage.removeItem('auth_refresh_token');
 
   notifyAuthChanged();
 }
@@ -101,7 +97,8 @@ export function getAccessToken(): string | null {
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  // Refresh token lives in httpOnly cookie (server-managed)
+  return null;
 }
 
 export function isTokenExpired(): boolean {
@@ -147,7 +144,6 @@ export function isProfileFresh(maxAgeSeconds = 60): boolean {
 export function clearAuthSilently(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
@@ -158,7 +154,6 @@ export function clearAuthSilently(): void {
 export function clearAuth(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);

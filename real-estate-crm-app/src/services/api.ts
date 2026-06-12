@@ -7,7 +7,7 @@ import type {
   CreatePropertyData,
   UpdatePropertyData,
 } from '../types/crm';
-import { getRefreshToken, setTokens } from '../utils/authStorage';
+import { setTokens } from '../utils/authStorage';
 import { refreshTokens } from '../utils/cognitoAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
@@ -98,37 +98,30 @@ class ApiService {
   private async handleResponse(response: Response) {
     if (!response.ok) {
       if (response.status === 401) {
-        // Attempt to refresh the token
-        const refreshToken = getRefreshToken();
-        if (refreshToken) {
-          try {
-            if (!this.isRefreshing) {
-              this.isRefreshing = true;
-              const newTokens = await refreshTokens(refreshToken);
-              setTokens(newTokens);
-              this.isRefreshing = false;
-              this.onTokenRefreshed(newTokens.idToken);
-              // Retry the original request with new token
-              return this.retryRequest(response);
-            } else {
-              // Wait for the refresh to complete
-              return new Promise((resolve) => {
-                this.subscribeTokenRefresh(() => {
-                  resolve(this.retryRequest(response));
-                });
-              });
-            }
-          } catch (refreshError) {
-            console.error('[ApiService] Token refresh failed:', refreshError);
+        // Attempt to refresh using the httpOnly cookie (server-managed)
+        try {
+          if (!this.isRefreshing) {
+            this.isRefreshing = true;
+            const newTokens = await refreshTokens();
+            setTokens(newTokens);
             this.isRefreshing = false;
-            this.clearToken();
-            window.location.href = '/login';
-            throw new Error('Session expired. Please log in again.');
+            this.onTokenRefreshed(newTokens.idToken);
+            // Retry the original request with new token
+            return this.retryRequest(response);
+          } else {
+            // Wait for the refresh to complete
+            return new Promise((resolve) => {
+              this.subscribeTokenRefresh(() => {
+                resolve(this.retryRequest(response));
+              });
+            });
           }
-        } else {
-          // No refresh token available, clear auth and redirect
+        } catch (refreshError) {
+          console.error('[ApiService] Token refresh failed:', refreshError);
+          this.isRefreshing = false;
           this.clearToken();
           window.location.href = '/login';
+          throw new Error('Session expired. Please log in again.');
         }
       }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
@@ -143,6 +136,7 @@ class ApiService {
     const options: RequestInit = {
       method: originalResponse.type === 'basic' ? 'GET' : 'POST',
       headers: this.getHeaders(),
+      credentials: 'include',
     };
 
     const response = await fetch(url, options);
@@ -2409,11 +2403,7 @@ class ApiService {
     const formData = new FormData();
     formData.append('logo', file);
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/logo`, {
       method: 'POST',
@@ -2428,11 +2418,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/images`, {
       method: 'POST',
@@ -2447,11 +2433,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('videos', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/videos`, {
       method: 'POST',
@@ -2486,11 +2468,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/images`, {
       method: 'POST',
@@ -2505,11 +2483,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('videos', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/videos`, {
       method: 'POST',
@@ -2544,11 +2518,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/images`, {
       method: 'POST',
@@ -2563,11 +2533,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('videos', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/videos`, {
       method: 'POST',
@@ -2582,11 +2548,7 @@ class ApiService {
     const formData = new FormData();
     formData.append('brochure', file);
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/brochure`, {
       method: 'POST',
@@ -2601,11 +2563,7 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('floorPlans', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
     const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/floor-plans`, {
       method: 'POST',

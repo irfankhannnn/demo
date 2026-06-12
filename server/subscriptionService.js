@@ -30,6 +30,7 @@ export async function incrementSeatsPaid(tenantId, by = 1) {
     TableName: TABLE_NAME,
     Key: { tenantId },
     UpdateExpression: 'SET seatsPaid = seatsPaid + :inc, updatedAt = :now',
+    ConditionExpression: 'attribute_exists(tenantId)',
     ExpressionAttributeValues: {
       ':inc': by,
       ':now': new Date().toISOString(),
@@ -61,10 +62,36 @@ export async function decrementSeatsPaid(tenantId, by = 1) {
 
 /**
  * Recompute seatsUsed by counting active members for a tenant.
- * Uses the auth microservice member list or a scan of the Subscriptions table's seatsUsed field.
- * For now, returns the stored seatsUsed value (updated on member add/remove by auth service callbacks).
+ * Attempts to call the auth microservice for an accurate count,
+ * falling back to the stored seatsUsed value.
  */
 export async function recomputeSeatsUsed(tenantId) {
+  const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+  const internalKey = process.env.INTERNAL_API_KEY || '';
+
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await fetch(`${authServiceUrl}/internal/users/count?tenantId=${tenantId}`, {
+        headers: { 'x-internal-api-key': internalKey },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.count ?? 0;
+      }
+      if (attempt === 1) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+    } catch (err) {
+      logger.warn('recomputeSeatsUsed.auth_attempt_failed', { tenantId, attempt, error: err.message });
+      if (attempt === 1) {
+        await new Promise(r => setTimeout(r, 1000));
+        continue;
+      }
+    }
+  }
+
   const sub = await getSubscription(tenantId);
   return sub?.seatsUsed ?? 0;
 }
@@ -73,9 +100,16 @@ export async function recomputeSeatsUsed(tenantId) {
  * Create a trial subscription row for a new tenant.
  */
 export async function createTrialSubscription(tenantId, plan = 'solo') {
+  const existing = await getSubscription(tenantId);
+  if (existing && existing.isPaying) {
+    logger.warn('subscription.trial.blocked_paying', { tenantId });
+    throw new Error('Cannot create trial for paying customer');
+  }
+
   const seatDefaults = { solo: 1, team: 3, teamplus: 5, free: 1 };
+  const trialDays = Number(process.env.TRIAL_DAYS) || 14;
   const now = new Date();
-  const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString(); // 14-day trial
+  const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
 
   const item = {
     tenantId,

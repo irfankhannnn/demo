@@ -13,6 +13,7 @@ import {
   UserItem,
 } from '../models/usersModel';
 import { getAgencyConfig, AgencyConfigItem } from '../models/agencyConfigModel';
+import { logger } from '../utils/logger';
 
 export interface ResolveMemberResult {
   user: UserItem;
@@ -60,11 +61,9 @@ export async function resolveMemberUser(
     if (user) {
       // Verify tenant matches (member cannot switch tenants)
       if (user.TenantId !== tenantId) {
-        console.error(
-          '[resolveMemberUser] Tenant mismatch. Identity tenant:',
-          existingIdentity.tenantId,
-          'Expected:',
-          tenantId
+        logger.error(
+          '[resolveMemberUser] Tenant mismatch',
+          { identityTenant: existingIdentity.tenantId, expected: tenantId }
         );
         return { isNewMember: null };
       }
@@ -73,7 +72,7 @@ export async function resolveMemberUser(
 
       // Update last login
       await updateLastLogin(user.TenantId, user.userId).catch((e) =>
-        console.error('[resolveMemberUser] updateLastLogin error:', e)
+        logger.error('[resolveMemberUser] updateLastLogin error', { error: e })
       );
 
       // Phase 4: If Google login email matches pendingEmail, promote it
@@ -87,7 +86,7 @@ export async function resolveMemberUser(
         if (emailFree) {
           const promoted = await promotePendingEmail(user.TenantId, user.userId, normalizedEmail);
           if (promoted) {
-            console.log('[resolveMemberUser] Promoted pendingEmail to canonical:', normalizedEmail);
+            logger.info('[resolveMemberUser] Promoted pendingEmail to canonical', { email: normalizedEmail });
           }
         }
       }
@@ -96,7 +95,7 @@ export async function resolveMemberUser(
       await enrichUserProfile(user.TenantId, user.userId, {
         email: normalizedEmail,
         phoneNumber: phone,
-      }).catch((e) => console.error('[resolveMemberUser] enrichUserProfile error:', e));
+      }).catch((e) => logger.error('[resolveMemberUser] enrichUserProfile error', { error: e }));
 
       // Re-fetch user to capture any promotions
       const refreshedFastPath = await findUserByUserId(user.userId);
@@ -104,11 +103,9 @@ export async function resolveMemberUser(
     }
 
     // Identity row exists but user record is missing — data inconsistency
-    console.error(
-      '[resolveMemberUser] Identity found but user missing. sub:',
-      sub,
-      'userId:',
-      existingIdentity.userId
+    logger.error(
+      '[resolveMemberUser] Identity found but user missing',
+      { sub, userId: existingIdentity.userId }
     );
     return { isNewMember: null };
   }
@@ -130,7 +127,7 @@ export async function resolveMemberUser(
   if (!existingMember && normalizedEmail && provider === 'google') {
     existingMember = await findUserByPendingEmail(normalizedEmail);
     if (existingMember) {
-      console.log('[resolveMemberUser] Found existing member via pendingEmail match:', existingMember.userId);
+      logger.info('[resolveMemberUser] Found existing member via pendingEmail match', { userId: existingMember.userId });
     }
   }
 
@@ -139,26 +136,22 @@ export async function resolveMemberUser(
   // -------------------------------------------------------------------------
   if (existingMember) {
     if (!existingMember.userId || !existingMember.SK || !existingMember.TenantId) {
-      console.error('[resolveMemberUser] Existing member record is malformed:', existingMember);
+      logger.error('[resolveMemberUser] Existing member record is malformed', { member: existingMember });
       return { isNewMember: null };
     }
 
     // Verify tenant matches
     if (existingMember.TenantId !== tenantId) {
-      console.error(
-        '[resolveMemberUser] Existing member in different tenant. Member tenant:',
-        existingMember.TenantId,
-        'Expected:',
-        tenantId
+      logger.error(
+        '[resolveMemberUser] Existing member in different tenant',
+        { memberTenant: existingMember.TenantId, expected: tenantId }
       );
       return { isNewMember: null };
     }
 
-    console.log(
-      '[resolveMemberUser] Linking new sub to existing member. userId:',
-      existingMember.userId,
-      'sub:',
-      sub
+    logger.info(
+      '[resolveMemberUser] Linking new sub to existing member',
+      { userId: existingMember.userId, sub }
     );
 
     let identity: AuthIdentityItem;
@@ -190,14 +183,14 @@ export async function resolveMemberUser(
     const agency = await getAgencyConfig(tenantId);
 
     await updateLastLogin(tenantId, existingMember.userId).catch((e) =>
-      console.error('[resolveMemberUser] updateLastLogin error:', e)
+      logger.error('[resolveMemberUser] updateLastLogin error', { error: e })
     );
 
     // Enrich any missing fields on the canonical user record
     await enrichUserProfile(tenantId, existingMember.userId, {
       email: normalizedEmail,
       phoneNumber: phone,
-    }).catch((e) => console.error('[resolveMemberUser] enrichUserProfile error:', e));
+    }).catch((e) => logger.error('[resolveMemberUser] enrichUserProfile error', { error: e }));
 
     // Promote pendingEmail if this Google login matched via pendingEmail
     if (
@@ -209,7 +202,7 @@ export async function resolveMemberUser(
       if (emailFree) {
         const promoted = await promotePendingEmail(existingMember.TenantId, existingMember.userId, normalizedEmail);
         if (promoted) {
-          console.log('[resolveMemberUser] Promoted pendingEmail to canonical via new identity link:', normalizedEmail);
+          logger.info('[resolveMemberUser] Promoted pendingEmail to canonical via new identity link', { email: normalizedEmail });
         }
       }
     }
@@ -227,24 +220,24 @@ export async function resolveMemberUser(
   if (normalizedEmail) {
     const dupeByEmail = await findUserByEmail(normalizedEmail);
     if (dupeByEmail) {
-      console.error('[resolveMemberUser] Duplicate guard: member already exists by canonical email:', normalizedEmail, 'userId:', dupeByEmail.userId);
+      logger.error('[resolveMemberUser] Duplicate guard: member already exists by canonical email', { email: normalizedEmail, userId: dupeByEmail.userId });
       return { isNewMember: null };
     }
     const dupeByPending = await findUserByPendingEmail(normalizedEmail);
     if (dupeByPending) {
-      console.error('[resolveMemberUser] Duplicate guard: member already exists by pendingEmail:', normalizedEmail, 'userId:', dupeByPending.userId);
+      logger.error('[resolveMemberUser] Duplicate guard: member already exists by pendingEmail', { email: normalizedEmail, userId: dupeByPending.userId });
       return { isNewMember: null };
     }
   }
   if (phone) {
     const dupeByPhone = await findUserByPhone(phone);
     if (dupeByPhone) {
-      console.error('[resolveMemberUser] Duplicate guard: member already exists by canonical phone:', phone, 'userId:', dupeByPhone.userId);
+      logger.error('[resolveMemberUser] Duplicate guard: member already exists by canonical phone', { phone, userId: dupeByPhone.userId });
       return { isNewMember: null };
     }
   }
 
-  console.log('[resolveMemberUser] Creating new member for tenant:', tenantId, 'sub:', sub);
+  logger.info('[resolveMemberUser] Creating new member for tenant', { tenantId, sub });
 
   const userId = uuidv4();
   const displayName_ = displayName || normalizedEmail?.split('@')[0] || phone || userId.slice(0, 8);

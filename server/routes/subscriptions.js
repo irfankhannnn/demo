@@ -1,7 +1,7 @@
 import express from 'express';
-import { validateToken } from '../middleware/validateToken.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
-import { getSubscription, recomputeSeatsUsed } from '../subscriptionService.js';
+import { getSubscription, recomputeSeatsUsed, createTrialSubscription } from '../subscriptionService.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
@@ -23,9 +23,21 @@ router.get('/current', validateToken, extractTenantId, async (req, res) => {
 // GET /api/subscriptions/trial-status — trial-specific fields
 router.get('/trial-status', validateToken, extractTenantId, async (req, res) => {
   try {
-    const subscription = await getSubscription(req.tenantId);
+    let subscription = await getSubscription(req.tenantId);
+    
+    // Auto-create trial subscription if it doesn't exist
     if (!subscription) {
-      return res.status(404).json({ error: 'no_subscription' });
+      try {
+        subscription = await createTrialSubscription(req.tenantId, 'solo');
+        logger.info('subscriptions.trialStatus.autoCreated', { tenantId: req.tenantId });
+      } catch (createErr) {
+        // If creation fails (e.g., already exists from concurrent request), try fetching again
+        subscription = await getSubscription(req.tenantId);
+        if (!subscription) {
+          logger.error('subscriptions.trialStatus.autoCreate.failed', { tenantId: req.tenantId, error: createErr.message });
+          return res.status(500).json({ error: 'internal_error' });
+        }
+      }
     }
 
     const now = Date.now();

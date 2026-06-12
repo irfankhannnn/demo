@@ -10,24 +10,16 @@ const CORS_HEADERS = {
  * This prevents client header spoofing when validateToken is used.
  */
 export function extractTenantId(req, res, next) {
-  // If validateToken already set tenantId (server-derived from /auth/me), use it
+  // Only accept server-derived tenantId set by validateToken middleware.
+  // NEVER trust the client-provided x-tenant-id header.
   if (req.tenantId) {
     return next();
   }
-  
-  // Otherwise fall back to header (for backwards compatibility or non-auth endpoints)
-  const tenantId = req.headers['x-tenant-id'];
-  
-  if (!tenantId) {
-    res.set(CORS_HEADERS);
-    return res.status(400).json({ 
-      error: 'Tenant ID is required. Please include x-tenant-id header.' 
-    });
-  }
-  
-  // Store tenant_id in request object
-  req.tenantId = tenantId;
-  next();
+
+  res.set(CORS_HEADERS);
+  return res.status(400).json({
+    error: 'Tenant ID is required. Authentication middleware must run before tenant extraction.',
+  });
 }
 
 /**

@@ -77,7 +77,6 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
   const tokens: AuthTokens = {
     idToken: data.id_token,
     accessToken: data.access_token,
-    refreshToken: data.refresh_token,
     expiresIn: data.expires_in,
   };
 
@@ -212,16 +211,14 @@ export async function callRegisterAdmin(
 /**
  * Refresh tokens using the refresh token via the auth microservice.
  */
-export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+export async function refreshTokens(): Promise<AuthTokens> {
   const tokenUrl = `${AUTH_API_URL}/auth/refresh`;
-  const body = {
-    refresh_token: refreshToken,
-  };
 
+  // The refresh token is sent automatically as an httpOnly cookie
   const response = await fetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -234,7 +231,6 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
   const tokens: AuthTokens = {
     idToken: data.id_token,
     accessToken: data.access_token,
-    refreshToken, // Keep the same refresh token
     expiresIn: data.expires_in,
   };
 

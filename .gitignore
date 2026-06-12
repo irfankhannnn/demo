@@ -1,0 +1,13 @@
+# Playwright artifacts (when run from root before config was moved)
+test-results/
+
+# Root-level node_modules (should never exist; tests/playwright has its own)
+node_modules/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.swp
+*.swo

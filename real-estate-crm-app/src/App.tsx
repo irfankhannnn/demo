@@ -27,7 +27,6 @@ import Profile from './pages/Profile';
 
 // Onboarding Pages
 import RoleSelection from './pages/RoleSelection';
-import RegisterAdmin from './pages/RegisterAdmin';
 import AcceptInvite from './pages/AcceptInvite';
 
 // Member Pages
@@ -65,37 +64,17 @@ import BuyerDetails from './pages/crm/BuyerDetails';
 import LeadList from './pages/crm/LeadList';
 import LeadDetails from './pages/crm/LeadDetails';
 
-// Real Estate Management Pages - DISABLED
-// import DeveloperList from './pages/crm/DeveloperList';
-// import DeveloperDetails from './pages/crm/DeveloperDetails';
-// import RealEstateAreaList from './pages/crm/RealEstateAreaList';
-// import RealEstateAreaDetails from './pages/crm/RealEstateAreaDetails';
-// import ProjectList from './pages/crm/ProjectList';
-// import ProjectDetails from './pages/crm/ProjectDetails';
-
 // PR-F
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
 
-// AI Calling Module - DISABLED
-/*
-import {
-  AICallingDashboard,
-  StartCallModal,
-  CallDetails,
-  CallHistory,
-  KnowledgeManager,
-  AICallingSettings,
-} from './pages/crm/AICalling';
-*/
+
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 
   useEffect(() => {
     async function initAuth() {
-      console.log('[App] initAuth called');
       const onboardingActive = hasOnboardingSession();
-      console.log('[App] Onboarding session active:', onboardingActive);
 
       // Check if we have a fresh cached profile (< 60s old)
       const cachedProfile = getUserProfile();
@@ -107,27 +86,20 @@ function App() {
         return;
       }
 
-      // Check if we have tokens (even if expired)
+      // Check if we have an ID token
       const idToken = getIdToken();
-      const refreshToken = getRefreshToken();
-      console.log('[App] ID token exists:', !!idToken, 'Refresh token exists:', !!refreshToken);
-
-      // If no tokens at all, unauthenticated
-      if (!idToken && !refreshToken) {
-        console.log('[App] No auth tokens found - setting unauthenticated');
+      // If no ID token, unauthenticated (refresh token lives in httpOnly cookie)
+      if (!idToken) {
         setAuthState('unauthenticated');
         return;
       }
 
-      // If token exists but is expired, attempt refresh
-      if (idToken && !checkAuth() && refreshToken && !onboardingActive) {
+      // If token exists but is expired, attempt refresh via httpOnly cookie
+      if (!checkAuth() && !onboardingActive) {
         try {
-          console.log('[App] Token expired, attempting refresh...');
-          const newTokens = await refreshTokens(refreshToken);
+          const newTokens = await refreshTokens();
           setTokens(newTokens);
-          console.log('[App] Token refresh successful');
         } catch (refreshErr) {
-          console.log('[App] Token refresh failed:', refreshErr);
           // Refresh failed, clear auth and set unauthenticated
           clearAuth();
           setAuthState('unauthenticated');
@@ -139,10 +111,8 @@ function App() {
       const currentIdToken = getIdToken();
       if (currentIdToken) {
         try {
-          console.log('[App] Calling /auth/me...');
           const meResult = await callMe(currentIdToken);
           const meData = meResult.data || meResult;
-          console.log('[App] /auth/me success');
           setUserProfile({
             userId: meData.user.userId,
             cognitoSub: meData.user.cognitoSub,
@@ -169,18 +139,13 @@ function App() {
           });
           return;
         } catch (err) {
-          console.log('[App] /auth/me failed:', err);
           // Attempt to refresh token if /auth/me fails (likely due to expired token)
-          const currentRefreshToken = getRefreshToken();
-          if (currentRefreshToken && !onboardingActive) {
+          if (!onboardingActive) {
             try {
-              console.log('[App] Attempting token refresh after /auth/me failure...');
-              const newTokens = await refreshTokens(currentRefreshToken);
+              const newTokens = await refreshTokens();
               setTokens(newTokens);
-              console.log('[App] Token refresh successful, retrying /auth/me...');
               const meResult = await callMe(newTokens.idToken);
               const meData = meResult.data || meResult;
-              console.log('[App] /auth/me success after refresh');
               setUserProfile({
                 userId: meData.user.userId,
                 cognitoSub: meData.user.cognitoSub,
@@ -197,18 +162,16 @@ function App() {
               setAuthState('authenticated');
               return;
             } catch (refreshErr) {
-              console.log('[App] Token refresh failed:', refreshErr);
+              // Token refresh failed
             }
           }
 
           if (onboardingActive) {
-            console.log('[App] Onboarding active - preserving auth state');
             setAuthState('authenticated');
             return;
           }
 
           if (!cachedProfile) {
-            console.log('[App] No cached profile - clearing auth');
             clearAuth();
             setAuthState('unauthenticated');
             return;
@@ -288,7 +251,6 @@ function App() {
           
           {/* Onboarding Routes (authenticated but not registered) */}
           <Route path="/onboarding/role-selection" element={<RoleSelection />} />
-          <Route path="/onboarding/register-admin" element={<RegisterAdmin />} />
           <Route path="/onboarding/accept-invite" element={<AcceptInvite />} />
           
           {/* Member Routes (post-auth but pre-registration) */}
@@ -347,24 +309,6 @@ function App() {
           <Route path="/crm/leads/new" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
           <Route path="/crm/leads/:id" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
           
-          {/* Real Estate Management Routes - DISABLED */}
-          {/* <Route path="/crm/developers" element={<ProtectedRoute><DeveloperList /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/developers/new" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/developers/:id" element={<ProtectedRoute><DeveloperDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/real-estate-areas" element={<ProtectedRoute><RealEstateAreaList /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/real-estate-areas/new" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/real-estate-areas/:id" element={<ProtectedRoute><RealEstateAreaDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/projects" element={<ProtectedRoute><ProjectList /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/projects/new" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/projects/:id" element={<ProtectedRoute><ProjectDetails /></ProtectedRoute>} /> */}
-          
-          {/* AI Calling Routes - DISABLED */}
-          {/* <Route path="/crm/ai-calling" element={<ProtectedRoute><AICallingDashboard /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/ai-calling/start" element={<ProtectedRoute><StartCallModal /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/ai-calling/calls/:callSessionId" element={<ProtectedRoute><CallDetails /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/ai-calling/history" element={<ProtectedRoute><CallHistory /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/ai-calling/knowledge" element={<ProtectedRoute><KnowledgeManager /></ProtectedRoute>} /> */}
-          {/* <Route path="/crm/ai-calling/settings" element={<ProtectedRoute><AICallingSettings /></ProtectedRoute>} /> */}
           {/* === [LAUNCH PROTECTED ROUTES] === */}
           {/* PR-F */}
           <Route path="/integrations/ai-employee" element={<ProtectedRoute><AIEmployeeStatus /></ProtectedRoute>} />

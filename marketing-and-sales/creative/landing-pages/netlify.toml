@@ -37,11 +37,6 @@
   status = 200
 
 [[redirects]]
-  from = "/grievance"
-  to = "/grievance/index.html"
-  status = 200
-
-[[redirects]]
   from = "/legal/terms"
   to = "/legal/terms/index.html"
   status = 200
@@ -70,11 +65,6 @@
 [[redirects]]
   from = "/legal"
   to = "/legal/terms"
-  status = 301
-
-[[redirects]]
-  from = "/help"
-  to = "/grievance"
   status = 301
 
 # Note: the old /enterprise redirect has been removed (enterprise page retired).

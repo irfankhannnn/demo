@@ -102,10 +102,9 @@ async function processTrialReminders() {
   do {
     const result = await docClient.send(new ScanCommand({
       TableName: TABLE_NAME,
-      FilterExpression: 'paymentStatus = :trialing OR (paymentStatus = :trialing AND isPaying = :false)',
+      FilterExpression: 'paymentStatus = :trialing',
       ExpressionAttributeValues: {
         ':trialing': 'trialing',
-        ':false': false,
       },
       ...(lastKey && { ExclusiveStartKey: lastKey }),
     }));

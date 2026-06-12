@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { extractClaims } from '../utils/cognito';
 import { ok, badRequest, forbidden, notFound, internalError, conflict } from '../utils/http';
 import { findIdentityBySub } from '../models/authIdentitiesModel';
-import { findUserByUserId, findUserByEmail, findUserByPhone } from '../models/usersModel';
+import { findUserByUserId, findUserByEmail, findUserByPhone, countUsersByTenant } from '../models/usersModel';
+import { getSubscription } from '../models/subscriptionsModel';
 import { getAgencyConfig } from '../models/agencyConfigModel';
 import {
   createInvite,
@@ -15,6 +16,7 @@ import {
   updateInviteEmail,
 } from '../models/invitesModel';
 import { validateAndFormatIndianPhone } from '../utils/phoneValidation';
+import { logger } from '../utils/logger';
 
 // --- Zod Schemas ---
 
@@ -109,6 +111,15 @@ export async function createInviteHandler(req: Request, res: Response): Promise<
       }
     }
 
+    // Seat cap enforcement
+    const subscription = await getSubscription(user.TenantId);
+    const seatsPaid = subscription?.seatsPaid ?? 1;
+    const activeUsers = await countUsersByTenant(user.TenantId);
+    if (activeUsers >= seatsPaid) {
+      forbidden(res, `Seat limit reached (${activeUsers}/${seatsPaid}). Upgrade to add more members.`);
+      return;
+    }
+
     // Create invite
     const invite = await createInvite({
       tenantId: user.TenantId,
@@ -133,7 +144,7 @@ export async function createInviteHandler(req: Request, res: Response): Promise<
       },
     });
   } catch (error) {
-    console.error('createInvite error:', error);
+    logger.error('createInvite error', { error });
     internalError(res, 'Failed to create invite');
   }
 }
@@ -212,7 +223,7 @@ export async function updateInviteEmailHandler(req: Request, res: Response): Pro
       },
     });
   } catch (error) {
-    console.error('updateInviteEmail error:', error);
+    logger.error('updateInviteEmail error', { error });
     internalError(res, 'Failed to update invite email');
   }
 }
@@ -260,7 +271,7 @@ export async function listInvitesHandler(req: Request, res: Response): Promise<v
       })),
     });
   } catch (error) {
-    console.error('listInvites error:', error);
+    logger.error('listInvites error', { error });
     internalError(res, 'Failed to list invites');
   }
 }
@@ -316,7 +327,8 @@ export async function revokeInviteHandler(req: Request, res: Response): Promise<
       },
     });
   } catch (error) {
-    console.error('revokeInvite error:', error);
+    logger.error('revokeInvite error', { error });
     internalError(res, 'Failed to revoke invite');
   }
 }
+

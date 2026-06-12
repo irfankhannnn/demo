@@ -15,6 +15,11 @@ import { getPropertiesByStatus } from '../crmDynamodbService.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  updateNotificationSettingsSchema,
+  createTestNotificationSchema,
+} from '../validation/otherSchemas.js';
 
 const router = express.Router();
 
@@ -168,7 +173,7 @@ router.get('/settings', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update notification settings
-router.put('/settings', validateToken, extractTenantId, async (req, res) => {
+router.put('/settings', validateToken, extractTenantId, validateBody(updateNotificationSettingsSchema), async (req, res) => {
   try {
     const {
       rentedExpiryThresholdDays,
@@ -197,7 +202,7 @@ router.put('/settings', validateToken, extractTenantId, async (req, res) => {
 // ============== Test/Debug Routes ==============
 
 // Create a test notification (for debugging)
-router.post('/test', validateToken, extractTenantId, async (req, res) => {
+router.post('/test', validateToken, extractTenantId, validateBody(createTestNotificationSchema), async (req, res) => {
   try {
     const { category, type, title, message, deepLink } = req.body;
 

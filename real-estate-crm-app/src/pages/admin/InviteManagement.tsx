@@ -175,7 +175,7 @@ export default function InviteManagement() {
       const API_URL = import.meta.env.VITE_API_URL as string;
       if (API_URL) {
         try {
-          const seatCheck = await fetch(`${API_URL}/api/subscriptions/check-seat`, {
+          const seatCheck = await fetch(`${API_URL}/subscriptions/check-seat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
           });

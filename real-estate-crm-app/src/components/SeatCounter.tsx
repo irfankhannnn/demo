@@ -24,7 +24,7 @@ export default function SeatCounter({ onUpgradeClick }: SeatCounterProps) {
         const idToken = getIdToken();
         if (!idToken) return;
 
-        const res = await fetch(`${API_URL}/api/subscriptions/current`, {
+        const res = await fetch(`${API_URL}/subscriptions/current`, {
           headers: { Authorization: `Bearer ${idToken}` },
         });
         if (res.ok) {

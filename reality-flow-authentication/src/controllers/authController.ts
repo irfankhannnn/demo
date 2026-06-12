@@ -8,6 +8,7 @@ import { findInvitesByEmail, findInvitesByPhone, deleteInvite } from '../models/
 import { findIdentityBySub } from '../models/authIdentitiesModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
+import { logger } from '../utils/logger';
 
 // --- Zod Schemas ---
 
@@ -120,7 +121,7 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
     // Auto-accept if exactly 1 pending invite
     if (pendingInvites.length === 1) {
       const invite = pendingInvites[0];
-      console.log('[bootstrap] Auto-accepting invite for:', email, 'under tenant:', invite.TenantId);
+      logger.info('[bootstrap] Auto-accepting invite for under tenant', { email, tenantId: invite.TenantId });
 
       const result = await resolveMemberUser(
         sub,
@@ -173,7 +174,7 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
     // No invites and no pre-onboarded agency
     forbidden(res, 'NOT_ONBOARDED', 'You are not onboarded. Please contact the administrator to get onboarded.');
   } catch (error) {
-    console.error('bootstrap error:', error);
+    logger.error('bootstrap error', { error });
     internalError(res, 'Failed to bootstrap user');
   }
 }
@@ -224,7 +225,7 @@ export async function checkInvite(req: Request, res: Response): Promise<void> {
       invites: enrichedInvites,
     });
   } catch (error) {
-    console.error('checkInvite error:', error);
+    logger.error('checkInvite error', { error });
     internalError(res, 'Failed to check invites');
   }
 }
@@ -349,7 +350,7 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
       agency: result.agency ? { agencyName: result.agency.agencyName, status: result.agency.status } : null,
     });
   } catch (error) {
-    console.error('acceptInvite error:', error);
+    logger.error('acceptInvite error', { error });
     internalError(res, 'Failed to accept invite');
   }
 }
@@ -410,7 +411,7 @@ export async function me(req: Request, res: Response): Promise<void> {
         : null,
     });
   } catch (error) {
-    console.error('me error:', error);
+    logger.error('me error', { error });
     internalError(res, 'Failed to get user profile');
   }
 }
@@ -456,7 +457,7 @@ export async function patchProfile(req: Request, res: Response): Promise<void> {
 
     ok(res, { message: 'Profile updated successfully' });
   } catch (error) {
-    console.error('patchProfile error:', error);
+    logger.error('patchProfile error', { error });
     internalError(res, 'Failed to update profile');
   }
 }
@@ -510,7 +511,8 @@ export async function patchAgency(req: Request, res: Response): Promise<void> {
 
     ok(res, { message: 'Agency configuration updated successfully' });
   } catch (error) {
-    console.error('patchAgency error:', error);
+    logger.error('patchAgency error', { error });
     internalError(res, 'Failed to update agency configuration');
   }
 }
+

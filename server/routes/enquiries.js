@@ -25,6 +25,15 @@ import {
 } from '../crmDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  createEnquirySchema,
+  updateEnquirySchema,
+  convertEnquirySchema,
+  closeEnquirySchema,
+  createEnquiryNoteSchema,
+  updateEnquiryNoteSchema,
+} from '../validation/otherSchemas.js';
 
 const router = express.Router();
 
@@ -80,7 +89,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, validateBody(createEnquiryNoteSchema), async (req, res) => {
   try {
     const note = await createEnquiryNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -90,7 +99,7 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, validateBody(updateEnquiryNoteSchema), async (req, res) => {
   try {
     const updated = await updateEnquiryNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -151,7 +160,7 @@ router.post('/consultation', extractTenantIdOptional, async (req, res) => {
  * Create an enquiry manually (CRM - auth required)
  * POST /api/enquiries
  */
-router.post('/', validateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, validateBody(createEnquirySchema), async (req, res) => {
   try {
     const {
       formType,
@@ -258,7 +267,7 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
  * Update enquiry status/notes (CRM - auth required)
  * PUT /api/enquiries/:id
  */
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, validateBody(updateEnquirySchema), async (req, res) => {
   try {
     const { status, notes, assignedTo } = req.body;
     
@@ -280,7 +289,7 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
  * Uses upsert logic - if owner/tenant with same phone exists, updates them instead of creating duplicate
  * POST /api/enquiries/:id/convert
  */
-router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/convert', validateToken, extractTenantId, validateBody(convertEnquirySchema), async (req, res) => {
   try {
     const { convertTo } = req.body; // 'owner' or 'tenant'
     
@@ -472,7 +481,7 @@ router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => 
  * Close enquiry (CRM - auth required)
  * PUT /api/enquiries/:id/close
  */
-router.put('/:id/close', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/close', validateToken, extractTenantId, validateBody(closeEnquirySchema), async (req, res) => {
   try {
     const { reason } = req.body;
     

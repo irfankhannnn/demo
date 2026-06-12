@@ -31,7 +31,7 @@ export default function AIEmployeeStatus() {
     try {
       setLoading(true);
       const idToken = getIdToken();
-      const res = await fetch(`${API_URL}/api/ai-employee/status`, {
+      const res = await fetch(`${API_URL}/ai-employee/status`, {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 

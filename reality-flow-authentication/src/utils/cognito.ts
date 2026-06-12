@@ -33,13 +33,17 @@ export function extractClaims(req: Request): CognitoClaims {
     return apiGwContext as CognitoClaims;
   }
 
-  // Local dev: read from header (set by local auth middleware)
-  const claimsHeader = req.headers['x-cognito-claims'];
-  if (claimsHeader && typeof claimsHeader === 'string') {
-    try {
-      return JSON.parse(claimsHeader) as CognitoClaims;
-    } catch {
-      throw new Error('Invalid x-cognito-claims header');
+  // Local dev ONLY: read from header (set by local auth middleware)
+  // NEVER allow this fallback in production — it is a complete auth bypass vector.
+  const isDev = process.env.NODE_ENV === 'development' || process.env.ENV === 'dev';
+  if (isDev) {
+    const claimsHeader = req.headers['x-cognito-claims'];
+    if (claimsHeader && typeof claimsHeader === 'string') {
+      try {
+        return JSON.parse(claimsHeader) as CognitoClaims;
+      } catch {
+        throw new Error('Invalid x-cognito-claims header');
+      }
     }
   }
 

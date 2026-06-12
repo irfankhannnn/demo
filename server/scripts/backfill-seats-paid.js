@@ -5,7 +5,7 @@
  * If no Subscriptions row exists, creates a trial subscription.
  *
  * Usage:
- *   node server/scripts/backfill-seats-paid.js
+ *   node server/scripts/backfill-seats-paid.js [--dry-run]
  *
  * Environment:
  *   DYNAMODB_ENDPOINT (optional, for local DDB)
@@ -23,6 +23,7 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 
 const SEAT_DEFAULTS = { solo: 1, team: 3, teamplus: 5, free: 1 };
+const IS_DRY_RUN = process.argv.includes('--dry-run');
 
 async function getAllTenantIds() {
   // Scan a known CRM table to find all distinct tenantIds
@@ -47,7 +48,7 @@ async function getAllTenantIds() {
 }
 
 async function backfill() {
-  console.log('[backfill-seats-paid] Starting...');
+  console.log(`[backfill-seats-paid] Starting... ${IS_DRY_RUN ? '(DRY RUN — no writes)' : ''}`);
   const tenantIds = await getAllTenantIds();
   console.log(`[backfill-seats-paid] Found ${tenantIds.length} tenants`);
 
@@ -59,10 +60,13 @@ async function backfill() {
     const existing = await getSubscription(tenantId);
 
     if (!existing) {
-      // No subscription row — create trial
-      await createTrialSubscription(tenantId, 'solo');
+      if (IS_DRY_RUN) {
+        console.log(`  [DRY-RUN] Would CREATE ${tenantId} → solo trial`);
+      } else {
+        await createTrialSubscription(tenantId, 'solo');
+        console.log(`  [CREATE] ${tenantId} → solo trial`);
+      }
       created++;
-      console.log(`  [CREATE] ${tenantId} → solo trial`);
       continue;
     }
 
@@ -74,18 +78,21 @@ async function backfill() {
       continue;
     }
 
-    // Update seatsPaid to match plan default
-    await docClient.send(new UpdateCommand({
-      TableName: process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions',
-      Key: { tenantId },
-      UpdateExpression: 'SET seatsPaid = :seats, updatedAt = :now',
-      ExpressionAttributeValues: {
-        ':seats': expected,
-        ':now': new Date().toISOString(),
-      },
-    }));
+    if (IS_DRY_RUN) {
+      console.log(`  [DRY-RUN] Would UPDATE ${tenantId} → seatsPaid=${expected} (plan=${plan})`);
+    } else {
+      await docClient.send(new UpdateCommand({
+        TableName: process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions',
+        Key: { tenantId },
+        UpdateExpression: 'SET seatsPaid = :seats, updatedAt = :now',
+        ExpressionAttributeValues: {
+          ':seats': expected,
+          ':now': new Date().toISOString(),
+        },
+      }));
+      console.log(`  [UPDATE] ${tenantId} → seatsPaid=${expected} (plan=${plan})`);
+    }
     updated++;
-    console.log(`  [UPDATE] ${tenantId} → seatsPaid=${expected} (plan=${plan})`);
   }
 
   console.log(`[backfill-seats-paid] Done. Created: ${created}, Updated: ${updated}, Skipped: ${skipped}`);

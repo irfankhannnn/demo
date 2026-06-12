@@ -5,8 +5,7 @@ import {
   getCustomers,
   getCustomer,
   updateCustomer,
-  // deleteCustomer, // DISABLED: Delete operations not allowed
-  createCustomerNote,
+    createCustomerNote,
   getCustomerNotes,
   updateCustomerNote,
   deleteCustomerNote,
@@ -18,15 +17,13 @@ import {
   getOwners,
   getOwner,
   updateOwner,
-  // deleteOwner, // DISABLED: Delete operations not allowed
-  createProperty,
+    createProperty,
   getProperties,
   getPropertiesByStatus,
   getPropertiesByOwner,
   getProperty,
   updateProperty,
-  // deleteProperty, // DISABLED: Delete operations not allowed
-  incrementPropertyViews,
+    incrementPropertyViews,
   getCRMMetrics,
   // New: Agreement, Verification, Document operations
   createPropertyAgreement,
@@ -72,8 +69,20 @@ import {
   moveTenantToHistory,
 } from '../crmHelpers.js';
 import validateToken from '../middleware/validateToken.js';
+import apiKeyAuth from '../middleware/apiKeyAuth.js';
 import { uploadToS3, deleteFromS3, getSignedUrl as getS3SignedUrl } from '../s3Service.js';
 import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  createCustomerSchema,
+  updateCustomerSchema,
+  createOwnerSchema,
+  updateOwnerSchema,
+  createPropertySchema,
+  updatePropertySchema,
+  createMeetingSchema,
+  updateMeetingSchema,
+} from '../validation/crmSchemas.js';
 
 const router = express.Router();
 const upload = multer({ 
@@ -114,7 +123,7 @@ router.get('/customers', validateToken, extractTenantId, async (req, res) => {
 
     res.json({ customers, total, limit: appliedLimit, offset: appliedOffset });
   } catch (error) {
-    console.error('Get customers error:', error);
+    logger.error('crm.get_customers_error_', { message: 'Get customers error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -128,37 +137,32 @@ router.get('/customers/:id', validateToken, extractTenantId, async (req, res) =>
     }
     res.json(customer);
   } catch (error) {
-    console.error('Get customer error:', error);
+    logger.error('crm.get_customer_error_', { message: 'Get customer error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Create customer
-router.post('/customers', validateToken, extractTenantId, async (req, res) => {
+router.post('/customers', validateToken, extractTenantId, validateBody(createCustomerSchema), async (req, res) => {
   try {
     const customer = await createCustomer(req.tenantId, req.body);
     res.status(201).json(customer);
   } catch (error) {
-    console.error('Create customer error:', error);
+    logger.error('crm.create_customer_error_', { message: 'Create customer error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Update customer
-router.put('/customers/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id', validateToken, extractTenantId, validateBody(updateCustomerSchema), async (req, res) => {
   try {
     const customer = await updateCustomer(req.tenantId, req.params.id, req.body);
     res.json(customer);
   } catch (error) {
-    console.error('Update customer error:', error);
+    logger.error('crm.update_customer_error_', { message: 'Update customer error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
-
-// Delete customer - DISABLED: Delete operations are not allowed
-// router.delete('/customers/:id', validateToken, extractTenantId, async (req, res) => {
-//   res.status(403).json({ error: 'Delete operations are not allowed' });
-// });
 
 // Get customer notes
 router.get('/customers/:id/notes', validateToken, extractTenantId, async (req, res) => {
@@ -166,7 +170,7 @@ router.get('/customers/:id/notes', validateToken, extractTenantId, async (req, r
     const notes = await getCustomerNotes(req.tenantId, req.params.id);
     res.json(notes);
   } catch (error) {
-    console.error('Get customer notes error:', error);
+    logger.error('crm.get_customer_notes_error_', { message: 'Get customer notes error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -177,7 +181,7 @@ router.post('/customers/:id/notes', validateToken, extractTenantId, async (req, 
     const note = await createCustomerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
   } catch (error) {
-    console.error('Create customer note error:', error);
+    logger.error('crm.create_customer_note_error_', { message: 'Create customer note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -187,7 +191,7 @@ router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, async
     const updated = await updateCustomerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
   } catch (error) {
-    console.error('Update customer note error:', error);
+    logger.error('crm.update_customer_note_error_', { message: 'Update customer note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -197,7 +201,7 @@ router.delete('/customers/:id/notes/:noteId', validateToken, extractTenantId, as
     await deleteCustomerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete customer note error:', error);
+    logger.error('crm.delete_customer_note_error_', { message: 'Delete customer note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -341,7 +345,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       sellerCount: owners.filter(o => o.isSeller).length,
     });
   } catch (error) {
-    console.error('Get owners error:', error);
+    logger.error('crm.get_owners_error_', { message: 'Get owners error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -355,29 +359,29 @@ router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
     }
     res.json(owner);
   } catch (error) {
-    console.error('Get owner error:', error);
+    logger.error('crm.get_owner_error_', { message: 'Get owner error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Create owner
-router.post('/owners', validateToken, extractTenantId, async (req, res) => {
+router.post('/owners', validateToken, extractTenantId, validateBody(createOwnerSchema), async (req, res) => {
   try {
     const owner = await createOwner(req.tenantId, req.body);
     res.status(201).json(owner);
   } catch (error) {
-    console.error('Create owner error:', error);
+    logger.error('crm.create_owner_error_', { message: 'Create owner error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Update owner
-router.put('/owners/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/owners/:id', validateToken, extractTenantId, validateBody(updateOwnerSchema), async (req, res) => {
   try {
     const owner = await updateOwner(req.tenantId, req.params.id, req.body);
     res.json(owner);
   } catch (error) {
-    console.error('Update owner error:', error);
+    logger.error('crm.update_owner_error_', { message: 'Update owner error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -388,7 +392,7 @@ router.get('/owners/:id/notes', validateToken, extractTenantId, async (req, res)
     const notes = await getOwnerNotes(req.tenantId, req.params.id);
     res.json(notes);
   } catch (error) {
-    console.error('Get owner notes error:', error);
+    logger.error('crm.get_owner_notes_error_', { message: 'Get owner notes error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -398,7 +402,7 @@ router.post('/owners/:id/notes', validateToken, extractTenantId, async (req, res
     const note = await createOwnerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
   } catch (error) {
-    console.error('Create owner note error:', error);
+    logger.error('crm.create_owner_note_error_', { message: 'Create owner note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -408,7 +412,7 @@ router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (r
     const updated = await updateOwnerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
   } catch (error) {
-    console.error('Update owner note error:', error);
+    logger.error('crm.update_owner_note_error_', { message: 'Update owner note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -418,7 +422,7 @@ router.delete('/owners/:id/notes/:noteId', validateToken, extractTenantId, async
     await deleteOwnerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete owner note error:', error);
+    logger.error('crm.delete_owner_note_error_', { message: 'Delete owner note error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -451,7 +455,7 @@ router.get('/owners/lookup/by-phone', validateToken, extractTenantId, async (req
     
     res.json({ found: true, owner: ownerWithUrls });
   } catch (error) {
-    console.error('Lookup owner by phone error:', error);
+    logger.error('crm.lookup_owner_by_phone_error_', { message: 'Lookup owner by phone error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -471,7 +475,7 @@ router.get('/customers/lookup/by-phone', validateToken, extractTenantId, async (
     
     res.json({ found: true, customer });
   } catch (error) {
-    console.error('Lookup customer by phone error:', error);
+    logger.error('crm.lookup_customer_by_phone_error_', { message: 'Lookup customer by phone error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -502,7 +506,7 @@ router.get('/owners/:id/properties', validateToken, extractTenantId, async (req,
     
     res.json(propertiesWithUrls);
   } catch (error) {
-    console.error('Get owner properties error:', error);
+    logger.error('crm.get_owner_properties_error_', { message: 'Get owner properties error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -567,13 +571,13 @@ router.get('/properties', validateToken, extractTenantId, async (req, res) => {
       offset: pageOffset,
     });
   } catch (error) {
-    console.error('Get properties error:', error);
+    logger.error('crm.get_properties_error_', { message: 'Get properties error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Get public properties (for /properties page - NO owner info)
-router.get('/properties/public/list', extractTenantIdOptional, async (req, res) => {
+router.get('/properties/public/list', apiKeyAuth, extractTenantIdOptional, async (req, res) => {
   try {
     // Tenant ID is optional for public endpoint, but if provided, filter by it
     if (!req.tenantId) {
@@ -615,7 +619,7 @@ router.get('/properties/public/list', extractTenantIdOptional, async (req, res) 
     
     res.json(publicProperties);
   } catch (error) {
-    console.error('Get public properties error:', error);
+    logger.error('crm.get_public_properties_error_', { message: 'Get public properties error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -658,7 +662,7 @@ router.get('/properties/:id', validateToken, extractTenantId, async (req, res) =
       videos,
     });
   } catch (error) {
-    console.error('Get property error:', error);
+    logger.error('crm.get_property_error_', { message: 'Get property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -680,13 +684,13 @@ router.get('/properties/:id/rental-history', validateToken, extractTenantId, asy
       } : null,
     });
   } catch (error) {
-    console.error('Get property rental history error:', error);
+    logger.error('crm.get_property_rental_history_error_', { message: 'Get property rental history error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Get public property details
-router.get('/properties/public/:id', extractTenantIdOptional, async (req, res) => {
+router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async (req, res) => {
   try {
     if (!req.tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required for public property' });
@@ -718,37 +722,32 @@ router.get('/properties/public/:id', extractTenantIdOptional, async (req, res) =
     const { ownerId, ...publicData } = property;
     res.json({ ...publicData, images, videos });
   } catch (error) {
-    console.error('Get public property error:', error);
+    logger.error('crm.get_public_property_error_', { message: 'Get public property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Create property
-router.post('/properties', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties', validateToken, extractTenantId, validateBody(createPropertySchema), async (req, res) => {
   try {
     const property = await createProperty(req.tenantId, req.body);
     res.status(201).json(property);
   } catch (error) {
-    console.error('Create property error:', error);
+    logger.error('crm.create_property_error_', { message: 'Create property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Update property
-router.put('/properties/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/properties/:id', validateToken, extractTenantId, validateBody(updatePropertySchema), async (req, res) => {
   try {
     const property = await updateProperty(req.tenantId, req.params.id, req.body);
     res.json(property);
   } catch (error) {
-    console.error('Update property error:', error);
+    logger.error('crm.update_property_error_', { message: 'Update property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
-
-// Delete property - DISABLED: Delete operations are not allowed
-// router.delete('/properties/:id', validateToken, extractTenantId, async (req, res) => {
-//   res.status(403).json({ error: 'Delete operations are not allowed' });
-// });
 
 // Upload property images
 router.post('/properties/:id/images', validateToken, extractTenantId, upload.array('images', 10), async (req, res) => {
@@ -773,7 +772,7 @@ router.post('/properties/:id/images', validateToken, extractTenantId, upload.arr
       images: uploadedKeys,
     });
   } catch (error) {
-    console.error('Upload property images error:', error);
+    logger.error('crm.upload_property_images_error_', { message: 'Upload property images error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -801,7 +800,7 @@ router.post('/properties/:id/videos', validateToken, extractTenantId, upload.arr
       videos: uploadedKeys,
     });
   } catch (error) {
-    console.error('Upload property videos error:', error);
+    logger.error('crm.upload_property_videos_error_', { message: 'Upload property videos error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -822,7 +821,7 @@ router.delete('/properties/:id/images/:key', validateToken, extractTenantId, asy
     
     res.json({ message: 'Image deleted successfully' });
   } catch (error) {
-    console.error('Delete property image error:', error);
+    logger.error('crm.delete_property_image_error_', { message: 'Delete property image error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -843,7 +842,7 @@ router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, asy
     
     res.json({ message: 'Video deleted successfully' });
   } catch (error) {
-    console.error('Delete property video error:', error);
+    logger.error('crm.delete_property_video_error_', { message: 'Delete property video error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -909,7 +908,7 @@ router.post('/owners/:id/documents', validateToken, extractTenantId, upload.fiel
 
     res.json(ownerWithUrls);
   } catch (error) {
-    console.error('Upload owner documents error:', error);
+    logger.error('crm.upload_owner_documents_error_', { message: 'Upload owner documents error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -931,7 +930,7 @@ router.get('/owners/:id/with-documents', validateToken, extractTenantId, async (
 
     res.json(ownerWithUrls);
   } catch (error) {
-    console.error('Get owner with documents error:', error);
+    logger.error('crm.get_owner_with_documents_error_', { message: 'Get owner with documents error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -997,7 +996,7 @@ router.post('/customers/:id/documents', validateToken, extractTenantId, upload.f
 
     res.json(customerWithUrls);
   } catch (error) {
-    console.error('Upload customer documents error:', error);
+    logger.error('crm.upload_customer_documents_error_', { message: 'Upload customer documents error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1019,7 +1018,7 @@ router.get('/customers/:id/with-documents', validateToken, extractTenantId, asyn
 
     res.json(customerWithUrls);
   } catch (error) {
-    console.error('Get customer with documents error:', error);
+    logger.error('crm.get_customer_with_documents_error_', { message: 'Get customer with documents error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1041,7 +1040,7 @@ router.get('/properties/:id/agreements', validateToken, extractTenantId, async (
     
     res.json(agreementsWithUrls);
   } catch (error) {
-    console.error('Get property agreements error:', error);
+    logger.error('crm.get_property_agreements_error_', { message: 'Get property agreements error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1071,7 +1070,7 @@ router.post('/properties/:id/agreements', validateToken, extractTenantId, upload
     const agreement = await createPropertyAgreement(req.tenantId, req.params.id, agreementData);
     res.status(201).json(agreement);
   } catch (error) {
-    console.error('Create property agreement error:', error);
+    logger.error('crm.create_property_agreement_error_', { message: 'Create property agreement error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1096,7 +1095,7 @@ router.put('/properties/:id/agreements/:agreementId', validateToken, extractTena
     await updatePropertyAgreement(req.tenantId, req.params.id, req.params.agreementId, agreementData);
     res.json({ success: true });
   } catch (error) {
-    console.error('Update property agreement error:', error);
+    logger.error('crm.update_property_agreement_error_', { message: 'Update property agreement error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1118,7 +1117,7 @@ router.get('/properties/:id/verifications', validateToken, extractTenantId, asyn
     
     res.json(verificationsWithUrls);
   } catch (error) {
-    console.error('Get property verifications error:', error);
+    logger.error('crm.get_property_verifications_error_', { message: 'Get property verifications error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1148,7 +1147,7 @@ router.post('/properties/:id/verifications', validateToken, extractTenantId, upl
     const verification = await createPropertyVerification(req.tenantId, req.params.id, verificationData);
     res.status(201).json(verification);
   } catch (error) {
-    console.error('Create property verification error:', error);
+    logger.error('crm.create_property_verification_error_', { message: 'Create property verification error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1173,7 +1172,7 @@ router.put('/properties/:id/verifications/:verificationId', validateToken, extra
     await updatePropertyVerification(req.tenantId, req.params.id, req.params.verificationId, verificationData);
     res.json({ success: true });
   } catch (error) {
-    console.error('Update property verification error:', error);
+    logger.error('crm.update_property_verification_error_', { message: 'Update property verification error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1195,7 +1194,7 @@ router.get('/properties/:id/documents', validateToken, extractTenantId, async (r
     
     res.json(documentsWithUrls);
   } catch (error) {
-    console.error('Get property documents error:', error);
+    logger.error('crm.get_property_documents_error_', { message: 'Get property documents error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1262,7 +1261,7 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
 
     res.status(201).json(created);
   } catch (error) {
-    console.error('Upload property document error:', error);
+    logger.error('crm.upload_property_document_error_', { message: 'Upload property document error:', error: error?.message });
     res.set({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
@@ -1285,7 +1284,7 @@ router.delete('/properties/:id/documents/:documentId', validateToken, extractTen
     await deletePropertyDocument(req.tenantId, req.params.id, req.params.documentId);
     res.json({ message: 'Document deleted successfully' });
   } catch (error) {
-    console.error('Delete property document error:', error);
+    logger.error('crm.delete_property_document_error_', { message: 'Delete property document error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1317,7 +1316,7 @@ router.get('/properties/list/detailed', validateToken, extractTenantId, async (r
     
     res.json(propertiesWithUrls);
   } catch (error) {
-    console.error('Get detailed properties error:', error);
+    logger.error('crm.get_detailed_properties_error_', { message: 'Get detailed properties error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1329,7 +1328,7 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
     const metrics = await getCRMMetrics(req.tenantId);
     res.json(metrics);
   } catch (error) {
-    console.error('Get CRM metrics error:', error);
+    logger.error('crm.get_crm_metrics_error_', { message: 'Get CRM metrics error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1339,13 +1338,28 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
 router.get('/analytics/business', validateToken, extractTenantId, async (req, res) => {
   try {
     // Get all properties with basic details
-    const { properties } = await getProperties(req.tenantId);
-    const { customers } = await getCustomers(req.tenantId);
-    const { owners } = await getOwners(req.tenantId);
+    const [{ properties }, { customers }, { owners }] = await Promise.all([
+      getProperties(req.tenantId),
+      getCustomers(req.tenantId),
+      getOwners(req.tenantId),
+    ]);
 
     // Create maps for quick lookup
     const ownerMap = new Map(owners.map(o => [o.ownerId, o]));
     const customerMap = new Map(customers.map(c => [c.customerId, c]));
+    
+    // Fetch all agreements and verifications in parallel (avoid N+1 queries)
+    const [allAgreements, allVerifications] = await Promise.all([
+      Promise.all(properties.map(p => getPropertyAgreements(req.tenantId, p.propertyId))),
+      Promise.all(properties.map(p => getPropertyVerifications(req.tenantId, p.propertyId))),
+    ]);
+
+    const agreementsByProperty = new Map();
+    const verificationsByProperty = new Map();
+    properties.forEach((p, i) => {
+      agreementsByProperty.set(p.propertyId, allAgreements[i]);
+      verificationsByProperty.set(p.propertyId, allVerifications[i]);
+    });
     
     // Calculate business metrics
     const now = new Date();
@@ -1363,7 +1377,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     const agreementExpiries = [];
     const verificationStatus = [];
     
-    // Process each property and fetch its agreements and verifications
+    // Process each property using pre-fetched agreements and verifications
     for (const property of properties) {
       // Calculate revenue for occupied properties (status=rented OR has a tenant linked)
       const isOccupied = property.status === 'rented' || !!property.tenantCustomerId;
@@ -1372,9 +1386,9 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
         activeProperties++;
       }
       
-      // Fetch agreements and verifications for this property
-      const agreements = await getPropertyAgreements(req.tenantId, property.propertyId);
-      const verifications = await getPropertyVerifications(req.tenantId, property.propertyId);
+      // Use pre-fetched agreements and verifications
+      const agreements = agreementsByProperty.get(property.propertyId) || [];
+      const verifications = verificationsByProperty.get(property.propertyId) || [];
       
       // Get owner and tenant names
       const owner = ownerMap.get(property.ownerId);
@@ -1500,7 +1514,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     
     res.json(analytics);
   } catch (error) {
-    console.error('Get business analytics error:', error);
+    logger.error('crm.get_business_analytics_error_', { message: 'Get business analytics error:', error: error?.message });
     res.set({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
@@ -1534,7 +1548,7 @@ router.get('/meetings', validateToken, extractTenantId, async (req, res) => {
     const meetings = await getMeetings(req.tenantId, filters);
     res.json(meetings);
   } catch (error) {
-    console.error('Get meetings error:', error);
+    logger.error('crm.get_meetings_error_', { message: 'Get meetings error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1546,7 +1560,7 @@ router.get('/meetings/upcoming', validateToken, extractTenantId, async (req, res
     const meetings = await getUpcomingMeetings(req.tenantId, days);
     res.json(meetings);
   } catch (error) {
-    console.error('Get upcoming meetings error:', error);
+    logger.error('crm.get_upcoming_meetings_error_', { message: 'Get upcoming meetings error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1567,7 +1581,7 @@ router.get('/meetings/metrics', validateToken, extractTenantId, async (req, res)
     const metrics = await getMeetingMetrics(req.tenantId);
     res.json(metrics);
   } catch (error) {
-    console.error('Get meeting metrics error:', error);
+    logger.error('crm.get_meeting_metrics_error_', { message: 'Get meeting metrics error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1579,7 +1593,7 @@ router.get('/meetings/entity/:entityType/:entityId', validateToken, extractTenan
     const meetings = await getMeetingsByEntity(req.tenantId, entityType, entityId);
     res.json(meetings);
   } catch (error) {
-    console.error('Get meetings by entity error:', error);
+    logger.error('crm.get_meetings_by_entity_error_', { message: 'Get meetings by entity error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1593,7 +1607,7 @@ router.get('/meetings/:id', validateToken, extractTenantId, async (req, res) => 
     }
     res.json(meeting);
   } catch (error) {
-    console.error('Get meeting error:', error);
+    logger.error('crm.get_meeting_error_', { message: 'Get meeting error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1604,29 +1618,29 @@ router.get('/meetings/:id/history', validateToken, extractTenantId, async (req, 
     const history = await getMeetingHistory(req.tenantId, req.params.id);
     res.json(history);
   } catch (error) {
-    console.error('Get meeting history error:', error);
+    logger.error('crm.get_meeting_history_error_', { message: 'Get meeting history error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Create meeting
-router.post('/meetings', validateToken, extractTenantId, async (req, res) => {
+router.post('/meetings', validateToken, extractTenantId, validateBody(createMeetingSchema), async (req, res) => {
   try {
     const meeting = await createMeeting(req.tenantId, req.body);
     res.status(201).json(meeting);
   } catch (error) {
-    console.error('Create meeting error:', error);
+    logger.error('crm.create_meeting_error_', { message: 'Create meeting error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Update meeting
-router.put('/meetings/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/meetings/:id', validateToken, extractTenantId, validateBody(updateMeetingSchema), async (req, res) => {
   try {
     const meeting = await updateMeeting(req.tenantId, req.params.id, req.body);
     res.json(meeting);
   } catch (error) {
-    console.error('Update meeting error:', error);
+    logger.error('crm.update_meeting_error_', { message: 'Update meeting error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1637,7 +1651,7 @@ router.delete('/meetings/:id', validateToken, extractTenantId, async (req, res) 
     await deleteMeeting(req.tenantId, req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete meeting error:', error);
+    logger.error('crm.delete_meeting_error_', { message: 'Delete meeting error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1651,7 +1665,7 @@ router.get('/search/owners', validateToken, extractTenantId, async (req, res) =>
     const results = await searchOwners(req.tenantId, q);
     res.json(results);
   } catch (error) {
-    console.error('Search owners error:', error);
+    logger.error('crm.search_owners_error_', { message: 'Search owners error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1663,7 +1677,7 @@ router.get('/search/customers', validateToken, extractTenantId, async (req, res)
     const results = await searchCustomers(req.tenantId, q);
     res.json(results);
   } catch (error) {
-    console.error('Search customers error:', error);
+    logger.error('crm.search_customers_error_', { message: 'Search customers error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1676,7 +1690,7 @@ router.get('/search/properties', validateToken, extractTenantId, async (req, res
     const results = await searchProperties(req.tenantId, q, filters);
     res.json(results);
   } catch (error) {
-    console.error('Search properties error:', error);
+    logger.error('crm.search_properties_error_', { message: 'Search properties error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1694,7 +1708,7 @@ router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, asy
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
-    console.error('List property for sale error:', error);
+    logger.error('crm.list_property_for_sale_error_', { message: 'List property for sale error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1710,7 +1724,7 @@ router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, asy
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
-    console.error('List property for rent error:', error);
+    logger.error('crm.list_property_for_rent_error_', { message: 'List property for rent error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1734,7 +1748,7 @@ router.post('/properties/:id/mark-sold', validateToken, extractTenantId, async (
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
-    console.error('Mark property sold error:', error);
+    logger.error('crm.mark_property_sold_error_', { message: 'Mark property sold error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1750,7 +1764,7 @@ router.post('/properties/:id/mark-rented', validateToken, extractTenantId, async
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
-    console.error('Mark property rented error:', error);
+    logger.error('crm.mark_property_rented_error_', { message: 'Mark property rented error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1762,7 +1776,7 @@ router.post('/properties/:id/vacate', validateToken, extractTenantId, async (req
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json({ ...result, property: updatedProperty });
   } catch (error) {
-    console.error('Vacate property error:', error);
+    logger.error('crm.vacate_property_error_', { message: 'Vacate property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1779,7 +1793,7 @@ router.post('/buyers/:id/purchases', validateToken, extractTenantId, async (req,
     const purchase = await addPurchaseToBuyer(req.tenantId, req.params.id, purchaseDetails);
     res.status(201).json(purchase);
   } catch (error) {
-    console.error('Add purchase to buyer error:', error);
+    logger.error('crm.add_purchase_to_buyer_error_', { message: 'Add purchase to buyer error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1796,7 +1810,7 @@ router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, 
     );
     res.json(updatedPurchase);
   } catch (error) {
-    console.error('Update buyer purchase error:', error);
+    logger.error('crm.update_buyer_purchase_error_', { message: 'Update buyer purchase error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1810,7 +1824,7 @@ router.put('/customers/:id/current-rental', validateToken, extractTenantId, asyn
     const updatedRental = await updateCurrentRental(req.tenantId, req.params.id, rentalDetails);
     res.json(updatedRental);
   } catch (error) {
-    console.error('Update current rental error:', error);
+    logger.error('crm.update_current_rental_error_', { message: 'Update current rental error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1821,7 +1835,7 @@ router.post('/customers/:id/archive-rental', validateToken, extractTenantId, asy
     const result = await moveTenantToHistory(req.tenantId, req.params.id);
     res.json(result);
   } catch (error) {
-    console.error('Archive rental error:', error);
+    logger.error('crm.archive_rental_error_', { message: 'Archive rental error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1838,7 +1852,7 @@ router.get('/customers/:id/rental-history', validateToken, extractTenantId, asyn
       rentalHistory: customer.rentalHistory || [],
     });
   } catch (error) {
-    console.error('Get rental history error:', error);
+    logger.error('crm.get_rental_history_error_', { message: 'Get rental history error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

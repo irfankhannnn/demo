@@ -1,7 +1,8 @@
 import express from 'express';
-import { validateToken } from '../middleware/validateToken.js';
+import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
+import { createTrialSubscription } from '../subscriptionService.js';
 
 const router = express.Router();
 
@@ -13,12 +14,27 @@ const router = express.Router();
 // === [LAUNCH ROUTES] ===
 // PR-L: Post-registration hook — called by the frontend after successful signup
 // Adds new trial user to Brevo "Trial Signups" list for onboarding emails
+// Also creates a trial subscription for the new tenant
 router.post('/post-registration', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { email, displayName, phone, utm_source, utm_campaign, utm_medium, tenantId: bodyTenantId } = req.body;
+    const { email, displayName, phone, utm_source, utm_campaign, utm_medium } = req.body;
     const userEmail = email || req.user?.email;
     const userId = req.user?.sub || req.user?.userId || 'unknown';
-    const tenantId = req.tenantId || bodyTenantId;
+    const tenantId = req.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID missing from token context' });
+    }
+
+    // Create trial subscription for new tenant
+    try {
+      await createTrialSubscription(tenantId, 'solo');
+      logger.info('auth.postRegistration.subscription.created', { tenantId });
+    } catch (subErr) {
+      // If subscription already exists, that's fine
+      if (!subErr.message?.includes('ConditionFailed')) {
+        logger.warn('auth.postRegistration.subscription.error', { tenantId, error: subErr.message });
+      }
+    }
 
     // Brevo: Add contact to Trial Signups list
     if (process.env.BREVO_API_KEY && process.env.BREVO_TRIAL_LIST_ID) {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { getConfig } from '../config/config';
 import { ok, badRequest } from '../utils/http';
 import { generateCodeVerifier, generateCodeChallenge } from '../utils/pkce';
+import { logger } from '../utils/logger';
 
 /**
  * GET /auth/google/url
@@ -36,7 +37,7 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
       authUrl.searchParams.set('state', state);
     }
     
-    console.log('[GOOGLE_AUTH_URL] Generated auth URL for redirect_uri:', redirect_uri);
+    logger.info('[GOOGLE_AUTH_URL] Generated auth URL for redirect_uri', { redirect_uri });
     
     ok(res, {
       authUrl: authUrl.toString(),
@@ -44,7 +45,8 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
       state: state || null,
     });
   } catch (error) {
-    console.error('[GOOGLE_AUTH_URL] Error:', error);
+    logger.error('[GOOGLE_AUTH_URL] Error', { error });
     badRequest(res, 'Failed to generate Google auth URL');
   }
 }
+

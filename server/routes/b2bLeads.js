@@ -10,6 +10,7 @@ import {
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import validateToken from '../middleware/validateToken.js';
+import { extractTenantId } from '../tenantMiddleware.js';
 import { wrapAwsClient } from '../awsClientWrapper.js';
 
 const router = express.Router();
@@ -165,9 +166,9 @@ router.post('/b2b-leads', async (req, res) => {
 });
 
 // Get all B2B leads (CRM - requires auth)
-router.get('/b2b-leads', validateToken, async (req, res) => {
+router.get('/b2b-leads', validateToken, extractTenantId, async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'];
+    const tenantId = req.tenantId;
     
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
@@ -191,9 +192,9 @@ router.get('/b2b-leads', validateToken, async (req, res) => {
 });
 
 // Get single B2B lead (CRM - requires auth)
-router.get('/b2b-leads/:leadId', validateToken, async (req, res) => {
+router.get('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'];
+    const tenantId = req.tenantId;
     const { leadId } = req.params;
     
     if (!tenantId) {
@@ -223,9 +224,9 @@ router.get('/b2b-leads/:leadId', validateToken, async (req, res) => {
 });
 
 // Update B2B lead (CRM - requires auth)
-router.put('/b2b-leads/:leadId', validateToken, async (req, res) => {
+router.put('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'];
+    const tenantId = req.tenantId;
     const { leadId } = req.params;
     const { status, priority, notes } = req.body;
     
@@ -309,9 +310,9 @@ router.put('/b2b-leads/:leadId', validateToken, async (req, res) => {
 });
 
 // Add note to B2B lead (CRM - requires auth)
-router.post('/b2b-leads/:leadId/notes', validateToken, async (req, res) => {
+router.post('/b2b-leads/:leadId/notes', validateToken, extractTenantId, async (req, res) => {
   try {
-    const tenantId = req.headers['x-tenant-id'];
+    const tenantId = req.tenantId;
     const { leadId } = req.params;
     const { note } = req.body;
     
