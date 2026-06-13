@@ -1,0 +1,14 @@
+=== get-lead ERROR ===
+Timestamp: 2026-06-12T08:14:15.092Z
+
+--- REQUEST ---
+{
+  "method": "GET",
+  "url": "https://4d3u9f3ste.execute-api.ap-south-1.amazonaws.com/dev/api/crm/leads/2332fafc-a71d-4f79-a178-f6e3cd9d5c85"
+}
+
+--- ERROR ---
+{
+  "error": "Unauthorized",
+  "message": "Invalid or expired token"
+}

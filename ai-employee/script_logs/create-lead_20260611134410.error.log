@@ -1,0 +1,25 @@
+=== create-lead ERROR ===
+Timestamp: 2026-06-11T13:44:10.255Z
+
+--- REQUEST ---
+{
+  "method": "POST",
+  "url": "https://4d3u9f3ste.execute-api.ap-south-1.amazonaws.com/dev/api/crm/leads",
+  "body": {
+    "name": "Arbaaz",
+    "leadType": "seller",
+    "phone": "8219766666",
+    "sellerRequirement": {
+      "askingPrice": 30000000,
+      "preferredArea": "Andheri West",
+      "bhk": 2,
+      "city": "Mumbai"
+    }
+  }
+}
+
+--- ERROR ---
+{
+  "error": "Unauthorized",
+  "message": "Invalid or expired token"
+}

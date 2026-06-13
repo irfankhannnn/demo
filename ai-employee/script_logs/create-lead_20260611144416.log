@@ -1,0 +1,57 @@
+=== create-lead ===
+Timestamp: 2026-06-11T14:44:16.594Z
+
+--- REQUEST ---
+{
+  "method": "POST",
+  "url": "https://4d3u9f3ste.execute-api.ap-south-1.amazonaws.com/dev/api/crm/leads",
+  "body": {
+    "name": "Arbaaz",
+    "leadType": "seller",
+    "phone": "8219766666",
+    "sellerRequirement": {
+      "askingPrice": 30000000,
+      "preferredArea": "Andheri West",
+      "bhk": 2,
+      "city": "Mumbai"
+    }
+  }
+}
+
+--- RESPONSE ---
+{
+  "PK": "TENANT#acme-corporation-edc6e9feb8#LEAD#2332fafc-a71d-4f79-a178-f6e3cd9d5c85",
+  "SK": "PROFILE",
+  "EntityType": "LEAD",
+  "tenantId": "acme-corporation-edc6e9feb8",
+  "leadId": "2332fafc-a71d-4f79-a178-f6e3cd9d5c85",
+  "leadType": "seller",
+  "name": "Arbaaz",
+  "email": null,
+  "phone": "8219766666",
+  "normalizedPhone": "8219766666",
+  "source": "",
+  "status": "new",
+  "priority": "medium",
+  "assignedTo": null,
+  "buyerRequirement": null,
+  "sellerProperty": null,
+  "tenantRequirement": null,
+  "ownerProperty": null,
+  "convertedAt": null,
+  "convertedTo": null,
+  "notes": "",
+  "history": [
+    {
+      "timestamp": "2026-06-11T14:44:16.206Z",
+      "action": "Lead Created",
+      "details": "New seller lead created",
+      "updatedBy": "Admin"
+    }
+  ],
+  "createdBy": "Admin",
+  "createdAt": "2026-06-11T14:44:16.206Z",
+  "updatedAt": "2026-06-11T14:44:16.206Z",
+  "GSI3PK": "TENANT#acme-corporation-edc6e9feb8#SEARCH",
+  "GSI3SK": "LEAD#seller#arbaaz#8219766666"
+}
