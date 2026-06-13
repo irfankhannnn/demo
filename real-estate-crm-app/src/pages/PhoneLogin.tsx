@@ -156,8 +156,8 @@ export default function PhoneLogin() {
           // Invited user - show onboarding form
           setStep('details');
         } else {
-          // Not invited - show uninvited message
-          setStep('uninvited');
+          // Self-serve trial signup — role selection (admin or member)
+          navigate('/onboarding/role-selection', { replace: true });
         }
         return;
       }

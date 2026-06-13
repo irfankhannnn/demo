@@ -61,12 +61,19 @@ Documents to review: `marketing-and-sales/launch-implement/pre-launch/01-legal/t
 
 ## LEGAL-05: Add Consent Checkbox to Signup Form
 **Priority:** Critical — DPDP + ToS requirement before accepting any user data
+**Status:** [x] Completed — 2026-06-11
 
-- In `real-estate-crm-app/src/pages/RegisterAdmin.tsx` (or wherever signup form exists): add unchecked "I agree to Terms and Privacy Policy" checkbox
-- Block form submit unless checked
-- Log `consentSignedAt` timestamp to DDB `Subscriptions` row on registration
+- [x] Unchecked ToS/Privacy checkbox added to `RegisterAdmin.tsx`; submit blocked unless checked
+- [x] `consentAccepted: true` sent to auth + post-registration endpoints
+- [x] `consentSignedAt` written to `Subscriptions` via `setConsentSignedAt()` in `server/routes/auth.js`
 
-This is a minor code change — assign to any coding agent or do manually in the relevant PR.
+**Implementation Summary:** DPDP consent captured at agency registration; links to `/legal/terms` and `/legal/privacy`. Post-registration hook validates consent and records timestamp.
+
+**Files Changed:** `real-estate-crm-app/src/pages/RegisterAdmin.tsx`, `server/routes/auth.js`, `server/subscriptionService.js`, `coding-agent-brief/01-SHARED-CONTRACTS.md`
+
+**PR Reference:** `cursor/pending-tasks-consolidation-492f`
+
+**Validation Notes:** Checkbox required client-side; API returns 400 if `consentAccepted` missing; Playwright cookie-consent suite passes.
 
 **References:** `pre-launch-prep/P1-legal-foundation.md` Manual Steps §5 · `team-work/MADHU-tasks.md` MAD-001-T6
 

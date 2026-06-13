@@ -2,7 +2,8 @@ import express from 'express';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
-import { createTrialSubscription } from '../subscriptionService.js';
+import { serverTrack } from '../lib/posthog.js';
+import { createTrialSubscription, setConsentSignedAt } from '../subscriptionService.js';
 
 const router = express.Router();
 
@@ -17,12 +18,26 @@ const router = express.Router();
 // Also creates a trial subscription for the new tenant
 router.post('/post-registration', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { email, displayName, phone, utm_source, utm_campaign, utm_medium } = req.body;
+    const {
+      email,
+      displayName,
+      phone,
+      utm_source,
+      utm_campaign,
+      utm_medium,
+      tenantId: bodyTenantId,
+      consentAccepted,
+    } = req.body;
     const userEmail = email || req.user?.email;
     const userId = req.user?.sub || req.user?.userId || 'unknown';
-    const tenantId = req.tenantId;
+    const tenantId = req.tenantId || bodyTenantId;
+
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID missing from token context' });
+    }
+
+    if (!consentAccepted) {
+      return res.status(400).json({ error: 'consent_required', details: 'Terms and Privacy Policy consent is required' });
     }
 
     // Create trial subscription for new tenant
@@ -35,6 +50,16 @@ router.post('/post-registration', validateToken, extractTenantId, async (req, re
         logger.warn('auth.postRegistration.subscription.error', { tenantId, error: subErr.message });
       }
     }
+
+    await setConsentSignedAt(tenantId);
+
+    await serverTrack(userId, 'signup_completed', {
+      tenant_id: tenantId,
+      role: 'admin',
+      utm_source: utm_source || undefined,
+      utm_campaign: utm_campaign || undefined,
+      utm_medium: utm_medium || undefined,
+    });
 
     // Brevo: Add contact to Trial Signups list
     if (process.env.BREVO_API_KEY && process.env.BREVO_TRIAL_LIST_ID) {

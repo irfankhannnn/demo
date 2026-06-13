@@ -2,6 +2,8 @@
 ## Role: All Frontend, Backend & Complete Code Writing
 ## Phases: Pre-Launch (P1–P18) + Week 1 (Day 1–7)
 
+> **Batch update 2026-06-11 (`cursor/pending-tasks-consolidation-492f`):** Progress ~78% pre-launch code. Completed: LEGAL-05 consent, signup funnel, `tests/analytics.spec.ts`, launch DDB CloudFormation, post-registration PostHog. Remaining: ZEE-008-T7 Lighthouse, ZEE-013-T2–T6 Netlify deploy, ZEE-011/014 (blocked on Day 1 ops).
+
 > **How to use this file:**
 > - Each Jira Story has an ID, phase, priority, source reference, and sub-tasks.
 > - "Source File" = the exact `.md` file in `marketing-and-sales/launch-plan-v2/` to read before starting.
@@ -114,7 +116,7 @@
 - [x] **ZEE-003-T6** — Wire Sentry into CRM _(PR-E — CRM only; server Lambda Sentry is out of scope per PR-E spec)_
   - [x] `main.tsx`: Sentry.init with `VITE_SENTRY_DSN`, tracesSampleRate 0.1
   - [x] `identifyUser()` → `Sentry.setUser()`; `resetAnalytics()` → `Sentry.setUser(null)`
-- [ ] **ZEE-003-T7** — Write `tests/analytics.spec.ts` (Playwright)
+- [x] **ZEE-003-T7** — Write `tests/analytics.spec.ts` (Playwright) — ✅ 2026-06-11
   - LP: Accept cookies → assert PostHog + GA4 + Pixel + LinkedIn + Hotjar all load (network intercept)
   - LP: Reject cookies → assert only PostHog loads (in restricted mode); GA4/Pixel/LinkedIn/Hotjar do NOT load
   - CRM: Sign up → assert `signup_started` + `identifyUser` PostHog calls fired; **assert NO GA4/Pixel/LinkedIn network calls in CRM**

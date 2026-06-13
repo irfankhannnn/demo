@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, getRefreshToken, setTokens } from './utils/authStorage';
@@ -18,6 +18,11 @@ import CookieConsentBanner from './components/CookieConsentBanner';
 import NpsModal from './components/NpsModal';
 import NpsEmailLanding from './pages/public/NpsEmailLanding';
 // === [/LAUNCH COMPONENT IMPORTS] ===
+
+function SignupRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/phone-login${location.search}`} replace />;
+}
 
 // Pages
 import AdminLogin from './pages/AdminLogin';
@@ -246,6 +251,7 @@ function App() {
           <Route path="/nps" element={<NpsEmailLanding />} />
           {/* === [/LAUNCH PUBLIC ROUTES] === */}
           <Route path="/login" element={<AdminLogin />} />
+          <Route path="/signup" element={<SignupRedirect />} />
           <Route path="/phone-login" element={<PhoneLogin />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           
