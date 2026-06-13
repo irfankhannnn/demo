@@ -2,9 +2,9 @@ name: Playwright Tests
 
 on:
   pull_request:
-    branches: [main, 'cursor/*']
+    branches: [main, auth_rbac_feature, 'cursor/*']
   push:
-    branches: [main]
+    branches: [main, auth_rbac_feature]
 
 jobs:
   playwright:
