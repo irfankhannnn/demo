@@ -52,7 +52,10 @@ jobs:
       - name: Run Playwright tests
         run: |
           if ls tests/*.spec.ts 1>/dev/null 2>&1; then
-            npx playwright test
+            # Scope to the top-level specs (analytics/consent). The tests/playwright/**
+            # integration suite has its own config + requires a live backend
+            # (PLAYWRIGHT_API_URL/TEST_PHONE/TEST_OTP) and is run separately.
+            npx playwright test tests/*.spec.ts
           else
             echo "No test specs found — skipping (specs are added by feature PRs)"
           fi
