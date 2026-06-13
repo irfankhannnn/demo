@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSubscription } from '../hooks/useSubscription';
 import { openCheckout } from '../lib/razorpay';
+import { trackEvent } from '../lib/analytics';
 
 const PAYWALL_WHITELIST = ['/profile', '/billing', '/legal', '/grievance', '/integrations/ai-employee'];
 
@@ -47,6 +48,15 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
   const isWhitelisted = PAYWALL_WHITELIST.some(p => window.location.pathname.startsWith(p));
   const shouldShow = forceOpen || (isTrialExpired && !isPaying && !(subscription?.gracePeriodActive) && !isWhitelisted);
 
+  useEffect(() => {
+    if (shouldShow) {
+      trackEvent('trial_paywall_shown', {
+        plan: subscription?.plan,
+        forced: Boolean(forceOpen),
+      });
+    }
+  }, [shouldShow, forceOpen, subscription?.plan]);
+
   if (!shouldShow) return null;
 
   const getPrice = (monthly: number) => {
@@ -56,6 +66,11 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
 
   const handleCheckout = async (tierId: string) => {
     setCheckoutLoading(tierId);
+    trackEvent('trial_paywall_clicked', {
+      tier: tierId,
+      billingCycle,
+      includeAI,
+    });
     try {
       const planSuffix = billingCycle === 'annual' ? '_annual' : '_monthly';
       await openCheckout({

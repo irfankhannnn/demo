@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { UserPlus, Mail, Phone, ArrowLeft, Trash2, CheckCircle, XCircle, Clock, Shield, Pencil } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
+import { trackEvent } from '../../lib/analytics';
 import SeatCounter from '../../components/SeatCounter';
 import SeatUpgradeModal from '../../components/SeatUpgradeModal';
 
@@ -181,6 +182,11 @@ export default function InviteManagement() {
           });
           if (seatCheck.status === 402) {
             const seatData = await seatCheck.json();
+            trackEvent('paywall_seat_limit_hit', {
+              tier: seatData.tier,
+              currentSeats: seatData.currentSeats,
+              paidSeats: seatData.paidSeats,
+            });
             setUpgradeOptions(seatData.upgradeOptions || null);
             setUpgradeTier(seatData.tier);
             setShowUpgradeModal(true);
