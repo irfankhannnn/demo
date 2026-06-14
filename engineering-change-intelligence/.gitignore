@@ -1,2 +1,2 @@
-# Keep reports out of git
-engineering-change-intelligence/reports/
+# Keep generated reports out of git
+reports/
