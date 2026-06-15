@@ -25,9 +25,10 @@
   {"@context":"https://schema.org","@type":"SoftwareApplication","name":"RealEstateFlow","description":"AI Employee that runs your real estate broking agency on WhatsApp + Telegram. CRM, lead qualification, Khata book.","applicationCategory":"BusinessApplication","operatingSystem":"Web","offers":[{"@type":"Offer","name":"Solo","price":"999","priceCurrency":"INR"},{"@type":"Offer","name":"Team","price":"1999","priceCurrency":"INR"},{"@type":"Offer","name":"AI Employee","price":"7999","priceCurrency":"INR"}],"url":"https://realestateflow.in","publisher":{"@type":"Organization","name":"RealEstateFlow","url":"https://realestateflow.in"}},
   {"@context":"https://schema.org","@type":"Organization","name":"RealEstateFlow","url":"https://realestateflow.in","logo":"https://realestateflow.in/assets/brand/logo.svg","contactPoint":{"@type":"ContactPoint","contactType":"customer support","email":"info@realestateflow.in","availableLanguage":["English","Hindi","Marathi"]},"address":{"@type":"PostalAddress","addressLocality":"Mumbai","addressRegion":"Maharashtra","addressCountry":"IN"}},
   {"@context":"https://schema.org","@type":"WebSite","name":"RealEstateFlow","url":"https://realestateflow.in"},
-  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is my data safe?","acceptedAnswer":{"@type":"Answer","text":"Yes. Data stored on AWS Mumbai (ap-south-1). Encrypted at rest and in transit. DPDP-compliant. No data leaves India."}},{"@type":"Question","name":"Do I need a credit card for the trial?","acceptedAnswer":{"@type":"Answer","text":"No. 14-day free trial, no card required. Cancel anytime."}},{"@type":"Question","name":"What happens after the trial?","acceptedAnswer":{"@type":"Answer","text":"Choose Solo (₹999/mo), Team (₹1,999/mo), or Team+ (₹4,999/mo). 30-day money-back guarantee."}},{"@type":"Question","name":"Can I import my existing data?","acceptedAnswer":{"@type":"Answer","text":"Yes. CSV import for buyers, owners, properties. Our team helps with onboarding."}},{"@type":"Question","name":"Is GST invoicing included?","acceptedAnswer":{"@type":"Answer","text":"Yes. All plans include GST-compliant invoices with HSN code 998314."}}]}
+  {"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Is my data safe?","acceptedAnswer":{"@type":"Answer","text":"Yes. Data stored on AWS Mumbai (ap-south-1). Encrypted at rest and in transit. DPDP-compliant. No data leaves India."}},{"@type":"Question","name":"Do I need a credit card for the trial?","acceptedAnswer":{"@type":"Answer","text":"No. 14-day free trial, no card required. Cancel anytime."}},{"@type":"Question","name":"What happens after the trial?","acceptedAnswer":{"@type":"Answer","text":"Choose Solo (₹999/mo), Team (₹1,999/mo), or Team+ (₹4,999/mo). 30-day money-back guarantee."}},{"@type":"Question","name":"Can I import my existing data?","acceptedAnswer":{"@type":"Answer","text":"Yes. CSV import for buyers, owners, properties. Our team helps with onboarding."}},{"@type":"Question","name":"Is GST invoicing included?","acceptedAnswer":{"@type":"Answer","text":"Yes. All plans include GST-compliant invoices with HSN code 998314."}},{"@type":"Question","name":"What is an AI Employee for real estate?","acceptedAnswer":{"@type":"Answer","text":"An AI Employee is an autonomous software agent built for real-estate workflows. It replies to new WhatsApp and portal leads within seconds, asks qualifying questions, answers property queries, books site visits, and follows up. Unlike a basic chatbot, it understands context, remembers past chats, and hands off to a human agent at the right moment."}},{"@type":"Question","name":"How is RealEstateFlow different from a normal CRM?","acceptedAnswer":{"@type":"Answer","text":"A normal CRM stores data and waits for you to act. RealEstateFlow pairs an AI that actively works your leads with a CRM that gives you full pipeline visibility, plus a built-in Khata book and GST invoicing. The result: fewer dropped leads, faster replies, and a pipeline that updates itself."}},{"@type":"Question","name":"Can the AI Employee handle WhatsApp enquiries?","acceptedAnswer":{"@type":"Answer","text":"Yes. RealEstateFlow connects to the WhatsApp Business API, so every message from a portal, your website, or WhatsApp directly gets an instant, intelligent reply from the same AI that knows your listings and your team availability. Telegram is supported too."}},{"@type":"Question","name":"How long does setup take?","acceptedAnswer":{"@type":"Answer","text":"Most teams are live within 24 hours. Connecting your WhatsApp and portals takes about 15 minutes; our concierge team configures your AI Employee within a 24-hour SLA and sends a walkthrough on go-live."}},{"@type":"Question","name":"Is my client data safe?","acceptedAnswer":{"@type":"Answer","text":"Yes. Data is encrypted in transit and at rest, hosted in India (AWS Mumbai), and we are DPDP-compliant with a named Grievance Officer. Client conversations are stored securely and never used to train external AI models."}},{"@type":"Question","name":"Which portals do you integrate with?","acceptedAnswer":{"@type":"Answer","text":"We connect with 99acres, MagicBricks, and Housing.com, plus your website contact forms and WhatsApp. If a portal offers a webhook or feed, we can ingest it."}},{"@type":"Question","name":"Do I need technical knowledge to use RealEstateFlow?","acceptedAnswer":{"@type":"Answer","text":"No. It is built for brokers and agency owners, not developers. Setup is guided, AI configuration uses plain English, and chat and email support is available across all plans."}}]}
 ]
 </script>
+    {{> head-analytics}}
 </head>
 <body class="bg-white text-slate-900 antialiased">
 
@@ -78,6 +79,64 @@
       <div class="text-3xl mb-4">📒</div>
       <h3 class="text-xl font-bold font-poppins mb-3">Khata Book</h3>
       <p class="text-slate-600">Track income, expenses, settlements. Export GST-ready reports. No more paper ledgers.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FULL FEATURE GRID -->
+<section id="features" class="py-16 px-5">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="text-3xl font-bold font-poppins text-center mb-3">Everything your agency needs in one place</h2>
+    <p class="text-center text-slate-600 max-w-2xl mx-auto mb-10">From the first WhatsApp enquiry to the closed deal and the GST invoice — RealEstateFlow runs the whole pipeline so nothing slips through the cracks.</p>
+    <div class="grid md:grid-cols-3 gap-6">
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">💬</div>
+        <h3 class="font-bold font-poppins mb-2">Lead capture &amp; qualification</h3>
+        <p class="text-slate-600 text-sm">Capture leads from WhatsApp, your website, 99acres, MagicBricks and Housing.com. The AI replies in seconds, qualifies, and routes to the right agent.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">🗂️</div>
+        <h3 class="font-bold font-poppins mb-2">Complete CRM</h3>
+        <p class="text-slate-600 text-sm">Buyers, owners, tenants, properties, projects, developers and areas — one connected database with full deal history and pipeline stages.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">🤖</div>
+        <h3 class="font-bold font-poppins mb-2">AI Employee on WhatsApp</h3>
+        <p class="text-slate-600 text-sm">A 24×7 agent that answers buyers, shares matching listings, books site visits and follows up automatically — handing off to a human at the right moment.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">📒</div>
+        <h3 class="font-bold font-poppins mb-2">Khata book &amp; settlements</h3>
+        <p class="text-slate-600 text-sm">Record income, expenses and commission splits, settle balances, and export GST-ready statements — no more paper ledgers or scattered spreadsheets.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">📅</div>
+        <h3 class="font-bold font-poppins mb-2">Calendar &amp; site visits</h3>
+        <p class="text-slate-600 text-sm">Schedule site visits and follow-ups, see your whole team's day at a glance, and let the AI book viewings straight into the calendar.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">👥</div>
+        <h3 class="font-bold font-poppins mb-2">Team hierarchy &amp; roles</h3>
+        <p class="text-slate-600 text-sm">Invite members, set roles and permissions, and manage a multi-agent hierarchy with member-level activity reports and a shared Khata book.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">📈</div>
+        <h3 class="font-bold font-poppins mb-2">Business analytics</h3>
+        <p class="text-slate-600 text-sm">Track leads, conversions, revenue and team performance with dashboards built for broking agencies — know exactly what is working.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">🧾</div>
+        <h3 class="font-bold font-poppins mb-2">GST invoicing</h3>
+        <p class="text-slate-600 text-sm">Generate GST-compliant invoices with HSN code 998314 and correct CGST/SGST split, so your B2B customers can claim input tax credit.</p>
+      </div>
+      <div class="p-6 rounded-2xl border border-slate-200">
+        <div class="text-2xl mb-3">🔒</div>
+        <h3 class="font-bold font-poppins mb-2">Secure &amp; DPDP-compliant</h3>
+        <p class="text-slate-600 text-sm">Phone-OTP login, encrypted data hosted in AWS Mumbai (ap-south-1), and DPDP compliance with a named Grievance Officer. Your data stays in India.</p>
+      </div>
+    </div>
+    <div class="text-center mt-10">
+      <a href="https://app.realestateflow.in/signup?utm_source=lp-main&utm_campaign=launch&utm_medium=cta" data-cta-id="features-primary" class="btn-primary">Start 14-day Free Trial — no card</a>
     </div>
   </div>
 </section>
@@ -165,6 +224,30 @@
         <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">Is GST invoicing included?</span><span class="faq-icon text-xl">+</span></div>
         <div class="faq-answer px-6 pb-4 text-slate-600">Yes. All plans include GST-compliant invoices with HSN code 998314.</div>
       </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">What is an AI Employee for real estate?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">An AI Employee is an autonomous software agent built for real-estate workflows. It replies to new WhatsApp and portal leads within seconds, asks qualifying questions, answers property queries, books site visits, and follows up — without anyone lifting a finger. Unlike a basic chatbot, it understands context, remembers past chats, and hands off to a human agent at the right moment.</div>
+      </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">How is RealEstateFlow different from a normal CRM?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">A normal CRM stores data and waits for you to act. RealEstateFlow pairs an AI that actively works your leads with a CRM that gives you full pipeline visibility — plus a built-in Khata book and GST invoicing. The result: fewer dropped leads, faster replies, and a pipeline that updates itself.</div>
+      </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">Can the AI Employee handle WhatsApp enquiries?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">Yes — WhatsApp is the core. RealEstateFlow connects to the WhatsApp Business API, so every message (from a portal, your website, or WhatsApp directly) gets an instant, intelligent reply from the same AI that knows your listings and your team's availability. Telegram is supported too.</div>
+      </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">How long does setup take?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">Most teams are live within 24 hours. Connecting your WhatsApp and portals takes about 15 minutes; our concierge team configures your AI Employee within a 24-hour SLA and sends a Loom walkthrough on go-live.</div>
+      </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">Which portals do you integrate with?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">We connect with 99acres, MagicBricks, and Housing.com, plus your website contact forms and WhatsApp. If a portal offers a webhook or feed, we can ingest it.</div>
+      </div>
+      <div class="faq-item border border-slate-200 rounded-xl" onclick="this.classList.toggle('open')">
+        <div class="flex justify-between items-center px-6 py-4 cursor-pointer"><span class="font-medium">Do I need technical knowledge to use RealEstateFlow?</span><span class="faq-icon text-xl">+</span></div>
+        <div class="faq-answer px-6 pb-4 text-slate-600">No. It's built for brokers and agency owners, not developers. Setup is guided, AI configuration uses plain English, and chat + email support is available across all plans.</div>
+      </div>
     </div>
   </div>
 </section>
@@ -203,5 +286,6 @@
   </div>
 </footer>
 
+    {{> cookie-banner}}
 </body>
 </html>
