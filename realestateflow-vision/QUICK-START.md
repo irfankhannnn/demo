@@ -25,13 +25,16 @@ RealEstateFlow captures conversations across every channel (WhatsApp, Instagram,
 
 Foundational security & infrastructure work that gates everything else:
 - 🔴 **Rotate hardcoded secrets** (Exotel, ElevenLabs, CRM API key, Bedrock KB id are in `ai-calling-service/deploy-lambda.ps1`)
+- 🔴 **Fix billing webhook gaps** (`subscription.cancelled` never updates DB; `gracePeriodActive` never set; grace period never enforced — see `29-payment-system-implementation.md`)
 - Fix CI so tests actually run (path glob mismatch in `playwright.yml`)
 - Enforce RBAC uniformly (binary roles today, no agent scoping, DELETE endpoints unprotected)
 - Add pagination to all list operations (scale blocker; scans entire partition today)
-- Consolidate IaC (CloudFormation templates exist but scattered)
+- Consolidate IaC (CloudFormation only — add EventBridge rules, crons, GSIs to `server/infra/cfn-backend.yaml`)
 - Implement immutable audit log (compliance requirement)
 
 **Team:** 1–2 engineers, 2–3 weeks. **Gate:** Complete all above before Phase 1 starts.
+
+> **Infra rule:** All new AWS resources (EventBridge rules, Lambda crons, DynamoDB GSIs, Aurora cluster) go into CloudFormation templates under `server/infra/`. No Terraform, CDK, or SAM.
 
 ---
 
@@ -50,6 +53,7 @@ Deliver a complete inbound → qualification → assignment loop on WhatsApp:
 - Deploy Lead Qualifier agent (Haiku, progressive profiling)
 - Deploy Lead Scorer (Haiku, deterministic + LLM signals)
 - Add approval-queue autonomy (agents draft, human approves for Phase 1)
+- Add billing UI polish: in-app cancellation, payment failed banner, credits balance display
 
 **Outcome:** Inbound WhatsApp → Lead created + qualified + scored + assigned, all within 60s, no lead dropped.
 
@@ -57,8 +61,8 @@ Deliver a complete inbound → qualification → assignment loop on WhatsApp:
 
 ---
 
-### Phase 2: PostgreSQL for Analytics & Agent Data (Weeks 7–10, parallel to Phase 1 end)
-**Documents:** `27-phase-2-postgres-analytics-agent-tables.md`, `25-postgres-database-architecture.md` (REVISED)
+### Phase 2: PostgreSQL for Analytics, Agent Data & Credits (Weeks 7–10, parallel to Phase 1 end)
+**Documents:** `27-phase-2-postgres-analytics-agent-tables.md`, `25-postgres-database-architecture.md` (REVISED), `30-credits-metering-implementation.md`
 
 **KEY INSIGHT from codebase audit:** Do NOT migrate the entire CRM from DynamoDB. Instead:
 - Keep the CRM (leads, contacts, properties, khata, etc.) on DynamoDB (fix access patterns in Phase 0)
@@ -66,16 +70,19 @@ Deliver a complete inbound → qualification → assignment loop on WhatsApp:
 
 **Week 7–8:**
 - Provision Aurora Serverless v2 + RDS Proxy (2–3k/mo for analytics volume)
-- Write Knex migrations (12 new tables: `agent_actions`, `conversations_meta`, `credits`, `credit_ledger`, `audit_log`, analytics views)
-- Implement service layer (AgentActionService, ConversationMetaService, CreditService)
+- Write Knex migrations (12 new tables: `agent_actions`, `conversations_meta`, `credits`, `credit_ledger`, `agent_usage`, analytics views)
+- Implement service layer (AgentActionService, ConversationMetaService, CreditService, ModelRouter)
 
 **Week 9–10:**
 - Wire every agent action → `agent_actions` table (logs what agent did, cost, approval status)
 - Wire every conversation → `conversations_meta` (index for conversation history + lead linking)
-- Wire metering → `credit_ledger` (balance, transactions, caps)
+- Wire metering → `credit_ledger` (balance, transactions, caps per tenant)
+- Wire multi-model router: Haiku for classify/score, Sonnet for conversation, Opus only when needed
+- Credit purchase flow: Razorpay Orders API for credit pack top-up
+- Low-balance alerts via SNS + Brevo; `/billing/credits` frontend page
 - Test end-to-end; deploy to staging behind feature flags
 
-**Outcome:** Agent actions auditable + billable. Postgres dashboard queries <500ms. Zero DynamoDB migration risk.
+**Outcome:** Agent actions auditable + billable. Postgres dashboard queries <500ms. Zero DynamoDB migration risk. Every Bedrock/ElevenLabs call costs tracked.
 
 ---
 
@@ -138,10 +145,11 @@ Expand the system to full multi-channel, outbound, marketing-driven agency OS:
 | Item | Risk | Status |
 |---|---|---|
 | **Hardcoded secrets** | Anyone with repo access has live Exotel/ElevenLabs/Bedrock keys | 🔴 Critical, Week 1 |
+| **Billing webhook gaps** | `subscription.cancelled` doesn't update DB; grace period never activates; tenants locked or leaked | 🔴 Critical, Week 1 |
 | **CI tests don't run** | Can't refactor data layer without test coverage | 🟠 High, Week 2 |
 | **RBAC unenforced** | DELETE endpoints have no role check; agents have no data scoping | 🟠 High, Week 2–3 |
 | **No pagination** | Scans entire partition; breaks at 100k leads scale | 🟠 High, Week 3 |
-| **IaC scattered** | Can't safely deploy Phase 1 without unified infra-as-code | 🟡 Medium, Week 3 |
+| **IaC scattered** | Can't safely deploy Phase 1 without unified CFN; all infra changes must go through `server/infra/cfn-backend.yaml` | 🟡 Medium, Week 3 |
 
 **All must be done before Phase 1 work begins.** They're not nice-to-haves; they're gates.
 
@@ -169,14 +177,15 @@ Expand the system to full multi-channel, outbound, marketing-driven agency OS:
 
 1. **This file** (you're reading it now)
 2. **`00-phase-0-prerequisites.md`** (understand what must be done first)
-3. **`02-product-vision.md`** (what you're building and why)
-4. **`01-current-state-analysis.md`** (what you have today, honestly)
-5. **`03-future-state-architecture.md`** (system blueprint)
-6. **`21-roadmap.md`** (phases at a glance)
-7. **Phase-specific docs:**
-   - Phase 0: `00-phase-0-prerequisites.md`
+3. **`29-payment-system-implementation.md`** (billing gaps — must fix in Phase 0)
+4. **`02-product-vision.md`** (what you're building and why)
+5. **`01-current-state-analysis.md`** (what you have today, honestly)
+6. **`03-future-state-architecture.md`** (system blueprint)
+7. **`21-roadmap.md`** (phases at a glance)
+8. **Phase-specific docs:**
+   - Phase 0: `00-phase-0-prerequisites.md`, `29-payment-system-implementation.md`
    - Phase 1: `24-implementation-plan.md`
-   - Phase 2: `27-phase-2-postgres-analytics-agent-tables.md`
+   - Phase 2: `27-phase-2-postgres-analytics-agent-tables.md`, `30-credits-metering-implementation.md`
    - Phase 3: `28-phase-3-scale-automation-marketing.md`
 
 ---

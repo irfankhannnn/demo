@@ -46,13 +46,19 @@ It was produced by deep analysis of the codebase on branch `auth_rbac_feature` p
 | 26 | postgres-schema-migration-scripts (REVISED) | Phase 2 | Knex ORM, service layer, analytics table schema |
 | 27 | phase-2-postgres-analytics-agent-tables | Phase 2 | Detailed: agent audit, conversations, credits, analytics |
 | 28 | phase-3-scale-automation-marketing | Phase 3 | Follow-up journeys, voice, marketing, portal automation, dashboards |
+| 29 | payment-system-implementation | Phase 0+1 | Fix all billing gaps: webhook, grace period, read-only, cancellation UI — CFN only |
+| 30 | credits-metering-implementation | Phase 2 | Credit ledger, metering middleware, multi-model router, Razorpay packs — CFN only |
 
 ## Revised Phases
 
-1. **Phase 0 (Weeks 1–3):** Security hardening, CI/CD fix, RBAC enforcement, pagination, audit log
-2. **Phase 1 (Weeks 4–6):** WhatsApp inbound + Sales Assistant + Qualifier (on DynamoDB)
-3. **Phase 2 (Weeks 7–10, parallel to Phase 1 weeks 6–9):** PostgreSQL for agent audit, analytics, credits (net-new tables, not CRM migration)
-4. **Phase 3 (Weeks 13–20):** Follow-up automation, voice, marketing, portal automation, advanced analytics
+1. **Phase 0 (Weeks 1–3):** Security hardening, CI/CD fix, RBAC enforcement, pagination, audit log + **payment system gap fixes** (docs `00`, `29`)
+2. **Phase 1 (Weeks 4–9):** WhatsApp inbound + Sales Assistant + Qualifier (on DynamoDB) + billing UI polish (doc `24`, `29`)
+3. **Phase 2 (Weeks 7–10, parallel to Phase 1 weeks 6–9):** PostgreSQL for agent audit, analytics, **credits/metering** (doc `27`, `30`)
+4. **Phase 3 (Weeks 13–20):** Follow-up automation, voice, marketing, portal automation, advanced analytics (doc `28`)
+
+## Infrastructure Constraint
+
+**All infrastructure must be CloudFormation (CFN) only.** No Terraform, CDK, Pulumi, or SAM. The canonical template is `server/infra/cfn-backend.yaml`. All new AWS resources (EventBridge rules, Lambda functions, Aurora cluster, RDS Proxy, SNS topics) are added as new resources in that template or as companion templates in `server/infra/`.
 
 ## The one-paragraph summary
 RealEstateFlow today is a solid multi-tenant serverless CRM with its AI ambitions (telephony, Bedrock, an agent persona, a marketing rig) mostly switched off or run founder-side. The plan is **evolution, not rewrite**: wrap the existing domain in clean **MCP tools**, add an **event-driven conversation backbone** and a **domain-bounded agent layer** (Strands + Bedrock AgentCore, Haiku-first with prompt caching), and light up the eight engines — acquisition, qualification, scoring, assignment, sales assistant, follow-up, voice, marketing — plus governed portal automation, all multi-tenant, grounded (never hallucinated), human-in-the-loop by default, and billed in **credits, not tokens**. Most of it is **integration of tools the repo already touches** (Bedrock, Exotel, ElevenLabs, AiSensy, Higgsfield/Meta/Blotato, Razorpay, Cognito) plus a little OSS (Chatwoot, Lago, Langfuse). Start by **rotating the exposed secrets**, wrapping the core as MCP, and shipping a WhatsApp-first acquisition+qualification wedge to pilot agencies in ~90 days.

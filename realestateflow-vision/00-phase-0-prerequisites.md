@@ -12,7 +12,34 @@ Phase 0 is not an optional optimization — it is **day 1 work that unblocks the
 
 ## Mandatory Work Items
 
-### 1. 🔴 Rotate & Remove Hardcoded Secrets (3 days)
+### 1. 🔴 Fix Billing Webhook Gaps (2 days)
+
+**Status: CRITICAL — Revenue leakage**
+
+**The facts (from `server/routes/billing.js` + `server/subscriptionService.js`):**
+
+1. `subscription.cancelled` webhook is received but **never updates the Subscriptions DynamoDB table**. Tenants who cancel still show as `isPaying = true`.
+2. `gracePeriodActive` field exists but is **never set to `true`** by any code path. When payment fails, tenants lose access immediately instead of getting a 7-day grace period.
+3. `payment.failed` webhook fires but doesn't activate grace period — only logs a PostHog event.
+4. No cron enforces grace period expiry (no Lambda, no EventBridge rule).
+
+**The risk:** Cancelled tenants keep full access. Failed-payment tenants are immediately locked out (churn risk). This will cause direct revenue leakage as the user base grows.
+
+**Actions:**
+1. Fix `subscription.cancelled` handler to update Subscriptions table (`isPaying = false`, `gracePeriodActive = true`).
+2. Fix `payment.failed` handler to activate grace period (7 days, stored as `gracePeriodEndsAt`).
+3. Fix `subscription.charged` to clear grace period on successful payment.
+4. Add `razorpay-subscription-index` GSI to Subscriptions table (CFN change to `cfn-backend.yaml`).
+5. Create `grace-period-expiry-cron.js` Lambda + EventBridge rule (hourly) to lock out expired grace tenants.
+6. See `29-payment-system-implementation.md` for full code specs.
+
+**CFN changes:** Add GSI to SubscriptionsTable, add `GracePeriodExpiryFunction` Lambda + `GracePeriodExpiryRule` EventBridge rule to `server/infra/cfn-backend.yaml`.
+
+**Definition of done:** Cancelled → DB updated within seconds. Failed payment → 7-day grace. Expired grace → locked. All verified with Razorpay webhook test events.
+
+---
+
+### 2. 🔴 Rotate & Remove Hardcoded Secrets (3 days)
 
 **Status: CRITICAL**
 
@@ -32,7 +59,7 @@ Phase 0 is not an optional optimization — it is **day 1 work that unblocks the
 
 ---
 
-### 2. Fix CI/CD So Tests Actually Run (2 days)
+### 3. Fix CI/CD So Tests Actually Run (2 days)
 
 **Status: BLOCKER FOR TESTING**
 
@@ -55,7 +82,7 @@ if: ls tests/*.spec.ts
 
 ---
 
-### 3. Fix RBAC: Enforce Role Checks Uniformly (5 days)
+### 4. Fix RBAC: Enforce Role Checks Uniformly (5 days)
 
 **Status: SECURITY + ARCHITECTURE PREREQUISITE**
 
@@ -78,7 +105,7 @@ if: ls tests/*.spec.ts
 
 ---
 
-### 4. Add Pagination to List Operations (4 days)
+### 5. Add Pagination to List Operations (4 days)
 
 **Status: SCALABILITY PREREQUISITE**
 
@@ -99,29 +126,30 @@ At 10,000+ leads per tenant, a single "list leads" query scans 10k+ items. At 10
 
 ---
 
-### 5. Consolidate & Publish IaC (3 days)
+### 6. Consolidate & Publish IaC — CloudFormation Only (3 days)
 
 **Status: INFRASTRUCTURE CLARITY**
 
 **The fact:** CloudFormation templates exist (`server/infra/cfn-backend.yaml`, plus separate templates for auth, AI calling), but:
 - No centralized registry of what's deployed where.
 - Deploy scripts are PowerShell (not cross-platform).
-- No `terraform` or documented `sam` deployment.
+- All infra must use **CloudFormation exclusively** — no Terraform, Pulumi, CDK, or SAM.
 
 **The risk:** Hard to reason about infrastructure; hard to replicate; hard to add new services.
 
 **Actions:**
-1. Create a `terraform/` or `sam/` directory with root module that imports all stacks.
-2. Document which CF stack owns which table, function, role, and its dependencies.
-3. Create a `scripts/deploy.sh` (bash) that wraps the existing deploy scripts and works on Linux/Mac/Windows (WSL).
-4. Add a `Makefile` for `make deploy`, `make destroy`, `make validate-stack`.
-5. Document the deploy path: code → git push → CI runs tests → manual approval → deploy.
+1. Make `server/infra/cfn-backend.yaml` the single source of truth for all backend AWS resources.
+2. Create companion templates: `server/infra/cfn-aurora.yaml` (Phase 2 Aurora/RDS Proxy), `server/infra/cfn-agents.yaml` (Phase 1 agent Lambdas).
+3. Document which CFN stack owns which table, function, role, and its dependencies.
+4. Create a `scripts/deploy.sh` (bash) that runs `aws cloudformation deploy` for each stack in order.
+5. Add a `Makefile` for `make deploy`, `make destroy`, `make validate-stack`.
+6. Document the deploy path: code → git push → CI runs tests → manual approval → `make deploy`.
 
-**Definition of done:** One source of truth for infra. `make deploy` successfully deploys to staging. Documented.
+**Definition of done:** All infra is in CFN templates. `make deploy` successfully deploys to staging. `aws cloudformation validate-template` passes for all templates. No Terraform/CDK/SAM files exist.
 
 ---
 
-### 6. Add Immutable Audit Log (2 days)
+### 7. Add Immutable Audit Log (2 days)
 
 **Status: COMPLIANCE + DEBUGGING**
 
@@ -143,11 +171,13 @@ At 10,000+ leads per tenant, a single "list leads" query scans 10k+ items. At 10
 
 | Item | Pass/Fail |
 |---|---|
-| No secrets in version control | ✅ Pass |
+| Billing webhooks update DB correctly (cancel, failed, recovered) | ✅ Pass |
+| Grace period activates on failed payment; expiry cron locks out tenants | ✅ Pass |
+| No secrets in version control; all in Secrets Manager | ✅ Pass |
 | CI pipeline runs tests and they pass | ✅ Pass |
 | All DELETE endpoints enforce `requireAdmin` | ✅ Pass |
 | All list endpoints support pagination + cursor | ✅ Pass |
-| IaC is documented and deployable via `make deploy` | ✅ Pass |
+| All infra in CFN; `make deploy` deploys to staging | ✅ Pass |
 | Audit log captures all mutations | ✅ Pass |
 | Playwright suite runs in CI and passes | ✅ Pass |
 
@@ -157,15 +187,16 @@ At 10,000+ leads per tenant, a single "list leads" query scans 10k+ items. At 10
 
 | Work | Duration | FTE |
 |---|---|---|
+| Fix billing webhook gaps (+ CFN GSI + cron Lambda) | 2 days | 1 |
 | Secrets rotation | 3 days | 1 |
 | Fix CI tests | 2 days | 0.5 |
 | RBAC enforcement | 5 days | 1 |
 | Pagination | 4 days | 1 |
-| IaC consolidation | 3 days | 1 |
+| IaC consolidation (CFN only) | 3 days | 1 |
 | Audit log | 2 days | 0.5 |
-| **Total** | **~19 days** | **~5 FTE-days** |
+| **Total** | **~21 days** | **~6 FTE-days** |
 
-If one engineer works full-time: **4 weeks**. If parallelized across two engineers: **2 weeks**.
+If one engineer works full-time: **4 weeks**. If parallelized across two engineers: **2–3 weeks**.
 
 ---
 
@@ -179,13 +210,26 @@ If one engineer works full-time: **4 weeks**. If parallelized across two enginee
 
 ---
 
+## Why This Comes First
+
+- **Billing gaps:** Revenue is already leaking. Cancelled tenants keep access. Failed payments cause instant churn. Must fix before adding more paying customers.
+- **Secrets:** Can't ship anything new on an insecure foundation.
+- **CI:** Can't refactor data layer without test coverage.
+- **RBAC:** Agents need to know they can't see each other's data; users need to know deletions are protected.
+- **Pagination:** Scale foundation; without it, the system fails at 100k leads.
+- **IaC (CFN) & Audit:** Enables safe, auditable deployments for everything after Phase 0.
+
+---
+
 ## Gate: Proceed to Phase 1 Only After
 
+- [ ] Billing webhooks tested with Razorpay test events; DB updates confirmed.
+- [ ] Grace period cron deployed via CFN; tested by manually setting `gracePeriodEndsAt` to past.
 - [ ] All committed secrets removed; Secrets Manager in use.
 - [ ] Tests run in CI without false-negatives; local `npm test` passes.
 - [ ] RBAC roles & scoping middleware added; agent queries scoped; DELETE endpoints protected.
 - [ ] Pagination working on all list endpoints.
-- [ ] IaC deployable via `make deploy`; documented.
+- [ ] All infra in CFN; `make deploy` successfully deploys staging stack.
 - [ ] Audit log capturing mutations; tested.
 - [ ] Security review passed (no CORS/XSS/SQLi/timing-attack regressions).
 
