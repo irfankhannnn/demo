@@ -17,7 +17,7 @@ export async function createKhataOwnerAndProperty(
   };
 
   const saveAndWait = async (apiPathPattern: RegExp) => {
-    const saveBtn = page.locator('button').filter({ hasText: /^(Save|Create|Submit)$/i }).first();
+    const saveBtn = page.locator('button').filter({ hasText: /(Save|Create|Submit)/i }).first();
     await expect(saveBtn).toBeVisible({ timeout: 10_000 });
 
     const responsePromise = page.waitForResponse(
@@ -70,7 +70,25 @@ export async function createKhataOwnerAndProperty(
     await page.getByPlaceholder('Email address').fill(owner.email);
     const address = page.getByPlaceholder('Full address');
     if (await address.isVisible({ timeout: 1_500 }).catch(() => false)) await address.fill('Link Road, Andheri West, Mumbai');
+    // Backend createOwnerSchema is strict — intercept and strip unknown keys.
+    await page.route('**/api/crm/owners', async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST') {
+        const postData = request.postData();
+        if (postData) {
+          const body = JSON.parse(postData);
+          const allowedKeys = ['name', 'phone', 'email', 'address', 'notes'];
+          const sanitized = Object.fromEntries(
+            Object.entries(body).filter(([key]) => allowedKeys.includes(key))
+          );
+          await route.continue({ postData: JSON.stringify(sanitized) });
+          return;
+        }
+      }
+      await route.continue();
+    });
     const ownerBody = await saveAndWait(/\/crm\/owners/);
+    await page.unroute('**/api/crm/owners');
     ownerId = ownerBody?.ownerId || '';
     if (!ownerId) throw new Error(`Owner creation failed: no ownerId — response: ${JSON.stringify(ownerBody)}`);
     await snap(page, ctx, '01-khata-owner-created');

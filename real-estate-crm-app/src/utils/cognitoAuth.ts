@@ -60,27 +60,46 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
     redirect_uri: REDIRECT_URI,
   };
 
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Token exchange failed (${response.status}): ${errorBody}`);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Token exchange failed (${response.status}): ${errorBody}`);
+    }
+
+    const data = await response.json();
+    clearCodeVerifier();
+
+    const tokens: AuthTokens = {
+      idToken: data.id_token,
+      accessToken: data.access_token,
+      expiresIn: data.expires_in,
+    };
+
+    return tokens;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${tokenUrl}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Token exchange failed due to an unknown error');
   }
-
-  const data = await response.json();
-  clearCodeVerifier();
-
-  const tokens: AuthTokens = {
-    idToken: data.id_token,
-    accessToken: data.access_token,
-    expiresIn: data.expires_in,
-  };
-
-  return tokens;
 }
 
 /**
@@ -90,27 +109,46 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
 export async function callBootstrap(idToken: string) {
   const url = `${AUTH_API_URL}/auth/bootstrap`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Bootstrap failed' }));
-    // Check for NOT_ONBOARDED error - propagate with code for caller to handle
-    if (err.code === 'NOT_ONBOARDED') {
-      const notOnboardedError = new Error(err.error || 'You are not onboarded. Please contact the administrator.');
-      (notOnboardedError as Error & { code: string }).code = 'NOT_ONBOARDED';
-      throw notOnboardedError;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Bootstrap failed' }));
+      // Check for NOT_ONBOARDED error - propagate with code for caller to handle
+      if (err.code === 'NOT_ONBOARDED') {
+        const notOnboardedError = new Error(err.error || 'You are not onboarded. Please contact the administrator.');
+        (notOnboardedError as Error & { code: string }).code = 'NOT_ONBOARDED';
+        throw notOnboardedError;
+      }
+      throw new Error(err.error || `Bootstrap returned ${response.status}`);
     }
-    throw new Error(err.error || `Bootstrap returned ${response.status}`);
-  }
 
-  const result = await response.json();
-  return result;
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${url}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Bootstrap call failed due to an unknown error');
+  }
 }
 
 /**
@@ -120,19 +158,38 @@ export async function callBootstrap(idToken: string) {
 export async function callMe(idToken: string) {
   const url = `${AUTH_API_URL}/auth/me`;
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Failed to get user profile' }));
-    throw new Error(err.error || `GET /auth/me returned ${response.status}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to get user profile' }));
+      throw new Error(err.error || `GET /auth/me returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${url}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Failed to fetch user profile due to an unknown error');
   }
-
-  const result = await response.json();
-  return result;
 }
 
 /**
@@ -141,19 +198,38 @@ export async function callMe(idToken: string) {
 export async function callCheckInvite(idToken: string) {
   const url = `${AUTH_API_URL}/auth/check-invite`;
 
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${idToken}`,
-    },
-  });
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Failed to check invites' }));
-    throw new Error(err.error || `GET /auth/check-invite returned ${response.status}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to check invites' }));
+      throw new Error(err.error || `GET /auth/check-invite returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${url}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Failed to check invites due to an unknown error');
   }
-
-  const result = await response.json();
-  return result;
 }
 
 /**
@@ -162,22 +238,41 @@ export async function callCheckInvite(idToken: string) {
 export async function callAcceptInvite(idToken: string, inviteCode: string, displayName?: string) {
   const url = `${AUTH_API_URL}/auth/accept-invite`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({ inviteCode, displayName }),
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ inviteCode, displayName }),
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Failed to accept invite' }));
-    throw new Error(err.error || `POST /auth/accept-invite returned ${response.status}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to accept invite' }));
+      throw new Error(err.error || `POST /auth/accept-invite returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${url}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Failed to accept invite due to an unknown error');
   }
-
-  const result = await response.json();
-  return result;
 }
 
 /**
@@ -190,51 +285,97 @@ export async function callRegisterAdmin(
 ) {
   const url = `${AUTH_API_URL}/auth/register-admin`;
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${idToken}`,
-    },
-    body: JSON.stringify({ agencyName, displayName }),
-  });
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ agencyName, displayName }),
+    });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({ error: 'Failed to register admin' }));
-    throw new Error(err.error || `POST /auth/register-admin returned ${response.status}`);
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: 'Failed to register admin' }));
+      throw new Error(err.error || `POST /auth/register-admin returned ${response.status}`);
+    }
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    // Handle network errors (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${url}. ` +
+        'The API appears to be unreachable. Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with context
+    if (error instanceof Error) {
+      throw error;
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Failed to register admin due to an unknown error');
   }
-
-  const result = await response.json();
-  return result;
 }
 
 /**
  * Refresh tokens using the refresh token via the auth microservice.
+ * Includes improved error handling for network issues and missing configuration.
  */
 export async function refreshTokens(): Promise<AuthTokens> {
-  const tokenUrl = `${AUTH_API_URL}/auth/refresh`;
-
-  // The refresh token is sent automatically as an httpOnly cookie
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Token refresh failed (${response.status}): ${errorBody}`);
+  // Ensure AUTH_API_URL is configured
+  if (!AUTH_API_URL) {
+    throw new Error(
+      'AUTH_API_URL is not configured. Please set VITE_AUTH_API_URL in your environment variables.'
+    );
   }
 
-  const data = await response.json();
+  const tokenUrl = `${AUTH_API_URL}/auth/refresh`;
 
-  const tokens: AuthTokens = {
-    idToken: data.id_token,
-    accessToken: data.access_token,
-    expiresIn: data.expires_in,
-  };
+  try {
+    // The refresh token is sent automatically as an httpOnly cookie
+    const response = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+    });
 
-  return tokens;
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Token refresh failed (${response.status}): ${errorBody}`);
+    }
+
+    const data = await response.json();
+
+    const tokens: AuthTokens = {
+      idToken: data.id_token,
+      accessToken: data.access_token,
+      expiresIn: data.expires_in,
+    };
+
+    return tokens;
+  } catch (error) {
+    // Check if it's a network error (Failed to fetch)
+    if (error instanceof TypeError && error.message === 'Failed to fetch') {
+      throw new Error(
+        `Unable to reach the authentication service at ${tokenUrl}. ` +
+        'Please check your network connection and ensure the auth API is running and accessible. ' +
+        'If the problem persists, contact your system administrator.'
+      );
+    }
+
+    // Re-throw other errors with additional context
+    if (error instanceof Error) {
+      throw new Error(`Token refresh error: ${error.message}`);
+    }
+
+    // Fallback for unknown error types
+    throw new Error('Token refresh failed due to an unknown error');
+  }
 }
 
 /**
@@ -243,9 +384,8 @@ export async function refreshTokens(): Promise<AuthTokens> {
 export function redirectToLogout(): void {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    logout_uri: LOGOUT_URI,
   });
 
-  const logoutUrl = `${COGNITO_DOMAIN}/logout?${params.toString()}`;
-  window.location.replace(logoutUrl);
+  const logoutUrl = `${COGNITO_DOMAIN}/logout?${params.toString()}&logout_uri=${encodeURIComponent(LOGOUT_URI)}`;
+  window.location.href = logoutUrl;
 }

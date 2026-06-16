@@ -108,8 +108,14 @@ const SOURCES = [
 
 const STATUSES = ['new','contacted','qualified','negotiating','lost'] as const;
 const PRIORITIES = ['low','medium','high'] as const;
-const PROP_TYPES = ['apartment','villa','house','studio','penthouse','duplex'] as const;
+const PROP_TYPES = ['apartment','villa','house','office'] as const;
 const BHK_OPTS = [1,2,3,4,5] as const;
+const FURNISHING_OPTS = ['furnished','semi-furnished','unfurnished'] as const;
+const AMENITIES_POOL = [
+  'Gym','Swimming Pool','Parking','Lift','Power Backup','Water Purifier','Security','CCTV',
+  'Modular Kitchen','Balcony','Terrace','Garden','Playground','Community Hall','Clubhouse',
+  'Intercom','Visitor Parking','EV Charging','Solar Panel','Rainwater Harvesting',
+] as const;
 
 function mulberry32(seed: number) {
   return function () {
@@ -141,6 +147,8 @@ export const SEED_DATA = {
   priorities: [...PRIORITIES],
   propTypes: [...PROP_TYPES],
   bhkOpts: [...BHK_OPTS],
+  furnishingOpts: [...FURNISHING_OPTS],
+  amenitiesPool: [...AMENITIES_POOL],
 };
 
 export function getItemByIndex<T>(arr: readonly T[], index: number): T {
@@ -178,6 +186,14 @@ export function generateUniqueLocation(runStamp: string, offset: number) {
   return { area, city };
 }
 
+function selectAmenities(seed: number, count: number = 3): string[] {
+  const amenities: string[] = [];
+  for (let i = 0; i < count && i < AMENITIES_POOL.length; i++) {
+    amenities.push(getItemByIndex(SEED_DATA.amenitiesPool, seededRandomInt(seed + i, 0, SEED_DATA.amenitiesPool.length)));
+  }
+  return [...new Set(amenities)]; // Remove duplicates
+}
+
 export function generateLeadRequirement(runStamp: string, leadType: string, offset: number) {
   const seed = runStamp.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + offset * 7919;
   const area = getItemByIndex(SEED_DATA.preferredAreas, seededRandomInt(seed, 0, SEED_DATA.preferredAreas.length));
@@ -186,6 +202,8 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
   const snippet = getItemByIndex(SEED_DATA.requirementSnippets, seededRandomInt(seed + 3, 0, SEED_DATA.requirementSnippets.length));
   const budget = seededRandomInt(seed + 4, 25, 300) * 100_000;
   const timeline = getItemByIndex(SEED_DATA.timelines, seededRandomInt(seed + 5, 0, SEED_DATA.timelines.length));
+  const furnishing = getItemByIndex(SEED_DATA.furnishingOpts, seededRandomInt(seed + 22, 0, SEED_DATA.furnishingOpts.length));
+  const amenities = selectAmenities(seed + 23, 3);
 
   if (leadType === 'buyer') {
     return {
@@ -196,6 +214,9 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       bhk,
       address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 6, 0, SEED_DATA.propCities.length))}`,
       moveInDate: new Date(Date.now() + seededRandomInt(seed + 7, 30, 180) * 86400000).toISOString().split('T')[0],
+      timeline,
+      furnishing,
+      amenities,
     };
   }
   if (leadType === 'seller') {
@@ -209,9 +230,11 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       floor: String(seededRandomInt(seed + 10, 1, 25)),
       city: getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 11, 0, SEED_DATA.propCities.length)),
       carpetArea: seededRandomInt(seed + 12, 500, 2500),
-      furnishing: ['furnished', 'semi-furnished', 'unfurnished'][seed % 3],
+      furnishing,
       bhk,
       address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 13, 0, SEED_DATA.propCities.length))}`,
+      amenities,
+      description: `Well-maintained ${bhk}BHK ${propType} in ${area}. Ready for immediate possession. ${snippet}`,
     };
   }
   if (leadType === 'tenant') {
@@ -223,6 +246,8 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       propertyType: propType,
       bhk,
       address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 15, 0, SEED_DATA.propCities.length))}`,
+      furnishing,
+      amenities,
     };
   }
   if (leadType === 'owner') {
@@ -235,10 +260,12 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       floor: String(seededRandomInt(seed + 18, 1, 25)),
       city: getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 19, 0, SEED_DATA.propCities.length)),
       carpetArea: seededRandomInt(seed + 20, 400, 3000),
-      furnishing: ['furnished', 'semi-furnished', 'unfurnished'][seed % 3],
+      furnishing,
       bhk,
       address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 21, 0, SEED_DATA.propCities.length))}`,
       securityDeposit: Math.floor(budget * 0.05),
+      amenities,
+      description: `Premium ${bhk}BHK ${propType} available for rent in ${area}. Excellent rental yield. ${snippet}`,
     };
   }
   return {};

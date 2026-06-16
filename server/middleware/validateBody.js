@@ -11,8 +11,10 @@ export default function validateBody(schema) {
       req.body = result;
       next();
     } catch (error) {
-      if (error.errors) {
-        const issues = error.errors.map((e) => ({
+      // Zod v4 uses `error.issues`; Zod v3 uses `error.errors`
+      const issuesArray = error.issues || error.errors;
+      if (issuesArray && Array.isArray(issuesArray)) {
+        const issues = issuesArray.map((e) => ({
           path: e.path.join('.'),
           message: e.message,
         }));

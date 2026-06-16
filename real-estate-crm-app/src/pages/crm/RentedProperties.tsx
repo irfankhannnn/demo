@@ -62,8 +62,12 @@ export default function RentedProperties() {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getCRMProperties('rented');
-      setProperties(data);
+      // Fetch all properties and filter client-side for those with tenants
+      const allProperties = await api.getCRMProperties();
+      const rented = (allProperties || []).filter((p: any) =>
+        p.status === 'rented' || p.tenantCustomerId || p.rentalInfo?.currentTenantId
+      );
+      setProperties(rented);
     } catch (err) {
       console.error('Failed to load rented properties:', err);
       setError(err instanceof Error ? err.message : 'Failed to load properties');

@@ -30,7 +30,7 @@ router.post('/post-registration', validateToken, extractTenantId, async (req, re
     } = req.body;
     const userEmail = email || req.user?.email;
     const userId = req.user?.sub || req.user?.userId || 'unknown';
-    const tenantId = req.tenantId || bodyTenantId;
+    const tenantId = req.tenantId; // Only trust server-derived tenantId
 
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID missing from token context' });

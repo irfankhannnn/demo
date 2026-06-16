@@ -72,13 +72,37 @@ export function hasOnboardingSession(): boolean {
   return localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
 }
 
+// --- JWT helpers ---
+
+function base64UrlDecode(str: string): string {
+  const padding = '='.repeat((4 - (str.length % 4)) % 4);
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/') + padding;
+  return atob(base64);
+}
+
+function decodeJwtExp(idToken: string): number | null {
+  try {
+    const payload = idToken.split('.')[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(base64UrlDecode(payload));
+    return decoded.exp ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 // --- Token operations ---
 
 export function setTokens(tokens: AuthTokens): void {
   localStorage.setItem(ID_TOKEN_KEY, tokens.idToken);
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
   // Refresh token is stored in httpOnly cookie by the server — do NOT store in localStorage
-  const expiryTime = Date.now() + tokens.expiresIn * 1000;
+  const jwtExp = decodeJwtExp(tokens.idToken);
+  const expiresInMs =
+    typeof tokens.expiresIn === 'number' && !Number.isNaN(tokens.expiresIn)
+      ? tokens.expiresIn * 1000
+      : 3600 * 1000;
+  const expiryTime = jwtExp ?? (Date.now() + expiresInMs);
   localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 
   // Clean up legacy tokens (including any old refresh tokens)

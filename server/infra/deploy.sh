@@ -113,7 +113,7 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
   echo "[2/6] Packaging function.zip..."
   rm -f "$PROJECT_DIR/function.zip"
   cd "$PROJECT_DIR"
-  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ \
+  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*"
 

@@ -95,8 +95,8 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     // Return with cross-role info
     const response = {
       ...buyer,
-      crossRoleInfo: buyer.linkedRoles.length > 0 ? {
-        message: `This person also exists as: ${buyer.linkedRoles.map(r => r.role).join(', ')}`,
+      crossRoleInfo: (buyer.linkedRoles || []).length > 0 ? {
+        message: `This person also exists as: ${(buyer.linkedRoles || []).map(r => r.role).join(', ')}`,
         roles: buyer.linkedRoles
       } : null
     };

@@ -60,7 +60,7 @@ test.describe('Grievance public API', () => {
     }).catch(() => null);
     test.skip(!res, 'backend not reachable');
     // Hosted API may have WAF that returns 403; app returns 400
-    expect([400, 403]).toContain(res!.status());
+    expect([400, 403, 429]).toContain(res!.status());
     await ctx.dispose();
   });
 

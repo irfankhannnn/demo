@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
-import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, getRefreshToken, setTokens } from './utils/authStorage';
+import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, setTokens } from './utils/authStorage';
 import { callMe, refreshTokens } from './utils/cognitoAuth';
 import { identifyUser } from './lib/analytics';
 
@@ -73,6 +73,24 @@ import LeadDetails from './pages/crm/LeadDetails';
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
 
 
+
+const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authState: 'loading' | 'authenticated' | 'unauthenticated' }) => {
+  if (authState === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <svg className="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <p className="text-slate-500">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return authState === 'authenticated' ? children : <Navigate to="/login" replace />;
+};
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
@@ -210,121 +228,157 @@ function App() {
     };
   }, []);
 
-  const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-    if (authState === 'loading') {
-      return (
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <svg className="animate-spin h-8 w-8 text-indigo-600 mx-auto mb-3" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <p className="text-slate-500">Loading...</p>
-          </div>
-        </div>
-      );
-    }
-    
-    return authState === 'authenticated' ? children : <Navigate to="/login" replace />;
-  };
+  // Proactive token refresh: heartbeat every 30 minutes PLUS threshold-based
+  // refresh when expiry < 15 minutes. The heartbeat keeps the httpOnly
+  // refresh cookie alive on the auth microservice.
+  useEffect(() => {
+    if (authState !== 'authenticated') return;
+
+    const REFRESH_THRESHOLD_MS = 15 * 60 * 1000; // 15 minutes
+    const CHECK_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
+
+    let lastRefresh = Date.now();
+
+    const doRefresh = async (reason: string) => {
+      try {
+        const newTokens = await refreshTokens();
+        setTokens(newTokens);
+        lastRefresh = Date.now();
+      } catch (err) {
+        console.error(`Token refresh failed (${reason}):`, err);
+        window.dispatchEvent(new Event('auth-changed'));
+      }
+    };
+
+    const checkAndRefresh = async () => {
+      try {
+        const expiryStr = localStorage.getItem('auth_token_expiry');
+        if (!expiryStr) {
+          await doRefresh('missing expiry');
+          return;
+        }
+
+        const expiry = Number(expiryStr);
+        const timeUntilExpiry = expiry - Date.now();
+
+        const timeSinceLastRefresh = Date.now() - lastRefresh;
+        const HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000;
+        if (timeUntilExpiry < REFRESH_THRESHOLD_MS || timeSinceLastRefresh >= HEARTBEAT_INTERVAL_MS) {
+          await doRefresh(timeUntilExpiry < REFRESH_THRESHOLD_MS ? 'near expiry' : 'heartbeat');
+        }
+      } catch (err) {
+        console.error('Token refresh check failed:', err);
+      }
+    };
+
+    const intervalId = setInterval(checkAndRefresh, CHECK_INTERVAL_MS);
+    // Defer initial check to avoid blocking app load
+    const timeoutId = setTimeout(() => {
+      checkAndRefresh().catch(err => console.error('Initial token refresh failed:', err));
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }, [authState]);
 
   return (
-    <GoogleMapsProvider>
-      <Router>
-        {/* === [LAUNCH LAYOUT COMPONENTS] === */}
-        {/* PR-A */}
-        <DemoBanner />
-        {/* PR-C */}
-        <CookieConsentBanner />
-        {/* PR-K */}
-        <NpsModal />
-        {/* PR-J */}
+    <Router>
+      <GoogleMapsProvider>
         <SubscriptionProvider>
+          {/* PR-A: Demo banner */}
+          <DemoBanner />
+          {/* PR-J: Trial countdown + paywall */}
           <TrialCountdownBanner />
           <PaywallModal />
-        <Routes>
-          {/* Public Routes */}
-          {/* === [LAUNCH PUBLIC ROUTES] === */}
-          {/* PR-B */}
-          <Route path="/grievance" element={<Grievance />} />
-          {/* PR-K */}
-          <Route path="/nps" element={<NpsEmailLanding />} />
-          {/* === [/LAUNCH PUBLIC ROUTES] === */}
-          <Route path="/login" element={<AdminLogin />} />
-          <Route path="/signup" element={<SignupRedirect />} />
-          <Route path="/phone-login" element={<PhoneLogin />} />
-          <Route path="/auth/callback" element={<AuthCallback />} />
-          
-          {/* Onboarding Routes (authenticated but not registered) */}
-          <Route path="/onboarding/role-selection" element={<RoleSelection />} />
-          <Route path="/onboarding/accept-invite" element={<AcceptInvite />} />
-          
-          {/* Member Routes (post-auth but pre-registration) */}
-          <Route path="/member/invites" element={<Invites />} />
-          <Route path="/member/no-access" element={<NoAccess />} />
-          
-          {/* Protected Routes */}
-          <Route path="/" element={<ProtectedRoute><Navigate to="/crm" replace /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><Navigate to="/crm" replace /></ProtectedRoute>} />
-          <Route path="/admin/dashboard" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />
-          <Route path="/rental-list" element={<ProtectedRoute><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
-          <Route path="/building/:id" element={<ProtectedRoute><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
-          <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-          
-          {/* Admin Routes */}
-          {/* === [LAUNCH PROTECTED ROUTES] === */}
-          {/* PR-B */}
-          <Route path="/admin/grievances" element={<ProtectedRoute><GrievanceList /></ProtectedRoute>} />
-          {/* === [/LAUNCH PROTECTED ROUTES] === */}
-          <Route path="/admin/invites" element={<ProtectedRoute><InviteManagement /></ProtectedRoute>} />
-          <Route path="/admin/members" element={<ProtectedRoute><MemberManagement /></ProtectedRoute>} />
-          
-          {/* CRM Routes */}
-          <Route path="/crm" element={<ProtectedRoute><CRMDashboard /></ProtectedRoute>} />
-          <Route path="/crm/tenants" element={<ProtectedRoute><TenantList /></ProtectedRoute>} />
-          <Route path="/crm/tenants/:id" element={<ProtectedRoute><TenantDetails /></ProtectedRoute>} />
-          <Route path="/crm/tenants/new" element={<ProtectedRoute><TenantDetails /></ProtectedRoute>} />
-          {/* Redirect old customer routes to tenant routes */}
-          <Route path="/crm/customers" element={<Navigate to="/crm/tenants" replace />} />
-          <Route path="/crm/customers/:id" element={<Navigate to="/crm/tenants" replace />} />
-          <Route path="/crm/customers/new" element={<Navigate to="/crm/tenants/new" replace />} />
-          <Route path="/crm/owners" element={<ProtectedRoute><OwnerList /></ProtectedRoute>} />
-          <Route path="/crm/owners/:id" element={<ProtectedRoute><OwnerDetails /></ProtectedRoute>} />
-          <Route path="/crm/owners/new" element={<ProtectedRoute><OwnerDetails /></ProtectedRoute>} />
-          <Route path="/crm/properties" element={<ProtectedRoute><PropertyList /></ProtectedRoute>} />
-          <Route path="/crm/properties/:id" element={<ProtectedRoute><PropertyDetails /></ProtectedRoute>} />
-          <Route path="/crm/properties/new" element={<ProtectedRoute><PropertyDetails /></ProtectedRoute>} />
-          <Route path="/crm/hierarchy" element={<ProtectedRoute><Hierarchy /></ProtectedRoute>} />
-          <Route path="/crm/rented-properties" element={<ProtectedRoute><RentedProperties /></ProtectedRoute>} />
-          <Route path="/crm/b2b-leads" element={<ProtectedRoute><B2BLeadsList /></ProtectedRoute>} />
-          <Route path="/crm/analytics" element={<ProtectedRoute><BusinessAnalytics /></ProtectedRoute>} />
-          <Route path="/crm/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
-          <Route path="/crm/khata" element={<ProtectedRoute><KhataBook /></ProtectedRoute>} />
-          <Route path="/crm/khata/new" element={<ProtectedRoute><KhataEntryForm /></ProtectedRoute>} />
-          <Route path="/crm/khata/:entryId" element={<ProtectedRoute><KhataEntryForm /></ProtectedRoute>} />
-          <Route path="/crm/khata/:entryId/edit" element={<ProtectedRoute><KhataEntryForm /></ProtectedRoute>} />
-          <Route path="/crm/khata/settlement" element={<ProtectedRoute><KhataSettlement /></ProtectedRoute>} />
-          
-          {/* Buyer Routes */}
-          <Route path="/crm/buyers" element={<ProtectedRoute><BuyerList /></ProtectedRoute>} />
-          <Route path="/crm/buyers/new" element={<ProtectedRoute><BuyerDetails /></ProtectedRoute>} />
-          <Route path="/crm/buyers/:id" element={<ProtectedRoute><BuyerDetails /></ProtectedRoute>} />
-          
-          {/* Lead Routes */}
-          <Route path="/crm/leads" element={<ProtectedRoute><LeadList /></ProtectedRoute>} />
-          <Route path="/crm/leads/new" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
-          <Route path="/crm/leads/:id" element={<ProtectedRoute><LeadDetails /></ProtectedRoute>} />
-          
-          {/* === [LAUNCH PROTECTED ROUTES] === */}
-          {/* PR-F */}
-          <Route path="/integrations/ai-employee" element={<ProtectedRoute><AIEmployeeStatus /></ProtectedRoute>} />
-          {/* === [/LAUNCH PROTECTED ROUTES] === */}
+          {/* PR-K: NPS */}
+          <NpsModal />
+          <CookieConsentBanner />
 
-        </Routes>
-      </SubscriptionProvider>
-      </Router>
-    </GoogleMapsProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/grievance" element={<Grievance />} />
+            <Route path="/nps" element={<NpsEmailLanding />} />
+            {/* === [/LAUNCH PUBLIC ROUTES] === */}
+            <Route path="/login" element={<AdminLogin />} />
+            <Route path="/signup" element={<SignupRedirect />} />
+            <Route path="/phone-login" element={<PhoneLogin />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
+
+            {/* Onboarding Routes (authenticated but not registered) */}
+            <Route path="/onboarding/role-selection" element={<ProtectedRoute authState={authState}><RoleSelection /></ProtectedRoute>} />
+            <Route path="/onboarding/accept-invite" element={<ProtectedRoute authState={authState}><AcceptInvite /></ProtectedRoute>} />
+
+            {/* Member Routes (post-auth but pre-registration) */}
+            <Route path="/member/invites" element={<ProtectedRoute authState={authState}><Invites /></ProtectedRoute>} />
+            <Route path="/member/no-access" element={<NoAccess />} />
+
+            {/* Protected Routes */}
+            <Route path="/" element={<ProtectedRoute authState={authState}><Navigate to="/crm" replace /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute authState={authState}><Navigate to="/crm" replace /></ProtectedRoute>} />
+            <Route path="/admin/dashboard" element={<ProtectedRoute authState={authState}><CRMDashboard /></ProtectedRoute>} />
+            <Route path="/rental-list" element={<ProtectedRoute authState={authState}><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
+            <Route path="/building/:id" element={<ProtectedRoute authState={authState}><Navigate to="/crm/properties" replace /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute authState={authState}><Profile /></ProtectedRoute>} />
+
+            {/* Admin Routes */}
+            <Route path="/admin/grievances" element={<ProtectedRoute authState={authState}><GrievanceList /></ProtectedRoute>} />
+            <Route path="/admin/invites" element={<ProtectedRoute authState={authState}><InviteManagement /></ProtectedRoute>} />
+            <Route path="/admin/members" element={<ProtectedRoute authState={authState}><MemberManagement /></ProtectedRoute>} />
+
+            {/* CRM Routes */}
+            <Route path="/crm" element={<ProtectedRoute authState={authState}><CRMDashboard /></ProtectedRoute>} />
+            <Route path="/crm/tenants" element={<ProtectedRoute authState={authState}><TenantList /></ProtectedRoute>} />
+            <Route path="/crm/tenants/:id" element={<ProtectedRoute authState={authState}><TenantDetails /></ProtectedRoute>} />
+            <Route path="/crm/tenants/new" element={<ProtectedRoute authState={authState}><TenantDetails /></ProtectedRoute>} />
+            {/* Redirect old customer routes to tenant routes */}
+            <Route path="/crm/customers" element={<Navigate to="/crm/tenants" replace />} />
+            <Route path="/crm/customers/:id" element={<Navigate to="/crm/tenants" replace />} />
+            <Route path="/crm/customers/new" element={<Navigate to="/crm/tenants/new" replace />} />
+            <Route path="/crm/owners" element={<ProtectedRoute authState={authState}><OwnerList /></ProtectedRoute>} />
+            <Route path="/crm/owners/:id" element={<ProtectedRoute authState={authState}><OwnerDetails /></ProtectedRoute>} />
+            <Route path="/crm/owners/new" element={<ProtectedRoute authState={authState}><OwnerDetails /></ProtectedRoute>} />
+            <Route path="/crm/properties" element={<ProtectedRoute authState={authState}><PropertyList /></ProtectedRoute>} />
+            <Route path="/crm/properties/:id" element={<ProtectedRoute authState={authState}><PropertyDetails /></ProtectedRoute>} />
+            <Route path="/crm/properties/new" element={<ProtectedRoute authState={authState}><PropertyDetails /></ProtectedRoute>} />
+            <Route path="/crm/hierarchy" element={<ProtectedRoute authState={authState}><Hierarchy /></ProtectedRoute>} />
+            <Route path="/crm/rented-properties" element={<ProtectedRoute authState={authState}><RentedProperties /></ProtectedRoute>} />
+            <Route path="/crm/b2b-leads" element={<ProtectedRoute authState={authState}><B2BLeadsList /></ProtectedRoute>} />
+            <Route path="/crm/analytics" element={<ProtectedRoute authState={authState}><BusinessAnalytics /></ProtectedRoute>} />
+            <Route path="/crm/calendar" element={<ProtectedRoute authState={authState}><Calendar /></ProtectedRoute>} />
+            <Route path="/crm/khata" element={<ProtectedRoute authState={authState}><KhataBook /></ProtectedRoute>} />
+            <Route path="/crm/khata/new" element={<ProtectedRoute authState={authState}><KhataEntryForm /></ProtectedRoute>} />
+            <Route path="/crm/khata/:entryId" element={<ProtectedRoute authState={authState}><KhataEntryForm /></ProtectedRoute>} />
+            <Route path="/crm/khata/:entryId/edit" element={<ProtectedRoute authState={authState}><KhataEntryForm /></ProtectedRoute>} />
+            <Route path="/crm/khata/settlement" element={<ProtectedRoute authState={authState}><KhataSettlement /></ProtectedRoute>} />
+
+            {/* Buyer Routes */}
+            <Route path="/crm/buyers" element={<ProtectedRoute authState={authState}><BuyerList /></ProtectedRoute>} />
+            <Route path="/crm/buyers/new" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
+            <Route path="/crm/buyers/:id" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
+
+            {/* Lead Routes */}
+            <Route path="/crm/leads" element={<ProtectedRoute authState={authState}><LeadList /></ProtectedRoute>} />
+            <Route path="/crm/leads/new" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
+            <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
+
+            <Route path="/integrations/ai-employee" element={<ProtectedRoute authState={authState}><AIEmployeeStatus /></ProtectedRoute>} />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/crm" replace />} />
+          </Routes>
+        </SubscriptionProvider>
+      </GoogleMapsProvider>
+    </Router>
   );
 }
 
 export default App;
+
+
+
+
+
+
+

@@ -17,27 +17,49 @@ export function initAnalytics(): void {
     return;
   }
 
-  posthog.init(import.meta.env.VITE_POSTHOG_KEY || '', {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
-    capture_pageview: false,
-    disable_session_recording: false,
-    persistence: 'memory',
-  });
+  const posthogKey = import.meta.env.VITE_POSTHOG_KEY;
+  if (!posthogKey) {
+    console.warn('PostHog key not configured. Analytics disabled.');
+    return;
+  }
+
+  try {
+    posthog.init(posthogKey, {
+      api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
+      capture_pageview: false,
+      disable_session_recording: false,
+      persistence: 'memory',
+    });
+  } catch (err) {
+    console.error('Failed to initialize PostHog:', err);
+  }
 }
 
 /** Call after login — stitches LP anonymous session to CRM user. */
 export function identifyUser(userId: string, traits: UserTraits): void {
-  posthog.identify(userId, traits);
+  try {
+    posthog.identify(userId, traits);
+  } catch (err) {
+    console.warn('Failed to identify user in PostHog:', err);
+  }
   Sentry.setUser({ id: userId, tenantId: traits.tenantId } as Record<string, string>);
 }
 
 /** Fire on every key user action. Never put PII in properties. */
 export function trackEvent(name: AnalyticsEvent, properties?: Record<string, unknown>): void {
-  posthog.capture(name, properties);
+  try {
+    posthog.capture(name, properties);
+  } catch (err) {
+    console.warn('Failed to track event in PostHog:', err);
+  }
 }
 
 /** Call on logout. */
 export function resetAnalytics(): void {
-  posthog.reset();
+  try {
+    posthog.reset();
+  } catch (err) {
+    console.warn('Failed to reset PostHog:', err);
+  }
   Sentry.setUser(null);
 }

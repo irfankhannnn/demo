@@ -1,4 +1,4 @@
-const CORS_HEADERS = {
+﻿const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
@@ -27,10 +27,16 @@ export function extractTenantId(req, res, next) {
  * Priority: server-derived tenantId from validateToken > x-tenant-id header
  */
 export function extractTenantIdOptional(req, res, next) {
-  // If validateToken already set tenantId, use it
-  if (!req.tenantId) {
-    const tenantId = req.headers['x-tenant-id'];
-    req.tenantId = tenantId || null;
+  // If validateToken already set tenantId, use it (server-derived, trusted)
+  if (req.tenantId) {
+    return next();
+  }
+  // For public endpoints, validate the x-tenant-id header format
+  const tenantId = req.headers['x-tenant-id'];
+  if (tenantId && /^[a-zA-Z0-9_-]+$/.test(tenantId)) {
+    req.tenantId = tenantId;
+  } else {
+    req.tenantId = null;
   }
   next();
 }
