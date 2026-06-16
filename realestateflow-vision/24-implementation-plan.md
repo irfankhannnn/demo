@@ -28,7 +28,7 @@ The fastest path reuses what exists and integrates proven tools rather than buil
 | LLM observability | **Langfuse** (OSS) or AgentCore Observability | Instrumentation |
 | Email | **Brevo** (integrated) | — |
 | Analytics/errors | **PostHog + Sentry** (integrated) | — |
-| Reporting DB | **Aurora Serverless v2** | Event projection |
+| Reporting & operational DB | **Aurora Serverless v2 + RDS Proxy + Drizzle ORM** (`25`,`26`) | Row-level security, data parity validation, dual-write migration |
 | Cache/queue/events | **Redis/Valkey, SQS, EventBridge, Step Functions** | Backbone |
 | Secret scanning | **gitleaks** | CI hook |
 
@@ -51,6 +51,14 @@ The fastest path reuses what exists and integrates proven tools rather than buil
 - EventBridge + SQS + Redis/Valkey; Conversation Orchestrator (REF-E10).
 - Chatwoot deployed (Fargate); WhatsApp via AiSensy → backbone; website widget; Meta Lead Ads sync (REF-E11).
 - Contact resolve/merge across channels.
+
+### **[PARALLEL, NON-BLOCKING] Weeks 6–12 — PostgreSQL Migration Foundation (REF-E04)**
+*One backend engineer, runs alongside Phase 1, not in critical path.*
+- **Week 6–7:** Provision Aurora Serverless v2 + RDS Proxy in staging; write Drizzle schema + migrations (`25`,`26`).
+- **Week 8–9:** Dual-write service layer (e.g., `leadService.create()` writes to both DynamoDB + Postgres); keep reads from DynamoDB (source of truth).
+- **Week 10–11:** Data parity validation (row count checks, sample spot-checks); migrate lowest-risk tables first (projects, developers, areas).
+- **Week 12:** Postgres reads for non-critical queries; standby for Phase 2 (when reporting/joins needed).
+- **Outcome:** Postgres foundation ready; zero user impact; can accelerate cutover in Phase 2–3 when reporting dashboards / agent analytics need complex joins.
 
 ### Weeks 10–13 — Sales Assistant + Qualification (REF-E12, E13) + Metering (REF-E16)
 - Sales Assistant (T1 tool-use loop, Sonnet, cached catalog) over Property/Document/Visit MCP; grounding + escalate-to-human; approval-queue + action inbox (REF-E12).

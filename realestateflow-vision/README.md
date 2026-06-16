@@ -37,6 +37,8 @@ It was produced by deep analysis of the codebase on branch `auth_rbac_feature` p
 | 22 | jira-epics | Epic backlog |
 | 23 | jira-stories | Stories + acceptance criteria |
 | 24 | implementation-plan | First 90 days + cheat sheet |
+| 25 | postgres-database-architecture | DynamoDB → Aurora PostgreSQL migration |
+| 26 | postgres-schema-migration-scripts | DDL, Drizzle ORM, migration strategy |
 
 ## The one-paragraph summary
 RealEstateFlow today is a solid multi-tenant serverless CRM with its AI ambitions (telephony, Bedrock, an agent persona, a marketing rig) mostly switched off or run founder-side. The plan is **evolution, not rewrite**: wrap the existing domain in clean **MCP tools**, add an **event-driven conversation backbone** and a **domain-bounded agent layer** (Strands + Bedrock AgentCore, Haiku-first with prompt caching), and light up the eight engines — acquisition, qualification, scoring, assignment, sales assistant, follow-up, voice, marketing — plus governed portal automation, all multi-tenant, grounded (never hallucinated), human-in-the-loop by default, and billed in **credits, not tokens**. Most of it is **integration of tools the repo already touches** (Bedrock, Exotel, ElevenLabs, AiSensy, Higgsfield/Meta/Blotato, Razorpay, Cognito) plus a little OSS (Chatwoot, Lago, Langfuse). Start by **rotating the exposed secrets**, wrapping the core as MCP, and shipping a WhatsApp-first acquisition+qualification wedge to pilot agencies in ~90 days.

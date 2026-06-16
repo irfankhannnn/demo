@@ -9,10 +9,11 @@
 - 🔴 Rotate hardcoded secrets → Secrets Manager; secret scanning (`15`,`R1`).
 - Fine-grained RBAC + region/team scoping (extends `auth_rbac_feature`) (`15`).
 - Add `tenant-index` GSI (MED-1); conversation tables; feature-flag framework.
+- **[Parallel, non-blocking] Spike Aurora + RDS Proxy; Drizzle schema; dual-write service layer** (`25`,`26` — database foundation for reporting/joins needed in Phase 2–3).
 - Wrap core domain endpoints as MCP tools via AgentCore Gateway (`05`).
 - CI/CD pipeline + consolidated IaC; WAF + API GW logs + throttling; DynamoDB PITR + S3 versioning (`16`).
 - Re-enable disabled routes behind flags (projects/developers/buildings; aiCallingInternal).
-**Outcome:** secure, observable, wrapped core; foundation for everything else.
+**Outcome:** secure, observable, wrapped core; foundation for everything else. Database migration groundwork laid but not yet in critical path.
 
 ## Phase 1 — Lead Acquisition + Qualification (≈Q1)
 **Theme:** the revenue front door on WhatsApp.
