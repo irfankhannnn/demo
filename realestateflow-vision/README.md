@@ -1,8 +1,20 @@
 # RealEstateFlow Vision — Discovery, Architecture & Execution Plan
 
-This folder is the complete future-state architecture and implementation plan for evolving **RealEstateFlow** from a multi-tenant real-estate CRM into an **AI-Powered Real Estate Agency Operating System**.
+This folder is the complete future-state architecture and implementation plan for evolving **RealEstateFlow** from a multi-tenant real-estate CRM into an **AI-Powered Real Estate Agency Operating System** (Phases 0–3) + the internal **GTM operations system** that Cloudberry runs to acquire and retain customers (Phase 4+).
 
 It was produced by deep analysis of the codebase on branch `auth_rbac_feature` plus current (June 2026) vendor research. **Pricing/feature figures should be reconfirmed on live vendor pages before financial commitment** — see the verification caveat in `20`.
+
+## Folder Structure
+
+**Root (Product: Phases 0–3):**
+- `01-20` — Strategic & technology documents
+- `00, 21-28` — Phased execution (Phases 0–3)
+- `29-30` — Payment system + credits/metering implementation
+
+**Subfolder: Internal Operations (Phase 4+):**
+- `internal-operations/README.md` — Overview: teams, MCPs, agent personas, why separate
+- `internal-operations/31-35` — Strategic architecture (operations system design)
+- `internal-operations/phase-4-detailed-implementation.md` — Week-by-week plan
 
 ## How to read this
 - **Start with `02-product-vision.md`** (what & why) and **`01-current-state-analysis.md`** (what exists today, honestly).
@@ -61,4 +73,6 @@ It was produced by deep analysis of the codebase on branch `auth_rbac_feature` p
 **All infrastructure must be CloudFormation (CFN) only.** No Terraform, CDK, Pulumi, or SAM. The canonical template is `server/infra/cfn-backend.yaml`. All new AWS resources (EventBridge rules, Lambda functions, Aurora cluster, RDS Proxy, SNS topics) are added as new resources in that template or as companion templates in `server/infra/`.
 
 ## The one-paragraph summary
-RealEstateFlow today is a solid multi-tenant serverless CRM with its AI ambitions (telephony, Bedrock, an agent persona, a marketing rig) mostly switched off or run founder-side. The plan is **evolution, not rewrite**: wrap the existing domain in clean **MCP tools**, add an **event-driven conversation backbone** and a **domain-bounded agent layer** (Strands + Bedrock AgentCore, Haiku-first with prompt caching), and light up the eight engines — acquisition, qualification, scoring, assignment, sales assistant, follow-up, voice, marketing — plus governed portal automation, all multi-tenant, grounded (never hallucinated), human-in-the-loop by default, and billed in **credits, not tokens**. Most of it is **integration of tools the repo already touches** (Bedrock, Exotel, ElevenLabs, AiSensy, Higgsfield/Meta/Blotato, Razorpay, Cognito) plus a little OSS (Chatwoot, Lago, Langfuse). Start by **rotating the exposed secrets**, wrapping the core as MCP, and shipping a WhatsApp-first acquisition+qualification wedge to pilot agencies in ~90 days.
+RealEstateFlow today is a solid multi-tenant serverless CRM with its AI ambitions (telephony, Bedrock, an agent persona, a marketing rig) mostly switched off or run founder-side. The plan is **evolution, not rewrite**: wrap the existing domain in clean **MCP tools**, add an **event-driven conversation backbone** and a **domain-bounded agent layer** (Strands + Bedrock AgentCore, Haiku-first with prompt caching), and light up the eight engines — acquisition, qualification, scoring, assignment, sales assistant, follow-up, voice, marketing — plus governed portal automation, all multi-tenant, grounded (never hallucinated), human-in-the-loop by default, and billed in **credits, not tokens** (Phases 0–3).
+
+**Separately:** The internal GTM operations system (20 agent personas, 6 teams, Marketing Agent, content factory, research, analytics) runs single-tenant in Phase 4+ (see `internal-operations/` folder). Same AWS infra, different data and RBAC.

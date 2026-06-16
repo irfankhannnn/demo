@@ -1,14 +1,16 @@
 # Quick Start: RealEstateFlow Vision & Implementation Roadmap
 
-> **Last updated:** June 2026 · **Status:** Revised post-codebase-audit · **For:** CTO / Tech Lead
+> **Last updated:** June 2026 · **Status:** Revised post-codebase-audit + Phase 4 (Internal Ops) isolated · **For:** CTO / Tech Lead / GTM Lead
 
 ---
 
 ## What is this?
 
-A complete architectural vision + phased implementation plan to evolve RealEstateFlow from a multi-tenant CRM into an **AI-powered real estate agency operating system**.
+A complete architectural vision + phased implementation plan to evolve RealEstateFlow from a multi-tenant CRM into an **AI-powered real estate agency operating system** (Phases 0–3) plus the internal GTM operations system that Cloudberry runs to grow the business (Phase 4+).
 
 The plan is grounded in a thorough audit of the existing codebase (DynamoDB structure, auth/RBAC, security posture, test coverage) and corrects several risks identified in the earlier design.
+
+**Key separation:** Phases 0–3 are the product you sell to agencies. Phase 4 is internal GTM machinery (20 agent personas, 6 teams, Marketing Agent, research, content) — see `/internal-operations/` folder.
 
 ---
 
