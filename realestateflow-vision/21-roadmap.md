@@ -1,6 +1,6 @@
-# 21 — Roadmap
+# 21 — Roadmap: Phase 0–3
 
-> **Scope:** phased delivery from today's CRM to the AI Agency OS, sized for a **3–6 engineer** team. Each phase is independently valuable and flag-gated. Durations are indicative (calendar quarters), not commitments.
+> **Scope:** phased delivery from today's CRM to the AI Agency OS, sized for a **3–6 engineer** team. Each phase is independently valuable and flag-gated. **Revised after codebase audit:** Phase 0 prerequisites, Phase 1 WhatsApp wedge on DynamoDB, Phase 2 PostgreSQL for analytics only (not CRM migration), Phase 3 scale.
 
 ---
 

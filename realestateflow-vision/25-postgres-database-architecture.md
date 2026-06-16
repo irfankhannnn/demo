@@ -18,64 +18,81 @@
 
 ---
 
-## 2. Multi-Tenancy Strategy: Row-Level Security (RLS)
+## 2. Multi-Tenancy Strategy: App-Level + Optional RLS (Defense-in-Depth)
 
-### Why RLS over schema-per-tenant or DB-per-tenant?
+### PRIMARY approach: Explicit `tenant_id` parameter (mirrors today's pattern)
 
-| Approach | Cost | Complexity | Lambda-friendly | Recommended |
-|---|---|---|---|---|
-| **Row-Level Security (RLS)** | Single cluster | Medium (policies) | ✅ Yes — connection pooling | ✅ **YES** |
-| Schema-per-tenant | Single cluster | High (migrations per schema) | ⚠️ Harder pooling | ❌ Avoid |
-| Database-per-tenant | Per-tenant cluster | Low | ❌ No pooling | ❌ Too heavy |
-
-### How it works
-
-```sql
--- Every table has tenant_id
-CREATE TABLE leads (
-  id UUID PRIMARY KEY,
-  tenant_id UUID NOT NULL,
-  ...
-);
-
--- RLS policy: user can only see their tenant's rows
-ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
-CREATE POLICY tenant_isolation ON leads
-  USING (tenant_id = current_setting('app.tenant_id')::UUID);
-
--- At request start in Lambda:
--- SET app.tenant_id = 'xyz' — Postgres enforces isolation on every query
+Your current code safely passes `tenantId` as an explicit argument to every query:
+```js
+getCustomers(tenantId, filters) → WHERE tenant_id = ? AND ...
 ```
 
-**Benefits:**
-- Lambda scales to 1000s of concurrent invocations → RDS Proxy handles connection pooling
-- Enforced at the DB layer, not application code
-- Migrations run once, apply to all tenants
-- Natural fit for your existing `TENANT#` prefix pattern
+**Keep this pattern in SQL.** It's explicit, auditableoptional, and proven. Add RLS as defense-in-depth, not as the primary mechanism.
+
+### Why NOT session-level RLS as primary (critical security bug in prior design)
+
+🔴 **RDS Proxy multiplexing + session-level `SET app.tenant_id` = cross-tenant data leak:**
+- RDS Proxy reuses underlying connections across multiple clients.
+- A bare `SET app.tenant_id = 'tenant-a'` on the connection sets a **session variable that persists**.
+- If the connection returns to the pool and is reused for `tenant-b`'s request, that request sees `app.tenant_id = 'tenant-a'` (Tenant B leaks into Tenant A's data).
+- Connection pinning (forcing the connection to stay open for one tenant) defeats pooling entirely, negating the reason to use RDS Proxy.
+
+### Correct pattern: app-level enforcement + optional RLS for defense
+
+1. **Primary:** Application-level `WHERE tenant_id = $1` on every query (as you do today).
+2. **Defense:** RLS as a safety net — set it **inside an explicit transaction per request**, using `SET LOCAL` (session-scoped to transaction, not connection):
+
+```sql
+-- Inside a transaction (connection-pooling safe)
+BEGIN;
+  SELECT set_config('app.tenant_id', $1, true);  -- LOCAL to transaction
+  SELECT * FROM leads WHERE tenant_id = get_current_setting('app.tenant_id');
+COMMIT;
+```
+
+Or simpler: **just use app-level WHERE clauses and skip RLS initially.** Add RLS later if you want a DB-enforced safety net, but only after understanding its interaction with pooling.
+
+### Why RLS matters (if used correctly)
+
+| Approach | Security | Pooling | When to use |
+|---|---|---|---|
+| **App-level only** (recommended day 1) | ✅ Bulletproof if enforced | ✅ Full pooling | Launch; cheapest; proven |
+| **App + RLS (transaction-scoped)** | ✅✅ Double-layer | ✅ Full pooling | Phase 3; added complexity for edge-case protection |
+| **Session-level RLS (BAD)** | 🔴 Cross-tenant leak | ❌ No pooling | ❌ Never |
+
+**Recommendation: Start with explicit `WHERE tenant_id = ?` (what you have today). When reporting/analytics queries become complex, add a second read-only `analytics_user` role with limited RLS + SELECT-only queries. Don't use RLS for the primary transactional path.**
 
 ---
 
-## 3. What Moves Where
+## 3. Migration Scope: Narrow Path First (NEW INSIGHTS)
 
-### ✅ MOVE TO POSTGRESQL (Aurora Serverless v2, ap-south-1)
+### ⚠️ CRITICAL REFRAMING: Don't migrate the working CRM
 
-**Transactional, queryable, reportable data:**
+**Codebase audit found:**
+- The "DynamoDB pain" in the earlier docs (slow queries, complex filtering) stems from **improper use of DynamoDB**, not DynamoDB's inherent limits:
+  - Every list operation uses `ScanCommand` (reads entire partition) + `FilterExpression`, then filters/sorts **in JavaScript memory**
+  - Zero pagination anywhere (no `LastEvaluatedKey`, `Limit`)
+  - A `TODO(MED-1)` to add a `tenant-index` GSI was never completed
+  - With proper `QueryCommand` + GSI + pagination, most of these queries would be fast *in place*
 
-| Current DynamoDB Table | → PostgreSQL Tables |
+**Recommendation: Fix DynamoDB access patterns first (cheap, low-risk), then add Postgres narrowly for genuinely relational/analytical workloads.**
+
+### ✅ MOVE TO POSTGRESQL (Aurora Serverless v2, ap-south-1) — ANALYTICAL + AGENT DATA ONLY
+
+**Net-new analytical + agent-layer workloads (NOT a rewrite of the CRM):**
+
+| Purpose | PostgreSQL Tables |
 |---|---|
-| `cloudberry-real-estate-crm` | `leads`, `contacts`, `buyers`, `owners`, `tenants_customers`, `notes`, `meetings`, `visits` |
-| `cloudberry-real-estate-core` | `properties`, `buildings`, `flats`, `units`, `floor_plans` |
-| `cloudberry-real-estate-projects` | `projects`, `project_amenities` |
-| `cloudberry-real-estate-developers` | `developers` |
-| `cloudberry-real-estate-communities` | `areas`, `communities` |
-| `cloudberry-real-estate-areas` | `area_banners` |
-| `cloudberry-real-estate-khata` | `khata_transactions`, `khata_categories` |
-| `cloudberry-real-estate-enquiries` | `enquiries` |
-| `cloudberry-real-estate-b2b-details` | `b2b_leads` |
-| `cloudberry-real-estate-agencies` | `agency_config` |
-| **(new)** | `tasks`, `agent_actions`, `conversations_meta`, `credits`, `grievances` |
+| **Agent audit & billing** | `agent_actions`, `agent_approvals` |
+| **Conversation metadata** (index + metadata; messages stay in DDB) | `conversations_meta` |
+| **Credits & metering** | `credits`, `credit_ledger`, `agent_usage` |
+| **Analytics projection** (denormalized for dashboards) | `lead_analytics_daily`, `agent_performance_daily`, `conversion_funnel` |
+| **Grievances & support** | `grievances`, `grievance_responses` |
+| **Audit log** (immutable, compliance) | `audit_log` |
 
-**Total: ~30 Postgres tables**
+**Total: ~12 Postgres tables (NEW tables, not migrated from DDB)**
+
+**The existing CRM (leads, contacts, properties, buyers, owners, khata, enquiries, projects, developers, areas) STAYS on DynamoDB.** Optimize its access patterns (add GSI, pagination) and leave it alone. Postgres is for genuinely new relational workloads, not a lift-and-shift.
 
 ### ✅ KEEP ON DYNAMODB (high-throughput, append-only, ephemeral)
 
@@ -256,11 +273,19 @@ CREATE TABLE conversations_meta (
 ```
 
 **Design decisions:**
-- `JSONB` for flexible sub-objects (config, settings, channel_handles) → avoids over-normalization while keeping query power
-- `tenant_id UUID NOT NULL` on every table + RLS policy enforced at DB layer
+- **Query-hot fields as REAL COLUMNS**, not JSONB. Examples:
+  - `budget_min`, `budget_max` (INT) — hot for range queries, filtering
+  - `bedroom_count`, `bathroom_count` (INT) — hot for search
+  - `timeline_months` (INT) — hot for filtering
+  - `score` (VARCHAR) — hot for sorting/filtering
+  - `city`, `area_id`, `building_id` (VARCHAR/UUID) — hot for location queries
+- **JSONB only for display/config:** `channel_handles`, `requirement_details` (flexible schema), `amenities`, `images[]`, `contact_info`, `settings`
+- `tenant_id UUID NOT NULL` on every table + app-level `WHERE tenant_id = $1` enforced in code
 - Foreign keys within tenant scope (enforce `tenant_id` match on joins)
 - `TIMESTAMP` for all temporal queries (conversion funnels, cohort analysis)
-- No `updated_at` auto-trigger yet — can add later if needed for change tracking
+- Audit columns: `created_at`, `created_by`, `updated_at` on all entities
+
+**Why this matters:** If you put `budget` in JSONB, you're inheriting the same friction (nested field queries, harder indexing) that you're migrating to *escape.* The schema must match your query patterns, not abstract them away.
 
 ---
 
@@ -320,21 +345,33 @@ CREATE POLICY tenant_isolation_contacts ON contacts
 
 ---
 
-## 7. ORM Choice: Drizzle (TypeScript-Native)
+## 7. ORM Choice: Knex.js (for JavaScript backend)
 
-### Why Drizzle
+### CRITICAL: Your `server/` is JavaScript, not TypeScript
 
-| Criteria | Drizzle | Knex | Prisma |
+**Finding from codebase audit:**
+- `server/` has **zero TypeScript** — all `.js` files, no `tsconfig.json`, no `typescript` dependency, no build step.
+- Only `reality-flow-authentication/` and `real-estate-crm-app/` are TypeScript.
+- Introducing a TypeScript ORM (`Drizzle`) means either:
+  1. Rewrite all of `server/` to TypeScript (massive, separate effort), **or**
+  2. Use Drizzle from JS (defeats the entire value prop of picking it for type safety).
+
+### Recommendation: Knex.js
+
+| Criteria | Knex | Drizzle | Prisma |
 |---|---|---|---|
-| **Bundle size** | 140 KB | 200 KB | 7 MB |
-| **Lambda cold start** | ~50ms | ~100ms | ~1000ms |
-| **TypeScript support** | ✅ First-class | ⚠️ Manual TS | ✅ Great |
-| **Schema migrations** | ✅ Via `migrate()` | ✅ Via knex | ✅ Via Prisma CLI |
-| **Query builder** | ✅ Typed | ⚠️ Untyped | ✅ Typed |
-| **Raw SQL** | ✅ `sql()` helper | ✅ Native | ⚠️ Via `$queryRaw` |
-| **Lambda-friendly** | ✅ Yes | ✅ Yes | ❌ Too heavy |
+| **Language fit** | ✅ JS-native | ❌ Requires TS migration | ❌ Requires TS |
+| **Bundle size** | 200 KB | 140 KB | 7 MB |
+| **Lambda cold start** | ~100ms | ~50ms | ~1000ms |
+| **Schema migrations** | ✅ First-class (`.migrations/`) | ✅ CLI-based | ✅ CLI-based |
+| **Query builder** | ✅ Fluent (minimal types) | ✅ Typed | ✅ Typed |
+| **Raw SQL** | ✅ Native `.raw()` | ✅ `sql()` | ⚠️ `$queryRaw` |
+| **Production use** | ✅ Proven at scale | ⚠️ Newer | ✅ Proven |
+| **Fits your stack NOW** | ✅ Yes | ❌ Not without rewrite | ❌ Not without rewrite |
 
-### Example Drizzle schema & queries
+**Knex is the pragmatic choice: no toolchain changes, native migration support, minimal overhead, proven in serverless.**
+
+### Example Knex schema & queries
 
 ```typescript
 // schema.ts
@@ -374,33 +411,32 @@ export async function getHotLeads(tenantId: string, city: string) {
 
 ---
 
-## 8. Migration: Dual-Write Phase (Strangler Fig)
+## 8. PostgreSQL Rollout: New Tables Only
 
-**Timeline: Weeks 6–12 (runs parallel with agent implementation)**
+**Timeline: Weeks 3–4 (in parallel with Phase 1 agent work, non-blocking)**
 
-### Phase 0: Setup (Weeks 6–7)
-- Provision Aurora + RDS Proxy in staging
-- Deploy migrations (schema + RLS policies)
-- Write dual-write service layer
-- Unit tests for new services
+Since you're NOT migrating the CRM, this is straightforward:
 
-### Phase 1: Dual-Write (Weeks 8–9)
-- Keep DynamoDB writes as-is
-- Add Postgres writes on every CRM operation
-- Read from DynamoDB (source of truth)
-- Validate Postgres has identical data
-- Zero user impact
+### Week 3: Setup
+- Provision Aurora Serverless v2 + RDS Proxy in staging
+- Deploy schema migrations (agent_actions, conversations_meta, credits, audit_log, grievances, analytics tables)
+- Write service layer (AgentActionService, ConversationMetaService, etc.)
+- Unit + integration tests for new services
 
-### Phase 2: Read Migration (Weeks 10–11)
-- Switch reads to Postgres (table by table)
-- Start with `projects`, `developers`, `areas` (low-risk)
-- Move to `leads`, `contacts`, `properties` (higher-risk)
-- Monitor query latency, error rates
+### Week 4: Wiring
+- Wire agent actions → `agent_actions` table on every AI action
+- Wire conversation routing → `conversations_meta` for metadata/indexing
+- Wire Lago metering → `credit_ledger`
+- Wire audit events → `audit_log`
+- Deploy to staging; test end-to-end with pilot agents
 
-### Phase 3: Cutover (Week 12)
-- Stop DynamoDB writes
-- Decommission DynamoDB tables (except 6 that stay)
-- Keep old DynamoDB data archived (S3 backup)
+### Week 5+: Gradual rollout
+- Feature-flag new tables (write to both old queue/DDB + Postgres)
+- Validate Postgres queries and analytics dashboards work
+- Deploy to prod behind flags
+- Migrate off flags when stable
+
+**Key: Zero migration risk because you're not touching the CRM.**
 
 **Safety valves:**
 - Feature flags per service: `USE_POSTGRES_LEADS=true/false`
