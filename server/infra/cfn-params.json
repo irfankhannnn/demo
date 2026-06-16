@@ -16,7 +16,7 @@
   { "ParameterKey": "ProjectsTableName", "ParameterValue": "cloudberry-dev-real-estate-projects" },
   { "ParameterKey": "S3BucketName", "ParameterValue": "cloudberry-dev-real-estate-agency-bucket" },
   { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "rewaro-cicd-artifacts" },
-  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "cloudberry-dev-real-estate-agency/function-20260611144958.zip" },
+  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "cloudberry-dev-real-estate-agency/function-20260615112243.zip" },
   { "ParameterKey": "PublicApiDomainName", "ParameterValue": "services-api.cloudberrysolutions.in" },
   { "ParameterKey": "PublicApiBasePath", "ParameterValue": "devrealestateagency" },
   { "ParameterKey": "PublicApiStageName", "ParameterValue": "dev" },

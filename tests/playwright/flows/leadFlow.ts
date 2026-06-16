@@ -21,10 +21,10 @@ interface LeadData {
   priority: string;
   source: string;
   notes: string;
-  buyerRequirement?: { requirement: string; budget: number; preferredArea: string; propertyType: string; bhk: number; address?: string; moveInDate?: string };
-  sellerProperty?: { propertyType: string; area: string; expectedPrice: number; timeline: string; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string };
-  tenantRequirement?: { requirement: string; budget: number; preferredArea: string; moveInDate: string; propertyType?: string; bhk?: number; address?: string };
-  ownerProperty?: { propertyType: string; area: string; rentExpected: number; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string; securityDeposit?: number };
+  buyerRequirement?: { requirement: string; budget: number; preferredArea: string; propertyType: string; bhk: number; address?: string; moveInDate?: string; timeline?: string; furnishing?: string; amenities?: string[] };
+  sellerProperty?: { propertyType: string; area: string; expectedPrice: number; timeline: string; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string; amenities?: string[]; description?: string };
+  tenantRequirement?: { requirement: string; budget: number; preferredArea: string; moveInDate: string; propertyType?: string; bhk?: number; address?: string; furnishing?: string; amenities?: string[] };
+  ownerProperty?: { propertyType: string; area: string; rentExpected: number; buildingName?: string; flatNumber?: string; floor?: string; city?: string; carpetArea?: number; furnishing?: string; bhk?: number; address?: string; securityDeposit?: number; amenities?: string[]; description?: string };
 }
 
 function buildLeads(runStamp: string, phoneBase: number): LeadData[] {
@@ -49,7 +49,7 @@ function buildLeads(runStamp: string, phoneBase: number): LeadData[] {
       status,
       priority,
       source,
-      notes: `Automated test lead #${i + 1} generated on ${new Date().toISOString()}`,
+      notes: `Automated test lead #${i + 1} - ${t} type. Generated on ${new Date().toISOString()}. Complete details with all required fields.`,
     };
 
     if (t === 'buyer') base.buyerRequirement = req as LeadData['buyerRequirement'];
@@ -125,6 +125,7 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
         }
       }
 
+      // BUYER LEAD FIELDS
       if (lead.type === 'buyer' && lead.buyerRequirement) {
         const req = lead.buyerRequirement;
         const reqTextarea = page.locator('label').filter({ hasText: /^Requirement$/ }).first().locator('..').locator('textarea');
@@ -144,9 +145,22 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
         const addressTextarea = page.locator('textarea[placeholder="Full address, landmark, pin code..."]');
         if (await addressTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await addressTextarea.fill(req.address || 'Bandra West, Mumbai');
         const moveInInput = page.locator('label').filter({ hasText: /^Move-in Date$/ }).first().locator('..').locator('input[type="date"]');
-        if (await moveInInput.isVisible({ timeout: 2_000 }).catch(() => false)) await moveInInput.fill(req.moveInDate);
+        if (await moveInInput.isVisible({ timeout: 2_000 }).catch(() => false)) await moveInInput.fill(req.moveInDate || '');
+        const timelineSelect = page.locator('label').filter({ hasText: /^Timeline$/ }).first().locator('..').locator('select');
+        if (await timelineSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await timelineSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (req.timeline || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await timelineSelect.selectOption(valid);
+        }
+        const furnishingSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishingSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await furnishingSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (req.furnishing || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await furnishingSelect.selectOption(valid);
+        }
       }
 
+      // SELLER LEAD FIELDS
       if (lead.type === 'seller' && lead.sellerProperty) {
         const prop = lead.sellerProperty;
         const priceInput = page.locator('input[placeholder="Expected price"]');
@@ -159,8 +173,33 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
           const valid = opts.find(o => o.toLowerCase() === prop.propertyType) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
           if (valid) await propTypeSelect.selectOption(valid);
         }
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(prop.bhk || 2));
+        const buildingInput = page.locator('input[placeholder="Building name"]');
+        if (await buildingInput.isVisible({ timeout: 2_000 }).catch(() => false)) await buildingInput.fill(prop.buildingName || '');
+        const flatInput = page.locator('input[placeholder="Flat number"]');
+        if (await flatInput.isVisible({ timeout: 2_000 }).catch(() => false)) await flatInput.fill(prop.flatNumber || '');
+        const floorInput = page.locator('input[placeholder="Floor"]');
+        if (await floorInput.isVisible({ timeout: 2_000 }).catch(() => false)) await floorInput.fill(prop.floor || '');
+        const carpetInput = page.locator('input[placeholder="Carpet area"]');
+        if (await carpetInput.isVisible({ timeout: 2_000 }).catch(() => false)) await carpetInput.fill(String(prop.carpetArea || 1000));
+        const furnishingSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishingSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await furnishingSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (prop.furnishing || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await furnishingSelect.selectOption(valid);
+        }
+        const timelineSelect = page.locator('label').filter({ hasText: /^Timeline$/ }).first().locator('..').locator('select');
+        if (await timelineSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await timelineSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (prop.timeline || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await timelineSelect.selectOption(valid);
+        }
+        const descriptionTextarea = page.locator('textarea[placeholder="Property description"]');
+        if (await descriptionTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await descriptionTextarea.fill(prop.description || '');
       }
 
+      // TENANT LEAD FIELDS
       if (lead.type === 'tenant' && lead.tenantRequirement) {
         const req = lead.tenantRequirement;
         const reqTextarea = page.locator('label').filter({ hasText: /^Requirement$/ }).first().locator('..').locator('textarea');
@@ -170,9 +209,24 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
         const areaInput = page.locator('input[placeholder="Preferred location"]').first();
         if (await areaInput.isVisible({ timeout: 2_000 }).catch(() => false)) await areaInput.fill(req.preferredArea);
         const moveInInput = page.locator('label').filter({ hasText: /^Move-in Date$/ }).first().locator('..').locator('input[type="date"]');
-        if (await moveInInput.isVisible({ timeout: 2_000 }).catch(() => false)) await moveInInput.fill(req.moveInDate);
+        if (await moveInInput.isVisible({ timeout: 2_000 }).catch(() => false)) await moveInInput.fill(req.moveInDate || '');
+        const propTypeSelect = page.locator('label').filter({ hasText: /^Property Type$/ }).first().locator('..').locator('select');
+        if (await propTypeSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await propTypeSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (req.propertyType || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await propTypeSelect.selectOption(valid);
+        }
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(req.bhk || 2));
+        const furnishingSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishingSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await furnishingSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (req.furnishing || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await furnishingSelect.selectOption(valid);
+        }
       }
 
+      // OWNER LEAD FIELDS
       if (lead.type === 'owner' && lead.ownerProperty) {
         const prop = lead.ownerProperty;
         const rentInput = page.locator('input[placeholder="Rent expected"]');
@@ -185,6 +239,26 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
           const valid = opts.find(o => o.toLowerCase() === prop.propertyType) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
           if (valid) await propTypeSelect.selectOption(valid);
         }
+        const bhkSelect = page.locator('label').filter({ hasText: /^BHK$/ }).first().locator('..').locator('select');
+        if (await bhkSelect.isVisible({ timeout: 2_000 }).catch(() => false)) await bhkSelect.selectOption(String(prop.bhk || 2));
+        const buildingInput = page.locator('input[placeholder="Building name"]');
+        if (await buildingInput.isVisible({ timeout: 2_000 }).catch(() => false)) await buildingInput.fill(prop.buildingName || '');
+        const flatInput = page.locator('input[placeholder="Flat number"]');
+        if (await flatInput.isVisible({ timeout: 2_000 }).catch(() => false)) await flatInput.fill(prop.flatNumber || '');
+        const floorInput = page.locator('input[placeholder="Floor"]');
+        if (await floorInput.isVisible({ timeout: 2_000 }).catch(() => false)) await floorInput.fill(prop.floor || '');
+        const carpetInput = page.locator('input[placeholder="Carpet area"]');
+        if (await carpetInput.isVisible({ timeout: 2_000 }).catch(() => false)) await carpetInput.fill(String(prop.carpetArea || 1000));
+        const depositInput = page.locator('input[placeholder="Security deposit"]');
+        if (await depositInput.isVisible({ timeout: 2_000 }).catch(() => false)) await depositInput.fill(String(prop.securityDeposit || 0));
+        const furnishingSelect = page.locator('label').filter({ hasText: /^Furnishing$/ }).first().locator('..').locator('select');
+        if (await furnishingSelect.isVisible({ timeout: 2_000 }).catch(() => false)) {
+          const opts = await furnishingSelect.locator('option').allTextContents();
+          const valid = opts.find(o => o.toLowerCase() === (prop.furnishing || '').toLowerCase()) || opts.find(o => !o.toLowerCase().includes('select')) || opts[0];
+          if (valid) await furnishingSelect.selectOption(valid);
+        }
+        const descriptionTextarea = page.locator('textarea[placeholder="Property description"]');
+        if (await descriptionTextarea.isVisible({ timeout: 2_000 }).catch(() => false)) await descriptionTextarea.fill(prop.description || '');
       }
 
       const saveBtn = page.locator('button').filter({ hasText: /^Save$/i }).first();
@@ -216,5 +290,5 @@ export async function runLeadFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
     }
   });
 
-  log('Leads', 'PASS', `Lead flow completed. Created ${createdLeadNames.length} leads`);
+  log('Leads', 'PASS', `Lead flow completed. Created ${createdLeadNames.length} leads with comprehensive data`);
 }

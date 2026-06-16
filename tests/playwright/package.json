@@ -12,6 +12,8 @@
     "test:setup": "playwright test --project=setup",
     "test:public": "playwright test --project=chromium-public",
     "test:api": "playwright test --project=chromium-api",
+    "test:api:simple": "playwright test --project=chromium-api --reporter=./reporters/apiReporter.ts",
+    "test:api:html": "playwright test --project=chromium-api --reporter=html && npx playwright show-report reports/html",
     "test:crm": "playwright test --project=chromium-crm",
 
     "test:leads": "playwright test ui/crm/lead-flows.spec.ts",
@@ -33,6 +35,13 @@
 
     "test:seat-cap": "playwright test api/seat-cap.spec.ts",
     "test:cross-tenant": "playwright test api/cross-tenant-pentest.spec.ts",
+    "test:state-transitions": "playwright test api/state-transitions.spec.ts",
+    "test:validation-security": "playwright test api/validation-security.spec.ts",
+    "test:cors-public": "playwright test api/cors-public-endpoints.spec.ts",
+    "test:penetration": "playwright test api/penetration-security.spec.ts",
+    "test:edge-cases": "playwright test api/edge-cases-boundary.spec.ts",
+    "test:data-integrity": "playwright test api/data-integrity.spec.ts",
+    "test:concurrent": "playwright test api/concurrent-race.spec.ts",
 
     "install:playwright": "playwright install"
   },

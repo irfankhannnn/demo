@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import multer from 'multer';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
@@ -22,6 +22,7 @@ import {
   getOwners,
   getCustomers,
   getContactActivityTimeline,
+  getContactIdForEntity,
 } from '../crmDynamodbService.js';
 
 const router = express.Router();

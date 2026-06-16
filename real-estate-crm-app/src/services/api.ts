@@ -1,4 +1,4 @@
-import { getTenantHeaders } from '../config/tenant';
+﻿import { getTenantHeaders } from '../config/tenant';
 import type {
   CreateCustomerData,
   UpdateCustomerData,
@@ -95,6 +95,21 @@ class ApiService {
     return headers;
   }
 
+  private async refreshWithRetry(maxRetries = 3): Promise<AuthTokens> {
+    let lastError: unknown;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await refreshTokens();
+      } catch (err) {
+        lastError = err;
+        if (i < maxRetries - 1) {
+          await new Promise(r => setTimeout(r, 500 * (i + 1)));
+        }
+      }
+    }
+    throw lastError;
+  }
+
   private async handleResponse(response: Response) {
     if (!response.ok) {
       if (response.status === 401) {
@@ -102,7 +117,7 @@ class ApiService {
         try {
           if (!this.isRefreshing) {
             this.isRefreshing = true;
-            const newTokens = await refreshTokens();
+            const newTokens = await this.refreshWithRetry();
             setTokens(newTokens);
             this.isRefreshing = false;
             this.onTokenRefreshed(newTokens.idToken);
@@ -131,16 +146,21 @@ class ApiService {
   }
 
   private async retryRequest(originalResponse: Response): Promise<any> {
-    // Clone the original request and retry with new token
+    // NOTE: We can't reliably determine the original HTTP method from the
+    // Response object, so we retry as GET (safe for read endpoints).
+    // Write endpoints will need the user to retry manually.
     const url = originalResponse.url;
     const options: RequestInit = {
-      method: originalResponse.type === 'basic' ? 'GET' : 'POST',
+      method: 'GET',
       headers: this.getHeaders(),
       credentials: 'include',
     };
 
     const response = await fetch(url, options);
-    return this.handleResponse(response);
+    if (!response.ok) {
+      throw new Error(`Request failed after token refresh (${response.status})`);
+    }
+    return response.json();
   }
 
   private stripDynamoFields<T extends Record<string, any>>(data: T): Partial<T> {
@@ -2604,3 +2624,5 @@ class ApiService {
 }
 
 export const api = new ApiService();
+
+

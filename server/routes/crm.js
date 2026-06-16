@@ -1,4 +1,5 @@
-import express from 'express';
+﻿import express from 'express';
+import { logger } from '../logger.js';
 import multer from 'multer';
 import {
   createCustomer,
@@ -85,8 +86,16 @@ import {
 } from '../validation/crmSchemas.js';
 
 const router = express.Router();
-const upload = multer({ 
+const upload = multer({
   storage: multer.memoryStorage(),
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'video/mp4', 'video/webm'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`File type ${file.mimetype} is not allowed`), false);
+    }
+  },
   limits: { 
     fileSize: 100 * 1024 * 1024, // 100MB limit for videos
     files: 10 // Max 10 files at once
@@ -223,7 +232,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       limit, offset
     } = req.query;
 
-    const normalizePhone = (phone) => String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+    const normalizePhone = (phone) => { const digits = String(phone || '').replace(/[^0-9]/g, ''); const withoutPrefix = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits; return /^[6-9]\d{9}$/.test(withoutPrefix) ? withoutPrefix : ''; };
 
     // Build DB filters (pre-property-count)
     const dbFilters = {};
@@ -1379,10 +1388,11 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     
     // Process each property using pre-fetched agreements and verifications
     for (const property of properties) {
-      // Calculate revenue for occupied properties (status=rented OR has a tenant linked)
-      const isOccupied = property.status === 'rented' || !!property.tenantCustomerId;
-      if (isOccupied && property.monthlyRent) {
-        totalRevenue += property.monthlyRent;
+      // Calculate revenue for occupied properties (status=rented, for-rent with tenant, or has tenant linked)
+      const isOccupied = property.status === 'rented' || property.status === 'for-rent' || !!property.tenantCustomerId;
+      const monthlyRent = property.rentAmount || property.monthlyRent || 0;
+      if (isOccupied && monthlyRent > 0) {
+        totalRevenue += monthlyRent;
         activeProperties++;
       }
       
@@ -1433,7 +1443,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
               ownerName,
               agreementEndDate: latestAgreement.endDate,
               daysUntilExpiry,
-              monthlyRent: property.monthlyRent || 0,
+              monthlyRent: monthlyRent,
               status: expiryStatus,
             });
           }
@@ -1478,9 +1488,8 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
       ? Math.round(totalRevenue / activeProperties)
       : 0;
     
-    const totalTenants = customers.filter(c =>
-      c.status === 'active' && properties.some(p => p.tenantCustomerId === c.customerId)
-    ).length;
+    // Count all customers as tenants (dashboard treats all customers as tenants)
+    const totalTenants = customers.length;
     
     const analytics = {
       metrics: {
@@ -1518,7 +1527,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     res.set({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
+      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }

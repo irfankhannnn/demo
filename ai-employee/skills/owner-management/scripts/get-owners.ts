@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'get-owners';
+const SKILL_NAME = 'owner-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -20,9 +19,7 @@ function renderSummary(owners: any[], total: number, hasMore: boolean) {
       console.log(parts.filter(Boolean).join(' • '));
     });
   }
-  if (hasMore) {
-    console.log(`\n+${total - owners.length} more available. Ask "show more" or refine filters.`);
-  }
+  if (hasMore) { console.log(`\n+${total - owners.length} more available. Ask "show more" or refine filters.`); }
 }
 
 function renderCompact(owners: any[], total: number, hasMore: boolean) {
@@ -31,9 +28,7 @@ function renderCompact(owners: any[], total: number, hasMore: boolean) {
     const props = o.propertyCount > 0 ? ` • ${o.propertyCount} properties` : '';
     console.log(`${i + 1}. ${o.name}${props}`);
   });
-  if (hasMore) {
-    console.log(`\nNext page: offset=${owners.length}`);
-  }
+  if (hasMore) { console.log(`\nNext page: offset=${owners.length}`); }
 }
 
 function renderDetails(owners: any[], total: number, hasMore: boolean) {
@@ -46,7 +41,7 @@ function renderDetails(owners: any[], total: number, hasMore: boolean) {
     if (o.phone) console.log(`  Phone: ${o.phone}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 function renderFull(owners: any[], total: number, hasMore: boolean) {
@@ -64,55 +59,36 @@ function renderFull(owners: any[], total: number, hasMore: boolean) {
     if (o.bankName || o.ifscCode) console.log(`  Bank: ${o.bankName || ''} ${o.ifscCode || ''}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 async function main() {
+  const timer = startTimer();
   const raw = process.argv[2];
-  if (!raw) {
-    console.error('Usage: get-owners.ts \'<json>\' — pass {} for all');
-    process.exit(1);
-  }
+
+  if (!raw) { console.error('Usage: get-owners.ts \'<json>\' — pass {} for all'); process.exit(1); }
 
   const payload = JSON.parse(raw);
-  const { responseMode = 'summary', ...filters } = payload;
+  const { responseMode = 'summary', _meta, ...filters } = payload;
   const params: Record<string, string> = {};
 
   const paramMap: Record<string, string> = {
-    status: 'status',
-    source: 'source',
-    area: 'area',
-    search: 'search',
-    createdFrom: 'createdFrom',
-    createdTo: 'createdTo',
-    hasProperties: 'hasProperties',
-    seller: 'seller',
-    propertyType: 'propertyType',
-    listingType: 'listingType',
-    bhk: 'bhk',
-    furnishing: 'furnishing',
-    minProperties: 'minProperties',
-    maxProperties: 'maxProperties',
-    tag: 'tag',
-    hasPAN: 'hasPAN',
-    hasAadhar: 'hasAadhar',
-    hasBankDetails: 'hasBankDetails',
-    sortBy: 'sortBy',
-    sortOrder: 'sortOrder',
-    limit: 'limit',
-    offset: 'offset',
+    status: 'status', source: 'source', area: 'area', search: 'search',
+    createdFrom: 'createdFrom', createdTo: 'createdTo', hasProperties: 'hasProperties',
+    seller: 'seller', propertyType: 'propertyType', listingType: 'listingType',
+    bhk: 'bhk', furnishing: 'furnishing', minProperties: 'minProperties',
+    maxProperties: 'maxProperties', tag: 'tag', hasPAN: 'hasPAN',
+    hasAadhar: 'hasAadhar', hasBankDetails: 'hasBankDetails',
+    sortBy: 'sortBy', sortOrder: 'sortOrder', limit: 'limit', offset: 'offset',
   };
 
   for (const [key, queryKey] of Object.entries(paramMap)) {
     if (filters[key] !== undefined) params[queryKey] = String(filters[key]);
   }
 
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/owners`, params };
-  const res = await axios.get(`${BASE}/api/crm/owners`, {
-    params,
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  lastRequestLog = { method: 'GET', url: '/api/crm/owners', params };
+  const res = await crmClient.get('/api/crm/owners', { params });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const owners = res.data.owners ?? [];
   const total = res.data.total ?? owners.length;
@@ -121,29 +97,26 @@ async function main() {
 
   if (!owners.length) {
     console.log('No owners found.');
+    logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total: 0 } });
     return;
   }
 
   const hasMore = limit > 0 && offset + limit < total;
 
   switch (responseMode as ResponseMode) {
-    case 'compact':
-      renderCompact(owners, total, hasMore);
-      break;
-    case 'details':
-      renderDetails(owners, total, hasMore);
-      break;
-    case 'full':
-      renderFull(owners, total, hasMore);
-      break;
+    case 'compact': renderCompact(owners, total, hasMore); break;
+    case 'details': renderDetails(owners, total, hasMore); break;
+    case 'full': renderFull(owners, total, hasMore); break;
     case 'summary':
-    default:
-      renderSummary(owners, total, hasMore);
+    default: renderSummary(owners, total, hasMore);
   }
+
+  logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total, returned: owners.length } });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error fetching owners:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) { console.error('Error:', e.crmError.message); }
+  else { console.error('Error fetching owners:', e.response?.data?.error || e.message); }
   process.exit(1);
 });

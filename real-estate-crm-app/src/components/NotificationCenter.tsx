@@ -81,6 +81,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
   const [processing, setProcessing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<NotificationCategory | 'ALL'>('ALL');
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const hasRun = useRef(false);
 
   const fetchNotifications = async () => {
     try {
@@ -166,6 +167,8 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = ({ classNam
   };
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
     fetchNotifications();
     // Poll for new notifications every 60 seconds
     const interval = setInterval(fetchNotifications, 60000);

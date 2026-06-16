@@ -1,14 +1,9 @@
-# Project Details: Reality Flow CRM
+# Project Details
 
-## Technical Stack
-- **CRM Backend:** Hosted on AWS (Execute API).
-- **Scripts:** TypeScript (`ts-node`/`tsx`).
-- **Communication:** Axios-based REST API.
+Project: Reality Flow CRM
 
-## Key API/Script Modules
-- **Lead Management:** `create-lead`, `get-leads`, `get-lead`, `update-lead`, `search-leads`, `delete-lead`, `lead-notes`, `get-lead-metrics`, `convert-lead`.
-- **Other Modules:** Buyer, Owner, Tenant, Property management (under investigation/discovery).
+Purpose:
 
-## Known Environment Variables
-- `CRM_API_BASE`
-- `CRM_TOKEN`
+Conversational interface for operating CRM workflows through skills and scripts.
+
+Additional project knowledge should only be stored here if it is learned after workspace initialization and is not already represented in workspace files.

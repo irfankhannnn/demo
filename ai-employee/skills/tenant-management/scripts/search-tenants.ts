@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'search-tenants';
+const SKILL_NAME = 'tenant-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -37,9 +36,7 @@ function renderSummary(tenants: any[], total: number, hasMore: boolean) {
       console.log(parts.join(' • '));
     });
   }
-  if (hasMore) {
-    console.log(`\n+${total - tenants.length} more available. Ask "show more" or refine filters.`);
-  }
+  if (hasMore) { console.log(`\n+${total - tenants.length} more available. Ask "show more" or refine filters.`); }
 }
 
 function renderCompact(tenants: any[], total: number, hasMore: boolean) {
@@ -48,9 +45,7 @@ function renderCompact(tenants: any[], total: number, hasMore: boolean) {
     const statusTag = t.status && t.status !== 'active' ? ` [${t.status}]` : '';
     console.log(`${i + 1}. ${t.name}${statusTag}`);
   });
-  if (hasMore) {
-    console.log(`\nNext page: offset=${tenants.length}`);
-  }
+  if (hasMore) { console.log(`\nNext page: offset=${tenants.length}`); }
 }
 
 function renderDetails(tenants: any[], total: number, hasMore: boolean) {
@@ -63,7 +58,7 @@ function renderDetails(tenants: any[], total: number, hasMore: boolean) {
     if (rental) console.log(`  Rental: ${rental}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 function renderFull(tenants: any[], total: number, hasMore: boolean) {
@@ -81,17 +76,15 @@ function renderFull(tenants: any[], total: number, hasMore: boolean) {
     if (t.createdAt) console.log(`  Created: ${t.createdAt.slice(0, 10)}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 async function main() {
+  const timer = startTimer();
   const payload = process.argv[2] ? JSON.parse(process.argv[2]) : {};
-  const { q, responseMode = 'summary', ...extraFilters } = payload;
+  const { q, responseMode = 'summary', _meta, ...extraFilters } = payload;
 
-  if (!q || q.trim().length < 2) {
-    console.error('Usage: search-tenants.ts \'{"q":"<query>"}\'');
-    process.exit(1);
-  }
+  if (!q || q.trim().length < 2) { console.error('Usage: search-tenants.ts \'{"q":"<query>"}\''); process.exit(1); }
 
   const params = new URLSearchParams();
   params.append('search', q.trim());
@@ -102,11 +95,9 @@ async function main() {
   }
 
   const query = params.toString() ? `?${params.toString()}` : '';
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/customers${query}` };
-  const res = await axios.get(`${BASE}/api/crm/customers${query}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  lastRequestLog = { method: 'GET', url: `/api/crm/customers${query}` };
+  const res = await crmClient.get(`/api/crm/customers${query}`);
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const data = res.data;
   const customers = data.customers ?? data;
@@ -116,29 +107,26 @@ async function main() {
 
   if (!tenants.length) {
     console.log(`No tenants found for "${q}".`);
+    logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total: 0, query: q } });
     return;
   }
 
   const hasMore = total > tenants.length + offset;
 
   switch (responseMode as ResponseMode) {
-    case 'compact':
-      renderCompact(tenants, total, hasMore);
-      break;
-    case 'details':
-      renderDetails(tenants, total, hasMore);
-      break;
-    case 'full':
-      renderFull(tenants, total, hasMore);
-      break;
+    case 'compact': renderCompact(tenants, total, hasMore); break;
+    case 'details': renderDetails(tenants, total, hasMore); break;
+    case 'full': renderFull(tenants, total, hasMore); break;
     case 'summary':
-    default:
-      renderSummary(tenants, total, hasMore);
+    default: renderSummary(tenants, total, hasMore);
   }
+
+  logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total, returned: tenants.length, query: q } });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) { console.error('Error:', e.crmError.message); }
+  else { console.error('Error:', e.response?.data?.error || e.message); }
   process.exit(1);
 });

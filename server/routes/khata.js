@@ -5,6 +5,7 @@ import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCo
 import { v4 as uuidv4 } from 'uuid';
 import { scheduleKhataReminder, cancelKhataReminder } from '../notificationDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
+import { requireAdmin } from '../middleware/requireRole.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import validateBody from '../middleware/validateBody.js';
 import {
@@ -191,7 +192,7 @@ router.get('/parties/search', async (req, res) => {
     res.json(uniqueResults);
   } catch (error) {
     console.error('Error searching parties:', error);
-    res.status(500).json({ error: 'Failed to search parties' });
+    return res.status(500).json({ error: 'Failed to search parties' });
   }
 });
 
@@ -302,7 +303,7 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
     res.json(properties || []);
   } catch (error) {
     console.error('Error fetching party properties:', error);
-    res.status(500).json({ error: 'Failed to fetch properties' });
+    return res.status(500).json({ error: 'Failed to fetch properties' });
   }
 });
 
@@ -324,7 +325,7 @@ router.get('/categories', async (req, res) => {
     res.json(result.Items || []);
   } catch (error) {
     console.error('Error fetching categories:', error);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    return res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 
@@ -360,7 +361,7 @@ router.post('/categories', validateBody(z.object({ name: z.string().min(1).max(2
     res.status(201).json(category);
   } catch (error) {
     console.error('Error creating category:', error);
-    res.status(500).json({ error: 'Failed to create category' });
+    return res.status(500).json({ error: 'Failed to create category' });
   }
 });
 
@@ -381,7 +382,7 @@ router.delete('/categories/:categoryId', async (req, res) => {
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('Error deleting category:', error);
-    res.status(500).json({ error: 'Failed to delete category' });
+    return res.status(500).json({ error: 'Failed to delete category' });
   }
 });
 
@@ -470,7 +471,7 @@ router.get('/entries', async (req, res) => {
     res.json(filteredEntries);
   } catch (error) {
     console.error('Error fetching entries:', error);
-    res.status(500).json({ error: 'Failed to fetch entries' });
+    return res.status(500).json({ error: 'Failed to fetch entries' });
   }
 });
 
@@ -495,7 +496,7 @@ router.get('/entries/:entryId', async (req, res) => {
     res.json(result.Item);
   } catch (error) {
     console.error('Error fetching entry:', error);
-    res.status(500).json({ error: 'Failed to fetch entry' });
+    return res.status(500).json({ error: 'Failed to fetch entry' });
   }
 });
 
@@ -634,7 +635,7 @@ router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) =
     res.status(201).json(entry);
   } catch (error) {
     console.error('Error creating entry:', error);
-    res.status(500).json({ error: 'Failed to create entry' });
+    return res.status(500).json({ error: 'Failed to create entry' });
   }
 });
 
@@ -802,7 +803,7 @@ router.put('/entries/:entryId', validateBody(updateKhataEntrySchema), async (req
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error updating entry:', error);
-    res.status(500).json({ error: 'Failed to update entry' });
+    return res.status(500).json({ error: 'Failed to update entry' });
   }
 });
 
@@ -846,7 +847,7 @@ router.post('/entries/:entryId/settle', validateBody(settleKhataEntrySchema), as
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error settling entry:', error);
-    res.status(500).json({ error: 'Failed to settle entry' });
+    return res.status(500).json({ error: 'Failed to settle entry' });
   }
 });
 
@@ -878,7 +879,7 @@ router.post('/entries/:entryId/unsettle', async (req, res) => {
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error unsettling entry:', error);
-    res.status(500).json({ error: 'Failed to unsettle entry' });
+    return res.status(500).json({ error: 'Failed to unsettle entry' });
   }
 });
 
@@ -899,7 +900,7 @@ router.delete('/entries/:entryId', async (req, res) => {
     res.json({ message: 'Entry deleted successfully' });
   } catch (error) {
     console.error('Error deleting entry:', error);
-    res.status(500).json({ error: 'Failed to delete entry' });
+    return res.status(500).json({ error: 'Failed to delete entry' });
   }
 });
 
@@ -948,7 +949,7 @@ router.get('/summary', async (req, res) => {
     res.json(summary);
   } catch (error) {
     console.error('Error fetching summary:', error);
-    res.status(500).json({ error: 'Failed to fetch summary' });
+    return res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 
@@ -1055,7 +1056,7 @@ router.get('/bifurcation', async (req, res) => {
     res.json(bifurcation);
   } catch (error) {
     console.error('Error fetching bifurcation:', error);
-    res.status(500).json({ error: 'Failed to fetch bifurcation' });
+    return res.status(500).json({ error: 'Failed to fetch bifurcation' });
   }
 });
 
@@ -1270,7 +1271,7 @@ router.get('/settlement/:type', async (req, res) => {
     return res.status(400).json({ error: 'Invalid type. Use: aging, trends, or history' });
   } catch (error) {
     console.error('Error fetching settlement data:', error);
-    res.status(500).json({ error: 'Failed to fetch settlement data' });
+    return res.status(500).json({ error: 'Failed to fetch settlement data' });
   }
 });
 

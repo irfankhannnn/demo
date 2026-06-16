@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -62,11 +62,19 @@ const isValidTime = (time) => {
 // Submit B2B lead (Public endpoint)
 router.post('/b2b-leads', async (req, res) => {
   try {
-    const rawTenantId = req.headers['x-tenant-id'];
-    const tenantId = sanitizeString(rawTenantId, 100);
+    // Prefer server-derived tenantId if user is authenticated
+    let tenantId = req.tenantId || null;
+    if (!tenantId) {
+      const rawTenantId = req.headers['x-tenant-id'];
+      tenantId = sanitizeString(rawTenantId, 100);
+    }
 
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
+    }
+    // Basic validation: tenantId should be a reasonable identifier
+    if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
+      return res.status(400).json({ error: 'Invalid tenant ID format' });
     }
 
     const {

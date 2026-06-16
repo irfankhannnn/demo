@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'search-leads';
+const SKILL_NAME = 'lead-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -99,25 +98,27 @@ function renderFull(leads: any[], total: number, hasMore: boolean, query: string
 }
 
 async function main() {
+  const timer = startTimer();
   const raw = process.argv[2];
+
   if (!raw) {
     console.error('Usage: search-leads.ts \'<json>\'');
     process.exit(1);
   }
 
   const payload = JSON.parse(raw);
-  const { q, responseMode = 'summary', limit = 20 } = payload;
+  const { q, responseMode = 'summary', limit = 20, _meta } = payload;
+
   if (!q) {
     console.error('Error: q (search query) is required.');
     process.exit(1);
   }
 
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/leads`, params: { search: q, limit: String(limit) } };
-  const res = await axios.get(`${BASE}/api/crm/leads`, {
+  lastRequestLog = { method: 'GET', url: '/api/crm/leads', params: { search: q, limit: String(limit) } };
+  const res = await crmClient.get('/api/crm/leads', {
     params: { search: q, limit: String(limit) },
-    headers: { Authorization: `Bearer ${TOKEN}` },
   });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const items = res.data.items ?? res.data;
   const total = res.data.total ?? items.length;
@@ -126,29 +127,39 @@ async function main() {
 
   if (!leads.length) {
     console.log(`No leads found for "${q}".`);
+    logExecution({
+      skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success',
+      duration_ms: timer.end(),
+      userMessage: _meta?.userMessage, intent: _meta?.intent,
+      request: lastRequestLog, response: { total: 0, query: q },
+    });
     return;
   }
 
   const hasMore = total > leads.length + offset;
 
   switch (responseMode as ResponseMode) {
-    case 'compact':
-      renderCompact(leads, total, hasMore, q);
-      break;
-    case 'details':
-      renderDetails(leads, total, hasMore, q);
-      break;
-    case 'full':
-      renderFull(leads, total, hasMore, q);
-      break;
+    case 'compact': renderCompact(leads, total, hasMore, q); break;
+    case 'details': renderDetails(leads, total, hasMore, q); break;
+    case 'full': renderFull(leads, total, hasMore, q); break;
     case 'summary':
-    default:
-      renderSummary(leads, total, hasMore, q);
+    default: renderSummary(leads, total, hasMore, q);
   }
+
+  logExecution({
+    skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success',
+    duration_ms: timer.end(),
+    userMessage: _meta?.userMessage, intent: _meta?.intent,
+    request: lastRequestLog, response: { total, returned: leads.length, query: q },
+  });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) {
+    console.error('Error:', e.crmError.message);
+  } else {
+    console.error('Error:', e.response?.data?.error || e.message);
+  }
   process.exit(1);
 });

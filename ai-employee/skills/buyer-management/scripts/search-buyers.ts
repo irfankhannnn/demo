@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'search-buyers';
+const SKILL_NAME = 'buyer-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -62,14 +61,17 @@ function render(mode: ResponseMode, buyers: any[], total: number, hasMore: boole
 }
 
 async function main() {
+  const timer = startTimer();
   const raw = process.argv[2];
+
   if (!raw) {
     console.error('Usage: search-buyers.ts \'<json>\'');
     process.exit(1);
   }
 
   const payload = JSON.parse(raw);
-  const { q, responseMode = 'summary', ...filters } = payload;
+  const { q, responseMode = 'summary', _meta, ...filters } = payload;
+
   if (!q || String(q).trim().length < 2) {
     console.error('Error: search query (q) must be at least 2 characters.');
     process.exit(1);
@@ -77,30 +79,19 @@ async function main() {
 
   const params: Record<string, string> = { search: String(q) };
   const paramMap: Record<string, string> = {
-    status: 'status',
-    priority: 'priority',
-    propertyType: 'propertyType',
-    bhk: 'bhk',
-    furnishing: 'furnishing',
-    area: 'area',
-    minBudget: 'minBudget',
-    maxBudget: 'maxBudget',
-    createdFrom: 'createdFrom',
-    createdTo: 'createdTo',
-    tag: 'tag',
-    limit: 'limit',
-    offset: 'offset',
+    status: 'status', priority: 'priority', propertyType: 'propertyType',
+    bhk: 'bhk', furnishing: 'furnishing', area: 'area',
+    minBudget: 'minBudget', maxBudget: 'maxBudget',
+    createdFrom: 'createdFrom', createdTo: 'createdTo',
+    tag: 'tag', limit: 'limit', offset: 'offset',
   };
   for (const [key, queryKey] of Object.entries(paramMap)) {
     if (filters[key] !== undefined) params[queryKey] = String(filters[key]);
   }
 
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/buyers`, params };
-  const res = await axios.get(`${BASE}/api/crm/buyers`, {
-    params,
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  lastRequestLog = { method: 'GET', url: '/api/crm/buyers', params };
+  const res = await crmClient.get('/api/crm/buyers', { params });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const buyers = res.data.buyers ?? [];
   const total = res.data.total ?? buyers.length;
@@ -109,15 +100,19 @@ async function main() {
 
   if (!buyers.length) {
     console.log('No buyers found.');
+    logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total: 0 } });
     return;
   }
 
   const hasMore = limit > 0 && offset + limit < total;
   render(responseMode as ResponseMode, buyers, total, hasMore);
+
+  logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total, returned: buyers.length } });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error searching buyers:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) { console.error('Error:', e.crmError.message); }
+  else { console.error('Error searching buyers:', e.response?.data?.error || e.message); }
   process.exit(1);
 });

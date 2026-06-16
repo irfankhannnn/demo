@@ -1,4 +1,4 @@
-// TODO(MED-1): Replace ScanCommand + FilterExpression with QueryCommand on a
+﻿// TODO(MED-1): Replace ScanCommand + FilterExpression with QueryCommand on a
 // 'tenant-index' GSI (PK=tenantId, SK=EntityType) once the GSI is added via CFN.
 // This applies to all list/getAll functions below that currently scan the full table.
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
@@ -1172,6 +1172,20 @@ export async function updateProperty(tenantId, propertyId, data) {
   // Handle status change for GSI2
   const currentProperty = await getProperty(tenantId, propertyId);
   if (data.status && currentProperty && data.status !== currentProperty.status) {
+    // Validate state transitions
+    const validTransitions = {
+      available: ['for-sale', 'for-rent', 'on-hold', 'out-of-stock'],
+      'for-sale': ['sold', 'on-hold', 'available', 'out-of-stock'],
+      'for-rent': ['rented', 'on-hold', 'available', 'out-of-stock'],
+      rented: ['available', 'on-hold'],
+      sold: [],
+      'on-hold': ['available', 'for-sale', 'for-rent'],
+      'out-of-stock': ['available']
+    };
+    const allowed = validTransitions[currentProperty.status] || [];
+    if (!allowed.includes(data.status)) {
+      throw new Error(`Invalid property status transition: cannot change from '${currentProperty.status}' to '${data.status}'`);
+    }
     data.GSI2PK = `TENANT#${tenantId}#PROPERTY_STATUS#${data.status}`;
   }
 
@@ -1332,7 +1346,22 @@ export async function deleteProperty(tenantId, propertyId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
+
+  const property = await getProperty(tenantId, propertyId);
+  if (!property) {
+    throw new Error('Property not found');
+  }
+
+  // Prevent deletion of properties with active tenants
+  if (property.tenantCustomerId || (property.rentalInfo && property.rentalInfo.currentTenantId)) {
+    throw new Error('Cannot delete a property with an active tenant. Please vacate the property first.');
+  }
+
+  // Prevent deletion of sold properties
+  if (property.status === 'sold') {
+    throw new Error('Cannot delete a sold property');
+  }
+
   await docClient.send(new DeleteCommand({
     TableName: CRM_TABLE_NAME,
     Key: {
@@ -1462,7 +1491,7 @@ export async function getCRMMetrics(tenantId) {
 
   // Seller count: Owners who have at least one property listed for sale
   const sellersCount = owners.filter(owner => 
-    properties.some(p => p.ownerId === (owner.ownerId || owner.contactId) && p.listingType === 'sale')
+    properties.some(p => p.ownerId === (owner.ownerId || owner.contactId) && (p.status === 'for-sale' || p.status === 'sold'))
   ).length;
 
   return {
@@ -1774,6 +1803,8 @@ export async function createOrUpdateOwnerByPhone(tenantId, data) {
     // Update existing owner, merging data (don't overwrite existing non-null values with null/empty)
     const updateData = {};
     Object.keys(data).forEach(key => {
+      // Skip system keys that must never be updated
+      if (FORBIDDEN_UPDATE_KEYS.has(key)) return;
       // Only update if new value is provided and not empty
       if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
         updateData[key] = data[key];
@@ -1804,6 +1835,8 @@ export async function createOrUpdateCustomerByPhone(tenantId, data) {
     // Update existing customer, merging data
     const updateData = {};
     Object.keys(data).forEach(key => {
+      // Skip system keys that must never be updated
+      if (FORBIDDEN_UPDATE_KEYS.has(key)) return;
       if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
         updateData[key] = data[key];
       }
@@ -2100,6 +2133,24 @@ export async function updateMeeting(tenantId, meetingId, data) {
 
   const before = await getMeeting(tenantId, meetingId);
 
+  if (!before) {
+    throw new Error('Meeting not found');
+  }
+
+  // Validate state transitions
+  if (data.status && data.status !== before.status) {
+    const validTransitions = {
+      scheduled: ['completed', 'cancelled', 'rescheduled'],
+      rescheduled: ['completed', 'cancelled', 'scheduled'],
+      completed: [],
+      cancelled: []
+    };
+    const allowed = validTransitions[before.status] || [];
+    if (!allowed.includes(data.status)) {
+      throw new Error(`Invalid meeting status transition: cannot change from '${before.status}' to '${data.status}'`);
+    }
+  }
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -2339,10 +2390,17 @@ export async function getMeetingMetrics(tenantId) {
  */
 function normalizePhone(phone) {
   if (!phone) return '';
-  return phone.replace(/[\s\-\(\)]/g, '').slice(-10);
-}
-
-/**
+  const digits = String(phone).replace(/[^0-9]/g, '');
+  const withoutPrefix = digits.startsWith('91') && digits.length === 12
+    ? digits.slice(2)
+    : digits.startsWith('910') && digits.length === 13
+      ? digits.slice(3)
+      : digits;
+  if (/^[6-9]\d{9}$/.test(withoutPrefix)) {
+    return withoutPrefix;
+  }
+  return '';
+}/**
  * Normalize phone to E.164 format for new writes.
  * Defaults to India (+91) if no country code is present.
  * e.g. "98563 00000" -> "+919856300000"
@@ -2353,9 +2411,9 @@ function normalizePhoneE164(phone) {
   const digits = String(phone).replace(/[^0-9+]/g, '');
   if (digits.startsWith('+')) return digits;
   const bare = digits.replace(/^0+/, '');
-  if (bare.length === 10) return `+91${bare}`;
-  if (bare.length === 12 && bare.startsWith('91')) return `+${bare}`;
-  return `+91${bare.slice(-10)}`;
+  if (/^[6-9]\d{9}$/.test(bare)) return `+91${bare}`;
+  if (/^91[6-9]\d{9}$/.test(bare)) return `+${bare}`;
+  return digits;
 }
 
 /**
@@ -3048,6 +3106,22 @@ export async function updateLead(tenantId, leadId, data) {
     throw new Error('Cannot update a converted lead');
   }
 
+  // Validate state transitions
+  if (data.status && data.status !== existingLead.status) {
+    const validTransitions = {
+      new: ['contacted', 'lost'],
+      contacted: ['qualified', 'lost'],
+      qualified: ['negotiating', 'lost'],
+      negotiating: ['converted', 'lost'],
+      converted: [],
+      lost: []
+    };
+    const allowed = validTransitions[existingLead.status] || [];
+    if (!allowed.includes(data.status)) {
+      throw new Error(`Invalid status transition: cannot change from '${existingLead.status}' to '${data.status}'`);
+    }
+  }
+
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
@@ -3476,6 +3550,14 @@ export async function deleteLead(tenantId, leadId) {
     throw new Error('Tenant ID is required');
   }
 
+  const lead = await getLead(tenantId, leadId);
+  if (!lead) {
+    throw new Error('Lead not found');
+  }
+  if (lead.convertedAt) {
+    throw new Error('Cannot delete a converted lead');
+  }
+
   await docClient.send(new DeleteCommand({
     TableName: CRM_TABLE_NAME,
     Key: {
@@ -3847,6 +3929,8 @@ export async function createOrUpdateBuyerByPhone(tenantId, data) {
   if (existingBuyer) {
     const updateData = {};
     Object.keys(data).forEach(key => {
+      // Skip system keys that must never be updated
+      if (FORBIDDEN_UPDATE_KEYS.has(key)) return;
       if (data[key] !== null && data[key] !== undefined && data[key] !== '') {
         updateData[key] = data[key];
       }

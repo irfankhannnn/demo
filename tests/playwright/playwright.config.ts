@@ -29,11 +29,14 @@ export default defineConfig({
   timeout: 120_000,
   expect: { timeout: 10_000 },
 
-  reporter: [
+  reporter: IS_CI ? [
     ['list'],
     ['html', { outputFolder: path.join(__dirname, 'reports', 'html'), open: 'never' }],
     ['json', { outputFile: path.join(__dirname, 'reports', 'json', 'results.json') }],
     ['junit', { outputFile: path.join(__dirname, 'reports', 'junit', 'results.xml') }],
+  ] : [
+    ['line'],
+    ['html', { outputFolder: path.join(__dirname, 'reports', 'html'), open: 'never' }],
   ],
 
   outputDir: path.join(__dirname, 'reports', 'artifacts'),

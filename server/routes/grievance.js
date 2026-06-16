@@ -252,7 +252,7 @@ router.get('/admin/grievances', validateToken, requireAdmin, async (req, res) =>
       }
     }
 
-    const result = await listGrievances({
+    const result = await listGrievances({ tenantId: req.tenantId,
       status, category, fromDate, toDate, limit, lastEvaluatedKey: startKey,
     });
     return res.json(result);

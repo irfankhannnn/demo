@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'get-leads';
+const SKILL_NAME = 'lead-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -99,8 +98,9 @@ function capitalize(s: string): string {
 }
 
 async function main() {
+  const timer = startTimer();
   const payload = process.argv[2] ? JSON.parse(process.argv[2]) : {};
-  const { responseMode = 'summary', ...filters } = payload;
+  const { responseMode = 'summary', _meta, ...filters } = payload;
 
   const params = new URLSearchParams();
   for (const [key, val] of Object.entries(filters)) {
@@ -110,11 +110,9 @@ async function main() {
   }
 
   const query = params.toString() ? `?${params.toString()}` : '';
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/leads${query}` };
-  const res = await axios.get(`${BASE}/api/crm/leads${query}`, {
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  lastRequestLog = { method: 'GET', url: `/api/crm/leads${query}` };
+  const res = await crmClient.get(`/api/crm/leads${query}`);
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const items = res.data.items ?? res.data;
   const total = res.data.total ?? items.length;
@@ -123,29 +121,39 @@ async function main() {
 
   if (!leads.length) {
     console.log('No leads found.');
+    logExecution({
+      skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success',
+      duration_ms: timer.end(),
+      userMessage: _meta?.userMessage, intent: _meta?.intent,
+      request: lastRequestLog, response: { total: 0, leads: 0 },
+    });
     return;
   }
 
   const hasMore = total > leads.length + offset;
 
   switch (responseMode as ResponseMode) {
-    case 'compact':
-      renderCompact(leads, total, hasMore);
-      break;
-    case 'details':
-      renderDetails(leads, total, hasMore);
-      break;
-    case 'full':
-      renderFull(leads, total, hasMore);
-      break;
+    case 'compact': renderCompact(leads, total, hasMore); break;
+    case 'details': renderDetails(leads, total, hasMore); break;
+    case 'full': renderFull(leads, total, hasMore); break;
     case 'summary':
-    default:
-      renderSummary(leads, total, hasMore);
+    default: renderSummary(leads, total, hasMore);
   }
+
+  logExecution({
+    skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success',
+    duration_ms: timer.end(),
+    userMessage: _meta?.userMessage, intent: _meta?.intent,
+    request: lastRequestLog, response: { total, returned: leads.length },
+  });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) {
+    console.error('Error:', e.crmError.message);
+  } else {
+    console.error('Error:', e.response?.data?.error || e.message);
+  }
   process.exit(1);
 });

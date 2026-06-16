@@ -1,9 +1,8 @@
-import axios from 'axios';
-import { logApiCall, logApiError } from '../../utils/logger';
+import { crmClient, isCrmError } from '../../utils/crm-client';
+import { logApiCall, logApiError, logExecution, startTimer } from '../../utils/logger';
 
-const BASE = process.env.CRM_API_BASE;
-const TOKEN = process.env.CRM_TOKEN;
 const SCRIPT_NAME = 'search-properties';
+const SKILL_NAME = 'property-management';
 let lastRequestLog: any = null;
 
 type ResponseMode = 'summary' | 'compact' | 'details' | 'full';
@@ -19,9 +18,7 @@ function renderSummary(properties: any[], total: number, hasMore: boolean, query
       console.log(`${i + 1}. ${bhk}${p.propertyType} | ${p.area || ''} ${p.city || ''} | ${p.status}${rent}${sale}`);
     });
   }
-  if (hasMore) {
-    console.log(`\n+${total - properties.length} more available. Ask "show more" or refine filters.`);
-  }
+  if (hasMore) { console.log(`\n+${total - properties.length} more available. Ask "show more" or refine filters.`); }
 }
 
 function renderCompact(properties: any[], total: number, hasMore: boolean, query: string) {
@@ -30,9 +27,7 @@ function renderCompact(properties: any[], total: number, hasMore: boolean, query
     const bhk = p.bhk ? `${p.bhk}BHK ` : '';
     console.log(`${i + 1}. ${bhk}${p.propertyType} | ${p.area || ''} | ${p.status}`);
   });
-  if (hasMore) {
-    console.log(`\nNext page: offset=${properties.length}`);
-  }
+  if (hasMore) { console.log(`\nNext page: offset=${properties.length}`); }
 }
 
 function renderDetails(properties: any[], total: number, hasMore: boolean, query: string) {
@@ -48,7 +43,7 @@ function renderDetails(properties: any[], total: number, hasMore: boolean, query
     if (sale) console.log(`  Sale: ₹${sale}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 function renderFull(properties: any[], total: number, hasMore: boolean, query: string) {
@@ -62,22 +57,19 @@ function renderFull(properties: any[], total: number, hasMore: boolean, query: s
     if (p.furnishing) console.log(`  Furnishing: ${p.furnishing}`);
     console.log('');
   });
-  if (hasMore) console.log(`More available. Ask "show more".`);
+  if (hasMore) console.log('More available. Ask "show more".');
 }
 
 async function main() {
+  const timer = startTimer();
   const raw = process.argv[2];
-  if (!raw) {
-    console.error('Usage: search-properties.ts \'<json>\'');
-    process.exit(1);
-  }
+
+  if (!raw) { console.error('Usage: search-properties.ts \'<json>\''); process.exit(1); }
 
   const payload = JSON.parse(raw);
-  const { q, responseMode = 'summary', limit = 20, ...extraFilters } = payload;
-  if (!q) {
-    console.error('Error: q (search query) is required.');
-    process.exit(1);
-  }
+  const { q, responseMode = 'summary', limit = 20, _meta, ...extraFilters } = payload;
+
+  if (!q) { console.error('Error: q (search query) is required.'); process.exit(1); }
 
   const params: Record<string, string> = { search: q, limit: String(limit) };
   const extraMap = ['status', 'propertyType', 'bhk', 'furnishing', 'area', 'city', 'minRent', 'maxRent', 'sortBy', 'sortOrder'];
@@ -85,12 +77,9 @@ async function main() {
     if (extraFilters[key] !== undefined) params[key] = String(extraFilters[key]);
   }
 
-  lastRequestLog = { method: 'GET', url: `${BASE}/api/crm/properties`, params };
-  const res = await axios.get(`${BASE}/api/crm/properties`, {
-    params,
-    headers: { Authorization: `Bearer ${TOKEN}` },
-  });
-  logApiCall(SCRIPT_NAME, lastRequestLog, res.data);
+  lastRequestLog = { method: 'GET', url: '/api/crm/properties', params };
+  const res = await crmClient.get('/api/crm/properties', { params });
+  logApiCall(SCRIPT_NAME, lastRequestLog, res.data, SKILL_NAME);
 
   const properties = res.data.properties ?? [];
   const total = res.data.total ?? properties.length;
@@ -99,29 +88,26 @@ async function main() {
 
   if (!properties.length) {
     console.log(`No properties found for "${q}".`);
+    logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total: 0, query: q } });
     return;
   }
 
   const hasMore = pageLimit > 0 && offset + pageLimit < total;
 
   switch (responseMode as ResponseMode) {
-    case 'compact':
-      renderCompact(properties, total, hasMore, q);
-      break;
-    case 'details':
-      renderDetails(properties, total, hasMore, q);
-      break;
-    case 'full':
-      renderFull(properties, total, hasMore, q);
-      break;
+    case 'compact': renderCompact(properties, total, hasMore, q); break;
+    case 'details': renderDetails(properties, total, hasMore, q); break;
+    case 'full': renderFull(properties, total, hasMore, q); break;
     case 'summary':
-    default:
-      renderSummary(properties, total, hasMore, q);
+    default: renderSummary(properties, total, hasMore, q);
   }
+
+  logExecution({ skill: SKILL_NAME, script: SCRIPT_NAME, status: 'success', duration_ms: timer.end(), userMessage: _meta?.userMessage, intent: _meta?.intent, request: lastRequestLog, response: { total, returned: properties.length, query: q } });
 }
 
 main().catch(e => {
-  logApiError(SCRIPT_NAME, lastRequestLog, e.response?.data || e.message);
-  console.error('Error searching properties:', e.response?.data?.error || e.message);
+  logApiError(SCRIPT_NAME, lastRequestLog, isCrmError(e) ? e.crmError : (e.response?.data || e.message), SKILL_NAME);
+  if (isCrmError(e)) { console.error('Error:', e.crmError.message); }
+  else { console.error('Error searching properties:', e.response?.data?.error || e.message); }
   process.exit(1);
 });
