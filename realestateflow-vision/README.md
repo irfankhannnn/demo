@@ -60,6 +60,7 @@ It was produced by deep analysis of the codebase on branch `auth_rbac_feature` p
 | 28 | phase-3-scale-automation-marketing | Phase 3 | Follow-up journeys, voice, marketing, portal automation, dashboards |
 | 29 | payment-system-implementation | Phase 0+1 | Fix all billing gaps: webhook, grace period, read-only, cancellation UI — CFN only |
 | 30 | credits-metering-implementation | Phase 2 | Credit ledger, metering middleware, multi-model router, Razorpay packs — CFN only |
+| 37 | product-agents-mcps-guide | Phase 1–3 | **Tenant-facing:** 10 agents + 11 MCPs, how they work, end-to-end examples, autonomy levels |
 
 ## Revised Phases
 
