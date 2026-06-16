@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getIdToken } from '../utils/authStorage';
+import { trackEvent } from '../lib/analytics';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 const NPS_LAST_ASKED_KEY = 'nps_last_asked';
@@ -90,6 +91,12 @@ export default function NpsModal() {
       });
 
       localStorage.setItem(NPS_LAST_ASKED_KEY, String(Date.now()));
+      trackEvent('nps_response', {
+        score,
+        category: score >= 9 ? 'promoter' : score >= 7 ? 'passive' : 'detractor',
+        hasFreeText: freeText.trim().length > 0,
+        shareTestimonial,
+      });
       setStep('done');
     } catch {
       setError('Failed to submit. Please try again.');

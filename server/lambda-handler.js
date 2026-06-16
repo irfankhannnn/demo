@@ -1,6 +1,7 @@
 import serverlessExpress from '@vendia/serverless-express';
 import app from './server.js';
 import { applyCorsHeaders, buildResponse } from './utils/response.js';
+import { captureServerException, flushSentry } from './lib/sentry.js';
 
 let serverlessExpressInstance;
 
@@ -93,7 +94,18 @@ export const handler = async (event, context) => {
   }
 
   // Process the request through Express
-  const response = await serverlessExpressInstance(event, context);
-
-  return applyCorsHeaders(response);
+  try {
+    const response = await serverlessExpressInstance(event, context);
+    return applyCorsHeaders(response);
+  } catch (error) {
+    // Capture unhandled Lambda-level exceptions in Sentry (env-guarded no-op
+    // when SENTRY_DSN_SERVER is unset). Flush before the Lambda freezes.
+    await captureServerException(error, {
+      path: event?.path || event?.rawPath,
+      method: event?.httpMethod || event?.requestContext?.http?.method,
+      requestId: context?.awsRequestId,
+    });
+    await flushSentry();
+    throw error;
+  }
 };

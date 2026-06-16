@@ -12,6 +12,7 @@ import {
   GRIEVANCE_STATUSES,
 } from '../grievanceDynamodbService.js';
 import { logger } from '../logger.js';
+import { serverTrack } from '../lib/posthog.js';
 
 const router = express.Router();
 
@@ -19,20 +20,6 @@ const SLA_MESSAGE = 'Received. Expect a response within 7 working days.';
 const GRIEVANCE_OFFICER_MAILBOX = process.env.GRIEVANCE_OFFICER_EMAIL || 'info@realestateflow.in';
 const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'no-reply@realestateflow.in';
 const FROM_NAME = process.env.BREVO_FROM_NAME || 'RealEstateFlow';
-
-// ============== PostHog server stub ==============
-// PR-E will implement the real server/lib/posthog.js module. For now this is a
-// no-op that simply logs, so the grievance funnel event has a call site.
-async function serverTrack(distinctId, event, properties) {
-  try {
-    if (process.env.POSTHOG_KEY_SERVER) {
-      // PR-E fills this in — for now just log.
-      logger.info('posthog.stub', { event, distinctId, ...properties });
-    }
-  } catch (err) {
-    logger.warn('grievance.posthog_stub_failed', { error: err.message });
-  }
-}
 
 // ============== Helpers ==============
 

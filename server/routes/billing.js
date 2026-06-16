@@ -92,7 +92,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       .update(rawBody)
       .digest('hex');
 
-    if (signature !== expectedSig) {
+    // Constant-time compare to avoid leaking the signature via timing.
+    const sigBuf = Buffer.from(String(signature || ''), 'utf8');
+    const expectedBuf = Buffer.from(expectedSig, 'utf8');
+    const signatureValid =
+      sigBuf.length === expectedBuf.length && crypto.timingSafeEqual(sigBuf, expectedBuf);
+
+    if (!signatureValid) {
       logger.warn('Invalid webhook signature', { signature });
       return res.status(401).json({ error: 'invalid_signature' });
     }

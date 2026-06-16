@@ -120,6 +120,8 @@ export default function PhoneLogin() {
 
       const needsOnboarding = data.needsOnboarding === true;
 
+      trackEvent('otp_verified', { isNewUser: needsOnboarding });
+
       if (needsOnboarding) {
         setOnboardingSession(true, false);
       }
