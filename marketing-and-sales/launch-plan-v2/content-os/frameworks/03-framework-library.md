@@ -1,0 +1,250 @@
+# 03 — Content Framework Library
+
+**25 reusable frameworks.** Each has a stable ID (`FW-*`). A script = framework structure + character + hook + CTA + language. Frameworks are **global** (business-agnostic); the examples are skinned for RealEstateFlow.
+
+**Field key for every framework:** Purpose · When to use · Hook styles · Script structure · CTA styles · Expected outcome · IG suitability · Language suitability.
+
+> IG suitability legend: 🟢 Reel-native · 🟡 Carousel/Story-better · 🔵 All formats.
+> Language legend uses the workspace language strategy (`03-language-strategy.md`).
+
+---
+
+## FW-PAS — Problem · Agitation · Solution
+- **Purpose:** Convert a known pain into product desire fast.
+- **When to use:** Cold audience, pain-aware, top of funnel.
+- **Hook styles:** Fear, Lead-Management, WhatsApp-Chaos.
+- **Script structure:** (1) Name the problem in their words → (2) Agitate the cost (₹/time/stress) → (3) Reveal RealEstateFlow as the fix → (4) Quick proof → CTA.
+- **CTA styles:** Demo, Trial, Comment.
+- **Expected outcome:** Saves + DMs from pain-aware viewers.
+- **IG:** 🟢 · **Language:** Hindi-dominant (emotion).
+
+## FW-BAB — Before · After · Bridge
+- **Purpose:** Show transformation; make the gap vivid.
+- **When to use:** Feature/benefit storytelling, mid-funnel.
+- **Hook styles:** Revenue, Agency-Growth, Curiosity.
+- **Script structure:** Before (chaos day) → After (calm controlled day) → Bridge (RealEstateFlow is how) → CTA.
+- **CTA styles:** Demo, Trial, Save.
+- **Expected outcome:** High saves, aspirational shares.
+- **IG:** 🟢 · **Language:** Mixed.
+
+## FW-CASE — Case Study
+- **Purpose:** Believable proof via a real-style customer story.
+- **When to use:** Mid/bottom funnel, objection: "kya yeh kaam karta hai?".
+- **Hook styles:** Revenue, Sales, Social-proof.
+- **Script structure:** Who (agency + city) → Before metric → What they did → After metric → CTA.
+- **CTA styles:** Demo, Trial, DM.
+- **Expected outcome:** Trust, demo requests.
+- **IG:** 🔵 (Reel + Carousel) · **Language:** English-leaning (credibility) + Hinglish quotes.
+
+## FW-AUTHORITY — Authority
+- **Purpose:** Position founder/brand as the expert worth following.
+- **When to use:** Founder content, building trust over time.
+- **Hook styles:** Contrarian, CRM, Real-Estate.
+- **Script structure:** Bold claim → credential/data → teach 1 insight → CTA (follow/community).
+- **CTA styles:** Community, Comment, Save.
+- **Expected outcome:** Follows, authority compounding.
+- **IG:** 🟢 · **Language:** Mixed → English for data.
+
+## FW-FOUNDER — Founder Story
+- **Purpose:** Emotional connection; "why we built this".
+- **When to use:** Launch, brand-building, recurring founder series.
+- **Hook styles:** Curiosity, Real-Estate, Contrarian.
+- **Script structure:** Personal moment/frustration → realization → mission → invite.
+- **CTA styles:** Community, Comment, DM.
+- **Expected outcome:** Loyalty, comments, shares.
+- **IG:** 🟢 · **Language:** Hindi-dominant (warmth).
+
+## FW-MYTH — Myth Busting
+- **Purpose:** Break a false belief blocking adoption.
+- **When to use:** Objection handling at scale ("CRM mahanga hai", "CRM sirf badi companies ke liye").
+- **Hook styles:** Contrarian, CRM, Curiosity.
+- **Script structure:** "Myth: …" → why people believe it → truth + proof → CTA.
+- **CTA styles:** Comment, Save, Demo.
+- **Expected outcome:** Debate in comments, saves.
+- **IG:** 🔵 · **Language:** Mixed.
+
+## FW-MISTAKE — Mistake Framework
+- **Purpose:** Teach via "X mistakes you're making".
+- **When to use:** Educational, listicle reels/carousels.
+- **Hook styles:** Mistake/Fear, Lead-Management, Team-Management.
+- **Script structure:** "Yeh galti mat karo" → mistake 1–3 with consequence → fix (often the product) → CTA.
+- **CTA styles:** Save, Share, Comment.
+- **Expected outcome:** Very high saves.
+- **IG:** 🔵 · **Language:** Hindi-dominant.
+
+## FW-FEAR — Fear Framework
+- **Purpose:** Surface a costly hidden risk.
+- **When to use:** Loss-aversion plays (lost leads, lost commission, agent leaving with data).
+- **Hook styles:** Fear, WhatsApp-Chaos, Revenue.
+- **Script structure:** "Yeh ho raha hai aur tumhe pata bhi nahi" → reveal cost → how to protect → CTA.
+- **CTA styles:** Demo, DM, Save.
+- **Expected outcome:** Strong stop-rate, DMs.
+- **IG:** 🟢 · **Language:** Hindi-dominant.
+
+## FW-CURIOSITY — Curiosity Framework
+- **Purpose:** Open a loop the viewer must close.
+- **When to use:** Reach plays, top of funnel.
+- **Hook styles:** Curiosity, Revenue, AI.
+- **Script structure:** Intriguing question/claim → tease → partial reveal → "full mein dekho" CTA.
+- **CTA styles:** Comment, Follow, Save.
+- **Expected outcome:** Watch-time + reach.
+- **IG:** 🟢 · **Language:** Mixed.
+
+## FW-CONTRARIAN — Contrarian Framework
+- **Purpose:** Stand out by attacking conventional wisdom.
+- **When to use:** Authority + reach, debate bait.
+- **Hook styles:** Contrarian, CRM, Real-Estate.
+- **Script structure:** "Sab galat keh rahe hain…" → your counter-take → evidence → CTA.
+- **CTA styles:** Comment, Share, Community.
+- **Expected outcome:** High comments/shares.
+- **IG:** 🟢 · **Language:** Mixed.
+
+## FW-NEWS — News / Newsjacking
+- **Purpose:** Ride trending RE news (RERA rule, market data, portal price hikes).
+- **When to use:** Timely relevance, authority.
+- **Hook styles:** News, Real-Estate, CRM.
+- **Script structure:** "Breaking: …" → what it means for brokers → your angle → CTA.
+- **CTA styles:** Follow, Comment, Save.
+- **Expected outcome:** Timely reach, shares.
+- **IG:** 🔵 · **Language:** Mixed → English for facts.
+
+## FW-DEMO — Product Demo
+- **Purpose:** Show the product solving the pain on screen.
+- **When to use:** Consideration; feature spotlights.
+- **Hook styles:** Curiosity, CRM, AI, Lead-Management.
+- **Script structure:** Pain in 1 line → "dekho kaise" → 2–3 taps on screen → result → CTA.
+- **CTA styles:** Demo, Trial, DM.
+- **Expected outcome:** Qualified demo/trial clicks.
+- **IG:** 🟢 (screen-record + face cam) · **Language:** Mixed.
+
+## FW-DRAMA — Drama / Skit (cinematic)
+- **Purpose:** Entertain to teach; relatable office drama.
+- **When to use:** Reach + relatability, recurring series.
+- **Hook styles:** WhatsApp-Chaos, Sales, Team-Management.
+- **Script structure:** Setup (relatable scene) → conflict (the pain bites) → twist (product saves/contrasts) → punchline → CTA.
+- **CTA styles:** Follow, Comment, Demo.
+- **Expected outcome:** Shares, series followers.
+- **IG:** 🟢 · **Language:** Hindi/Marathi-dominant (dialogue).
+
+## FW-SKIT — Skits Framework (light comedy)
+- **Purpose:** Comedy-first, product as background gag.
+- **When to use:** Brand love, broad reach.
+- **Hook styles:** Curiosity, Sales, WhatsApp-Chaos.
+- **Script structure:** Exaggerated stereotype → escalating gag → product punchline → CTA.
+- **CTA styles:** Follow, Share, Comment.
+- **Expected outcome:** Virality, saves.
+- **IG:** 🟢 · **Language:** Hindi/Marathi-dominant.
+
+## FW-CONVO — Conversation Framework
+- **Purpose:** Two-person dialogue reveals insight naturally.
+- **When to use:** Objection handling, mentor↔junior dynamics.
+- **Hook styles:** Sales, Team-Management, CRM.
+- **Script structure:** Question by A → realistic objection → B reframes → resolution → CTA.
+- **CTA styles:** Comment, Demo, DM.
+- **Expected outcome:** Relatability, saves.
+- **IG:** 🟢 · **Language:** Hindi-dominant.
+
+## FW-CUSTOMER — Customer Story (testimonial)
+- **Purpose:** Real customer voice as proof.
+- **When to use:** Bottom funnel trust.
+- **Hook styles:** Social-proof, Revenue, Sales.
+- **Script structure:** Customer intro → struggle → switch → result → recommendation → CTA.
+- **CTA styles:** Demo, Trial, DM.
+- **Expected outcome:** Conversion lift.
+- **IG:** 🔵 · **Language:** Hinglish (authentic) per customer's region.
+
+## FW-OBJECTION — Sales Objection Framework
+- **Purpose:** Kill a specific buying objection.
+- **When to use:** Bottom funnel; comment FAQs.
+- **Hook styles:** Sales, CRM, Curiosity.
+- **Script structure:** State objection ("mahanga hai / time nahi hai / team nahi seekhegi") → empathize → reframe + proof → CTA.
+- **CTA styles:** Demo, Trial, DM.
+- **Expected outcome:** Removes friction, demo clicks.
+- **IG:** 🔵 · **Language:** Hindi-dominant.
+
+## FW-WHATSAPP-CHAOS — WhatsApp Chaos Framework
+- **Purpose:** Dramatize lead chaos living in WhatsApp.
+- **When to use:** Top/mid funnel, highest-relatability pain.
+- **Hook styles:** WhatsApp-Chaos, Fear, Lead-Management.
+- **Script structure:** Show 200-unread WhatsApp chaos → a lead gets lost → cost → "system mein daalo" → CTA.
+- **CTA styles:** Demo, Trial, Save.
+- **Expected outcome:** Massive relatability, shares.
+- **IG:** 🟢 · **Language:** Hindi-dominant.
+
+## FW-LEAD-LEAKAGE — Lead Leakage Framework
+- **Purpose:** Quantify leads (and money) silently lost.
+- **When to use:** Owner-targeted, ROI framing.
+- **Hook styles:** Revenue, Fear, Lead-Management.
+- **Script structure:** "100 leads aaye, kitne convert hue?" → math of leakage → plug with system → CTA.
+- **CTA styles:** Demo, DM, Save.
+- **Expected outcome:** Owner demo requests.
+- **IG:** 🔵 · **Language:** Mixed (math in English).
+
+## FW-FOLLOWUP — Follow-up Framework
+- **Purpose:** Make the follow-up gap visceral.
+- **When to use:** Agent-targeted, #1 daily pain.
+- **Hook styles:** Fear, Sales, Curiosity.
+- **Script structure:** "Kal jis client se baat hui… follow-up kiya?" → deal lost to faster rival → reminders fix → CTA.
+- **CTA styles:** Trial, Demo, Save.
+- **Expected outcome:** Agent trials.
+- **IG:** 🟢 · **Language:** Hindi-dominant.
+
+## FW-AI — AI Framework
+- **Purpose:** Showcase AI calling / AI matching as magic-but-real.
+- **When to use:** Differentiation, wow-factor reach.
+- **Hook styles:** AI, Curiosity, Revenue.
+- **Script structure:** "AI ne mere client ko call kiya" → play/describe it → result (booked visit) → CTA.
+- **CTA styles:** Demo, Trial, DM.
+- **Expected outcome:** Viral curiosity, demos.
+- **IG:** 🟢 · **Language:** Mixed.
+
+## FW-CRM — CRM Education Framework
+- **Purpose:** Teach what a real-estate CRM should do.
+- **When to use:** Category education, SEO/Authority.
+- **Hook styles:** CRM, Contrarian, Curiosity.
+- **Script structure:** "CRM matlab Excel nahi" → 3 things a RE CRM must do → show → CTA.
+- **CTA styles:** Save, Demo, Comment.
+- **Expected outcome:** Saves, category authority.
+- **IG:** 🔵 · **Language:** Mixed.
+
+## FW-UGC — UGC Framework (authentic, hand-held)
+- **Purpose:** Native, creator-style authenticity.
+- **When to use:** Paid + organic, trust at scale.
+- **Hook styles:** Curiosity, Sales, Social-proof.
+- **Script structure:** Hand-held selfie → "main ek broker hoon, yeh use karta hoon" → 1 benefit shown → casual CTA.
+- **CTA styles:** Trial, Demo, DM.
+- **Expected outcome:** Low-cost high-trust conversion.
+- **IG:** 🟢 · **Language:** Hindi-dominant, regional.
+
+## FW-TEAM — Team Management Framework
+- **Purpose:** Owner control + agent accountability.
+- **When to use:** Owner/manager targeting.
+- **Hook styles:** Team-Management, Fear, Revenue.
+- **Script structure:** "Pata hai team kya kar rahi hai?" → blind spots → dashboard reveal → CTA.
+- **CTA styles:** Demo, DM, Save.
+- **Expected outcome:** Owner/manager demos.
+- **IG:** 🔵 · **Language:** Mixed.
+
+## FW-PROPERTY — Property Management Framework
+- **Purpose:** Inventory speed = deal speed.
+- **When to use:** Agent targeting, daily-use angle.
+- **Hook styles:** Property-Management, Sales, Curiosity.
+- **Script structure:** Client asks for a 2BHK in X → fumbling vs instant share → CTA.
+- **CTA styles:** Trial, Demo, Save.
+- **Expected outcome:** Agent trials, saves.
+- **IG:** 🟢 · **Language:** Hindi-dominant.
+
+---
+
+## Framework Selection Cheat-Sheet
+
+| Goal | First-choice frameworks |
+|---|---|
+| **Reach** | FW-CURIOSITY, FW-DRAMA, FW-SKIT, FW-CONTRARIAN |
+| **Saves** | FW-MISTAKE, FW-CRM, FW-BAB, FW-CASE |
+| **Comments** | FW-CONTRARIAN, FW-MYTH, FW-NEWS |
+| **Leads/Demos** | FW-PAS, FW-LEAD-LEAKAGE, FW-DEMO, FW-OBJECTION, FW-AI |
+| **Trust** | FW-CASE, FW-CUSTOMER, FW-AUTHORITY, FW-FOUNDER |
+| **Differentiation** | FW-AI, FW-CRM, FW-CONTRARIAN |
+
+> Pairing rule: pick **1 primary framework** per piece. Combining 2 dilutes the message. The hook may borrow a second framework's *energy* but the structure must follow one.
