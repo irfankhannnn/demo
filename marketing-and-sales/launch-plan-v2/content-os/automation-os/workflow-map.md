@@ -1,3 +1,5 @@
+> **SUPERSEDED →** The canonical, production catalog is now `../growth-platform/automations/workflow-catalog.md` (12 workflows, WF-*), running on `../growth-platform/automations/automation-architecture.md`. This file is kept as the original 9-workflow sketch for history; do not fork definitions from it.
+
 # Automation OS — Workflow Map (Marketing Automations)
 
 GTM Phase 9 marketing automation workflows. Each is fully specified: **Trigger → Workflow → Actions (service/entity) → Data written → Channels → Guardrails → Outcome/KPI.** Built on the event-router (architecture.md). Channels: in-app notifications (existing), WhatsApp (provider + opt-in), email (SES), AI calling.
