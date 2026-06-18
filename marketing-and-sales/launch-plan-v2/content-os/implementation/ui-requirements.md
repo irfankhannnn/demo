@@ -1,24 +1,31 @@
 # Implementation — UI Requirements
 
-React + TS + Tailwind, brand `#2563EB` + Inter, mobile-first, RBAC-gated (`PermissionGuard`). Admin-only for marketing config.
+React + TS + Tailwind, brand `#2563EB` + Inter, mobile-first, RBAC-gated (`PermissionGuard`, `rbac.ts`). Marketing config = Admin only.
 
 ## New screens
-1. **Marketing Dashboard** (`pages/crm/MarketingDashboard.tsx`, admin):
-   - Funnel widget: reach → DM → demo → trial → paid → referral with drop-off %.
-   - Attribution table: leads/demos/paid by `leadSource` and by `contentRef (OPP-*)`.
-   - CAC / LTV / payback cards; channel ROI.
-   - Cohort retention chart (trial→paid).
-   - Date range + tenant scope.
-2. **Referral admin** + **customer referral link** UI.
-3. **Automation/Sequences admin** (rules list, enrollments, opt-outs) — admin.
+### 1. Marketing Dashboard — `pages/crm/MarketingDashboard.tsx` (Admin)
+- **Funnel widget:** reach → DM → demo → trial → paid → referral, with stage counts + drop-off %; date-range + source filter.
+- **Attribution table:** leads / demos / paid by `leadSource` AND by `contentRef (OPP-*)`; sortable; drill-down to leads.
+- **Efficiency cards:** CAC (by channel), LTV, LTV:CAC, payback period.
+- **Cohort chart:** trial→paid + retention by signup month.
+- **Channel efficiency:** CPL, effective CAC (CPL ÷ trial-to-paid) per channel.
+- **This-week ops panel:** demos today, no-shows, at-risk trials.
+- States: empty (guidance), loading (skeleton), error (`{error}` shape), "attribution unknown" for legacy leads.
+
+### 2. Referral — customer link page + Admin referral list
+- Customer: 1-tap copy link + pre-written WhatsApp invite + reward status.
+- Admin: referrals sent/converted, payouts, top referrers.
+
+### 3. Automation / Sequences admin (Admin)
+- Rules list (`on/if/do`), enrollments view, opt-outs, send logs.
 
 ## Changed components
-- `LeadDetails.tsx` / `LeadList.tsx`: show source chip, `contentRef`, score badge; filter by source/score/stage.
-- Web signup: capture UTM (hidden fields) → pass to lead create.
-- `Calendar.tsx`: demo booking slots + reminders surface.
+- `LeadDetails.tsx` / `LeadList.tsx`: source chip, `contentRef`, score badge; filter by source/score/stage; sort by score (hottest first).
+- Web signup form: hidden UTM capture → pass to lead create.
+- `Calendar.tsx`: demo booking slots + reminder surface; `NotificationCenter.tsx`: surface automation notifications.
 
-## Components to reuse
-`GlassDataTable`, charts, `NotificationCenter` (automation notifications), `PermissionGuard`, existing modals.
+## Reuse
+`GlassDataTable`, chart components, `NotificationCenter`, `PermissionGuard`, existing modals/toasts.
 
-## States
-Empty (no data yet → guidance), loading, error (`{error}` shape), and "attribution unknown" handling for legacy leads.
+## Wireframe-in-words (dashboard)
+Top: date-range + KPI cards (north-star demos/wk, CAC, LTV:CAC). Middle: funnel bar (left→right) with drop-off labels. Below: two tables side-by-side (by source | by content OPP-*). Bottom: cohort heatmap + ops panel.

@@ -1,38 +1,28 @@
 # Automation OS — Implementation Plan
 
-Phased rollout. Detailed epics/stories/tasks/requirements in `../implementation/`.
+Phased rollout (detailed epics/stories/tasks in `../implementation/`). Principle: **Measure → Convert → Optimize → Scale.** Never build scoring/dashboards before attribution exists.
 
-## Phase A — Measure (Weeks 1–3) — *highest leverage first*
-Goal: see the funnel. No attribution = blind.
-- Add Lead attribution fields (`leadSource`, `utmSource/Medium/Campaign/Content`, `campaignId`, `contentRef`) + capture on create.
-- Marketing Event ingest route + `MKT_EVENT` entity.
-- IG/FB webhook receiver (comments/DMs) → create attributed leads.
-- Meta Lead Ads ingest → leads.
-- Basic marketing dashboard (sources, funnel counts).
-**Outcome:** every lead has a source + content; funnel visible.
+## Phase A — Measure (Weeks 1–3) — highest leverage
+**Scope:** Lead attribution fields (`leadSource`, `utm*`, `campaignId`, `contentRef`) + capture on create; `MKT_EVENT` entity + service; `/api/marketing/events` ingest; IG/FB webhook receiver (comments/DMs) → attributed leads; Meta Lead Ads ingest; minimal dashboard (sources + funnel counts).
+**Deliverables:** every new lead attributed; funnel visible.
+**Acceptance:** 100% new leads have `leadSource`; dashboard shows reach→DM→demo counts by source; webhook signatures verified.
+**Dependencies:** none (foundation). **Risks:** Meta app review time → start IG/WhatsApp app submissions Day 1.
 
 ## Phase B — Convert (Weeks 4–6)
-Goal: automate response + nurture.
-- Keyword auto-reply (DM/comment).
-- Nurture/onboarding sequences on scheduled-notification engine.
-- Demo scheduling + reminder automation.
-- WhatsApp Business API integration (opt-in, templates).
-- AI-calling auto-qualify on inbound leads.
-**Outcome:** speed-to-lead < 5 min; fewer no-shows; week-1 onboarding drip.
+**Scope:** keyword auto-reply (DM/comment); nurture + onboarding sequences on scheduled engine; demo scheduling + reminders; WhatsApp Business API (opt-in, templates); AI-calling auto-qualify on inbound.
+**Deliverables:** speed-to-lead <5 min; fewer no-shows; week-1 onboarding drip live.
+**Acceptance:** inbound DM gets auto-reply <1 min; trial users enrolled in onboarding; demo reminders fire T-24h/T-1h.
+**Dependencies:** Phase A events + leads. **Risks:** WhatsApp template approval → submit early; consent store required before sends.
 
 ## Phase C — Optimize (Weeks 7–10)
-Goal: scoring + dashboards + retention.
-- Lead scoring, activation scoring, customer health scoring.
-- Trial-inactive win-back + churn alerts.
-- Referral entity + tracking + rewards.
-- Full marketing dashboard (CAC, LTV, attribution by content `OPP-*`, cohort retention).
-**Outcome:** predictable demo engine; data-driven content decisions.
+**Scope:** lead/activation/health scoring + nightly job; trial-inactive win-back + churn alerts; referral entity + tracking + rewards; full dashboard (CAC, LTV, attribution by `OPP-*`, cohort retention).
+**Deliverables:** predictable demo engine; data-driven content decisions; referral loop measured.
+**Acceptance:** every lead/customer scored; dashboard shows CAC/LTV + content-`OPP-*` ROI; referrals attributed.
+**Dependencies:** Phases A+B. **Risks:** score signal quality → start with simple weighted rules, iterate.
 
 ## Phase D — Scale (Weeks 11+)
-- A/B infra hooks (tie to ab-optimizer), advanced attribution (multi-touch), CAPI optimization, automated reporting to founder.
+**Scope:** A/B infra hooks (→ ab-optimizer); multi-touch attribution; CAPI optimization; automated weekly founder report.
+**Acceptance:** experiments tracked; automated reporting live.
 
-## Sequencing rule
-Measure → Convert → Optimize → Scale. Don't build scoring before attribution exists. Each phase ships independently and is multi-tenant + consent-safe.
-
-## Effort/owners
-Backend (DynamoDB entities, routes, scoring), Frontend (dashboard, attribution capture), Integrations (Meta/WhatsApp webhooks), Infra (Lambda, secrets, scheduled worker). See `../implementation/engineering-tasks.md`.
+## Owners
+Backend (entities/routes/scoring), Frontend (dashboard/attribution capture), Integrations (Meta/WhatsApp/SES), Infra (Lambda/SQS/secrets/GSIs). See `../implementation/engineering-tasks.md` + `backlog.md`.

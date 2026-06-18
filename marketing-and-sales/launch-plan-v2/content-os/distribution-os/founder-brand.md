@@ -1,31 +1,37 @@
 # Distribution OS — Founder Brand
 
-**The founder is the highest-trust distribution asset.** People follow a person building something for them faster than a logo. This defines the founder's brand thesis across platforms. Daily/weekly execution lives in `founder-engine.md`.
+**The founder is the highest-trust distribution asset.** Brokers follow a person building something *for them* faster than they follow a logo. This defines the founder's cross-platform brand thesis. Daily/weekly/monthly execution lives in `founder-engine.md`.
 
 ## Thesis
 "An operator-founder building the real estate CRM Indian brokers actually use — in their language, for their chaos." Credible because close to the problem; relatable because not corporate.
 
 ## Positioning pillars
-1. **Builder** — building-in-public, lessons, the why.
-2. **Industry insider** — understands Mumbai/Pune broker reality (lead leakage, WhatsApp chaos, khata disputes).
-3. **Contrarian truth-teller** — "more leads isn't the fix; follow-up is."
-4. **Generous teacher** — free frameworks/tools, no gatekeeping.
-5. **Human** — wins, failures, team, festivals.
+1. **Builder** — building-in-public: lessons, numbers, the why, the roadmap.
+2. **Industry insider** — fluent in Mumbai/Pune broker reality (lead leakage, WhatsApp chaos, khata disputes, RERA).
+3. **Contrarian truth-teller** — "more leads isn't the fix; follow-up is", "your team is a costly WhatsApp group."
+4. **Generous teacher** — free frameworks, calculators, templates; no gatekeeping.
+5. **Human** — wins, failures, the team, festivals, the grind.
 
 ## Voice
-Confident, warm, street-smart. Hinglish on IG (hi-dominant), en-leaning on LinkedIn. ₹/lakh/crore. Maps to CH-OWNER as the on-camera proxy when the real founder isn't filming.
+Confident, warm, street-smart. **Hinglish (hi-dominant) on IG**, **en-leaning on LinkedIn**, Marathi rapport for Pune. ₹/lakh/crore. On-camera proxy = CH-OWNER when the real founder can't film (keep the same persona/values).
+
+## Content pillars × platform (weekly)
+| Pillar | IG | LinkedIn | YouTube |
+|---|---|---|---|
+| Build-in-public | story/reel | long-form | vlog |
+| Broker pain → solution | CT-FOUNDER reel | text post | tutorial |
+| Hot-take | CT-CONTRARIAN reel | text post | Short |
+| Case / data | CT-CASE | carousel/doc | interview |
+| Personal story | reel/story | text post | — |
 
 ## Platform roles
 | Platform | Founder role |
 |---|---|
-| Instagram | Face of drama/founder reels (CT-FOUNDER), DMs |
+| Instagram | Face of founder/drama reels (CT-FOUNDER), DMs |
 | LinkedIn | Authority + building-in-public (CT-AUTHORITY/FOUNDER) |
 | YouTube | Depth: tutorials, vision, case interviews |
-| WhatsApp | Broadcast + community leader (founder-broadcast) |
+| WhatsApp | Broadcast + community leader |
 | Offline | Mumbai/Pune RE meetups, CREDAI/NAREDCO, podcasts |
 
-## Content pillars (cross-platform, weekly mix)
-Build-in-public · Broker pain→solution · Hot-take · Case/data · Personal story. (See CT-FOUNDER recipe.)
-
-## Goal
-Founder profile becomes a lead source: followers → DMs → demos, and a recruiting/partnership magnet. Tracked as `founder` attribution in `growth-dashboard.md`.
+## Goal & measurement
+The founder profile becomes a *lead source* (followers → DMs → demos) and a recruiting/partnership magnet. Tracked as `leadSource = founder` in `growth-dashboard.md`. 90-day target: a recognised voice in Mumbai/Pune broker circles with a steady DM→demo flow.
