@@ -1,0 +1,521 @@
+opp_id,title,content_type,framework,characters,language,persona,city,reach,shareability,save,comment,lead_gen,total,priority_score,hook_category,cta_category
+OPP-001,POV broker scrolling 200 unread WhatsApp dhoondh raha ek lead,CT-DRAMA,FW-DRAMA,CH-BROKER|CH-OWNER,hi-dominant,Broker,Both,10,10,5,6,4,35,6.9,WHATSAPP-CHAOS,FOLLOW
+OPP-002,WhatsApp mein jo 5L deal laga tha woh gaya kahan,CT-DRAMA,FW-DRAMA,CH-OWNER,mr-dominant,Owner,Both,8,10,6,6,6,36,7.2,WHATSAPP-CHAOS,FOLLOW
+OPP-003,Subah ka buyer dopahar tak 80 messages mein dafan,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER,mixed,Broker,Both,5,6,3,8,3,25,4.8,WHATSAPP-CHAOS,COMMENT
+OPP-004,Do agent ek hi WhatsApp lead pe call kar diye buyer confuse,CT-DRAMA,FW-CONVO,CH-TEAMLEAD,en-leaning,Manager,Both,6,8,4,8,6,32,6.3,WHATSAPP-CHAOS,COMMENT
+OPP-005,Kaunsa chat mein Bandra wali property thi yaad nahi,CT-DRAMA,FW-DRAMA,CH-BROKER|CH-NEWBIE,hi-dominant,Broker,Mumbai,6,6,4,7,4,27,5.2,WHATSAPP-CHAOS,COMMENT
+OPP-006,Tumhi pan lead WhatsApp madhe shodhta mag deal gela samjha,CT-DRAMA,FW-SKIT,CH-BROKER|CH-LOSTLEAD,mr-dominant,Broker,Pune,8,10,6,6,7,37,7.5,WHATSAPP-CHAOS,DEMO
+OPP-007,30 WhatsApp groups khole ek lead ke liye,CT-DRAMA,FW-SKIT,CH-CONSULTANT|CH-SALESMGR,hi-dominant,Broker,Mumbai,7,7,5,6,4,29,5.7,WHATSAPP-CHAOS,COMMENT
+OPP-008,WhatsApp pe Interested likha buyer ne phir gayab,CT-DRAMA,FW-SKIT,CH-BROKER|CH-LOSTLEAD,mr-dominant,Broker,Both,7,8,7,6,4,32,6.3,WHATSAPP-CHAOS,DEMO
+OPP-009,Office group mein lead aaya kisi ne uthaya hi nahi,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-SALESMGR,mr-dominant,Manager,Both,8,6,6,7,3,30,5.8,WHATSAPP-CHAOS,COMMENT
+OPP-010,WhatsApp lead ek tap mein system mein daalo demo,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-BROKER,mixed,Broker,Both,7,6,5,4,8,30,6.2,LEAD-MANAGEMENT,DEMO
+OPP-011,Client ka naam WhatsApp mein Unknown Number save,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER,hi-dominant,Broker,Mumbai,8,8,5,5,2,28,5.5,WHATSAPP-CHAOS,FOLLOW
+OPP-012,Forwarded property 5 baar bheji par track kisi ne nahi kiya,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER,mr-dominant,Broker,Pune,7,8,5,6,4,30,5.9,WHATSAPP-CHAOS,DEMO
+OPP-013,100 leads aaye sirf 12 convert hue baaki kahan gaye,CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,5,6,9,7,8,35,7.0,LEAD-LEAKAGE,COMMENT
+OPP-014,30 percent leads chup-chaap gayab har mahine ka 20L,CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,3,4,9,5,10,31,6.5,REVENUE,DEMO
+OPP-015,Aapke leads leak ho rahe hain aur aapko pata bhi nahi,CT-EDU,FW-MYTH,CH-OWNER|CH-LOSTLEAD,en-leaning,Owner,Mumbai,7,6,8,6,9,36,7.4,FEAR,SAVE
+OPP-016,Lead leakage calculator apni leak nikalo comment mein,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mixed,Owner,Both,4,5,8,6,8,31,6.3,REVENUE,DEMO
+OPP-017,Har lead ka owner kaun yeh dikhana zaroori hai,CT-EDU,FW-MISTAKE,CH-TEAMLEAD|CH-LOSTLEAD,hi-dominant,Manager,Both,6,6,6,3,8,29,6.1,LEAD-MANAGEMENT,DEMO
+OPP-018,Competitor ne 2 min mein call kiya aapne 2 ghante baad,CT-EDU,FW-MISTAKE,CH-BROKER,mr-dominant,Broker,Both,8,5,7,5,5,30,6.0,FEAR,SAVE
+OPP-019,Aapka deal unka commission response time ka khel,CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,5,4,8,5,10,32,6.7,REVENUE,DEMO
+OPP-020,Lead aaya call lagaya kal buyer already gaya,CT-EDU,FW-LEAD-LEAKAGE,CH-BROKER|CH-LOSTLEAD,en-leaning,Broker,Mumbai,3,5,6,4,7,25,5.2,LEAD-MANAGEMENT,DEMO
+OPP-021,Spreadsheet purana hai aaj ke leads kahan,CT-EDU,FW-MYTH,CH-TEAMLEAD|CH-LOSTLEAD,hi-dominant,Manager,Pune,3,5,7,6,8,29,5.9,FEAR,DEMO
+OPP-022,Ek recovered deal poore saal ka CRM cost cover karta hai,CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,4,4,6,6,10,30,6.2,REVENUE,DEMO
+OPP-023,Follow-up bhool gaye Ab nahi hoga sab automatic,CT-EDU,FW-CRM,CH-BROKER,hi-dominant,Broker,Both,4,4,8,5,8,29,6.0,FEAR,DEMO
+OPP-024,Kal jis client se baat hui aaj follow-up kiya kya,CT-EDU,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Mumbai,6,5,8,5,4,28,5.6,SALES,COMMENT
+OPP-025,Client teesri baar pooche any update aap kya bologe,CT-EDU,FW-CRM,CH-BROKER,hi-dominant,Broker,Both,6,3,6,6,7,28,5.7,FEAR,DEMO
+OPP-026,Response within 15 min 60 percent close after 1 hour 20 percent,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,7,3,10,4,9,33,6.8,SALES,DEMO
+OPP-027,3 follow-up jo har broker bhoolta hai,CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,mr-dominant,Broker,Pune,5,6,9,5,8,33,6.8,CURIOSITY,DEMO
+OPP-028,Follow-up rahila ani deal gela Pune broker ki kahani,CT-EDU,FW-CRM,CH-BROKER,mr-dominant,Broker,Pune,5,5,7,4,4,25,5.0,FOLLOWUP,COMMENT
+OPP-029,Buyer ko reminder system bhejega tum deal close karoge,CT-EDU,FW-MISTAKE,CH-BROKER,hi-dominant,Broker,Mumbai,5,4,7,4,4,24,4.8,SALES,DEMO
+OPP-030,Google Ads ka lead 48 ghante mein thanda follow-up turant,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,5,4,7,5,10,31,6.5,FEAR,DEMO
+OPP-031,Commission ka jhagda ab nahi khata book khol ke dikhao,CT-DEMO,FW-DEMO,CH-OWNER,hi-dominant,Owner,Pune,5,4,7,5,10,31,6.5,REVENUE,DEMO
+OPP-032,Do agent same lead claim kar rahe khata ne 10 sec mein settle,CT-DEMO,FW-DEMO,CH-TEAMLEAD,hi-dominant,Manager,Both,3,2,8,7,8,28,5.7,SALES,DEMO
+OPP-033,Agent bole 5L baki broker bole 3L hisaab kaun sahi,CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,4,4,5,6,10,29,6.0,REVENUE,DEMO
+OPP-034,Excel mein commission galat overpay 2L ka error,CT-DEMO,FW-AI,CH-OWNER,mixed,Owner,Both,4,4,7,4,8,27,5.6,CRM,DEMO
+OPP-035,Kiska kitna paisa khata book mein zero jhagda,CT-DEMO,FW-CRM,CH-OWNER,mixed,Owner,Mumbai,4,4,7,5,6,26,5.2,REVENUE,DEMO
+OPP-036,Khata settlement 3 tap mein dekho live,CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Pune,6,4,5,5,10,30,6.2,DEMO,DEMO
+OPP-037,Hishob clear kara bhandan sampla Marathi khata reel,CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,5,4,5,6,9,29,5.9,CRM,DEMO
+OPP-038,Commission split channel partner ke saath transparent rakho,CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,3,4,6,6,8,27,5.5,REVENUE,TRIAL
+OPP-039,Manual hisaab mein har mahine kitna leak ho raha,CT-DEMO,FW-AI,CH-OWNER,hi-dominant,Owner,Mumbai,5,6,6,5,10,32,6.7,FEAR,DEMO
+OPP-040,AI ne mere 100 buyers ko call kiya 30 qualified nikle,CT-DEMO,FW-DEMO,CH-BROKER,hi-dominant,Broker,Pune,7,4,6,3,10,30,6.4,AI,DEMO
+OPP-041,AI calls karega tu deals close karega 10 ghante bach gaye,CT-DEMO,FW-CRM,CH-CONSULTANT,mixed,Broker,Both,7,5,5,5,10,32,6.7,AI,DEMO
+OPP-042,Maine AI se follow-up call karwaya client ko pata bhi nahi chala,CT-DEMO,FW-DEMO,CH-BROKER,hi-dominant,Broker,Mumbai,8,7,5,5,9,34,7.0,CURIOSITY,TRIAL
+OPP-043,AI calling demo sun lo asli real estate call,CT-DEMO,FW-CRM,CH-CONSULTANT,mr-dominant,Broker,Both,6,5,4,4,10,29,6.1,AI,DEMO
+OPP-044,AI calling real estate mein chalega Myth bust,CT-DEMO,FW-DEMO,CH-OWNER,hi-dominant,Owner,Pune,3,2,5,6,7,23,4.7,MYTH,DEMO
+OPP-045,Raat ko 100 leads AI ne call kiye subah qualified list ready,CT-DEMO,FW-DEMO,CH-OWNER,mixed,Owner,Both,5,5,5,5,10,30,6.2,AI,DEMO
+OPP-046,AI tumhe replace nahi karega boring kaam karega,CT-DEMO,FW-DEMO,CH-BROKER,mr-dominant,Broker,Pune,6,2,6,9,8,31,6.2,CONTRARIAN,DEMO
+OPP-047,AI ne Google Ads lead 30 sec mein follow-up kiya deal bachi,CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,3,3,8,4,10,28,5.9,AI,DEMO
+OPP-048,AI calling kaise set karo 60 second mein,CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Both,4,3,6,5,10,28,5.9,DEMO,TRIAL
+OPP-049,Pata hai team abhi kya kar rahi hai dashboard kholo,CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Both,7,6,8,5,9,35,7.2,TEAM-MANAGEMENT,DEMO
+OPP-050,Proof nahi to sirf blame agent ki performance data se,CT-EDU,FW-MISTAKE,CH-SALESMGR,mr-dominant,Manager,Both,6,7,8,4,5,30,6.1,TEAM-MANAGEMENT,SAVE
+OPP-051,Kaun sa agent kaun sa lead chala raha pata nahi,CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,6,6,7,3,4,26,5.3,FEAR,SAVE
+OPP-052,Visibility surveillance nahi fairness hai agent bhi khush,CT-EDU,FW-CRM,CH-TEAMLEAD,hi-dominant,Manager,Both,3,3,8,8,5,27,5.2,TEAM-MANAGEMENT,DEMO
+OPP-053,Poori team ek dashboard mein owner ka control,CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,3,7,7,4,7,28,5.8,TEAM-MANAGEMENT,COMMENT
+OPP-054,Rajesh ne Bandra buyer ko call kiya ya nahi ab pata chalega,CT-EDU,FW-MYTH,CH-TEAMLEAD,hi-dominant,Manager,Both,5,4,6,6,6,27,5.4,SALES,COMMENT
+OPP-055,Fair lead distribution har agent ko barabar mauka,CT-EDU,FW-LEAD-LEAKAGE,CH-SALESMGR,en-leaning,Manager,Pune,6,4,5,6,6,27,5.4,TEAM-MANAGEMENT,DEMO
+OPP-056,Micromanagement band karo data dekho,CT-EDU,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,4,3,8,7,4,26,5.0,CONTRARIAN,COMMENT
+OPP-057,Ek agent gaya saara business gaya bachao kaise,CT-DRAMA,FW-DRAMA,CH-OWNER|CH-SALESMGR,mr-dominant,Owner,Both,8,7,6,9,5,35,6.8,FEAR,FOLLOW
+OPP-058,Top agent nikla apne saare client le gaya,CT-DRAMA,FW-SKIT,CH-OWNER|CH-SALESMGR,en-leaning,Owner,Both,9,7,5,7,8,36,7.2,REVENUE,DEMO
+OPP-059,Agent jaaye par leads agency ke paas rahein,CT-DRAMA,FW-DRAMA,CH-OWNER,mr-dominant,Owner,Both,8,6,4,7,4,29,5.7,TEAM-MANAGEMENT,COMMENT
+OPP-060,Naya agent ne purane ka kaam seamlessly uthaya kyunki sab system mein,CT-DRAMA,FW-CONVO,CH-TEAMLEAD,hi-dominant,Manager,Pune,8,7,5,6,6,32,6.4,SALES,DEMO
+OPP-061,Relationships agent ke phone mein ya agency ke system mein,CT-DRAMA,FW-SKIT,CH-OWNER|CH-NEWBIE,mr-dominant,Owner,Both,9,9,5,6,3,32,6.2,FEAR,FOLLOW
+OPP-062,Naya agent Day 1 vs Day 7 with RealEstateFlow,CT-DRAMA,FW-CONVO,CH-NEWBIE|CH-SALESMGR,mr-dominant,NewJoiner,Pune,9,7,7,6,5,34,6.8,CURIOSITY,FOLLOW
+OPP-063,Naye agent ko kaunse leads milenge fair rule dikhao,CT-DRAMA,FW-DRAMA,CH-NEWBIE,mr-dominant,NewJoiner,Both,9,7,6,7,3,32,6.2,SALES,COMMENT
+OPP-064,New joiner 30 min mein CRM seekh gaya WhatsApp jaisa,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-NEWBIE|CH-LOSTLEAD,hi-dominant,NewJoiner,Pune,7,9,5,7,3,31,6.0,CRM,COMMENT
+OPP-065,Naya banda delete nahi kar sakta RBAC ka kamaal,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-SALESMGR,mr-dominant,Owner,Both,9,7,4,6,4,30,5.9,FEAR,COMMENT
+OPP-066,Rohan ka pehla din ghabrao mat sab simple hai,CT-DRAMA,FW-DRAMA,CH-NEWBIE|CH-TEAMLEAD,hi-dominant,NewJoiner,Both,9,7,5,4,7,32,6.5,UGC,DEMO
+OPP-067,Team nahi seekhegi yeh dar galat hai 2 ghante training,CT-DRAMA,FW-CONVO,CH-OWNER|CH-SALESMGR,hi-dominant,Owner,Pune,7,5,6,7,3,28,5.4,OBJECTION,DEMO
+OPP-068,Client bola 2BHK Andheri chahiye aap file dhoondh rahe,CT-DEMO,FW-CRM,CH-BROKER,hi-dominant,Broker,Both,5,3,7,5,7,27,5.5,PROPERTY-MANAGEMENT,TRIAL
+OPP-069,Call pe property details missing deal bhi missing,CT-DEMO,FW-DEMO,CH-BROKER,mixed,Broker,Both,7,2,4,5,10,28,5.9,PROPERTY-MANAGEMENT,TRIAL
+OPP-070,Property turant share karo deal fast karo demo,CT-DEMO,FW-AI,CH-CONSULTANT,hi-dominant,Broker,Pune,5,3,6,6,9,29,6.0,SALES,DEMO
+OPP-071,Inventory ungliyon pe matching buyer ko instant,CT-DEMO,FW-AI,CH-CONSULTANT,hi-dominant,Broker,Both,3,5,5,3,8,24,5.0,CURIOSITY,TRIAL
+OPP-072,Instagram pe dekhi property aap dhoondh nahi paye client gaya,CT-DEMO,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Mumbai,4,4,8,7,9,32,6.5,PROPERTY-MANAGEMENT,DEMO
+OPP-073,Property add karo media upload map pin 20 sec demo,CT-DEMO,FW-AI,CH-CONSULTANT,mr-dominant,Broker,Pune,3,5,4,5,10,27,5.7,DEMO,DEMO
+OPP-074,Client call aaye to saari history turant samne,CT-UGC,FW-OBJECTION,CH-CONSULTANT,mr-dominant,Broker,Pune,5,7,5,3,6,26,5.4,SALES,DEMO
+OPP-075,Sneha ne client ki requirement ek jagah rakhi perfect match,CT-UGC,FW-UGC,CH-CONSULTANT,hi-dominant,Broker,Both,4,7,5,6,5,27,5.3,SOCIAL-PROOF,DM
+OPP-076,Client ko lagta hai aap sirf usi ke liye kaam kar rahe,CT-UGC,FW-UGC,CH-CONSULTANT,mixed,Broker,Both,5,7,4,5,5,26,5.2,CURIOSITY,DEMO
+OPP-077,Buyer requirement capture karo galti se kuch miss na ho,CT-UGC,FW-PROPERTY,CH-CONSULTANT,hi-dominant,Broker,Both,5,8,6,7,6,32,6.4,PROPERTY-MANAGEMENT,DM
+OPP-078,Andheri broker ne lead leakage near zero kiya 60 din mein,CT-PROOF,FW-CUSTOMER,CH-OWNER,mr-dominant,Owner,Both,3,7,6,5,10,31,6.5,SOCIAL-PROOF,DEMO
+OPP-079,Pune ki 15-agent agency ka before after,CT-PROOF,FW-AUTHORITY,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Pune,3,7,4,3,9,26,5.5,SOCIAL-PROOF,TRIAL
+OPP-080,Close rate 8 percent se 12 percent 2 mahine mein,CT-PROOF,FW-CUSTOMER,CH-OWNER,hi-dominant,Owner,Mumbai,4,6,6,3,9,28,5.9,REVENUE,TRIAL
+OPP-081,Mr aur Mrs Khan ka smooth deal testimonial,CT-PROOF,FW-CUSTOMER,CH-LOSTLEAD|CH-HAPPY,hi-dominant,Buyer,Both,5,7,7,6,9,34,7.0,SOCIAL-PROOF,DEMO
+OPP-082,Agent bola broker dekh sakta hai maine 10 deals kiye no jhagda,CT-PROOF,FW-CUSTOMER,CH-CONSULTANT,mr-dominant,Broker,Both,4,6,5,4,9,28,5.8,SOCIAL-PROOF,DM
+OPP-083,12K month diya 25L recover kiya ab CRM free jaisa,CT-PROOF,FW-AUTHORITY,CH-OWNER|CH-HAPPY,mr-dominant,Owner,Both,5,5,5,6,10,31,6.4,REVENUE,DEMO
+OPP-084,200 plus brokerages already RealEstateFlow pe,CT-PROOF,FW-AUTHORITY,CH-OWNER|CH-HAPPY,en-leaning,Owner,Both,5,4,5,3,8,25,5.2,SOCIAL-PROOF,DEMO
+OPP-085,Salesforce se switch kiya finally India ke liye bana CRM,CT-PROOF,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Both,2,6,6,4,7,25,5.2,SOCIAL-PROOF,DEMO
+OPP-086,Maine 200 brokerages dekhe ek cheez samajh aayi follow-up,CT-FOUNDER,FW-FOUNDER,CH-OWNER,hi-dominant,Owner,Both,7,6,4,7,6,30,6.0,CURIOSITY,COMMUNITY
+OPP-087,Kyun banaya RealEstateFlow founder ki kahani,CT-FOUNDER,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Both,8,6,5,10,3,32,6.1,REAL-ESTATE,COMMENT
+OPP-088,Indian brokers ko US CRM nahi chahiye desi chahiye,CT-FOUNDER,FW-FOUNDER,CH-OWNER,mr-dominant,Owner,Both,9,7,6,8,6,36,7.1,CONTRARIAN,FOLLOW
+OPP-089,Launch day RealEstateFlow ab live hai dekho,CT-FOUNDER,FW-FOUNDER,CH-OWNER,en-leaning,Owner,Both,10,8,5,8,5,36,7.0,REAL-ESTATE,FOLLOW
+OPP-090,Mera broker dost ne 20L ka deal khoya tab idea aaya,CT-FOUNDER,FW-AUTHORITY,CH-OWNER,hi-dominant,Owner,Mumbai,7,5,4,10,7,33,6.5,FOUNDER,COMMUNITY
+OPP-091,CRM matlab Excel nahi yeh 3 cheez karta hai,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mixed,Owner,Pune,5,7,10,7,5,34,6.7,CRM,COMMENT
+OPP-092,CRM sirf badi companies ke liye Myth bust,CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Both,6,5,9,6,5,31,6.2,CONTRARIAN,SAVE
+OPP-093,CRM mahanga hai 999 se shuru ROI 30 din,CT-EDU,FW-CRM,CH-OWNER,en-leaning,Owner,Both,6,5,7,5,6,29,5.9,SALES,DEMO
+OPP-094,Maine pehle CRM try kiya tha nahi chala kyun different,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mr-dominant,Owner,Both,5,6,8,4,3,26,5.2,OBJECTION,SAVE
+OPP-095,Data secure hai kya AWS backed sleep peacefully,CT-EDU,FW-CRM,CH-OWNER,mixed,Owner,Mumbai,5,5,8,5,3,26,5.1,OBJECTION,SAVE
+OPP-096,Cancel kiya to data chala jaayega Nahi export anytime,CT-EDU,FW-MYTH,CH-OWNER,mr-dominant,Owner,Both,4,4,6,5,6,25,5.1,OBJECTION,DEMO
+OPP-097,Process badalna padega Nahi tumhara process import karo,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,4,5,7,5,5,26,5.2,OBJECTION,COMMENT
+OPP-098,Tum broke nahi ho tum bleeding ho roz 50K leak,CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,7,5,8,9,6,35,6.8,CONTRARIAN,SAVE
+OPP-099,Maharashtra RERA agent rule badla 60 sec mein samjho,CT-NEWS,FW-CRM,CH-OWNER,mixed,Owner,Both,5,5,10,7,4,31,6.0,NEWS,SAVE
+OPP-100,RERA number har listing pe trust signal,CT-NEWS,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,7,7,8,6,4,32,6.3,REAL-ESTATE,FOLLOW
+OPP-101,Ready reckoner rate badha brokers ke liye matlab,CT-NEWS,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Both,7,6,7,9,4,33,6.4,NEWS,COMMENT
+OPP-102,Carpet vs built-up loading samjhao client ko,CT-NEWS,FW-CONTRARIAN,CH-BROKER,mixed,Broker,Both,7,4,7,7,6,31,6.2,REAL-ESTATE,COMMENT
+OPP-103,Portal listing rate hike MagicBricks 99acres ab kya,CT-NEWS,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Pune,4,4,5,8,4,25,4.8,NEWS,COMMENT
+OPP-104,MagicBricks lead 2 ghante baad call buyer already deal,CT-EDU,FW-MISTAKE,CH-BROKER,mr-dominant,Broker,Pune,7,4,6,3,8,28,5.9,LEAD-MANAGEMENT,DEMO
+OPP-105,All portals one inbox MagicBricks Housing 99acres,CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Mumbai,4,3,8,7,9,31,6.3,LEAD-MANAGEMENT,DEMO
+OPP-106,Facebook ad 5000 spend kitna convert ho raha,CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Pune,5,6,8,6,8,33,6.7,REVENUE,DEMO
+OPP-107,FB pe 20 comment 3 ko call kiya 17 ignore ek buyer tha,CT-EDU,FW-MYTH,CH-CONSULTANT,mixed,Broker,Both,9,5,7,5,6,32,6.5,LEAD-MANAGEMENT,DEMO
+OPP-108,Google Ads 50K spend 100 lead 10 convert ho sakte the 50,CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Both,5,6,8,5,9,33,6.8,REVENUE,DEMO
+OPP-109,Referral best lead par tumne follow-up nahi kiya,CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,mr-dominant,Broker,Both,6,6,8,6,5,31,6.2,SALES,COMMENT
+OPP-110,Referral source track kiya top agent 40 referral nikla,CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Mumbai,6,3,5,6,5,25,5.0,SOCIAL-PROOF,DEMO
+OPP-111,Portal lead auto sync 15 min response 4x close,CT-EDU,FW-MYTH,CH-OWNER,mr-dominant,Owner,Pune,4,3,6,3,9,25,5.3,LEAD-MANAGEMENT,DEMO
+OPP-112,Mumbai broker vs Pune broker ka kaam karne ka tareeka,CT-DRAMA,FW-DRAMA,CH-CONSULTANT|CH-TEAMLEAD,mr-dominant,Broker,Pune,9,8,6,7,3,33,6.4,REAL-ESTATE,FOLLOW
+OPP-113,Pune cha broker ata Pune chi technology RealEstateFlow,CT-DRAMA,FW-DRAMA,CH-CONSULTANT,mr-dominant,Broker,Pune,7,10,5,6,5,33,6.6,REAL-ESTATE,FOLLOW
+OPP-114,Mumbai status Pune growth dono ko ek CRM,CT-DRAMA,FW-SKIT,CH-OWNER|CH-NEWBIE,en-leaning,Owner,Mumbai,9,6,6,8,5,34,6.7,CONTRARIAN,FOLLOW
+OPP-115,South Mumbai luxury broker bhi system chahiye,CT-DRAMA,FW-DRAMA,CH-BROKER,en-leaning,Broker,Mumbai,6,5,6,8,6,31,6.1,REAL-ESTATE,DEMO
+OPP-116,Kothrud IT crowd ko property bechna tech-savvy approach,CT-DRAMA,FW-CONVO,CH-BROKER,hi-dominant,Broker,Pune,6,9,7,6,4,32,6.3,REAL-ESTATE,DEMO
+OPP-117,RealEstateFlow vs generic CRM India ke liye bana,CT-AUTHORITY,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,4,6,10,8,8,36,7.2,CONTRARIAN,COMMUNITY
+OPP-118,Zoho Salesforce ke saamne desi CRM ka faayda,CT-AUTHORITY,FW-CRM,CH-OWNER,mixed,Owner,Pune,3,6,8,8,4,29,5.6,CRM,FOLLOW
+OPP-119,Competitor spreadsheet pe aap system pe deal jeet gaye,CT-AUTHORITY,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,4,6,6,6,6,28,5.6,SOCIAL-PROOF,FOLLOW
+OPP-120,Portal dependency chhodo apna lead engine banao,CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Mumbai,2,3,10,6,4,25,4.9,CONTRARIAN,SAVE
+OPP-121,Gudi Padwa naya saal nayi deals shubhechha,CT-NEWS,FW-CONTRARIAN,CH-OWNER,mr-dominant,Owner,Pune,6,7,6,7,4,30,5.9,REAL-ESTATE,COMMENT
+OPP-122,Diwali booking season leads ka rush handle karo,CT-NEWS,FW-NEWS,CH-OWNER,hi-dominant,Owner,Both,10,5,7,7,6,35,7.0,REAL-ESTATE,COMMENT
+OPP-123,Akshaya Tritiya property muhurat leads double,CT-NEWS,FW-CONTRARIAN,CH-OWNER,mr-dominant,Owner,Both,7,6,6,5,5,29,5.8,REAL-ESTATE,COMMENT
+OPP-124,Festival season 3x leads system ready hai kya,CT-NEWS,FW-NEWS,CH-OWNER,hi-dominant,Owner,Both,5,4,5,6,7,27,5.4,CURIOSITY,FOLLOW
+OPP-125,Year end push December targets dashboard se,CT-NEWS,FW-NEWS,CH-TEAMLEAD,mixed,Manager,Mumbai,6,7,8,5,4,30,6.0,REAL-ESTATE,FOLLOW
+OPP-126,Dashboard ek click office ka poora hisaab,CT-DEMO,FW-AI,CH-OWNER,en-leaning,Owner,Both,6,3,5,6,9,29,6.0,DEMO,DEMO
+OPP-127,Lead assign drag drop 3 sec demo,CT-DEMO,FW-DEMO,CH-TEAMLEAD,hi-dominant,Manager,Both,3,3,6,5,10,27,5.7,DEMO,DEMO
+OPP-128,Speech to text se lead note bolo type mat karo,CT-DEMO,FW-AI,CH-CONSULTANT,mixed,Broker,Mumbai,4,3,6,6,10,29,6.0,DEMO,DEMO
+OPP-129,Site visit schedule reminder auto demo,CT-DEMO,FW-AI,CH-CONSULTANT,mr-dominant,Broker,Both,4,6,8,6,9,33,6.8,DEMO,DEMO
+OPP-130,Calendar pe poori team ki site visit ek screen,CT-DEMO,FW-CRM,CH-TEAMLEAD,mr-dominant,Manager,Pune,6,5,6,5,8,30,6.2,DEMO,TRIAL
+OPP-131,Phone OTP login 30 sec mein shuru no credit card,CT-DEMO,FW-CRM,CH-OWNER,mr-dominant,Owner,Both,3,3,8,7,10,31,6.4,CRM,DEMO
+OPP-132,15 agent team 20 Cr revenue 8 ghante kaam ka sapna,CT-FOUNDER,FW-FOUNDER,CH-OWNER,mixed,Owner,Mumbai,9,7,3,9,4,32,6.2,REVENUE,COMMUNITY
+OPP-133,Arjun ne 5 deal se 12 deal kiye system se,CT-FOUNDER,FW-FOUNDER,CH-BROKER,mr-dominant,Broker,Both,9,5,4,6,7,31,6.2,SALES,FOLLOW
+OPP-134,Professional broker banna hai to professional tool,CT-FOUNDER,FW-CONTRARIAN,CH-OWNER,mr-dominant,Owner,Pune,8,7,3,9,6,33,6.5,REAL-ESTATE,COMMENT
+OPP-135,Business tumhare bina chale yeh kaise,CT-FOUNDER,FW-FOUNDER,CH-OWNER,mixed,Owner,Mumbai,7,4,4,7,3,25,4.8,CURIOSITY,COMMUNITY
+OPP-136,POV jab client puche mera lead kahan hai,CT-MEME,FW-CURIOSITY,CH-CONSULTANT|CH-NEWBIE,mr-dominant,Broker,Both,10,10,1,8,1,30,5.7,WHATSAPP-CHAOS,FOLLOW
+OPP-137,Broker ki Excel sheet ka funeral,CT-MEME,FW-WHATSAPP-CHAOS,CH-CONSULTANT,mr-dominant,Broker,Both,10,10,1,5,1,27,5.2,CURIOSITY,FOLLOW
+OPP-138,Jab do agent same lead pe ladte hain,CT-MEME,FW-WHATSAPP-CHAOS,CH-SALESMGR,mixed,Manager,Pune,10,10,4,6,1,31,5.9,SALES,FOLLOW
+OPP-139,Ek minute file dhoondta hoon buyer waiting meme,CT-MEME,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-NEWBIE,hi-dominant,Broker,Pune,10,10,3,7,1,31,5.9,WHATSAPP-CHAOS,COMMENT
+OPP-140,Naya agent jab pehli baar CRM dekhta hai reaction,CT-MEME,FW-CURIOSITY,CH-NEWBIE|CH-LOSTLEAD,hi-dominant,NewJoiner,Mumbai,10,9,2,8,1,30,5.7,CURIOSITY,FOLLOW
+OPP-141,2026 aa gaya bhai aur tu abhi bhi Excel pe,CT-MEME,FW-SKIT,CH-BROKER|CH-NEWBIE,hi-dominant,Broker,Mumbai,10,10,4,7,2,33,6.3,WHATSAPP-CHAOS,COMMENT
+OPP-142,Beta business join nahi karna chahta jab tak CRM nahi dekha,CT-DRAMA,FW-SKIT,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Mumbai,9,8,4,8,4,33,6.4,REAL-ESTATE,COMMENT
+OPP-143,Purane broker ka succession plan tech se zinda,CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER,hi-dominant,Owner,Mumbai,7,6,4,7,3,27,5.2,FOUNDER,FOLLOW
+OPP-144,Indian brokerages 30-40 percent leads lose data breakdown,CT-AUTHORITY,FW-CRM,CH-OWNER,en-leaning,Owner,Mumbai,4,5,10,6,7,32,6.4,CRM,FOLLOW
+OPP-145,Response time hi sabse bada competitive edge data,CT-AUTHORITY,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,6,6,8,5,5,30,6.0,CONTRARIAN,FOLLOW
+OPP-146,Ek RE CRM mein yeh 7 cheez honi chahiye checklist,CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,mixed,Owner,Both,4,3,10,4,5,26,5.2,CRM,COMMUNITY
+OPP-147,Lead source ROI kaunsa source sabse sasta,CT-AUTHORITY,FW-CRM,CH-OWNER,en-leaning,Owner,Mumbai,4,3,10,6,6,29,5.8,REAL-ESTATE,SAVE
+OPP-148,POV broker scrolling 200 unread WhatsApp dhoondh raha ek lead (meme),CT-MEME,FW-WHATSAPP-CHAOS,CH-BROKER|CH-LOSTLEAD,mr-dominant,Broker,Pune,10,10,3,8,2,33,6.3,WHATSAPP-CHAOS,FOLLOW
+OPP-149,WhatsApp mein jo 5L deal laga tha woh gaya kahan (meme),CT-MEME,FW-CURIOSITY,CH-OWNER|CH-BROKER,hi-dominant,Owner,Both,10,10,2,6,4,32,6.3,WHATSAPP-CHAOS,SHARE
+OPP-150,Subah ka buyer dopahar tak 80 messages mein dafan (meme),CT-MEME,FW-CURIOSITY,CH-BROKER|CH-NEWBIE,mr-dominant,Broker,Both,7,7,4,9,1,28,5.2,WHATSAPP-CHAOS,COMMENT
+OPP-151,Do agent ek hi WhatsApp lead pe call kar diye buyer confuse (meme),CT-MEME,FW-CURIOSITY,CH-SALESMGR,mr-dominant,Manager,Both,8,8,4,4,3,27,5.3,WHATSAPP-CHAOS,FOLLOW
+OPP-152,Kaunsa chat mein Bandra wali property thi yaad nahi (meme),CT-MEME,FW-SKIT,CH-BROKER|CH-NEWBIE,mr-dominant,Broker,Mumbai,9,8,4,7,2,30,5.8,WHATSAPP-CHAOS,FOLLOW
+OPP-153,Tumhi pan lead WhatsApp madhe shodhta mag deal gela samjha (meme),CT-MEME,FW-CURIOSITY,CH-BROKER|CH-NEWBIE,mr-dominant,Broker,Pune,7,10,5,7,2,31,6.0,WHATSAPP-CHAOS,FOLLOW
+OPP-154,30 WhatsApp groups khole ek lead ke liye (meme),CT-MEME,FW-SKIT,CH-CONSULTANT,hi-dominant,Broker,Mumbai,8,7,2,4,3,24,4.8,WHATSAPP-CHAOS,FOLLOW
+OPP-155,WhatsApp pe Interested likha buyer ne phir gayab (meme),CT-MEME,FW-CURIOSITY,CH-CONSULTANT|CH-LOSTLEAD,mr-dominant,Broker,Both,7,7,4,4,3,25,5.0,WHATSAPP-CHAOS,SHARE
+OPP-156,Office group mein lead aaya kisi ne uthaya hi nahi (meme),CT-MEME,FW-SKIT,CH-SALESMGR|CH-LOSTLEAD,mr-dominant,Manager,Pune,7,9,3,4,2,25,4.9,WHATSAPP-CHAOS,SHARE
+OPP-157,WhatsApp lead ek tap mein system mein daalo demo (meme),CT-MEME,FW-CURIOSITY,CH-CONSULTANT|CH-LOSTLEAD,hi-dominant,Broker,Mumbai,9,9,2,5,6,31,6.2,LEAD-MANAGEMENT,FOLLOW
+OPP-158,Client ka naam WhatsApp mein Unknown Number save (meme),CT-MEME,FW-CURIOSITY,CH-CONSULTANT,hi-dominant,Broker,Mumbai,6,7,1,7,2,23,4.4,WHATSAPP-CHAOS,COMMENT
+OPP-159,Forwarded property 5 baar bheji par track kisi ne nahi kiya (meme),CT-MEME,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-NEWBIE,hi-dominant,Broker,Mumbai,7,7,3,8,4,29,5.6,WHATSAPP-CHAOS,FOLLOW
+OPP-160,100 leads aaye sirf 12 convert hue baaki kahan gaye (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER|CH-HAPPY,en-leaning,Owner,Both,2,5,8,8,10,33,6.7,LEAD-LEAKAGE,DEMO
+OPP-161,30 percent leads chup-chaap gayab har mahine ka 20L (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Both,2,3,9,4,10,28,5.9,REVENUE,DEMO
+OPP-162,Aapke leads leak ho rahe hain aur aapko pata bhi nahi (case study),CT-CASE,FW-BAB,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Both,6,4,4,6,10,30,6.2,FEAR,DM
+OPP-163,Lead leakage calculator apni leak nikalo comment mein (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Mumbai,6,5,10,9,9,39,7.8,REVENUE,DEMO
+OPP-164,Har lead ka owner kaun yeh dikhana zaroori hai (case study),CT-CASE,FW-CASE,CH-TEAMLEAD|CH-LOSTLEAD,mr-dominant,Manager,Pune,3,3,7,6,10,29,6.0,LEAD-MANAGEMENT,DEMO
+OPP-165,Competitor ne 2 min mein call kiya aapne 2 ghante baad (case study),CT-CASE,FW-BAB,CH-BROKER|CH-HAPPY,mixed,Broker,Both,7,4,4,3,10,28,6.0,FEAR,DEMO
+OPP-166,Aapka deal unka commission response time ka khel (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,mr-dominant,Owner,Both,4,3,5,6,10,28,5.8,REVENUE,TRIAL
+OPP-167,Lead aaya call lagaya kal buyer already gaya (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-CONSULTANT,en-leaning,Broker,Mumbai,5,6,5,5,10,31,6.5,LEAD-MANAGEMENT,DEMO
+OPP-168,Spreadsheet purana hai aaj ke leads kahan (case study),CT-CASE,FW-BAB,CH-TEAMLEAD|CH-HAPPY,en-leaning,Manager,Both,2,5,8,3,8,26,5.5,FEAR,DEMO
+OPP-169,Ek recovered deal poore saal ka CRM cost cover karta hai (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,en-leaning,Owner,Both,2,4,6,3,10,25,5.4,REVENUE,DEMO
+OPP-170,Follow-up bhool gaye Ab nahi hoga sab automatic (demo),CT-DEMO,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Mumbai,3,6,8,4,9,30,6.2,FEAR,TRIAL
+OPP-171,Kal jis client se baat hui aaj follow-up kiya kya (demo),CT-DEMO,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Mumbai,3,6,7,6,7,29,5.8,SALES,DEMO
+OPP-172,Client teesri baar pooche any update aap kya bologe (demo),CT-DEMO,FW-CRM,CH-BROKER,en-leaning,Broker,Both,6,5,5,4,8,28,5.8,FEAR,TRIAL
+OPP-173,Response within 15 min 60 percent close after 1 hour 20 percent (demo),CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,5,5,6,4,9,29,6.1,SALES,TRIAL
+OPP-174,3 follow-up jo har broker bhoolta hai (demo),CT-DEMO,FW-AI,CH-CONSULTANT,hi-dominant,Broker,Pune,4,4,10,5,7,30,6.1,CURIOSITY,DEMO
+OPP-175,Follow-up rahila ani deal gela Pune broker ki kahani (demo),CT-DEMO,FW-AI,CH-BROKER,mr-dominant,Broker,Pune,3,5,6,4,7,25,5.2,FOLLOWUP,DEMO
+OPP-176,Buyer ko reminder system bhejega tum deal close karoge (demo),CT-DEMO,FW-CRM,CH-CONSULTANT,mixed,Broker,Both,3,3,7,4,8,25,5.2,SALES,DEMO
+OPP-177,Google Ads ka lead 48 ghante mein thanda follow-up turant (demo),CT-DEMO,FW-AI,CH-OWNER,en-leaning,Owner,Both,3,4,6,4,10,27,5.7,FEAR,DEMO
+OPP-178,Commission ka jhagda ab nahi khata book khol ke dikhao (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Both,7,5,6,3,7,28,5.8,REVENUE,DEMO
+OPP-179,Do agent same lead claim kar rahe khata ne 10 sec mein settle (carousel),CT-EDU,FW-CRM,CH-TEAMLEAD,hi-dominant,Manager,Mumbai,3,5,6,6,5,25,5.0,SALES,DEMO
+OPP-180,Agent bole 5L baki broker bole 3L hisaab kaun sahi (carousel),CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,7,6,7,7,4,31,6.1,REVENUE,DEMO
+OPP-181,Excel mein commission galat overpay 2L ka error (carousel),CT-EDU,FW-MYTH,CH-OWNER,mr-dominant,Owner,Pune,4,5,8,5,7,29,5.9,CRM,DEMO
+OPP-182,Kiska kitna paisa khata book mein zero jhagda (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,7,7,7,3,4,28,5.7,REVENUE,DEMO
+OPP-183,Khata settlement 3 tap mein dekho live (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mixed,Owner,Both,5,6,6,3,6,26,5.4,DEMO,DEMO
+OPP-184,Hishob clear kara bhandan sampla Marathi khata reel (carousel),CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,6,7,7,4,6,30,6.1,CRM,DEMO
+OPP-185,Commission split channel partner ke saath transparent rakho (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Both,7,4,8,6,7,32,6.5,REVENUE,DEMO
+OPP-186,Manual hisaab mein har mahine kitna leak ho raha (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,en-leaning,Owner,Mumbai,5,6,5,7,8,31,6.2,FEAR,DEMO
+OPP-187,AI ne mere 100 buyers ko call kiya 30 qualified nikle (carousel),CT-EDU,FW-CRM,CH-BROKER,hi-dominant,Broker,Both,8,6,9,5,10,38,7.9,AI,DEMO
+OPP-188,AI calls karega tu deals close karega 10 ghante bach gaye (carousel),CT-EDU,FW-CRM,CH-CONSULTANT,mr-dominant,Broker,Both,9,7,5,6,7,34,6.8,AI,DEMO
+OPP-189,Maine AI se follow-up call karwaya client ko pata bhi nahi chala (carousel),CT-EDU,FW-MISTAKE,CH-CONSULTANT,hi-dominant,Broker,Mumbai,6,6,7,6,6,31,6.2,CURIOSITY,DEMO
+OPP-190,AI calling demo sun lo asli real estate call (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-BROKER,mr-dominant,Broker,Pune,8,3,8,7,10,36,7.4,AI,DEMO
+OPP-191,AI calling real estate mein chalega Myth bust (carousel),CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,3,6,8,8,6,31,6.1,MYTH,DEMO
+OPP-192,Raat ko 100 leads AI ne call kiye subah qualified list ready (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,mr-dominant,Owner,Both,8,5,9,5,7,34,6.9,AI,SAVE
+OPP-193,AI tumhe replace nahi karega boring kaam karega (carousel),CT-EDU,FW-MYTH,CH-CONSULTANT,mr-dominant,Broker,Both,6,5,8,7,7,33,6.6,CONTRARIAN,DEMO
+OPP-194,AI ne Google Ads lead 30 sec mein follow-up kiya deal bachi (carousel),CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Pune,5,4,9,6,7,31,6.2,AI,DEMO
+OPP-195,AI calling kaise set karo 60 second mein (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Both,4,4,7,5,7,27,5.5,DEMO,COMMENT
+OPP-196,Pata hai team abhi kya kar rahi hai dashboard kholo (demo),CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,3,4,5,5,9,26,5.4,TEAM-MANAGEMENT,DEMO
+OPP-197,Proof nahi to sirf blame agent ki performance data se (demo),CT-DEMO,FW-CRM,CH-TEAMLEAD,mr-dominant,Manager,Both,5,5,6,7,9,32,6.5,TEAM-MANAGEMENT,DEMO
+OPP-198,Kaun sa agent kaun sa lead chala raha pata nahi (demo),CT-DEMO,FW-DEMO,CH-OWNER,hi-dominant,Owner,Both,4,3,7,6,7,27,5.5,FEAR,DEMO
+OPP-199,Visibility surveillance nahi fairness hai agent bhi khush (demo),CT-DEMO,FW-CRM,CH-TEAMLEAD,hi-dominant,Manager,Mumbai,5,5,6,7,9,32,6.5,TEAM-MANAGEMENT,DEMO
+OPP-200,Poori team ek dashboard mein owner ka control (demo),CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Both,4,4,5,4,10,27,5.7,TEAM-MANAGEMENT,TRIAL
+OPP-201,Rajesh ne Bandra buyer ko call kiya ya nahi ab pata chalega (demo),CT-DEMO,FW-DEMO,CH-SALESMGR,hi-dominant,Manager,Mumbai,3,3,7,5,10,28,5.9,SALES,DEMO
+OPP-202,Fair lead distribution har agent ko barabar mauka (demo),CT-DEMO,FW-DEMO,CH-TEAMLEAD,hi-dominant,Manager,Both,5,5,5,4,6,25,5.1,TEAM-MANAGEMENT,DEMO
+OPP-203,Micromanagement band karo data dekho (demo),CT-DEMO,FW-AI,CH-OWNER,hi-dominant,Owner,Both,4,5,6,8,7,30,6.0,CONTRARIAN,DEMO
+OPP-204,Ek agent gaya saara business gaya bachao kaise (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Both,7,4,6,4,7,28,5.8,FEAR,DM
+OPP-205,Top agent nikla apne saare client le gaya (case study),CT-CASE,FW-CASE,CH-OWNER,en-leaning,Owner,Pune,6,3,6,4,9,28,5.9,REVENUE,DEMO
+OPP-206,Agent jaaye par leads agency ke paas rahein (case study),CT-CASE,FW-CASE,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Mumbai,2,5,6,6,9,28,5.8,TEAM-MANAGEMENT,DM
+OPP-207,Naya agent ne purane ka kaam seamlessly uthaya kyunki sab system mein (case study),CT-CASE,FW-BAB,CH-SALESMGR|CH-HAPPY,mixed,Manager,Mumbai,2,4,6,3,9,24,5.1,SALES,DM
+OPP-208,Relationships agent ke phone mein ya agency ke system mein (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Both,6,4,6,6,9,31,6.3,FEAR,DM
+OPP-209,Naya agent Day 1 vs Day 7 with RealEstateFlow (UGC selfie),CT-UGC,FW-PROPERTY,CH-NEWBIE,mr-dominant,NewJoiner,Mumbai,9,6,5,3,5,28,5.7,CURIOSITY,TRIAL
+OPP-210,Naye agent ko kaunse leads milenge fair rule dikhao (UGC selfie),CT-UGC,FW-UGC,CH-NEWBIE,hi-dominant,NewJoiner,Both,7,7,6,4,7,31,6.3,SALES,DM
+OPP-211,New joiner 30 min mein CRM seekh gaya WhatsApp jaisa (UGC selfie),CT-UGC,FW-OBJECTION,CH-NEWBIE,mixed,NewJoiner,Both,6,7,5,6,8,32,6.5,CRM,TRIAL
+OPP-212,Naya banda delete nahi kar sakta RBAC ka kamaal (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,hi-dominant,Owner,Mumbai,5,5,4,3,9,26,5.5,FEAR,TRIAL
+OPP-213,Rohan ka pehla din ghabrao mat sab simple hai (UGC selfie),CT-UGC,FW-OBJECTION,CH-NEWBIE,mr-dominant,NewJoiner,Pune,4,8,5,5,7,29,5.9,UGC,DM
+OPP-214,Team nahi seekhegi yeh dar galat hai 2 ghante training (UGC selfie),CT-UGC,FW-OBJECTION,CH-OWNER,mr-dominant,Owner,Both,6,4,5,5,6,26,5.2,OBJECTION,TRIAL
+OPP-215,Client bola 2BHK Andheri chahiye aap file dhoondh rahe (UGC selfie),CT-UGC,FW-UGC,CH-BROKER,hi-dominant,Broker,Mumbai,6,5,6,7,7,31,6.2,PROPERTY-MANAGEMENT,TRIAL
+OPP-216,Call pe property details missing deal bhi missing (UGC selfie),CT-UGC,FW-UGC,CH-BROKER,mixed,Broker,Both,7,6,4,4,7,28,5.8,PROPERTY-MANAGEMENT,TRIAL
+OPP-217,Property turant share karo deal fast karo demo (UGC selfie),CT-UGC,FW-UGC,CH-BROKER,hi-dominant,Broker,Pune,6,7,4,3,8,28,5.9,SALES,DM
+OPP-218,Inventory ungliyon pe matching buyer ko instant (UGC selfie),CT-UGC,FW-OBJECTION,CH-CONSULTANT,hi-dominant,Broker,Mumbai,4,5,5,4,5,23,4.7,CURIOSITY,DEMO
+OPP-219,Instagram pe dekhi property aap dhoondh nahi paye client gaya (UGC selfie),CT-UGC,FW-UGC,CH-BROKER,hi-dominant,Broker,Mumbai,6,4,3,6,8,27,5.5,PROPERTY-MANAGEMENT,TRIAL
+OPP-220,Property add karo media upload map pin 20 sec demo (UGC selfie),CT-UGC,FW-PROPERTY,CH-CONSULTANT,hi-dominant,Broker,Mumbai,4,5,3,6,8,26,5.3,DEMO,DEMO
+OPP-221,Client call aaye to saari history turant samne (demo),CT-DEMO,FW-AI,CH-CONSULTANT,mixed,Broker,Pune,2,2,7,4,10,25,5.3,SALES,DEMO
+OPP-222,Sneha ne client ki requirement ek jagah rakhi perfect match (demo),CT-DEMO,FW-DEMO,CH-CONSULTANT,mr-dominant,Broker,Both,6,4,6,5,8,29,6.0,SOCIAL-PROOF,TRIAL
+OPP-223,Client ko lagta hai aap sirf usi ke liye kaam kar rahe (demo),CT-DEMO,FW-AI,CH-BROKER,mr-dominant,Broker,Pune,6,5,6,4,8,29,6.0,CURIOSITY,DEMO
+OPP-224,Buyer requirement capture karo galti se kuch miss na ho (demo),CT-DEMO,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Both,6,4,6,6,9,31,6.3,PROPERTY-MANAGEMENT,DEMO
+OPP-225,Andheri broker ne lead leakage near zero kiya 60 din mein (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER|CH-HAPPY,mr-dominant,Owner,Both,5,6,6,5,10,32,6.7,SOCIAL-PROOF,DEMO
+OPP-226,Pune ki 15-agent agency ka before after (case study),CT-CASE,FW-CASE,CH-OWNER|CH-HAPPY,mixed,Owner,Pune,4,4,7,4,9,28,5.8,SOCIAL-PROOF,TRIAL
+OPP-227,Close rate 8 percent se 12 percent 2 mahine mein (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Pune,5,5,7,5,10,32,6.7,REVENUE,DM
+OPP-228,Mr aur Mrs Khan ka smooth deal testimonial (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-HAPPY,en-leaning,Buyer,Pune,4,4,5,5,10,28,5.8,SOCIAL-PROOF,DEMO
+OPP-229,Agent bola broker dekh sakta hai maine 10 deals kiye no jhagda (case study),CT-CASE,FW-BAB,CH-BROKER,hi-dominant,Broker,Mumbai,5,5,5,7,8,30,6.0,SOCIAL-PROOF,DEMO
+OPP-230,12K month diya 25L recover kiya ab CRM free jaisa (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,5,3,5,5,10,28,5.8,REVENUE,DEMO
+OPP-231,200 plus brokerages already RealEstateFlow pe (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER|CH-HAPPY,mixed,Owner,Mumbai,5,3,8,5,10,31,6.5,SOCIAL-PROOF,DEMO
+OPP-232,Salesforce se switch kiya finally India ke liye bana CRM (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Both,4,5,7,4,7,27,5.6,SOCIAL-PROOF,TRIAL
+OPP-233,Maine 200 brokerages dekhe ek cheez samajh aayi follow-up (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,mr-dominant,Owner,Both,4,4,7,8,6,29,5.7,CURIOSITY,FOLLOW
+OPP-234,Kyun banaya RealEstateFlow founder ki kahani (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,hi-dominant,Owner,Both,3,4,7,8,7,29,5.8,REAL-ESTATE,COMMUNITY
+OPP-235,Indian brokers ko US CRM nahi chahiye desi chahiye (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,en-leaning,Owner,Both,4,3,8,8,4,27,5.2,CONTRARIAN,FOLLOW
+OPP-236,Launch day RealEstateFlow ab live hai dekho (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,en-leaning,Owner,Mumbai,7,7,7,7,6,34,6.8,REAL-ESTATE,COMMUNITY
+OPP-237,Mera broker dost ne 20L ka deal khoya tab idea aaya (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,mr-dominant,Owner,Both,8,7,6,8,4,33,6.4,FOUNDER,COMMUNITY
+OPP-238,CRM matlab Excel nahi yeh 3 cheez karta hai (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,4,7,10,6,4,31,6.1,CRM,COMMUNITY
+OPP-239,CRM sirf badi companies ke liye Myth bust (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Both,4,4,8,6,6,28,5.6,CONTRARIAN,COMMUNITY
+OPP-240,CRM mahanga hai 999 se shuru ROI 30 din (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Both,5,7,9,8,10,39,7.9,SALES,SAVE
+OPP-241,Maine pehle CRM try kiya tha nahi chala kyun different (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,4,3,7,6,6,26,5.2,OBJECTION,COMMUNITY
+OPP-242,Data secure hai kya AWS backed sleep peacefully (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,mr-dominant,Owner,Pune,2,5,6,7,7,27,5.4,OBJECTION,COMMUNITY
+OPP-243,Cancel kiya to data chala jaayega Nahi export anytime (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,mixed,Owner,Mumbai,5,7,6,6,7,31,6.2,OBJECTION,FOLLOW
+OPP-244,Process badalna padega Nahi tumhara process import karo (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Both,4,5,7,8,6,30,5.9,OBJECTION,SAVE
+OPP-245,Tum broke nahi ho tum bleeding ho roz 50K leak (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,mr-dominant,Owner,Both,7,7,8,9,5,36,7.0,CONTRARIAN,SAVE
+OPP-246,Maharashtra RERA agent rule badla 60 sec mein samjho (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,3,4,9,7,8,31,6.2,NEWS,COMMUNITY
+OPP-247,RERA number har listing pe trust signal (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,mixed,Owner,Both,4,4,8,5,4,25,5.0,REAL-ESTATE,SAVE
+OPP-248,Ready reckoner rate badha brokers ke liye matlab (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,hi-dominant,Owner,Mumbai,6,5,8,6,6,31,6.2,NEWS,FOLLOW
+OPP-249,Carpet vs built-up loading samjhao client ko (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-BROKER,en-leaning,Broker,Mumbai,4,4,10,6,5,29,5.8,REAL-ESTATE,SAVE
+OPP-250,Portal listing rate hike MagicBricks 99acres ab kya (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,mr-dominant,Owner,Both,3,6,8,7,5,29,5.7,NEWS,SAVE
+OPP-251,MagicBricks lead 2 ghante baad call buyer already deal (case study),CT-CASE,FW-CASE,CH-BROKER,mr-dominant,Broker,Pune,3,4,7,4,9,27,5.7,LEAD-MANAGEMENT,DEMO
+OPP-252,All portals one inbox MagicBricks Housing 99acres (case study),CT-CASE,FW-BAB,CH-OWNER,hi-dominant,Owner,Both,4,4,7,5,9,29,6.0,LEAD-MANAGEMENT,DEMO
+OPP-253,Facebook ad 5000 spend kitna convert ho raha (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Mumbai,4,5,6,3,10,28,6.0,REVENUE,DM
+OPP-254,FB pe 20 comment 3 ko call kiya 17 ignore ek buyer tha (case study),CT-CASE,FW-CASE,CH-CONSULTANT,hi-dominant,Broker,Both,7,4,6,5,10,32,6.7,LEAD-MANAGEMENT,TRIAL
+OPP-255,Google Ads 50K spend 100 lead 10 convert ho sakte the 50 (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Both,5,4,5,7,9,30,6.1,REVENUE,DEMO
+OPP-256,Referral best lead par tumne follow-up nahi kiya (case study),CT-CASE,FW-CASE,CH-BROKER,mixed,Broker,Pune,2,2,9,3,8,24,5.0,SALES,DEMO
+OPP-257,Referral source track kiya top agent 40 referral nikla (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,mixed,Owner,Both,4,4,6,7,10,31,6.4,SOCIAL-PROOF,TRIAL
+OPP-258,Portal lead auto sync 15 min response 4x close (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,mixed,Owner,Both,3,4,7,5,10,29,6.1,LEAD-MANAGEMENT,TRIAL
+OPP-259,Mumbai broker vs Pune broker ka kaam karne ka tareeka (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-BROKER,mr-dominant,Broker,Pune,5,4,10,8,6,33,6.5,REAL-ESTATE,SAVE
+OPP-260,Pune cha broker ata Pune chi technology RealEstateFlow (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-BROKER,mixed,Broker,Pune,5,7,8,5,4,29,5.8,REAL-ESTATE,FOLLOW
+OPP-261,Mumbai status Pune growth dono ko ek CRM (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,4,5,5,5,6,25,5.0,CONTRARIAN,FOLLOW
+OPP-262,South Mumbai luxury broker bhi system chahiye (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-BROKER,hi-dominant,Broker,Mumbai,6,4,9,7,7,33,6.6,REAL-ESTATE,FOLLOW
+OPP-263,Kothrud IT crowd ko property bechna tech-savvy approach (deep-dive),CT-AUTHORITY,FW-MYTH,CH-CONSULTANT,mixed,Broker,Both,6,6,8,5,4,29,5.8,REAL-ESTATE,FOLLOW
+OPP-264,RealEstateFlow vs generic CRM India ke liye bana (carousel),CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,6,3,7,5,5,26,5.2,CONTRARIAN,DEMO
+OPP-265,Zoho Salesforce ke saamne desi CRM ka faayda (carousel),CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Mumbai,3,7,8,7,6,31,6.2,CRM,DEMO
+OPP-266,Competitor spreadsheet pe aap system pe deal jeet gaye (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,mixed,Owner,Both,4,6,8,5,5,28,5.6,SOCIAL-PROOF,SAVE
+OPP-267,Portal dependency chhodo apna lead engine banao (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,hi-dominant,Owner,Both,5,6,9,6,4,30,5.9,CONTRARIAN,COMMENT
+OPP-268,Gudi Padwa naya saal nayi deals shubhechha (meme),CT-MEME,FW-SKIT,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Pune,8,8,1,6,3,26,5.1,REAL-ESTATE,COMMENT
+OPP-269,Diwali booking season leads ka rush handle karo (meme),CT-MEME,FW-SKIT,CH-OWNER,hi-dominant,Owner,Pune,10,8,4,5,4,31,6.2,REAL-ESTATE,SHARE
+OPP-270,Akshaya Tritiya property muhurat leads double (meme),CT-MEME,FW-CURIOSITY,CH-OWNER|CH-NEWBIE,hi-dominant,Owner,Mumbai,7,8,4,6,2,27,5.2,REAL-ESTATE,COMMENT
+OPP-271,Festival season 3x leads system ready hai kya (meme),CT-MEME,FW-SKIT,CH-OWNER,hi-dominant,Owner,Both,7,7,3,5,3,25,4.9,CURIOSITY,FOLLOW
+OPP-272,Year end push December targets dashboard se (meme),CT-MEME,FW-CURIOSITY,CH-SALESMGR|CH-NEWBIE,hi-dominant,Manager,Both,9,6,2,7,5,29,5.7,REAL-ESTATE,COMMENT
+OPP-273,Dashboard ek click office ka poora hisaab (carousel),CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Mumbai,4,6,8,6,8,32,6.5,DEMO,DEMO
+OPP-274,Lead assign drag drop 3 sec demo (carousel),CT-EDU,FW-MISTAKE,CH-TEAMLEAD,hi-dominant,Manager,Pune,5,5,6,6,7,29,5.8,DEMO,COMMENT
+OPP-275,Speech to text se lead note bolo type mat karo (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,mr-dominant,Broker,Pune,4,5,7,5,7,28,5.7,DEMO,DEMO
+OPP-276,Site visit schedule reminder auto demo (carousel),CT-EDU,FW-MYTH,CH-CONSULTANT,en-leaning,Broker,Both,5,5,7,3,6,26,5.4,DEMO,SAVE
+OPP-277,Calendar pe poori team ki site visit ek screen (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-SALESMGR,en-leaning,Manager,Mumbai,5,4,7,5,4,25,5.0,DEMO,DEMO
+OPP-278,Phone OTP login 30 sec mein shuru no credit card (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,7,3,7,7,7,31,6.2,CRM,DEMO
+OPP-279,15 agent team 20 Cr revenue 8 ghante kaam ka sapna (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,7,6,4,5,8,30,6.2,REVENUE,TRIAL
+OPP-280,Arjun ne 5 deal se 12 deal kiye system se (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-BROKER|CH-HAPPY,hi-dominant,Broker,Both,8,4,6,5,10,33,6.9,SALES,DM
+OPP-281,Professional broker banna hai to professional tool (case study),CT-CASE,FW-BAB,CH-OWNER,mr-dominant,Owner,Both,4,3,6,6,7,26,5.2,REAL-ESTATE,DM
+OPP-282,Business tumhare bina chale yeh kaise (case study),CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Mumbai,3,3,6,8,7,27,5.4,CURIOSITY,TRIAL
+OPP-283,POV jab client puche mera lead kahan hai (skit),CT-DRAMA,FW-SKIT,CH-CONSULTANT|CH-BROKER,hi-dominant,Broker,Both,10,10,2,8,1,31,5.9,WHATSAPP-CHAOS,DEMO
+OPP-284,Broker ki Excel sheet ka funeral (skit),CT-DRAMA,FW-CONVO,CH-CONSULTANT|CH-TEAMLEAD,hi-dominant,Broker,Both,10,8,3,4,1,26,5.0,CURIOSITY,FOLLOW
+OPP-285,Jab do agent same lead pe ladte hain (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-TEAMLEAD|CH-LOSTLEAD,hi-dominant,Manager,Pune,9,10,7,7,1,34,6.5,SALES,COMMENT
+OPP-286,Ek minute file dhoondta hoon buyer waiting meme (skit),CT-DRAMA,FW-CONVO,CH-CONSULTANT|CH-OWNER,mixed,Broker,Mumbai,10,10,3,6,3,32,6.2,WHATSAPP-CHAOS,DEMO
+OPP-287,Naya agent jab pehli baar CRM dekhta hai reaction (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-NEWBIE|CH-LOSTLEAD,mr-dominant,NewJoiner,Both,8,10,7,7,4,36,7.0,CURIOSITY,DEMO
+OPP-288,2026 aa gaya bhai aur tu abhi bhi Excel pe (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-BROKER,mixed,Broker,Pune,10,9,6,8,2,35,6.7,WHATSAPP-CHAOS,COMMENT
+OPP-289,Beta business join nahi karna chahta jab tak CRM nahi dekha (founder cut),CT-FOUNDER,FW-FOUNDER,CH-OWNER,mr-dominant,Owner,Pune,8,7,6,9,5,35,6.8,REAL-ESTATE,FOLLOW
+OPP-290,Purane broker ka succession plan tech se zinda (founder cut),CT-FOUNDER,FW-AUTHORITY,CH-OWNER,mr-dominant,Owner,Pune,6,8,5,7,5,31,6.1,FOUNDER,COMMENT
+OPP-291,Indian brokerages 30-40 percent leads lose data breakdown (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,hi-dominant,Owner,Both,6,6,8,4,7,31,6.3,CRM,DEMO
+OPP-292,Response time hi sabse bada competitive edge data (carousel),CT-EDU,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,6,5,8,8,6,33,6.5,CONTRARIAN,COMMENT
+OPP-293,Ek RE CRM mein yeh 7 cheez honi chahiye checklist (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mr-dominant,Owner,Pune,4,6,10,6,7,33,6.7,CRM,SAVE
+OPP-294,Lead source ROI kaunsa source sabse sasta (carousel),CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Both,4,6,7,5,5,27,5.4,REAL-ESTATE,COMMENT
+OPP-295,POV broker scrolling 200 unread WhatsApp dhoondh raha ek lead (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-BROKER,hi-dominant,Broker,Both,9,8,9,6,6,38,7.6,WHATSAPP-CHAOS,SAVE
+OPP-296,WhatsApp mein jo 5L deal laga tha woh gaya kahan (carousel) [Pune],CT-EDU,FW-MISTAKE,CH-OWNER,hi-dominant,Owner,Pune,8,8,7,7,7,37,7.4,WHATSAPP-CHAOS,COMMENT
+OPP-297,Subah ka buyer dopahar tak 80 messages mein dafan (carousel),CT-EDU,FW-CRM,CH-BROKER,mr-dominant,Broker,Both,5,5,9,6,5,30,5.9,WHATSAPP-CHAOS,COMMENT
+OPP-298,Do agent ek hi WhatsApp lead pe call kar diye buyer confuse (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-TEAMLEAD,hi-dominant,Manager,Both,5,3,6,7,7,28,5.6,WHATSAPP-CHAOS,COMMENT
+OPP-299,Kaunsa chat mein Bandra wali property thi yaad nahi (carousel) [Mumbai],CT-EDU,FW-MYTH,CH-CONSULTANT,en-leaning,Broker,Mumbai,7,4,7,5,7,30,6.1,WHATSAPP-CHAOS,SAVE
+OPP-300,Tumhi pan lead WhatsApp madhe shodhta mag deal gela samjha (carousel) [Pune],CT-EDU,FW-MYTH,CH-CONSULTANT,mr-dominant,Broker,Pune,3,10,9,7,6,35,7.0,WHATSAPP-CHAOS,SAVE
+OPP-301,30 WhatsApp groups khole ek lead ke liye (carousel),CT-EDU,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Both,5,4,7,5,7,28,5.7,WHATSAPP-CHAOS,DEMO
+OPP-302,WhatsApp pe Interested likha buyer ne phir gayab (carousel),CT-EDU,FW-MYTH,CH-BROKER,hi-dominant,Broker,Both,4,7,10,5,4,30,6.0,WHATSAPP-CHAOS,SAVE
+OPP-303,Office group mein lead aaya kisi ne uthaya hi nahi (carousel) [Pune],CT-EDU,FW-MISTAKE,CH-TEAMLEAD,mr-dominant,Manager,Pune,6,3,7,7,5,28,5.5,WHATSAPP-CHAOS,COMMENT
+OPP-304,WhatsApp lead ek tap mein system mein daalo demo (carousel) [Mumbai],CT-EDU,FW-CRM,CH-CONSULTANT,mr-dominant,Broker,Mumbai,4,4,7,7,8,30,6.0,LEAD-MANAGEMENT,COMMENT
+OPP-305,Client ka naam WhatsApp mein Unknown Number save (carousel) [Mumbai],CT-EDU,FW-MYTH,CH-BROKER,hi-dominant,Broker,Mumbai,6,6,8,5,7,32,6.5,WHATSAPP-CHAOS,DEMO
+OPP-306,Forwarded property 5 baar bheji par track kisi ne nahi kiya (carousel),CT-EDU,FW-MYTH,CH-BROKER,mixed,Broker,Both,6,3,6,5,5,25,5.0,WHATSAPP-CHAOS,DEMO
+OPP-307,100 leads aaye sirf 12 convert hue baaki kahan gaye (deep-dive) [Mumbai],CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,mixed,Owner,Mumbai,4,5,9,7,10,35,7.2,LEAD-LEAKAGE,SAVE
+OPP-308,30 percent leads chup-chaap gayab har mahine ka 20L (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,hi-dominant,Owner,Both,4,4,6,5,9,28,5.8,REVENUE,FOLLOW
+OPP-309,Aapke leads leak ho rahe hain aur aapko pata bhi nahi (deep-dive) [Mumbai],CT-AUTHORITY,FW-MYTH,CH-OWNER,en-leaning,Owner,Mumbai,7,3,9,6,9,34,6.9,FEAR,SAVE
+OPP-310,Lead leakage calculator apni leak nikalo comment mein (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Both,5,6,10,10,8,39,7.7,REVENUE,COMMUNITY
+OPP-311,Har lead ka owner kaun yeh dikhana zaroori hai (deep-dive) [Mumbai],CT-AUTHORITY,FW-CRM,CH-SALESMGR,hi-dominant,Manager,Mumbai,4,5,7,4,8,28,5.8,LEAD-MANAGEMENT,COMMUNITY
+OPP-312,Competitor ne 2 min mein call kiya aapne 2 ghante baad (deep-dive),CT-AUTHORITY,FW-MYTH,CH-BROKER,mixed,Broker,Both,8,5,9,4,8,34,7.0,FEAR,COMMUNITY
+OPP-313,Aapka deal unka commission response time ka khel (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,mixed,Owner,Both,4,5,8,6,7,30,6.1,REVENUE,FOLLOW
+OPP-314,Lead aaya call lagaya kal buyer already gaya (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-BROKER,en-leaning,Broker,Both,3,6,6,6,6,27,5.4,LEAD-MANAGEMENT,COMMUNITY
+OPP-315,Spreadsheet purana hai aaj ke leads kahan (deep-dive) [Mumbai],CT-AUTHORITY,FW-CRM,CH-SALESMGR,en-leaning,Manager,Mumbai,4,4,8,6,7,29,5.8,FEAR,COMMUNITY
+OPP-316,Ek recovered deal poore saal ka CRM cost cover karta hai (deep-dive),CT-AUTHORITY,FW-MYTH,CH-OWNER,en-leaning,Owner,Both,4,6,9,6,8,33,6.7,REVENUE,FOLLOW
+OPP-317,Follow-up bhool gaye Ab nahi hoga sab automatic (skit),CT-DRAMA,FW-DRAMA,CH-CONSULTANT|CH-OWNER,hi-dominant,Broker,Both,9,7,5,6,6,33,6.6,FEAR,DEMO
+OPP-318,Kal jis client se baat hui aaj follow-up kiya kya (skit) [Mumbai],CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER|CH-NEWBIE,hi-dominant,Broker,Mumbai,6,9,6,7,4,32,6.2,SALES,DEMO
+OPP-319,Client teesri baar pooche any update aap kya bologe (skit) [Pune],CT-DRAMA,FW-SKIT,CH-BROKER,mixed,Broker,Pune,9,7,4,7,3,30,5.8,FEAR,FOLLOW
+OPP-320,Response within 15 min 60 percent close after 1 hour 20 percent (skit) [Mumbai],CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-NEWBIE,hi-dominant,Owner,Mumbai,7,6,7,4,7,31,6.4,SALES,DEMO
+OPP-321,3 follow-up jo har broker bhoolta hai (skit) [Mumbai],CT-DRAMA,FW-CONVO,CH-BROKER|CH-TEAMLEAD,hi-dominant,Broker,Mumbai,9,7,9,6,5,36,7.2,CURIOSITY,DEMO
+OPP-322,Follow-up rahila ani deal gela Pune broker ki kahani (skit) [Pune],CT-DRAMA,FW-SKIT,CH-BROKER|CH-OWNER,mixed,Broker,Pune,5,9,5,6,4,29,5.7,FOLLOWUP,COMMENT
+OPP-323,Buyer ko reminder system bhejega tum deal close karoge (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER|CH-OWNER,hi-dominant,Broker,Both,6,8,3,7,4,28,5.5,SALES,COMMENT
+OPP-324,Google Ads ka lead 48 ghante mein thanda follow-up turant (skit) [Mumbai],CT-DRAMA,FW-CONVO,CH-OWNER|CH-TEAMLEAD,en-leaning,Owner,Mumbai,7,8,3,4,6,28,5.7,FEAR,DEMO
+OPP-325,Commission ka jhagda ab nahi khata book khol ke dikhao (skit),CT-DRAMA,FW-CONVO,CH-OWNER|CH-TEAMLEAD,mr-dominant,Owner,Both,8,8,8,6,8,38,7.7,REVENUE,DEMO
+OPP-326,Do agent same lead claim kar rahe khata ne 10 sec mein settle (skit) [Pune],CT-DRAMA,FW-WHATSAPP-CHAOS,CH-TEAMLEAD|CH-SALESMGR,mixed,Manager,Pune,6,8,6,10,3,33,6.2,SALES,COMMENT
+OPP-327,Agent bole 5L baki broker bole 3L hisaab kaun sahi (skit),CT-DRAMA,FW-DRAMA,CH-OWNER|CH-LOSTLEAD,mr-dominant,Owner,Both,9,6,5,9,4,33,6.3,REVENUE,DEMO
+OPP-328,Excel mein commission galat overpay 2L ka error (skit),CT-DRAMA,FW-SKIT,CH-OWNER|CH-LOSTLEAD,mixed,Owner,Both,7,7,6,6,6,32,6.4,CRM,DEMO
+OPP-329,Kiska kitna paisa khata book mein zero jhagda (skit) [Mumbai],CT-DRAMA,FW-DRAMA,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Mumbai,7,6,6,5,4,28,5.6,REVENUE,DEMO
+OPP-330,Khata settlement 3 tap mein dekho live (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-SALESMGR,hi-dominant,Owner,Both,6,8,5,4,8,31,6.4,DEMO,DEMO
+OPP-331,Hishob clear kara bhandan sampla Marathi khata reel (skit) [Pune],CT-DRAMA,FW-CONVO,CH-OWNER|CH-NEWBIE,hi-dominant,Owner,Pune,6,8,5,5,6,30,6.1,CRM,DEMO
+OPP-332,Commission split channel partner ke saath transparent rakho (skit),CT-DRAMA,FW-SKIT,CH-OWNER,hi-dominant,Owner,Both,7,6,6,5,6,30,6.1,REVENUE,DEMO
+OPP-333,Manual hisaab mein har mahine kitna leak ho raha (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-LOSTLEAD,en-leaning,Owner,Both,7,8,4,6,6,31,6.2,FEAR,FOLLOW
+OPP-334,AI ne mere 100 buyers ko call kiya 30 qualified nikle (UGC selfie) [Mumbai],CT-UGC,FW-OBJECTION,CH-BROKER,en-leaning,Broker,Mumbai,8,8,3,5,10,34,7.1,AI,DM
+OPP-335,AI calls karega tu deals close karega 10 ghante bach gaye (UGC selfie) [Mumbai],CT-UGC,FW-UGC,CH-CONSULTANT,hi-dominant,Broker,Mumbai,7,7,6,5,10,35,7.2,AI,DEMO
+OPP-336,Maine AI se follow-up call karwaya client ko pata bhi nahi chala (UGC selfie),CT-UGC,FW-PROPERTY,CH-CONSULTANT,mixed,Broker,Both,8,9,7,4,8,36,7.4,CURIOSITY,DEMO
+OPP-337,AI calling demo sun lo asli real estate call (UGC selfie) [Pune],CT-UGC,FW-OBJECTION,CH-BROKER,hi-dominant,Broker,Pune,5,7,4,3,8,27,5.7,AI,DEMO
+OPP-338,AI calling real estate mein chalega Myth bust (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,mixed,Owner,Both,7,5,6,7,5,30,5.9,MYTH,DM
+OPP-339,Raat ko 100 leads AI ne call kiye subah qualified list ready (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,hi-dominant,Owner,Both,6,6,5,6,10,33,6.8,AI,DEMO
+OPP-340,AI tumhe replace nahi karega boring kaam karega (UGC selfie),CT-UGC,FW-OBJECTION,CH-BROKER,hi-dominant,Broker,Both,7,6,4,9,7,33,6.5,CONTRARIAN,DEMO
+OPP-341,AI ne Google Ads lead 30 sec mein follow-up kiya deal bachi (UGC selfie),CT-UGC,FW-OBJECTION,CH-OWNER,hi-dominant,Owner,Both,5,6,5,5,10,31,6.5,AI,DEMO
+OPP-342,AI calling kaise set karo 60 second mein (UGC selfie) [Pune],CT-UGC,FW-OBJECTION,CH-OWNER,en-leaning,Owner,Pune,4,7,6,5,9,31,6.4,DEMO,DEMO
+OPP-343,Pata hai team abhi kya kar rahi hai dashboard kholo (deep-dive) [Pune],CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Pune,6,6,7,4,10,33,6.9,TEAM-MANAGEMENT,SAVE
+OPP-344,Proof nahi to sirf blame agent ki performance data se (deep-dive),CT-AUTHORITY,FW-CRM,CH-TEAMLEAD,en-leaning,Manager,Both,4,6,8,6,6,30,6.0,TEAM-MANAGEMENT,COMMUNITY
+OPP-345,Kaun sa agent kaun sa lead chala raha pata nahi (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Both,4,5,7,7,6,29,5.8,FEAR,COMMUNITY
+OPP-346,Visibility surveillance nahi fairness hai agent bhi khush (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-TEAMLEAD,hi-dominant,Manager,Both,4,3,8,7,6,28,5.5,TEAM-MANAGEMENT,COMMUNITY
+OPP-347,Poori team ek dashboard mein owner ka control (deep-dive) [Mumbai],CT-AUTHORITY,FW-CRM,CH-OWNER,mixed,Owner,Mumbai,4,5,7,6,8,30,6.1,TEAM-MANAGEMENT,FOLLOW
+OPP-348,Rajesh ne Bandra buyer ko call kiya ya nahi ab pata chalega (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-TEAMLEAD,hi-dominant,Manager,Both,5,5,5,7,5,27,5.3,SALES,COMMUNITY
+OPP-349,Fair lead distribution har agent ko barabar mauka (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-SALESMGR,en-leaning,Manager,Both,5,6,7,8,6,32,6.3,TEAM-MANAGEMENT,COMMUNITY
+OPP-350,Micromanagement band karo data dekho (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,2,4,8,8,7,29,5.8,CONTRARIAN,SAVE
+OPP-351,Ek agent gaya saara business gaya bachao kaise (carousel) [Pune],CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Pune,7,5,5,6,3,26,5.1,FEAR,COMMENT
+OPP-352,Top agent nikla apne saare client le gaya (carousel) [Pune],CT-EDU,FW-CRM,CH-OWNER,mixed,Owner,Pune,5,6,8,5,6,30,6.1,REVENUE,COMMENT
+OPP-353,Agent jaaye par leads agency ke paas rahein (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,hi-dominant,Owner,Both,6,6,5,6,6,29,5.8,TEAM-MANAGEMENT,COMMENT
+OPP-354,Naya agent ne purane ka kaam seamlessly uthaya kyunki sab system mein (carousel),CT-EDU,FW-MISTAKE,CH-TEAMLEAD,mixed,Manager,Both,4,5,6,4,6,25,5.1,SALES,DEMO
+OPP-355,Relationships agent ke phone mein ya agency ke system mein (carousel),CT-EDU,FW-MISTAKE,CH-OWNER,mr-dominant,Owner,Both,5,4,5,6,5,25,4.9,FEAR,COMMENT
+OPP-356,Naya agent Day 1 vs Day 7 with RealEstateFlow (demo) [Mumbai],CT-DEMO,FW-AI,CH-NEWBIE,hi-dominant,NewJoiner,Mumbai,7,3,7,4,7,28,5.8,CURIOSITY,DEMO
+OPP-357,Naye agent ko kaunse leads milenge fair rule dikhao (demo),CT-DEMO,FW-CRM,CH-NEWBIE,mixed,NewJoiner,Both,2,6,8,6,8,30,6.1,SALES,DEMO
+OPP-358,New joiner 30 min mein CRM seekh gaya WhatsApp jaisa (demo),CT-DEMO,FW-AI,CH-NEWBIE,mr-dominant,NewJoiner,Both,3,6,6,6,7,28,5.7,CRM,DEMO
+OPP-359,Naya banda delete nahi kar sakta RBAC ka kamaal (demo) [Pune],CT-DEMO,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,2,4,8,5,10,29,6.1,FEAR,TRIAL
+OPP-360,Rohan ka pehla din ghabrao mat sab simple hai (demo) [Pune],CT-DEMO,FW-CRM,CH-NEWBIE,mr-dominant,NewJoiner,Pune,3,6,6,5,10,30,6.2,UGC,TRIAL
+OPP-361,Team nahi seekhegi yeh dar galat hai 2 ghante training (demo) [Mumbai],CT-DEMO,FW-DEMO,CH-OWNER,hi-dominant,Owner,Mumbai,4,3,7,5,7,26,5.3,OBJECTION,TRIAL
+OPP-362,Client bola 2BHK Andheri chahiye aap file dhoondh rahe (skit) [Mumbai],CT-DRAMA,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-NEWBIE,hi-dominant,Broker,Mumbai,6,9,5,5,4,29,5.8,PROPERTY-MANAGEMENT,DEMO
+OPP-363,Call pe property details missing deal bhi missing (skit),CT-DRAMA,FW-SKIT,CH-CONSULTANT|CH-TEAMLEAD,hi-dominant,Broker,Both,10,7,5,7,3,32,6.2,PROPERTY-MANAGEMENT,FOLLOW
+OPP-364,Property turant share karo deal fast karo demo (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-BROKER|CH-NEWBIE,mr-dominant,Broker,Both,6,6,6,5,7,30,6.1,SALES,FOLLOW
+OPP-365,Inventory ungliyon pe matching buyer ko instant (skit),CT-DRAMA,FW-DRAMA,CH-BROKER,mr-dominant,Broker,Both,5,8,3,4,6,26,5.3,CURIOSITY,FOLLOW
+OPP-366,Instagram pe dekhi property aap dhoondh nahi paye client gaya (skit) [Mumbai],CT-DRAMA,FW-DRAMA,CH-BROKER,mr-dominant,Broker,Mumbai,9,7,6,7,5,34,6.7,PROPERTY-MANAGEMENT,FOLLOW
+OPP-367,Property add karo media upload map pin 20 sec demo (skit) [Pune],CT-DRAMA,FW-DRAMA,CH-CONSULTANT|CH-LOSTLEAD,mr-dominant,Broker,Pune,6,9,6,8,3,32,6.2,DEMO,COMMENT
+OPP-368,Client call aaye to saari history turant samne (testimonial) [Mumbai],CT-PROOF,FW-CUSTOMER,CH-CONSULTANT|CH-HAPPY,en-leaning,Broker,Mumbai,4,4,5,6,10,29,6.0,SALES,DEMO
+OPP-369,Sneha ne client ki requirement ek jagah rakhi perfect match (testimonial),CT-PROOF,FW-AUTHORITY,CH-BROKER,hi-dominant,Broker,Both,2,6,7,6,8,29,5.9,SOCIAL-PROOF,DEMO
+OPP-370,Client ko lagta hai aap sirf usi ke liye kaam kar rahe (testimonial),CT-PROOF,FW-AUTHORITY,CH-CONSULTANT|CH-HAPPY,hi-dominant,Broker,Both,6,3,6,6,8,29,5.9,CURIOSITY,TRIAL
+OPP-371,Buyer requirement capture karo galti se kuch miss na ho (testimonial),CT-PROOF,FW-CASE,CH-CONSULTANT,mr-dominant,Broker,Both,4,4,6,6,10,30,6.2,PROPERTY-MANAGEMENT,TRIAL
+OPP-372,Andheri broker ne lead leakage near zero kiya 60 din mein (UGC selfie),CT-UGC,FW-OBJECTION,CH-OWNER,hi-dominant,Owner,Both,6,7,6,5,8,32,6.6,SOCIAL-PROOF,TRIAL
+OPP-373,Pune ki 15-agent agency ka before after (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,en-leaning,Owner,Both,3,6,5,7,7,28,5.6,SOCIAL-PROOF,DEMO
+OPP-374,Close rate 8 percent se 12 percent 2 mahine mein (UGC selfie) [Mumbai],CT-UGC,FW-UGC,CH-OWNER,mr-dominant,Owner,Mumbai,4,5,5,6,9,29,5.9,REVENUE,TRIAL
+OPP-375,Mr aur Mrs Khan ka smooth deal testimonial (UGC selfie),CT-UGC,FW-UGC,CH-HAPPY,hi-dominant,Buyer,Both,4,4,4,5,8,25,5.2,SOCIAL-PROOF,TRIAL
+OPP-376,Agent bola broker dekh sakta hai maine 10 deals kiye no jhagda (UGC selfie) [Pune],CT-UGC,FW-UGC,CH-CONSULTANT,hi-dominant,Broker,Pune,6,5,5,3,6,25,5.2,SOCIAL-PROOF,DEMO
+OPP-377,12K month diya 25L recover kiya ab CRM free jaisa (UGC selfie),CT-UGC,FW-PROPERTY,CH-OWNER,hi-dominant,Owner,Both,3,6,4,5,10,28,5.9,REVENUE,DEMO
+OPP-378,200 plus brokerages already RealEstateFlow pe (UGC selfie) [Mumbai],CT-UGC,FW-UGC,CH-OWNER,hi-dominant,Owner,Mumbai,5,7,6,3,10,31,6.6,SOCIAL-PROOF,DEMO
+OPP-379,Salesforce se switch kiya finally India ke liye bana CRM (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,mr-dominant,Owner,Both,5,7,6,4,8,30,6.2,SOCIAL-PROOF,DEMO
+OPP-380,Maine 200 brokerages dekhe ek cheez samajh aayi follow-up (founder cut) [Pune],CT-FOUNDER,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Pune,9,7,3,9,6,34,6.7,CURIOSITY,FOLLOW
+OPP-381,Kyun banaya RealEstateFlow founder ki kahani (founder cut) [Mumbai],CT-FOUNDER,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Mumbai,6,7,3,10,5,31,6.0,REAL-ESTATE,COMMENT
+OPP-382,Indian brokers ko US CRM nahi chahiye desi chahiye (founder cut) [Mumbai],CT-FOUNDER,FW-AUTHORITY,CH-OWNER,hi-dominant,Owner,Mumbai,7,7,6,10,3,33,6.2,CONTRARIAN,COMMUNITY
+OPP-383,Launch day RealEstateFlow ab live hai dekho (founder cut),CT-FOUNDER,FW-FOUNDER,CH-OWNER,hi-dominant,Owner,Both,10,6,4,10,7,37,7.2,REAL-ESTATE,FOLLOW
+OPP-384,Mera broker dost ne 20L ka deal khoya tab idea aaya (founder cut),CT-FOUNDER,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Both,10,4,2,9,5,30,5.8,FOUNDER,COMMUNITY
+OPP-385,CRM matlab Excel nahi yeh 3 cheez karta hai (skit),CT-DRAMA,FW-CONVO,CH-OWNER|CH-BROKER,en-leaning,Owner,Both,6,7,7,5,6,31,6.3,CRM,FOLLOW
+OPP-386,CRM sirf badi companies ke liye Myth bust (skit),CT-DRAMA,FW-CONVO,CH-OWNER,mr-dominant,Owner,Both,9,6,7,8,4,34,6.6,CONTRARIAN,DEMO
+OPP-387,CRM mahanga hai 999 se shuru ROI 30 din (skit),CT-DRAMA,FW-SKIT,CH-OWNER|CH-NEWBIE,mixed,Owner,Both,8,5,7,6,9,35,7.2,SALES,DEMO
+OPP-388,Maine pehle CRM try kiya tha nahi chala kyun different (skit) [Mumbai],CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Mumbai,7,8,5,6,4,30,5.9,OBJECTION,DEMO
+OPP-389,Data secure hai kya AWS backed sleep peacefully (skit),CT-DRAMA,FW-DRAMA,CH-OWNER|CH-BROKER,hi-dominant,Owner,Both,5,6,3,9,2,25,4.7,OBJECTION,COMMENT
+OPP-390,Cancel kiya to data chala jaayega Nahi export anytime (skit),CT-DRAMA,FW-SKIT,CH-OWNER|CH-SALESMGR,hi-dominant,Owner,Both,5,6,6,7,2,26,5.0,OBJECTION,COMMENT
+OPP-391,Process badalna padega Nahi tumhara process import karo (skit) [Pune],CT-DRAMA,FW-CONVO,CH-OWNER|CH-NEWBIE,mr-dominant,Owner,Pune,7,8,3,7,4,29,5.7,OBJECTION,COMMENT
+OPP-392,Tum broke nahi ho tum bleeding ho roz 50K leak (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER,en-leaning,Owner,Both,10,6,7,9,4,36,7.0,CONTRARIAN,FOLLOW
+OPP-393,Maharashtra RERA agent rule badla 60 sec mein samjho (carousel) [Mumbai],CT-EDU,FW-MISTAKE,CH-OWNER,en-leaning,Owner,Mumbai,5,5,9,9,4,32,6.1,NEWS,COMMENT
+OPP-394,RERA number har listing pe trust signal (carousel) [Mumbai],CT-EDU,FW-MYTH,CH-OWNER,mr-dominant,Owner,Mumbai,3,4,8,5,4,24,4.8,REAL-ESTATE,DEMO
+OPP-395,Ready reckoner rate badha brokers ke liye matlab (carousel) [Pune],CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Pune,4,6,9,6,4,29,5.7,NEWS,SAVE
+OPP-396,Carpet vs built-up loading samjhao client ko (carousel),CT-EDU,FW-MISTAKE,CH-BROKER,mixed,Broker,Both,6,3,9,3,4,25,5.1,REAL-ESTATE,DEMO
+OPP-397,Portal listing rate hike MagicBricks 99acres ab kya (carousel) [Pune],CT-EDU,FW-MYTH,CH-OWNER,hi-dominant,Owner,Pune,4,5,8,4,6,27,5.5,NEWS,SAVE
+OPP-398,MagicBricks lead 2 ghante baad call buyer already deal (demo),CT-DEMO,FW-CRM,CH-BROKER,mixed,Broker,Both,2,4,7,5,10,28,5.9,LEAD-MANAGEMENT,DEMO
+OPP-399,All portals one inbox MagicBricks Housing 99acres (demo),CT-DEMO,FW-CRM,CH-OWNER,mixed,Owner,Both,4,6,8,5,10,33,6.8,LEAD-MANAGEMENT,TRIAL
+OPP-400,Facebook ad 5000 spend kitna convert ho raha (demo) [Pune],CT-DEMO,FW-DEMO,CH-OWNER,mixed,Owner,Pune,4,3,8,5,10,30,6.2,REVENUE,DEMO
+OPP-401,FB pe 20 comment 3 ko call kiya 17 ignore ek buyer tha (demo),CT-DEMO,FW-DEMO,CH-CONSULTANT,hi-dominant,Broker,Both,7,4,5,4,10,30,6.3,LEAD-MANAGEMENT,TRIAL
+OPP-402,Google Ads 50K spend 100 lead 10 convert ho sakte the 50 (demo),CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,2,4,8,4,10,28,5.9,REVENUE,DEMO
+OPP-403,Referral best lead par tumne follow-up nahi kiya (demo) [Mumbai],CT-DEMO,FW-CRM,CH-BROKER,hi-dominant,Broker,Mumbai,5,3,7,6,6,27,5.4,SALES,TRIAL
+OPP-404,Referral source track kiya top agent 40 referral nikla (demo) [Pune],CT-DEMO,FW-AI,CH-OWNER,en-leaning,Owner,Pune,2,4,8,4,9,27,5.7,SOCIAL-PROOF,DEMO
+OPP-405,Portal lead auto sync 15 min response 4x close (demo),CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Both,4,2,6,4,10,26,5.5,LEAD-MANAGEMENT,DEMO
+OPP-406,Mumbai broker vs Pune broker ka kaam karne ka tareeka (meme) [Pune],CT-MEME,FW-CURIOSITY,CH-CONSULTANT|CH-LOSTLEAD,hi-dominant,Broker,Pune,9,7,5,8,1,30,5.7,REAL-ESTATE,COMMENT
+OPP-407,Pune cha broker ata Pune chi technology RealEstateFlow (meme),CT-MEME,FW-SKIT,CH-CONSULTANT|CH-BROKER,hi-dominant,Broker,Both,7,8,3,8,4,30,5.8,REAL-ESTATE,COMMENT
+OPP-408,Mumbai status Pune growth dono ko ek CRM (meme),CT-MEME,FW-CURIOSITY,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Both,5,7,4,6,2,24,4.6,CONTRARIAN,FOLLOW
+OPP-409,South Mumbai luxury broker bhi system chahiye (meme),CT-MEME,FW-WHATSAPP-CHAOS,CH-CONSULTANT|CH-BROKER,mixed,Broker,Both,8,9,1,4,5,27,5.5,REAL-ESTATE,SHARE
+OPP-410,Kothrud IT crowd ko property bechna tech-savvy approach (meme) [Pune],CT-MEME,FW-SKIT,CH-BROKER|CH-NEWBIE,hi-dominant,Broker,Pune,5,8,4,8,2,27,5.1,REAL-ESTATE,SHARE
+OPP-411,RealEstateFlow vs generic CRM India ke liye bana (case study) [Pune],CT-CASE,FW-CASE,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Pune,3,3,7,7,10,30,6.2,CONTRARIAN,TRIAL
+OPP-412,Zoho Salesforce ke saamne desi CRM ka faayda (case study) [Pune],CT-CASE,FW-CASE,CH-OWNER,en-leaning,Owner,Pune,4,5,5,4,9,27,5.7,CRM,TRIAL
+OPP-413,Competitor spreadsheet pe aap system pe deal jeet gaye (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,mr-dominant,Owner,Both,4,6,5,6,6,27,5.4,SOCIAL-PROOF,DEMO
+OPP-414,Portal dependency chhodo apna lead engine banao (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Both,3,3,8,8,8,30,6.0,CONTRARIAN,DEMO
+OPP-415,Gudi Padwa naya saal nayi deals shubhechha (carousel) [Pune],CT-EDU,FW-MYTH,CH-OWNER,en-leaning,Owner,Pune,6,6,8,7,5,32,6.3,REAL-ESTATE,COMMENT
+OPP-416,Diwali booking season leads ka rush handle karo (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,hi-dominant,Owner,Both,6,5,7,3,6,27,5.6,REAL-ESTATE,SAVE
+OPP-417,Akshaya Tritiya property muhurat leads double (carousel) [Pune],CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mr-dominant,Owner,Pune,8,5,8,6,5,32,6.3,REAL-ESTATE,COMMENT
+OPP-418,Festival season 3x leads system ready hai kya (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-OWNER,mr-dominant,Owner,Both,5,6,8,7,6,32,6.4,CURIOSITY,SAVE
+OPP-419,Year end push December targets dashboard se (carousel) [Mumbai],CT-EDU,FW-LEAD-LEAKAGE,CH-SALESMGR,hi-dominant,Manager,Mumbai,6,6,7,6,7,32,6.5,REAL-ESTATE,COMMENT
+OPP-420,Dashboard ek click office ka poora hisaab (demo),CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Both,2,2,8,6,10,28,5.8,DEMO,DEMO
+OPP-421,Lead assign drag drop 3 sec demo (demo),CT-DEMO,FW-DEMO,CH-SALESMGR,mixed,Manager,Both,3,2,6,4,9,24,5.1,DEMO,DEMO
+OPP-422,Speech to text se lead note bolo type mat karo (demo),CT-DEMO,FW-AI,CH-BROKER,mr-dominant,Broker,Both,5,5,6,6,9,31,6.3,DEMO,DEMO
+OPP-423,Site visit schedule reminder auto demo (demo),CT-DEMO,FW-CRM,CH-BROKER,mr-dominant,Broker,Both,3,5,7,4,9,28,5.8,DEMO,DEMO
+OPP-424,Calendar pe poori team ki site visit ek screen (demo),CT-DEMO,FW-AI,CH-SALESMGR,mixed,Manager,Both,4,3,8,7,6,28,5.5,DEMO,DEMO
+OPP-425,Phone OTP login 30 sec mein shuru no credit card (demo) [Mumbai],CT-DEMO,FW-AI,CH-OWNER,mixed,Owner,Mumbai,5,4,4,5,9,27,5.6,CRM,DEMO
+OPP-426,15 agent team 20 Cr revenue 8 ghante kaam ka sapna (deep-dive) [Pune],CT-AUTHORITY,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,7,6,8,7,6,34,6.8,REVENUE,FOLLOW
+OPP-427,Arjun ne 5 deal se 12 deal kiye system se (deep-dive),CT-AUTHORITY,FW-CRM,CH-BROKER,hi-dominant,Broker,Both,6,5,7,5,7,30,6.1,SALES,COMMUNITY
+OPP-428,Professional broker banna hai to professional tool (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Both,5,6,7,6,7,31,6.2,REAL-ESTATE,COMMUNITY
+OPP-429,Business tumhare bina chale yeh kaise (deep-dive) [Pune],CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Pune,3,7,9,6,5,30,5.9,CURIOSITY,FOLLOW
+OPP-430,POV jab client puche mera lead kahan hai (meme) [Mumbai],CT-MEME,FW-SKIT,CH-CONSULTANT|CH-LOSTLEAD,hi-dominant,Broker,Mumbai,9,10,3,10,2,34,6.4,WHATSAPP-CHAOS,COMMENT
+OPP-431,Broker ki Excel sheet ka funeral (meme) [Mumbai],CT-MEME,FW-WHATSAPP-CHAOS,CH-BROKER,hi-dominant,Broker,Mumbai,10,10,1,9,1,31,5.8,CURIOSITY,COMMENT
+OPP-432,Jab do agent same lead pe ladte hain (meme),CT-MEME,FW-SKIT,CH-TEAMLEAD,hi-dominant,Manager,Both,10,10,4,4,1,29,5.6,SALES,SHARE
+OPP-433,Ek minute file dhoondta hoon buyer waiting meme (meme),CT-MEME,FW-CURIOSITY,CH-CONSULTANT|CH-LOSTLEAD,mr-dominant,Broker,Both,10,10,3,5,1,29,5.6,WHATSAPP-CHAOS,COMMENT
+OPP-434,Naya agent jab pehli baar CRM dekhta hai reaction (meme) [Pune],CT-MEME,FW-CURIOSITY,CH-NEWBIE,hi-dominant,NewJoiner,Pune,8,10,3,6,3,30,5.8,CURIOSITY,FOLLOW
+OPP-435,2026 aa gaya bhai aur tu abhi bhi Excel pe (meme) [Mumbai],CT-MEME,FW-SKIT,CH-CONSULTANT,hi-dominant,Broker,Mumbai,10,9,5,9,2,35,6.6,WHATSAPP-CHAOS,FOLLOW
+OPP-436,Beta business join nahi karna chahta jab tak CRM nahi dekha (testimonial) [Mumbai],CT-PROOF,FW-AUTHORITY,CH-OWNER,en-leaning,Owner,Mumbai,5,6,4,7,9,31,6.3,REAL-ESTATE,DM
+OPP-437,Purane broker ka succession plan tech se zinda (testimonial),CT-PROOF,FW-CASE,CH-OWNER,en-leaning,Owner,Both,4,5,6,6,9,30,6.2,FOUNDER,TRIAL
+OPP-438,Indian brokerages 30-40 percent leads lose data breakdown (deep-dive),CT-AUTHORITY,FW-CRM,CH-OWNER,mr-dominant,Owner,Both,4,4,8,8,7,31,6.2,CRM,FOLLOW
+OPP-439,Response time hi sabse bada competitive edge data (deep-dive) [Pune],CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,en-leaning,Owner,Pune,4,3,9,7,8,31,6.2,CONTRARIAN,SAVE
+OPP-440,Ek RE CRM mein yeh 7 cheez honi chahiye checklist (deep-dive) [Mumbai],CT-AUTHORITY,FW-MYTH,CH-OWNER,mixed,Owner,Mumbai,2,6,10,4,4,26,5.2,CRM,COMMUNITY
+OPP-441,Lead source ROI kaunsa source sabse sasta (deep-dive) [Pune],CT-AUTHORITY,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,3,7,8,4,8,30,6.2,REAL-ESTATE,FOLLOW
+OPP-442,POV broker scrolling 200 unread WhatsApp dhoondh raha ek lead (demo),CT-DEMO,FW-AI,CH-BROKER,mixed,Broker,Both,9,7,7,5,7,35,7.1,WHATSAPP-CHAOS,DEMO
+OPP-443,WhatsApp mein jo 5L deal laga tha woh gaya kahan (demo),CT-DEMO,FW-DEMO,CH-OWNER,hi-dominant,Owner,Both,8,7,5,6,10,36,7.4,WHATSAPP-CHAOS,DEMO
+OPP-444,Subah ka buyer dopahar tak 80 messages mein dafan (demo),CT-DEMO,FW-CRM,CH-BROKER,mr-dominant,Broker,Both,3,4,6,4,6,23,4.7,WHATSAPP-CHAOS,DEMO
+OPP-445,Do agent ek hi WhatsApp lead pe call kar diye buyer confuse (demo) [Mumbai],CT-DEMO,FW-DEMO,CH-TEAMLEAD,hi-dominant,Manager,Mumbai,4,3,7,6,9,29,6.0,WHATSAPP-CHAOS,TRIAL
+OPP-446,Kaunsa chat mein Bandra wali property thi yaad nahi (demo) [Mumbai],CT-DEMO,FW-DEMO,CH-CONSULTANT,hi-dominant,Broker,Mumbai,4,3,6,4,8,25,5.2,WHATSAPP-CHAOS,DEMO
+OPP-447,Tumhi pan lead WhatsApp madhe shodhta mag deal gela samjha (demo) [Pune],CT-DEMO,FW-AI,CH-BROKER,hi-dominant,Broker,Pune,4,9,5,5,8,31,6.3,WHATSAPP-CHAOS,TRIAL
+OPP-448,30 WhatsApp groups khole ek lead ke liye (demo),CT-DEMO,FW-DEMO,CH-BROKER,mixed,Broker,Both,4,5,5,6,6,26,5.2,WHATSAPP-CHAOS,DEMO
+OPP-449,WhatsApp pe Interested likha buyer ne phir gayab (demo) [Mumbai],CT-DEMO,FW-AI,CH-BROKER,mixed,Broker,Mumbai,6,4,7,6,8,31,6.3,WHATSAPP-CHAOS,DEMO
+OPP-450,Office group mein lead aaya kisi ne uthaya hi nahi (demo),CT-DEMO,FW-DEMO,CH-SALESMGR,hi-dominant,Manager,Both,3,4,6,7,8,28,5.7,WHATSAPP-CHAOS,TRIAL
+OPP-451,WhatsApp lead ek tap mein system mein daalo demo (demo) [Mumbai],CT-DEMO,FW-AI,CH-CONSULTANT,mixed,Broker,Mumbai,2,4,7,6,10,29,6.0,LEAD-MANAGEMENT,DEMO
+OPP-452,Client ka naam WhatsApp mein Unknown Number save (demo) [Pune],CT-DEMO,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Pune,2,4,5,6,7,24,4.8,WHATSAPP-CHAOS,DEMO
+OPP-453,Forwarded property 5 baar bheji par track kisi ne nahi kiya (demo),CT-DEMO,FW-CRM,CH-CONSULTANT,mr-dominant,Broker,Both,5,5,5,4,8,27,5.6,WHATSAPP-CHAOS,DEMO
+OPP-454,100 leads aaye sirf 12 convert hue baaki kahan gaye (demo) [Pune],CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Pune,4,3,7,5,10,29,6.1,LEAD-LEAKAGE,DEMO
+OPP-455,30 percent leads chup-chaap gayab har mahine ka 20L (demo),CT-DEMO,FW-DEMO,CH-OWNER,mr-dominant,Owner,Both,4,4,9,6,10,33,6.8,REVENUE,DEMO
+OPP-456,Aapke leads leak ho rahe hain aur aapko pata bhi nahi (demo) [Pune],CT-DEMO,FW-CRM,CH-OWNER,mr-dominant,Owner,Pune,4,3,6,6,10,29,6.0,FEAR,TRIAL
+OPP-457,Lead leakage calculator apni leak nikalo comment mein (demo),CT-DEMO,FW-CRM,CH-OWNER,hi-dominant,Owner,Both,5,5,9,8,10,37,7.5,REVENUE,TRIAL
+OPP-458,Har lead ka owner kaun yeh dikhana zaroori hai (demo) [Mumbai],CT-DEMO,FW-AI,CH-TEAMLEAD|CH-LOSTLEAD,mixed,Manager,Mumbai,2,4,6,5,9,26,5.4,LEAD-MANAGEMENT,DEMO
+OPP-459,Competitor ne 2 min mein call kiya aapne 2 ghante baad (demo),CT-DEMO,FW-CRM,CH-BROKER,mixed,Broker,Both,4,4,7,6,10,31,6.4,FEAR,DEMO
+OPP-460,Aapka deal unka commission response time ka khel (demo),CT-DEMO,FW-CRM,CH-OWNER|CH-LOSTLEAD,en-leaning,Owner,Both,3,5,6,7,10,31,6.4,REVENUE,DEMO
+OPP-461,Lead aaya call lagaya kal buyer already gaya (demo) [Pune],CT-DEMO,FW-AI,CH-BROKER,mixed,Broker,Pune,6,3,7,5,8,29,6.0,LEAD-MANAGEMENT,TRIAL
+OPP-462,Spreadsheet purana hai aaj ke leads kahan (demo),CT-DEMO,FW-DEMO,CH-TEAMLEAD|CH-LOSTLEAD,mr-dominant,Manager,Both,2,6,6,5,8,27,5.6,FEAR,DEMO
+OPP-463,Ek recovered deal poore saal ka CRM cost cover karta hai (demo) [Pune],CT-DEMO,FW-AI,CH-OWNER,mr-dominant,Owner,Pune,2,4,5,5,10,26,5.5,REVENUE,DEMO
+OPP-464,Follow-up bhool gaye Ab nahi hoga sab automatic (UGC selfie),CT-UGC,FW-PROPERTY,CH-BROKER,hi-dominant,Broker,Both,5,6,7,3,9,30,6.3,FEAR,DEMO
+OPP-465,Kal jis client se baat hui aaj follow-up kiya kya (UGC selfie) [Pune],CT-UGC,FW-PROPERTY,CH-CONSULTANT,mr-dominant,Broker,Pune,5,7,6,6,6,30,6.0,SALES,DEMO
+OPP-466,Client teesri baar pooche any update aap kya bologe (UGC selfie),CT-UGC,FW-OBJECTION,CH-BROKER,hi-dominant,Broker,Both,8,5,4,5,6,28,5.7,FEAR,TRIAL
+OPP-467,Response within 15 min 60 percent close after 1 hour 20 percent (UGC selfie),CT-UGC,FW-PROPERTY,CH-OWNER,mixed,Owner,Both,7,8,7,6,10,38,7.8,SALES,DM
+OPP-468,3 follow-up jo har broker bhoolta hai (UGC selfie) [Pune],CT-UGC,FW-OBJECTION,CH-CONSULTANT,hi-dominant,Broker,Pune,5,5,7,4,7,28,5.8,CURIOSITY,DM
+OPP-469,Follow-up rahila ani deal gela Pune broker ki kahani (UGC selfie) [Pune],CT-UGC,FW-OBJECTION,CH-BROKER,hi-dominant,Broker,Pune,5,7,6,6,9,33,6.8,FOLLOWUP,DM
+OPP-470,Buyer ko reminder system bhejega tum deal close karoge (UGC selfie),CT-UGC,FW-UGC,CH-BROKER,hi-dominant,Broker,Both,4,5,4,7,5,25,4.9,SALES,DEMO
+OPP-471,Google Ads ka lead 48 ghante mein thanda follow-up turant (UGC selfie),CT-UGC,FW-UGC,CH-OWNER,hi-dominant,Owner,Both,4,4,3,4,10,25,5.3,FEAR,TRIAL
+OPP-472,Commission ka jhagda ab nahi khata book khol ke dikhao (case study) [Mumbai],CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Mumbai,3,6,6,7,8,30,6.1,REVENUE,TRIAL
+OPP-473,Do agent same lead claim kar rahe khata ne 10 sec mein settle (case study) [Pune],CT-CASE,FW-CASE,CH-SALESMGR|CH-HAPPY,mixed,Manager,Pune,4,3,4,7,8,26,5.2,SALES,DEMO
+OPP-474,Agent bole 5L baki broker bole 3L hisaab kaun sahi (case study),CT-CASE,FW-BAB,CH-OWNER,en-leaning,Owner,Both,4,4,6,8,10,32,6.5,REVENUE,DM
+OPP-475,Excel mein commission galat overpay 2L ka error (case study),CT-CASE,FW-CASE,CH-OWNER,hi-dominant,Owner,Both,5,4,6,6,7,28,5.7,CRM,DEMO
+OPP-476,Kiska kitna paisa khata book mein zero jhagda (case study) [Pune],CT-CASE,FW-LEAD-LEAKAGE,CH-OWNER,mixed,Owner,Pune,3,2,5,7,10,27,5.5,REVENUE,DEMO
+OPP-477,Khata settlement 3 tap mein dekho live (case study) [Pune],CT-CASE,FW-BAB,CH-OWNER,mr-dominant,Owner,Pune,6,3,4,6,9,28,5.8,DEMO,TRIAL
+OPP-478,Hishob clear kara bhandan sampla Marathi khata reel (case study) [Pune],CT-CASE,FW-BAB,CH-OWNER,en-leaning,Owner,Pune,5,4,6,4,7,26,5.3,CRM,DEMO
+OPP-479,Commission split channel partner ke saath transparent rakho (case study),CT-CASE,FW-BAB,CH-OWNER|CH-HAPPY,mixed,Owner,Both,4,5,6,4,7,26,5.3,REVENUE,DEMO
+OPP-480,Manual hisaab mein har mahine kitna leak ho raha (case study),CT-CASE,FW-CASE,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Both,4,2,7,7,10,30,6.2,FEAR,TRIAL
+OPP-481,AI ne mere 100 buyers ko call kiya 30 qualified nikle (deep-dive) [Pune],CT-AUTHORITY,FW-CRM,CH-BROKER,hi-dominant,Broker,Pune,7,7,8,7,10,39,8.0,AI,SAVE
+OPP-482,AI calls karega tu deals close karega 10 ghante bach gaye (deep-dive),CT-AUTHORITY,FW-MYTH,CH-CONSULTANT,hi-dominant,Broker,Both,8,5,8,6,8,35,7.1,AI,COMMUNITY
+OPP-483,Maine AI se follow-up call karwaya client ko pata bhi nahi chala (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-BROKER,hi-dominant,Broker,Both,7,8,5,8,8,36,7.2,CURIOSITY,FOLLOW
+OPP-484,AI calling demo sun lo asli real estate call (deep-dive),CT-AUTHORITY,FW-MYTH,CH-BROKER,hi-dominant,Broker,Both,6,6,7,6,10,35,7.2,AI,FOLLOW
+OPP-485,AI calling real estate mein chalega Myth bust (deep-dive),CT-AUTHORITY,FW-CONTRARIAN,CH-OWNER,mr-dominant,Owner,Both,4,5,8,9,8,34,6.8,MYTH,COMMUNITY
+OPP-486,Raat ko 100 leads AI ne call kiye subah qualified list ready (deep-dive),CT-AUTHORITY,FW-AUTHORITY,CH-OWNER,hi-dominant,Owner,Both,6,5,6,4,9,30,6.2,AI,SAVE
+OPP-487,AI tumhe replace nahi karega boring kaam karega (deep-dive) [Pune],CT-AUTHORITY,FW-CRM,CH-CONSULTANT,hi-dominant,Broker,Pune,7,4,8,7,7,33,6.6,CONTRARIAN,FOLLOW
+OPP-488,AI ne Google Ads lead 30 sec mein follow-up kiya deal bachi (deep-dive) [Pune],CT-AUTHORITY,FW-CRM,CH-OWNER,en-leaning,Owner,Pune,5,5,7,5,9,31,6.4,AI,SAVE
+OPP-489,AI calling kaise set karo 60 second mein (deep-dive) [Mumbai],CT-AUTHORITY,FW-CRM,CH-OWNER,hi-dominant,Owner,Mumbai,5,4,8,7,8,32,6.5,DEMO,COMMUNITY
+OPP-490,Pata hai team abhi kya kar rahi hai dashboard kholo (skit),CT-DRAMA,FW-CONVO,CH-OWNER,hi-dominant,Owner,Both,8,7,4,6,4,29,5.7,TEAM-MANAGEMENT,FOLLOW
+OPP-491,Proof nahi to sirf blame agent ki performance data se (skit) [Mumbai],CT-DRAMA,FW-DRAMA,CH-TEAMLEAD,mr-dominant,Manager,Mumbai,5,7,4,5,5,26,5.2,TEAM-MANAGEMENT,DEMO
+OPP-492,Kaun sa agent kaun sa lead chala raha pata nahi (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-TEAMLEAD,en-leaning,Owner,Both,7,7,6,5,2,27,5.2,FEAR,FOLLOW
+OPP-493,Visibility surveillance nahi fairness hai agent bhi khush (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-SALESMGR,hi-dominant,Manager,Both,7,5,3,7,7,29,5.8,TEAM-MANAGEMENT,DEMO
+OPP-494,Poori team ek dashboard mein owner ka control (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-OWNER|CH-NEWBIE,mixed,Owner,Both,7,8,5,5,5,30,6.0,TEAM-MANAGEMENT,COMMENT
+OPP-495,Rajesh ne Bandra buyer ko call kiya ya nahi ab pata chalega (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-TEAMLEAD|CH-BROKER,mr-dominant,Manager,Both,5,7,5,8,4,29,5.6,SALES,COMMENT
+OPP-496,Fair lead distribution har agent ko barabar mauka (skit),CT-DRAMA,FW-WHATSAPP-CHAOS,CH-TEAMLEAD|CH-NEWBIE,mr-dominant,Manager,Both,7,6,5,6,5,29,5.8,TEAM-MANAGEMENT,COMMENT
+OPP-497,Micromanagement band karo data dekho (skit),CT-DRAMA,FW-SKIT,CH-OWNER,hi-dominant,Owner,Both,6,7,6,7,2,28,5.4,CONTRARIAN,FOLLOW
+OPP-498,Ek agent gaya saara business gaya bachao kaise (founder cut),CT-FOUNDER,FW-CONTRARIAN,CH-OWNER,hi-dominant,Owner,Both,7,6,4,9,5,31,6.0,FEAR,COMMUNITY
+OPP-499,Top agent nikla apne saare client le gaya (founder cut) [Mumbai],CT-FOUNDER,FW-FOUNDER,CH-OWNER,en-leaning,Owner,Mumbai,4,6,4,7,6,27,5.3,REVENUE,COMMUNITY
+OPP-500,Agent jaaye par leads agency ke paas rahein (founder cut) [Mumbai],CT-FOUNDER,FW-FOUNDER,CH-OWNER,hi-dominant,Owner,Mumbai,7,5,4,8,6,30,5.9,TEAM-MANAGEMENT,COMMENT
+OPP-501,Naya agent ne purane ka kaam seamlessly uthaya kyunki sab system mein (founder cut),CT-FOUNDER,FW-CONTRARIAN,CH-TEAMLEAD,mixed,Manager,Both,6,5,5,8,6,30,5.9,SALES,COMMENT
+OPP-502,Relationships agent ke phone mein ya agency ke system mein (founder cut),CT-FOUNDER,FW-AUTHORITY,CH-OWNER,mr-dominant,Owner,Both,4,4,2,8,4,22,4.2,FEAR,COMMENT
+OPP-503,Naya agent Day 1 vs Day 7 with RealEstateFlow (meme) [Mumbai],CT-MEME,FW-WHATSAPP-CHAOS,CH-NEWBIE|CH-LOSTLEAD,mr-dominant,NewJoiner,Mumbai,7,7,6,6,4,30,5.9,CURIOSITY,COMMENT
+OPP-504,Naye agent ko kaunse leads milenge fair rule dikhao (meme),CT-MEME,FW-CURIOSITY,CH-NEWBIE,mr-dominant,NewJoiner,Both,8,9,1,4,3,25,5.0,SALES,FOLLOW
+OPP-505,New joiner 30 min mein CRM seekh gaya WhatsApp jaisa (meme),CT-MEME,FW-SKIT,CH-NEWBIE|CH-LOSTLEAD,mr-dominant,NewJoiner,Both,8,7,2,6,2,25,4.8,CRM,FOLLOW
+OPP-506,Naya banda delete nahi kar sakta RBAC ka kamaal (meme) [Mumbai],CT-MEME,FW-WHATSAPP-CHAOS,CH-OWNER|CH-NEWBIE,hi-dominant,Owner,Mumbai,5,7,1,8,4,25,4.8,FEAR,FOLLOW
+OPP-507,Rohan ka pehla din ghabrao mat sab simple hai (meme) [Pune],CT-MEME,FW-SKIT,CH-NEWBIE,hi-dominant,NewJoiner,Pune,7,10,3,6,4,30,5.9,UGC,SHARE
+OPP-508,Team nahi seekhegi yeh dar galat hai 2 ghante training (meme),CT-MEME,FW-CURIOSITY,CH-OWNER|CH-LOSTLEAD,hi-dominant,Owner,Both,6,7,4,9,3,29,5.5,OBJECTION,COMMENT
+OPP-509,Client bola 2BHK Andheri chahiye aap file dhoondh rahe (carousel) [Mumbai],CT-EDU,FW-CRM,CH-BROKER,mixed,Broker,Mumbai,4,5,6,5,7,27,5.5,PROPERTY-MANAGEMENT,DEMO
+OPP-510,Call pe property details missing deal bhi missing (carousel) [Pune],CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,mixed,Broker,Pune,7,4,9,6,5,31,6.2,PROPERTY-MANAGEMENT,COMMENT
+OPP-511,Property turant share karo deal fast karo demo (carousel),CT-EDU,FW-MYTH,CH-BROKER,hi-dominant,Broker,Both,4,6,9,5,10,34,7.0,SALES,DEMO
+OPP-512,Inventory ungliyon pe matching buyer ko instant (carousel) [Mumbai],CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,mr-dominant,Broker,Mumbai,5,3,8,6,4,26,5.1,CURIOSITY,COMMENT
+OPP-513,Instagram pe dekhi property aap dhoondh nahi paye client gaya (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,hi-dominant,Broker,Both,8,4,6,8,7,33,6.6,PROPERTY-MANAGEMENT,COMMENT
+OPP-514,Property add karo media upload map pin 20 sec demo (carousel),CT-EDU,FW-MISTAKE,CH-CONSULTANT,hi-dominant,Broker,Both,7,7,6,4,7,31,6.3,DEMO,DEMO
+OPP-515,Client call aaye to saari history turant samne (carousel) [Mumbai],CT-EDU,FW-LEAD-LEAKAGE,CH-BROKER,hi-dominant,Broker,Mumbai,6,5,7,4,5,27,5.5,SALES,COMMENT
+OPP-516,Sneha ne client ki requirement ek jagah rakhi perfect match (carousel),CT-EDU,FW-MYTH,CH-BROKER,hi-dominant,Broker,Both,6,5,7,7,5,30,5.9,SOCIAL-PROOF,COMMENT
+OPP-517,Client ko lagta hai aap sirf usi ke liye kaam kar rahe (carousel),CT-EDU,FW-LEAD-LEAKAGE,CH-CONSULTANT,en-leaning,Broker,Both,5,5,8,6,7,31,6.2,CURIOSITY,COMMENT
+OPP-518,Buyer requirement capture karo galti se kuch miss na ho (carousel),CT-EDU,FW-MYTH,CH-BROKER,mr-dominant,Broker,Both,4,4,7,4,5,24,4.8,PROPERTY-MANAGEMENT,DEMO
+OPP-519,Andheri broker ne lead leakage near zero kiya 60 din mein (testimonial) [Mumbai],CT-PROOF,FW-CUSTOMER,CH-OWNER,hi-dominant,Owner,Mumbai,5,3,6,5,10,29,6.1,SOCIAL-PROOF,DEMO
+OPP-520,Pune ki 15-agent agency ka before after (testimonial),CT-PROOF,FW-CASE,CH-OWNER|CH-HAPPY,hi-dominant,Owner,Both,4,6,3,3,10,26,5.5,SOCIAL-PROOF,DEMO
