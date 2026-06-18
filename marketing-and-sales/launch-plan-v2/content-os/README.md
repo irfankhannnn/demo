@@ -4,6 +4,10 @@
 
 This is not a content folder. It is an **operating system**. A new AI agent (Claude, Cursor, Devin) should be able to read this OS and generate consistent characters, branding, language, visuals, hooks, and CTAs **without manual prompt engineering**.
 
+> **New here? Start with the two entry files:**
+> - **`master-index.md`** — AI-agent navigation across all 3 systems (Content OS, GTM OS, Growth Platform): every folder, stable-ID registry, single-source-of-truth map, and fetch logic.
+> - **`user-guide.md`** — the human manual: how to use each system end-to-end, the build order, who owns what, and what to build next.
+
 ---
 
 ## 🧠 How the Content OS Thinks
