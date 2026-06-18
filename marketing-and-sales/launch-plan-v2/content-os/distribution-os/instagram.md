@@ -17,7 +17,9 @@
 | **New Joiner** | new MEMBER | simple `hi/mr`, **tum** | "ghabrao mat", onboarding ease |
 
 - **Geo split:** Mumbai (Bambaiyya Hinglish base) + Pune (Marathi handshake). Run geo-targeted variants; see `03-language-strategy §3`.
-- **Behaviour:** passive scroll, shares to WhatsApp broker groups (the key viral signal), saves educational/templates. They rarely create — they forward.
+- **Behaviour:** passive scroll, shares to WhatsApp broker groups (the key viral signal — `02-market-research §5.1`), saves educational/templates. They rarely create — they **forward**. 95% Android, sound-off, one-handed, between site visits → **burned-in subtitles are non-negotiable** (`03-language-strategy §6`).
+- **Mental state (attention thesis, `attention-os/audience-research §0`):** they scroll to *feel seen, feel ahead of rivals, feel safe about money* — not to learn. Content that names their exact Tuesday-afternoon pain wins; "transform your workflow" loses.
+- **India specifics:** quantify pain in ₹/lakh/crore (not %), reference real lead sources (MagicBricks, 99acres, WhatsApp), RERA where relevant, peer-broker proof over corporate claims.
 
 ## 2. Posting Frequency
 
@@ -28,7 +30,9 @@
 | **Stories** | 2–3/day (banter, polls, BTS, link stickers) | morning + evening |
 | **Single image / meme** | opportunistic, 2–3/week | lunch + late evening |
 
-> Friday evenings over-index; Monday mornings under-index. Batch a week at a time (`10-content-factory` Batch Mode), group by character/Soul for Higgsfield efficiency.
+> Friday evenings over-index; Monday mornings under-index (`02-market-research §12`). Batch a week at a time (`10-content-factory` Batch Mode), group by character/Soul for Higgsfield efficiency.
+
+**Appointment viewing (retention lever):** anchor a franchise to a fixed day so the audience expects the next episode — "Galti Monday" (FW-MISTAKE), "Drama Wednesday" (CT-DRAMA), "AI Friday" (FW-AI). See `attention-os/retention-engine §4`.
 
 ## 3. Content Mix (by CT-*)
 
@@ -44,6 +48,19 @@ Weekly target ≈ 7 Reels + 3 Carousels + ~15 Stories. Map each slot to a conten
 | **CT-MEME** | ~7% | image / Reel | cheap reach, validation humour (Hindi/Marathi) |
 | **CT-NEWS** | reactive | Reel 20–40s | Maharashtra RERA / ready-reckoner newsjacking |
 | **CT-FOUNDER / CT-AUTHORITY** | ~6% | Reel + cross-post LinkedIn | brand trust; see `founder-brand.md` |
+
+**Attention budgeting (`attention-os/attention-model §6`):** per 10 pieces ≈ 5 reach-grabbers (fear/drama TOFU), 3 desire/proof (MOFU), 2 conversion (BOFU). Keeps reach high while still producing demos.
+
+**Example week (concrete slots):**
+| Day | Format | CT-* / FW-* | Hook idea |
+|---|---|---|---|
+| Mon | Reel | CT-EDU / FW-MISTAKE | "Broker ki galti #7: lead pe date nahi likhi" |
+| Tue | Carousel | CT-CASE / FW-LEAD-LEAKAGE | "100 leads aaye, kitne convert hue?" |
+| Wed | Reel | CT-DRAMA / FW-WHATSAPP-CHAOS | "POV: 200 unread, woh ₹5L deal kahan?" |
+| Thu | Reel (Pune) | CT-MEME / FW-SKIT | "Tumhi pan Excel madhe CRM chalvता?" |
+| Fri | Reel | CT-DEMO / FW-AI | "AI ne aaj 30 leads ko call kiya" |
+| Sat | Reel | CT-PROOF / FW-CUSTOMER | Mumbai broker testimonial |
+| Sun | Carousel | CT-AUTHORITY / FW-CONTRARIAN | "Aur leads nahi, follow-up chahiye" |
 
 ## 4. CTA Strategy (by CTA category)
 
@@ -96,3 +113,16 @@ assign CTA-* → SCHEDULE in Blotato (peak slot) → cross-post (IG+FB Reels) �
 - **Blotato MCP:** schedule IG (Reels/posts/Stories) at peak windows; same job fans the Reel to FB. Pune `mr-dominant` variants scheduled to Pune-geo audiences.
 - **Quality gate** (`10-content-factory`): claim ∈ business memory, hook visual ≤1s, subtitles present, language tag matches geo/persona, recurring CH-* consistency prompt used, brand color/9:16, single CTA, ₹/lakh/crore, RERA-safe, Recipe logged.
 - **Deep system handoff:** grid/Reels/Stories/highlight architecture, hashtag rotation, DM-automation copy, and the IG-specific growth playbook all live in **`distribution-os/instagram/`** — this file governs *what & why*, that folder governs *how at scale*.
+
+## 8. Metrics (→ `growth-dashboard.md`)
+
+| Metric | Definition | Target |
+|---|---|---|
+| **Hook rate** | 3s views ÷ reach | >45% |
+| **Hold rate** | avg watch ÷ length | >55% |
+| **Action rate** | (saves+shares+comments+DMs) ÷ reach | track + grow |
+| **IG→DM** | DMs ÷ followers/mo | ~1–2% |
+| **DM→WhatsApp** | handoffs ÷ DMs | 40% (`customer-journey.md`) |
+| **Save/share split** | which CT-* drives each | rebalance mix |
+
+Low hook rate = fix the first 1s, not the topic (`attention-os/attention-model §7`). Every captured lead carries a source tag + `OPP-*`/CTA-* so attribution shows which content drove pipeline. Reach without DMs = vanity; keep one CTA on every piece.

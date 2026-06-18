@@ -17,6 +17,7 @@
 | **Warm IG/FB leads** | handed off after a keyword DM | match origin tongue |
 
 - **Behaviour rule (critical):** brokers want *"real banda, no bots"* (CTA-WHATSAPP-014). Lead with human warmth; automation is invisible plumbing, never the voice. Reply fast (they expect it). English+Hindi both offered.
+- **India specifics:** WhatsApp *is* their CRM today (50–70% of leads flow through it, `02-market-research §5.1`) — so our pitch is "WhatsApp ka kaam, system mein", not "replace WhatsApp". Voice notes out-trust text. Speed converts: 15-min reply ~60% close vs ~20% after an hour. ₹/lakh/crore, never $.
 
 ## 2. Posting / Messaging Frequency
 
@@ -87,4 +88,17 @@ Inbound keyword → auto-reply template → human handoff (nurture-bot/sdr) → 
 - **Compliance:** opt-in required for broadcasts; honour opt-out; no cold blasting (kills the channel). Templates approved per WhatsApp Business policy.
 - **Language:** match the lead's tongue (Pune → Marathi handshake, then Hinglish/English for product mechanics, `03-language-strategy §8`). Never bot-speak; one natural slang touch max.
 - **Quality gate:** human-first tone, single clear next step, ₹/lakh/crore, RERA-safe, source tagged, opt-in respected.
-- **Deep system handoff:** broadcast-list architecture, community rules, full drip/template copy, keyword-flow logic, and opt-in compliance all live in **`distribution-os/whatsapp/`** — this file governs *what & why*, that folder governs *how at scale*.
+- **Deep system handoff:** broadcast-list architecture (`whatsapp/founder-broadcast.md`), community rules (`whatsapp/community.md`), full drip/template copy (`whatsapp/lead-nurture.md`, `demo-followup.md`, `customer-success.md`, `referral.md`, `message-templates.md`), keyword-flow logic, and opt-in compliance all live in **`distribution-os/whatsapp/`** — this file governs *what & why*, that folder governs *how at scale*.
+
+## 8. Metrics (→ `growth-dashboard.md`)
+
+| Metric | Definition | Target |
+|---|---|---|
+| **Speed-to-lead** | first reply after handoff | <5 min |
+| **DM→WhatsApp** | handoffs that reply | 40% (`customer-journey.md`) |
+| **WhatsApp→demo** | leads booking a demo | 30% |
+| **Broadcast read rate** | reads ÷ sent | >70% |
+| **Opt-out rate** | unsubs ÷ list/mo | <2% |
+| **Status views→DM** | inbound from Status | track |
+
+Every WhatsApp lead is tagged by source (`whatsapp-keyword`, `ig-dm-handoff`, `fb-click-to-wa`) so pipeline-manager attributes which CT-*/CTA-* fed it. Slow speed-to-lead is the #2 funnel leak (`customer-journey.md`) — fix it first.
