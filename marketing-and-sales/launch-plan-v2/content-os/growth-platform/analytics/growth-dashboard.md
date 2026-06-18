@@ -84,4 +84,31 @@ Growth dashboard finds the weakest link each week →
 "Done" (gap-analysis §8): trace a reel → … → expansion, all measured/scored/automatable.
 ```
 
-Cross-refs: `metric-dictionary.md` (all), `dashboard-strategy.md`, `../gap-analysis.md §7-8`, `growth-intel`/`experiment-design` skills.
+## 7. Weekly leverage-finder logic
+
+The dashboard computes "the one thing to fix this week" deterministically, then routes it:
+
+```
+1 compute drop-off (M-D) at every funnel stage → pick max
+2 compute effective-CAC (M-EF3) per channel → pick worst-performing with spend
+3 rank OPP-* by M-CR6 → top (scale) + bottom (kill)
+4 check cohort trend (M-A6) → improving / flat / declining
+5 emit ONE primary recommendation + owner agent
+```
+
+| Weakest link | Owner agent | Typical play |
+|---|---|---|
+| reach→dm | Content Factory / ugc-planner | stronger hook/CTA |
+| dm→demo | sdr / landing-page-builder | better qualification + booking page |
+| demo→trial | sales / onboarding | demo→trial nurture |
+| trial→activation | product | onboarding-CRO fix |
+| trial→paid | pricing / paywall | upgrade play |
+| paid→referral | CS / referral | referral ask |
+
+## 8. Edge cases
+
+- **Multiple stages tie on drop-off:** break tie by revenue impact (stage closer to `paid` wins).
+- **Insufficient data (<30 in a stage):** skip that stage, flag "need more volume".
+- **Experiment running on the same lever:** defer new recommendation until result lands (avoid thrash).
+
+Cross-refs: `metric-dictionary.md` (all), `dashboard-strategy.md`, `../gap-analysis.md §7-8`, `growth-intel`/`experiment-design`/`funnel-analysis` skills.

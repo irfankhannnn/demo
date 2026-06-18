@@ -70,4 +70,29 @@
 | FE | `pages/crm/dashboards/CustomerSuccessDashboard.tsx`; reuse `GlassDataTable`, `<CohortGrid/>`, `<ScoreBand/>`, `NotificationCenter` hook |
 | Deps | EP-5 (scoring), EP-6 (referral), EP-4 (win-back sequence), EP-7 (cohorts) |
 
+## 6. Alert thresholds (CS-facing)
+
+| Condition | Metric | Action |
+|---|---|---|
+| Health drops into Critical (<40) | M-S3 | in-app alert + auto win-back enroll |
+| Health falling 2 cycles (trend) | M-S3 | proactive check-in before Critical |
+| Expansion score ≥70 | M-S4 | upsell play to next tier |
+| Referral score ≥70 | M-S5 | issue referral code |
+| Churned MRR spike WoW | M-R5 | root-cause review → Product |
+
+## 7. Edge cases & empty states
+
+- **New customer (<28d tenure):** health shown as provisional (insufficient login history) — not flagged Critical prematurely.
+- **Score gap (nightly job lag):** stale-badge with `computedAt`; never shows blank.
+- **Plan = Free:** excluded from expansion-ready and NRR (no MRR) but kept in health for conversion play.
+- **No survey data:** referral score computes without NPS term, flagged lower-confidence.
+
+## 8. Decision cadence
+
+| Cadence | CS action |
+|---|---|
+| Daily | clear at-risk list (enroll win-back / call) |
+| Weekly | expansion + advocate outreach batch |
+| Monthly | NRR + cohort review with Founder |
+
 Cross-refs: `metric-dictionary.md §6,§7`, `../implementation/technical-designs/technical-designs.md §4.3` (health algorithm), `churn-prevention`/`retention-analysis` skills.

@@ -70,4 +70,29 @@
 | RBAC | `rbac.ts`: ADMIN all leads; MEMBER `assignedTo=me` (server-enforced) |
 | Deps | EP-1 (attribution), EP-5 (scoring → GSI7), EP-4 (sequences for no-show/winback) |
 
-Cross-refs: `metric-dictionary.md §2,§7`, `01-business-memory.md §3.1` (LeadList/Details), `../implementation/technical-designs/technical-designs.md §4.1`.
+## 6. Alert thresholds (SDR/manager)
+
+| Condition | Metric | Action |
+|---|---|---|
+| Hot lead (≥70) unworked > 30 min | M-S1 | escalate / reassign |
+| Speed-to-lead > 5 min | M-O1 | check automation/auto-qualify health |
+| No-show rate > 25% | M-C7 | tighten demo-reminder sequence |
+| Lead in mid-funnel, no event > 7d | — | "stuck" badge → nurture enroll |
+| Member queue empty but unassigned Hot leads exist | M-S1 | manager reassigns |
+
+## 7. Edge cases & empty states
+
+- **Tie scores:** GSI7 SK breaks ties by `createdAt` (older first) so the queue is deterministic.
+- **No phone / no consent:** lead still queued but Call/WA actions disabled with reason chip (consent-gated, EP-14).
+- **Score not yet computed (new lead):** shows as Warm-provisional until `scoringService` runs; never blocks the queue.
+- **MEMBER with zero assigned leads:** zero-state "no leads assigned — ask your manager", not the full-pipeline view (RBAC).
+
+## 8. Decision cadence
+
+| Cadence | Action |
+|---|---|
+| Hourly | work hottest-first queue top-down |
+| Daily | confirm today's demos, recover no-shows |
+| Weekly (manager) | rebalance assignment, review stuck leads |
+
+Cross-refs: `metric-dictionary.md §2,§7`, `01-business-memory.md §3.1` (LeadList/Details), `../implementation/technical-designs/technical-designs.md §4.1`, `sdr`/`nurture-bot` skills.

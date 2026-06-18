@@ -79,4 +79,29 @@ OPP-* recipe ─► reel ─► reach ─► DMs ─► demos ─► paid
           (top M-CR6 rows → oracle / ab-optimizer)
 ```
 
-Cross-refs: `metric-dictionary.md §8`, `growth-dashboard.md §6`, `../implementation/technical-designs/technical-designs.md §3.3`.
+## 7. Alert thresholds
+
+| Condition | Metric | Action |
+|---|---|---|
+| Hook rate < 40% on a series | M-E1 | flag creative fatigue → rotate hook (ab-optimizer) |
+| Effective-CAC of a channel > 1.5× best | M-EF3 | "reallocate budget" → media-buyer |
+| `OPP-*` lead→demo drops below median | M-CR4 | candidate to retire from rotation |
+| DM rate falling 3 wks | M-E6 | top-of-funnel weakening → distribution review |
+| Source conversion 0 with leads>20 | M-AT3 | dead channel — investigate or cut |
+
+## 8. Edge cases & empty states
+
+- **Unattributed leads (`leadSource=unknown`):** shown as a distinct row, never silently dropped; backfill banner.
+- **`contentRef` missing on event:** rolls into "uncredited content" bucket so funnel totals stay reconciled.
+- **Sparse `OPP-*` (<30 reach):** excluded from ROI ranking (insufficient signal), listed separately.
+- **No paid yet for a source:** show leads/demos with "no conversions yet", not 0% (avoids killing young channels early).
+
+## 9. Agent handoffs
+
+| Finding | Agent | Payload |
+|---|---|---|
+| Top M-CR6 `OPP-*` | oracle / ab-optimizer | recipe id + hook/character to scale |
+| Best effective-CAC channel | media-buyer | channel + budget recommendation |
+| Winning hook | landing-page-builder / ugc-planner | hook copy + angle |
+
+Cross-refs: `metric-dictionary.md §8`, `growth-dashboard.md §6`, `../implementation/technical-designs/technical-designs.md §3.3`, `channel-cac-analysis`/`messaging-optimizer` skills.

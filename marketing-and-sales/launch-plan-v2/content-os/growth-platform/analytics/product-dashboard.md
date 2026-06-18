@@ -71,4 +71,31 @@ The four core milestones map to verified product features (`01-business-memory �
 | Instrumentation | add `milestone_hit` emission in `real-estate-crm-app` flows + `ai-calling-service` first-call hook |
 | Deps | EP-2 (events), EP-5 (activation score), EP-7 (cohorts), onboarding (`../onboarding/`) |
 
+## 6. Alert thresholds (product-facing)
+
+| Condition | Metric | Action |
+|---|---|---|
+| Activation rate < 40% | M-A1 | onboarding-CRO sprint on drop milestone |
+| A single milestone < 50% completion | M-A2 | fix that step (empty-state / nudge) |
+| Time-to-activate rising | M-A3 | friction added — review recent release |
+| Cohort activation declining WoW | M-A6 | regression — investigate funnel |
+| AI-call milestone lagging others | M-A2 | flagship feature under-adopted → in-app prompt |
+
+## 7. Edge cases & empty states
+
+- **Trial not yet 7 days old:** excluded from activation-rate denominator (still in window) to avoid understating.
+- **Milestone event missing (instrumentation gap):** flagged as "untracked" so the funnel reconciles, not silently 0%.
+- **Demo-mode / internal accounts:** excluded from activation cohorts via flag.
+- **No trials in range:** zero-state with link to Marketing funnel (top-of-funnel issue, not activation).
+
+## 8. Decision cadence
+
+| Cadence | Product action |
+|---|---|
+| Daily | watch milestone drop point |
+| Sprint | ship one activation fix; measure lift |
+| Monthly | cohort trend review with Growth/oracle |
+
+The four milestones map to verified features (`01-business-memory §3`): login, lead/property add, AI call (`ai-calling-service`), day-3 return.
+
 Cross-refs: `metric-dictionary.md §6,§7 (M-S2)`, `../implementation/technical-designs/technical-designs.md §4.2` (activation weights), `onboarding-cro` skill.

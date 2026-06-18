@@ -100,3 +100,20 @@ The Content OS *generates* content. The **GTM OS** wraps it to acquire and conve
 | Engineering | `implementation/` | Build the in-product GTM features |
 | KPIs | `growth-dashboard.md` | The growth scoreboard |
 | Roadmap | `roadmap-30-60-90.md` | Sequenced 30/60/90 execution |
+
+---
+
+## 🌱 Growth Platform (Operationalize & Scale)
+
+The GTM OS designs the motion; the **Growth Platform** turns it into measured, automatable, engineering-backed systems — attribution, activation, scoring, referrals, campaigns, automation runtime, AI agents, dashboards, and a full engineering backlog/roadmap. See **`growth-platform/README.md`** (audit in `growth-platform/gap-analysis.md`, consistency in `growth-platform/quality-review.md`).
+
+| Subsystem | Folder |
+|---|---|
+| Attribution + content attribution | `growth-platform/attribution/` |
+| Activation / onboarding / retention | `growth-platform/{activation,onboarding,retention}/` |
+| Lead + customer scoring | `growth-platform/{lead-scoring,customer-scoring}/` |
+| Referrals · campaigns · integrations | `growth-platform/{referrals,campaigns,integrations}/` |
+| Automation runtime + 12 workflows | `growth-platform/automations/` |
+| 6 AI operating agents | `growth-platform/ai-agents/` |
+| Metric dictionary + 6 dashboards | `growth-platform/analytics/` |
+| Engineering epics→backlog→roadmaps (30/60/90/180) | `growth-platform/implementation/` |

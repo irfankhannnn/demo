@@ -70,4 +70,31 @@
 | RBAC | route-level admin guard + panel `PermissionGuard requiredRole="admin"` |
 | Deps | EP-1, EP-2, EP-6, EP-7 (`../implementation/epics/epics.md`); needs `CAMPAIGN.spend` live |
 
+## 6. Alert thresholds (founder-facing)
+
+| Condition | Metric | Action surfaced |
+|---|---|---|
+| LTV:CAC < 3:1 for 2 wks | M-EF6 | "Unit economics breaking — review channel spend" → Growth dashboard |
+| Payback > 6 mo | M-EF7 | "Acquisition too expensive — pause weakest channel" |
+| NRR < 100% | M-R6 | "Net contraction — CS expansion/win-back push" → CS dashboard |
+| Churn > 5% (mo) | M-A5 | "Retention leak — investigate cohort" → CS/Product |
+| New paid stalled WoW | M-NS2 | "Pipeline flat — check funnel drop-off" → Marketing |
+
+Thresholds are tenant-overridable; alerts post as in-app notifications (`notificationDynamodbService`) to ADMIN only.
+
+## 7. Edge cases & empty states
+
+- **Pre-instrumentation (EP-1/2/7 not live):** panels render from the manual sheet using `metric-dictionary.md` formulas; banner "Estimated — instrumentation pending".
+- **No spend data (`CAMPAIGN.spend` empty):** CAC/LTV panels show "Connect meta-ads MCP" CTA instead of `NaN`.
+- **Thin data (<10 customers):** unit-econ panels show ranges, not point estimates, to avoid false precision.
+- **New tenant:** zero-state with onboarding checklist linking to attribution setup.
+
+## 8. Decision cadence
+
+| Cadence | Founder action |
+|---|---|
+| Daily | glance north-star + at-risk count |
+| Weekly | review with `growth-strategist` brief; channel reallocation |
+| Monthly | LTV/CAC/cohort review + roadmap re-prioritization (`oracle`) |
+
 Cross-refs: `metric-dictionary.md`, `dashboard-strategy.md`, `growth-dashboard.md`.
