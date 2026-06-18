@@ -84,3 +84,19 @@ The global frameworks, characters scaffold, hooks taxonomy, CTA taxonomy, visual
 ---
 
 **Brand truth (do not violate):** Primary `#2563EB`, font Inter, Hinglish (70% English / 30% romanized Hindi), mobile-first, India-first (₹, lakh, crore, RERA). Full brand kit: `/.brand/brand-kit.md`. Positioning: `/.brand/positioning.md`.
+
+---
+
+## 🚀 GTM OS (Acquire & Convert)
+
+The Content OS *generates* content. The **GTM OS** wraps it to acquire and convert customers, and to measure + automate growth. See **`GTM-OS-README.md`**.
+
+| Layer | Folder | Job |
+|---|---|---|
+| Attention OS | `attention-os/` | Capture attention → conversations |
+| Distribution OS | `distribution-os/` (+ `instagram/ whatsapp/ linkedin/`) | Distribute + founder engine |
+| Sales OS | `sales-os/` | Qualify → demo → close → onboard → referral |
+| Automation OS | `automation-os/` | Attribution, automations, scoring (in-product) |
+| Engineering | `implementation/` | Build the in-product GTM features |
+| KPIs | `growth-dashboard.md` | The growth scoreboard |
+| Roadmap | `roadmap-30-60-90.md` | Sequenced 30/60/90 execution |
