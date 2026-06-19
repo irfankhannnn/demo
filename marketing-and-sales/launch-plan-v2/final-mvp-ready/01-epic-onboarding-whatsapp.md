@@ -57,6 +57,8 @@
 
 ## E1-T2 — Trial banner + in-app upgrade entry points
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Trial users always see days remaining and a working "Upgrade" path (reusing PaywallModal).
 
 **Files**

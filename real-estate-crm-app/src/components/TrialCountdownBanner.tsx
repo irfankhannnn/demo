@@ -7,15 +7,26 @@ interface TrialCountdownBannerProps {
 }
 
 export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownBannerProps) {
-  const { isPaying, isTrialing, trialDaysLeft, loading } = useSubscription();
+  const { isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, loading } = useSubscription();
   const [dismissed, setDismissed] = useState(false);
 
-  if (loading || dismissed || isPaying || !isTrialing || trialDaysLeft > 7) return null;
+  if (loading || dismissed || isPaying) return null;
 
-  const isUrgent = trialDaysLeft <= 3;
+  const showExpired = isTrialExpired && !gracePeriodActive;
+  const showTrialing = isTrialing && !isTrialExpired;
+
+  if (!showExpired && !showTrialing) return null;
+
+  const isUrgent = showExpired || trialDaysLeft <= 3;
   const bgColor = isUrgent ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
   const textColor = isUrgent ? 'text-red-800' : 'text-amber-800';
   const iconColor = isUrgent ? 'text-red-500' : 'text-amber-500';
+
+  const message = showExpired
+    ? 'Your trial has expired — upgrade now to keep your data.'
+    : isUrgent
+      ? `⚠️ ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left — Upgrade for ₹999/month`
+      : `${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left in trial — Upgrade`;
 
   return (
     <div className={`border-b ${bgColor} px-4 py-3`}>
@@ -23,9 +34,7 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
         <div className="flex items-center gap-2">
           <AlertTriangle className={`h-4 w-4 ${iconColor} shrink-0`} />
           <span className={`text-sm font-medium ${textColor}`}>
-            {isUrgent
-              ? `⚠️ ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left — Upgrade for ₹999/month`
-              : `Your trial ends in ${trialDaysLeft} days — upgrade to keep your data.`}
+            {message}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -34,7 +43,7 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
             className={`text-sm font-medium px-4 py-1.5 rounded-lg transition-colors ${
               isUrgent
                 ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-amber-600 text-white hover:bg-amber-700'
+                : 'bg-[#2563EB] text-white hover:bg-blue-700'
             }`}
           >
             Upgrade now →

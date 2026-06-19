@@ -95,6 +95,7 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     async function initAuth() {
