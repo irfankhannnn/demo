@@ -159,7 +159,9 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "${IDENTITY_LOGOUT_URL}" },
   { "ParameterKey": "TestOtpEnabled", "ParameterValue": "${TEST_OTP_ENABLED:-false}" },
   { "ParameterKey": "TestOtpValue", "ParameterValue": "${TEST_OTP_VALUE:-123456}" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" }
+  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
+  { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}" }
 ]
 EOF
 
@@ -192,6 +194,8 @@ PARAM_OVERRIDES=(
   "TestOtpEnabled=${TEST_OTP_ENABLED:-false}"
   "TestOtpValue=${TEST_OTP_VALUE:-123456}"
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
+  "InternalApiKey=${INTERNAL_API_KEY:-}"
+  "AllowedOrigins=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}"
 )
 "$AWS_BIN" cloudformation deploy \
   --template-file "$SCRIPT_DIR/cfn-backend.yaml" \

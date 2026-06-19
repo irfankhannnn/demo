@@ -74,29 +74,21 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
     setToast({ message, type });
   };
 
-  // Conversion modal state
-  const [showConvertModal, setShowConvertModal] = useState(false);
-  const [matchingContacts, setMatchingContacts] = useState<CRMContact[]>([]);
+  // Conversion state
   const [converting, setConverting] = useState(false);
 
   useEffect(() => {
-    if (!showConvertModal && !showOutcomeModal) return;
+    if (!showOutcomeModal) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (showOutcomeModal) {
+      if (e.key !== 'Escape') {
         setShowOutcomeModal(false);
         setOutcomeMeeting(null);
         setOutcomeText('');
-        return;
-      }
-      if (showConvertModal) {
-        setShowConvertModal(false);
-        setMatchingContacts([]);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showConvertModal, showOutcomeModal]);
+  }, [showOutcomeModal]);
 
   useEffect(() => {
     if (leadId) {
@@ -263,39 +255,24 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
   const handleConvertClick = async () => {
     if (!leadId) return;
-    setShowConvertModal(true);
-    try {
-      const contacts = await api.getMatchingContactsForLead(leadId);
-      setMatchingContacts(contacts);
-    } catch (error) {
-      console.error('Error fetching matching contacts:', error);
-      setMatchingContacts([]);
-    }
-  };
 
-  const handleConvert = async (existingContactId?: string) => {
-    if (!leadId) return;
-
+    // For buyer and tenant leads, navigate to the detailed conversion page
     if (lead.leadType === 'buyer' || lead.leadType === 'tenant') {
-      setShowConvertModal(false);
-      setMatchingContacts([]);
       onClose();
       navigate(`/crm/leads/${leadId}?convert=1`);
       return;
     }
 
-    // Validate phone number before conversion
+    // For seller and owner leads, convert directly with automatic phone matching
     if (!lead.phone || lead.phone.trim() === '') {
-      showToast('Phone number is required to convert lead to contact', 'error');
+      showToast('Phone number is required to convert lead', 'error');
       return;
     }
 
     try {
       setConverting(true);
-      const options = existingContactId ? { existingContactId } : {};
-      await api.convertLead(leadId, options);
-      setShowConvertModal(false);
-      setMatchingContacts([]);
+      // API will automatically find/create contact by phone number
+      await api.convertLead(leadId, {});
       showToast('Lead converted successfully', 'success');
       loadLead();
       onUpdate();
@@ -391,10 +368,11 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                 <div className="mb-4">
                   <button
                     onClick={handleConvertClick}
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95"
+                    disabled={converting}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 disabled:opacity-50"
                   >
                     <UserPlus className="h-5 w-5" />
-                    <span>Convert Lead</span>
+                    <span>{converting ? 'Converting...' : 'Convert Lead'}</span>
                   </button>
                 </div>
               )}
@@ -671,69 +649,20 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                         value={lead.buyerRequirement?.propertyType || ''}
                         onChange={(e) => setLead({
                           ...lead,
-                          buyerRequirement: { ...lead.buyerRequirement, propertyType: e.target.value, propertySubType: '' }
+                          buyerRequirement: { ...lead.buyerRequirement, propertyType: e.target.value }
                         })}
                         disabled={isConverted}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                       >
                         <option value="">Select type</option>
-                        <option value="residential">Residential</option>
-                        <option value="commercial">Commercial</option>
-                        <option value="land">Land/Plot</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="house">House</option>
+                        <option value="villa">Villa</option>
+                        <option value="office">Office</option>
                       </select>
                     </div>
-                    {lead.buyerRequirement?.propertyType && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {lead.buyerRequirement.propertyType === 'residential' && 'Residential Type'}
-                          {lead.buyerRequirement.propertyType === 'commercial' && 'Commercial Type'}
-                          {lead.buyerRequirement.propertyType === 'land' && 'Land Type'}
-                        </label>
-                        <select
-                          value={lead.buyerRequirement?.propertySubType || ''}
-                          onChange={(e) => setLead({
-                            ...lead,
-                            buyerRequirement: { ...lead.buyerRequirement, propertySubType: e.target.value }
-                          })}
-                          disabled={isConverted}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-                        >
-                          <option value="">Select subtype</option>
-                          {lead.buyerRequirement.propertyType === 'residential' && (
-                            <>
-                              <option value="apartment">Apartment</option>
-                              <option value="house">Independent House</option>
-                              <option value="villa">Villa</option>
-                              <option value="penthouse">Penthouse</option>
-                              <option value="studio">Studio Apartment</option>
-                            </>
-                          )}
-                          {lead.buyerRequirement.propertyType === 'commercial' && (
-                            <>
-                              <option value="office">Office Space</option>
-                              <option value="shop">Shop/Showroom</option>
-                              <option value="warehouse">Warehouse</option>
-                              <option value="coworking">Co-working Space</option>
-                              <option value="restaurant">Restaurant Space</option>
-                            </>
-                          )}
-                          {lead.buyerRequirement.propertyType === 'land' && (
-                            <>
-                              <option value="residential-plot">Residential Plot</option>
-                              <option value="commercial-plot">Commercial Plot</option>
-                              <option value="agricultural">Agricultural Land</option>
-                              <option value="industrial">Industrial Plot</option>
-                            </>
-                          )}
-                        </select>
-                      </div>
-                    )}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        {lead.buyerRequirement?.propertyType === 'residential' ? 'BHK' : 
-                         lead.buyerRequirement?.propertyType === 'commercial' ? 'Size Category' :
-                         lead.buyerRequirement?.propertyType === 'land' ? 'Plot Size Category' : 'BHK'}
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">BHK</label>
                       <select
                         value={lead.buyerRequirement?.bhk || ''}
                         onChange={(e) => setLead({
@@ -744,31 +673,11 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                       >
                         <option value="">Any</option>
-                        {(!lead.buyerRequirement?.propertyType || lead.buyerRequirement?.propertyType === 'residential') && (
-                          <>
-                            <option value="1">1 BHK</option>
-                            <option value="2">2 BHK</option>
-                            <option value="3">3 BHK</option>
-                            <option value="4">4 BHK</option>
-                            <option value="5">5+ BHK</option>
-                          </>
-                        )}
-                        {lead.buyerRequirement?.propertyType === 'commercial' && (
-                          <>
-                            <option value="1">Small (&lt; 500 sqft)</option>
-                            <option value="2">Medium (500-1500 sqft)</option>
-                            <option value="3">Large (1500-3000 sqft)</option>
-                            <option value="4">Very Large (&gt; 3000 sqft)</option>
-                          </>
-                        )}
-                        {lead.buyerRequirement?.propertyType === 'land' && (
-                          <>
-                            <option value="1">Small (&lt; 1000 sqft)</option>
-                            <option value="2">Medium (1000-2500 sqft)</option>
-                            <option value="3">Large (2500-5000 sqft)</option>
-                            <option value="4">Very Large (&gt; 5000 sqft)</option>
-                          </>
-                        )}
+                        <option value="1">1 BHK</option>
+                        <option value="2">2 BHK</option>
+                        <option value="3">3 BHK</option>
+                        <option value="4">4 BHK</option>
+                        <option value="5">5+ BHK</option>
                       </select>
                     </div>
                   </div>
@@ -1503,66 +1412,6 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
           )}
         </div>
       </div>
-
-      {/* Conversion Modal */}
-      {showConvertModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-          <div className="w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl border border-white/30 bg-white/70 shadow-2xl backdrop-blur-xl">
-            <div className="p-5 overflow-y-auto max-h-[80vh]">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Convert Lead</h3>
-              <p className="text-sm text-gray-500 mb-4">
-                Converting <strong>{lead.name}</strong> to a{' '}
-                <strong>{lead.leadType}</strong> contact.
-              </p>
-
-              {matchingContacts.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Found {matchingContacts.length} matching contact(s):
-                  </p>
-                  <div className="space-y-2">
-                    {matchingContacts.map((contact) => (
-                      <button
-                        key={contact.contactId}
-                        onClick={() => handleConvert(contact.contactId)}
-                        disabled={converting}
-                        className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        <div className="font-medium">{contact.name}</div>
-                        <div className="text-sm text-gray-500">{contact.phone}</div>
-                        <div className="text-xs text-indigo-600 mt-1">
-                          Click to link to this contact
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="my-4 border-t border-gray-200"></div>
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => handleConvert()}
-                  disabled={converting}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                >
-                  {converting ? 'Converting...' : 'Create New Contact'}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowConvertModal(false);
-                    setMatchingContacts([]);
-                  }}
-                  disabled={converting}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {leadId && showScheduleMeeting && (
         <ScheduleMeetingModal

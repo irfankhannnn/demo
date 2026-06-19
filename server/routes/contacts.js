@@ -411,7 +411,7 @@ router.get('/:id/activity', validateToken, extractTenantId, async (req, res) => 
       }
     }
 
-    const activity = await getContactActivityTimeline(req.tenantId, contactId);
+    const activity = await getContactActivityTimeline(req.tenantId, contactId, entityType, entityId);
     res.json(activity);
   } catch (error) {
     console.error('Get contact activity error:', error);

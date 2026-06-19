@@ -59,6 +59,9 @@ export default function PropertyList() {
   const applyFilters = () => {
     let filtered = [...properties];
 
+    // Filter out inactive listings (properties that are not for-sale/for-rent/rented)
+    filtered = filtered.filter((p) => (p as any).listingStatus !== 'inactive');
+
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
@@ -133,14 +136,22 @@ export default function PropertyList() {
     },
     {
       key: 'rentAmount',
-      header: 'Rent',
+      header: 'Price',
       sortable: true,
-      render: (property) => (
-        <div className="flex items-center gap-1 font-semibold text-gray-900">
-          <IndianRupee className="h-4 w-4 text-gray-500" />
-          {Number.isFinite(Number(property.rentAmount)) ? `${Number(property.rentAmount).toLocaleString('en-IN')}/mo` : '-'}
-        </div>
-      ),
+      render: (property) => {
+        const isSale = property.status === 'for-sale' || property.status === 'sold';
+        const price = isSale
+          ? (property.saleInfo?.listedPrice ?? property.saleInfo?.soldPrice ?? 0)
+          : (property.rentalInfo?.expectedRent ?? property.rentAmount ?? 0);
+        return (
+          <div className="flex items-center gap-1 font-semibold text-gray-900">
+            <IndianRupee className="h-4 w-4 text-gray-500" />
+            {Number.isFinite(Number(price)) && Number(price) > 0
+              ? `${Number(price).toLocaleString('en-IN')}${isSale ? '' : '/mo'}`
+              : '-'}
+          </div>
+        );
+      },
     },
     {
       key: 'status',
@@ -354,7 +365,7 @@ export default function PropertyList() {
                 <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{properties.filter(p => p.status === 'available' || p.status === 'for-sale' || p.status === 'for-rent').length}</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{properties.filter(p => (p.status === 'available' || p.status === 'for-sale' || p.status === 'for-rent') && (p as any).listingStatus !== 'inactive').length}</p>
                 <p className="text-xs text-slate-400 font-semibold">Available / Listed</p>
               </div>
             </div>

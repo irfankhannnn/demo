@@ -16,7 +16,7 @@ import { ok, badRequest, forbidden, internalError, conflict } from '../utils/htt
 import { getAgencyConfig, createAgencyConfig } from '../models/agencyConfigModel';
 import { findInvitesByPhone, findInvitesByEmail, deleteInvite } from '../models/invitesModel';
 import { findIdentityBySub, createIdentity } from '../models/authIdentitiesModel';
-import { createAdminUser, findUserByPhone } from '../models/usersModel';
+import { createAdminUser, findUserByPhone, findUserByEmail } from '../models/usersModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
 import { extractClaims } from '../utils/cognito';
@@ -505,7 +505,6 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     }
 
     // Check if email or phone is already registered in another agency
-    const { findUserByEmail, findUserByPhone } = await import('../models/usersModel');
     if (invite.inviteeEmail) {
       const existingByEmail = await findUserByEmail(invite.inviteeEmail);
       if (existingByEmail && existingByEmail.TenantId !== invite.TenantId) {

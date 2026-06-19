@@ -110,7 +110,7 @@ export async function exchangeToken(req: Request, res: Response): Promise<void> 
 
 /**
  * POST /auth/refresh
- * Refreshes access token using refresh token
+ * Refreshes access token using refresh token from httpOnly cookie
  */
 export async function refreshToken(req: Request, res: Response): Promise<void> {
   const refresh_token = getRefreshTokenFromCookie(req) || req.body?.refresh_token;

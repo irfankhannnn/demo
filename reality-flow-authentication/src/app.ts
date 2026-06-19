@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { loadConfig } from './config/config';
 import { requireAuth } from './middleware/requireAuth';
 import authRoutes from './routes/auth';
@@ -23,8 +24,15 @@ export function createApp(): express.Application {
     origin: config.ALLOWED_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Access-Token'],
+    exposedHeaders: ['Set-Cookie'],
   }));
+
+  // Body parsing middleware
+  app.use(express.json());
+  
+  // Cookie parsing middleware (required for httpOnly refresh token)
+  app.use(cookieParser());
 
   // Security headers (CRIT-7 fix)
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -34,8 +42,6 @@ export function createApp(): express.Application {
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;");
     next();
   });
-
-  app.use(express.json());
 
   // --- Health check (no auth required) ---
   app.get('/health', (_req: Request, res: Response) => {

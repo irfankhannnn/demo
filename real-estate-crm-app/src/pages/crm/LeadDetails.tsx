@@ -105,6 +105,8 @@ export default function LeadDetails() {
   const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
   const [ownerSearchResults, setOwnerSearchResults] = useState<any[]>([]);
   const [ownerSearchLoading, setOwnerSearchLoading] = useState(false);
+  const [ownerLookupPhone, setOwnerLookupPhone] = useState('');
+  const [ownerLookupError, setOwnerLookupError] = useState<string | null>(null);
   const [buyerDirectSearchQuery, setBuyerDirectSearchQuery] = useState('');
   const [tenantDirectSearchQuery, setTenantDirectSearchQuery] = useState('');
 

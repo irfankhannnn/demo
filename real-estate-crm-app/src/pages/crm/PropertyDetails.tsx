@@ -123,6 +123,7 @@ export default function PropertyDetails() {
     carpetArea: number;
     rentAmount: number;
     depositAmount: number;
+    salePrice: number;
     furnishing: FurnishingType;
     amenities: string[];
     availableFrom: string;
@@ -153,6 +154,7 @@ export default function PropertyDetails() {
     carpetArea: 0,
     rentAmount: 0,
     depositAmount: 0,
+    salePrice: 0,
     furnishing: 'semi-furnished',
     amenities: [],
     availableFrom: new Date().toISOString().split('T')[0],
@@ -264,8 +266,22 @@ export default function PropertyDetails() {
       const data = await api.getCRMProperty(id);
       setProperty(data);
       setOriginalStatus(data.status);
+      
+      // Determine current owner: if property has ownership history, use the latest owner
+      // Otherwise use the original ownerId
+      let currentOwnerId = data.ownerId || '';
+      if (data.ownershipHistory && data.ownershipHistory.length > 0) {
+        const latestOwnership = data.ownershipHistory[data.ownershipHistory.length - 1];
+        // If the property was sold to another owner, use that owner's ID
+        if (latestOwnership.toOwnerId) {
+          currentOwnerId = latestOwnership.toOwnerId;
+        }
+        // If sold to a buyer (toOwnerId is null but buyerId exists), keep original owner
+        // The buyer will be shown in the ownership history section
+      }
+      
       setFormData({
-        ownerId: data.ownerId || '',
+        ownerId: currentOwnerId,
         title: data.title,
         description: data.description || '',
         propertyType: data.propertyType,
@@ -281,6 +297,7 @@ export default function PropertyDetails() {
         carpetArea: data.carpetArea,
         rentAmount: data.rentalInfo?.expectedRent ?? data.rentAmount ?? 0,
         depositAmount: data.rentalInfo?.securityDeposit ?? data.depositAmount ?? 0,
+        salePrice: data.saleInfo?.listedPrice ?? 0,
         furnishing: data.furnishing,
         amenities: data.amenities || [],
         availableFrom: data.availableFrom ? new Date(data.availableFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -375,6 +392,7 @@ export default function PropertyDetails() {
     // Owner is now optional - can create properties without owner (unassigned)
 
     // Convert form data to API format (string lat/lng to numbers)
+    const isSaleStatus = formData.status === 'for-sale' || formData.status === 'sold';
     const apiData: any = {
       ...formData,
       ownerId: formData.ownerId || null,
@@ -386,11 +404,26 @@ export default function PropertyDetails() {
       availableFrom: formData.availableFrom ? new Date(formData.availableFrom).toISOString() : undefined,
       brokerageAmount: formData.brokerageAmount || undefined,
       expectedBrokerage: formData.expectedBrokerage || undefined,
-      rentalInfo: {
+    };
+
+    if (isSaleStatus) {
+      apiData.saleInfo = {
+        listedPrice: formData.salePrice || 0,
+        soldPrice: formData.status === 'sold' ? (property?.saleInfo?.soldPrice || 0) : null,
+        soldDate: formData.status === 'sold' ? (property?.saleInfo?.soldDate || null) : null,
+        soldToBuyerId: formData.status === 'sold' ? (property?.saleInfo?.soldToBuyerId || null) : null,
+      };
+    } else {
+      apiData.rentalInfo = {
         expectedRent: formData.rentAmount || 0,
         securityDeposit: formData.depositAmount || 0,
-      },
-    };
+      };
+    }
+
+    // Remove local-only form fields from API payload
+    delete apiData.salePrice;
+    delete apiData.rentAmount;
+    delete apiData.depositAmount;
 
     try {
       setSaving(true);
@@ -406,7 +439,7 @@ export default function PropertyDetails() {
 
             if (formData.status === 'sold') {
               // Calculate brokerage as 1% of sale price
-              const salePrice = property?.saleInfo?.listedPrice || 0;
+              const salePrice = formData.salePrice || property?.saleInfo?.listedPrice || 0;
               brokerageAmount = salePrice > 0 ? Math.round(salePrice * 0.01) : 0;
               partyType = 'SELLER';
               description = `Auto-generated brokerage for property sale: ${formData.title}`;
@@ -755,7 +788,8 @@ export default function PropertyDetails() {
                         <button
                           type="button"
                           onClick={() => setIsOwnerDropdownOpen(!isOwnerDropdownOpen)}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between"
+                          disabled={formData.status === 'sold'}
+                          className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between ${formData.status === 'sold' ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <span className={selectedOwner ? 'text-gray-900' : 'text-gray-500'}>
                             {selectedOwner ? `${selectedOwner.name} - ${selectedOwner.phone}` : 'Unassigned / No Owner'}
@@ -825,6 +859,11 @@ export default function PropertyDetails() {
                     {!formData.ownerId && (
                       <p className="mt-1 text-xs text-amber-600">
                         Property will be created without an owner. You can assign one later.
+                      </p>
+                    )}
+                    {formData.status === 'sold' && property?.saleInfo?.soldToBuyerId && (
+                      <p className="mt-1 text-xs text-blue-600">
+                        This property has been sold. Owner field is locked.
                       </p>
                     )}
                   </div>
@@ -1038,32 +1077,50 @@ export default function PropertyDetails() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Monthly Rent (₹) <span className="text-red-500">*</span>
-                    </label>
-                    <NumericInput
-                      required
-                      min={0}
-                      value={formData.rentAmount}
-                      onChange={(val) => setFormData({ ...formData, rentAmount: val })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter monthly rent"
-                    />
-                  </div>
+                  {formData.status === 'for-sale' || formData.status === 'sold' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Selling Price (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <NumericInput
+                        required
+                        min={0}
+                        value={formData.salePrice}
+                        onChange={(val) => setFormData({ ...formData, salePrice: val })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Enter selling price"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Monthly Rent (₹) <span className="text-red-500">*</span>
+                      </label>
+                      <NumericInput
+                        required
+                        min={0}
+                        value={formData.rentAmount}
+                        onChange={(val) => setFormData({ ...formData, rentAmount: val })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Enter monthly rent"
+                      />
+                    </div>
+                  )}
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Deposit Amount (₹)
-                    </label>
-                    <NumericInput
-                      min={0}
-                      value={formData.depositAmount}
-                      onChange={(val) => setFormData({ ...formData, depositAmount: val })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      placeholder="Enter deposit amount"
-                    />
-                  </div>
+                  {formData.status !== 'for-sale' && formData.status !== 'sold' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Deposit Amount (₹)
+                      </label>
+                      <NumericInput
+                        min={0}
+                        value={formData.depositAmount}
+                        onChange={(val) => setFormData({ ...formData, depositAmount: val })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        placeholder="Enter deposit amount"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1128,7 +1185,7 @@ export default function PropertyDetails() {
                           }
                           setSaleForm({
                             saleType: 'direct',
-                            soldPrice: property?.saleInfo?.listedPrice || property?.rentAmount || 0,
+                            soldPrice: formData.salePrice || property?.saleInfo?.listedPrice || property?.rentAmount || 0,
                             buyerId: '',
                             brokerageAmount: 0,
                             brokerageLost: 0,

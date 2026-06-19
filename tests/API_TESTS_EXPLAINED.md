@@ -205,8 +205,8 @@ Your test suite has **74 API tests** that validate backend logic via HTTP reques
 
 **Tests:**
 - ✅ Valid transition: new → contacted → qualified → negotiating
-- ✅ Invalid: negotiating → new (backward) → 400
-- ✅ Invalid: lost → contacted (reopening) → 400
+- ✅ Valid: negotiating → new (backward) → 200
+- ✅ Valid: lost → contacted (reopening) → 200
 - ✅ Converted lead: cannot delete → 400
 - ✅ Converted lead: cannot update fields other than notes → 400
 - ✅ Valid: for-sale → sold
@@ -216,10 +216,10 @@ Your test suite has **74 API tests** that validate backend logic via HTTP reques
 - ✅ Invalid: completed → cancelled → 400
 
 **What it validates:**
-- Lead state machine (new → contacted → qualified → negotiating → converted/lost)
+- Lead status transitions are flexible (any status to any status)
 - Property state machine (available → for-sale/for-rent → sold/rented)
 - Meeting state machine (scheduled → completed/cancelled/rescheduled)
-- Invalid transitions are blocked
+- Invalid property/meeting transitions are blocked
 - Converted leads/properties are protected from deletion/modification
 
 ---

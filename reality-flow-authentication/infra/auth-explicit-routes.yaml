@@ -63,12 +63,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth ==============
   AuthResource:
@@ -105,6 +107,10 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Set-Cookie: true
 
   AuthPhoneStartOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -124,12 +130,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/phone/confirm ==============
   AuthPhoneConfirmResource:
@@ -150,6 +158,10 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Set-Cookie: true
 
   AuthPhoneConfirmOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -169,12 +181,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/phone/onboard (PROTECTED) ==============
   AuthPhoneOnboardResource:
@@ -215,12 +229,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/google ==============
   AuthGoogleResource:
@@ -268,12 +284,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/token ==============
   AuthTokenResource:
@@ -294,6 +312,10 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Set-Cookie: true
 
   AuthTokenOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -313,12 +335,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/refresh ==============
   AuthRefreshResource:
@@ -339,6 +363,10 @@ Resources:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
         Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Set-Cookie: true
 
   AuthRefreshOptionsMethod:
     Type: AWS::ApiGateway::Method
@@ -358,12 +386,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/bootstrap (PROTECTED) ==============
   AuthBootstrapResource:
@@ -404,12 +434,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/me (PROTECTED) ==============
   AuthMeResource:
@@ -450,12 +482,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/profile (PROTECTED) ==============
   AuthProfileResource:
@@ -496,12 +530,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/agency (PROTECTED) ==============
   AuthAgencyResource:
@@ -542,12 +578,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/check-invite (PROTECTED) ==============
   AuthCheckInviteResource:
@@ -588,12 +626,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/accept-invite (PROTECTED) ==============
   AuthAcceptInviteResource:
@@ -634,12 +674,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/register-admin (PROTECTED) ==============
   AuthRegisterAdminResource:
@@ -680,12 +722,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/profile/contact ==============
   AuthProfileContactResource:
@@ -742,12 +786,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/profile/contact/phone ==============
   AuthProfileContactPhoneResource:
@@ -796,12 +842,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /auth/profile/contact/phone/verify (PROTECTED) ==============
   AuthProfileContactPhoneVerifyResource:
@@ -842,12 +890,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /users (PROTECTED) ==============
   UsersResource:
@@ -888,12 +938,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
   # ============== /invites (PROTECTED) ==============
   InvitesResource:
@@ -947,12 +999,14 @@ Resources:
               method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
               method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
               method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+              method.response.header.Access-Control-Allow-Credentials: "'true'"
       MethodResponses:
         - StatusCode: 200
           ResponseParameters:
             method.response.header.Access-Control-Allow-Headers: true
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Credentials: true
 
 Outputs:
   HealthResourceId:

@@ -340,6 +340,12 @@ export interface CreatePropertyData {
     expectedRent?: number;
     securityDeposit?: number;
   };
+  saleInfo?: {
+    listedPrice?: number | null;
+    soldPrice?: number | null;
+    soldDate?: string | null;
+    soldToBuyerId?: string | null;
+  };
   furnishing?: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities?: string[];
   availableFrom?: string;
@@ -373,6 +379,12 @@ export interface UpdatePropertyData {
   rentalInfo?: {
     expectedRent?: number;
     securityDeposit?: number;
+  };
+  saleInfo?: {
+    listedPrice?: number | null;
+    soldPrice?: number | null;
+    soldDate?: string | null;
+    soldToBuyerId?: string | null;
   };
   furnishing?: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities?: string[];

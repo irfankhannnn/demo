@@ -64,6 +64,7 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
     const response = await fetch(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',  // Required to store httpOnly refresh_token cookie
       body: JSON.stringify(body),
     });
 

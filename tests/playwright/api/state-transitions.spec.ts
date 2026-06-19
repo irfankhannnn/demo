@@ -46,7 +46,7 @@ test.describe('State Transition Validation Tests', () => {
       }
     });
 
-    test('Invalid: negotiating -> new (backward) -> 400', async ({ request }) => {
+    test('Valid: negotiating -> new (backward) -> 200', async ({ request }) => {
       await request.put(`${API_URL}/crm/leads/${createdLeadId}`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: { status: 'negotiating' },
@@ -55,14 +55,10 @@ test.describe('State Transition Validation Tests', () => {
         headers: jsonHeaders(TEST_TOKEN),
         data: { status: 'new' },
       });
-      expect([200, 201, 400, 500]).toContain(res.status());
-      if (res.status() === 400) {
-        const body = await res.json();
-        expect(body.error).toBeTruthy();
-      }
+      expect([200, 201]).toContain(res.status());
     });
 
-    test('Invalid: lost -> contacted (reopening) -> 400', async ({ request }) => {
+    test('Valid: lost -> contacted (reopening) -> 200', async ({ request }) => {
       await request.put(`${API_URL}/crm/leads/${createdLeadId}`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: { status: 'lost' },
@@ -71,11 +67,7 @@ test.describe('State Transition Validation Tests', () => {
         headers: jsonHeaders(TEST_TOKEN),
         data: { status: 'contacted' },
       });
-      expect([200, 201, 400, 500]).toContain(res.status());
-      if (res.status() === 400) {
-        const body = await res.json();
-        expect(body.error).toBeTruthy();
-      }
+      expect([200, 201]).toContain(res.status());
     });
 
     test('Converted lead: cannot delete -> 400', async ({ request }) => {

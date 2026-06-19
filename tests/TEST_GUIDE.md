@@ -89,7 +89,7 @@ npx playwright test api/   # Same thing
 
 | Spec File | What it tests | Count |
 |-----------|--------------|-------|
-| `state-transitions.spec.ts` | Lead, Property, and Meeting state machines. Valid forward transitions allowed. Backward/reopening transitions blocked. Converted leads can't be deleted or updated. | ~10 |
+| `state-transitions.spec.ts` | Lead, Property, and Meeting state machines. Lead status transitions are flexible (any status to any status). Property/Meeting state transitions are validated. Converted leads can't be deleted or updated. | ~10 |
 | `validation-security.spec.ts` | Zod `.strict()` rejects unknown fields. DynamoDB PK/SK injection blocked. Phone normalization (10 digits). Khata settlement amount must match exactly. File upload MIME filter blocks `.exe`. | ~10 |
 | `penetration-security.spec.ts` | SQL injection (8 payloads), XSS (7 payloads), NoSQL injection, path traversal in file uploads, command injection in property titles, header injection, mass assignment of internal fields, IDOR access to other tenant resources. | ~30 |
 | `cors-public-endpoints.spec.ts` | CORS preflight returns proper headers. `x-tenant-id` must be in allowed headers. Tenant ID spoofing blocked. Auth required on protected routes. Admin endpoints require admin role. | ~11 |
@@ -115,7 +115,7 @@ npx playwright test api/   # Same thing
 **Location:** `tests/backend-unit/`
 **What:** Jest tests for isolated functions.
 **Run:** `npm run test:unit`
-**Checks:** Phone normalization logic, Zod schema strict mode, lead status transition rules, khata amount validation, enum casing.
+**Checks:** Phone normalization logic, Zod schema strict mode, khata amount validation, enum casing.
 
 ---
 

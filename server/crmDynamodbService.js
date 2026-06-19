@@ -1141,6 +1141,25 @@ export async function getPropertiesByOwner(tenantId, ownerId) {
   return result.Items || [];
 }
 
+/**
+ * Check if a property already exists for a given lead conversion.
+ * Used to prevent duplicate property listings when a lead is converted multiple times.
+ */
+export async function getPropertiesByLeadId(tenantId, leadId) {
+  if (!tenantId || !leadId) return [];
+
+  const result = await docClient.send(new ScanCommand({
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId AND convertedFromLeadId = :leadId',
+    ExpressionAttributeValues: {
+      ':type': 'PROPERTY',
+      ':tenantId': tenantId,
+      ':leadId': leadId,
+    },
+  }));
+  return result.Items || [];
+}
+
 export async function getProperty(tenantId, propertyId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -1426,7 +1445,7 @@ export async function getCRMMetrics(tenantId) {
       TableName: CRM_TABLE_NAME,
       FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
       ExpressionAttributeValues: { ':type': 'PROPERTY', ':tenantId': tenantId },
-      ProjectionExpression: '#s, agreementStatus, verificationStatus, ownerId, listingType',
+      ProjectionExpression: '#s, agreementStatus, verificationStatus, ownerId, listingType, listingStatus',
       ExpressionAttributeNames: { '#s': 'status' },
     })),
     docClient.send(new ScanCommand({
@@ -1489,9 +1508,13 @@ export async function getCRMMetrics(tenantId) {
   const verificationsDone = properties.filter(p => p.verificationStatus === 'done').length;
   const verificationsPending = properties.filter(p => p.verificationStatus === 'pending').length;
 
-  // Seller count: Owners who have at least one property listed for sale
+  // Seller count: Owners who have at least one active property listed for sale (not sold, not inactive)
   const sellersCount = owners.filter(owner => 
-    properties.some(p => p.ownerId === (owner.ownerId || owner.contactId) && (p.status === 'for-sale' || p.status === 'sold'))
+    properties.some(p => 
+      p.ownerId === (owner.ownerId || owner.contactId) && 
+      p.status === 'for-sale' && 
+      p.listingStatus !== 'inactive'
+    )
   ).length;
 
   return {
@@ -2839,6 +2862,36 @@ export async function createLead(tenantId, data) {
   const leadId = uuidv4();
   const normalizedPhone = data.phone ? normalizePhone(data.phone) : '';
 
+  // Normalize seller property timeline data for consistent UI rendering
+  let normalizedSellerProperty = data.sellerProperty || null;
+  if (data.leadType === 'seller' && normalizedSellerProperty) {
+    const sp = normalizedSellerProperty;
+    const existingValue = sp.timelineValue;
+    const existingUnit = sp.timelineUnit || 'months';
+    const existingTimeline = sp.timeline;
+
+    if (existingValue !== undefined && existingValue !== null && existingValue !== '') {
+      normalizedSellerProperty = {
+        ...sp,
+        timelineValue: Number(existingValue),
+        timelineUnit: existingUnit,
+        timeline: `${existingValue} ${existingUnit}`,
+      };
+    } else if (existingTimeline) {
+      const parts = String(existingTimeline).trim().split(/\s+/);
+      const parsedValue = Number(parts[0]);
+      const parsedUnit = parts[1] || 'months';
+      if (!isNaN(parsedValue)) {
+        normalizedSellerProperty = {
+          ...sp,
+          timelineValue: parsedValue,
+          timelineUnit: parsedUnit,
+          timeline: existingTimeline,
+        };
+      }
+    }
+  }
+
   const lead = {
     PK: `TENANT#${tenantId}#LEAD#${leadId}`,
     SK: 'PROFILE',
@@ -2861,7 +2914,7 @@ export async function createLead(tenantId, data) {
     // For buyer leads
     buyerRequirement: data.buyerRequirement || null, // { budget, preferredArea, bhk, propertyType, etc. }
     // For seller leads
-    sellerProperty: data.sellerProperty || null, // { propertyType, area, expectedPrice, etc. }
+    sellerProperty: normalizedSellerProperty,
     // For tenant leads
     tenantRequirement: data.tenantRequirement || null,
     // For owner leads (someone looking to list property for rent)
@@ -3106,19 +3159,32 @@ export async function updateLead(tenantId, leadId, data) {
     throw new Error('Cannot update a converted lead');
   }
 
-  // Validate state transitions
-  if (data.status && data.status !== existingLead.status) {
-    const validTransitions = {
-      new: ['contacted', 'lost'],
-      contacted: ['qualified', 'lost'],
-      qualified: ['negotiating', 'lost'],
-      negotiating: ['converted', 'lost'],
-      converted: [],
-      lost: []
-    };
-    const allowed = validTransitions[existingLead.status] || [];
-    if (!allowed.includes(data.status)) {
-      throw new Error(`Invalid status transition: cannot change from '${existingLead.status}' to '${data.status}'`);
+  // Normalize seller property timeline data for consistent UI rendering
+  if (existingLead.leadType === 'seller' && data.sellerProperty) {
+    const sp = data.sellerProperty;
+    const existingValue = sp.timelineValue;
+    const existingUnit = sp.timelineUnit || 'months';
+    const existingTimeline = sp.timeline;
+
+    if (existingValue !== undefined && existingValue !== null && existingValue !== '') {
+      data.sellerProperty = {
+        ...sp,
+        timelineValue: Number(existingValue),
+        timelineUnit: existingUnit,
+        timeline: `${existingValue} ${existingUnit}`,
+      };
+    } else if (existingTimeline) {
+      const parts = String(existingTimeline).trim().split(/\s+/);
+      const parsedValue = Number(parts[0]);
+      const parsedUnit = parts[1] || 'months';
+      if (!isNaN(parsedValue)) {
+        data.sellerProperty = {
+          ...sp,
+          timelineValue: parsedValue,
+          timelineUnit: parsedUnit,
+          timeline: existingTimeline,
+        };
+      }
     }
   }
 
@@ -3209,6 +3275,7 @@ export async function convertLead(tenantId, leadId, options = {}) {
   }
 
   const leadNotes = await getLeadNotes(tenantId, leadId);
+  const leadMeetings = await getMeetingsByEntity(tenantId, 'lead', leadId);
 
   // Lead conversions dedupe/merge strictly by phone number into CONTACT.
   if (!lead.phone) {
@@ -3301,13 +3368,18 @@ export async function convertLead(tenantId, leadId, options = {}) {
     // Seller-type leads should create a PROPERTY listing for sale by default.
     // This is what the UI expects when it treats "Sellers" as owners who have for-sale listings.
     if (role === 'seller' && options.createPropertyListing !== false) {
-      const sp = lead.sellerProperty || {};
-      const propertyType = sp.propertyType || 'apartment';
-      const area = sp.area || '';
-      const city = sp.city || lead.city || 'Mumbai';
-      const listedPrice = typeof sp.expectedPrice === 'number' ? sp.expectedPrice : null;
+      // Prevent duplicate property listings from the same lead
+      const existingProperties = await getPropertiesByLeadId(tenantId, leadId);
+      if (existingProperties.length > 0) {
+        logger.info('crm.lead.convert.seller.property.skip', { tenantId, leadId, existingCount: existingProperties.length });
+      } else {
+        const sp = lead.sellerProperty || {};
+        const propertyType = sp.propertyType || 'apartment';
+        const area = sp.area || '';
+        const city = sp.city || lead.city || 'Mumbai';
+        const listedPrice = typeof sp.expectedPrice === 'number' ? sp.expectedPrice : null;
 
-      await createProperty(tenantId, {
+        await createProperty(tenantId, {
         ownerId: owner.ownerId,
         ownerName: owner.name,
         ownerPhone: owner.phone,
@@ -3340,14 +3412,19 @@ export async function convertLead(tenantId, leadId, options = {}) {
 
     // Owner-type leads can optionally create a PROPERTY listing for rent during conversion if details are supplied.
     if (role === 'owner' && lead.ownerProperty && (lead.ownerProperty.propertyType || lead.ownerProperty.area || lead.ownerProperty.rentExpected)) {
-      const op = lead.ownerProperty;
-      const propertyType = op.propertyType || 'apartment';
-      const area = op.area || '';
-      const city = op.city || lead.city || 'Mumbai';
-      const expectedRent = typeof op.rentExpected === 'number' ? op.rentExpected : 0;
-      const securityDeposit = typeof op.securityDeposit === 'number' ? op.securityDeposit : 0;
+      // Prevent duplicate property listings from the same lead
+      const existingProperties = await getPropertiesByLeadId(tenantId, leadId);
+      if (existingProperties.length > 0) {
+        logger.info('crm.lead.convert.owner.property.skip', { tenantId, leadId, existingCount: existingProperties.length });
+      } else {
+        const op = lead.ownerProperty;
+        const propertyType = op.propertyType || 'apartment';
+        const area = op.area || '';
+        const city = op.city || lead.city || 'Mumbai';
+        const expectedRent = typeof op.rentExpected === 'number' ? op.rentExpected : 0;
+        const securityDeposit = typeof op.securityDeposit === 'number' ? op.securityDeposit : 0;
 
-      await createProperty(tenantId, {
+        await createProperty(tenantId, {
         ownerId: owner.ownerId,
         ownerName: owner.name,
         ownerPhone: owner.phone,
@@ -3428,6 +3505,8 @@ export async function convertLead(tenantId, leadId, options = {}) {
     }
   } else if (role === 'buyer') {
     // Create/update legacy BUYER so they show up in CRM lists
+    // Copy buyer requirements from lead to buyer entity
+    const buyerReq = lead.buyerRequirement || {};
     const buyer = await createOrUpdateBuyerByPhone(tenantId, {
       name: lead.name,
       email: lead.email,
@@ -3436,6 +3515,13 @@ export async function convertLead(tenantId, leadId, options = {}) {
       status: 'active',
       source: `lead:${lead.leadId}`,
       notes: lead.notes,
+      // Copy buyer requirements
+      budget: buyerReq.budget || null,
+      propertyType: buyerReq.propertyType || null,
+      preferredArea: buyerReq.preferredArea || null,
+      requirement: buyerReq.requirement || null,
+      bhk: buyerReq.bhk || null,
+      furnishing: buyerReq.furnishing || null,
       createdBy: options.convertedBy || 'System',
     });
 
@@ -3497,6 +3583,32 @@ export async function convertLead(tenantId, leadId, options = {}) {
         createdAt: note.createdAt,
       })));
     }
+  }
+
+  // Migrate meetings from lead to new entity
+  if (leadMeetings.length) {
+    await Promise.all(leadMeetings.map(meeting => {
+      // Create new meeting with updated entity reference
+      const newMeetingData = {
+        title: meeting.title,
+        description: meeting.description || '',
+        meetingDate: meeting.meetingDate,
+        meetingTime: meeting.meetingTime,
+        location: meeting.location || '',
+        status: meeting.status || 'scheduled',
+        duration: meeting.duration || 0,
+        attendeeName: meeting.attendeeName || createdEntity.name,
+        attendeeEmail: meeting.attendeeEmail || createdEntity.email,
+        attendeePhone: meeting.attendeePhone || createdEntity.phone,
+        relatedEntityType: entityType,
+        relatedEntityId: entityId,
+        relatedEntityName: createdEntity.name,
+        relatedEntityPhone: createdEntity.phone,
+        notes: meeting.notes || '',
+        outcome: meeting.outcome || '',
+      };
+      return createMeeting(tenantId, newMeetingData);
+    }));
   }
 
   // Update lead as converted
@@ -4771,9 +4883,12 @@ export async function createContactActivity(tenantId, contactId, data) {
 }
 
 /**
- * Get all timeline activity for a given contact (sorted newest first)
+ * Get all timeline activity for a given contact (sorted newest first).
+ * Optionally merges in notes and meetings for the source entity so the
+ * Unified Activity Timeline is always useful even when explicit activity
+ * logging did not run.
  */
-export async function getContactActivityTimeline(tenantId, contactId) {
+export async function getContactActivityTimeline(tenantId, contactId, entityType = null, entityId = null) {
   if (!tenantId || !contactId) {
     throw new Error('Tenant ID and Contact ID are required');
   }
@@ -4788,7 +4903,86 @@ export async function getContactActivityTimeline(tenantId, contactId) {
     ScanIndexForward: false, // newest first
   }));
 
-  return result.Items || [];
+  const activities = result.Items || [];
+
+  // If no source entity is provided, return contact activities only
+  if (!entityType || !entityId) {
+    return activities;
+  }
+
+  // Merge notes and meetings from the source entity
+  const type = String(entityType).toUpperCase();
+  let notes = [];
+  try {
+    if (type === 'CONTACT') {
+      notes = await getContactNotes(tenantId, entityId);
+    } else if (type === 'OWNER') {
+      notes = await getOwnerNotes(tenantId, entityId);
+    } else if (type === 'BUYER') {
+      notes = await getBuyerNotes(tenantId, entityId);
+    } else if (type === 'CUSTOMER' || type === 'TENANT') {
+      notes = await getCustomerNotes(tenantId, entityId);
+    } else if (type === 'LEAD') {
+      notes = await getLeadNotes(tenantId, entityId);
+    }
+  } catch (err) {
+    logger.warn('getContactActivityTimeline.notes.error', { tenantId, entityType, entityId, error: err.message });
+  }
+
+  let meetings = [];
+  try {
+    meetings = await getMeetingsByEntity(tenantId, entityType, entityId);
+  } catch (err) {
+    logger.warn('getContactActivityTimeline.meetings.error', { tenantId, entityType, entityId, error: err.message });
+  }
+
+  // Map notes to activity shape
+  const noteActivities = notes.map(note => ({
+    activityId: `note-${note.noteId}`,
+    contactId,
+    tenantId,
+    occurredAt: note.createdAt || note.updatedAt || new Date().toISOString(),
+    activityType: 'note_added',
+    performedBy: note.createdBy || 'System',
+    subjectEntityType: type,
+    subjectEntityId: entityId,
+    subjectEntityName: '',
+    title: 'Note Added',
+    description: note.content,
+    payload: { noteId: note.noteId },
+    relatedEntityType: null,
+    relatedEntityId: null,
+    relatedEntityName: null,
+  }));
+
+  // Map meetings to activity shape
+  const meetingActivities = meetings.map(meeting => {
+    const isCompleted = meeting.status === 'completed';
+    const isCancelled = meeting.status === 'cancelled';
+    return {
+      activityId: `meeting-${meeting.meetingId}`,
+      contactId,
+      tenantId,
+      occurredAt: meeting.createdAt || meeting.updatedAt || new Date().toISOString(),
+      activityType: isCompleted ? 'meeting_completed' : isCancelled ? 'meeting_cancelled' : 'meeting_scheduled',
+      performedBy: meeting.createdBy || 'System',
+      subjectEntityType: type,
+      subjectEntityId: entityId,
+      subjectEntityName: meeting.relatedEntityName || '',
+      title: `${meeting.title} (${meeting.status || 'scheduled'})`,
+      description: `Location: ${meeting.location || 'N/A'}${meeting.notes ? `\nNotes: ${meeting.notes}` : ''}`,
+      payload: { meetingId: meeting.meetingId, meetingDate: meeting.meetingDate, meetingTime: meeting.meetingTime },
+      relatedEntityType: meeting.relatedEntityType || null,
+      relatedEntityId: meeting.relatedEntityId || null,
+      relatedEntityName: meeting.relatedEntityName || null,
+    };
+  });
+
+  // Combine and sort by occurredAt descending
+  const combined = [...activities, ...noteActivities, ...meetingActivities];
+  combined.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+
+  return combined;
 }
 
 /**

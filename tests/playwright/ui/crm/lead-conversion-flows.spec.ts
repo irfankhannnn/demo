@@ -922,7 +922,7 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
       console.log('[DoubleConversion] status:', convertRes.status(), 'body:', body);
       expect([400, 500]).toContain(convertRes.status());
       // Backend may return different error messages; accept either
-      expect(body.error || '').toMatch(/already been converted|Invalid status transition/i);
+      expect(body.error || '').toMatch(/already been converted/i);
       log('DoubleConversionBlocked', 'PASS', 'Cannot convert already-converted lead');
     });
   });

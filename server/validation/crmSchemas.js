@@ -89,13 +89,20 @@ export const updatePropertySchema = createPropertySchema.partial().passthrough()
 // ============== Meeting Schemas ==============
 export const createMeetingSchema = z.object({
   title: z.string().min(1).max(300),
-  description: z.string().max(2000).optional(),
-  startTime: z.string().datetime(),
-  endTime: z.string().datetime().optional(),
-  attendees: z.array(z.string()).optional(),
-  location: z.string().max(300).optional(),
-  customerId: z.string().optional(),
-  propertyId: z.string().optional(),
+  description: z.string().max(2000).optional().nullable(),
+  meetingDate: z.string().min(1).max(50),
+  meetingTime: z.string().min(1).max(50),
+  duration: z.number().optional(),
+  location: z.string().max(300).optional().nullable(),
+  relatedEntityType: z.string().min(1).max(50),
+  relatedEntityId: z.string().min(1).max(100),
+  relatedEntityName: z.string().max(200).optional().nullable(),
+  relatedEntityPhone: z.string().max(50).optional().nullable(),
+  attendeeName: z.string().max(200).optional().nullable(),
+  attendeePhone: z.string().max(50).optional().nullable(),
+  attendeeEmail: z.string().email().optional().nullable().or(z.literal('')),
+  notes: z.string().max(2000).optional().nullable(),
+  status: z.enum(['scheduled', 'completed', 'cancelled', 'no-show']).optional(),
 }).strict();
 
 export const updateMeetingSchema = createMeetingSchema.partial().strict();

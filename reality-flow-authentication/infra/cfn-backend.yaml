@@ -110,6 +110,17 @@ Parameters:
     Default: ''
     Description: S3 URL for nested template that creates explicit API Gateway routes without ANY/proxy+ methods
 
+  InternalApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Internal API key for service-to-service authentication
+
+  AllowedOrigins:
+    Type: String
+    Default: 'http://localhost:3000,http://localhost:5173'
+    Description: Comma-separated list of allowed CORS origins
+
 # =============================================================================
 # Conditions
 # =============================================================================
@@ -926,6 +937,8 @@ Resources:
           AWS_REGION_NAME: !Ref 'AWS::Region'
           ENV: !Ref Env
           OTP_TABLE: !Ref OtpTable
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
       Code:
         S3Bucket: !Ref LambdaPackagesBucketName
         S3Key: !Sub '${ServiceName}/function.zip'
@@ -1000,7 +1013,7 @@ Resources:
         RootResourceId: !GetAtt AuthApiGateway.RootResourceId
         LambdaFunctionArn: !GetAtt AuthLambdaFunction.Arn
         CognitoAuthorizerId: !Ref CognitoAuthorizer
-        AllowOrigin: "*"
+        AllowOrigin: "http://localhost:3000"
         AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Access-Token"
         AllowMethods: "GET,POST,PATCH,PUT,DELETE,OPTIONS"
 

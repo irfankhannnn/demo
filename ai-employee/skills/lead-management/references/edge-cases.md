@@ -29,8 +29,9 @@
 - Never auto-select when ambiguous
 
 ## Status Transitions
-- Valid: new → contacted → qualified → negotiating → converted (auto-set) / lost
-- Any status can move to `lost` — always ask/capture `lostReason`
+- Any status can be changed to any other status at any time (flexible transitions)
+- Only restriction: converted leads cannot be manually updated (status is auto-set by backend on conversion)
+- Always ask/capture `lostReason` when moving to `lost`
 - `converted` status is set automatically by the backend on successful conversion — do NOT manually set it via update
 - Natural language → status mapping:
   - "called him", "reached out" → contacted

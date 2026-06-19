@@ -56,6 +56,7 @@ export default function PhoneLogin() {
       const response = await fetch(`${AUTH_API_URL}/auth/phone/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ phoneNumber: `+91${phoneNumber}` }),
       });
 
@@ -100,6 +101,7 @@ export default function PhoneLogin() {
       const response = await fetch(`${AUTH_API_URL}/auth/phone/confirm`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           phoneNumber: `+91${phoneNumber}`,
           otp,
@@ -225,6 +227,7 @@ export default function PhoneLogin() {
           'Authorization': `Bearer ${idToken}`,         // ID Token for API Gateway authorizer
           'X-Access-Token': accessToken,                   // Access Token for backend cognito.getUser()
         },
+        credentials: 'include',
         body: JSON.stringify({
           displayName,
           role: 'MEMBER', // Always MEMBER - admin self-registration is blocked
