@@ -33,6 +33,7 @@ import Profile from './pages/Profile';
 // Onboarding Pages
 import RoleSelection from './pages/RoleSelection';
 import AcceptInvite from './pages/AcceptInvite';
+import RegisterAdmin from './pages/RegisterAdmin';
 
 // Member Pages
 import Invites from './pages/member/Invites';
@@ -308,6 +309,7 @@ function App() {
 
             {/* Onboarding Routes (authenticated but not registered) */}
             <Route path="/onboarding/role-selection" element={<ProtectedRoute authState={authState}><RoleSelection /></ProtectedRoute>} />
+            <Route path="/onboarding/register-admin" element={<ProtectedRoute authState={authState}><RegisterAdmin /></ProtectedRoute>} />
             <Route path="/onboarding/accept-invite" element={<ProtectedRoute authState={authState}><AcceptInvite /></ProtectedRoute>} />
 
             {/* Member Routes (post-auth but pre-registration) */}

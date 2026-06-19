@@ -18,6 +18,8 @@
 
 ## E1-T1 — Wire the RegisterAdmin route (CRITICAL, unblocks signup)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Make `/onboarding/register-admin` reachable so ADMIN signup completes.
 
 **Files**
