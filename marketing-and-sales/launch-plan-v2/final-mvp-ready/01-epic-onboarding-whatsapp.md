@@ -99,6 +99,8 @@
 
 ## E1-T3 — Billing settings page (current plan + manage)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** A `/crm/settings/billing` page showing current plan, next billing date, trial state, and upgrade button; later hosts credit balance (E2-T7) and Buy-Credits (E2-T8).
 
 **Files**

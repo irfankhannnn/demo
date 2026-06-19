@@ -292,8 +292,8 @@ function App() {
           {/* PR-A: Demo banner */}
           <DemoBanner />
           {/* PR-J: Trial countdown + paywall */}
-          <TrialCountdownBanner />
-          <PaywallModal />
+          <TrialCountdownBanner onUpgradeClick={() => setShowPaywall(true)} />
+          <PaywallModal forceOpen={showPaywall} onClose={() => setShowPaywall(false)} />
           {/* PR-K: NPS */}
           <NpsModal />
           <CookieConsentBanner />
@@ -362,6 +362,7 @@ function App() {
             <Route path="/crm/buyers/:id" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
 
             {/* Lead Routes */}
+            <Route path="/crm/settings/billing" element={<ProtectedRoute authState={authState}><BillingSettings /></ProtectedRoute>} />
             <Route path="/crm/leads" element={<ProtectedRoute authState={authState}><LeadList /></ProtectedRoute>} />
             <Route path="/crm/leads/new" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
             <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
