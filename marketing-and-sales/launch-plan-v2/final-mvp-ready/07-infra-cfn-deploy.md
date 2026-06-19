@@ -97,6 +97,8 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 - [ ] Env vars added to `ApiLambdaFunction` + params.
 - [ ] `deploy.sh` zip include list extended (`services config agents errors`), mcp-server excluded, params wired.
 - [ ] `build.sh` checks new dirs.
+- [ ] `deploy.sh` zip include list extended (`agents`), mcp-server excluded, params wired.
+- [ ] `build.sh` checks root + new dirs.
 - [ ] Each cron/event template created from `trial-reminder.yaml`, correct handler + role.
 - [ ] `cloudformation validate-template` passes for main + every cron template.
 - [ ] `server.js` mounts (raw webhook before json; admin/credit-config after).

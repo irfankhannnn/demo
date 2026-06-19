@@ -9,6 +9,7 @@ Every task lists its own tests; this doc defines the shared strategy, the E2E sc
 - **Server unit/integration:** Node test runner or the framework already present (check `server/package.json` scripts; if none, add `node --test` based tests under `server/test/`). Use `supertest` for route integration against the Express app with a mocked `@aws-sdk/lib-dynamodb` DocumentClient (use `aws-sdk-client-mock`).
 - **Frontend:** Playwright UI specs already exist under `tests/playwright/ui/**`. Add component tests there (or Vitest+RTL if configured).
 - **Syntax gate:** `server/scripts/build.sh` (`node --check`) must pass for all touched server dirs (extend it to `services config agents errors`).
+- **Syntax gate:** `server/scripts/build.sh` (`node --check`) must pass for all touched server dirs (extend it to root + `agents`).
 - **CFN:** `aws cloudformation validate-template` for `cfn-backend.yaml` and every `cron/*.yaml`.
 
 ### Known CI gap to fix first
