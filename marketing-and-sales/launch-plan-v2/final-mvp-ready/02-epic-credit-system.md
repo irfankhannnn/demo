@@ -309,5 +309,46 @@ export function meterCredits(actionType) {
 
 ---
 
+## E2-T9 — Soft vs Hard Credit Limits
+
+**Goal:** Gracefully handle low/empty credit states without blocking essential work.
+
+**Soft Limit (Warning, No Block)**
+- **Trigger:** Balance < 10% of monthly allotment (e.g., 500/5000 credits for Team plan).
+- **Frontend:** Show orange/amber warning banner in CRMDashboard: "⚠️ Low credits: {balance} remaining. Buy more credits to maintain service after exhaustion."
+- **Behavior:** User can continue creating records (no block); banner persists as reminder.
+- **Button:** "Buy Credits" opens BuyCreditsModal.
+- **Server:** No special handling; normal deduction continues.
+
+**Hard Limit (Block, 402)**
+- **Trigger:** Balance = 0 credits.
+- **Server:** `deductCredits` throws `InsufficientCreditsError` → middleware returns 402 JSON `{ error: 'insufficient_credits', balance: 0, required: {cost}, message: 'Out of credits...' }`.
+- **Frontend:** On 402 response, surface modal: "🛑 Out of Credits. You've exhausted your monthly allocation. Purchase a credit pack to continue."
+  - Buttons: "Buy Credits" (opens BuyCreditsModal), "Learn More" (links to `/settings/billing`), "Cancel".
+  - Block all mutations (CRM create/update form buttons disabled) with tooltip: "Insufficient credits. Purchase to continue."
+- **Agents:** Pre-charge credits (deduct before Bedrock invoke). If insufficient → return error without invoking agent (no charge incurred).
+- **Email/WhatsApp:** Non-blocking; alert only (on-demand, not critical path).
+
+**Grace Period (Future)**
+- Out of MVP scope. Placeholder: at hard limit, optionally offer 72-hour usage grace period (requires approval + tracking).
+
+**Implementation Details**
+- `CreditBalanceCard.tsx`: compute `percentUsed = (monthlyAllotment - balance) / monthlyAllotment * 100`; show orange when `percentUsed >= 90`.
+- `ApiService.ts`: Global 402 handler in `handleResponse` — if `error === 'insufficient_credits'`, show modal.
+- `meterCredits` middleware: On 402, pass `balance` and `required` in response for UI to display.
+- Cron/background: Non-critical email/WhatsApp sends skip silently if insufficient (catch error, log, continue).
+
+**Tests**
+- Unit: balance < 10% of allotment → warning visible in component.
+- Integration: balance = 0 → 402 response on any create; existing records still readable.
+- E2E: user at soft limit sees warning, clicks "Buy Credits", completes payment, warning disappears.
+
+**Acceptance**
+- Soft limit warns at <10%; hard limit blocks at 0; user can purchase at any time to resume.
+
+**Depends on:** E2-T8 (frontend balance display).
+
+---
+
 ## EPIC 2 acceptance (whole)
-- Free tenant starts with `monthlyFreeCredits`; actions deduct configured costs atomically; 402 when empty; pack purchase (₹1999/₹4999, 20% annual) tops up; monthly reset works; owner edits costs/packs with no deploy.
+- Free tenant starts with `monthlyFreeCredits`; actions deduct configured costs atomically; soft limit warns at <10%; hard limit blocks at 0 with 402; pack purchase (₹1999/₹4999, 20% annual) tops up; monthly reset works; owner edits costs/packs with no deploy.

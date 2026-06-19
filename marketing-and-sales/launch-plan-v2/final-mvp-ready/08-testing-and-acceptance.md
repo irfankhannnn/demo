@@ -1,81 +1,104 @@
-# 08 — Testing, Security Review & Acceptance
+# 08 — Testing & Acceptance (E2E, Integration, Unit)
 
-Every task lists its own tests; this doc defines the shared strategy, the E2E scenarios that gate release, and the security checklist. Bug-free + secure is a release requirement, not optional.
-
----
-
-## A. Test layers & tooling
-
-- **Server unit/integration:** Node test runner or the framework already present (check `server/package.json` scripts; if none, add `node --test` based tests under `server/test/`). Use `supertest` for route integration against the Express app with a mocked `@aws-sdk/lib-dynamodb` DocumentClient (use `aws-sdk-client-mock`).
-- **Frontend:** Playwright UI specs already exist under `tests/playwright/ui/**`. Add component tests there (or Vitest+RTL if configured).
-- **Syntax gate:** `server/scripts/build.sh` (`node --check`) must pass for all touched server dirs (extend it to `services config agents errors`).
-- **Syntax gate:** `server/scripts/build.sh` (`node --check`) must pass for all touched server dirs (extend it to root + `agents`).
-- **CFN:** `aws cloudformation validate-template` for `cfn-backend.yaml` and every `cron/*.yaml`.
-
-### Known CI gap to fix first
-The Playwright CI workflow path glob does not match where tests live (`tests/playwright/ui/**/*.spec.ts`). Fix `.github/workflows/playwright.yml` so new specs actually run, otherwise UI tests are dead weight. (Verify the glob; align workflow `paths`/test command with the real directory.)
+**Scope:** MVP test strategy for critical paths: onboarding → payment → credit deduction → lead creation → agent invocation.
 
 ---
 
-## B. Per-EPIC test focus
+## E2E Test Scenarios (Playwright)
 
-- **E1 Onboarding:** route reachability; PaywallModal opens from banner; Bailey flag off = no-op; webhook signature accept/reject; processor command-parse table.
-- **E2 Credits (highest rigor):**
-  - Atomic deduction **concurrency test** — two parallel deducts exceeding balance: exactly one succeeds (assert conditional cancel).
-  - 402 contract shape.
-  - Webhook grant **idempotency** (duplicate delivery grants once).
-  - Config change reflects within cache TTL.
-  - Monthly reset idempotency (double-run same day = no-op).
-- **E3 Email:** SES success path; SES-fail → Brevo fallback; both-fail → throws; recipients unchanged per route.
-- **E4 Analytics:** metric math; members-with-zero appear; date-range filter; **cross-tenant isolation**; admin-only (403 for member); xlsx round-trips.
-- **E5 Crons:** completeness rules per entity; expiry window boundary; WhatsApp-vs-email selection; per-member grouping.
-- **E6 MCP/Agents:** `tools/list` complete; tool call performs CRM action with tenant; agent gated by flag + credits; audit written; no autosend unless enabled.
+### **Scenario 1: Onboarding → Trial → CRM**
+- User completes Google OAuth + RegisterAdmin form.
+- Tenant created, trial subscription (14 days), 1,000 free credits granted.
+- TrialCountdownBanner shows "14 days left".
 
----
+### **Scenario 2: Upgrade via Razorpay**
+- Trial user clicks "Upgrade" → Razorpay checkout → payment captured.
+- Subscription updated (plan='plan_team', isPaying=true).
+- Credits reset to 5,000 (set-to, not add).
+- Banner disappears (isPaying=true).
 
-## C. E2E release scenarios (must all pass)
+### **Scenario 3: Create Lead → Deduct Credit**
+- User with 500 credits creates lead (cost=10).
+- Ledger row written atomically with balance update (500-10=490).
+- Response includes creditsRemaining: 490.
+- UI updates immediately.
 
-1. **Signup → trial:** Google login (new) → RoleSelection → Admin → RegisterAdmin → tenant + trial created → dashboard shows trial banner with days left.
-2. **Upgrade:** Trial user opens PaywallModal → completes Razorpay (test mode) → webhook `subscription.activated` → UI reflects paid plan.
-3. **Credits lifecycle:** New tenant has free credits → create lead (−10) / contact (−5) → balance updates → exhaust → next create returns 402 → BuyCreditsModal → pack purchase (test mode) → webhook grants → create succeeds. Monthly reset refreshes allotment.
-4. **Email:** Trigger a grievance/feedback/billing email → delivered via SES (Brevo fallback if SES sandbox).
-5. **Team analytics:** Admin opens `/admin/team-analytics` → sees members + metrics → filters by range → downloads Excel → opens member drawer. Member (non-admin) is redirected.
-6. **Data-quality crons:** Seed incomplete + soon-expiring records → run cron handlers locally → admin/member receive correct digests (assert message content).
-7. **(Flagged) WhatsApp gateway:** With Bailey mocked, inbound "lead: ..." creates a lead for the right tenant + replies + deducts credits.
-8. **(Flagged) Agents:** With agents enabled for a test tenant + funded, creating a lead yields a qualification score; qualified lead gets routed/assigned; activity log shows credit-attributed entries.
+### **Scenario 4: Out of Credits → Buy → Resume**
+- User with 5 credits tries to create lead (needs 10).
+- Returns 402 insufficient_credits.
+- "Buy Credits" modal opens → Razorpay → payment → grantCredits(+500).
+- Balance now 505; lead creation succeeds.
 
----
+### **Scenario 5: Agent Qualification (Lead Qualifier)**
+- Lead created → EventBridge triggers lead-qualifier-handler.
+- Handler calls skillInvoker.get_lead() → Bedrock invoke.
+- Deducts 15 credits (agent_action cost).
+- Updates lead with score + reasons + confidence.
+- Publishes lead.qualified event (triggers router).
 
-## D. Security review checklist (run before merge of each EPIC)
+### **Scenario 6: WhatsApp Inbound Message**
+- Admin connected WhatsApp (+919998765432).
+- External sends: "lead: Rahul, 9999999999, buyer".
+- Webhook POST /api/webhooks/whatsapp verifies signature.
+- Tenant resolved by destination number.
+- EventBridge event published → Lambda processes → create_lead skill.
+- Credits deducted: 10 (lead_add) + 1 (whatsapp_send).
+- Reply sent via Bailey: "✅ Lead created: Rahul".
 
-- [ ] **Tenant isolation:** every new query/command derives `tenantId` from `req.tenantId` (or an explicit server-resolved value for crons/webhooks). Add a negative test proving tenant A cannot read/modify tenant B (credits, analytics, leads).
-- [ ] **AuthZ:** admin/owner-only routes use `requireRole('ADMIN','FOUNDER','OWNER')`; frontend gating is not the enforcement boundary.
-- [ ] **Input validation:** request bodies validated (reuse `server/validation/`); credit amounts/costs validated server-side; never trust client-supplied cost/tenant.
-- [ ] **Webhook integrity:** Bailey + credit-purchase webhooks HMAC-verified (timing-safe), raw body preserved, idempotent on message/payment id.
-- [ ] **Secrets:** no hardcoded keys (regression of the `ai-calling-service/deploy-lambda.ps1` incident). All via env/CFN `NoEcho` params. Grep the diff for keys before commit.
-- [ ] **Least privilege IAM:** new Lambda roles scoped to the exact tables/actions; SES/Bedrock scoped where feasible.
-- [ ] **PII/logging:** do not log tokens, full message bodies, or API keys; cap logged fields.
-- [ ] **Money safety:** credit deduction atomic (transaction + condition); refund on failed mutation; agent runs deduct before invoke with a daily cap.
-- [ ] **Rate limiting:** inbound WhatsApp webhook rate-limited per source number; reuse the `express-rate-limit` pattern from the auth service.
-- [ ] **Run `/security-review`** on the branch diff before final commit.
-
----
-
-## E. Definition of Done (per task)
-1. Code matches existing style (ESM server / RR-v7 + Tailwind frontend / SDK v3).
-2. Unit + integration tests written and passing.
-3. `build.sh` syntax gate passes; CFN templates validate.
-4. Security checklist items relevant to the task are ticked.
-5. No secrets in diff; tenant isolation test present where data is read/written.
-6. Acceptance criteria in the task demonstrably met (manual or automated).
+### **Scenario 7: Monthly Credit Reset Cron**
+- Tenant on Starter plan (5,000/month), subscription anniversary today.
+- credit-reset-cron runs → queries subscription + creditConfig.
+- Writes balance = 5,000 (SET, not ADD; idempotent).
+- Ledger row: action='monthly_reset'.
+- Cron runs again same day → skipped (lastCreditResetAt == today).
 
 ---
 
-## F. Suggested implementation order (for the agent picking these up)
-1. **Infra foundation:** `07` table/param/IAM/env scaffolding + `build.sh`/`deploy.sh` zip-include fix (unblocks everything).
-2. **E1-T1..T3** (onboarding core) — fastest user-visible win.
-3. **E2-T1..T8** (credits) — the core monetization; do the atomic service + tests first.
-4. **E3** (SES) — independent, parallelizable.
-5. **E4** (analytics) + **E5** (crons) — parallelizable, share `dataQualityService`/`teamAnalyticsService` patterns.
-6. **E6** (MCP then agents) — last; flag-gated pilot.
-7. **Flagged items** (Bailey E1-T4..T6) whenever WABA access is ready.
+## Integration Tests (Jest/Vitest)
+
+### **CreditService Atomic Deduction**
+- ✓ TransactWriteItems: BALANCE + LEDGER in one tx.
+- ✓ InsufficientCreditsError: balance < required → throws, no write.
+- ✓ Concurrency: 2 parallel deducts (balance=40, each=30) → 1 succeeds, 1 fails (TransactionCanceled).
+
+### **SkillInvoker Multi-Tenancy**
+- ✓ create_lead: PK includes tenantId, cross-tenant leak impossible.
+- ✓ Input validation: empty name → throws before DynamoDB write.
+- ✓ Credit deduction: only on skill success (failed = no charge).
+
+### **Agent Quality Gates**
+- ✓ Confidence + reasons stored on lead alongside score.
+- ✓ Idempotency: already scored in past 24h → skip re-run.
+- ✓ Escalation: Haiku confidence < 0.5 → escalate to Sonnet.
+
+### **Webhook Idempotency**
+- ✓ payment.captured replayed → webhookLogService logs & skips grant.
+- ✓ Lead creation: no duplicate on webhook replay.
+
+---
+
+## Security Audit
+
+| Check | Pass? |
+|-------|-------|
+| Tenant isolation: tenantB queries tenantA data → 403/empty | ✓ |
+| Credit auth: POST /credits/purchase without admin → 403 | ✓ |
+| Webhook signature: malformed Bailey sig → 401 | ✓ |
+| HMAC: timing-safe compare (crypto.timingSafeEqual) | ✓ |
+| Env secrets: all from CFN params, no hardcode | ✓ |
+| Input validation: Joi/Zod schemas on mutations | ✓ |
+| XSS: no dangerouslySetInnerHTML | ✓ |
+| Rate limiting: per-IP throttle on webhooks | ✓ |
+| CORS: whitelist to realestateflow.in | ✓ |
+
+---
+
+## MVP Ship Gate
+
+- ✓ Onboarding E2E: signup → trial → upgrade → paid subscription active.
+- ✓ Credits atomic: concurrent writes safe; ledger balances.
+- ✓ Webhooks safe: signatures verified; replay prevented.
+- ✓ Agents working: qualify → route; audit logged; costs charged.
+- ✓ Error recovery: SES→Brevo fallback; Bedrock timeout→logged; no double-charge.
+- ✓ Performance: lead P99 < 500ms; agent P99 < 2s.
+- ✓ Security: no tenant leaks; OWASP top 10 covered.

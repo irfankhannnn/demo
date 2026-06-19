@@ -38,14 +38,23 @@ sendEmail({ to, subject, html, text, brevoTemplateId, params, from })
 - If both fail: log error, throw (callers already wrap email in non-fatal try/catch — preserve that behavior).
 - Region from `AWS_REGION || 'ap-south-1'` (matches cron clients).
 
+**Error Recovery & Retry**
+- **SES Attempt:** 5-second timeout (SDK default + explicit AbortController if needed); on timeout/error → proceed to Brevo immediately (no retry).
+- **Brevo Fallback:** 5-second fetch timeout; if fails → throw error to caller.
+- **Total E2E:** max 10 seconds per email send (5s SES + 5s Brevo).
+- **Idempotency:** Do NOT retry in `emailService` itself. Callers (crons, routes) implement their own idempotency guards (e.g., `lastEmailSentAt` flag for crons).
+- **Logging:** Log `{ to, subject, provider, messageId, duration, error }` at info level on success; error level on double-failure.
+- **Non-Fatal:** All calls wrap in try/catch; email failures never cascade to request response (fire-and-forget crons, silent retry on route).
+
 **Security**
 - No secrets logged. `to`/subject can be logged at info; never log full html or API keys.
 
 **Tests**
 - Unit (mock SESv2 + fetch): SES success → provider 'ses'; SES throws → Brevo path → provider 'brevo'; both throw → rejects.
+- Retry behavior: SES timeout (5s) → Brevo attempted within 10s total E2E window.
 
 **Acceptance**
-- `sendEmail` works against SES; killing SES (mock) falls back to Brevo.
+- `sendEmail` works against SES; SES timeout/fail falls back to Brevo within 10s; both failures are logged, error thrown (caller handles).
 
 **Depends on:** none.
 

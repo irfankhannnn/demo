@@ -119,6 +119,123 @@
 
 ---
 
+## E6-T3-Auth — MCP Bedrock Authentication & Tool Invocation
+
+**Goal:** Secure Bedrock agent → MCP tool calls with tenant isolation + audit.
+
+**Architecture**
+```
+Bedrock Agent (running in Lambda)
+  ├─ Receives tool-use request: { toolUse: { name: 'create_lead', input: {...} } }
+  ├─ Verify tool name is in allowed list (whitelist)
+  ├─ Extract tenantId from agent context (injected on invoke start)
+  ├─ Call skillInvoker.invokeSkill(tenantId, 'create_lead', input)
+  │  ├─ skillInvoker validates input + tenantId
+  │  ├─ Calls crmDynamodbService.createLead(tenantId, input) directly
+  │  └─ Returns { ok: true, data: { leadId: '...' } }
+  ├─ Return result to Bedrock model (within same Lambda context)
+  └─ Bedrock loops until done_with_request
+```
+
+**Key Design**
+- **No JWT tokens needed:** skillInvoker runs in-Lambda → direct service calls, no HTTP/auth.
+- **Tenant in context:** tenantId injected into agentRuntime initialization (never from user input).
+- **Tool whitelist:** Only 30 tools (create_lead, search_owners, etc.) are allowed; reject unknown tools.
+- **Audit everything:** agentAuditService logs every tool call + result (success/error).
+- **Credit pre-deduction:** Agent credits deducted BEFORE Bedrock invoke (not refunded on tool error).
+
+**Implementation**
+```js
+// server/agents/agentRuntime.js
+async function invokeAgent(tenantId, prompt, context = {}) {
+  // 1. Pre-check: credits, AGENTS_ENABLED flag
+  if (!process.env.AGENTS_ENABLED) return { error: 'agents_disabled' };
+  const balance = await getBalance(tenantId);
+  if (balance < 15) return { error: 'insufficient_credits', balance };
+  
+  // 2. Deduct credits upfront (non-refundable)
+  await deductCredits(tenantId, 15, 'agent_action', { reason: 'bedrock_invoke' });
+  
+  // 3. Inject tenantId into agent context (immutable)
+  const agentContext = { ...context, tenantId, tools: ALLOWED_TOOLS };
+  
+  // 4. Invoke Bedrock with system prompt + tool definitions
+  const bedrock = new BedrockRuntimeClient({ region: 'ap-south-1' });
+  const response = await bedrock.send(new InvokeModelCommand({
+    modelId: 'anthropic.claude-3-haiku-20240307-v1:0',
+    messages: [{ role: 'user', content: prompt }],
+    system: buildSystemPrompt(agentContext),
+    tools: ALLOWED_TOOLS.map(t => ({ name: t, description: '...', inputSchema: {...} }))
+  }));
+  
+  // 5. Tool-use loop (Bedrock calls tools via response.content array)
+  let finalResult = response;
+  while (hasToolUse(finalResult)) {
+    const toolUse = finalResult.content.find(c => c.type === 'tool_use');
+    const { name, input } = toolUse;
+    
+    // Verify tool is whitelisted
+    if (!ALLOWED_TOOLS.includes(name)) {
+      logError(`Unauthorized tool: ${name}`, tenantId);
+      break;
+    }
+    
+    // Call MCP tool via skillInvoker (no auth needed; in-Lambda)
+    const toolResult = await skillInvoker.invokeSkill(tenantId, name, input);
+    
+    // Log tool call for audit trail
+    await agentAuditService.log({
+      tenantId, agentId, toolName: name, input, output: toolResult, status: 'success'
+    });
+    
+    // Send result back to Bedrock
+    finalResult = await bedrock.send(new InvokeModelCommand({
+      ...previousCommand,
+      messages: [
+        ...messages,
+        { role: 'assistant', content: [toolUse] },
+        { role: 'user', content: [{ type: 'tool_result', toolUseId: toolUse.id, content: JSON.stringify(toolResult) }] }
+      ]
+    }));
+  }
+  
+  // 6. Return final response (or error)
+  return { ok: true, result: finalResult.content };
+}
+
+const ALLOWED_TOOLS = [
+  'create_lead', 'search_leads', 'get_lead', 'update_lead', 'convert_lead',
+  'create_contact', 'search_contacts', 'get_contact', 'update_contact',
+  'create_owner', 'get_owner', 'get_owners', 'update_owner',
+  'create_property', 'search_properties', 'get_property', 'update_property',
+  'create_tenant', 'search_tenants', 'get_tenant', 'update_tenant',
+  'create_buyer', 'search_buyers', 'get_buyer', 'update_buyer'
+  // 22 tools total, no delete/destructive ops
+];
+```
+
+**Security**
+- ✓ Tenant isolation: tenantId injected at invoke time, immutable.
+- ✓ Tool whitelist: only safe CRM operations (no admin/auth calls).
+- ✓ Audit trail: every tool call logged with input/output.
+- ✓ No token exchange: skillInvoker calls DynamoDB directly (in-Lambda).
+- ✓ Credit pre-charged: agent_action cost deducted before Bedrock (no refund risk).
+
+**Error Recovery (see 09-error-handling-recovery.md)**
+- Bedrock timeout: retry 3x with backoff (2s, 4s, 8s); if all fail → log error + alert ops.
+- Tool validation error: agent stops; error logged; credits already charged (sunk cost).
+- Confidence < 0.5: escalate to Sonnet (deduct additional 10 credits).
+
+**Tests**
+- ✓ Tool whitelist enforced: try to invoke 'delete_lead' → rejected.
+- ✓ Tenant isolation: agent running as tenantA cannot modify tenantB data.
+- ✓ Audit logged: every tool call appears in agentAuditService.
+- ✓ Credits pre-deducted: even if agent fails, credits gone (acceptable for MVP).
+
+**Depends on:** E6-T1 (skillInvoker), E2 (credits), E3 (audit).
+
+---
+
 ## E6-T4 — Lead Qualifier agent (first agent)
 
 **Goal:** Auto-score new leads HOT/WARM/COLD with reasons.
