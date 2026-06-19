@@ -108,4 +108,19 @@ router.post('/post-registration', validateToken, extractTenantId, async (req, re
 });
 // === [/LAUNCH ROUTES] ===
 
+// POST /api/auth/whatsapp/pairing-qr — Bailey WhatsApp pairing (optional, admin only)
+router.post('/whatsapp/pairing-qr', validateToken, extractTenantId, requireAdmin, async (req, res) => {
+  try {
+    if (!isBaileyEnabled()) {
+      return res.json({ enabled: false, qrCode: null, sessionId: null });
+    }
+    const { phone } = req.body;
+    const result = await getPairingQr(phone);
+    res.json(result);
+  } catch (err) {
+    logger.error('auth.whatsapp.pairing.error', { error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+});
+
 export default router;
