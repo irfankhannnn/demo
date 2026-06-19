@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Team summary WhatsApp/email — daily 18:00 IST'
+
+Resources:
+  TeamSummaryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-team-summary
+      ScheduleExpression: 'cron(30 12 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TeamSummaryFunction.Arn
+          Id: TeamSummaryTarget
+
+  TeamSummaryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-team-summary
+      Runtime: nodejs20.x
+      Handler: team-summary-cron.handler
+      Timeout: 300
+      MemorySize: 256
+
+  TeamSummaryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TeamSummaryFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TeamSummaryRule.Arn

@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Expiring agreements alert — daily 08:30 IST'
+
+Resources:
+  ExpiringAgreementsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-expiring-agreements
+      ScheduleExpression: 'cron(0 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExpiringAgreementsFunction.Arn
+          Id: ExpiringAgreementsTarget
+
+  ExpiringAgreementsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-expiring-agreements
+      Runtime: nodejs20.x
+      Handler: expiring-agreements-cron.handler
+      Timeout: 300
+      MemorySize: 256
+
+  ExpiringAgreementsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExpiringAgreementsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExpiringAgreementsRule.Arn

@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Incomplete data quality digest — daily 09:00 IST'
+
+Resources:
+  IncompleteDataRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-incomplete-data
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IncompleteDataFunction.Arn
+          Id: IncompleteDataTarget
+
+  IncompleteDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-incomplete-data
+      Runtime: nodejs20.x
+      Handler: incomplete-data-cron.handler
+      Timeout: 300
+      MemorySize: 256
+
+  IncompleteDataPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IncompleteDataFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IncompleteDataRule.Arn
