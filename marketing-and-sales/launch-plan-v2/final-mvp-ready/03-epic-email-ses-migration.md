@@ -3,15 +3,18 @@
 **Outcome:** All transactional email goes through AWS SES first, with Brevo as automatic fallback. One abstraction (`emailService.js`) replaces the scattered direct Brevo calls.
 
 **Architecture anchors:**
-- Server AWS SDK is **v3** → use `@aws-sdk/client-sesv2` (`SESv2Client`, `SendEmailCommand`).
-- Brevo currently called directly in **4 routes** + **2 crons**:
-  - `server/routes/auth.js` (add contact to Brevo list — this is a *contact*, not an email; keep as Brevo-only, see note)
-  - `server/routes/billing.js` (`sendBrevoEmail` template sends)
-  - `server/routes/grievance.js` (contact-form SMTP send)
-  - `server/routes/feedback.js` (NPS alert SMTP send)
-  - `server/scripts/trial-reminder-cron.js` (`sendBrevoEmail`)
-  - `server/scripts/escalation-cron.js` (`sendBrevoEmail`)
-- Env already wired in CFN Lambda: `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME`.
+- Server AWS SDK is **v3** → use `@aws-sdk/client-sesv2` (`SESv2Client`, `SendEmailCommand`). Add to `server/package.json` matching existing `^3.669` version prefix.
+- `server/emailService.js` goes at **server root** (ships via `*.js` glob in deploy.sh zip).
+- Brevo currently called directly in **4 routes** + **2 crons** via inline `fetch('https://api.brevo.com/v3/smtp/email', ...)`:
+  - `server/routes/auth.js` — adds a **contact to a Brevo marketing list** (NOT transactional email; keep as-is; out of SES scope)
+  - `server/routes/billing.js` — `sendBrevoEmail(...)` call inside payment/subscription webhook handlers
+  - `server/routes/grievance.js` — contact-form email after grievance submission
+  - `server/routes/feedback.js` — NPS score alert email
+  - `server/scripts/trial-reminder-cron.js` — trial reminder sends (exports `handler`)
+  - `server/scripts/escalation-cron.js` — SLA escalation sends (exports `handler`)
+- Env already in CFN Lambda: `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME`.
+- New env to add (see `07-infra-cfn-deploy.md` §3): `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY`.
+- See `notes/codebase-reference.md` §12 for the complete env var addition list.
 
 ---
 

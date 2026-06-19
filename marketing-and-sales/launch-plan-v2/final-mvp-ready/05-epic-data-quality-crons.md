@@ -3,14 +3,20 @@
 **Outcome:** Daily automated checks surface half-filled records and soon-expiring agreements to the right people (admin + assigned member) via WhatsApp/email.
 
 **Architecture anchors:**
-- CRM single-table `cloudberry-real-estate-crm`; entities and completeness fields confirmed in `server/crmDynamodbService.js`:
-  - **Lead**: required `name`, `leadType`; often missing `phone`/`email`/type-specific block (`buyerRequirement` etc.).
-  - **Owner**: required `name`,`phone`; KYC `panNumber`,`aadharNumber` often missing.
-  - **Customer (tenant)**: required `name`,`phone`; KYC docs (`aadharNumber`,`aadharDocS3Key`,`photoS3Key`) often missing.
-  - **Property**: `title`,`area` required; missing `ownerId`, rental/sale info; `agreementStatus`/`verificationStatus` = `pending`.
-  - **Agreements**: `PROPERTY_AGREEMENT` (SK `AGREEMENT#`) with `endDate`; also `customer.currentRental.leaseEndDate`. There is **already** a `leaseEndingWithinDays` customer filter — reuse it.
-- Cron pattern: individual CFN templates in `/cron/` (see `cron/trial-reminder.yaml`), handlers in `server/scripts/*-cron.js`, deployed separately.
-- Messaging: `server/bailey.js` (`sendWhatsAppMessage`, flagged) + `emailService.js` (EPIC 3) for fallback.
+- CRM single-table `cloudberry-real-estate-crm` (env: `CRM_DYNAMODB_TABLE_NAME`). Entity types: `CUSTOMER`, `OWNER`, `PROPERTY`, `LEAD`, `CONTACT`, `BUYER`, `PROPERTY_AGREEMENT`. All keyed `PK = TENANT#{tenantId}#{ENTITY}#{id}`.
+- Completeness rules (from `server/crmDynamodbService.js` field patterns):
+  - **Lead**: required `name`, `leadType`; often missing `phone`/`email`/type-specific block (`buyerRequirement` for buyer, `tenantRequirement` for tenant, `sellerProperty`/`ownerProperty` for seller/owner).
+  - **Owner**: required `name`, `phone`; KYC `panNumber`, `aadharNumber` often missing.
+  - **Customer (tenant)**: required `name`, `phone`; KYC docs `aadharNumber`, `aadharDocS3Key`, `photoS3Key` often missing.
+  - **Property**: `title`, `area` required; missing `ownerId`, or rental/sale info; `agreementStatus`/`verificationStatus` = `pending`.
+  - **Agreements**: entity `PROPERTY_AGREEMENT` (SK `AGREEMENT#{id}`) with `endDate` field. Also `customer.currentRental.leaseEndDate`. A `leaseEndingWithinDays` filter **already exists** in `server/crmDynamodbService.js` — call it, do not re-implement the DynamoDB query.
+- `server/dataQualityService.js`: new root-level file (ships via `*.js` glob in deploy.sh).
+- Cron templates: clone `cron/trial-reminder.yaml`. Handler files in `server/scripts/` (auto-included). Export: `handler` async function.
+- Messaging:
+  - `server/bailey.js` → `sendWhatsAppMessage(to, text, media?)` (EPIC 1, behind `BAILEY_ENABLED`)
+  - `server/emailService.js` → `sendEmail({ to, subject, html, text?, brevoTemplateId?, params?, from? })` (EPIC 3 fallback)
+- Admin lookup for cron recipients: call `GET {AUTH_SERVICE_URL}/users` with a service token or stored admin contact details; filter by `role === 'ADMIN'` and `status === 'ACTIVE'`.
+- See `notes/codebase-reference.md` §5 for UserItem fields and auth svc endpoint details.
 
 ---
 

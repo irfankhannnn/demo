@@ -3,12 +3,16 @@
 **Outcome:** A new agency owner can sign up (Google OAuth → RegisterAdmin → trial), see their trial status, upgrade in-app, and (optionally) connect their WhatsApp so inbound messages reach the MCP/skills system.
 
 **Architecture anchors (do not deviate):**
-- Frontend routing: `real-estate-crm-app/src/App.tsx`, React Router v7, `ProtectedRoute` HOC (lines ~77-93).
-- Signup page exists: `src/pages/RegisterAdmin.tsx` (submits `agencyName`, `displayName`, `consentAccepted` to `POST {AUTH_API_URL}/auth/register-admin`).
-- Role selection navigates to `/onboarding/register-admin` (`src/pages/RoleSelection.tsx:25`) — **route is missing**, caught by `*` → `/crm`.
-- Existing upgrade UI: `src/components/PaywallModal.tsx` + `src/lib/razorpay.ts` (`openCheckout`).
-- Subscription state: `src/contexts/SubscriptionContext.tsx` (polls `/subscriptions/trial-status` every 5 min).
-- Server webhook pattern: `server/routes/billing.js` (raw body + HMAC).
+- Frontend routing: `real-estate-crm-app/src/App.tsx`, React Router v7, `ProtectedRoute` HOC.
+- Signup page: `real-estate-crm-app/src/pages/RegisterAdmin.tsx` — **ALREADY EXISTS**, only needs a route.
+  Submits `agencyName`, `displayName`, `consentAccepted` to `POST {VITE_AUTH_API_URL}/auth/register-admin`.
+- Role selection (`src/pages/RoleSelection.tsx`) navigates to `/onboarding/register-admin` — **route is missing**, caught by `*` → `/crm`.
+- Existing upgrade UI: `real-estate-crm-app/src/components/PaywallModal.tsx` + `real-estate-crm-app/src/lib/razorpay.ts` → `openCheckout({ planId, name, email, phone?, onSuccess, onFailure, onDismiss? })`.
+- Trial countdown: `real-estate-crm-app/src/components/TrialCountdownBanner.tsx` — **ALREADY EXISTS**. Reuse/extend; do NOT create a duplicate.
+- Subscription state: `real-estate-crm-app/src/contexts/SubscriptionContext.tsx`, hook `useSubscriptionContext()`, polls `GET /api/subscriptions/trial-status` every 5 min. Exposes: `{ subscription, isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, refetch }`.
+- Server webhook pattern: `server/routes/billing.js` — HMAC timing-safe compare + `express.raw()` per-route. Copy this exact pattern for Bailey webhook.
+- Server auth URL env: `AUTH_SERVICE_URL` (server-side) / `VITE_AUTH_API_URL` (frontend).
+- See `notes/codebase-reference.md` for all exact paths, function signatures, and env vars.
 
 ---
 
@@ -20,15 +24,20 @@
 - MODIFY `real-estate-crm-app/src/App.tsx`
 
 **Detail**
-- Import `RegisterAdmin` (lazy-load to match existing code-splitting if used in the file).
-- Add inside the authenticated `<Routes>`:
+- `RegisterAdmin` page already exists at `real-estate-crm-app/src/pages/RegisterAdmin.tsx`. Do NOT recreate it.
+- Import it (lazy-load to match other page imports — check if other onboarding pages use `lazy()`):
+  ```tsx
+  const RegisterAdmin = lazy(() => import('./pages/RegisterAdmin'));
+  ```
+- Add inside the authenticated `<Routes>` near `/onboarding/role-selection`:
   ```tsx
   <Route
     path="/onboarding/register-admin"
     element={<ProtectedRoute authState={authState}><RegisterAdmin /></ProtectedRoute>}
   />
   ```
-- Place it alongside the other `/onboarding/*` routes (role-selection already navigates here). Do not remove the `*` fallback.
+- Place it alongside the other `/onboarding/*` routes. Do not remove the `*` fallback.
+- `authState` is the local state variable already used in the existing `ProtectedRoute` JSX in `App.tsx`.
 
 **Security**
 - Route is auth-gated via `ProtectedRoute`. RegisterAdmin already sends Bearer `getIdToken()`. No tenant data exposed pre-registration.
@@ -49,14 +58,27 @@
 **Goal:** Trial users always see days remaining and a working "Upgrade" path (reusing PaywallModal).
 
 **Files**
-- NEW `real-estate-crm-app/src/components/TrialBanner.tsx`
-- MODIFY `real-estate-crm-app/src/contexts/SubscriptionContext.tsx` (expose `trialDaysLeft`, `isTrialExpired`, `gracePeriodActive` — already present in status shape; ensure exported)
-- MODIFY the CRM shell/layout that renders the dashboard header (locate the component that wraps `/crm` routes in `App.tsx`) to mount `<TrialBanner />`.
+- CHECK FIRST: `real-estate-crm-app/src/components/TrialCountdownBanner.tsx` — **this already exists**. Read it before creating anything new.
+  - If it already shows trial days + upgrade CTA → just wire it up (mount it in the layout).
+  - If it lacks days-left display or upgrade button → extend it in place; do NOT create a duplicate file.
+  - Only create `TrialBanner.tsx` as a new file if the existing one is architecturally incompatible.
+- MODIFY `real-estate-crm-app/src/contexts/SubscriptionContext.tsx` — verify `trialDaysLeft`, `isTrialExpired`, `gracePeriodActive` are exported from `useSubscriptionContext()`. They are already in the `SubscriptionStatus` type — confirm they're in the hook return.
+- MODIFY the CRM shell/layout that renders the dashboard header (locate the component that wraps `/crm` routes in `App.tsx`) to mount the trial banner component.
 
 **Detail**
-- `TrialBanner` reads `useSubscription()`; if `isTrialing` show "`{trialDaysLeft}` days left in trial — Upgrade"; if `isTrialExpired && !isPaying` show urgent variant. Clicking opens the existing `PaywallModal` (lift its open-state into context or a small zustand/local state — match how PaywallModal is currently toggled).
+- Read `TrialCountdownBanner.tsx` first. Then:
+- Banner reads `useSubscriptionContext()` → `{ isTrialing, trialDaysLeft, isTrialExpired, isPaying, gracePeriodActive }`.
+- If `isTrialing`: show "`{trialDaysLeft}` days left in trial — Upgrade".
+- If `isTrialExpired && !isPaying && !gracePeriodActive`: show urgent variant.
+- If `isPaying`: render nothing.
+- Clicking "Upgrade" opens the existing `PaywallModal` (set `forceOpen={true}` on local state, `onClose` resets it).
+  ```tsx
+  // PaywallModal props: { forceOpen?: boolean, onClose?: () => void }
+  const [showPaywall, setShowPaywall] = useState(false);
+  <PaywallModal forceOpen={showPaywall} onClose={() => setShowPaywall(false)} />
+  ```
 - Reuse Tailwind classes/spacing from existing banners; brand primary `#2563EB`.
-- Do **not** duplicate checkout logic — PaywallModal already calls `openCheckout`.
+- Do **not** duplicate checkout logic — `PaywallModal` → `openCheckout` already handles it.
 
 **Security**
 - Read-only display of subscription status already fetched by context.
@@ -81,9 +103,11 @@
 - Reuse `apiService` pattern from `src/services/api.ts` to call `GET /api/subscriptions/current`.
 
 **Detail**
+- Fetch `GET /api/subscriptions/current` via `apiService` (or direct fetch using `getTenantHeaders()` + `Authorization: Bearer {getIdToken()}`). Returns `{ plan, paymentStatus, seatsPaid, seatsUsed, trialEndsAt, nextBillingDate, ... }`.
 - Show `plan`, `paymentStatus`, `nextBillingDate`, `seatsUsed/seatsPaid`, trial countdown.
-- "Upgrade / Change plan" opens PaywallModal.
-- Admin-only mutating actions guarded by `PermissionGuard`/`isAdmin()`.
+- "Upgrade / Change plan" → `<PaywallModal forceOpen={showPaywall} onClose={...} />`.
+- Later: add `CreditBalanceCard` (E2-T8) to this page.
+- Admin-only mutating actions guarded by `isAdmin()` from `src/utils/rbac.ts`.
 
 **Security**
 - `GET /subscriptions/current` already tenant-scoped server-side.
@@ -113,7 +137,9 @@
   (Also extend the update function used by the users controller; keep backward compatible — all optional.)
 - NEW `real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx` — shows Bailey QR / pairing, polls verification.
 - MODIFY `real-estate-crm-app/src/App.tsx` — add `/onboarding/connect-whatsapp` (ProtectedRoute). Make it a **skippable** step after RegisterAdmin.
-- NEW `server/bailey.js` — (root-level, per file convention) Bailey client wrapper (`getPairingQr(phone)`, `sendWhatsAppMessage(to,text,media)`, `verifyBaileySignature(rawBody,sig,ts)`), all no-op when `BAILEY_ENABLED!=='true'`.
+- NEW `server/bailey.js` — root-level (ships via `*.js` in zip, consistent with `server/subscriptionService.js`). Exports: `getPairingQr(phone)`, `sendWhatsAppMessage(to, text, media?)`, `verifyBaileySignature(rawBody, sig, ts)`. All return no-op shapes when `process.env.BAILEY_ENABLED !== 'true'`.
+
+  **CFN env vars to add (07):** `BAILEY_ENABLED`, `BAILEY_API_KEY` (NoEcho), `BAILEY_WEBHOOK_SECRET` (NoEcho), `BAILEY_API_ENDPOINT` (default `https://api.bailey.ai`).
 
 **Detail**
 - Wrapper mirrors the AiSensy helper style in `billing.js` (axios, non-fatal try/catch, env-guarded).
@@ -143,8 +169,8 @@
 - MODIFY `server/server.js` — mount `webhooksRoutes` **before** `express.json()` using `express.raw({ type: 'application/json' })` (same ordering trick as billing).
 
 **Detail**
-- Verify `x-bailey-signature` + `x-bailey-timestamp` via `verifyBaileySignature` (HMAC-SHA256, timing-safe — copy the exact compare from `billing.js`).
-- Resolve tenant by the destination number (`to`) → look up user with `whatsAppPhoneNumber` (auth svc internal endpoint or a GSI). Reject unknown numbers with 200 (ack) but no-op.
+- Verify `x-bailey-signature` + `x-bailey-timestamp` via `verifyBaileySignature` (HMAC-SHA256, timing-safe — copy the timing-safe compare pattern from `server/routes/billing.js` which already does this for Razorpay).
+- Resolve tenant by the destination number (`to`) → look up user with `whatsAppPhoneNumber` in `UsersTable` via auth svc. Since no internal list endpoint exists, use a DynamoDB query on the auth svc's UsersTable with a GSI on `whatsAppPhoneNumber` (add to E1-T4 schema as an indexed field) OR store a reverse-lookup in a separate DynamoDB item. Reject unknown numbers with 200 (ack) but no-op.
 - Publish an EventBridge event `source: 'whatsapp.incoming'`, `detailType: 'message.received'` with `{messageId, from, to, text, media, tenantId, receivedAt}`. (EventBridge client = v3 `@aws-sdk/client-eventbridge`, new dep.)
 - Always return 200 quickly; processing is async.
 

@@ -3,10 +3,30 @@
 **Outcome:** The 6 existing CRM skills are exposed as MCP tools; three Bedrock-backed agents (Qualifier, Follow-up, Router) automate lead handling. Everything is tenant-scoped, credit-metered, and flag-gated (`AGENTS_ENABLED`).
 
 **Architecture anchors:**
-- Skills live in `ai-employee/skills/` (lead/buyer/contact/owner/property/tenant). Each invoked via `npx tsx scripts/<x>.ts '<json>'` and internally uses Axios `crmClient` → CRM API (`CRM_API_BASE`, `CRM_TOKEN`). They **do not** touch DynamoDB directly — they go through the same authenticated CRM API, which enforces tenant + validation.
-- Bedrock v3 client already used in `ai-calling-service/src/services/ragService.js` (`@aws-sdk/client-bedrock-agent-runtime`) — copy its client/region/tenant-isolation setup.
-- `.mcp.json` currently lists only external servers.
-- Cron/Lambda + EventBridge patterns per `cron/trial-reminder.yaml`.
+- Skills live in `ai-employee/skills/` (lead/buyer/contact/owner/property/tenant). Each invoked via `npx tsx scripts/<x>.ts '<json>'`. Skills use Axios `crmClient` (`ai-employee/skills/utils/crm-client.ts`) → CRM API via env `CRM_API_BASE` + `CRM_TOKEN`. They do **not** touch DynamoDB directly — CRM API enforces tenant + validation.
+- Skill domains and script locations:
+  ```
+  ai-employee/skills/lead-management/scripts/    — create-lead, get-lead, get-leads, update-lead, search-leads, convert-lead, delete-lead, lead-notes, get-lead-metrics
+  ai-employee/skills/buyer-management/scripts/   — create-buyer, get-buyers, search-buyers, update-buyer, buyer-notes, buyer-metrics, lookup-buyer-by-phone
+  ai-employee/skills/contact-management/scripts/ — create-contact, get-contacts, search-contacts, update-contact, delete-contact, update-contact-role, contact-notes
+  ai-employee/skills/owner-management/scripts/   — create-owner, get-owner, get-owners, search-owners, update-owner, owner-notes, lookup-owner-by-phone, get-owner-properties
+  ai-employee/skills/property-management/scripts/ — create-property, get-properties, search-properties, update-property, property-status, get-property-documents
+  ai-employee/skills/tenant-management/scripts/  — create-tenant, get-tenants, search-tenants, update-tenant, tenant-notes, tenant-formatter, tenant-rental
+  ai-employee/skills/utils/crm-client.ts         — Axios client (CRM_API_BASE + CRM_TOKEN from env)
+  ai-employee/skills/utils/bootstrap.ts          — env loader (checks ~/.openclaw/workspace/.env, then local .env)
+  ai-employee/skills/utils/logger.ts             — execution logger
+  ```
+- Agent soul/identity files (inform system prompts for MCP agents):
+  ```
+  ai-employee/SOUL.md       — principles: accuracy > assumptions, execution > explanation
+  ai-employee/IDENTITY.md   — SyncBot: parse intent → select skill → build input → execute → return result
+  ai-employee/AGENTS.md     — operating rules: backend-first, no inventing APIs or data
+  ai-employee/TOOLS.md      — tool execution model diagram
+  ```
+- Bedrock v3 client: copy setup from `ai-calling-service/src/services/ragService.js` which uses `@aws-sdk/client-bedrock-agent-runtime`. For the API Lambda, use `@aws-sdk/client-bedrock-runtime` (InvokeModel, not AgentRuntime) — add to `server/package.json`.
+- `.mcp.json` (project root): currently lists only external servers (higgsfield, meta-ads, blotato, git). Add `nabi-crm` stdio server in E6-T2.
+- Cron/Lambda + EventBridge patterns: clone `cron/trial-reminder.yaml`. Handlers export `handler`. Runtime `nodejs20.x`.
+- See `notes/codebase-reference.md` §8 for Bedrock client setup reference.
 
 ---
 
@@ -18,11 +38,13 @@
 - NEW `server/skillInvoker.js`
 
 **Detail**
-- `invokeSkill(tenantId, toolName, input, { userId })`:
-  - Maps `toolName` → skill action (e.g., `create_lead` → leads create).
-  - Calls the **CRM API** with a tenant-scoped service token (server-to-server). Prefer calling the in-process CRM service functions directly (import from `crmDynamodbService.js`) when running inside the API Lambda, OR HTTP to CRM API when running as an external MCP process. Provide both transports behind one interface; default to **direct service import** for the in-Lambda path (faster, no token juggling) and **HTTP** for the stdio process.
+- `invokeSkill(tenantId, toolName, input, { userId, adminToken? })` in `server/skillInvoker.js`:
+  - Maps `toolName` → domain + action. Tool name format: `{action}_{entity}` e.g. `create_lead`, `search_buyers`, `update_property`.
+  - **In-Lambda path (default):** import CRM service functions directly from `server/crmDynamodbService.js` — no HTTP, no token juggling. Pass `tenantId` to every DynamoDB call explicitly.
+  - **stdio/external path:** HTTP to CRM API using a service JWT signed with `JWT_SECRET` env var and claim `{ tenantId, source: 'mcp', userId }`.
+  - Validate `input` against schemas in `server/validation/crmSchemas.js` before any mutation.
   - Always passes `tenantId` explicitly; never relies on ambient state.
-- Returns a normalized `{ ok, data, error }`.
+- Returns a normalized `{ ok: boolean, data?: any, error?: string }`.
 
 **Security**
 - Tenant id is a required argument; reject if missing. Validate `input` with existing `server/validation/` schemas before mutating.
@@ -49,8 +71,10 @@
 
 **Detail**
 - stdio transport first (local Claude/dev). Each tool's handler calls `skillInvoker.invokeSkill`.
-- Tenant resolution for stdio: require a `tenantId` (and service token) from env/config for the local operator; never hardcode.
-- Define JSON input schemas mirroring the existing skill payloads (pull field lists from `ai-employee/skills/*/SKILL.md`).
+- Tenant resolution for stdio: read `MCP_TENANT_ID` and `MCP_SERVICE_TOKEN` from env — the local operator sets these. Never hardcode.
+- Define JSON input schemas by reading `ai-employee/skills/*/SKILL.md` files for each domain — the SKILL.md already lists required/optional fields and types for every script. Mirror those schemas exactly.
+- System prompt for each agent: compose from `ai-employee/SOUL.md` + `ai-employee/IDENTITY.md` + domain `SKILL.md`.
+- Tool naming convention: `{action}_{entity}` (e.g. `create_lead`, `search_owners`, `update_property`). Match the existing script names (e.g. `create-lead.ts` → `create_lead` tool).
 
 **Deployment**
 - Phase 1: stdio process (documented in `.mcp.json`).
@@ -74,7 +98,7 @@
 **Goal:** A thin agent runner that calls Bedrock with the MCP/skill tools, gated by credits and per-tenant enable.
 
 **Files**
-- NEW `server/agents/agentRuntime.js` — wraps Bedrock (copy client setup from `ai-calling-service/.../ragService.js`), Haiku-first model routing, tool-use loop delegating to `skillInvoker`.
+- NEW `server/agents/agentRuntime.js` — wraps Bedrock (copy client/region pattern from `ai-calling-service/src/services/ragService.js`; use `@aws-sdk/client-bedrock-runtime` with `InvokeModelCommand` for direct model calls). Haiku-first model routing, tool-use loop delegating to `skillInvoker`. **Note:** `server/agents/` is a new directory — add `agents/` to the zip include in `deploy.sh`.
 - NEW `server/agentAuditService.js` — log each agent action to CRM table (`PK=TENANT#{t}#AGENTLOG#{ts}`) with input/output summary + credits charged.
 
 **Detail**

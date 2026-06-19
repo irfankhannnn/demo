@@ -80,12 +80,26 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 ## 6. `deploy.sh` changes
 
 - Add the new params to `cfn-params.json` generation: `CreditsTableName`, `CreditConfigTableName`, `SesFromEmail`, `EmailProviderPrimary`, `BaileyEnabled`, `BaileyApiKey`, `BaileyWebhookSecret`, `AgentsEnabled`.
-- **CONFIRMED zip line** (`deploy.sh:116`): `zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/`.
-- **File-placement convention (match existing code):** backend services live at the **server root** as `server/<name>Service.js` (e.g. existing `crmDynamodbService.js`, `subscriptionService.js`, `agencyConfigService.js`). There is **no `server/services/` or `server/config/` directory** — do not invent them. New modules `creditService.js`, `creditConfig.js`, `emailService.js`, `teamAnalyticsService.js`, `dataQualityService.js`, `skillInvoker.js`, `agentAuditService.js`, `bailey.js` go at **server root** and ship automatically via `*.js`. Define the `InsufficientCreditsError` class inline (root `creditService.js`) — no `errors/` dir.
-- **Only `server/agents/` is a new directory** (agent runtimes). Add `agents/` to the `zip -r function.zip ...` include line. (Agent Lambda handlers themselves go in `server/scripts/` which is already included.)
-- `server/mcp-server/` is a separate process; **exclude** it from the API zip (add to the `-x` list) to avoid bloating the Lambda.
-- New deps (`@aws-sdk/client-sesv2`, `@aws-sdk/client-eventbridge`, `xlsx`, optionally `@aws-sdk/client-bedrock-runtime`) install via `npm ci` and ship in `node_modules` — verify Lambda package size stays under limits; if close, consider Lambda layers (follow-up).
-- Cron stacks deploy individually: `aws cloudformation deploy --template-file cron/<name>.yaml --stack-name <name> ...` — document each in a `deploy-crons.sh` helper (NEW) mirroring the existing single trial-reminder deploy.
+- **CONFIRMED current zip line** (`deploy.sh` ~line 116):
+  ```bash
+  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ \
+    validation/ public/ lib/ scripts/ \
+    -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
+       "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*"
+  ```
+- **REQUIRED change:** Add `agents/` to include list and `mcp-server/*` to exclude list:
+  ```bash
+  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ \
+    validation/ public/ lib/ scripts/ agents/ \
+    -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
+       "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*" "mcp-server/*"
+  ```
+- **File-placement convention (match existing code):** backend services live at the **server root** as `server/<name>Service.js` (e.g. existing `crmDynamodbService.js`, `subscriptionService.js`, `agencyConfigService.js`). There is **no `server/services/` or `server/config/` directory** — do not invent them. New modules `creditService.js`, `creditConfig.js`, `emailService.js`, `teamAnalyticsService.js`, `dataQualityService.js`, `skillInvoker.js`, `agentAuditService.js`, `bailey.js`, `razorpayOrders.js`, `whatsappAuditService.js` go at **server root** and ship automatically via `*.js` glob.
+- `InsufficientCreditsError`: define inline in `server/creditService.js` — match the error class style in `server/expressError.js` (no `errors/` dir).
+- `server/agents/` is the **only new directory** (agent runtimes go here). Its handlers are not in scripts/ — they're in agents/. Lambda handlers for agents go in `server/scripts/` (already included).
+- `server/mcp-server/` is a separate stdio process; **exclude** from the API zip.
+- New deps (`@aws-sdk/client-sesv2`, `@aws-sdk/client-eventbridge`, `xlsx`, `@aws-sdk/client-bedrock-runtime`) install via `npm ci` and ship in `node_modules`. Verify Lambda package size ≤ 250MB (uncompressed) before shipping; if close, consider Lambda layers.
+- Cron stacks deploy individually: `aws cloudformation deploy --template-file cron/<name>.yaml --stack-name <name> ...` — document in a `deploy-crons.sh` helper (NEW in `server/infra/`) mirroring `deploy.sh` structure.
 
 ## 7. Build gate
 - `server/scripts/build.sh` currently runs `find routes middleware scripts lib -name "*.js" -exec node --check`. Extend it to also check the server root `*.js` and the new `agents` dir, e.g. `find . -maxdepth 1 -name "*.js"` plus `agents`. (Root services are not currently syntax-checked — fix this.)
@@ -93,12 +107,11 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 ---
 
 ## Implementer checklist (infra)
-- [ ] Tables added + params + IAM ARNs + role statements (DynamoDB/SES/EventBridge/Bedrock).
-- [ ] Env vars added to `ApiLambdaFunction` + params.
-- [ ] `deploy.sh` zip include list extended (`services config agents errors`), mcp-server excluded, params wired.
-- [ ] `build.sh` checks new dirs.
-- [ ] `deploy.sh` zip include list extended (`agents`), mcp-server excluded, params wired.
-- [ ] `build.sh` checks root + new dirs.
-- [ ] Each cron/event template created from `trial-reminder.yaml`, correct handler + role.
-- [ ] `cloudformation validate-template` passes for main + every cron template.
-- [ ] `server.js` mounts (raw webhook before json; admin/credit-config after).
+- [ ] Tables added + params + IAM ARNs + role statements (DynamoDB/SES/EventBridge/Bedrock) in `cfn-backend.yaml`.
+- [ ] Env vars added to `ApiLambdaFunction.Environment` + matching `Parameters` in `cfn-backend.yaml`.
+- [ ] `deploy.sh` zip include: `agents/` added, `mcp-server/*` excluded, new params wired to `cfn-params.json`.
+- [ ] `build.sh` extended: check root `*.js` files + `agents/` directory.
+- [ ] Each cron/event template created from `cron/trial-reminder.yaml` with correct handler path + execution role.
+- [ ] `cloudformation validate-template` passes for main stack + every cron template.
+- [ ] `server/server.js` mount additions: `webhooksRoutes` before `express.json()`, `adminRoutes` + `creditAdminRoutes` after.
+- [ ] `deploy-crons.sh` helper created in `server/infra/` for deploying individual cron stacks.

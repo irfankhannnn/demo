@@ -5,10 +5,15 @@
 **Frontend owner:** Zishan.
 
 **Architecture anchors (cross-service join):**
-- Team member identity → **auth microservice** `reality-flow-authentication`: `listUsersByTenant(tenantId)`, frontend fetch `GET {AUTH_API_URL}/users` (used by `MemberManagement.tsx`). `UserItem` has `userId, displayName, email, phoneNumber, role, status, lastLoginAt, authMethod`.
-- Performance → **CRM** (`server/crmDynamodbService.js`): leads have `assignedTo`, `status` (`new|contacted|qualified|negotiating|converted|lost`), `convertedAt`, `createdAt`.
-- Admin gating: `src/utils/rbac.ts` (`isAdmin()`), `PermissionGuard`, and the redirect pattern in `MemberManagement.tsx` (`navigate('/member/no-access')`).
-- Table UI: existing `src/components/GlassDataTable.tsx` (sort/filter, no export).
+- Team member identity → **auth microservice** `reality-flow-authentication`.
+  - **Server-side (E4-T1):** No internal user-list endpoint exists. Forward the admin's Bearer token: `axios.get(\`${process.env.AUTH_SERVICE_URL}/users\`, { headers: { Authorization: req.headers.authorization } })`. Returns the tenant's user array.
+  - **Frontend (reference):** `real-estate-crm-app/src/pages/admin/MemberManagement.tsx` calls `GET ${VITE_AUTH_API_URL}/users` directly. Mirror this pattern in `TeamAnalytics.tsx` if needed.
+  - `UserItem` fields: `userId, tenantId, displayName, email, phoneNumber, role ('ADMIN'|'MEMBER'), status ('ACTIVE'|'INACTIVE'|'SUSPENDED'), lastLoginAt, authMethod`.
+- Performance → **CRM** (`server/crmDynamodbService.js`): leads have `assignedTo` (userId string), `status` (`new|contacted|qualified|negotiating|converted|lost`), `convertedAt`, `createdAt`. Use existing CRM list/filter functions — do not scan raw.
+- Admin gating: `real-estate-crm-app/src/utils/rbac.ts` → `isAdmin()`. Copy admin redirect from `real-estate-crm-app/src/pages/admin/MemberManagement.tsx`: `if (profile?.role !== 'ADMIN') { navigate('/member/no-access'); return; }`.
+- Table UI: `real-estate-crm-app/src/components/GlassDataTable.tsx` — import and use directly (sort/filter built in; no built-in export button).
+- Auth service URL server-side: `process.env.AUTH_SERVICE_URL` (already set in Lambda env via CFN).
+- See `notes/codebase-reference.md` §5 for exact UserItem schema and endpoint details.
 
 ---
 
@@ -17,7 +22,7 @@
 **Goal:** One endpoint returns per-member metrics for the tenant.
 
 **Files**
-- NEW `server/routes/admin.js` (mount `/api/admin`, chain `validateToken, extractTenantId, requireRole('ADMIN','FOUNDER','OWNER')`)
+- NEW `server/routes/admin.js` (mount at `/api/admin` in `server/server.js`, after express.json(); chain `validateToken, extractTenantId, requireAdmin` — `requireAdmin` already exported from `server/middleware/requireRole.js`)
 - NEW `server/teamAnalyticsService.js`
 - MODIFY `server/server.js` (mount router)
 - Reuse: an internal call to the auth service for the member list. There is already a server→auth call pattern in `validateToken.js` (axios to `AUTH_SERVICE_URL`). Add a helper to fetch `GET {AUTH_SERVICE_URL}/internal/users?tenantId=` OR reuse the existing seat-count internal endpoint referenced by subscriptions (`/internal/users/count`). Confirm the exact internal users endpoint; if only `/users` (token-based) exists, call it forwarding the admin's token.
@@ -37,10 +42,12 @@ lastActivityAt        // max(updatedAt) across records the member touched (creat
 ```
 
 **Detail**
-- `teamAnalyticsService.getTeamAnalytics(tenantId, range)`:
-  1. members = auth-service users for tenant.
-  2. leads = CRM leads for tenant (reuse existing list/search function in `crmDynamodbService.js`; it supports `assignedTo`, `status` filters).
+- `teamAnalyticsService.getTeamAnalytics(tenantId, range)` in `server/teamAnalyticsService.js`:
+  1. `members` = call `GET {AUTH_SERVICE_URL}/users` with forwarded Authorization header. Parse response as `UserItem[]`.
+  2. `leads` = call existing CRM lead list functions from `server/crmDynamodbService.js` — pass `{ tenantId, startDate, endDate }` range filters. Do not re-query per member.
   3. Aggregate in memory keyed by `assignedTo` → metrics. Members with no leads still appear (zeros).
+  4. `conversionRate = dealsClosed / totalAssigned` (guard division by zero with `|| 0`).
+  5. `contactedRate = (leads where status !== 'new') / totalAssigned` as responsiveness proxy.
 - Guard performance: query leads once, bucket by member, rather than per-member queries.
 
 **Security**

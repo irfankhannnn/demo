@@ -4,9 +4,15 @@
 
 **Architecture anchors:**
 - DynamoDB v3 (`@aws-sdk/lib-dynamodb`), single-table naming `cloudberry-real-estate-*`, PAY_PER_REQUEST.
-- Server ESM, middleware chain `validateToken → extractTenantId → requireRole`.
-- Existing Razorpay subscription flow (`PaywallModal` + `openCheckout`, plan ids `plan_team_*`=₹1999, `plan_teamplus_*`=₹4999) and webhook `server/routes/billing.js` (raw body + HMAC).
-- `req.tenantId` is the only trusted tenant source.
+- Server ESM (`"type":"module"` in `server/package.json`): use `import`/`export`. No `require()`.
+- Middleware chain: `validateToken` (→ `server/middleware/validateToken.js`) → `extractTenantId` (→ `server/middleware/tenantMiddleware.js`) → `requireRole(...)` (→ `server/middleware/requireRole.js`).
+- Existing subscription service: `server/subscriptionService.js` → `getSubscription(tenantId)` returns `{ plan, seatsPaid, seatsUsed, trialEndsAt, isPaying, paymentStatus, gracePeriodActive }`.
+- Existing subscription routes: `server/routes/subscriptions.js` → `GET /api/subscriptions/current`, `GET /api/subscriptions/trial-status`, `POST /api/subscriptions/check-seat`.
+- Existing Razorpay subscription flow: `real-estate-crm-app/src/components/PaywallModal.tsx` + `src/lib/razorpay.ts` → `openCheckout({ planId, ... })`. Plan IDs: `plan_team_*` (₹1999), `plan_teamplus_*` (₹4999).
+- Billing webhook: `server/routes/billing.js` → `POST /webhook` (full path: `POST /api/billing/webhook`) — mounted with per-route `express.raw()` before JSON parsing; HMAC timing-safe verify pattern to copy for credit purchase webhook.
+- `req.tenantId` is the only trusted tenant source — **never** read tenant from request body.
+- `InsufficientCreditsError` class: define inline in `server/creditService.js` (not a separate file/dir). See `server/expressError.js` for the existing error class style to match.
+- See `notes/codebase-reference.md` §4 for DynamoDB table names and GSI definitions.
 
 ---
 
@@ -120,8 +126,8 @@ resetMonthlyCredits(tenantId, plan)          // set/refresh monthly allotment
 
 **Detail**
 ```js
-import { deductCredits } from '../services/creditService.js';
-import { getCosts } from '../config/creditConfig.js';
+// server/middleware/meterCredits.js
+// Relative path from middleware/ to server root: ../
 import { deductCredits } from '../creditService.js';
 import { getCosts } from '../creditConfig.js';
 
@@ -174,7 +180,13 @@ export function meterCredits(actionType) {
 - MODIFY `server/routes/khata.js` (entry create) — confirm path exists; if khata lives elsewhere, locate via route registration in `server.js`.
 
 **Detail**
-- For each create endpoint, after the DynamoDB write succeeds, call `deductCredits(req.tenantId, cost, '<action>', { recordId })`. Wrap so a failed write does **not** charge.
+- **Before modifying any route file:** read `server/server.js` to confirm which file handles each endpoint.
+  - Leads create: check both `server/routes/crm.js` AND `server/routes/leads.js` — both mount under `/api/crm/leads`.
+  - Contacts create: `server/routes/contacts.js` → `POST /api/crm/contacts`.
+  - Buyers create: `server/routes/buyers.js` → `POST /api/crm/buyers`.
+  - Khata entries: `server/routes/khata.js` → `POST /api/khata`.
+  - Owner create: check `crm.js` (owners may be in the main CRM file).
+- For each create endpoint, call `deductCredits(req.tenantId, cost, '<action>', { recordId })` **after** the DynamoDB write succeeds. Wrap so a failed write does **not** charge.
 - Map: leads→`lead_add`, contacts→`contact_add`, properties→`property_add`, owners→`owner_add`, customers/tenants→`tenant_add`, khata→`khata_entry`, bulk import→`bulk_import_per_record × count`.
 - Keep responses unchanged on success; include `creditsRemaining` in the response body for UI convenience.
 
@@ -201,9 +213,11 @@ export function meterCredits(actionType) {
 - NEW `server/razorpayOrders.js` — create Orders via Razorpay REST (server key/secret env), since current frontend flow is subscription-only.
 
 **Detail**
-- `POST /credits/purchase` (admin/owner only): body `{ packId | credits }`. Compute amount from config (`PACKS`/`overagePricePerCredit`), create a Razorpay **Order** with `notes:{ tenantId, credits }`, return `{ orderId, amount, credits }`.
-- Frontend `BuyCreditsModal` (E2-T8) opens checkout with `order_id` (not subscription_id).
-- Webhook: on capture with `notes.credits`, call `grantCredits(tenantId, credits, 'purchase', { razorpayOrderId, amountPaise })`. Idempotent on `razorpayPaymentId` (store in ledger meta; skip if already granted).
+- `POST /credits/purchase` (admin/owner only — use `requireRole('ADMIN','FOUNDER','OWNER')`): body `{ packId | credits }`. Compute amount from `creditConfig.getPacks()`, create a Razorpay **Order** via `razorpayOrders.createOrder({ amount, receipt, notes: { tenantId, credits } })`, return `{ orderId, amount, credits }`.
+- Frontend `BuyCreditsModal` (E2-T8) opens checkout with `order_id` (not `subscription_id`). Must extend `src/lib/razorpay.ts` → `openCheckout` to accept `orderId` mode alongside the existing `planId` subscription mode.
+- Webhook: in `server/routes/billing.js`, in the `payment.captured` handler, add: if `notes?.credits` present on the captured payment's order, call `grantCredits(tenantId, Number(notes.credits), 'purchase', { razorpayOrderId, razorpayPaymentId, amountPaise: payment.amount })`.
+- Idempotency: use `webhookLogService.logEventIfNotProcessed(razorpayPaymentId)` (already used in billing.js) to prevent duplicate grants.
+- `server/razorpayOrders.js`: use Razorpay REST API (`https://api.razorpay.com/v1/orders`) with basic auth `{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}` env vars.
 
 **Security**
 - Reuse existing HMAC verification already in `billing.js`. Validate `notes.tenantId` matches the order.
