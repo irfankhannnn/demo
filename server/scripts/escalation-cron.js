@@ -4,7 +4,7 @@
  * sets status=escalated, sends emails.
  */
 import { listPendingProvisioning, updateProvisioning } from '../aiEmployeeProvisioningService.js';
-import axios from 'axios';
+import { sendEmail } from '../emailService.js';
 import dotenv from 'dotenv';
 import { serverTrack, shutdownPostHog } from '../lib/posthog.js';
 import { fileURLToPath } from 'url';
@@ -15,21 +15,18 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 
-async function sendBrevoEmail(templateId, to, params) {
-  if (!templateId || !process.env.BREVO_API_KEY) return;
+async function sendEscalationEmail(templateId, to, params) {
+  if (!to) return;
   try {
-    await axios.post('https://api.brevo.com/v3/smtp/email', {
-      templateId: parseInt(templateId, 10),
-      to: [{ email: to }],
+    await sendEmail({
+      to,
+      subject: 'AI Employee Provisioning Escalation',
+      brevoTemplateId: templateId,
       params,
-    }, {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
-      },
+      html: `<p>Provisioning escalation for tenant.</p>`,
     });
   } catch (err) {
-    console.error('Brevo email failed (non-fatal):', err.message);
+    console.error('Email failed (non-fatal):', err.message);
   }
 }
 
@@ -48,7 +45,7 @@ async function runEscalation() {
       await updateProvisioning(row.tenantId, { status: 'escalated' });
 
       // Email founder with escalation notice (use founder-specific template)
-      await sendBrevoEmail(
+      await sendEscalationEmail(
         process.env.BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID,
         process.env.FOUNDER_EMAIL || 'info@realestateflow.in',
         {
@@ -63,7 +60,7 @@ async function runEscalation() {
 
       // Customer apology email (use customer-specific template)
       if (row.contactEmail) {
-        await sendBrevoEmail(
+        await sendEscalationEmail(
           process.env.BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID,
           row.contactEmail,
           {

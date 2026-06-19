@@ -90,6 +90,32 @@ Parameters:
     Default: cloudberry-real-estate-credit-config
     Description: DynamoDB table for owner-editable credit configuration
 
+  SesFromEmail:
+    Type: String
+    Default: noreply@realestateflow.in
+
+  EmailProviderPrimary:
+    Type: String
+    Default: ses
+
+  BaileyEnabled:
+    Type: String
+    Default: 'false'
+
+  BaileyApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  BaileyWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  AgentsEnabled:
+    Type: String
+    Default: 'false'
+
   S3BucketName:
     Type: String
     Description: S3 bucket name for documents (must be globally unique)
@@ -880,6 +906,15 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+              - Effect: Allow
+                Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:DeleteObject
@@ -921,6 +956,12 @@ Resources:
           SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
+          AGENTS_ENABLED: !Ref AgentsEnabled
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
           CRM_API_BASE_PATH: !Ref CrmApiBasePath

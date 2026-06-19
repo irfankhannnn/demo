@@ -14,6 +14,7 @@
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { sendEmail } from '../emailService.js';
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'ap-south-1',
@@ -44,41 +45,20 @@ const EMAIL_TEMPLATES = {
   },
 };
 
-async function sendBrevoEmail(to, emailType, params) {
-  if (!BREVO_API_KEY) {
-    console.log(`[DRY-RUN] Would send ${emailType} to ${to}`);
-    return;
-  }
 
+async function sendTrialEmail(to, emailType, params) {
   const template = EMAIL_TEMPLATES[emailType];
-  const body = {
-    sender: BREVO_SENDER,
-    to: [{ email: to }],
-    subject: template.subject,
-    htmlContent: `<p>Hi,</p><p>${template.subject}.</p><p><a href="https://app.realestateflow.in/billing?upgrade=true">Upgrade now →</a></p>`,
-    params,
-  };
-
-  if (template.templateId) {
-    body.templateId = template.templateId;
-    delete body.htmlContent;
-    delete body.subject;
-  }
-
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': BREVO_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    console.error(`Brevo send failed for ${to} (${emailType}):`, err);
-  } else {
+  try {
+    await sendEmail({
+      to,
+      subject: template.subject,
+      html: `<p>Hi,</p><p>${template.subject}.</p><p><a href="https://app.realestateflow.in/crm/settings/billing?upgrade=true">Upgrade now →</a></p>`,
+      brevoTemplateId: template.templateId,
+      params,
+    });
     console.log(`Sent ${emailType} to ${to}`);
+  } catch (err) {
+    console.error(`Email send failed for ${to} (${emailType}):`, err.message);
   }
 }
 
@@ -137,7 +117,7 @@ async function processTrialReminders() {
         continue;
       }
 
-      await sendBrevoEmail(email, emailType, {
+      await sendTrialEmail(email, emailType, {
         trialDaysLeft: Math.max(0, Math.ceil(daysLeft)),
         plan: sub.plan,
       });

@@ -5,6 +5,7 @@ import { createProvisioningRow } from '../aiEmployeeProvisioningService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { incrementSeatsPaid } from '../subscriptionService.js';
 import { logger } from '../logger.js';
+import { sendEmail } from '../emailService.js';
 
 const router = express.Router();
 
@@ -22,27 +23,22 @@ async function serverTrack(distinctId, event, properties = {}) {
 }
 
 /**
- * Send transactional email via Brevo.
- * Failure must NOT fail the webhook — always returns 200.
+ * Send transactional email via emailService (SES primary, Brevo fallback).
  */
 async function sendBrevoEmail(templateId, to, params) {
-  if (!templateId || !process.env.BREVO_API_KEY) {
-    logger.warn('Brevo email skipped — missing template ID or API key', { templateId, to });
+  if (!to) {
+    logger.warn('Email skipped — missing recipient', { templateId });
     return;
   }
   try {
-    await axios.post('https://api.brevo.com/v3/smtp/email', {
-      templateId: parseInt(templateId, 10),
-      to: [{ email: to }],
+    await sendEmail({
+      to,
+      subject: 'RealEstateFlow Notification',
+      brevoTemplateId: templateId,
       params,
-    }, {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
-      },
     });
   } catch (err) {
-    logger.error('Brevo email failed (non-fatal)', { error: err.message, to });
+    logger.error('Email failed (non-fatal)', { error: err.message, to });
   }
 }
 

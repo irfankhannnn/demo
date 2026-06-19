@@ -9,6 +9,9 @@
     "build": "bash scripts/build.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.669.0",
+    "@aws-sdk/client-eventbridge": "^3.669.0",
+    "@aws-sdk/client-sesv2": "^3.669.0",
     "@aws-sdk/client-dynamodb": "^3.669.0",
     "@sentry/node": "^8.45.1",
     "@aws-sdk/client-s3": "^3.669.0",
@@ -25,6 +28,7 @@
     "multer": "^1.4.5-lts.1",
     "posthog-node": "^5.21.2",
     "uuid": "^9.0.1",
+    "xlsx": "^0.18.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {

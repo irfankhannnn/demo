@@ -5,6 +5,7 @@ import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
+import { sendEmail } from '../emailService.js';
 
 const router = express.Router();
 
@@ -15,7 +16,6 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 const NPS_TABLE = process.env.NPS_TABLE || 'NPSResponses';
 const NPS_HMAC_SECRET = process.env.NPS_HMAC_SECRET;
-const BREVO_API_KEY = process.env.BREVO_API_KEY;
 const FOUNDER_EMAIL = process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in';
 
 function requireNpsSecret() {
@@ -58,17 +58,12 @@ router.post('/nps', validateToken, extractTenantId, async (req, res) => {
     logger.info('nps.submitted', { tenantId: req.tenantId, score, responseId });
 
     // Side effect: alert founder for detractors (score ≤ 6)
-    if (score <= 6 && BREVO_API_KEY) {
+    if (score <= 6) {
       try {
-        await fetch('https://api.brevo.com/v3/smtp/email', {
-          method: 'POST',
-          headers: { 'api-key': BREVO_API_KEY, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            sender: { name: 'RealEstateFlow NPS', email: 'noreply@realestateflow.in' },
-            to: [{ email: FOUNDER_EMAIL }],
-            subject: `⚠️ NPS Detractor Alert — Score ${score}`,
-            htmlContent: `<p>Tenant: ${req.tenantId}</p><p>Score: ${score}/10</p><p>Feedback: ${freeText || 'N/A'}</p>`,
-          }),
+        await sendEmail({
+          to: FOUNDER_EMAIL,
+          subject: `⚠️ NPS Detractor Alert — Score ${score}`,
+          html: `<p>Tenant: ${req.tenantId}</p><p>Score: ${score}/10</p><p>Feedback: ${freeText || 'N/A'}</p>`,
         });
       } catch (notifErr) {
         logger.warn('nps.founderNotif.failed', { error: notifErr.message });
@@ -76,7 +71,7 @@ router.post('/nps', validateToken, extractTenantId, async (req, res) => {
     }
 
     // Side effect: tag promoters in Brevo for testimonial outreach
-    if (score >= 9 && shareTestimonial && BREVO_API_KEY) {
+    if (score >= 9 && shareTestimonial) {
       // Brevo contact tag — done via API if we have contact email
       logger.info('nps.promoter.testimonial', { tenantId: req.tenantId, score });
     }

@@ -1,6 +1,6 @@
 import express from 'express';
 import rateLimit from 'express-rate-limit';
-import axios from 'axios';
+import { sendEmail } from '../emailService.js';
 import validateToken from '../middleware/validateToken.js';
 import { requireAdmin } from '../middleware/requireRole.js';
 import {
@@ -118,25 +118,12 @@ async function verifyHcaptcha(token, remoteip) {
  * Send a transactional email via Brevo. Never throws — email failure must not
  * fail the grievance submission.
  */
-async function sendBrevoEmail({ to, subject, htmlContent }) {
-  const apiKey = process.env.BREVO_API_KEY;
-  if (!apiKey) {
-    logger.warn('grievance.brevo_skipped', { reason: 'BREVO_API_KEY not set', to });
-    return;
-  }
+async function sendGrievanceEmail({ to, subject, htmlContent }) {
+  const recipient = Array.isArray(to) ? to[0]?.email || to[0] : to;
   try {
-    await axios.post(
-      'https://api.brevo.com/v3/smtp/email',
-      {
-        sender: { email: FROM_EMAIL, name: FROM_NAME },
-        to: Array.isArray(to) ? to : [{ email: to }],
-        subject,
-        htmlContent,
-      },
-      { headers: { 'api-key': apiKey, 'Content-Type': 'application/json' }, timeout: 8000 },
-    );
+    await sendEmail({ to: recipient, subject, html: htmlContent });
   } catch (err) {
-    logger.error('grievance.brevo_error', { error: err.message, to });
+    logger.error('grievance.email_error', { error: err.message, to: recipient });
   }
 }
 
@@ -208,12 +195,12 @@ router.post('/grievance', publicLimiter, async (req, res) => {
 
     // Fire-and-forget side effects — never block/fail the response on these.
     await Promise.allSettled([
-      sendBrevoEmail({
+      sendGrievanceEmail({
         to: [{ email, name }],
         subject: `We received your grievance — ${trackingId}`,
         htmlContent: ackEmailHtml({ name, trackingId, category }),
       }),
-      sendBrevoEmail({
+      sendGrievanceEmail({
         to: [{ email: GRIEVANCE_OFFICER_MAILBOX }],
         subject: `New grievance ${trackingId} (${category})`,
         htmlContent: notifyEmailHtml({ name, email, phone, category, description, trackingId }),
