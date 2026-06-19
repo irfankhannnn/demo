@@ -82,6 +82,8 @@
 
 ## E2-T2 — CreditService with **atomic** deduction
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Safe, concurrency-correct credit ops. **No sum-of-scan on the request path.**
 
 **Files**
@@ -120,6 +122,8 @@ resetMonthlyCredits(tenantId, plan)          // set/refresh monthly allotment
 ---
 
 ## E2-T3 — Metering middleware
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Declarative per-route credit metering.
 
@@ -175,6 +179,8 @@ export function meterCredits(actionType) {
 
 ## E2-T4 — Integrate metering into CRM write routes
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Charge credits for the real actions.
 
 **Files**
@@ -207,6 +213,8 @@ export function meterCredits(actionType) {
 
 ## E2-T5 — Credit purchase (Razorpay Orders) + webhook grant
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** One-time credit-pack purchase that grants credits on payment capture.
 
 **Files**
@@ -237,6 +245,8 @@ export function meterCredits(actionType) {
 
 ## E2-T6 — Credit management + admin config routes
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Read balance/ledger; let owner edit costs/packs.
 
 **Files**
@@ -264,6 +274,8 @@ export function meterCredits(actionType) {
 
 ## E2-T7 — Monthly credit reset cron
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Refresh each tenant's monthly free/plan allotment on their cycle.
 
 **Files**
@@ -289,6 +301,8 @@ export function meterCredits(actionType) {
 
 ## E2-T8 — Frontend: balance display + Buy Credits
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Show balance everywhere relevant; allow pack purchase; handle 402 gracefully.
 
 **Files**
@@ -312,6 +326,8 @@ export function meterCredits(actionType) {
 ---
 
 ## E2-T9 — Soft vs Hard Credit Limits
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Gracefully handle low/empty credit states without blocking essential work.
 

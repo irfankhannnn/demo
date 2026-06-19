@@ -130,6 +130,8 @@
 
 ## E1-T4 — Bailey: data model + "Connect WhatsApp" onboarding step (OPTIONAL, flagged)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Let an admin connect their WhatsApp Business number via Bailey. Entirely behind `BAILEY_ENABLED`.
 
 **Files**
@@ -167,6 +169,8 @@
 ---
 
 ## E1-T5 — Bailey inbound webhook (OPTIONAL, flagged)
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Receive WhatsApp messages and enqueue them for processing, with verified signatures.
 
