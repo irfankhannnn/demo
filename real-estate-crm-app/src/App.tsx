@@ -69,6 +69,7 @@ import BuyerList from './pages/crm/BuyerList';
 import BuyerDetails from './pages/crm/BuyerDetails';
 import LeadList from './pages/crm/LeadList';
 import LeadDetails from './pages/crm/LeadDetails';
+import BillingSettings from './pages/crm/BillingSettings';
 
 // PR-F
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
@@ -311,6 +312,7 @@ function App() {
             {/* Onboarding Routes (authenticated but not registered) */}
             <Route path="/onboarding/role-selection" element={<ProtectedRoute authState={authState}><RoleSelection /></ProtectedRoute>} />
             <Route path="/onboarding/register-admin" element={<ProtectedRoute authState={authState}><RegisterAdmin /></ProtectedRoute>} />
+            <Route path="/onboarding/connect-whatsapp" element={<ProtectedRoute authState={authState}><ConnectWhatsApp /></ProtectedRoute>} />
             <Route path="/onboarding/accept-invite" element={<ProtectedRoute authState={authState}><AcceptInvite /></ProtectedRoute>} />
 
             {/* Member Routes (post-auth but pre-registration) */}

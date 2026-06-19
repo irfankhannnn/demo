@@ -196,6 +196,8 @@
 
 ## E1-T6 — Bailey message processor → MCP/skills (OPTIONAL, flagged)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Turn an inbound WhatsApp message into a CRM action via the MCP/skills layer, then reply.
 
 **Files**

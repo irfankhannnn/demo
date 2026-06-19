@@ -69,6 +69,11 @@ app.use(requestLogger);
 logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
 app.use('/api/billing', billingRoutes);
 
+// Webhooks (Bailey WhatsApp) — raw body before JSON parser
+import webhooksRoutes from './routes/webhooks.js';
+logger.info('routes.mount', { basePath: '/api/webhooks', router: 'webhooksRoutes' });
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 

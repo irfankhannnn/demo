@@ -3,7 +3,8 @@ import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
 import { serverTrack } from '../lib/posthog.js';
-import { createTrialSubscription, setConsentSignedAt } from '../subscriptionService.js';
+import { getPairingQr, isBaileyEnabled } from '../bailey.js';
+import { requireAdmin } from '../middleware/requireRole.js';
 
 const router = express.Router();
 
