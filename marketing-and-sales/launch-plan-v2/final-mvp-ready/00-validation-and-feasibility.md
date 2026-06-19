@@ -51,12 +51,26 @@ This report audits the proposed MVP plan against the **actual** `auth_rbac_featu
 
 10. **Lambda packaging already includes `scripts/`** — new cron handlers placed in `server/scripts/` ship automatically. New top-level modules must be added to the `zip` include list in `deploy.sh` if outside `routes/middleware/utils/validation/lib/scripts`.
 
+11. **`TrialCountdownBanner.tsx` already exists** — `src/components/TrialCountdownBanner.tsx` is a live component. Do NOT create a duplicate `TrialBanner.tsx`. E1-T2 implementers must check this component first and extend/reuse it rather than creating a new file.
+
+12. **Auth svc `/internal/users` does NOT return a list** — only `/internal/users/count?tenantId=` exists as an internal endpoint (returns `{ count: number }`). For team member list (E4-T1), the server must forward the admin's Bearer token from `req.headers.authorization` to `GET {AUTH_SERVICE_URL}/users`. There is no server-to-server user-list endpoint — use the authenticated user-facing endpoint with the forwarded token.
+
+13. **E2-T3 code snippet has a duplicate import bug** — the original plan text contained leftover `import { deductCredits } from '../services/creditService.js'` and `import { getCosts } from '../config/creditConfig.js'` lines above the correct root-level imports. The ONLY correct imports in `server/middleware/meterCredits.js` are `import { deductCredits } from '../creditService.js'` and `import { getCosts } from '../creditConfig.js'`. The `services/` and `config/` directories do not exist.
+
+14. **`server/agents/` is a new directory and must be explicitly added to the deploy.sh zip** — root `*.js` are auto-included but subdirectories need explicit listing. The current zip command must be extended to include `agents/` and to exclude `mcp-server/`. See `07-infra-cfn-deploy.md` §6.
+
+15. **Billing route is at `/api/billing/webhook` not `/api/billing`** — `billing.js` is mounted at `/api/billing` in server.js, and the webhook handler inside is `POST /webhook`, making the full path `POST /api/billing/webhook`. The raw body trick applies to the route handler itself using per-route `express.raw()` middleware, not to the router-level mount.
+
+16. **`RegisterAdmin.tsx` already exists** at `real-estate-crm-app/src/pages/RegisterAdmin.tsx` — only the route in `App.tsx` is missing. Do not recreate the page component; only add the `<Route path="/onboarding/register-admin" ...>` entry.
+
+17. **Two separate leads route files** — `server/routes/crm.js` AND `server/routes/leads.js` are both mounted under `/api/crm/leads` in server.js. E2-T4 must identify which file contains each create endpoint before adding metering. Confirm in server.js mount order before modifying.
+
 ---
 
 ## C. Feasibility verdict per workstream
 
 | Workstream | Feasible? | Notes / risk |
-|-----------|-----------|--------------|
+|-----------|-----------|---------------|
 | Onboarding route fix | ✅ Trivial | One route addition; page + endpoint already exist |
 | Upgrade flow | ✅ | Reuse `PaywallModal`/`openCheckout`; only wire entry points + trial banner |
 | Bailey WhatsApp gateway | ⚠️ Medium | External dependency (Bailey acct, public webhook URL, WABA approval). Keep optional/flagged. Inbound→MCP routing needs a deterministic command parser + auth mapping by `to` number. |
