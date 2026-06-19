@@ -12,6 +12,15 @@
       "type": "http",
       "url": "https://mcp.blotato.com/sse"
     },
+    "nabi-crm": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["server/mcp-server/index.js"],
+      "env": {
+        "MCP_TENANT_ID": "${MCP_TENANT_ID}",
+        "CRM_DYNAMODB_TABLE_NAME": "${CRM_DYNAMODB_TABLE_NAME}"
+      }
+    },
     "git": {
       "type": "stdio",
       "command": "npx",

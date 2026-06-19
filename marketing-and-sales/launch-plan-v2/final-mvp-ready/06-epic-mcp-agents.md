@@ -32,6 +32,8 @@
 
 ## E6-T1 — Shared skill invoker (single source of truth)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** One module both the MCP server and the WhatsApp processor (E1-T6) use to run a skill action for a tenant. Avoid duplicate invocation logic.
 
 **Files**
