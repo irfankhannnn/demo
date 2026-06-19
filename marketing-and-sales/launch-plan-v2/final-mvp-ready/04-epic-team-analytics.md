@@ -19,6 +19,8 @@
 
 ## E4-T1 — Backend: team analytics aggregation endpoint
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** One endpoint returns per-member metrics for the tenant.
 
 **Files**

@@ -27,6 +27,7 @@ import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
 // PR-H
 import subscriptionsRoutes from './routes/subscriptions.js';
 import creditAdminRoutes from './routes/creditAdmin.js';
+import adminRoutes from './routes/admin.js';
 // PR-K
 import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
@@ -128,6 +129,8 @@ logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscript
 app.use('/api/subscriptions', subscriptionsRoutes);
 logger.info('routes.mount', { basePath: '/api/credit-config', router: 'creditAdminRoutes' });
 app.use('/api/credit-config', creditAdminRoutes);
+logger.info('routes.mount', { basePath: '/api/admin', router: 'adminRoutes' });
+app.use('/api/admin', adminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);

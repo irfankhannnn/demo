@@ -45,6 +45,7 @@ import NoAccess from './pages/member/NoAccess';
 // Admin Pages
 import InviteManagement from './pages/admin/InviteManagement';
 import MemberManagement from './pages/admin/MemberManagement';
+import TeamAnalytics from './pages/admin/TeamAnalytics';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-B
@@ -338,6 +339,7 @@ function App() {
             <Route path="/admin/grievances" element={<ProtectedRoute authState={authState}><GrievanceList /></ProtectedRoute>} />
             <Route path="/admin/invites" element={<ProtectedRoute authState={authState}><InviteManagement /></ProtectedRoute>} />
             <Route path="/admin/members" element={<ProtectedRoute authState={authState}><MemberManagement /></ProtectedRoute>} />
+            <Route path="/admin/team-analytics" element={<ProtectedRoute authState={authState}><TeamAnalytics /></ProtectedRoute>} />
 
             {/* CRM Routes */}
             <Route path="/crm" element={<ProtectedRoute authState={authState}><CRMDashboard /></ProtectedRoute>} />
