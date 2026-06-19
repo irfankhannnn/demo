@@ -79,6 +79,7 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 
 ## 6. `deploy.sh` changes
 
+- Add the new params to `cfn-params.json` generation: `CreditsTableName`, `CreditConfigTableName`, `SesFromEmail`, `EmailProviderPrimary`, `BaileyEnabled`, `BaileyApiKey`, `BaileyWebhookSecret`, `AgentsEnabled`.
 - **CONFIRMED zip line** (`deploy.sh:116`): `zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/`.
 - **File-placement convention (match existing code):** backend services live at the **server root** as `server/<name>Service.js` (e.g. existing `crmDynamodbService.js`, `subscriptionService.js`, `agencyConfigService.js`). There is **no `server/services/` or `server/config/` directory** — do not invent them. New modules `creditService.js`, `creditConfig.js`, `emailService.js`, `teamAnalyticsService.js`, `dataQualityService.js`, `skillInvoker.js`, `agentAuditService.js`, `bailey.js` go at **server root** and ship automatically via `*.js`. Define the `InsufficientCreditsError` class inline (root `creditService.js`) — no `errors/` dir.
 - **Only `server/agents/` is a new directory** (agent runtimes). Add `agents/` to the `zip -r function.zip ...` include line. (Agent Lambda handlers themselves go in `server/scripts/` which is already included.)
@@ -94,6 +95,8 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 ## Implementer checklist (infra)
 - [ ] Tables added + params + IAM ARNs + role statements (DynamoDB/SES/EventBridge/Bedrock).
 - [ ] Env vars added to `ApiLambdaFunction` + params.
+- [ ] `deploy.sh` zip include list extended (`services config agents errors`), mcp-server excluded, params wired.
+- [ ] `build.sh` checks new dirs.
 - [ ] `deploy.sh` zip include list extended (`agents`), mcp-server excluded, params wired.
 - [ ] `build.sh` checks root + new dirs.
 - [ ] Each cron/event template created from `trial-reminder.yaml`, correct handler + role.

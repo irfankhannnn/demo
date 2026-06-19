@@ -120,6 +120,8 @@ resetMonthlyCredits(tenantId, plan)          // set/refresh monthly allotment
 
 **Detail**
 ```js
+import { deductCredits } from '../services/creditService.js';
+import { getCosts } from '../config/creditConfig.js';
 import { deductCredits } from '../creditService.js';
 import { getCosts } from '../creditConfig.js';
 
