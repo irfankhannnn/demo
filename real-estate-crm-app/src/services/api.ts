@@ -139,6 +139,17 @@ class ApiService {
           throw new Error('Session expired. Please log in again.');
         }
       }
+      if (response.status === 402) {
+        const error = await response.json().catch(() => ({ error: 'insufficient_credits' }));
+        if (error.error === 'insufficient_credits') {
+          window.dispatchEvent(new CustomEvent('insufficient-credits', { detail: error }));
+        }
+        const err = new Error(error.message || 'Out of credits');
+        (err as any).code = 'insufficient_credits';
+        (err as any).balance = error.balance;
+        (err as any).required = error.required;
+        throw err;
+      }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
       throw new Error(error.error || `HTTP ${response.status}`);
     }

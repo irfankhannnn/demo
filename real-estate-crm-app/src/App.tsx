@@ -10,8 +10,10 @@ import { identifyUser } from './lib/analytics';
 import DemoBanner from './components/DemoBanner';
 // PR-J
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import { CreditsProvider } from './contexts/CreditsContext';
 import TrialCountdownBanner from './components/TrialCountdownBanner';
 import PaywallModal from './components/PaywallModal';
+import BuyCreditsModal, { InsufficientCreditsListener } from './components/BuyCreditsModal';
 // PR-C
 import CookieConsentBanner from './components/CookieConsentBanner';
 // PR-K
@@ -34,6 +36,7 @@ import Profile from './pages/Profile';
 import RoleSelection from './pages/RoleSelection';
 import AcceptInvite from './pages/AcceptInvite';
 import RegisterAdmin from './pages/RegisterAdmin';
+import ConnectWhatsApp from './pages/onboarding/ConnectWhatsApp';
 
 // Member Pages
 import Invites from './pages/member/Invites';
@@ -97,6 +100,7 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
 
   useEffect(() => {
     async function initAuth() {
@@ -290,11 +294,14 @@ function App() {
     <Router>
       <GoogleMapsProvider>
         <SubscriptionProvider>
+          <CreditsProvider>
           {/* PR-A: Demo banner */}
           <DemoBanner />
           {/* PR-J: Trial countdown + paywall */}
           <TrialCountdownBanner onUpgradeClick={() => setShowPaywall(true)} />
           <PaywallModal forceOpen={showPaywall} onClose={() => setShowPaywall(false)} />
+          <BuyCreditsModal forceOpen={showBuyCredits} onClose={() => setShowBuyCredits(false)} />
+          <InsufficientCreditsListener onTrigger={() => setShowBuyCredits(true)} />
           {/* PR-K: NPS */}
           <NpsModal />
           <CookieConsentBanner />
@@ -374,6 +381,7 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />
           </Routes>
+          </CreditsProvider>
         </SubscriptionProvider>
       </GoogleMapsProvider>
     </Router>

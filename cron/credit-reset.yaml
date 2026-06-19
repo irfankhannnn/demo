@@ -1,0 +1,52 @@
+# Credit Reset Cron — EventBridge Rule
+# Schedule: 00:30 IST daily (19:00 UTC previous day)
+# Resets monthly credit allotments per tenant
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Monthly credit reset cron — daily at 00:30 IST'
+
+Resources:
+  CreditResetRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-credit-reset
+      Description: 'Trigger credit reset Lambda daily at 00:30 IST'
+      ScheduleExpression: 'cron(0 19 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CreditResetFunction.Arn
+          Id: CreditResetTarget
+
+  CreditResetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-credit-reset
+      Runtime: nodejs20.x
+      Handler: credit-reset-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          AWS_REGION_OVERRIDE: 'ap-south-1'
+
+  CreditResetPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreditResetFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt CreditResetRule.Arn
+
+Parameters:
+  SubscriptionsTableName:
+    Type: String
+    Default: 'Subscriptions'
+  CreditsTableName:
+    Type: String
+    Default: 'cloudberry-real-estate-credits'
+  CreditConfigTableName:
+    Type: String
+    Default: 'cloudberry-real-estate-credit-config'

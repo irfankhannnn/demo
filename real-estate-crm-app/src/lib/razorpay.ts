@@ -16,7 +16,9 @@ export async function loadRazorpay(): Promise<void> {
 }
 
 interface CheckoutOptions {
-  planId: string;
+  planId?: string;
+  orderId?: string;
+  amount?: number;
   name: string;
   email: string;
   phone?: string;
@@ -27,15 +29,27 @@ interface CheckoutOptions {
 
 export async function openCheckout(opts: CheckoutOptions): Promise<void> {
   await loadRazorpay();
-  const rzp = new window.Razorpay({
+
+  const baseOptions: Record<string, unknown> = {
     key: import.meta.env.VITE_RAZORPAY_KEY_ID,
-    subscription_id: opts.planId,
     name: 'RealEstateFlow',
-    description: 'Subscription',
     prefill: { name: opts.name, email: opts.email, contact: opts.phone },
     handler: opts.onSuccess,
     modal: { ondismiss: opts.onDismiss },
-  });
+  };
+
+  if (opts.orderId) {
+    baseOptions.order_id = opts.orderId;
+    baseOptions.description = 'Credit Pack Purchase';
+    if (opts.amount) baseOptions.amount = opts.amount;
+  } else if (opts.planId) {
+    baseOptions.subscription_id = opts.planId;
+    baseOptions.description = 'Subscription';
+  } else {
+    throw new Error('Either planId or orderId is required');
+  }
+
+  const rzp = new window.Razorpay(baseOptions);
   rzp.on('payment.failed', opts.onFailure);
   rzp.open();
 }

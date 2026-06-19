@@ -5,6 +5,8 @@ import { getIdToken, getUserProfile } from '../../utils/authStorage';
 import { getTenantHeaders } from '../../config/tenant';
 import { useSubscription } from '../../hooks/useSubscription';
 import PaywallModal from '../../components/PaywallModal';
+import CreditBalanceCard from '../../components/CreditBalanceCard';
+import BuyCreditsModal from '../../components/BuyCreditsModal';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -28,6 +30,7 @@ export default function BillingSettings() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
 
   const loadSubscription = useCallback(async () => {
     try {
@@ -108,6 +111,7 @@ export default function BillingSettings() {
 
         {subscription && !loading && (
           <div className="space-y-6">
+            <CreditBalanceCard onBuyCredits={() => setShowBuyCredits(true)} />
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -173,6 +177,7 @@ export default function BillingSettings() {
           loadSubscription();
         }}
       />
+      <BuyCreditsModal forceOpen={showBuyCredits} onClose={() => setShowBuyCredits(false)} />
     </div>
   );
 }

@@ -26,6 +26,7 @@ import billingRoutes from './routes/billing.js';
 import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
 // PR-H
 import subscriptionsRoutes from './routes/subscriptions.js';
+import creditAdminRoutes from './routes/creditAdmin.js';
 // PR-K
 import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
@@ -125,6 +126,8 @@ app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // PR-H
 logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscriptionsRoutes' });
 app.use('/api/subscriptions', subscriptionsRoutes);
+logger.info('routes.mount', { basePath: '/api/credit-config', router: 'creditAdminRoutes' });
+app.use('/api/credit-config', creditAdminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);

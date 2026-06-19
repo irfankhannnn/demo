@@ -18,6 +18,8 @@
 
 ## E2-T1 — Credit config + tables (CFN) + seed
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Two new tables and an owner-editable config, all matching existing conventions.
 
 **Files**

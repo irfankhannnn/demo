@@ -73,6 +73,8 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 // Create buyer
 router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'contact_add');
     const buyerData = {
       ...req.body,
       createdBy: req.user?.username || 'Admin',
@@ -91,10 +93,12 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     }
     
     const buyer = await createBuyer(req.tenantId, buyerData);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'contact_add', { recordId: buyer.buyerId });
     
     // Return with cross-role info
     const response = {
       ...buyer,
+      creditsRemaining: creditResult.balance,
       crossRoleInfo: (buyer.linkedRoles || []).length > 0 ? {
         message: `This person also exists as: ${(buyer.linkedRoles || []).map(r => r.role).join(', ')}`,
         roles: buyer.linkedRoles
@@ -103,6 +107,8 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     
     res.status(201).json(response);
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Create buyer error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }

@@ -222,6 +222,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           amount: payment?.amount,
           method: payment?.method,
         });
+
+        // Grant credits on one-time credit pack purchase
+        if (payment?.notes?.credits && tenantId !== 'unknown') {
+          try {
+            const paymentId = payment.id;
+            const creditEventId = `credit_grant:${paymentId}`;
+            const { isDuplicate } = await logEventIfNotProcessed(creditEventId, 'credit.grant', tenantId);
+            if (!isDuplicate) {
+              const { grantCredits } = await import('../creditService.js');
+              const credits = Number(payment.notes.credits);
+              await grantCredits(tenantId, credits, 'purchase', {
+                razorpayPaymentId: paymentId,
+                razorpayOrderId: payment.order_id,
+                amountPaise: payment.amount,
+              });
+              logger.info('credits.purchase.granted', { tenantId, credits, paymentId });
+            }
+          } catch (creditErr) {
+            logger.error('credits.purchase.grant_failed', { error: creditErr.message, tenantId });
+          }
+        }
         break;
       }
 
