@@ -238,6 +238,19 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
       createdBy: req.user?.username || 'Admin',
     };
     const lead = await createLead(req.tenantId, leadData);
+
+    if (process.env.AGENTS_ENABLED === 'true') {
+      const { EventBridgeClient, PutEventsCommand } = await import('@aws-sdk/client-eventbridge');
+      const eb = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
+      eb.send(new PutEventsCommand({
+        Entries: [{
+          Source: 'crm.leads',
+          DetailType: 'lead.created',
+          Detail: JSON.stringify({ leadId: lead.leadId, tenantId: req.tenantId, leadType: lead.leadType }),
+        }],
+      })).catch(err => console.warn('eventbridge.publish.failed', err.message));
+    }
+
     const creditResult = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
     res.status(201).json({ ...lead, creditsRemaining: creditResult.balance });
   } catch (error) {

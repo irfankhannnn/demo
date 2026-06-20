@@ -33,6 +33,7 @@ router.put('/costs', async (req, res) => {
       }
     }
     await updateConfig('COSTS', costs);
+    await clearConfigCache();
     res.json({ success: true, costs });
   } catch (err) {
     logger.error('creditAdmin.costs.error', { error: err.message });
@@ -48,6 +49,7 @@ router.put('/packs', async (req, res) => {
       return res.status(400).json({ error: 'Invalid packs object' });
     }
     await updateConfig('PACKS', packs);
+    await clearConfigCache();
     res.json({ success: true, packs });
   } catch (err) {
     logger.error('creditAdmin.packs.error', { error: err.message });
@@ -63,6 +65,7 @@ router.put('/free-tier', async (req, res) => {
       return res.status(400).json({ error: 'monthlyFreeCredits must be >= 0' });
     }
     await updateConfig('FREE_TIER', { monthlyFreeCredits });
+    await clearConfigCache();
     res.json({ success: true, freeTier: { monthlyFreeCredits } });
   } catch (err) {
     logger.error('creditAdmin.freeTier.error', { error: err.message });

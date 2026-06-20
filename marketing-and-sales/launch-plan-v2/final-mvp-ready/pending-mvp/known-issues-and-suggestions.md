@@ -7,17 +7,17 @@
 1. **Auth internal WhatsApp lookup missing**  
    `server/routes/webhooks.js` calls `GET /internal/users/by-whatsapp?phone=` but this endpoint does **not exist** in `reality-flow-authentication`. Bailey inbound cannot resolve tenants until implemented.
 
-2. **Cron CFN templates incomplete**  
-   New cron YAML files (`incomplete-data`, `expiring-agreements`, `team-summary`, `lead-qualifier`) define Lambda functions without `Code` property pointing to S3 artifact. They will deploy empty shells. Mirror the full `trial-reminder.yaml` pattern including S3 code reference and execution role with table permissions.
+2. ~~**Cron CFN templates incomplete**~~  
+   ✅ **FIXED** — All 4 cron YAML files (`credit-reset`, `incomplete-data`, `expiring-agreements`, `team-summary`) now include `Code` (S3 ref), `Role` (IAM), and `Parameters`. Deploy with `LAMBDA_CODE_S3_BUCKET` + `LAMBDA_CODE_S3_KEY` env vars via `deploy-crons.sh`.
 
-3. **Data quality cron handlers are stubs**  
-   `incomplete-data-cron.js` and `expiring-agreements-cron.js` log start but do not iterate tenants or send messages. E5 acceptance not met until completed.
+3. ~~**Data quality cron handlers are stubs**~~  
+   ✅ **FIXED** — `incomplete-data-cron.js` and `expiring-agreements-cron.js` now scan all tenants from Subscriptions table, call `dataQualityService`, and send email (+ WhatsApp if Bailey enabled). `team-summary-cron.js` also fully implemented.
 
 4. **Pre-existing `build.sh` failures**  
    Syntax errors in `routes/aiCallingInternal.js`, `areasBuildings.js`, `developers.js`, `flats.js` predate this work. The extended `build.sh` gate will fail CI until those are fixed.
 
-5. **`lead.created` EventBridge not wired**  
-   EPIC 6 lead qualifier expects EventBridge event on lead create, but `leads.js` POST handler does not publish `crm.leads` / `lead.created` yet.
+5. ~~**`lead.created` EventBridge not wired**~~  
+   ✅ **FIXED** — `leads.js` POST handler now publishes `crm.leads` / `lead.created` event after `createLead()`, guarded by `process.env.AGENTS_ENABLED === 'true'` so it's safe with agents disabled.
 
 ### 🟡 Medium (degrade gracefully)
 
@@ -36,23 +36,27 @@
 10. **`GlassDataTable` column API assumption**  
     `TeamAnalytics.tsx` passes `columns` with `render` fn — verify `GlassDataTable` supports this prop shape; may need adjustment if table renders incorrectly.
 
+11. **Team summary cron uses aggregate stats, not per-member breakdown**  
+    `team-summary-cron.js` computes aggregate lead counts (total active, new today, closed today) without per-member stats because the auth service has no internal `/users` endpoint callable from Lambda. Per-member breakdown can be added after `GET /internal/users` is implemented in `reality-flow-authentication`.
+
 ### 🟢 Low / Polish
 
-11. **No admin nav link to Team Analytics** — route exists but not in sidebar  
-12. **`AgentActivityLog` not mounted** in any page yet  
-13. **ConnectWhatsApp calls wrong API path** — uses `/api/auth/whatsapp/pairing-qr` but auth routes mount at `/api/auth` ✓ (correct)  
-14. **E5-T4 UI badges** not implemented (optional per spec)  
-15. **PaywallModal** `openCheckout` now requires `planId` OR `orderId` — existing subscription flow unchanged
+12. ~~**No admin nav link to Team Analytics**~~ ✅ **FIXED** — Added Link to `/admin/team-analytics` with `BarChart3` icon in `CRMDashboard.tsx` admin block  
+13. **`AgentActivityLog` not mounted** in any page yet  
+14. **ConnectWhatsApp calls wrong API path** — uses `/api/auth/whatsapp/pairing-qr` but auth routes mount at `/api/auth` ✓ (correct)  
+15. **E5-T4 UI badges** not implemented (optional per spec)  
+16. **PaywallModal** `openCheckout` now requires `planId` OR `orderId` — existing subscription flow unchanged
 
 ---
 
 ## Suggestions for Post-MVP
 
 ### Architecture
-- **Unify cron deploy**: Single `deploy-crons.sh` should pass S3 bucket/key params to all cron stacks via `--parameter-overrides`
+- **Unify cron deploy**: ✅ Done — `deploy-crons.sh` now passes `--parameter-overrides LambdaCodeS3Bucket/Key` to all stacks
 - **Credit reset**: Store `billingAnniversaryDay` on subscription from Razorpay webhook instead of guessing from `trialEndsAt`
 - **Agent audit**: Migrate to `PK=TENANT#{id}`, `SK=AGENTLOG#{isoTs}` for efficient Query
 - **Webhook DLQ**: Implement SQS DLQ per `09-error-handling-recovery.md`
+- **Team summary per-member stats**: Add `GET /internal/users` to auth service; pass service token from cron env
 
 ### Security
 - Add rate limiting specifically on `/api/webhooks/whatsapp`
@@ -86,8 +90,17 @@
 - ✅ Billing settings page (E1-T3)
 - ✅ Bailey wrapper + webhook + processor scaffold (E1-T4–T6, flagged off)
 - ✅ Full credit system with atomic TransactWrite (E2)
+- ✅ `@modelcontextprotocol/sdk` dependency added to `server/package.json` (E6 blocker fixed)
+- ✅ `clearConfigCache()` called after all `updateConfig()` in `creditAdmin.js` (bug fixed)
 - ✅ SES-first emailService with Brevo fallback (E3)
 - ✅ Team analytics API + Excel export + frontend page (E4)
+- ✅ Team Analytics nav link in admin header (E4 polish)
 - ✅ dataQualityService logic (E5-T1)
+- ✅ incomplete-data-cron.js fully implemented (E5)
+- ✅ expiring-agreements-cron.js fully implemented (E5)
+- ✅ team-summary-cron.js fully implemented (E5)
+- ✅ All 4 cron CFN templates have Code + IAM Role + Parameters (E5/E6 infra)
+- ✅ deploy-crons.sh passes `--parameter-overrides` with S3 bucket/key (deploy fix)
+- ✅ EventBridge `lead.created` publish in leads.js POST handler (E6)
 - ✅ skillInvoker + MCP server + agentRuntime scaffold (E6)
 - ✅ CFN tables, IAM, env vars, deploy.sh agents/ zip

@@ -3,11 +3,17 @@ set -euo pipefail
 # Deploy individual cron CloudFormation stacks
 # Usage: ./infra/deploy-crons.sh [cron-name]
 # Example: ./infra/deploy-crons.sh credit-reset
+#
+# Required env vars:
+#   LAMBDA_CODE_S3_BUCKET  — S3 bucket containing cron Lambda zip
+#   LAMBDA_CODE_S3_KEY     — S3 key of the Lambda zip (e.g. cron/function.zip)
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CRON_DIR="$ROOT_DIR/cron"
 AWS_REGION="${AWS_REGION:-ap-south-1}"
+S3_BUCKET="${LAMBDA_CODE_S3_BUCKET:?LAMBDA_CODE_S3_BUCKET env var required}"
+S3_KEY="${LAMBDA_CODE_S3_KEY:?LAMBDA_CODE_S3_KEY env var required}"
 
 CRONS=(
   credit-reset
@@ -33,7 +39,10 @@ deploy_one() {
     --stack-name "realestateflow-${name}" \
     --capabilities CAPABILITY_IAM \
     --region "$AWS_REGION" \
-    --no-fail-on-empty-changeset
+    --no-fail-on-empty-changeset \
+    --parameter-overrides \
+      LambdaCodeS3Bucket="$S3_BUCKET" \
+      LambdaCodeS3Key="$S3_KEY"
 }
 
 if [ "${1:-}" = "all" ] || [ -z "${1:-}" ]; then

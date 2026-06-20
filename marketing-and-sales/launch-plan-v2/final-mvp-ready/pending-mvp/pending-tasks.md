@@ -8,8 +8,8 @@
   - `CreditsTableName`, `CreditConfigTableName`
   - `SesFromEmail`, `EmailProviderPrimary`
   - `BaileyEnabled=false`, `AgentsEnabled=false`
-- [ ] Deploy cron stacks: `server/infra/deploy-crons.sh all`
-- [ ] Wire cron Lambda functions to same S3 `function.zip` artifact (cron CFN templates currently define functions without Code — **must add S3Code like trial-reminder or use shared deploy pattern**)
+- [ ] Deploy cron stacks: `LAMBDA_CODE_S3_BUCKET=<bucket> LAMBDA_CODE_S3_KEY=<key> server/infra/deploy-crons.sh all`
+- [x] Cron CFN templates now have `Code`, `Role`, `Parameters` for all 4 cron stacks (fixed)
 - [ ] Force API Gateway redeploy after Lambda update
 
 ### Credit System (E2)
@@ -30,7 +30,7 @@
 
 ### Onboarding (E1)
 - [ ] Smoke test: Google OAuth → Role Selection → Register Admin → CRM (route now wired)
-- [ ] Verify trial auto-creates subscription +初始 credits on first `/trial-status` call
+- [ ] Verify trial auto-creates subscription + initial credits on first `/trial-status` call
 - [ ] Test `/crm/settings/billing` page loads plan + credit balance
 
 ### Bailey WhatsApp (E1 — optional)
@@ -44,21 +44,20 @@
 ### Team Analytics (E4)
 - [ ] Verify `GET /api/admin/team-analytics` with admin token
 - [ ] Test Excel export download
-- [ ] Add nav link to Team Analytics from admin menu (UI polish — route exists at `/admin/team-analytics`)
+- [x] Team Analytics nav link added to admin menu in `CRMDashboard.tsx` (fixed)
 
 ### Data Quality Crons (E5)
-- [ ] **Complete cron handler logic** — `incomplete-data-cron.js` and `expiring-agreements-cron.js` are stubs; need:
-  - Scan/list all tenants
-  - Call `dataQualityService.findIncomplete` / `findExpiringAgreements`
-  - Resolve admin email via auth service
-  - Send via `emailService` or `bailey.js`
-- [ ] Deploy `incomplete-data.yaml` and `expiring-agreements.yaml` with proper Lambda Code + IAM
+- [x] `incomplete-data-cron.js` — fully implemented (scans tenants, finds incomplete records, sends email + WhatsApp)
+- [x] `expiring-agreements-cron.js` — fully implemented (scans tenants, finds expiring leases, sends per-agreement alerts)
+- [x] `team-summary-cron.js` — fully implemented (scans tenants, aggregates lead stats, sends daily summary)
+- [ ] Deploy `incomplete-data.yaml` and `expiring-agreements.yaml` cron stacks (CFN templates are complete)
+- [ ] Verify `Subscriptions` table items have `contactEmail` or `adminEmail` field set
 
 ### MCP + Agents (E6)
 - [ ] Install MCP server deps: `cd server/mcp-server && npm install`
 - [ ] Set `MCP_TENANT_ID` when running locally; register in `.mcp.json` (done)
 - [ ] Set `AGENTS_ENABLED=true` only for pilot tenants after Bedrock model access confirmed
-- [ ] Add `lead.created` EventBridge publish in `leads.js` POST handler (not yet wired)
+- [x] `lead.created` EventBridge publish added to `leads.js` POST handler (guarded by `AGENTS_ENABLED=true`)
 - [ ] Complete `lead-followup-cron.js` and `lead-router-handler.js` (not created)
 - [ ] Enable `lead-qualifier.yaml` EventBridge rule (currently `State: DISABLED`)
 - [ ] Bedrock model access in `ap-south-1` for `anthropic.claude-3-haiku-20240307-v1:0`
@@ -69,7 +68,6 @@
 
 ### Frontend
 - [ ] Set `VITE_BAILEY_ENABLED=true` only when Bailey is live
-- [ ] Add Team Analytics link in admin sidebar/navigation
 - [ ] Mount `AgentActivityLog` on admin dashboard or billing page
 
 ## Nice-to-have (post-MVP)
@@ -78,3 +76,4 @@
 - [ ] CloudWatch custom metrics + alarms
 - [ ] Full Bedrock tool-use loop (current agentRuntime uses simplified text parsing)
 - [ ] MCP Lambda HTTP transport (Phase 2)
+- [ ] Per-member team analytics in team-summary cron (requires `GET /internal/users` auth service endpoint)

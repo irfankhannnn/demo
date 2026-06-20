@@ -172,6 +172,14 @@ export default function CRMDashboard() {
                     <Users className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span className="hidden sm:inline">Members</span>
                   </Link>
+                  <Link
+                    to="/admin/team-analytics"
+                    className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                    title="Team Analytics"
+                  >
+                    <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline">Analytics</span>
+                  </Link>
                 </>
               )}
               

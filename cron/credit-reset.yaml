@@ -1,16 +1,57 @@
-# Credit Reset Cron — EventBridge Rule
-# Schedule: 00:30 IST daily (19:00 UTC previous day)
-# Resets monthly credit allotments per tenant
-
 AWSTemplateFormatVersion: '2010-09-09'
 Description: 'Monthly credit reset cron — daily at 00:30 IST'
 
+Parameters:
+  SubscriptionsTableName:
+    Type: String
+    Default: 'Subscriptions'
+  CreditsTableName:
+    Type: String
+    Default: 'cloudberry-real-estate-credits'
+  CreditConfigTableName:
+    Type: String
+    Default: 'cloudberry-real-estate-credit-config'
+  LambdaCodeS3Bucket:
+    Type: String
+  LambdaCodeS3Key:
+    Type: String
+
 Resources:
+  CreditResetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-credit-reset-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CreditResetPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+
   CreditResetRule:
     Type: AWS::Events::Rule
     Properties:
       Name: realestateflow-credit-reset
-      Description: 'Trigger credit reset Lambda daily at 00:30 IST'
+      Description: 'Trigger credit reset Lambda daily at 00:30 IST (19:00 UTC)'
       ScheduleExpression: 'cron(0 19 * * ? *)'
       State: ENABLED
       Targets:
@@ -25,6 +66,10 @@ Resources:
       Handler: credit-reset-cron.handler
       Timeout: 300
       MemorySize: 256
+      Role: !GetAtt CreditResetRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
       Environment:
         Variables:
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
@@ -39,14 +84,3 @@ Resources:
       Action: 'lambda:InvokeFunction'
       Principal: 'events.amazonaws.com'
       SourceArn: !GetAtt CreditResetRule.Arn
-
-Parameters:
-  SubscriptionsTableName:
-    Type: String
-    Default: 'Subscriptions'
-  CreditsTableName:
-    Type: String
-    Default: 'cloudberry-real-estate-credits'
-  CreditConfigTableName:
-    Type: String
-    Default: 'cloudberry-real-estate-credit-config'
