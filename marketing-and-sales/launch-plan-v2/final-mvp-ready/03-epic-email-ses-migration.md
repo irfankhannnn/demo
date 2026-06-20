@@ -20,6 +20,8 @@
 
 ## E3-T1 — `emailService.js` abstraction (SES primary, Brevo fallback)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Single send function used everywhere.
 
 **Files**

@@ -156,9 +156,14 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
 // Create contact
 router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'contact_add');
     const contact = await createContact(req.tenantId, req.body);
-    res.status(201).json(contact);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'contact_add', { recordId: contact.contactId });
+    res.status(201).json({ ...contact, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Create contact error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }

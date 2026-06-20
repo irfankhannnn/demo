@@ -1,7 +1,12 @@
 import express from 'express';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { getSubscription, recomputeSeatsUsed, createTrialSubscription } from '../subscriptionService.js';
+import { getBalance, getLedger, grantCredits, initializeTenantCredits } from '../creditService.js';
+import { getCosts, getPacks, getFreeTier } from '../creditConfig.js';
+import { createOrder } from '../razorpayOrders.js';
+import { precheckCredits, chargeCreditsForAction, handleCreditError } from '../middleware/meterCredits.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
@@ -30,6 +35,8 @@ router.get('/trial-status', validateToken, extractTenantId, async (req, res) => 
       try {
         subscription = await createTrialSubscription(req.tenantId, 'solo');
         logger.info('subscriptions.trialStatus.autoCreated', { tenantId: req.tenantId });
+        const freeTier = await getFreeTier();
+        await initializeTenantCredits(req.tenantId, freeTier.monthlyFreeCredits);
       } catch (createErr) {
         // If creation fails (e.g., already exists from concurrent request), try fetching again
         subscription = await getSubscription(req.tenantId);
@@ -101,6 +108,90 @@ router.post('/check-seat', validateToken, extractTenantId, async (req, res) => {
   } catch (err) {
     logger.error('subscriptions.checkSeat.error', { tenantId: req.tenantId, error: err.message });
     res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// GET /api/subscriptions/credits — balance + costs + packs
+router.get('/credits', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const [balance, costs, packs, freeTier] = await Promise.all([
+      getBalance(req.tenantId),
+      getCosts(),
+      getPacks(),
+      getFreeTier(),
+    ]);
+    const subscription = await getSubscription(req.tenantId);
+    res.json({
+      balance,
+      costs,
+      packs,
+      freeTier,
+      resetDate: subscription?.lastCreditResetAt || null,
+      monthlyAllotment: freeTier.monthlyFreeCredits,
+    });
+  } catch (err) {
+    logger.error('subscriptions.credits.error', { tenantId: req.tenantId, error: err.message });
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// GET /api/subscriptions/credits/ledger
+router.get('/credits/ledger', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const startKey = req.query.startKey ? JSON.parse(req.query.startKey) : undefined;
+    const result = await getLedger(req.tenantId, { limit, startKey });
+    res.json(result);
+  } catch (err) {
+    logger.error('subscriptions.ledger.error', { tenantId: req.tenantId, error: err.message });
+    res.status(500).json({ error: 'internal_error' });
+  }
+});
+
+// POST /api/subscriptions/credits/purchase — Razorpay Order for credit pack
+router.post('/credits/purchase', validateToken, extractTenantId, requireRole('ADMIN', 'FOUNDER', 'OWNER'), async (req, res) => {
+  try {
+    const { packId, credits: creditsRequested } = req.body;
+    const packs = await getPacks();
+    const creditPacks = packs.creditPacks || {};
+
+    let credits;
+    let amountInr;
+
+    if (packId && creditPacks[packId]) {
+      credits = creditPacks[packId].credits;
+      amountInr = creditPacks[packId].priceInr;
+    } else if (creditsRequested) {
+      credits = Math.floor(Number(creditsRequested));
+      amountInr = Math.ceil(credits * (packs.overagePricePerCredit || 0.10));
+    } else {
+      return res.status(400).json({ error: 'packId or credits required' });
+    }
+
+    if (!credits || credits <= 0) {
+      return res.status(400).json({ error: 'Invalid credit amount' });
+    }
+
+    const receipt = `credits_${req.tenantId}_${Date.now()}`;
+    const order = await createOrder({
+      amount: amountInr,
+      receipt,
+      notes: {
+        tenantId: req.tenantId,
+        credits: String(credits),
+        type: 'credit_purchase',
+      },
+    });
+
+    res.json({
+      orderId: order.id,
+      amount: order.amount,
+      credits,
+      currency: order.currency,
+    });
+  } catch (err) {
+    logger.error('subscriptions.credits.purchase.error', { tenantId: req.tenantId, error: err.message });
+    res.status(500).json({ error: err.message || 'internal_error' });
   }
 });
 

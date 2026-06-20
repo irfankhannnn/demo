@@ -503,7 +503,9 @@ router.get('/entries/:entryId', async (req, res) => {
 // Create new entry
 router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     const tenantId = req.tenantId;
+    await precheckCredits(tenantId, 'khata_entry');
     const username = req.user?.username || 'system';
     const {
       propertyId,
@@ -632,8 +634,11 @@ router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) =
       }
     }
 
-    res.status(201).json(entry);
+    const creditResult = await chargeCreditsForAction(tenantId, 'khata_entry', { recordId: entryId });
+    res.status(201).json({ ...entry, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Error creating entry:', error);
     return res.status(500).json({ error: 'Failed to create entry' });
   }

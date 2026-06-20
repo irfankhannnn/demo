@@ -107,11 +107,14 @@ Each gets its own `*.yaml` with EventBridge Rule (schedule or pattern) + Lambda 
 ---
 
 ## Implementer checklist (infra)
-- [ ] Tables added + params + IAM ARNs + role statements (DynamoDB/SES/EventBridge/Bedrock) in `cfn-backend.yaml`.
-- [ ] Env vars added to `ApiLambdaFunction.Environment` + matching `Parameters` in `cfn-backend.yaml`.
-- [ ] `deploy.sh` zip include: `agents/` added, `mcp-server/*` excluded, new params wired to `cfn-params.json`.
-- [ ] `build.sh` extended: check root `*.js` files + `agents/` directory.
-- [ ] Each cron/event template created from `cron/trial-reminder.yaml` with correct handler path + execution role.
+
+**Status:** ✅ IMPLEMENTED in code (2026-06-19) — deploy + cron Code wiring still manual (see `pending-mvp/`)
+
+- [x] Tables added + params + IAM ARNs + role statements (DynamoDB/SES/EventBridge/Bedrock) in `cfn-backend.yaml`.
+- [x] Env vars added to `ApiLambdaFunction.Environment` + matching `Parameters` in `cfn-backend.yaml`.
+- [x] `deploy.sh` zip include: `agents/` added, `mcp-server/*` excluded, new params wired to `cfn-params.json`.
+- [x] `build.sh` extended: check root `*.js` files + `agents/` directory.
+- [ ] Each cron/event template created from `cron/trial-reminder.yaml` with correct handler path + execution role + **S3 Code**.
 - [ ] `cloudformation validate-template` passes for main stack + every cron template.
-- [ ] `server/server.js` mount additions: `webhooksRoutes` before `express.json()`, `adminRoutes` + `creditAdminRoutes` after.
-- [ ] `deploy-crons.sh` helper created in `server/infra/` for deploying individual cron stacks.
+- [x] `server/server.js` mount additions: `webhooksRoutes` before `express.json()`, `adminRoutes` + `creditAdminRoutes` after.
+- [x] `deploy-crons.sh` helper created in `server/infra/` for deploying individual cron stacks.

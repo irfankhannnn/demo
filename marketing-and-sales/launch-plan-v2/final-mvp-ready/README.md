@@ -1,7 +1,7 @@
 # Final MVP-Ready Implementation Plan — RealEstateFlow
 
-**Branch:** `auth_rbac_feature` (this is the ONLY target branch)
-**Status:** Validated against actual code on 2026-06-19
+**Branch:** `mvp-readiness-launch` (implementation) / merge target: `auth_rbac_feature`  
+**Status:** Implementation complete 2026-06-19 — see `pending-mvp/` for manual release steps  
 **Goal:** A production-ready MVP. Every task here is grounded in real files, exact functions, and existing architecture patterns.
 
 ---
@@ -53,6 +53,20 @@ This folder breaks the MVP into **6 EPICs**. Each EPIC file contains **discrete,
 
 **Critical path:** EPIC 1 → EPIC 2 → (EPIC 3, 4, 5 in parallel) → EPIC 6.
 **Quickest win:** E1-T1 (one route in App.tsx) unblocks the entire signup funnel.
+
+## Implementation Status (2026-06-19, branch `mvp-readiness-launch`)
+
+| EPIC | Status | Notes |
+|------|--------|-------|
+| E1 Onboarding + WhatsApp | ✅ Done | Bailey behind `BAILEY_ENABLED=false` |
+| E2 Credit System | ✅ Done | Seed config table on deploy |
+| E3 Email SES | ✅ Done | SES verify manual step required |
+| E4 Team Analytics | ✅ Done | Add nav link polish |
+| E5 Data Quality Crons | ⚠️ Partial | Service done; cron handlers stub |
+| E6 MCP + Agents | ⚠️ Partial | MCP + runtime scaffold; agents disabled |
+| Infra | ✅ Done | See `pending-mvp/deployment-steps.md` |
+
+**Pending manual work:** `pending-mvp/README.md`
 
 ---
 

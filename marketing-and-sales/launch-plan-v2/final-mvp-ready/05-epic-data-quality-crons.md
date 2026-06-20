@@ -22,6 +22,8 @@
 
 ## E5-T1 — Shared incomplete-record detector
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** One reusable module classifies records as complete/incomplete per entity, so cron + (future) UI badges share logic.
 
 **Files**

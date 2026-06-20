@@ -43,6 +43,11 @@ export interface UserItem {
   GSI_PhonePK?: string;
   GSI_PhoneSK?: string;
   authMethod: 'google' | 'phone';
+  whatsAppPhoneNumber?: string;
+  whatsAppBusinessAccountId?: string;
+  whatsAppVerified?: boolean;
+  whatsAppConnectedAt?: string;
+  GSI_WhatsAppPK?: string;
 }
 
 /**

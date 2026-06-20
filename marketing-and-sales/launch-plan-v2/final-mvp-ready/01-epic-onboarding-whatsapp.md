@@ -18,6 +18,8 @@
 
 ## E1-T1 — Wire the RegisterAdmin route (CRITICAL, unblocks signup)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Make `/onboarding/register-admin` reachable so ADMIN signup completes.
 
 **Files**
@@ -54,6 +56,8 @@
 ---
 
 ## E1-T2 — Trial banner + in-app upgrade entry points
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Trial users always see days remaining and a working "Upgrade" path (reusing PaywallModal).
 
@@ -95,6 +99,8 @@
 
 ## E1-T3 — Billing settings page (current plan + manage)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** A `/crm/settings/billing` page showing current plan, next billing date, trial state, and upgrade button; later hosts credit balance (E2-T7) and Buy-Credits (E2-T8).
 
 **Files**
@@ -123,6 +129,8 @@
 ---
 
 ## E1-T4 — Bailey: data model + "Connect WhatsApp" onboarding step (OPTIONAL, flagged)
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Let an admin connect their WhatsApp Business number via Bailey. Entirely behind `BAILEY_ENABLED`.
 
@@ -162,6 +170,8 @@
 
 ## E1-T5 — Bailey inbound webhook (OPTIONAL, flagged)
 
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
+
 **Goal:** Receive WhatsApp messages and enqueue them for processing, with verified signatures.
 
 **Files**
@@ -189,6 +199,8 @@
 ---
 
 ## E1-T6 — Bailey message processor → MCP/skills (OPTIONAL, flagged)
+
+**Status:** ✅ IMPLEMENTED (2026-06-19, branch `mvp-readiness-launch`)
 
 **Goal:** Turn an inbound WhatsApp message into a CRM action via the MCP/skills layer, then reply.
 

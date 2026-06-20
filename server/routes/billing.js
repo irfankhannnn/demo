@@ -5,6 +5,7 @@ import { createProvisioningRow } from '../aiEmployeeProvisioningService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { incrementSeatsPaid } from '../subscriptionService.js';
 import { logger } from '../logger.js';
+import { sendEmail } from '../emailService.js';
 
 const router = express.Router();
 
@@ -22,27 +23,22 @@ async function serverTrack(distinctId, event, properties = {}) {
 }
 
 /**
- * Send transactional email via Brevo.
- * Failure must NOT fail the webhook — always returns 200.
+ * Send transactional email via emailService (SES primary, Brevo fallback).
  */
 async function sendBrevoEmail(templateId, to, params) {
-  if (!templateId || !process.env.BREVO_API_KEY) {
-    logger.warn('Brevo email skipped — missing template ID or API key', { templateId, to });
+  if (!to) {
+    logger.warn('Email skipped — missing recipient', { templateId });
     return;
   }
   try {
-    await axios.post('https://api.brevo.com/v3/smtp/email', {
-      templateId: parseInt(templateId, 10),
-      to: [{ email: to }],
+    await sendEmail({
+      to,
+      subject: 'RealEstateFlow Notification',
+      brevoTemplateId: templateId,
       params,
-    }, {
-      headers: {
-        'api-key': process.env.BREVO_API_KEY,
-        'Content-Type': 'application/json',
-      },
     });
   } catch (err) {
-    logger.error('Brevo email failed (non-fatal)', { error: err.message, to });
+    logger.error('Email failed (non-fatal)', { error: err.message, to });
   }
 }
 
@@ -222,6 +218,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           amount: payment?.amount,
           method: payment?.method,
         });
+
+        // Grant credits on one-time credit pack purchase
+        if (payment?.notes?.credits && tenantId !== 'unknown') {
+          try {
+            const paymentId = payment.id;
+            const creditEventId = `credit_grant:${paymentId}`;
+            const { isDuplicate } = await logEventIfNotProcessed(creditEventId, 'credit.grant', tenantId);
+            if (!isDuplicate) {
+              const { grantCredits } = await import('../creditService.js');
+              const credits = Number(payment.notes.credits);
+              await grantCredits(tenantId, credits, 'purchase', {
+                razorpayPaymentId: paymentId,
+                razorpayOrderId: payment.order_id,
+                amountPaise: payment.amount,
+              });
+              logger.info('credits.purchase.granted', { tenantId, credits, paymentId });
+            }
+          } catch (creditErr) {
+            logger.error('credits.purchase.grant_failed', { error: creditErr.message, tenantId });
+          }
+        }
         break;
       }
 

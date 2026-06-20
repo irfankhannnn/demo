@@ -154,9 +154,14 @@ router.get('/customers/:id', validateToken, extractTenantId, async (req, res) =>
 // Create customer
 router.post('/customers', validateToken, extractTenantId, validateBody(createCustomerSchema), async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'tenant_add');
     const customer = await createCustomer(req.tenantId, req.body);
-    res.status(201).json(customer);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'tenant_add', { recordId: customer.customerId });
+    res.status(201).json({ ...customer, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     logger.error('crm.create_customer_error_', { message: 'Create customer error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
@@ -376,9 +381,14 @@ router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
 // Create owner
 router.post('/owners', validateToken, extractTenantId, validateBody(createOwnerSchema), async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'owner_add');
     const owner = await createOwner(req.tenantId, req.body);
-    res.status(201).json(owner);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'owner_add', { recordId: owner.ownerId });
+    res.status(201).json({ ...owner, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     logger.error('crm.create_owner_error_', { message: 'Create owner error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
@@ -739,9 +749,14 @@ router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async 
 // Create property
 router.post('/properties', validateToken, extractTenantId, validateBody(createPropertySchema), async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'property_add');
     const property = await createProperty(req.tenantId, req.body);
-    res.status(201).json(property);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'property_add', { recordId: property.propertyId });
+    res.status(201).json({ ...property, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     logger.error('crm.create_property_error_', { message: 'Create property error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }

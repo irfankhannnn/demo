@@ -26,6 +26,8 @@ import billingRoutes from './routes/billing.js';
 import aiEmployeeStatusRoutes from './routes/aiEmployeeStatus.js';
 // PR-H
 import subscriptionsRoutes from './routes/subscriptions.js';
+import creditAdminRoutes from './routes/creditAdmin.js';
+import adminRoutes from './routes/admin.js';
 // PR-K
 import feedbackRoutes from './routes/feedback.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
@@ -68,6 +70,11 @@ app.use(requestLogger);
 // Billing webhook MUST be before express.json() to preserve raw body for HMAC
 logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
 app.use('/api/billing', billingRoutes);
+
+// Webhooks (Bailey WhatsApp) — raw body before JSON parser
+import webhooksRoutes from './routes/webhooks.js';
+logger.info('routes.mount', { basePath: '/api/webhooks', router: 'webhooksRoutes' });
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
 
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
@@ -120,6 +127,10 @@ app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // PR-H
 logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscriptionsRoutes' });
 app.use('/api/subscriptions', subscriptionsRoutes);
+logger.info('routes.mount', { basePath: '/api/credit-config', router: 'creditAdminRoutes' });
+app.use('/api/credit-config', creditAdminRoutes);
+logger.info('routes.mount', { basePath: '/api/admin', router: 'adminRoutes' });
+app.use('/api/admin', adminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);

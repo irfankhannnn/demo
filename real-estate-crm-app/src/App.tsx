@@ -10,8 +10,10 @@ import { identifyUser } from './lib/analytics';
 import DemoBanner from './components/DemoBanner';
 // PR-J
 import { SubscriptionProvider } from './contexts/SubscriptionContext';
+import { CreditsProvider } from './contexts/CreditsContext';
 import TrialCountdownBanner from './components/TrialCountdownBanner';
 import PaywallModal from './components/PaywallModal';
+import BuyCreditsModal, { InsufficientCreditsListener } from './components/BuyCreditsModal';
 // PR-C
 import CookieConsentBanner from './components/CookieConsentBanner';
 // PR-K
@@ -33,6 +35,8 @@ import Profile from './pages/Profile';
 // Onboarding Pages
 import RoleSelection from './pages/RoleSelection';
 import AcceptInvite from './pages/AcceptInvite';
+import RegisterAdmin from './pages/RegisterAdmin';
+import ConnectWhatsApp from './pages/onboarding/ConnectWhatsApp';
 
 // Member Pages
 import Invites from './pages/member/Invites';
@@ -41,6 +45,7 @@ import NoAccess from './pages/member/NoAccess';
 // Admin Pages
 import InviteManagement from './pages/admin/InviteManagement';
 import MemberManagement from './pages/admin/MemberManagement';
+import TeamAnalytics from './pages/admin/TeamAnalytics';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-B
@@ -68,6 +73,7 @@ import BuyerList from './pages/crm/BuyerList';
 import BuyerDetails from './pages/crm/BuyerDetails';
 import LeadList from './pages/crm/LeadList';
 import LeadDetails from './pages/crm/LeadDetails';
+import BillingSettings from './pages/crm/BillingSettings';
 
 // PR-F
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
@@ -94,6 +100,8 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [showBuyCredits, setShowBuyCredits] = useState(false);
 
   useEffect(() => {
     async function initAuth() {
@@ -287,11 +295,14 @@ function App() {
     <Router>
       <GoogleMapsProvider>
         <SubscriptionProvider>
+          <CreditsProvider>
           {/* PR-A: Demo banner */}
           <DemoBanner />
           {/* PR-J: Trial countdown + paywall */}
-          <TrialCountdownBanner />
-          <PaywallModal />
+          <TrialCountdownBanner onUpgradeClick={() => setShowPaywall(true)} />
+          <PaywallModal forceOpen={showPaywall} onClose={() => setShowPaywall(false)} />
+          <BuyCreditsModal forceOpen={showBuyCredits} onClose={() => setShowBuyCredits(false)} />
+          <InsufficientCreditsListener onTrigger={() => setShowBuyCredits(true)} />
           {/* PR-K: NPS */}
           <NpsModal />
           <CookieConsentBanner />
@@ -308,6 +319,8 @@ function App() {
 
             {/* Onboarding Routes (authenticated but not registered) */}
             <Route path="/onboarding/role-selection" element={<ProtectedRoute authState={authState}><RoleSelection /></ProtectedRoute>} />
+            <Route path="/onboarding/register-admin" element={<ProtectedRoute authState={authState}><RegisterAdmin /></ProtectedRoute>} />
+            <Route path="/onboarding/connect-whatsapp" element={<ProtectedRoute authState={authState}><ConnectWhatsApp /></ProtectedRoute>} />
             <Route path="/onboarding/accept-invite" element={<ProtectedRoute authState={authState}><AcceptInvite /></ProtectedRoute>} />
 
             {/* Member Routes (post-auth but pre-registration) */}
@@ -326,6 +339,7 @@ function App() {
             <Route path="/admin/grievances" element={<ProtectedRoute authState={authState}><GrievanceList /></ProtectedRoute>} />
             <Route path="/admin/invites" element={<ProtectedRoute authState={authState}><InviteManagement /></ProtectedRoute>} />
             <Route path="/admin/members" element={<ProtectedRoute authState={authState}><MemberManagement /></ProtectedRoute>} />
+            <Route path="/admin/team-analytics" element={<ProtectedRoute authState={authState}><TeamAnalytics /></ProtectedRoute>} />
 
             {/* CRM Routes */}
             <Route path="/crm" element={<ProtectedRoute authState={authState}><CRMDashboard /></ProtectedRoute>} />
@@ -359,6 +373,7 @@ function App() {
             <Route path="/crm/buyers/:id" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
 
             {/* Lead Routes */}
+            <Route path="/crm/settings/billing" element={<ProtectedRoute authState={authState}><BillingSettings /></ProtectedRoute>} />
             <Route path="/crm/leads" element={<ProtectedRoute authState={authState}><LeadList /></ProtectedRoute>} />
             <Route path="/crm/leads/new" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
             <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
@@ -368,6 +383,7 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />
           </Routes>
+          </CreditsProvider>
         </SubscriptionProvider>
       </GoogleMapsProvider>
     </Router>

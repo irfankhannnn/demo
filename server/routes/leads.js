@@ -223,6 +223,9 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 // Create lead
 router.post('/', validateToken, extractTenantId, async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'lead_add');
+
     const { name, leadType } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Name is required' });
@@ -235,8 +238,24 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
       createdBy: req.user?.username || 'Admin',
     };
     const lead = await createLead(req.tenantId, leadData);
-    res.status(201).json(lead);
+
+    if (process.env.AGENTS_ENABLED === 'true') {
+      const { EventBridgeClient, PutEventsCommand } = await import('@aws-sdk/client-eventbridge');
+      const eb = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
+      eb.send(new PutEventsCommand({
+        Entries: [{
+          Source: 'crm.leads',
+          DetailType: 'lead.created',
+          Detail: JSON.stringify({ leadId: lead.leadId, tenantId: req.tenantId, leadType: lead.leadType }),
+        }],
+      })).catch(err => console.warn('eventbridge.publish.failed', err.message));
+    }
+
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
+    res.status(201).json({ ...lead, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Create lead error:', error);
     if (error.message && error.message.startsWith('A lead with this phone number already exists')) {
       return res.status(409).json({ error: error.message });

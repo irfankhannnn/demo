@@ -4,7 +4,7 @@ import { useSubscription } from '../hooks/useSubscription';
 import { openCheckout } from '../lib/razorpay';
 import { trackEvent } from '../lib/analytics';
 
-const PAYWALL_WHITELIST = ['/profile', '/billing', '/legal', '/grievance', '/integrations/ai-employee'];
+const PAYWALL_WHITELIST = ['/profile', '/billing', '/crm/settings/billing', '/legal', '/grievance', '/integrations/ai-employee'];
 
 const TIERS = [
   {

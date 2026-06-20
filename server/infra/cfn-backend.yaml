@@ -80,6 +80,42 @@ Parameters:
     Default: Subscriptions
     Description: Name of the DynamoDB table storing tenant subscription plans and seat limits
 
+  CreditsTableName:
+    Type: String
+    Default: cloudberry-real-estate-credits
+    Description: DynamoDB table for tenant credit balances and ledger
+
+  CreditConfigTableName:
+    Type: String
+    Default: cloudberry-real-estate-credit-config
+    Description: DynamoDB table for owner-editable credit configuration
+
+  SesFromEmail:
+    Type: String
+    Default: noreply@realestateflow.in
+
+  EmailProviderPrimary:
+    Type: String
+    Default: ses
+
+  BaileyEnabled:
+    Type: String
+    Default: 'false'
+
+  BaileyApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  BaileyWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  AgentsEnabled:
+    Type: String
+    Default: 'false'
+
   S3BucketName:
     Type: String
     Description: S3 bucket name for documents (must be globally unique)
@@ -331,6 +367,54 @@ Resources:
 
       KeySchema:
         - AttributeName: TenantId
+          KeyType: HASH
+
+  CreditsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CreditsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: actionType-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  CreditConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CreditConfigTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: configKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: configKey
           KeyType: HASH
 
   AreasTableCloudberry:
@@ -792,6 +876,8 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${NpsResponsesTableName}"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}"
+                  - !GetAtt CreditsTable.Arn
+                  - !GetAtt CreditConfigTable.Arn
               - Effect: Allow
                 Action:
                   - dynamodb:Query
@@ -808,6 +894,25 @@ Resources:
                   - !Sub "${RealEstateAreasTable.Arn}/index/*"
                   - !Sub "${ProjectsTable.Arn}/index/*"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}/index/*"
+                  - !Sub "${CreditsTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:TransactWriteItems
+                Resource:
+                  - !GetAtt CreditsTable.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
               - Effect: Allow
                 Action:
                   - s3:PutObject
@@ -849,6 +954,14 @@ Resources:
           GRIEVANCES_TABLE_NAME: !Ref GrievancesTableName
           NPS_TABLE_NAME: !Ref NpsResponsesTableName
           SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
+          AGENTS_ENABLED: !Ref AgentsEnabled
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
           CRM_API_BASE_PATH: !Ref CrmApiBasePath

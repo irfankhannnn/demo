@@ -113,9 +113,9 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
   echo "[2/6] Packaging function.zip..."
   rm -f "$PROJECT_DIR/function.zip"
   cd "$PROJECT_DIR"
-  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ \
+  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ agents/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
-       "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*"
+       "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*" "mcp-server/*"
 
   # -----------------------------------------------------------------------------
   # 4. Upload to S3
