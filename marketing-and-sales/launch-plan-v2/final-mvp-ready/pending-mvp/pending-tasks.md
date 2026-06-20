@@ -1,79 +1,148 @@
-# Pending Tasks — Detailed Checklist
+# Pending Tasks — Testing & Verification Checklist
 
-## Must-do before MVP launch
+**All deployment, configuration, and infrastructure tasks are in `deployment-steps.md` with full details.**
 
-### Infrastructure
-- [ ] Run `cd server && npm ci && bash scripts/build.sh` — note: pre-existing syntax errors in `routes/aiCallingInternal.js`, `areasBuildings.js`, `developers.js`, `flats.js` (unrelated to MVP work; fix or exclude from gate)
-- [ ] Deploy main stack: `cd server/infra && ./deploy.sh` with updated `cfn-params.json` including:
-  - `CreditsTableName`, `CreditConfigTableName`
-  - `SesFromEmail`, `EmailProviderPrimary`
-  - `BaileyEnabled=false`, `AgentsEnabled=false`
-- [ ] Deploy cron stacks: `LAMBDA_CODE_S3_BUCKET=<bucket> LAMBDA_CODE_S3_KEY=<key> server/infra/deploy-crons.sh all`
-- [x] Cron CFN templates now have `Code`, `Role`, `Parameters` for all 4 cron stacks (fixed)
-- [ ] Force API Gateway redeploy after Lambda update
+This file tracks only the testing and verification items needed before MVP launch.
 
-### Credit System (E2)
-- [ ] Run one-time config seed:
-  ```bash
-  cd server && node -e "import('./creditConfig.js').then(m => m.seedDefaultConfig())"
-  ```
-- [ ] Set `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` in Lambda env (for Orders API)
-- [ ] Verify Razorpay webhook at `POST /api/billing/webhook` handles `payment.captured` with `notes.credits`
-- [ ] Test credit purchase E2E: Buy Credits modal → Razorpay → balance increases
-- [ ] Confirm `lastCreditResetAt` field exists on Subscriptions table (added at runtime by cron; no migration needed)
+---
 
-### Email SES (E3)
-- [ ] Complete manual SES setup per `../notes/ses-aws-setup.md`
-- [ ] Request SES production access (sandbox blocks non-verified recipients)
-- [ ] Verify trial-reminder + escalation cron Lambda roles have `ses:SendEmail`
-- [ ] Send test email; confirm SES primary + Brevo fallback in logs
+## Pre-Launch Verification
 
-### Onboarding (E1)
-- [ ] Smoke test: Google OAuth → Role Selection → Register Admin → CRM (route now wired)
-- [ ] Verify trial auto-creates subscription + initial credits on first `/trial-status` call
-- [ ] Test `/crm/settings/billing` page loads plan + credit balance
+### Code Complete ✅
 
-### Bailey WhatsApp (E1 — optional)
-- [ ] Obtain Bailey API credentials and WABA approval
-- [ ] Set `BAILEY_ENABLED=true`, `BAILEY_API_KEY`, `BAILEY_WEBHOOK_SECRET`
-- [ ] Add auth service internal endpoint `GET /internal/users/by-whatsapp?phone=` (referenced in webhooks.js but **not yet implemented**)
-- [ ] Add GSI on UsersTable for `whatsAppPhoneNumber` reverse lookup
-- [ ] Deploy `whatsapp-processor` EventBridge rule
-- [ ] Register webhook URL: `https://<api>/api/webhooks/whatsapp`
+- [x] `incomplete-data-cron.js` — fully implemented
+- [x] `expiring-agreements-cron.js` — fully implemented
+- [x] `team-summary-cron.js` — fully implemented with per-member breakdown
+- [x] `agentRuntime.js` — upgraded to native Bedrock tool-use loop
+- [x] `agentAuditService.js` — created with efficient PK/SK pattern
+- [x] `emailService.js` — wired with CloudWatch metrics
+- [x] TeamAnalytics.tsx — GlassDataTable fixes applied
+- [x] BillingSettings.tsx — AgentActivityLog mounted
+- [x] ConnectWhatsApp.tsx — redesigned with provider selector
+- [x] `GET /internal/users/by-whatsapp` — implemented in auth service
+- [x] `GET /internal/users/list` — implemented in auth service
+- [x] Webhook rate limiting — applied to POST /whatsapp
+- [x] observability/cloudwatch.js — created with metric helpers
+- [x] observability-dashboard-spec.md — created with 3-dashboard spec
 
-### Team Analytics (E4)
-- [ ] Verify `GET /api/admin/team-analytics` with admin token
-- [ ] Test Excel export download
-- [x] Team Analytics nav link added to admin menu in `CRMDashboard.tsx` (fixed)
+---
 
-### Data Quality Crons (E5)
-- [x] `incomplete-data-cron.js` — fully implemented (scans tenants, finds incomplete records, sends email + WhatsApp)
-- [x] `expiring-agreements-cron.js` — fully implemented (scans tenants, finds expiring leases, sends per-agreement alerts)
-- [x] `team-summary-cron.js` — fully implemented (scans tenants, aggregates lead stats, sends daily summary)
-- [ ] Deploy `incomplete-data.yaml` and `expiring-agreements.yaml` cron stacks (CFN templates are complete)
-- [ ] Verify `Subscriptions` table items have `contactEmail` or `adminEmail` field set
+## Testing Checklist
 
-### MCP + Agents (E6)
-- [ ] Install MCP server deps: `cd server/mcp-server && npm install`
-- [ ] Set `MCP_TENANT_ID` when running locally; register in `.mcp.json` (done)
-- [ ] Set `AGENTS_ENABLED=true` only for pilot tenants after Bedrock model access confirmed
-- [x] `lead.created` EventBridge publish added to `leads.js` POST handler (guarded by `AGENTS_ENABLED=true`)
-- [ ] Complete `lead-followup-cron.js` and `lead-router-handler.js` (not created)
-- [ ] Enable `lead-qualifier.yaml` EventBridge rule (currently `State: DISABLED`)
-- [ ] Bedrock model access in `ap-south-1` for `anthropic.claude-3-haiku-20240307-v1:0`
+### Smoke Test — E2E Happy Path
 
-### Auth Microservice
-- [ ] Deploy `reality-flow-authentication` with WhatsApp fields on `UserItem`
-- [ ] Implement `GET /internal/users/by-whatsapp` for webhook tenant resolution
+- [ ] **Onboarding (E1)**
+  - [ ] Google OAuth signup → role selection → RegisterAdmin form → CRM loads
+  - [ ] Trial banner shows "14 days remaining"
+  - [ ] Credit balance shows "1000 / 1000"
 
-### Frontend
-- [ ] Set `VITE_BAILEY_ENABLED=true` only when Bailey is live
-- [ ] Mount `AgentActivityLog` on admin dashboard or billing page
+- [ ] **Credit System (E2)**
+  - [ ] Create lead → 5 credits deducted → balance shows "995 / 1000"
+  - [ ] Create contact → 3 credits deducted → balance updates
+  - [ ] Trigger 402: exhaust credits → next action blocked
+  - [ ] Buy Credits modal → complete Razorpay flow → balance increases
+  - [ ] Monthly credit reset: confirm `billingAnniversaryDay` used for exact date
 
-## Nice-to-have (post-MVP)
-- [ ] E5-T4 UI badges for incomplete records
-- [ ] SQS DLQ for failed webhooks (see `09-error-handling-recovery.md`)
-- [ ] CloudWatch custom metrics + alarms
-- [ ] Full Bedrock tool-use loop (current agentRuntime uses simplified text parsing)
-- [ ] MCP Lambda HTTP transport (Phase 2)
-- [ ] Per-member team analytics in team-summary cron (requires `GET /internal/users` auth service endpoint)
+- [ ] **Email (E3)**
+  - [ ] Trial reminder cron sends via SES
+  - [ ] SES fails → fallback to Brevo succeeds
+  - [ ] BillingSettings page renders without errors
+  - [ ] Cron failure logs include structured error + stack frame
+
+- [ ] **Team Analytics (E4)**
+  - [ ] Navigate to `/admin/team-analytics`
+  - [ ] Table loads with team member metrics (active leads, deals closed, conversion rate)
+  - [ ] Click "Download Excel" → file downloads with correct data
+  - [ ] Per-member stats show breakdown: "John: 5 active, 2 closed today"
+
+- [ ] **Data Quality (E5)**
+  - [ ] incomplete-data-cron triggers → email + WhatsApp sent with alert
+  - [ ] expiring-agreements-cron triggers → assigned member notified
+  - [ ] team-summary-cron triggers → admin receives summary with per-member breakdown
+
+- [ ] **Agents (E6 — if enabled)**
+  - [ ] Create lead → lead.created event published to EventBridge
+  - [ ] lead-qualifier agent invoked → lead scored (HOT/WARM/COLD)
+  - [ ] Agent action logged in audit trail
+  - [ ] Agent credit cost deducted from tenant's balance
+
+- [ ] **Bailey WhatsApp (E1 optional — if credentials obtained)**
+  - [ ] ConnectWhatsApp page shows Bailey as "Recommended"
+  - [ ] Scan QR code → WhatsAppPhoneNumber saved in auth service
+  - [ ] Send WhatsApp message → webhook received
+  - [ ] Tenant resolved via internal users/by-whatsapp endpoint
+  - [ ] Message routed to MCP skill → response sent back via WhatsApp
+
+---
+
+## Backend API Verification
+
+- [ ] `GET /api/subscriptions/credits` → returns balance + plan info
+- [ ] `GET /api/subscriptions/credits/ledger` → returns transaction history
+- [ ] `POST /api/subscriptions/credits/purchase` → creates Razorpay order
+- [ ] `GET /api/admin/team-analytics` → returns team member metrics
+- [ ] `GET /api/admin/team-analytics/export` → returns Excel file
+- [ ] `POST /api/webhooks/whatsapp` → accepts Bailey webhook + publishes EventBridge event
+- [ ] `POST /api/billing/webhook` → handles `payment.captured` + `subscription.activated`
+- [ ] `POST /api/leads` + meterCredits middleware → deducts credits, returns 402 if insufficient
+- [ ] Internal auth endpoints:
+  - [ ] `GET /internal/users/by-whatsapp?phone=` → returns tenant + role
+  - [ ] `GET /internal/users/list?tenantId=` → returns team members for cron
+
+---
+
+## CloudWatch Observability Verification
+
+- [ ] CloudWatch dashboard loads (Business Metrics)
+- [ ] Credit deduction metric: `creditService.deductCredits.count` appears after lead creation
+- [ ] Email metric: `emailService.sent_via_ses` appears after trial reminder
+- [ ] Webhook metric: `webhooks.whatsapp.received` appears after message received
+- [ ] SNS topic subscribed → test alert received in email
+- [ ] Log metric filters working:
+  - [ ] Credit insufficient events captured
+  - [ ] Cron per-tenant failures captured with stack frames
+
+---
+
+## Security & Compliance
+
+- [ ] Rate limiter works: curl webhook endpoint 21 times → 21st returns 429
+- [ ] Cross-tenant isolation: User A cannot access User B's leads/credits via API
+- [ ] Webhook signature validation: Invalid Bailey signature → returns 401
+- [ ] Internal API key validation: Missing or wrong key → returns 401
+- [ ] 402 payment required response: Insufficient credits → correct error message
+
+---
+
+## Performance & Load
+
+- [ ] Team analytics query: < 3 seconds for 1000+ team members
+- [ ] Credit ledger query: < 1 second for 10000+ transactions
+- [ ] Cron execution: credit-reset completes within 30 seconds for 100 tenants
+- [ ] Webhook processing: WhatsApp message processed within 2 seconds
+
+---
+
+## Documentation & Runbook
+
+- [ ] `deployment-steps.md` complete with all 10 phases + verification steps
+- [ ] `observability-dashboard-spec.md` includes all 3 dashboards + alert runbook
+- [ ] `known-issues-and-suggestions.md` updated with resolved items + new items
+- [ ] All env vars documented in `.env.example` + deployment-steps.md
+- [ ] Rollback procedures documented for SES, Bailey, Agents
+
+---
+
+## Nice-to-Have (Post-MVP)
+
+- [ ] E5-T4 UI badges — incomplete record count in admin nav
+- [ ] Credit cost indicator near lead creation form
+- [ ] Low-credit warning banner on CRMDashboard
+- [ ] SQS DLQ for failed webhooks
+- [ ] AWS X-Ray tracing on all Lambda functions
+- [ ] Grafana + CloudWatch integration
+- [ ] Vitest unit tests for creditService
+- [ ] Playwright UI tests in CI pipeline
+- [ ] Meta Official WhatsApp integration (Phase 2)
+- [ ] lead-followup-cron.js + lead-router-handler.js (Phase 2)
+- [ ] Advanced Bedrock agent sequences (multi-tool, reasoning)

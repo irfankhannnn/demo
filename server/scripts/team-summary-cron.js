@@ -8,6 +8,8 @@ import { logger } from '../logger.js';
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 const SUBSCRIPTIONS_TABLE = process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions';
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 async function listActiveTenants() {
   const items = [];
@@ -22,6 +24,41 @@ async function listActiveTenants() {
     lastKey = result.LastEvaluatedKey;
   } while (lastKey);
   return items;
+}
+
+async function fetchTeamMembers(tenantId) {
+  if (!INTERNAL_API_KEY) return [];
+  try {
+    const res = await fetch(
+      `${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`,
+      {
+        headers: { 'x-internal-api-key': INTERNAL_API_KEY },
+        signal: AbortSignal.timeout(4000),
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data.users) ? data.users : [];
+  } catch {
+    return [];
+  }
+}
+
+function buildPerMemberSection(leads, members, today) {
+  if (members.length === 0) return null;
+
+  const lines = [];
+  for (const member of members) {
+    const uid = member.userId || member.id;
+    const name = member.displayName || member.name || uid;
+    const assigned = leads.filter(l => l.assignedTo === uid);
+    const active = assigned.filter(l => !['converted', 'lost'].includes(l.status)).length;
+    const closedToday = assigned.filter(l =>
+      l.status === 'converted' && l.convertedAt && l.convertedAt.startsWith(today)
+    ).length;
+    lines.push(`  ${name}: ${active} active, ${closedToday} closed today`);
+  }
+  return lines.join('\n');
 }
 
 export async function handler() {
@@ -45,16 +82,24 @@ export async function handler() {
       ).length;
       const newToday = leads.filter(l => l.createdAt && l.createdAt.startsWith(today)).length;
 
-      const text = [
+      const members = await fetchTeamMembers(tenantId);
+      const perMemberSection = buildPerMemberSection(leads, members, today);
+
+      const lines = [
         `Team Summary — ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`,
         '',
         `Total leads: ${leads.length}`,
         `Active leads: ${activeLeads}`,
         `New leads today: ${newToday}`,
         `Deals closed today: ${closedToday}`,
-        '',
-        'Login to RealEstateFlow for detailed analytics.',
-      ].join('\n');
+      ];
+
+      if (perMemberSection) {
+        lines.push('', 'Per member:', perMemberSection);
+      }
+
+      lines.push('', 'Login to RealEstateFlow for detailed analytics.');
+      const text = lines.join('\n');
 
       if (to) {
         await sendEmail({
@@ -69,10 +114,10 @@ export async function handler() {
       }
 
       processed++;
-      logger.info('teamSummary.sent', { tenantId, activeLeads, closedToday, newToday });
+      logger.info('teamSummary.sent', { tenantId, activeLeads, closedToday, newToday, memberCount: members.length });
     } catch (err) {
       errors++;
-      logger.error('teamSummary.error', { tenantId, error: err.message });
+      logger.error('teamSummary.error', { tenantId, error: err.message, stack: err.stack?.split('\n')[1] });
     }
   }
 

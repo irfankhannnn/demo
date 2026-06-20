@@ -95,15 +95,15 @@ export default function TeamAnalytics() {
   };
 
   const columns = [
-    { key: 'name', label: 'Name', sortable: true },
-    { key: 'phone', label: 'Mobile', sortable: true },
-    { key: 'email', label: 'Email', sortable: true },
-    { key: 'role', label: 'Role', sortable: true },
-    { key: 'status', label: 'Status', sortable: true },
-    { key: 'dealsClosed', label: 'Deals Closed', sortable: true },
-    { key: 'activeLeads', label: 'Active Leads', sortable: true },
-    { key: 'conversionRate', label: 'Conversion %', sortable: true, render: (v: number) => `${v}%` },
-    { key: 'lastActivityAt', label: 'Last Activity', sortable: true, render: (v: string) => v ? new Date(v).toLocaleDateString('en-IN') : '—' },
+    { key: 'name', header: 'Name', sortable: true },
+    { key: 'phone', header: 'Mobile', sortable: true },
+    { key: 'email', header: 'Email', sortable: true },
+    { key: 'role', header: 'Role', sortable: true },
+    { key: 'status', header: 'Status', sortable: true },
+    { key: 'dealsClosed', header: 'Deals Closed', sortable: true },
+    { key: 'activeLeads', header: 'Active Leads', sortable: true },
+    { key: 'conversionRate', header: 'Conversion %', sortable: true, render: (_: unknown, item: MemberMetric) => `${item.conversionRate}%` },
+    { key: 'lastActivityAt', header: 'Last Activity', sortable: true, render: (_: unknown, item: MemberMetric) => item.lastActivityAt ? new Date(item.lastActivityAt).toLocaleDateString('en-IN') : '—' },
   ];
 
   return (
@@ -145,7 +145,10 @@ export default function TeamAnalytics() {
           <GlassDataTable
             data={items}
             columns={columns}
+            keyExtractor={(item) => (item as MemberMetric).userId}
             onRowClick={(row) => setSelected(row as MemberMetric)}
+            emptyMessage="No team members found"
+            searchPlaceholder="Search by name, email, phone..."
           />
         )}
 

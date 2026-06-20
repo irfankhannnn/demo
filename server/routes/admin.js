@@ -4,7 +4,7 @@ import { extractTenantId } from '../tenantMiddleware.js';
 import { requireAdmin } from '../middleware/requireRole.js';
 import { getTeamAnalytics } from '../teamAnalyticsService.js';
 import { buildTeamAnalyticsWorkbook } from '../utils/excel.js';
-import { getAgentActivity } from '../agentAuditService.js';
+import { getAgentActivity } from '../agents/agentAuditService.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();

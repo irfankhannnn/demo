@@ -187,9 +187,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           }
         }
 
+        // Store billing anniversary day for accurate monthly credit reset
+        const activatedTenantId = subscription?.notes?.tenantId;
+        if (activatedTenantId && subscription?.start_at) {
+          const anniversaryDay = new Date(subscription.start_at * 1000).getUTCDate();
+          const { setBillingAnniversaryDay } = await import('../subscriptionService.js');
+          await setBillingAnniversaryDay(activatedTenantId, anniversaryDay).catch(err =>
+            logger.warn('subscription.anniversaryDay.save_failed', { error: err.message, activatedTenantId })
+          );
+        }
+
         // Generic subscription_started for any plan
         await serverTrack(
-          payload?.subscription?.entity?.notes?.tenantId || 'unknown',
+          subscription?.notes?.tenantId || 'unknown',
           'subscription_started',
           { planId, subscriptionId: subscription?.id }
         );
