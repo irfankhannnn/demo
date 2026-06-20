@@ -7,10 +7,6 @@
     "meta-ads": {
       "type": "http",
       "url": "https://mcp.facebook.com/ads"
-    },
-    "blotato": {
-      "type": "http",
-      "url": "https://mcp.blotato.com/sse"
     }
   }
 }

@@ -35,7 +35,6 @@
   },
   "enabledMcpjsonServers": [
     "higgsfield",
-    "meta-ads",
-    "blotato"
+    "meta-ads"
   ]
 }
