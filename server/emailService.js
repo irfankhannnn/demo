@@ -1,5 +1,6 @@
 import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { logger } from './logger.js';
+import { metrics } from './observability/cloudwatch.js';
 
 const region = process.env.AWS_REGION || 'ap-south-1';
 const sesClient = new SESv2Client({ region });
@@ -81,9 +82,11 @@ export async function sendEmail({ to, subject, html, text, brevoTemplateId, para
     try {
       const result = await sendViaSes({ to: recipient, subject, html: fallbackHtml, text, from });
       logger.info('email.sent', { to: recipient, subject, provider: result.provider, duration: Date.now() - start });
+      metrics.emailSentViaSes();
       return result;
     } catch (sesErr) {
       logger.warn('email.ses.failed', { to: recipient, error: sesErr.message });
+      metrics.emailFallbackToBrevo();
     }
   }
 
@@ -93,6 +96,7 @@ export async function sendEmail({ to, subject, html, text, brevoTemplateId, para
     return result;
   } catch (brevoErr) {
     logger.error('email.both_failed', { to: recipient, subject, error: brevoErr.message, duration: Date.now() - start });
+    await metrics.emailBothFailed();
     throw new Error('Both SES and Brevo failed');
   }
 }

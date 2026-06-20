@@ -4,6 +4,7 @@ import { getSubscription } from '../subscriptionService.js';
 import { resetMonthlyCredits } from '../creditService.js';
 import { getFreeTier, getPacks } from '../creditConfig.js';
 import { logger } from '../logger.js';
+import { metrics } from '../observability/cloudwatch.js';
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'ap-south-1',
@@ -17,6 +18,27 @@ function isAnniversaryToday(isoDate) {
   const d = new Date(isoDate);
   const today = new Date();
   return d.getUTCDate() === today.getUTCDate() && d.getUTCMonth() === today.getUTCMonth();
+}
+
+function isDueForReset(sub, todayStr) {
+  if (sub.lastCreditResetAt === todayStr) return false; // already reset today
+
+  if (sub.isPaying) {
+    // Paid: use exact billing anniversary day stored by Razorpay webhook
+    if (sub.billingAnniversaryDay) {
+      return new Date().getUTCDate() === sub.billingAnniversaryDay;
+    }
+    // Fallback: approximate from nextBillingDate if available
+    if (sub.nextBillingDate) return isAnniversaryToday(sub.nextBillingDate);
+    return false; // paid but no anniversary info yet — skip, cron will fix next month
+  }
+
+  // Trial/free: use createdAt or trialEndsAt anniversary
+  return (
+    isAnniversaryToday(sub.trialEndsAt) ||
+    isAnniversaryToday(sub.lastCreditResetAt) ||
+    isAnniversaryToday(sub.createdAt)
+  );
 }
 
 async function listAllSubscriptions() {
@@ -60,16 +82,7 @@ export async function handler() {
     if (!tenantId) continue;
 
     try {
-      const due = isAnniversaryToday(sub.trialEndsAt) ||
-        isAnniversaryToday(sub.lastCreditResetAt) ||
-        isAnniversaryToday(sub.createdAt);
-
-      if (sub.lastCreditResetAt === today) {
-        skipped++;
-        continue;
-      }
-
-      if (!due && sub.isPaying) {
+      if (!isDueForReset(sub, today)) {
         skipped++;
         continue;
       }
@@ -87,10 +100,11 @@ export async function handler() {
         },
       }));
 
+      await metrics.creditReset(tenantId);
       reset++;
     } catch (err) {
       failed++;
-      logger.error('creditReset.tenant.failed', { tenantId, error: err.message });
+      logger.error('creditReset.tenant.failed', { tenantId, error: err.message, stack: err.stack?.split('\n')[1] });
     }
   }
 

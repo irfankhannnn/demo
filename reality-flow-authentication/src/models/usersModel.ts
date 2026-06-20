@@ -622,6 +622,78 @@ export async function promotePendingEmail(
 }
 
 /**
+ * Find user by whatsAppPhoneNumber using WhatsAppIndex GSI.
+ * Requires a DynamoDB GSI named 'WhatsAppIndex' on GSI_WhatsAppPK attribute.
+ */
+export async function findUserByWhatsAppPhone(phone: string): Promise<UserItem | null> {
+  const { USERS_TABLE } = getConfig();
+  // Normalize: strip spaces, ensure +91 format
+  const normalized = phone.replace(/\s/g, '');
+
+  const result = await dynamodb
+    .query({
+      TableName: USERS_TABLE,
+      IndexName: process.env.WHATSAPP_GSI_NAME || 'WhatsAppIndex',
+      KeyConditionExpression: 'GSI_WhatsAppPK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `WHATSAPP#${normalized}`,
+      },
+      Limit: 1,
+    })
+    .promise();
+
+  if (result.Items && result.Items.length > 0) {
+    const validItem = result.Items.find(isValidUserItem);
+    return validItem || null;
+  }
+
+  return null;
+}
+
+/**
+ * Update whatsApp fields after successful pairing.
+ */
+export async function updateWhatsAppConnection(
+  tenantId: string,
+  userId: string,
+  whatsAppPhoneNumber: string,
+  whatsAppBusinessAccountId?: string
+): Promise<void> {
+  const { USERS_TABLE } = getConfig();
+  const normalized = whatsAppPhoneNumber.replace(/\s/g, '');
+  const now = new Date().toISOString();
+
+  const updateExpressionParts = [
+    'whatsAppPhoneNumber = :phone',
+    'whatsAppVerified = :verified',
+    'whatsAppConnectedAt = :connectedAt',
+    'GSI_WhatsAppPK = :gsiPk',
+    'updatedAt = :now',
+  ];
+  const expressionValues: Record<string, unknown> = {
+    ':phone': normalized,
+    ':verified': true,
+    ':connectedAt': now,
+    ':gsiPk': `WHATSAPP#${normalized}`,
+    ':now': now,
+  };
+
+  if (whatsAppBusinessAccountId) {
+    updateExpressionParts.push('whatsAppBusinessAccountId = :baId');
+    expressionValues[':baId'] = whatsAppBusinessAccountId;
+  }
+
+  await dynamodb
+    .update({
+      TableName: USERS_TABLE,
+      Key: { TenantId: tenantId, SK: `USER#${userId}` },
+      UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
+      ExpressionAttributeValues: expressionValues,
+    })
+    .promise();
+}
+
+/**
  * Promote pending phone to canonical phone.
  * Sets phoneNumber + GSI fields, marks phoneVerified = true, clears pending fields.
  * Guarded: only succeeds if pendingPhoneNumber matches the expected value.

@@ -4,6 +4,7 @@ import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge
 import { verifyBaileySignature, isBaileyEnabled } from '../bailey.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { logger } from '../logger.js';
+import { webhookRateLimit } from '../middleware/rateLimiter.js';
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ async function resolveTenantByWhatsAppNumber(toNumber) {
 }
 
 // POST /whatsapp — Bailey inbound webhook (mounted at /api/webhooks)
-router.post('/whatsapp', async (req, res) => {
+router.post('/whatsapp', webhookRateLimit, async (req, res) => {
   try {
     if (!isBaileyEnabled()) {
       return res.status(200).json({ ok: true, skipped: true, reason: 'bailey_disabled' });

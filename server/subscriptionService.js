@@ -177,3 +177,22 @@ export async function updateSeatsUsed(tenantId, seatsUsed) {
   }));
   return result.Attributes;
 }
+
+/**
+ * Store the billing anniversary day (UTC day of month, 1-31) extracted from
+ * Razorpay subscription.start_at. Used by the credit-reset cron for accurate
+ * monthly credit resets on paid subscribers.
+ */
+export async function setBillingAnniversaryDay(tenantId, day) {
+  await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { tenantId },
+    UpdateExpression: 'SET billingAnniversaryDay = :day, isPaying = :paying, updatedAt = :now',
+    ExpressionAttributeValues: {
+      ':day': day,
+      ':paying': true,
+      ':now': new Date().toISOString(),
+    },
+  }));
+  logger.info('subscription.billingAnniversaryDay.set', { tenantId, day });
+}
