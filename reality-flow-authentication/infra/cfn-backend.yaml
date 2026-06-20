@@ -1013,7 +1013,7 @@ Resources:
         RootResourceId: !GetAtt AuthApiGateway.RootResourceId
         LambdaFunctionArn: !GetAtt AuthLambdaFunction.Arn
         CognitoAuthorizerId: !Ref CognitoAuthorizer
-        AllowOrigin: "http://localhost:3000"
+        AllowOrigin: !Select [0, !Split [",", !Ref AllowedOrigins]]
         AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Access-Token"
         AllowMethods: "GET,POST,PATCH,PUT,DELETE,OPTIONS"
 

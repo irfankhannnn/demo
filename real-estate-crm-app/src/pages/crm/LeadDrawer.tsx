@@ -26,7 +26,7 @@ import Toast from '../../components/Toast';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
-import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMContact, CRMMeeting } from '../../types/crm';
+import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } from '../../types/crm';
 
 interface LeadDrawerProps {
   leadId: string | null;
@@ -54,6 +54,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
+  const [timelineFocused, setTimelineFocused] = useState(false);
 
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [customSource, setCustomSource] = useState('');
@@ -861,43 +862,32 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
-                      <div className="flex gap-2">
+                      <div className="relative">
                         <input
                           type="number"
                           min="1"
                           value={lead.sellerProperty?.timelineValue || ''}
                           onChange={(e) => setLead({
                             ...lead,
-                            sellerProperty: { 
-                              ...lead.sellerProperty, 
+                            sellerProperty: {
+                              ...lead.sellerProperty,
                               timelineValue: Number(e.target.value),
-                              timeline: e.target.value && lead.sellerProperty?.timelineUnit 
-                                ? `${e.target.value} ${lead.sellerProperty.timelineUnit}` 
-                                : ''
+                              timeline: e.target.value ? `${e.target.value} months` : ''
                             }
                           })}
+                          onFocus={() => setTimelineFocused(true)}
+                          onBlur={() => setTimelineFocused(false)}
                           disabled={isConverted}
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                          className="w-full pr-16 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                           placeholder="Enter number"
                         />
-                        <select
-                          value={lead.sellerProperty?.timelineUnit || 'months'}
-                          onChange={(e) => setLead({
-                            ...lead,
-                            sellerProperty: { 
-                              ...lead.sellerProperty, 
-                              timelineUnit: e.target.value as 'days' | 'months',
-                              timeline: lead.sellerProperty?.timelineValue 
-                                ? `${lead.sellerProperty.timelineValue} ${e.target.value}` 
-                                : ''
-                            }
-                          })}
-                          disabled={isConverted}
-                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                        <span
+                          className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 transition-opacity ${
+                            timelineFocused ? 'opacity-0' : 'opacity-100'
+                          }`}
                         >
-                          <option value="days">Days</option>
-                          <option value="months">Months</option>
-                        </select>
+                          Months
+                        </span>
                       </div>
                     </div>
                     <div className="sm:col-span-2">

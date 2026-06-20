@@ -60,6 +60,7 @@ export default function LeadDetails() {
   const [saving, setSaving] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [draftActivityNote, setDraftActivityNote] = useState('');
+  const [timelineFocused, setTimelineFocused] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
@@ -1223,17 +1224,47 @@ export default function LeadDetails() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
-                <input
-                  type="text"
-                  value={lead.sellerProperty?.timeline || ''}
-                  onChange={(e) => setLead({
-                    ...lead,
-                    sellerProperty: { ...lead.sellerProperty, timeline: e.target.value }
-                  })}
-                  disabled={isConverted}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-                  placeholder="e.g., Within 3 months"
-                />
+                {isNew ? (
+                  <input
+                    type="text"
+                    value={lead.sellerProperty?.timeline || ''}
+                    onChange={(e) => setLead({
+                      ...lead,
+                      sellerProperty: { ...lead.sellerProperty, timeline: e.target.value }
+                    })}
+                    disabled={isConverted}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                    placeholder="e.g., Within 3 months"
+                  />
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={lead.sellerProperty?.timelineValue || ''}
+                      onChange={(e) => setLead({
+                        ...lead,
+                        sellerProperty: {
+                          ...lead.sellerProperty,
+                          timelineValue: Number(e.target.value),
+                          timeline: e.target.value ? `${e.target.value} months` : ''
+                        }
+                      })}
+                      onFocus={() => setTimelineFocused(true)}
+                      onBlur={() => setTimelineFocused(false)}
+                      disabled={isConverted}
+                      className="w-full pr-16 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                      placeholder="Enter number"
+                    />
+                    <span
+                      className={`absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 transition-opacity ${
+                        timelineFocused ? 'opacity-0' : 'opacity-100'
+                      }`}
+                    >
+                      Months
+                    </span>
+                  </div>
+                )}
               </div>
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Detailed Address</label>
