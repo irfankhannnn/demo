@@ -38,7 +38,7 @@ async function sendViaWhatsApp(phone, message) {
 async function sendViaEmail(email, message) {
   const { sendEmail } = await import('../emailService.js');
   if (!email) return false;
-  await sendEmail(email, 'Follow-up from your CRM', message);
+  await sendEmail({ to: email, subject: 'Follow-up from your CRM', text: message });
   return true;
 }
 
@@ -49,9 +49,23 @@ async function processFollowupForTenant(tenantId) {
   const mode = agencyConfig.followupAgentMode || 'draft';
   const channels = agencyConfig.followupAgentAutoSendChannels || ['whatsapp'];
 
-  // Get leads with 'contacted' status
-  const leadsResult = await invokeSkill(tenantId, 'search_leads', { status: 'contacted' });
-  if (!leadsResult.ok) return { error: 'could_not_fetch_leads' };
+  // Get active leads that may need follow-up (new, contacted, qualified, negotiating)
+  const FOLLOWUP_STATUSES = ['new', 'contacted', 'qualified', 'negotiating'];
+  const leadsResults = await Promise.all(
+    FOLLOWUP_STATUSES.map(status => invokeSkill(tenantId, 'search_leads', { status }).catch(() => ({ ok: true, data: [] })))
+  );
+  const allLeads = leadsResults.flatMap(r => (r.ok ? (r.data?.items || r.data || []) : []));
+  // Deduplicate by leadId
+  const seen = new Set();
+  const leads = [];
+  for (const lead of allLeads) {
+    const id = lead.id || lead.leadId;
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      leads.push(lead);
+    }
+  }
+  if (!leads.length) return { processed: 0, skipped: true, reason: 'no_eligible_leads' };
 
   const leads = (leadsResult.data?.items || leadsResult.data || []).filter(isStaleForFollowup);
   logger.info('leadFollowup: stale leads found', { tenantId, count: leads.length, mode });

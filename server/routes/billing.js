@@ -1,7 +1,7 @@
 import express from 'express';
 import crypto from 'crypto';
 import axios from 'axios';
-import { createProvisioningRow, activateProvisioning } from '../aiEmployeeProvisioningService.js';
+import { createProvisioningRow, activateProvisioning, suspendProvisioning } from '../aiEmployeeProvisioningService.js';
 import { updateAgencyConfig } from '../agencyConfigService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { incrementSeatsPaid } from '../subscriptionService.js';
@@ -303,13 +303,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         break;
       }
 
-      case 'subscription.cancelled': {
+      case 'subscription.cancelled':
+      case 'subscription.halted': {
         const subscription = payload?.subscription?.entity;
         const tenantId = subscription?.notes?.tenantId || 'unknown';
+        const planId = subscription?.plan_id;
+        const aiEmployeePlanId = process.env.RAZORPAY_PLAN_AI_EMPLOYEE || 'plan_test_ai_employee';
+
+        if (tenantId !== 'unknown' && planId === aiEmployeePlanId) {
+          try {
+            await suspendProvisioning(tenantId, eventType);
+            await updateAgencyConfig(tenantId, { aiEmployeeEnabled: false });
+            logger.info('AI Employee suspended on subscription cancellation', { tenantId, event: eventType });
+          } catch (suspendErr) {
+            logger.error('AI Employee suspension failed (non-fatal)', { tenantId, error: suspendErr.message });
+          }
+        }
+
         // Subscription table update will be done by PR-H subscriptionService
         await serverTrack(tenantId, 'subscription_cancelled', {
           subscriptionId: subscription?.id,
-          planId: subscription?.plan_id,
+          planId,
         });
         break;
       }

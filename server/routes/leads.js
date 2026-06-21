@@ -255,6 +255,11 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     creditCharge = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
 
     // Publish lead.created event for AI qualification (non-blocking)
+    if (process.env.AGENTS_ENABLED !== 'true') {
+      res.status(201).json({ ...lead, creditsRemaining: creditCharge.balance });
+      return;
+    }
+
     try {
       await eventBridge.send(new PutEventsCommand({
         Entries: [{

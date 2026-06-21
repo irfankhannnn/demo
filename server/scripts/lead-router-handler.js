@@ -24,7 +24,7 @@ async function getTeamMembers(tenantId) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users?tenantId=${tenantId}`, {
+    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
       headers: { 'x-internal-api-key': INTERNAL_API_KEY },
       signal: controller.signal,
     });
@@ -64,12 +64,13 @@ async function routeLead(tenantId, leadId, score) {
     return { routed: false, reason: 'no_team_members' };
   }
 
-  // Build member workload info
+  // Build member workload info — use stable identifiers
   const memberInfo = await Promise.all(
     teamMembers.map(async m => ({
-      name: m.username || m.name || m.email,
+      id: m.userId || m.email || m.username || m.name,
+      name: m.displayName || m.name || m.username || m.email,
       email: m.email,
-      workload: await getMemberWorkload(tenantId, m.userId || m.username || m.email),
+      workload: await getMemberWorkload(tenantId, m.userId || m.email || m.username || m.name),
     }))
   );
 
@@ -77,33 +78,42 @@ async function routeLead(tenantId, leadId, score) {
   const agentResult = await invokeAgent(
     tenantId,
     'router',
-    `Route this lead to the best team member. Return JSON: {"assignedTo":"member_name","reason":"brief reason"}\n\nLead: ${JSON.stringify(lead)}\nScore: ${score}\nTeam: ${JSON.stringify(memberInfo)}`,
+    `Route this lead to the best team member. Return JSON: {"assignedTo":"member_id","reason":"brief reason"}\nUse the exact "id" field from the team list, not the display name.\n\nLead: ${JSON.stringify(lead)}\nScore: ${score}\nTeam: ${JSON.stringify(memberInfo)}`,
     { leadId }
   );
 
-  let assignedTo;
+  let assignedToId;
+  let assignedToName;
   if (agentResult.ok) {
     try {
       const parsed = JSON.parse(agentResult.result?.text || '{}');
-      assignedTo = parsed.assignedTo;
+      const pickedId = parsed.assignedTo;
+      const matched = memberInfo.find(m => m.id === pickedId || m.name === pickedId || m.email === pickedId);
+      if (matched) {
+        assignedToId = matched.id;
+        assignedToName = matched.name;
+      }
     } catch (_) {}
   }
 
   // Fallback: least loaded member
-  if (!assignedTo) {
-    assignedTo = memberInfo.reduce((prev, curr) => curr.workload < prev.workload ? curr : prev).name;
-    logger.info('leadRouter: using fallback assignment', { tenantId, leadId, assignedTo });
+  if (!assignedToId) {
+    const fallback = memberInfo.reduce((prev, curr) => curr.workload < prev.workload ? curr : prev);
+    assignedToId = fallback.id;
+    assignedToName = fallback.name;
+    logger.info('leadRouter: using fallback assignment', { tenantId, leadId, assignedToId });
   }
 
   // Update lead
   await invokeSkill(tenantId, 'update_lead', {
     leadId,
-    assignedTo,
+    assignedTo: assignedToId,
+    assignedToName,
     status: 'assigned',
   });
 
-  logger.info('leadRouter: lead assigned', { tenantId, leadId, assignedTo });
-  return { routed: true, assignedTo };
+  logger.info('leadRouter: lead assigned', { tenantId, leadId, assignedToId, assignedToName });
+  return { routed: true, assignedTo: assignedToId, assignedToName };
 }
 
 export async function handler(event) {

@@ -117,7 +117,7 @@ export const AiEmployeeSettings: React.FC = () => {
                   : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400'
               }`}
             >
-              {mode === 'draft' ? '📝 Draft Mode' : '🚀 Auto-Send'}
+              {mode === 'draft' ? 'Draft Mode' : 'Auto-Send'}
             </button>
           ))}
         </div>
@@ -143,7 +143,7 @@ export const AiEmployeeSettings: React.FC = () => {
                     : 'bg-white text-slate-700 border-slate-200 hover:border-green-400'
                 }`}
               >
-                {ch === 'whatsapp' ? '📱 WhatsApp' : '📧 Email'}
+                {ch === 'whatsapp' ? 'WhatsApp' : 'Email'}
               </button>
             ))}
           </div>
@@ -155,7 +155,7 @@ export const AiEmployeeSettings: React.FC = () => {
         disabled={saving}
         className="w-full py-2.5 px-4 bg-[#2563EB] text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
-        {saving ? 'Saving...' : saved ? '✅ Saved!' : 'Save Settings'}
+        {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Settings'}
       </button>
     </div>
   );

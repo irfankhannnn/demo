@@ -179,14 +179,27 @@ export async function activateProvisioning(tenantId, subscriptionId, orderId) {
 
 /**
  * Suspend provisioning (e.g. on subscription failure / chargeback).
+ * Uses UpdateCommand to preserve existing fields.
  */
 export async function suspendProvisioning(tenantId, reason) {
   const now = new Date().toISOString();
-  await upsertProvisioning(tenantId, {
-    status: 'suspended',
-    suspendedAt: now,
-    suspendReason: reason || 'payment_failure',
-    updatedAt: now,
-  });
+  const existing = await getProvisioningByTenant(tenantId);
+  if (!existing) {
+    logger.warn('provisioning.suspend.skipped', { tenantId, reason: 'no_existing_row' });
+    return;
+  }
+
+  await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { tenantId, createdAt: existing.createdAt },
+    UpdateExpression:
+      'SET #status = :suspended, suspendReason = :reason, suspendedAt = :now, updatedAt = :now',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: {
+      ':suspended': 'suspended',
+      ':reason': reason || 'payment_failure',
+      ':now': now,
+    },
+  }));
   logger.warn('provisioning.suspended', { tenantId, reason });
 }

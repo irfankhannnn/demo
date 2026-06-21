@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, Bot } from 'lucide-react';
 import { AiEmployeeSettings } from '../../components/AiEmployeeSettings';
 import { AgentActivityLog } from '../../components/AgentActivityLog';
 import { AiEmployeeTrialBanner } from '../../components/AiEmployeeTrialBanner';
 import { api } from '../../services/api';
+import { getUserProfile } from '../../utils/authStorage';
 
 type Tab = 'settings' | 'activity';
 
@@ -13,16 +14,27 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'activity', label: 'Activity Log' },
 ];
 
+const ADMIN_ROLES = ['ADMIN', 'FOUNDER', 'OWNER'];
+
 export default function AiEmployeePage() {
   const [activeTab, setActiveTab] = useState<Tab>('settings');
   const [isPurchased, setIsPurchased] = useState(false);
+  const profile = getUserProfile();
+  const isAdmin = profile?.role ? ADMIN_ROLES.includes(profile.role) : false;
 
   useEffect(() => {
     api
-      .getAiEmployeeConfig()
-      .then(data => setIsPurchased(data.aiEmployeeEnabled === true))
-      .catch(() => {});
+      .getAiEmployeeProvisioningStatus()
+      .then(data => setIsPurchased(data?.status === 'live'))
+      .catch(() => {
+        // No provisioning row means not purchased
+        setIsPurchased(false);
+      });
   }, []);
+
+  if (!isAdmin) {
+    return <Navigate to="/crm" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50">

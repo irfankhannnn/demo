@@ -31,7 +31,7 @@ export interface UserProfile {
   cognitoSub: string;
   email?: string;
   phoneNumber?: string;
-  role: 'ADMIN' | 'MEMBER';
+  role: 'ADMIN' | 'MEMBER' | 'FOUNDER' | 'OWNER' | 'MANAGER';
   tenantId: string;
   displayName: string;
   status: string;

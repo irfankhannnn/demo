@@ -6,12 +6,13 @@
 import express from 'express';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager } from '../middleware/requireRole.js';
 import { getAgentActivity } from '../agents/agentAuditService.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
 
-router.use(validateToken, extractTenantId);
+router.use(validateToken, extractTenantId, requireAdminOrManager);
 
 // GET /api/crm/agents/activity?limit=20&agentId=qualifier
 router.get('/activity', async (req, res) => {

@@ -204,7 +204,7 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "BaileyEnabled", "ParameterValue": "${BAILEY_ENABLED}" },
   { "ParameterKey": "BaileyApiKey", "ParameterValue": "${BAILEY_API_KEY}" },
   { "ParameterKey": "BaileyWebhookSecret", "ParameterValue": "${BAILEY_WEBHOOK_SECRET}" },
-  { "ParameterKey": "AgentsEnabled", "ParameterValue": "${AGENTS_ENABLED}" },
+  { "ParameterKey": "AgentsEnabled", "ParameterValue": "${AGENTS_ENABLED:-false}" },
   { "ParameterKey": "BaileyApiEndpoint", "ParameterValue": "${BAILEY_API_ENDPOINT:-https://api.bailey.ai}" },
   { "ParameterKey": "PostHogKeyServer", "ParameterValue": "${POSTHOG_KEY_SERVER:-}" },
   { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },

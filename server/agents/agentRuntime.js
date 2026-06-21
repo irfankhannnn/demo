@@ -4,7 +4,7 @@
  */
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { getBalance, deductCredits } from '../creditService.js';
-import { invokeSkill, ALLOWED_TOOLS } from '../skillInvoker.js';
+import { invokeSkill, ALLOWED_TOOLS, TOOL_SCHEMAS } from '../skillInvoker.js';
 import { logAgentAction } from './agentAuditService.js';
 import { buildSystemPrompt } from './prompts.js';
 import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
@@ -32,17 +32,26 @@ function isEnabledForRollout(tenantId, rolloutPercentage) {
 }
 
 function buildToolDefinitions() {
-  return ALLOWED_TOOLS.map(tool => ({
-    name: tool,
-    description: `Execute CRM operation: ${tool.replace(/_/g, ' ')}`,
-    input_schema: {
-      type: 'object',
-      properties: {
-        input: { type: 'object', description: 'Parameters for this CRM operation' },
+  return ALLOWED_TOOLS.map(tool => {
+    const schema = TOOL_SCHEMAS[tool];
+    const properties = {};
+    if (schema) {
+      for (const [key, type] of Object.entries(schema.types)) {
+        properties[key] = { type, description: `Parameter: ${key}` };
+      }
+    }
+    return {
+      name: tool,
+      description: schema
+        ? `CRM tool: ${tool.replace(/_/g, ' ')}. Required: ${schema.required.join(', ') || 'none'}.`
+        : `Execute CRM operation: ${tool.replace(/_/g, ' ')}`,
+      input_schema: {
+        type: 'object',
+        properties,
+        required: schema?.required || [],
       },
-      required: [],
-    },
-  }));
+    };
+  });
 }
 
 async function invokeBedrockWithTools(messages, systemPrompt) {
@@ -177,7 +186,3 @@ export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
   }
 }
 
-// Legacy shim: old callers that don't pass agentId
-export async function invokeAgentLegacy(tenantId, prompt, context = {}) {
-  return invokeAgent(tenantId, context.agentId || 'whatsapp', prompt, context);
-}

@@ -2987,6 +2987,9 @@ export async function getLeads(tenantId, filters = {}) {
   if (filters.status) {
     leads = leads.filter(l => l.status === filters.status);
   }
+  if (filters.assignedTo) {
+    leads = leads.filter(l => l.assignedTo === filters.assignedTo);
+  }
   if (filters.priority) {
     leads = leads.filter(l => l.priority === filters.priority);
   }
@@ -4489,10 +4492,13 @@ export async function searchLeads(tenantId, query, filters = {}) {
   if (filters.status && filters.status !== 'all') {
     filtered = filtered.filter(l => l.status === filters.status);
   }
+  if (filters.assignedTo) {
+    filtered = filtered.filter(l => l.assignedTo === filters.assignedTo);
+  }
   if (filters.priority && filters.priority !== 'all') {
     filtered = filtered.filter(l => l.priority === filters.priority);
   }
-  
+
   return filtered.slice(0, 50);
 }
 

@@ -2243,6 +2243,13 @@ class ApiService {
     });
     return this.handleResponse(response);
   }
+
+  async getAiEmployeeProvisioningStatus() {
+    const response = await fetch(`${API_BASE_URL}/ai-employee/status`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
 }
 
 export const api = new ApiService();

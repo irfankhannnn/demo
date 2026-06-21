@@ -6,6 +6,7 @@
 import express from 'express';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdmin } from '../middleware/requireRole.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
 import { logger } from '../logger.js';
 
@@ -15,7 +16,7 @@ const ALLOWED_MODES = ['draft', 'autosend'];
 const ALLOWED_CHANNELS = ['whatsapp', 'email'];
 
 // GET /api/crm/config/ai-employee
-router.get('/ai-employee', validateToken, extractTenantId, async (req, res) => {
+router.get('/ai-employee', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   const tenantId = req.tenantId;
   try {
     const config = await getAgencyConfig(tenantId);
@@ -31,7 +32,7 @@ router.get('/ai-employee', validateToken, extractTenantId, async (req, res) => {
 });
 
 // PATCH /api/crm/config/ai-employee
-router.patch('/ai-employee', validateToken, extractTenantId, async (req, res) => {
+router.patch('/ai-employee', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   const tenantId = req.tenantId;
   const { aiEmployeeEnabled, followupAgentMode, followupAgentAutoSendChannels } = req.body || {};
 

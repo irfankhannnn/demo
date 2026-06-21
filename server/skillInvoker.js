@@ -15,7 +15,7 @@
  * - Unknown tools return { ok: false, error: 'Tool not allowed: ...' }
  */
 import {
-  createLead, getLead, getLeads, updateLead, convertLead,
+  createLead, getLead, getLeads, updateLead, convertLead, createLeadNote,
   createContact, getContact, getContacts, updateContact,
   createOwner, getOwner, getOwners,
   createProperty, getProperty, getProperties, updateProperty,
@@ -48,6 +48,10 @@ const TOOL_SCHEMAS = {
   convert_lead: {
     required: ['leadId'],
     types: { leadId: 'string' },
+  },
+  create_lead_note: {
+    required: ['leadId', 'content'],
+    types: { leadId: 'string', content: 'string', createdBy: 'string' },
   },
   // ── Contact ops ───────────────────────────────────────────────────────────
   create_contact: {
@@ -206,6 +210,12 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {})
         break;
       case 'convert_lead':
         data = await convertLead(tenantId, input.leadId || input.id, { convertedBy: by });
+        break;
+      case 'create_lead_note':
+        data = await createLeadNote(tenantId, input.leadId || input.id, {
+          content: input.content,
+          createdBy: by,
+        });
         break;
 
       // ── Contact ops ───────────────────────────────────────────────────────

@@ -19,7 +19,6 @@ import {
   BookOpen,
   Calendar,
   ShoppingCart,
-  PhoneCall,
   UserPlus,
   Bot,
 } from 'lucide-react';
@@ -43,7 +42,7 @@ interface UnifiedCrmCounts {
 export default function CRMDashboard() {
   const navigate = useNavigate();
   const profile = getUserProfile();
-  const isAdmin = profile?.role === 'ADMIN';
+  const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'FOUNDER' || profile?.role === 'OWNER';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -691,16 +690,18 @@ export default function CRMDashboard() {
               </span>
               <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button
-              onClick={() => navigate('/crm/ai-employee')}
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-blue-200/70 hover:border-blue-400/70 bg-blue-50/30 font-semibold"
-            >
-              <span className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-[#2563EB] group-hover:text-blue-600 transition-colors" />
-                AI Employee
-              </span>
-              <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/ai-employee')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-blue-200/70 hover:border-blue-400/70 bg-blue-50/30 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-[#2563EB] group-hover:text-blue-600 transition-colors" />
+                  AI Employee
+                </span>
+                <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
             {/* AI Calling - DISABLED */}
             {/*
             <button 

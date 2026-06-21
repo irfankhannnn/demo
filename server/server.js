@@ -139,11 +139,11 @@ app.use('/api/admin', adminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);
-// AI Employee — agent tools (MCP JWT-auth), activity log (user auth), config (user auth)
+// AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
 logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
 app.use('/api/crm/agent', agentToolsRouter);
 logger.info('routes.mount', { basePath: '/api/crm/agents', router: 'agentActivityRouter' });
-app.use('/api/crm/agents', validateToken, agentActivityRouter);
+app.use('/api/crm/agents', agentActivityRouter);
 logger.info('routes.mount', { basePath: '/api/crm/config', router: 'aiEmployeeConfigRouter' });
 app.use('/api/crm/config', aiEmployeeConfigRouter);
 // === [/LAUNCH ROUTES MOUNTS] ===

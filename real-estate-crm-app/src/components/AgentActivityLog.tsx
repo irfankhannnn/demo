@@ -105,7 +105,7 @@ export function AgentActivityLog() {
                 <span className="font-medium text-slate-800">
                   {item.action}
                   {item.errorMessage && (
-                    <span className="ml-1 text-xs text-red-500" title={item.errorMessage}>⚠</span>
+                    <span className="ml-1 text-xs text-red-500" title={item.errorMessage}>!</span>
                   )}
                 </span>
                 <span className="text-xs text-slate-400">{AGENT_LABELS[item.agentId] || item.agentId}</span>
