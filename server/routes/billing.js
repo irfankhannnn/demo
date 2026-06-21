@@ -1,7 +1,8 @@
 import express from 'express';
 import crypto from 'crypto';
 import axios from 'axios';
-import { createProvisioningRow } from '../aiEmployeeProvisioningService.js';
+import { createProvisioningRow, activateProvisioning } from '../aiEmployeeProvisioningService.js';
+import { updateAgencyConfig } from '../agencyConfigService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { incrementSeatsPaid } from '../subscriptionService.js';
 import { logger } from '../logger.js';
@@ -174,10 +175,19 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
                 await sendAiSensyBroadcast('AI-Employee-Onboarding-Pending', agencyName, phone);
               }
 
+              // Auto-activate: set status='live' and enable AI Employee for the tenant
+              try {
+                await activateProvisioning(tenantId, subscription.id, null);
+                await updateAgencyConfig(tenantId, { aiEmployeeEnabled: true });
+                logger.info('AI Employee auto-activated', { tenantId, planId });
+              } catch (activationErr) {
+                logger.error('AI Employee auto-activation failed (non-fatal)', { error: activationErr.message, tenantId });
+              }
+
               // PostHog
               await serverTrack(tenantId, 'ai_employee_provisioned', {
                 tenantId,
-                status: 'pending',
+                status: 'live',
                 planId,
                 razorpaySubscriptionId: subscription.id,
               });
@@ -247,6 +257,35 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             }
           } catch (creditErr) {
             logger.error('credits.purchase.grant_failed', { error: creditErr.message, tenantId });
+          }
+        }
+
+        // Auto-enable AI Employee if this is an AI Employee plan purchase
+        const planId = body.payload?.payment?.entity?.notes?.plan_id
+          || body.payload?.subscription?.entity?.plan_id
+          || '';
+        const planName = body.payload?.payment?.entity?.notes?.plan_name
+          || body.payload?.subscription?.entity?.notes?.plan_name
+          || '';
+        const isAiEmployeePlan = planId.includes('ai_employee') || planId.includes('ai-employee')
+          || planName.toLowerCase().includes('ai employee')
+          || planName.toLowerCase().includes('ai-employee');
+
+        if (isAiEmployeePlan) {
+          const aiTenantId = body.payload?.payment?.entity?.notes?.tenant_id
+            || body.payload?.subscription?.entity?.notes?.tenant_id
+            || '';
+          const subscriptionId = body.payload?.subscription?.entity?.id || '';
+          const orderId = body.payload?.payment?.entity?.order_id || '';
+
+          if (aiTenantId) {
+            try {
+              await activateProvisioning(aiTenantId, subscriptionId, orderId);
+              await updateAgencyConfig(aiTenantId, { aiEmployeeEnabled: true });
+              logger.info('billing.ai_employee.activated', { tenantId: aiTenantId, subscriptionId, orderId });
+            } catch (provErr) {
+              logger.error('billing.ai_employee.activation.failed', { tenantId: aiTenantId, error: provErr.message });
+            }
           }
         }
         break;

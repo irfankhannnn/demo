@@ -83,17 +83,22 @@ export async function handler(event) {
         action = 'agent_router';
         try {
           const { invokeAgent } = await import('../agents/agentRuntime.js');
-          const agentResult = await invokeAgent(tenantId, text, { source: 'whatsapp', from });
+          const agentResult = await invokeAgent(tenantId, 'whatsapp', text, { source: 'whatsapp', from, messageId });
           if (agentResult.ok) {
             success = true;
             replyText = agentResult.result?.text || '✅ Processed your request.';
+          } else if (agentResult.error === 'insufficient_credits') {
+            replyText = '⚠️ Credits khatam ho gaye. Please top up karein.';
+          } else if (agentResult.error === 'ai_employee_not_provisioned') {
+            replyText = 'Send "lead: Name, Phone, Type" to create a lead.';
+          } else if (agentResult.error === 'ai_employee_disabled_by_tenant') {
+            replyText = 'Send "lead: Name, Phone, Type" to create a lead.';
           } else {
-            replyText = agentResult.error === 'insufficient_credits'
-              ? '⚠️ Out of credits. Please top up to continue.'
-              : '❌ Could not process your message.';
+            replyText = '❌ Message process nahi ho saka. Please try again.';
           }
         } catch (err) {
           logger.error('whatsapp.processor.agent_failed', { error: err.message, tenantId });
+          replyText = '❌ Something went wrong. Please try again.';
         }
       } else {
         replyText = 'Send "lead: Name, Phone, Type" to create a lead. Example: lead: Rahul, 9876543210, buyer';

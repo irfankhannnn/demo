@@ -30,6 +30,11 @@ import creditAdminRoutes from './routes/creditAdmin.js';
 import adminRoutes from './routes/admin.js';
 // PR-K
 import feedbackRoutes from './routes/feedback.js';
+// AI Employee agent routes
+import agentToolsRouter from './routes/agentTools.js';
+import agentActivityRouter from './routes/agentActivity.js';
+import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
+import validateToken from './middleware/validateToken.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 
 // Load environment variables
@@ -134,6 +139,13 @@ app.use('/api/admin', adminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);
+// AI Employee — agent tools (MCP JWT-auth), activity log (user auth), config (user auth)
+logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
+app.use('/api/crm/agent', agentToolsRouter);
+logger.info('routes.mount', { basePath: '/api/crm/agents', router: 'agentActivityRouter' });
+app.use('/api/crm/agents', validateToken, agentActivityRouter);
+logger.info('routes.mount', { basePath: '/api/crm/config', router: 'aiEmployeeConfigRouter' });
+app.use('/api/crm/config', aiEmployeeConfigRouter);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware

@@ -77,6 +77,7 @@ import BillingSettings from './pages/crm/BillingSettings';
 
 // PR-F
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
+import AiEmployeePage from './pages/crm/AiEmployee';
 
 
 
@@ -379,6 +380,7 @@ function App() {
             <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
 
             <Route path="/integrations/ai-employee" element={<ProtectedRoute authState={authState}><AIEmployeeStatus /></ProtectedRoute>} />
+            <Route path="/crm/ai-employee" element={<ProtectedRoute authState={authState}><AiEmployeePage /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />

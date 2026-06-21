@@ -115,6 +115,8 @@ Parameters:
   AgentsEnabled:
     Type: String
     Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable AI Employee agents globally
 
   BaileyApiEndpoint:
     Type: String
@@ -277,6 +279,32 @@ Parameters:
     Default: ''
     Description: Founder WhatsApp number for escalation notifications
     NoEcho: true
+
+  AgentAuditTableName:
+    Type: String
+    Default: cloudberry-real-estate-agent-audit
+    Description: DynamoDB table for AI Employee agent audit logs
+
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: JWT secret for signing MCP service tokens
+
+  AgentActionCredits:
+    Type: String
+    Default: '15'
+    Description: Number of credits charged per agent action
+
+  AiEmployeeRolloutPercentage:
+    Type: String
+    Default: '100'
+    Description: Percentage of tenants for gradual rollout (0-100)
+
+  AiEmployeeProvisioningTableName:
+    Type: String
+    Default: AIEmployeeProvisioning
+    Description: DynamoDB table for AI Employee provisioning rows
 
 Resources:
   PropertiesTable:
@@ -462,6 +490,45 @@ Resources:
       KeySchema:
         - AttributeName: configKey
           KeyType: HASH
+
+  AgentAuditTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgentAuditTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-employee
 
   AreasTableCloudberry:
     Type: AWS::DynamoDB::Table
@@ -961,6 +1028,20 @@ Resources:
                 Resource: '*'
               - Effect: Allow
                 Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+              - Effect: Allow
+                Action:
                   - s3:PutObject
                   - s3:GetObject
                   - s3:DeleteObject
@@ -1009,6 +1090,11 @@ Resources:
           BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
           BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
           AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          JWT_SECRET: !Ref JwtSecret
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
           CRM_API_BASE_PATH: !Ref CrmApiBasePath
@@ -1681,6 +1767,20 @@ Resources:
                 Action:
                   - bedrock:InvokeModel
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
 
   LeadQualifierFunction:
     Type: AWS::Lambda::Function
@@ -1700,6 +1800,10 @@ Resources:
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
 
 
   LeadQualifierRule:
@@ -1711,7 +1815,7 @@ Resources:
           - 'crm.leads'
         detail-type:
           - 'lead.created'
-      State: DISABLED
+      State: ENABLED
       Targets:
         - Arn: !GetAtt LeadQualifierFunction.Arn
           Id: LeadQualifierTarget
@@ -1753,6 +1857,20 @@ Resources:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
 
   LeadRouterFunction:
     Type: AWS::Lambda::Function
@@ -1770,6 +1888,11 @@ Resources:
         Variables:
           CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
 
 
   LeadRouterRule:
@@ -1782,7 +1905,7 @@ Resources:
           - 'crm.leads'
         detail-type:
           - 'lead.qualified'
-      State: DISABLED
+      State: ENABLED
       Targets:
         - Arn: !GetAtt LeadRouterFunction.Arn
           Id: LeadRouterTarget
@@ -1828,6 +1951,20 @@ Resources:
                   - ses:SendRawEmail
                 Resource:
                   - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
 
   LeadFollowupFunction:
     Type: AWS::Lambda::Function
@@ -1846,6 +1983,11 @@ Resources:
           CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
           EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
 
 
   LeadFollowupRule:
@@ -1854,7 +1996,7 @@ Resources:
       Name: realestateflow-lead-followup
       Description: 'Daily at 04:00 IST  send follow-up nudges for stale leads'
       ScheduleExpression: 'cron(30 22 * * ? *)'
-      State: DISABLED
+      State: ENABLED
       Targets:
         - Arn: !GetAtt LeadFollowupFunction.Arn
           Id: LeadFollowupTarget

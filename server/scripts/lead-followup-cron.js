@@ -1,11 +1,12 @@
 /**
  * Lead Followup Cron — runs daily at 04:00 IST via EventBridge.
- * Scans CRM for leads with no activity in 3+ days and sends nudge notifications.
- * AGENTS_ENABLED=false: placeholder run only (no agent invocation).
+ * Finds stale leads (no activity in 1-7 days) and either:
+ *   - draft mode: creates a draft note for admin review
+ *   - autosend mode: sends message via WhatsApp/Email automatically
  */
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import { sendEmail } from '../emailService.js';
+import { invokeSkill } from '../skillInvoker.js';
+import { invokeAgent } from '../agents/agentRuntime.js';
+import { getAgencyConfig, scanAgencyConfigs } from '../agencyConfigService.js';
 import { logger } from '../logger.js';
 import { shutdownPostHog } from '../lib/posthog.js';
 import dotenv from 'dotenv';
@@ -16,66 +17,130 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
-const docClient = DynamoDBDocumentClient.from(client);
+const STALE_MIN_DAYS = 1;
+const STALE_MAX_DAYS = 7;
 
-const CRM_TABLE = process.env.CRM_DYNAMODB_TABLE_NAME;
-const STALE_DAYS = 3;
-
-/**
- * Find leads with no activity in the last STALE_DAYS days.
- */
-async function findStaleLeads(tenantId) {
-  if (!CRM_TABLE) return [];
-  const cutoff = new Date(Date.now() - STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const result = await docClient.send(new ScanCommand({
-    TableName: CRM_TABLE,
-    FilterExpression:
-      'tenantId = :tid AND EntityType = :et AND (attribute_not_exists(lastActivityAt) OR lastActivityAt < :cutoff) AND #st <> :converted',
-    ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: {
-      ':tid': tenantId,
-      ':et': 'LEAD',
-      ':cutoff': cutoff,
-      ':converted': 'converted',
-    },
-    ProjectionExpression: 'leadId, tenantId, #st, assignedTo, leadType, lastActivityAt, name',
-  }));
-  return result.Items || [];
+function isStaleForFollowup(lead) {
+  const ref = lead.lastActivityAt || lead.updatedAt || lead.createdAt;
+  if (!ref) return false;
+  const ageMs = Date.now() - new Date(ref).getTime();
+  const ageDays = ageMs / (24 * 60 * 60 * 1000);
+  return ageDays >= STALE_MIN_DAYS && ageDays <= STALE_MAX_DAYS;
 }
 
-async function runFollowup() {
-  if (process.env.AGENTS_ENABLED !== 'true') {
-    logger.info('lead-followup-cron: AGENTS_ENABLED=false — placeholder run, no follow-ups sent');
-    return { processed: 0, skipped: 0, reason: 'agents_disabled' };
+async function sendViaWhatsApp(phone, message) {
+  const { isBaileyEnabled, sendWhatsAppMessage } = await import('../bailey.js');
+  if (!isBaileyEnabled() || !phone) return false;
+  await sendWhatsAppMessage(phone, message);
+  return true;
+}
+
+async function sendViaEmail(email, message) {
+  const { sendEmail } = await import('../emailService.js');
+  if (!email) return false;
+  await sendEmail(email, 'Follow-up from your CRM', message);
+  return true;
+}
+
+async function processFollowupForTenant(tenantId) {
+  const agencyConfig = await getAgencyConfig(tenantId);
+  if (!agencyConfig?.aiEmployeeEnabled) return { skipped: true, reason: 'disabled' };
+
+  const mode = agencyConfig.followupAgentMode || 'draft';
+  const channels = agencyConfig.followupAgentAutoSendChannels || ['whatsapp'];
+
+  // Get leads with 'contacted' status
+  const leadsResult = await invokeSkill(tenantId, 'search_leads', { status: 'contacted' });
+  if (!leadsResult.ok) return { error: 'could_not_fetch_leads' };
+
+  const leads = (leadsResult.data?.items || leadsResult.data || []).filter(isStaleForFollowup);
+  logger.info('leadFollowup: stale leads found', { tenantId, count: leads.length, mode });
+
+  let draftCount = 0;
+  let sentCount = 0;
+  let errorCount = 0;
+
+  for (const lead of leads) {
+    try {
+      const agentResult = await invokeAgent(
+        tenantId,
+        'followup',
+        `Draft a follow-up for this lead. Return JSON: {"message":"...","tone":"friendly|professional|urgent","channel":"whatsapp|email"}\n\nLead: ${JSON.stringify(lead)}`,
+        { leadId: lead.id || lead.leadId }
+      );
+
+      if (!agentResult.ok) {
+        errorCount++;
+        continue;
+      }
+
+      let message = agentResult.result?.text || '';
+      let channel = 'whatsapp';
+      try {
+        const parsed = JSON.parse(message);
+        message = parsed.message || message;
+        channel = parsed.channel || 'whatsapp';
+      } catch (_) {}
+
+      if (!message) { errorCount++; continue; }
+
+      if (mode === 'draft') {
+        // Store as lead note
+        await invokeSkill(tenantId, 'create_lead_note', {
+          leadId: lead.id || lead.leadId,
+          content: `[DRAFT FOLLOWUP] ${message}`,
+          type: 'draft_followup',
+          createdBy: 'ai-employee',
+        });
+        draftCount++;
+      } else if (mode === 'autosend') {
+        let sent = false;
+        if (channels.includes('whatsapp') && lead.phone) {
+          try { sent = await sendViaWhatsApp(lead.phone, message); } catch (_) {}
+        }
+        if (!sent && channels.includes('email') && lead.email) {
+          try { sent = await sendViaEmail(lead.email, message); } catch (_) {}
+        }
+        if (sent) sentCount++;
+        else errorCount++;
+      }
+    } catch (err) {
+      logger.warn('leadFollowup: lead processing failed', { tenantId, leadId: lead.id, error: err.message });
+      errorCount++;
+    }
   }
 
-  logger.info('lead-followup-cron: starting');
-
-  // NOTE: When agents are enabled, tenant iteration follows the same pattern
-  // as expiring-agreements-cron.js (scan Subscriptions, iterate per tenant).
-  // For now this is a no-op since AGENTS_ENABLED=false for launch.
-  return { processed: 0, skipped: 0, reason: 'not_yet_implemented' };
+  return { processed: leads.length, draftCount, sentCount, errorCount, mode };
 }
 
 export async function handler(event) {
+  if (process.env.AGENTS_ENABLED !== 'true') {
+    logger.info('lead-followup-cron: AGENTS_ENABLED=false — skipping');
+    return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'agents_disabled' }) };
+  }
+
   try {
-    const result = await runFollowup();
-    logger.info('lead-followup-cron: done', result);
-    return { statusCode: 200, body: JSON.stringify(result) };
+    // Get all tenants with AI Employee enabled
+    const tenants = await scanAgencyConfigs({ aiEmployeeEnabled: true });
+    logger.info('lead-followup-cron: processing tenants', { count: tenants.length });
+
+    const results = [];
+    for (const tenantId of tenants) {
+      try {
+        const result = await processFollowupForTenant(tenantId);
+        results.push({ tenantId, ...result });
+        logger.info('leadFollowup.tenant.done', { tenantId, ...result });
+      } catch (err) {
+        logger.error('leadFollowup.tenant.failed', { tenantId, error: err.message });
+        results.push({ tenantId, error: err.message });
+      }
+    }
+
+    return { statusCode: 200, body: JSON.stringify({ results }) };
   } catch (err) {
-    logger.error('lead-followup-cron: failed', { error: err.message });
+    logger.error('lead-followup-cron: fatal error', { error: err.message });
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   } finally {
-    try {
-      await shutdownPostHog();
-    } catch (_) {}
+    try { await shutdownPostHog(); } catch (_) {}
   }
-}
-
-// Direct execution (for local testing only)
-if (process.argv[1] && process.argv[1].includes('lead-followup-cron')) {
-  runFollowup()
-    .then(() => process.exit(0))
-    .catch(err => { console.error(err); process.exit(1); });
 }

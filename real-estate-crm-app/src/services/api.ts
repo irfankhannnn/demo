@@ -2211,6 +2211,38 @@ class ApiService {
     });
     return this.handleResponse(response);
   }
+
+  // ============== AI Employee ==============
+
+  async getAgentActivity(params?: { limit?: number; agentId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.agentId) query.set('agentId', params.agentId);
+    const response = await fetch(`${API_BASE_URL}/crm/agents/activity?${query}`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getAiEmployeeConfig() {
+    const response = await fetch(`${API_BASE_URL}/crm/config/ai-employee`, {
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  async updateAiEmployeeConfig(config: {
+    aiEmployeeEnabled?: boolean;
+    followupAgentMode?: 'draft' | 'autosend';
+    followupAgentAutoSendChannels?: string[];
+  }) {
+    const response = await fetch(`${API_BASE_URL}/crm/config/ai-employee`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(config),
+    });
+    return this.handleResponse(response);
+  }
 }
 
 export const api = new ApiService();

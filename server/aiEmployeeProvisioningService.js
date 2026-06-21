@@ -7,6 +7,7 @@ import {
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { logger } from './logger.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -113,4 +114,79 @@ export async function listPendingProvisioning() {
     ExpressionAttributeValues: { ':status': 'pending' },
   }));
   return result.Items || [];
+}
+
+// ─── Additional provisioning helpers (AI Employee feature) ────────────────────
+
+/**
+ * Upsert a provisioning record for a tenant (creates or fully replaces).
+ */
+export async function upsertProvisioning(tenantId, data) {
+  const now = new Date().toISOString();
+  const item = {
+    tenantId,
+    ...data,
+    updatedAt: now,
+  };
+  if (!item.createdAt) item.createdAt = now;
+
+  try {
+    await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+    logger.info('provisioning.upserted', { tenantId, status: data.status });
+    return item;
+  } catch (err) {
+    logger.error('provisioning.upsert.failed', { tenantId, error: err.message });
+    throw err;
+  }
+}
+
+/**
+ * Activate provisioning for a tenant (called from billing webhook on purchase).
+ * Attempts an UpdateCommand first; falls back to upsert if the item doesn't exist.
+ */
+export async function activateProvisioning(tenantId, subscriptionId, orderId) {
+  const now = new Date().toISOString();
+
+  // Fetch existing row to get the SK (createdAt) — composite key table
+  const existing = await getProvisioningByTenant(tenantId);
+
+  if (existing && existing.createdAt) {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { tenantId, createdAt: existing.createdAt },
+      UpdateExpression:
+        'SET #status = :live, subscriptionId = :subId, orderId = :orderId, activatedAt = :now, updatedAt = :now',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':live': 'live',
+        ':subId': subscriptionId || null,
+        ':orderId': orderId || null,
+        ':now': now,
+      },
+    }));
+    logger.info('provisioning.activated', { tenantId, subscriptionId, orderId });
+  } else {
+    // No row exists yet — create a live row via upsert
+    await upsertProvisioning(tenantId, {
+      status: 'live',
+      subscriptionId: subscriptionId || null,
+      orderId: orderId || null,
+      activatedAt: now,
+      createdAt: now,
+    });
+  }
+}
+
+/**
+ * Suspend provisioning (e.g. on subscription failure / chargeback).
+ */
+export async function suspendProvisioning(tenantId, reason) {
+  const now = new Date().toISOString();
+  await upsertProvisioning(tenantId, {
+    status: 'suspended',
+    suspendedAt: now,
+    suspendReason: reason || 'payment_failure',
+    updatedAt: now,
+  });
+  logger.warn('provisioning.suspended', { tenantId, reason });
 }

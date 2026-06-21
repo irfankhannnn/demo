@@ -211,6 +211,11 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
   { "ParameterKey": "BrevoEscalatedTemplateId", "ParameterValue": "${BREVO_ESCALATED_TEMPLATE_ID:-}" },
   { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },
+  { "ParameterKey": "AgentAuditTableName", "ParameterValue": "${AGENT_AUDIT_TABLE_NAME:-cloudberry-real-estate-agent-audit}" },
+  { "ParameterKey": "JwtSecret", "ParameterValue": "${JWT_SECRET:-}" },
+  { "ParameterKey": "AgentActionCredits", "ParameterValue": "${AGENT_ACTION_CREDITS:-15}" },
+  { "ParameterKey": "AiEmployeeRolloutPercentage", "ParameterValue": "${AI_EMPLOYEE_ROLLOUT_PERCENTAGE:-100}" },
+  { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "${AI_EMPLOYEE_PROVISIONING_TABLE:-AIEmployeeProvisioning}" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" }
 ]
 EOF
@@ -268,6 +273,11 @@ PARAM_OVERRIDES=(
   "InternalApiKey=${INTERNAL_API_KEY:-}"
   "BrevoEscalatedTemplateId=${BREVO_ESCALATED_TEMPLATE_ID:-}"
   "FounderWhatsApp=${FOUNDER_WHATSAPP:-}"
+  "AgentAuditTableName=${AGENT_AUDIT_TABLE_NAME:-cloudberry-real-estate-agent-audit}"
+  "JwtSecret=${JWT_SECRET:-}"
+  "AgentActionCredits=${AGENT_ACTION_CREDITS:-15}"
+  "AiEmployeeRolloutPercentage=${AI_EMPLOYEE_ROLLOUT_PERCENTAGE:-100}"
+  "AiEmployeeProvisioningTableName=${AI_EMPLOYEE_PROVISIONING_TABLE:-AIEmployeeProvisioning}"
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
 )
 

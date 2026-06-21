@@ -4,6 +4,7 @@ import {
   GetCommand,
   PutCommand,
   UpdateCommand,
+  ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import bcrypt from 'bcryptjs';
 import { logger } from './logger.js';
@@ -142,3 +143,36 @@ export async function changeAgencyAdminPassword(tenantId, newPassword) {
     );
   });
 }
+
+/**
+ * Scan all agency configs optionally filtered by a boolean field.
+ * Used by lead-followup-cron to iterate tenants with AI Employee enabled.
+ * NOTE: This does a full table scan — acceptable for small tenant counts.
+ */
+export async function scanAgencyConfigs(filter = {}) {
+  const params = {
+    TableName: AGENCY_CONFIG_TABLE_NAME,
+    ProjectionExpression: 'TenantId',
+  };
+
+  if (filter.aiEmployeeEnabled !== undefined) {
+    params.FilterExpression = 'aiEmployeeEnabled = :enabled';
+    params.ExpressionAttributeValues = {
+      ':enabled': filter.aiEmployeeEnabled === true,
+    };
+  }
+
+  const allItems = [];
+  let lastKey;
+
+  do {
+    if (lastKey) params.ExclusiveStartKey = lastKey;
+    const result = await docClient.send(new ScanCommand(params));
+    allItems.push(...(result.Items || []));
+    lastKey = result.LastEvaluatedKey;
+  } while (lastKey);
+
+  return allItems.map(item => item.TenantId).filter(Boolean);
+}
+
+

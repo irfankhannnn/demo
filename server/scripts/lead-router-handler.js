@@ -1,8 +1,12 @@
 /**
- * Lead Router Handler — triggered by EventBridge 'lead.qualified' events.
- * Routes qualified leads to the most appropriate team member based on assignment rules.
- * AGENTS_ENABLED=false: placeholder run only.
+ * Lead Router Handler — triggered by EventBridge 'lead.qualified'.
+ * Routes qualified leads to the most appropriate team member.
+ * Uses agent runtime for intelligent assignment decisions.
  */
+import { invokeSkill } from '../skillInvoker.js';
+import { invokeAgent } from '../agents/agentRuntime.js';
+import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
+import { getAgencyConfig } from '../agencyConfigService.js';
 import { logger } from '../logger.js';
 import { shutdownPostHog } from '../lib/posthog.js';
 import dotenv from 'dotenv';
@@ -13,62 +17,133 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-/**
- * Route a single qualified lead to the appropriate team member.
- * Current implementation is a placeholder; full routing logic requires
- * AGENTS_ENABLED=true and tenant member roster access.
- */
-async function routeLead(tenantId, leadId) {
-  if (process.env.AGENTS_ENABLED !== 'true') {
-    logger.info('lead-router: AGENTS_ENABLED=false — skipping routing', { tenantId, leadId });
-    return { routed: false, reason: 'agents_disabled' };
+const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+
+async function getTeamMembers(tenantId) {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users?tenantId=${tenantId}`, {
+      headers: { 'x-internal-api-key': INTERNAL_API_KEY },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (response.ok) {
+      const data = await response.json();
+      return Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
+    }
+  } catch (err) {
+    logger.warn('leadRouter: getTeamMembers failed', { tenantId, error: err.message });
+  }
+  return [];
+}
+
+async function getMemberWorkload(tenantId, memberId) {
+  try {
+    const result = await invokeSkill(tenantId, 'search_leads', { assignedTo: memberId, status: 'contacted' });
+    return result.ok ? (result.data?.items?.length ?? result.data?.length ?? 0) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+
+async function routeLead(tenantId, leadId, score) {
+  // Fetch lead
+  const leadResult = await invokeSkill(tenantId, 'get_lead', { leadId });
+  if (!leadResult.ok) {
+    logger.warn('leadRouter: could not fetch lead', { tenantId, leadId });
+    return { routed: false, reason: 'lead_not_found' };
+  }
+  const lead = leadResult.data;
+
+  // Get team members
+  const teamMembers = await getTeamMembers(tenantId);
+  if (!teamMembers.length) {
+    logger.info('leadRouter: no team members, skipping', { tenantId, leadId });
+    return { routed: false, reason: 'no_team_members' };
   }
 
-  // TODO: Implement full routing when agents are enabled
-  // 1. Get tenant member roster from Subscriptions table
-  // 2. Apply round-robin or load-based assignment
-  // 3. Update lead.assignedTo in CRM table
-  // 4. Notify assigned member via email/WhatsApp
-  logger.info('lead-router: routing not yet implemented', { tenantId, leadId });
-  return { routed: false, reason: 'not_yet_implemented' };
+  // Build member workload info
+  const memberInfo = await Promise.all(
+    teamMembers.map(async m => ({
+      name: m.username || m.name || m.email,
+      email: m.email,
+      workload: await getMemberWorkload(tenantId, m.userId || m.username || m.email),
+    }))
+  );
+
+  // Ask agent to pick best member
+  const agentResult = await invokeAgent(
+    tenantId,
+    'router',
+    `Route this lead to the best team member. Return JSON: {"assignedTo":"member_name","reason":"brief reason"}\n\nLead: ${JSON.stringify(lead)}\nScore: ${score}\nTeam: ${JSON.stringify(memberInfo)}`,
+    { leadId }
+  );
+
+  let assignedTo;
+  if (agentResult.ok) {
+    try {
+      const parsed = JSON.parse(agentResult.result?.text || '{}');
+      assignedTo = parsed.assignedTo;
+    } catch (_) {}
+  }
+
+  // Fallback: least loaded member
+  if (!assignedTo) {
+    assignedTo = memberInfo.reduce((prev, curr) => curr.workload < prev.workload ? curr : prev).name;
+    logger.info('leadRouter: using fallback assignment', { tenantId, leadId, assignedTo });
+  }
+
+  // Update lead
+  await invokeSkill(tenantId, 'update_lead', {
+    leadId,
+    assignedTo,
+    status: 'assigned',
+  });
+
+  logger.info('leadRouter: lead assigned', { tenantId, leadId, assignedTo });
+  return { routed: true, assignedTo };
 }
 
 export async function handler(event) {
   const results = [];
-
-  // Handles both EventBridge event format and SQS batch format
   const records = event.Records || [event];
 
   for (const record of records) {
+    const detail = typeof record.detail === 'string' ? JSON.parse(record.detail) : record.detail;
+    const { tenantId, leadId, score } = detail || {};
+
+    if (!tenantId || !leadId) {
+      logger.warn('leadRouter: missing tenantId or leadId', { detail });
+      continue;
+    }
+
+    // Tenant opt-in check FIRST
+    const provisioning = await getProvisioningByTenant(tenantId).catch(() => null);
+    if (!provisioning || provisioning.status !== 'live') {
+      logger.info('leadRouter: skipped (not provisioned)', { tenantId, leadId });
+      results.push({ tenantId, leadId, status: 'skipped', reason: 'not_provisioned' });
+      continue;
+    }
+
+    const agencyConfig = await getAgencyConfig(tenantId).catch(() => null);
+    if (!agencyConfig?.aiEmployeeEnabled) {
+      logger.info('leadRouter: skipped (disabled by tenant)', { tenantId, leadId });
+      results.push({ tenantId, leadId, status: 'skipped', reason: 'disabled_by_tenant' });
+      continue;
+    }
+
     try {
-      const detail = record.detail
-        ? (typeof record.detail === 'string' ? JSON.parse(record.detail) : record.detail)
-        : record;
-      const { tenantId, leadId } = detail;
-
-      if (!tenantId || !leadId) {
-        logger.warn('lead-router: missing tenantId or leadId', { detail });
-        continue;
-      }
-
-      const result = await routeLead(tenantId, leadId);
+      const result = await routeLead(tenantId, leadId, score);
       results.push({ tenantId, leadId, ...result });
     } catch (err) {
-      logger.error('lead-router: failed for record', { error: err.message });
-      results.push({ error: err.message });
+      logger.error('leadRouter.failed', { tenantId, leadId, error: err.message });
+      results.push({ tenantId, leadId, status: 'error', error: err.message });
     }
   }
 
-  try {
-    await shutdownPostHog();
-  } catch (_) {}
+  try { await shutdownPostHog(); } catch (_) {}
 
   return { statusCode: 200, body: JSON.stringify({ results }) };
-}
-
-// Direct execution (for local testing only)
-if (process.argv[1] && process.argv[1].includes('lead-router-handler')) {
-  handler({ detail: { tenantId: 'test-tenant', leadId: 'test-lead' } })
-    .then(r => { console.log(r); process.exit(0); })
-    .catch(err => { console.error(err); process.exit(1); });
 }

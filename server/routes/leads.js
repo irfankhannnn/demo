@@ -15,6 +15,10 @@ import {
   searchLeads,
   getContacts,
 } from '../crmDynamodbService.js';
+import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { logger } from '../logger.js';
+
+const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
 const router = express.Router();
 
@@ -250,17 +254,26 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     // Charge credits immediately after successful create
     creditCharge = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
 
-    // Non-blocking EventBridge publish (agent pipeline)
-    if (process.env.AGENTS_ENABLED === 'true') {
-      const { EventBridgeClient, PutEventsCommand } = await import('@aws-sdk/client-eventbridge');
-      const eb = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
-      eb.send(new PutEventsCommand({
+    // Publish lead.created event for AI qualification (non-blocking)
+    try {
+      await eventBridge.send(new PutEventsCommand({
         Entries: [{
           Source: 'crm.leads',
           DetailType: 'lead.created',
-          Detail: JSON.stringify({ leadId: lead.leadId, tenantId: req.tenantId, leadType: lead.leadType }),
+          Detail: JSON.stringify({
+            tenantId: req.tenantId,
+            leadId: lead.id || lead.leadId,
+            leadType: lead.leadType,
+            name: lead.name,
+            phone: lead.phone,
+            createdAt: new Date().toISOString(),
+          }),
         }],
-      })).catch(err => console.warn('eventbridge.publish.failed', err.message));
+      }));
+      logger.info('lead.created.event.published', { tenantId: req.tenantId, leadId: lead.id || lead.leadId });
+    } catch (ebErr) {
+      logger.warn('lead.created.event.publish.failed', { tenantId: req.tenantId, error: ebErr.message });
+      // Non-blocking — don't fail the request
     }
 
     res.status(201).json({ ...lead, creditsRemaining: creditCharge.balance });
