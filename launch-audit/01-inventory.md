@@ -5,6 +5,8 @@
 **Auditor:** Devin (Launch Readiness Audit)
 **HEAD:** `5890183` (Merge `pending-tasks-consolidation`: consent tracking, PostHog analytics, trial subscription guards)
 
+> **NOTE:** This document reflects the state before cron jobs were merged into `cfn-backend.yaml` (2026-06-21). For current deployment, see `marketing-and-sales/launch-plan-v2/final-mvp-ready/zishan_docs/08-FINAL-IMPLEMENTATION-PLAN.md`. The cron files referenced here (`cron/*.yaml`) are now obsolete — all cron resources are in the unified template.
+
 This inventory consolidates the launch-plan documentation (`team-work`, `pending-tasks`, `updated-files`, `coding-agent-brief`) with the actual state of the code on `auth_rbac_feature`. Every status is verified against the code, not just the docs — where docs and code disagree, the **code** is treated as ground truth and called out in the Evidence column.
 
 ## Status legend

@@ -222,8 +222,11 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 
 // Create lead
 router.post('/', validateToken, extractTenantId, async (req, res) => {
+  const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+  const { refundCredits } = await import('../creditService.js');
+  let creditCharge = null;
+
   try {
-    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'lead_add');
 
     const { name, leadType } = req.body;
@@ -239,6 +242,15 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
     };
     const lead = await createLead(req.tenantId, leadData);
 
+    // Store the lead_add cost before charging for potential refund
+    const { getCosts } = await import('../creditConfig.js');
+    const costs = await getCosts();
+    const leadAddCost = costs['lead_add'] || 0;
+
+    // Charge credits immediately after successful create
+    creditCharge = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
+
+    // Non-blocking EventBridge publish (agent pipeline)
     if (process.env.AGENTS_ENABLED === 'true') {
       const { EventBridgeClient, PutEventsCommand } = await import('@aws-sdk/client-eventbridge');
       const eb = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -251,10 +263,15 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
       })).catch(err => console.warn('eventbridge.publish.failed', err.message));
     }
 
-    const creditResult = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
-    res.status(201).json({ ...lead, creditsRemaining: creditResult.balance });
+    res.status(201).json({ ...lead, creditsRemaining: creditCharge.balance });
   } catch (error) {
-    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    // If credits were charged but the handler subsequently failed, refund them
+    if (creditCharge?.ledgerId && leadAddCost > 0) {
+      refundCredits(req.tenantId, leadAddCost, 'lead_add', {
+        ledgerId: creditCharge.ledgerId,
+        reason: 'create_lead_failed_post_charge',
+      }).catch(refundErr => console.error('refund.failed', refundErr.message));
+    }
     if (handleCreditError(error, res)) return;
     console.error('Create lead error:', error);
     if (error.message && error.message.startsWith('A lead with this phone number already exists')) {

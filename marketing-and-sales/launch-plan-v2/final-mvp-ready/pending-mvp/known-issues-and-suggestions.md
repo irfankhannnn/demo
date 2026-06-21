@@ -7,7 +7,7 @@
 ## Critical Issues (All Resolved ✅)
 
 1. ✅ **Auth internal WhatsApp lookup** — `GET /internal/users/by-whatsapp` implemented in auth service
-2. ✅ **Cron CFN templates** — All 4 cron YAML files complete with Code, Role, Parameters
+2. ✅ **Cron CFN templates** — All 10 cron jobs merged into cfn-backend.yaml with Code, Role, Parameters
 3. ✅ **Data quality cron handlers** — incomplete-data, expiring-agreements, team-summary fully implemented
 4. ✅ **Agent runtime** — Upgraded to native Bedrock tool-use loop (tools field, multi-turn)
 5. ✅ **Agent activity scan** — Efficient PK/SK pattern (TENANT#/AGENTLOG#) with QueryCommand
@@ -104,7 +104,7 @@
 - ✅ Team analytics API endpoint + Excel export service
 - ✅ Data quality service (incomplete records detection)
 - ✅ MCP server scaffold + tool definitions
-- ✅ deploy-crons.sh with S3 bucket/key parameter passing
+- ✅ All 10 cron jobs merged into cfn-backend.yaml (one-click deployment via ./deploy.sh)
 - ✅ Structured logging for cron failures (includes stack frames)
 - ✅ Observability dashboard spec (3 dashboards + alert runbook)
 - ✅ rateLimiter factory (webhookRateLimit / authRateLimit / strictRateLimit)

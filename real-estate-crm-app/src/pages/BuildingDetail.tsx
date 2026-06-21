@@ -38,7 +38,8 @@ export default function BuildingDetail() {
     if (!buildingId) return;
     try {
       const data = await api.getBuilding(buildingId);
-      setBuilding(data);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setBuilding(data as any);
     } catch (error) {
       console.error('Error loading building:', error);
       alert('Failed to load building details');

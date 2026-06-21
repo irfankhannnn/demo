@@ -11,3 +11,6 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Auto-generated deployment files
+server/infra/cfn-params.json

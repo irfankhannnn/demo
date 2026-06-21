@@ -5,10 +5,16 @@ set -euo pipefail
 # CRM Backend Microservice — Deployment Script
 # =============================================================================
 # Usage: ./infra/deploy.sh
-# Toggle Lambda deployment here:
-#   true  = deploy Lambda code + API Gateway
-#   false = deploy API Gateway only
-# Set this manually before running the script.
+# Toggle deployment steps here:
+#   DEPLOY_LAMBDA=true  = deploy Lambda code + API Gateway
+#   DEPLOY_LAMBDA=false = deploy API Gateway only
+#   DEPLOY_INSTALL=true = run npm install
+#   DEPLOY_INSTALL=false = skip npm install
+#   DEPLOY_ZIP=true     = create and upload function.zip
+#   DEPLOY_ZIP=false    = skip zip creation/upload
+#   DEPLOY_CFN=true     = deploy CloudFormation stack
+#   DEPLOY_CFN=false    = skip CloudFormation deployment (Lambda update only)
+# Set these manually before running the script.
 #
 # Defaulting to false keeps the deploy API Gateway-only by default.
 # Requires: .env file in project root with all required variables
@@ -17,7 +23,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DEPLOY_LAMBDA=true
+DEPLOY_LAMBDA=false
+DEPLOY_INSTALL=false
+DEPLOY_ZIP=false
+DEPLOY_CFN=true
 
 
 # -----------------------------------------------------------------------------
@@ -100,20 +109,24 @@ echo ""
 TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
 
 # -----------------------------------------------------------------------------
-# 2. Install dependencies and build
+# 2. Install dependencies
 # -----------------------------------------------------------------------------
-if [ "$DEPLOY_LAMBDA" = true ]; then
+if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = true ]; then
   echo "[1/6] Installing dependencies..."
   cd "$PROJECT_DIR"
   "$NPM_BIN" ci --omit=dev --no-audit --no-fund
+elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = false ]; then
+  echo "[1/6] Skipping npm install (DEPLOY_INSTALL=false)."
+fi
 
-  # -----------------------------------------------------------------------------
-  # 3. Package Lambda bundle
-  # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# 3. Package Lambda bundle
+# -----------------------------------------------------------------------------
+if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   echo "[2/6] Packaging function.zip..."
   rm -f "$PROJECT_DIR/function.zip"
   cd "$PROJECT_DIR"
-  zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ agents/ \
+  zip -r -q function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*" "mcp-server/*"
 
@@ -123,7 +136,10 @@ if [ "$DEPLOY_LAMBDA" = true ]; then
   S3_KEY="${ARTIFACT_PREFIX}/function-${TIMESTAMP}.zip"
   echo "[3/6] Uploading function.zip to s3://${ARTIFACT_BUCKET}/${S3_KEY}..."
   "$AWS_BIN" s3 cp "$PROJECT_DIR/function.zip" "s3://${ARTIFACT_BUCKET}/${S3_KEY}" --region "$AWS_REGION" --no-cli-pager
-else
+elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
+  echo "[2/6] Skipping zip creation (DEPLOY_ZIP=false)."
+  echo "[3/6] Skipping S3 upload (DEPLOY_ZIP=false)."
+elif [ "$DEPLOY_LAMBDA" = false ]; then
   echo "[1/6] Skipping Lambda deployment (DEPLOY_LAMBDA=false)."
 fi
 
@@ -134,7 +150,7 @@ echo "[4/6] Uploading nested template to s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLA
 
 TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}"
 
-if [ "$DEPLOY_LAMBDA" = true ]; then
+if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   LAMBDA_CODE_PARAMETER_JSON='  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "'"${S3_KEY}"'" },'
 else
   LAMBDA_CODE_PARAMETER_JSON=''
@@ -176,9 +192,25 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "BrevoApiKey", "ParameterValue": "${BREVO_API_KEY}" },
   { "ParameterKey": "FounderNotificationEmail", "ParameterValue": "${FOUNDER_NOTIFICATION_EMAIL}" },
   { "ParameterKey": "RazorpayWebhookSecret", "ParameterValue": "${RAZORPAY_WEBHOOK_SECRET}" },
+  { "ParameterKey": "RazorpayKeyId", "ParameterValue": "${RAZORPAY_KEY_ID}" },
+  { "ParameterKey": "RazorpayKeySecret", "ParameterValue": "${RAZORPAY_KEY_SECRET}" },
   { "ParameterKey": "BrevoFromEmail", "ParameterValue": "${BREVO_FROM_EMAIL}" },
   { "ParameterKey": "BrevoFromName", "ParameterValue": "${BREVO_FROM_NAME}" },
   { "ParameterKey": "HcaptchaSecretKey", "ParameterValue": "${HCAPTCHA_SECRET_KEY}" },
+  { "ParameterKey": "CreditsTableName", "ParameterValue": "${CREDITS_TABLE_NAME}" },
+  { "ParameterKey": "CreditConfigTableName", "ParameterValue": "${CREDIT_CONFIG_TABLE_NAME}" },
+  { "ParameterKey": "SesFromEmail", "ParameterValue": "${AWS_SES_FROM_EMAIL}" },
+  { "ParameterKey": "EmailProviderPrimary", "ParameterValue": "${EMAIL_PROVIDER_PRIMARY}" },
+  { "ParameterKey": "BaileyEnabled", "ParameterValue": "${BAILEY_ENABLED}" },
+  { "ParameterKey": "BaileyApiKey", "ParameterValue": "${BAILEY_API_KEY}" },
+  { "ParameterKey": "BaileyWebhookSecret", "ParameterValue": "${BAILEY_WEBHOOK_SECRET}" },
+  { "ParameterKey": "AgentsEnabled", "ParameterValue": "${AGENTS_ENABLED}" },
+  { "ParameterKey": "BaileyApiEndpoint", "ParameterValue": "${BAILEY_API_ENDPOINT:-https://api.bailey.ai}" },
+  { "ParameterKey": "PostHogKeyServer", "ParameterValue": "${POSTHOG_KEY_SERVER:-}" },
+  { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },
+  { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "BrevoEscalatedTemplateId", "ParameterValue": "${BREVO_ESCALATED_TEMPLATE_ID:-}" },
+  { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" }
 ]
 EOF
@@ -217,24 +249,67 @@ PARAM_OVERRIDES=(
   "BrevoApiKey=${BREVO_API_KEY}"
   "FounderNotificationEmail=${FOUNDER_NOTIFICATION_EMAIL}"
   "RazorpayWebhookSecret=${RAZORPAY_WEBHOOK_SECRET}"
+  "RazorpayKeyId=${RAZORPAY_KEY_ID}"
+  "RazorpayKeySecret=${RAZORPAY_KEY_SECRET}"
   "BrevoFromEmail=${BREVO_FROM_EMAIL}"
   "BrevoFromName=${BREVO_FROM_NAME}"
   "HcaptchaSecretKey=${HCAPTCHA_SECRET_KEY}"
+  "CreditsTableName=${CREDITS_TABLE_NAME}"
+  "CreditConfigTableName=${CREDIT_CONFIG_TABLE_NAME}"
+  "SesFromEmail=${AWS_SES_FROM_EMAIL}"
+  "EmailProviderPrimary=${EMAIL_PROVIDER_PRIMARY}"
+  "BaileyEnabled=${BAILEY_ENABLED}"
+  "BaileyApiKey=${BAILEY_API_KEY}"
+  "BaileyWebhookSecret=${BAILEY_WEBHOOK_SECRET}"
+  "AgentsEnabled=${AGENTS_ENABLED}"
+  "BaileyApiEndpoint=${BAILEY_API_ENDPOINT:-https://api.bailey.ai}"
+  "PostHogKeyServer=${POSTHOG_KEY_SERVER:-}"
+  "PostHogHost=${POSTHOG_HOST:-https://eu.i.posthog.com}"
+  "InternalApiKey=${INTERNAL_API_KEY:-}"
+  "BrevoEscalatedTemplateId=${BREVO_ESCALATED_TEMPLATE_ID:-}"
+  "FounderWhatsApp=${FOUNDER_WHATSAPP:-}"
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
 )
 
-if [ "$DEPLOY_LAMBDA" = true ]; then
+if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   PARAM_OVERRIDES+=("LambdaCodeS3Key=${S3_KEY}")
+elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
+  # When DEPLOY_ZIP=false, use existing S3 key from cfn-params.json (don't override)
+  echo "[4/6] Using existing LambdaCodeS3Key from cfn-params.json (DEPLOY_ZIP=false)."
+  # Don't add LambdaCodeS3Key to PARAM_OVERRIDES - it will use the one from cfn-params.json
+else
+  # DEPLOY_LAMBDA=false - don't include LambdaCodeS3Key at all
+  true
 fi
 
-"$AWS_BIN" cloudformation deploy \
-  --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
-  --stack-name "$STACK_NAME" \
-  --parameter-overrides "${PARAM_OVERRIDES[@]}" \
-  --capabilities CAPABILITY_NAMED_IAM \
-  --region "$AWS_REGION" \
-  --no-cli-pager \
-  --no-fail-on-empty-changeset
+# -----------------------------------------------------------------------------
+# 6. Deploy CloudFormation stack or update Lambda directly
+# -----------------------------------------------------------------------------
+if [ "$DEPLOY_CFN" = true ]; then
+  echo "[6/6] Deploying CloudFormation stack: $STACK_NAME..."
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
+    --stack-name "$STACK_NAME" \
+    --parameter-overrides "${PARAM_OVERRIDES[@]}" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region "$AWS_REGION" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
+  echo "[6/6] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+  echo "[6/6] Updating Lambda function directly..."
+  "$AWS_BIN" lambda update-function-code \
+    --function-name dev-real-estate-api \
+    --s3-bucket "${ARTIFACT_BUCKET}" \
+    --s3-key "${S3_KEY}" \
+    --region "$AWS_REGION" \
+    --no-cli-pager
+elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
+  echo "[6/6] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+  echo "[6/6] Skipping Lambda update (DEPLOY_ZIP=false)."
+else
+  echo "[6/6] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+fi
 
 # Force API Gateway deployments
 echo "Forcing API Gateway deployments..."

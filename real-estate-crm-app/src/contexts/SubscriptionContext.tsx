@@ -22,6 +22,7 @@ interface SubscriptionContextValue {
   isTrialing: boolean;
   trialDaysLeft: number;
   isTrialExpired: boolean;
+  gracePeriodActive: boolean;
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue>({
@@ -32,6 +33,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   isTrialing: false,
   trialDaysLeft: 0,
   isTrialExpired: false,
+  gracePeriodActive: false,
 });
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
@@ -75,6 +77,7 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
     isTrialing: subscription?.isTrialing ?? false,
     trialDaysLeft: subscription?.trialDaysLeft ?? 0,
     isTrialExpired: subscription?.isTrialExpired ?? false,
+    gracePeriodActive: subscription?.gracePeriodActive ?? false,
   };
 
   return (

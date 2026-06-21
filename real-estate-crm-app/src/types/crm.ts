@@ -47,6 +47,9 @@ export interface CRMCustomer {
   createdFrom?: string;
   notes?: string;
   tags?: string[];
+  priority?: 'low' | 'medium' | 'high';
+  preferredArea?: string;
+  budget?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -503,6 +506,7 @@ export interface ContactRoles {
   owner: boolean;
   buyer: boolean;
   tenant: boolean;
+  seller?: boolean;
 }
 
 export interface BuyerProfile {

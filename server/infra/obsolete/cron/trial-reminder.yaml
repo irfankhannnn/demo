@@ -1,0 +1,98 @@
+# Trial Reminder Cron — EventBridge Rule
+# Schedule: 09:00 IST daily (03:30 UTC)
+# Sends trial reminder emails at Day 10, 12, 14 + reactivation at Day 3 post-expiry
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trial reminder email cron — daily at 09:00 IST'
+
+Parameters:
+  SubscriptionsTableName:
+    Type: String
+    Default: 'Subscriptions'
+  BrevoApiKey:
+    Type: String
+    NoEcho: true
+  SesFromEmail:
+    Type: String
+    Default: 'noreply@realestateflow.in'
+  EmailProviderPrimary:
+    Type: String
+    Default: 'ses'
+  LambdaCodeS3Bucket:
+    Type: String
+  LambdaCodeS3Key:
+    Type: String
+
+Resources:
+  TrialReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-trial-reminder-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TrialReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  TrialReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-trial-reminder
+      Runtime: nodejs20.x
+      Handler: trial-reminder-cron.handler
+      Role: !GetAtt TrialReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          BREVO_SENDER_EMAIL: !Ref SesFromEmail
+          AWS_REGION_OVERRIDE: 'ap-south-1'
+
+  TrialReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-trial-reminder
+      Description: 'Trigger trial reminder Lambda daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TrialReminderFunction.Arn
+          Id: TrialReminderTarget
+
+  TrialReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TrialReminderFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt TrialReminderRule.Arn

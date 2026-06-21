@@ -16,7 +16,7 @@
 | E4 Team Analytics | ✅ Implemented | ✅ Ready after backend deploy |
 | E5 Data Quality Crons | ⚠️ Partial | ⚠️ Cron handlers need tenant iteration |
 | E6 MCP + Agents | ⚠️ Partial | ⚠️ AGENTS_ENABLED=false; MCP needs local setup |
-| Infra CFN/Deploy | ✅ Implemented | ⚠️ Run deploy + cron stacks |
+| Infra CFN/Deploy | ✅ Implemented | ⚠️ Run deploy (includes all 10 cron jobs) |
 
 ---
 
@@ -32,10 +32,9 @@
 
 ## Critical Path to Launch
 
-1. Deploy `server/infra/cfn-backend.yaml` with new credit + SES params
+1. Deploy `server/infra/cfn-backend.yaml` with new credit + SES params (includes all 10 cron jobs)
 2. Seed `cloudberry-real-estate-credit-config` table (run seed script once)
 3. Verify SES sender domain (see `../notes/ses-aws-setup.md`)
 4. Configure Razorpay webhook + `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`
 5. Run Playwright E2E scenarios from `../08-testing-and-acceptance.md`
-6. Enable cron stacks via `server/infra/deploy-crons.sh`
-7. (Optional) Enable `BAILEY_ENABLED` + `AGENTS_ENABLED` for pilot tenants only
+6. (Optional) Enable `BAILEY_ENABLED` + `AGENTS_ENABLED` for pilot tenants only

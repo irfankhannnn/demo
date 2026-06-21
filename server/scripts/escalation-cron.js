@@ -93,11 +93,15 @@ export async function handler(event) {
   try {
     await runEscalation();
     return { statusCode: 200, body: JSON.stringify({ escalated: true }) };
+  } catch (err) {
+    console.error('escalation-cron.handler.failed', err);
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   } finally {
     await shutdownPostHog();
   }
+}
 
-// Direct execution
+// Direct execution (for local testing only)
 if (process.argv[1] && process.argv[1].includes('escalation-cron')) {
   runEscalation()
     .then(() => process.exit(0))

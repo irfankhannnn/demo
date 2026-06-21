@@ -51,8 +51,8 @@ Resources:
     Type: AWS::Events::Rule
     Properties:
       Name: realestateflow-credit-reset
-      Description: 'Trigger credit reset Lambda daily at 00:30 IST (19:00 UTC)'
-      ScheduleExpression: 'cron(0 19 * * ? *)'
+      Description: 'Trigger credit reset Lambda daily at 00:30 IST (18:30 UTC)'
+      ScheduleExpression: 'cron(30 18 * * ? *)'
       State: ENABLED
       Targets:
         - Arn: !GetAtt CreditResetFunction.Arn

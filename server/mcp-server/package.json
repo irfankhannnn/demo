@@ -1,9 +1,14 @@
 {
   "name": "nabi-crm-mcp-server",
   "version": "1.0.0",
+  "description": "MCP server exposing Reality Flow CRM skills as tools for Claude Desktop",
   "type": "module",
-  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1"
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "axios": "^1.7.2"
   }
 }

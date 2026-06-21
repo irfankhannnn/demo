@@ -3409,6 +3409,7 @@ export async function convertLead(tenantId, leadId, options = {}) {
       });
       logger.info('crm.lead.convert.seller.property.created', { tenantId, leadId, ownerId: owner.ownerId });
     }
+    }
 
     // Owner-type leads can optionally create a PROPERTY listing for rent during conversion if details are supplied.
     if (role === 'owner' && lead.ownerProperty && (lead.ownerProperty.propertyType || lead.ownerProperty.area || lead.ownerProperty.rentExpected)) {
@@ -3457,6 +3458,7 @@ export async function convertLead(tenantId, leadId, options = {}) {
         createdBy: options.convertedBy || 'System',
       });
       logger.info('crm.lead.convert.owner.property.created', { tenantId, leadId, ownerId: owner.ownerId });
+    }
     }
   } else if (role === 'tenant') {
     // Create/update legacy CUSTOMER (Tenant) so they show up in CRM lists

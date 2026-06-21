@@ -4,6 +4,8 @@ Reviewed every file under `marketing-and-sales/launch-plan-v2/pending-tasks/`. E
 
 `P0` = must ship · `P1` = should ship · `P2` = post-launch.
 
+> **NOTE:** This document reflects the state before cron jobs were merged into `cfn-backend.yaml` (2026-06-21). For current deployment, see `marketing-and-sales/launch-plan-v2/final-mvp-ready/zishan_docs/08-FINAL-IMPLEMENTATION-PLAN.md`. The cron files referenced here (`cron/*.yaml`) are now obsolete — all cron resources are in the unified template.
+
 > **Key finding:** Nearly all `pending-tasks/` items are **human/vendor-dependent operational tasks** (AWS console, vendor signups, legal sign-off, DNS, deploys). The AI-completable subset was already executed in `cursor/pending-tasks-consolidation-492f`. The only *code* items that must ship before launch are the open bugs from `coding-agent-brief/bugs/`, addressed in Phase 6.
 
 ---

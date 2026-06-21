@@ -102,8 +102,8 @@ export default function TeamAnalytics() {
     { key: 'status', header: 'Status', sortable: true },
     { key: 'dealsClosed', header: 'Deals Closed', sortable: true },
     { key: 'activeLeads', header: 'Active Leads', sortable: true },
-    { key: 'conversionRate', header: 'Conversion %', sortable: true, render: (_: unknown, item: MemberMetric) => `${item.conversionRate}%` },
-    { key: 'lastActivityAt', header: 'Last Activity', sortable: true, render: (_: unknown, item: MemberMetric) => item.lastActivityAt ? new Date(item.lastActivityAt).toLocaleDateString('en-IN') : '—' },
+    { key: 'conversionRate', header: 'Conversion %', sortable: true, render: (item: MemberMetric) => `${item.conversionRate}%` },
+    { key: 'lastActivityAt', header: 'Last Activity', sortable: true, render: (item: MemberMetric) => item.lastActivityAt ? new Date(item.lastActivityAt).toLocaleDateString('en-IN') : '—' },
   ];
 
   return (

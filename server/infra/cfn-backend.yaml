@@ -116,6 +116,11 @@ Parameters:
     Type: String
     Default: 'false'
 
+  BaileyApiEndpoint:
+    Type: String
+    Default: 'https://api.bailey.ai'
+    Description: Bailey WhatsApp gateway API base URL
+
   S3BucketName:
     Type: String
     Description: S3 bucket name for documents (must be globally unique)
@@ -123,7 +128,7 @@ Parameters:
     MaxLength: 63
     AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
     ConstraintDescription: >
-      Bucket name must be lowercase, 3–63 characters, and can contain
+      Bucket name must be lowercase, 363 characters, and can contain
       letters, numbers, dots, and hyphens.
 
   LambdaCodeS3Bucket:
@@ -216,6 +221,18 @@ Parameters:
     Description: Razorpay webhook secret for signature verification
     NoEcho: true
 
+  RazorpayKeyId:
+    Type: String
+    Default: ''
+    Description: Razorpay API Key ID (from Dashboard  Settings  API Keys)
+    NoEcho: true
+
+  RazorpayKeySecret:
+    Type: String
+    Default: ''
+    Description: Razorpay API Key Secret (from Dashboard  Settings  API Keys)
+    NoEcho: true
+
   BrevoFromEmail:
     Type: String
     Default: 'no-reply@realestateflow.in'
@@ -230,6 +247,35 @@ Parameters:
     Type: String
     Default: ''
     Description: hCaptcha secret key for grievance form verification
+    NoEcho: true
+
+  # --- Cron-specific parameters ----------------------------------------------
+  PostHogKeyServer:
+    Type: String
+    Default: ''
+    Description: PostHog server-side key for cron analytics events
+    NoEcho: true
+
+  PostHogHost:
+    Type: String
+    Default: 'https://eu.i.posthog.com'
+    Description: PostHog host URL
+
+  InternalApiKey:
+    Type: String
+    Default: ''
+    Description: Internal API key for auth service access (team member lookup)
+    NoEcho: true
+
+  BrevoEscalatedTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo template ID for AI Employee escalation emails
+
+  FounderWhatsApp:
+    Type: String
+    Default: ''
+    Description: Founder WhatsApp number for escalation notifications
     NoEcho: true
 
 Resources:
@@ -961,6 +1007,7 @@ Resources:
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_API_KEY: !Ref BaileyApiKey
           BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
+          BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
           AGENTS_ENABLED: !Ref AgentsEnabled
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
@@ -971,9 +1018,13 @@ Resources:
           BREVO_API_KEY: !Ref BrevoApiKey
           FOUNDER_NOTIFICATION_EMAIL: !Ref FounderNotificationEmail
           RAZORPAY_WEBHOOK_SECRET: !Ref RazorpayWebhookSecret
+          RAZORPAY_KEY_ID: !Ref RazorpayKeyId
+          RAZORPAY_KEY_SECRET: !Ref RazorpayKeySecret
           BREVO_FROM_EMAIL: !Ref BrevoFromEmail
           BREVO_FROM_NAME: !Ref BrevoFromName
           HCAPTCHA_SECRET_KEY: !Ref HcaptchaSecretKey
+          POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
+          POSTHOG_HOST: !Ref PostHogHost
 
   RealEstatePublicRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -1121,6 +1172,782 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RealEstateCrmRestApi}/*/*/*"
 
+  # ========================================================================
+  # CRON JOBS & SCHEDULED LAMBDAS  Organized by function type
+  # ========================================================================
+
+  # --------------------------------------------------------------------------
+  # 1. BILLING & CREDITS  Daily resets, subscription management
+  # --------------------------------------------------------------------------
+
+  CreditResetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-credit-reset-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CreditResetPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+
+  CreditResetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-credit-reset
+      Runtime: nodejs20.x
+      Handler: scripts/credit-reset-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt CreditResetRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+
+
+  CreditResetRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-credit-reset
+      Description: 'Trigger credit reset Lambda daily at 00:30 IST (18:30 UTC)'
+      ScheduleExpression: 'cron(30 18 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CreditResetFunction.Arn
+          Id: CreditResetTarget
+
+  CreditResetPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreditResetFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt CreditResetRule.Arn
+
+  TrialReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-trial-reminder-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TrialReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  TrialReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-trial-reminder
+      Runtime: nodejs20.x
+      Handler: scripts/trial-reminder-cron.handler
+      Role: !GetAtt TrialReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          BREVO_SENDER_EMAIL: !Ref SesFromEmail
+
+
+  TrialReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-trial-reminder
+      Description: 'Trigger trial reminder Lambda daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TrialReminderFunction.Arn
+          Id: TrialReminderTarget
+
+  TrialReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TrialReminderFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt TrialReminderRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 2. DATA QUALITY & ALERTS  Incomplete data, expiring agreements, team summary
+  # --------------------------------------------------------------------------
+
+  IncompleteDataRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-incomplete-data-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: IncompleteDataPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  IncompleteDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-incomplete-data
+      Runtime: nodejs20.x
+      Handler: scripts/incomplete-data-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt IncompleteDataRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  IncompleteDataRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-incomplete-data
+      Description: 'Trigger incomplete data check daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IncompleteDataFunction.Arn
+          Id: IncompleteDataTarget
+
+  IncompleteDataPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IncompleteDataFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IncompleteDataRule.Arn
+
+  ExpiringAgreementsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-expiring-agreements-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ExpiringAgreementsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  ExpiringAgreementsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-expiring-agreements
+      Runtime: nodejs20.x
+      Handler: scripts/expiring-agreements-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt ExpiringAgreementsRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  ExpiringAgreementsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-expiring-agreements
+      Description: 'Trigger expiring agreements alert daily at 08:30 IST (03:00 UTC)'
+      ScheduleExpression: 'cron(0 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExpiringAgreementsFunction.Arn
+          Id: ExpiringAgreementsTarget
+
+  ExpiringAgreementsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExpiringAgreementsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExpiringAgreementsRule.Arn
+
+  TeamSummaryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-team-summary-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TeamSummaryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  TeamSummaryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-team-summary
+      Runtime: nodejs20.x
+      Handler: scripts/team-summary-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt TeamSummaryRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  TeamSummaryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-team-summary
+      Description: 'Trigger team summary Lambda daily at 18:00 IST (12:30 UTC)'
+      ScheduleExpression: 'cron(30 12 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TeamSummaryFunction.Arn
+          Id: TeamSummaryTarget
+
+  TeamSummaryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TeamSummaryFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TeamSummaryRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 3. ESCALATIONS & NOTIFICATIONS  SLA breaches, founder alerts
+  # --------------------------------------------------------------------------
+
+  EscalationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-escalation-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EscalationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AIEmployeeProvisioning'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AIEmployeeProvisioning/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  EscalationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-ai-employee-escalation
+      Runtime: nodejs20.x
+      Handler: scripts/escalation-cron.handler
+      Role: !GetAtt EscalationRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          AWS_REGION_OVERRIDE: ap-south-1
+          AI_EMPLOYEE_PROVISIONING_TABLE: AIEmployeeProvisioning
+          BREVO_API_KEY: !Ref BrevoApiKey
+          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoEscalatedTemplateId
+          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoEscalatedTemplateId
+          FOUNDER_EMAIL: !Ref FounderNotificationEmail
+          FOUNDER_WHATSAPP: !Ref FounderWhatsApp
+          POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+
+  EscalationSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: ai-employee-escalation-6h
+      Description: 'Every 6 hours  check pending AI Employee provisioning SLA'
+      ScheduleExpression: 'rate(6 hours)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt EscalationFunction.Arn
+          Id: EscalationTarget
+
+  EscalationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref EscalationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EscalationSchedule.Arn
+
+  # --------------------------------------------------------------------------
+  # 4. LEAD MANAGEMENT  Qualification, routing, follow-ups
+  # --------------------------------------------------------------------------
+
+  LeadQualifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-lead-qualifier-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadQualifierPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+
+  LeadQualifierFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-lead-qualifier
+      Runtime: nodejs20.x
+      Handler: scripts/lead-qualifier-handler.handler
+      Role: !GetAtt LeadQualifierRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          AGENTS_ENABLED: !Ref AgentsEnabled
+
+
+  LeadQualifierRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-lead-qualifier
+      EventPattern:
+        source:
+          - 'crm.leads'
+        detail-type:
+          - 'lead.created'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt LeadQualifierFunction.Arn
+          Id: LeadQualifierTarget
+
+  LeadQualifierPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadQualifierFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadQualifierRule.Arn
+
+  LeadRouterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-lead-router-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadRouterPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+
+  LeadRouterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-lead-router
+      Runtime: nodejs20.x
+      Handler: scripts/lead-router-handler.handler
+      Role: !GetAtt LeadRouterRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+
+
+  LeadRouterRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-lead-router
+      Description: 'Trigger lead routing when a lead is qualified by the agent'
+      EventPattern:
+        source:
+          - 'crm.leads'
+        detail-type:
+          - 'lead.qualified'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt LeadRouterFunction.Arn
+          Id: LeadRouterTarget
+
+  LeadRouterPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadRouterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadRouterRule.Arn
+
+  LeadFollowupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-lead-followup-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadFollowupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  LeadFollowupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-lead-followup
+      Runtime: nodejs20.x
+      Handler: scripts/lead-followup-cron.handler
+      Role: !GetAtt LeadFollowupRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+
+
+  LeadFollowupRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-lead-followup
+      Description: 'Daily at 04:00 IST  send follow-up nudges for stale leads'
+      ScheduleExpression: 'cron(30 22 * * ? *)'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt LeadFollowupFunction.Arn
+          Id: LeadFollowupTarget
+
+  LeadFollowupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadFollowupFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadFollowupRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 5. MESSAGING  WhatsApp processing
+  # --------------------------------------------------------------------------
+
+  WhatsAppProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-whatsapp-processor-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WhatsAppProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: '*'
+
+  WhatsAppProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-whatsapp-processor
+      Runtime: nodejs20.x
+      Handler: scripts/whatsapp-message-processor.handler
+      Role: !GetAtt WhatsAppProcessorRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          BAILEY_ENABLED: !Ref BaileyEnabled
+
+
+  WhatsAppProcessorRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-whatsapp-processor
+      Description: 'Process incoming WhatsApp messages from Bailey gateway'
+      EventPattern:
+        source:
+          - 'bailey.whatsapp'
+        detail-type:
+          - 'whatsapp.message.received'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt WhatsAppProcessorFunction.Arn
+          Id: WhatsAppProcessorTarget
+
+  WhatsAppProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WhatsAppProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WhatsAppProcessorRule.Arn
+
 Outputs:
   DynamoDbTableNameOutput:
     Description: Core DynamoDB table name to use in the backend .env
@@ -1242,3 +2069,64 @@ Outputs:
     Value: !GetAtt ProjectsTable.Arn
     Export:
       Name: !Sub "${AWS::StackName}-ProjectsTableArn"
+
+  # --- Cron Lambda Outputs ----------------------------------------------------
+  CreditResetFunctionOutput:
+    Description: Credit reset Lambda function name
+    Value: !Ref CreditResetFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-CreditResetFunction"
+
+  TrialReminderFunctionOutput:
+    Description: Trial reminder Lambda function name
+    Value: !Ref TrialReminderFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-TrialReminderFunction"
+
+  IncompleteDataFunctionOutput:
+    Description: Incomplete data quality Lambda function name
+    Value: !Ref IncompleteDataFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-IncompleteDataFunction"
+
+  ExpiringAgreementsFunctionOutput:
+    Description: Expiring agreements alert Lambda function name
+    Value: !Ref ExpiringAgreementsFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ExpiringAgreementsFunction"
+
+  TeamSummaryFunctionOutput:
+    Description: Team summary Lambda function name
+    Value: !Ref TeamSummaryFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-TeamSummaryFunction"
+
+  EscalationFunctionOutput:
+    Description: AI Employee escalation Lambda function name
+    Value: !Ref EscalationFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-EscalationFunction"
+
+  LeadQualifierFunctionOutput:
+    Description: Lead qualifier agent Lambda function name
+    Value: !Ref LeadQualifierFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadQualifierFunction"
+
+  LeadRouterFunctionOutput:
+    Description: Lead router Lambda function name
+    Value: !Ref LeadRouterFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadRouterFunction"
+
+  LeadFollowupFunctionOutput:
+    Description: Lead followup Lambda function name
+    Value: !Ref LeadFollowupFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadFollowupFunction"
+
+  WhatsAppProcessorFunctionOutput:
+    Description: WhatsApp processor Lambda function name
+    Value: !Ref WhatsAppProcessorFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-WhatsAppProcessorFunction"

@@ -9,6 +9,9 @@ export const createCustomerSchema = z.object({
   source: z.string().max(100).optional(),
   notes: z.string().max(2000).optional(),
   type: z.enum(['buyer', 'tenant', 'investor', 'other']).optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional(),
+  preferredArea: z.string().max(200).optional(),
+  budget: z.number().positive().optional(),
 }).strict();
 
 export const updateCustomerSchema = createCustomerSchema.partial().strict();

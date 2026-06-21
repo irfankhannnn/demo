@@ -1,0 +1,86 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Lead Router — EventBridge lead.qualified triggers assignment logic'
+
+Parameters:
+  LambdaCodeS3Bucket:
+    Type: String
+  LambdaCodeS3Key:
+    Type: String
+  CrmTableName:
+    Type: String
+    Default: 'cloudberry-real-estate-crm'
+  SubscriptionsTableName:
+    Type: String
+    Default: 'Subscriptions'
+
+Resources:
+  LeadRouterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: realestateflow-lead-router-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadRouterPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+
+  LeadRouterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: realestateflow-lead-router
+      Runtime: nodejs20.x
+      Handler: lead-router-handler.handler
+      Role: !GetAtt LeadRouterRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AWS_REGION_OVERRIDE: 'ap-south-1'
+
+  LeadRouterRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: realestateflow-lead-router
+      Description: 'Trigger lead routing when a lead is qualified by the agent'
+      EventPattern:
+        source:
+          - 'crm.leads'
+        detail-type:
+          - 'lead.qualified'
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt LeadRouterFunction.Arn
+          Id: LeadRouterTarget
+
+  LeadRouterPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadRouterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadRouterRule.Arn

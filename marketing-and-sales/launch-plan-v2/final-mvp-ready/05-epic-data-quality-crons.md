@@ -11,7 +11,7 @@
   - **Property**: `title`, `area` required; missing `ownerId`, or rental/sale info; `agreementStatus`/`verificationStatus` = `pending`.
   - **Agreements**: entity `PROPERTY_AGREEMENT` (SK `AGREEMENT#{id}`) with `endDate` field. Also `customer.currentRental.leaseEndDate`. A `leaseEndingWithinDays` filter **already exists** in `server/crmDynamodbService.js` — call it, do not re-implement the DynamoDB query.
 - `server/dataQualityService.js`: new root-level file (ships via `*.js` glob in deploy.sh).
-- Cron templates: clone `cron/trial-reminder.yaml`. Handler files in `server/scripts/` (auto-included). Export: `handler` async function.
+- **Cron jobs:** All cron resources (EventBridge rules, Lambda functions, IAM roles) are now merged into the main `cfn-backend.yaml` template. Handler files in `server/scripts/` (auto-included). Export: `handler` async function. One-click deployment via `./deploy.sh`.
 - Messaging:
   - `server/bailey.js` → `sendWhatsAppMessage(to, text, media?)` (EPIC 1, behind `BAILEY_ENABLED`)
   - `server/emailService.js` → `sendEmail({ to, subject, html, text?, brevoTemplateId?, params?, from? })` (EPIC 3 fallback)
@@ -63,7 +63,7 @@ findExpiringAgreements(tenantId, withinDays=30) // -> [{ propertyId, propertyNam
 
 **Files**
 - NEW `server/scripts/incomplete-data-cron.js` (handler)
-- NEW CFN `cron/incomplete-data.yaml` (clone trial-reminder; `cron(30 3 * * ? *)` = 09:00 IST; env: CRM table, AUTH_SERVICE_URL, BAILEY, SES)
+- Cron resources merged into `server/infra/cfn-backend.yaml` (schedule: `cron(30 3 * * ? *)` = 09:00 IST; env: CRM table, AUTH_SERVICE_URL, BAILEY, SES)
 
 **Detail**
 - For each tenant: `findIncomplete` → build digest:
@@ -96,7 +96,7 @@ findExpiringAgreements(tenantId, withinDays=30) // -> [{ propertyId, propertyNam
 
 **Files**
 - NEW `server/scripts/expiring-agreements-cron.js` (handler)
-- NEW CFN `cron/expiring-agreements.yaml` (clone trial-reminder; `cron(0 3 * * ? *)` = 08:30 IST; env as E5-T2)
+- Cron resources merged into `server/infra/cfn-backend.yaml` (schedule: `cron(0 3 * * ? *)` = 08:30 IST; env as E5-T2)
 
 **Detail**
 - For each tenant: `findExpiringAgreements(tenantId, withinDays)` (default 30; read from credit-config or a small `OPS_CONFIG` key for configurability).

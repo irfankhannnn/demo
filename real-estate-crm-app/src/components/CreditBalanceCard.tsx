@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Coins, AlertTriangle } from 'lucide-react';
 import { useCredits } from '../hooks/useCredits';
 

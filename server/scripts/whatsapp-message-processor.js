@@ -35,7 +35,8 @@ export function parseWhatsAppCommand(text) {
 export async function handler(event) {
   const { logger } = await import('../logger.js');
   const { sendWhatsAppMessage, isBaileyEnabled } = await import('../bailey.js');
-  const { logMessage, logOutcome } = await import('../whatsappAuditService.js');
+  // TODO: WhatsApp audit table not created yet - re-enable after table is provisioned
+  // const { logMessage, logOutcome } = await import('../whatsappAuditService.js');
 
   const details = [];
   for (const record of event.Records || []) {
@@ -47,7 +48,7 @@ export async function handler(event) {
       const { messageId, from, to, text, tenantId } = detail;
       if (!tenantId || !messageId) continue;
 
-      await logMessage(tenantId, messageId, { from, to, text, direction: 'inbound' });
+      // await logMessage(tenantId, messageId, { from, to, text, direction: 'inbound' });
 
       const parsed = parseWhatsAppCommand(text);
       let replyText = 'Sorry, I could not process that message.';
@@ -107,7 +108,7 @@ export async function handler(event) {
         }
       }
 
-      await logOutcome(tenantId, messageId, { success, action, result: replyText, creditsCharged });
+      // await logOutcome(tenantId, messageId, { success, action, result: replyText, creditsCharged });
       details.push({ messageId, tenantId, success, action });
     } catch (err) {
       logger.error('whatsapp.processor.record_failed', { error: err.message });

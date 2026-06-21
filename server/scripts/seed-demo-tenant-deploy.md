@@ -5,6 +5,8 @@ Source task: ZEE-001 (PR-A) · spec: `marketing-and-sales/launch-plan-v2/pre-lau
 This guide covers seeding, deploying, and operating the RealEstateFlow demo tenant
 that powers `demo.realestateflow.in`.
 
+> **NOTE:** This document references `cron/reset-demo.yaml` which is now obsolete. The demo reset cron has been merged into `server/infra/cfn-backend.yaml` (2026-06-21). For current deployment, run `./deploy.sh` from `server/infra/` to deploy all cron jobs including demo reset.
+
 ## Files
 
 | File | Purpose |

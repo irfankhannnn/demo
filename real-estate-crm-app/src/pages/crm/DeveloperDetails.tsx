@@ -336,7 +336,8 @@ export default function DeveloperDetails() {
               <MediaUploadSection
                 title="Developer Images"
                 type="images"
-                items={formData.images || []}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                items={(formData.images || []) as any}
                 onUpload={handleImagesUpload}
                 onDelete={handleImagesDelete}
                 maxFiles={20}
@@ -347,7 +348,8 @@ export default function DeveloperDetails() {
               <MediaUploadSection
                 title="Developer Videos"
                 type="videos"
-                items={formData.videos || []}
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                items={(formData.videos || []) as any}
                 onUpload={handleVideosUpload}
                 onDelete={handleVideosDelete}
                 maxFiles={10}

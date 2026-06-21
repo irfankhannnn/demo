@@ -9,15 +9,17 @@
     "build": "bash scripts/build.sh"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "^3.669.0",
-    "@aws-sdk/client-eventbridge": "^3.669.0",
-    "@aws-sdk/client-sesv2": "^3.669.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1073.0",
+    "@aws-sdk/client-cloudwatch": "^3.669.0",
     "@aws-sdk/client-dynamodb": "^3.669.0",
-    "@sentry/node": "^8.45.1",
+    "@aws-sdk/client-eventbridge": "^3.1073.0",
     "@aws-sdk/client-s3": "^3.669.0",
+    "@aws-sdk/client-sesv2": "^3.1073.0",
     "@aws-sdk/client-sts": "^3.669.0",
     "@aws-sdk/lib-dynamodb": "^3.669.0",
     "@aws-sdk/s3-request-presigner": "^3.669.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sentry/node": "^8.45.1",
     "@vendia/serverless-express": "^4.12.6",
     "axios": "^1.6.0",
     "bcryptjs": "^3.0.3",
@@ -29,8 +31,7 @@
     "posthog-node": "^5.21.2",
     "uuid": "^9.0.1",
     "xlsx": "^0.18.5",
-    "zod": "^4.4.3",
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "cross-env": "^10.1.0"

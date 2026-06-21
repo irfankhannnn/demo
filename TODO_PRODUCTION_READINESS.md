@@ -3,6 +3,8 @@
 This document tracks all issues from the pre-production audit that remain unfixed.
 Last updated: 2026-06-11
 
+> **NOTE:** This document is outdated (2026-06-11). For current deployment status, see `marketing-and-sales/launch-plan-v2/final-mvp-ready/zishan_docs/08-FINAL-IMPLEMENTATION-PLAN.md`. The `deploy.sh` script mentioned in CRIT-3 already exists, and cron jobs have been merged into `cfn-backend.yaml` (2026-06-21).
+
 ## CRITICAL (Must Fix Before Production)
 
 ### CRIT-5: Auth Service CORS is Completely Open

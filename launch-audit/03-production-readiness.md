@@ -3,6 +3,8 @@
 **Branch:** `auth_rbac_feature` @ `5890183`
 **Scope:** infrastructure, CI/CD, observability. Distinguishes *code/IaC ready* (a coding agent can complete) from *operational* (founder/vendor action in a console).
 
+> **NOTE:** This document reflects the state before cron jobs were merged into `cfn-backend.yaml` (2026-06-21). For current deployment, see `marketing-and-sales/launch-plan-v2/final-mvp-ready/zishan_docs/08-FINAL-IMPLEMENTATION-PLAN.md`. The cron files referenced here (`cron/*.yaml`) are now obsolete — all cron resources are in the unified template.
+
 ---
 
 ## Infrastructure

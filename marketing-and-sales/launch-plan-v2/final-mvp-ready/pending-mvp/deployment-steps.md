@@ -127,28 +127,13 @@ aws dynamodb list-tables --region ap-south-1 | grep -E "cloudberry-real-estate-c
 aws lambda get-function-configuration --function-name cloudberry-api --region ap-south-1 | jq '.Environment.Variables | keys[]' | grep -i credit
 ```
 
-#### 3.2 Deploy cron stacks
+#### 3.2 Verify cron deployment
 
 ```bash
-cd server/infra
+# Note: All 10 cron jobs are now deployed as part of the main cfn-backend.yaml stack
+# No separate cron deployment needed. The ./deploy.sh command in section 3.1 deploys everything.
 
-# Package cron functions for S3
-LAMBDA_CODE_S3_BUCKET=cloudberry-lambda-builds
-LAMBDA_CODE_S3_KEY=crons/function.zip
-
-# Deploy all 4 cron stacks
-./deploy-crons.sh all
-
-# Individual cron deploys (if needed):
-# ./deploy-crons.sh credit-reset
-# ./deploy-crons.sh incomplete-data
-# ./deploy-crons.sh expiring-agreements
-# ./deploy-crons.sh team-summary
-```
-
-**Verification:**
-```bash
-# Check cron Lambda functions exist
+# Verify cron Lambda functions exist
 aws lambda list-functions --region ap-south-1 | jq '.Functions[] | select(.FunctionName | contains("cron")) | .FunctionName'
 
 # Check EventBridge rules

@@ -1,29 +1,94 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { TOOL_DEFINITIONS, handleToolCall } from './tools.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  ErrorCode,
+  McpError,
+} from '@modelcontextprotocol/sdk/types.js';
+import axios from 'axios';
+import { TOOLS, ALLOWED_TOOL_NAMES } from './tools.js';
+
+const CRM_API_BASE = process.env.CRM_API_BASE || 'http://localhost:4000';
+const CRM_TOKEN = process.env.CRM_TOKEN;
+const MCP_TENANT_ID = process.env.MCP_TENANT_ID;
+
+if (!CRM_TOKEN) {
+  console.error('Missing CRM_TOKEN env var');
+  process.exit(1);
+}
+if (!MCP_TENANT_ID) {
+  console.error('Missing MCP_TENANT_ID env var');
+  process.exit(1);
+}
+
+const crmClient = axios.create({
+  baseURL: CRM_API_BASE,
+  headers: {
+    Authorization: `Bearer ${CRM_TOKEN}`,
+    'x-tenant-id': MCP_TENANT_ID,
+    'Content-Type': 'application/json',
+  },
+});
 
 const server = new Server(
-  { name: 'nabi-crm', version: '1.0.0' },
-  { capabilities: { tools: {} } }
+  {
+    name: 'nabi-crm-mcp-server',
+    version: '1.0.0',
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  }
 );
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: TOOL_DEFINITIONS,
+  tools: TOOLS,
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
-  const tenantId = process.env.MCP_TENANT_ID;
-  if (!tenantId) {
-    return { content: [{ type: 'text', text: 'MCP_TENANT_ID env required' }], isError: true };
+
+  if (!ALLOWED_TOOL_NAMES.includes(name)) {
+    throw new McpError(ErrorCode.MethodNotFound, `Tool not found: ${name}`);
   }
-  const result = await handleToolCall(tenantId, name, args || {});
-  return {
-    content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-    isError: !result.ok,
-  };
+
+  try {
+    const response = await crmClient.post('/api/crm/agent/tool', {
+      toolName: name,
+      input: args || {},
+    });
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  } catch (err) {
+    const message = err.response?.data?.error || err.message || 'Unknown error';
+    return {
+      content: [
+        {
+          type: 'text',
+          text: `Error: ${message}`,
+        },
+      ],
+      isError: true,
+    };
+  }
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('Nabi CRM MCP server running on stdio');
+}
+
+main().catch((err) => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});

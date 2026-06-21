@@ -239,3 +239,25 @@ export async function initializeTenantCredits(tenantId, amount) {
   if (existing > 0) return { balance: existing, alreadyInitialized: true };
   return grantCredits(tenantId, amount, 'initial_grant', { source: 'trial' });
 }
+
+/**
+ * Refund credits after a handler failure.
+ * Adds the credits back atomically with a REFUND ledger entry.
+ * Use this when chargeCreditsForAction succeeded but the subsequent
+ * handler action failed — so the user is not left without credits.
+ *
+ * @param {string} tenantId
+ * @param {number} amount       - Amount to refund (positive integer)
+ * @param {string} actionType   - Original action type that was charged
+ * @param {string} [ledgerId]   - Optional: original ledger entry ID for reference
+ * @param {string} [reason]     - Human-readable reason for refund
+ */
+export async function refundCredits(tenantId, amount, actionType, { ledgerId, reason = 'handler_failure' } = {}) {
+  if (!tenantId) throw new Error('tenantId required');
+  const refundReason = `refund.${actionType}`;
+  return grantCredits(tenantId, amount, refundReason, {
+    refundFor: actionType,
+    originalLedgerId: ledgerId || null,
+    reason,
+  });
+}
