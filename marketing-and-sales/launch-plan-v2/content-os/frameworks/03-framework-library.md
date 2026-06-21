@@ -248,3 +248,37 @@
 | **Differentiation** | FW-AI, FW-CRM, FW-CONTRARIAN |
 
 > Pairing rule: pick **1 primary framework** per piece. Combining 2 dilutes the message. The hook may borrow a second framework's *energy* but the structure must follow one.
+
+---
+
+## Per-Framework Production Defaults (auto-applied)
+
+Every framework now ships with default **sound, grade, and performance** so the factory picks the right mood automatically (override per piece if needed). Maps to `visual-system/05` §10/§12/§14. Format: `MUSIC → GRADE → dominant PERF → SFX accent`.
+
+- **FW-PAS** — `VP-MUSIC-TENSION→UPLIFT` → `GRADE-MOODY→CLEAN` → `PERF-WORRY→RELIEF` → riser + win-ding
+- **FW-BAB** — `TENSION→UPLIFT` → `MOODY→GOLDEN` → `WORRY→EXCITED` → match-cut whoosh
+- **FW-CASE** — `UPLIFT` → `CLEAN→GOLDEN` → `CONFIDENT` → counter ticks on metrics
+- **FW-AUTHORITY** — `CORPORATE-INDIA` → `GRADE-SAAS` → `CONFIDENT` → subtle, clean
+- **FW-FOUNDER** — `CORPORATE-INDIA (warm)` → `GRADE-WARM` → `EMPATHY/CONFIDENT` → minimal
+- **FW-MYTH** — `CORPORATE/FUN` → `CLEAN` → `CONFIDENT/SURPRISE` → text-pop
+- **FW-MISTAKE** — `CORPORATE-INDIA` → `CLEAN` → `CONFIDENT` → number pops
+- **FW-FEAR** — `TENSION` → `MOODY` → `WORRY/SURPRISE` → riser, low rumble
+- **FW-CURIOSITY** — `TENSION (light)` → `SAAS` → `CONFUSED/SURPRISE` → whoosh on reveal
+- **FW-CONTRARIAN** — `CORPORATE (bold)` → `CLEAN` → `CONFIDENT` → sharp hit
+- **FW-NEWS** — `CORPORATE (news)` → `CLEAN` → `CONFIDENT` → ticker + stinger
+- **FW-DEMO** — `CORPORATE-INDIA` → `GRADE-SAAS` → `CONFIDENT` → UI click per tap
+- **FW-DRAMA** — `FUN/TENSION` → `MOODY→CLEAN` → full range → reaction stings
+- **FW-SKIT** — `FUN` → `CLEAN` → `EXCITED/SURPRISE` → comedic SFX
+- **FW-CONVO** — `CORPORATE (light)` → `CLEAN/WARM` → `EMPATHY/CONFIDENT` → soft, room tone
+- **FW-CUSTOMER** — `UPLIFT` → `GOLDEN/WARM` → `CELEBRATE/EMPATHY` → key-jingle, warm pad
+- **FW-OBJECTION** — `CORPORATE` → `CLEAN` → `CONFIDENT/EMPATHY` → subtle
+- **FW-WHATSAPP-CHAOS** — `TENSION→relief` → `MOODY→CLEAN` → `FRUSTRATED→RELIEF` → notification pings
+- **FW-LEAD-LEAKAGE** — `TENSION` → `MOODY (amber)` → `PERF-WORRY` → ₹ counter + cash SFX
+- **FW-FOLLOWUP** — `TENSION` → `MOODY` → `WORRY/FRUSTRATED` → ticking clock, riser
+- **FW-AI** — `CORPORATE (futuristic)` → `GRADE-SAAS` → `SURPRISE/EXCITED` → tech whoosh, glow
+- **FW-CRM** — `CORPORATE-INDIA` → `SAAS/CLEAN` → `CONFIDENT` → UI clicks
+- **FW-UGC** — `VP-MUSIC-NONE (ambient)` → `CLEAN (natural)` → authentic/`EXCITED` → raw, no SFX
+- **FW-TEAM** — `CORPORATE` → `GRADE-SAAS` → `CONFIDENT` → dashboard-reveal swell
+- **FW-PROPERTY** — `UPLIFT` → `WARM/GOLDEN` → `EXCITED/CONFIDENT` → whoosh on instant-share
+
+> Camera/motion/`HF-*` defaults for each framework live in `higgsfield/06 §4`. This table adds the *finish* (sound + grade + performance) so a piece is production-grade without manual mood-picking.

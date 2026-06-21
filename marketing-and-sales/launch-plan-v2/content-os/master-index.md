@@ -43,7 +43,8 @@ The reusable engine. A fresh agent loads it and produces brand-correct content w
 | `frameworks/03-framework-library.md` | 25 reusable content frameworks | `FW-*` |
 | `characters/04-character-system.md` | 9 permanent recurring characters + consistency prompts | `CH-*` |
 | `visual-system/05-visual-system.md` | Camera, light, color, motion, thumbnail presets | `VP-*` |
-| `higgsfield/06-higgsfield-production-guide.md` | Framework → Higgsfield workflow mapping | `HF-*` |
+| `higgsfield/06-higgsfield-production-guide.md` | Framework → Higgsfield workflow mapping + premium/negative prompt blocks | `HF-*` |
+| `higgsfield/07-higgsfield-skills.md` | Reusable slash-workflow Skills (`/realestateflow-*`) — one brief → finished reel | `HF-*` |
 | `hooks/07-hook-library.md` + `hooks.json` | 1,000 reusable hooks (taxonomy + data) | `HK-*` |
 | `ctas/08-cta-library.md` + `ctas.json` | 500 reusable CTAs (taxonomy + data) | `CTA-*` |
 | `production-sop/09-content-type-system.md` | 10 content-type generation recipes | `CT-*` |
@@ -239,6 +240,7 @@ content-os/
 ├── characters/04-character-system.md                       (CH-*)
 ├── visual-system/05-visual-system.md                       (VP-*)
 ├── higgsfield/06-higgsfield-production-guide.md            (HF-*)
+├── higgsfield/07-higgsfield-skills.md                      (HF-* slash workflows)
 ├── hooks/{07-hook-library.md, hooks.json}                  (HK-*, 1000)
 ├── ctas/{08-cta-library.md, ctas.json}                     (CTA-*, 500)
 ├── production-sop/{09-content-type-system, 10-content-factory, 11-prompt-library}.md

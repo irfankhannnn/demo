@@ -124,6 +124,17 @@ Six layers, each an ID you attach to a shot:
 ### The quality bar
 A new **Production-Grade Scorecard** (`05 §16`) scores each piece /10 across 10 dimensions (consistency, performance, physics, camera, grade, graphics, sound, editing, story, no-AI-tells). **Publish only if average ≥ 8 and nothing < 6** — else regenerate the weak shot. The old 10 Non-Negotiables are now the *floor*; the scorecard is the *bar*.
 
+### Auto-mood per framework (no manual picking)
+You don't choose sound/grade/performance by hand. Each of the 25 frameworks ships a **default mood** (`frameworks/03` → "Per-Framework Production Defaults"). Pick the framework, the finish comes free:
+
+```
+FW-FEAR          → tension music + moody amber grade + worried performance
+FW-CUSTOMER      → uplifting music + golden grade + celebrate/empathy
+FW-DEMO          → corporate-India + crisp SaaS grade + UI-click SFX
+FW-UGC           → no music (ambient) + natural grade + raw, authentic
+```
+Override only when a piece needs something special — otherwise the mood is correct by default.
+
 **Example — same shot, before vs after the upgrade:**
 
 ```

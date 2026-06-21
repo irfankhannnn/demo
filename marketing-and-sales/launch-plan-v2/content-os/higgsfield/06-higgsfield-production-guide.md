@@ -430,7 +430,7 @@ quality: "1080p"
 2. **Advanced camera combos (Cinema Studio / Kling Motion Control)** — systematize premium moves as named intents: crash-zoom on the twist, FPV-drone establishing, dolly-in on authority, parallax push on reveals, whip-pan transition. Map these onto `VP-CAM-*`/`VP-GFX-TRANSITION`.
 3. **Lens & film-stock language** — speak the camera: "35mm, T1.8, shallow DoF", "anamorphic flare", "filmic grain" — Cinema Studio responds to lens sim; raises the cinematic ceiling.
 4. **Prompt-enhancement OFF for locked shots** — when identity/scene must be exact, disable auto-enhance so it doesn't drift the look; ON only for exploratory b-roll.
-5. **Supercomputer Skill packaging** — once an `HF-*` recipe is stable, publish it as a slash workflow (`/realestateflow-drama`, `/realestateflow-ugc`, `/realestateflow-demo`) so one brief → finished, on-brand, production-grade reel. Version + share across the team. 🟡 verify plan access.
+5. **Supercomputer Skill packaging** — once an `HF-*` recipe is stable, publish it as a slash workflow (`/realestateflow-drama`, `/realestateflow-ugc`, `/realestateflow-demo`) so one brief → finished, on-brand, production-grade reel. Version + share across the team. **Reference template + schema: `higgsfield/07-higgsfield-skills.md`.** 🟡 verify plan access.
 6. **Higgsfield Marketing Studio** — use for branded ad variants/templated SaaS spots when we want platform-native ad polish fast; keep brand hex + Inter via Remotion overlays.
 
 ---

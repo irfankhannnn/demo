@@ -119,6 +119,20 @@ The agent never *invents* the brand — it **reads the SSOT** every time, so out
 
 `orchestrator` coordinates them when a task spans teams.
 
+### One-command reels (Higgsfield Skills)
+
+The full 10-step factory can be packaged as a **slash workflow** so a whole reel comes from a single brief — the agent doesn't re-derive the pipeline each time. The reference template is `higgsfield/07-higgsfield-skills.md`.
+
+```
+/realestateflow-drama topic="lead lost in WhatsApp" city=Mumbai count=3 goal=reach
+   ↓ (Skill auto-runs, premium defaults locked on)
+load memory → FW-DRAMA + cast duo → script → scenes (+VP-PERF/PHYS/GRADE)
+→ Higgsfield (+ premium & NEGATIVE blocks) → motion graphics + sound
+→ Production-Grade Scorecard ≥ 8 → 3 finished 9:16 reels
+```
+
+Siblings: `/realestateflow-ugc`, `/realestateflow-demo`, `/realestateflow-founder` — same schema, different framework family + finish. The win: a non-expert gets agency-grade output, and quality never drifts between operators.
+
 ---
 
 ## Publishing reality check
