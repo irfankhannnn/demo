@@ -149,4 +149,4 @@ back to CONTENT OS → make 7 better posts
 
 That feedback loop — generate → distribute → measure → improve — is the entire system in one sentence.
 
-→ For *what to build next*, see `../user-guide.md`. For the agent navigation map, see `../master-index.md`.
+→ Want more depth? **04-gtm-os-deep-dive.md** (the 4 GTM sub-systems) and **05-growth-platform-deep-dive.md** (measurement + cloning). For *what to build next*, see `../user-guide.md`; for the agent map, `../master-index.md`.
