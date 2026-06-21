@@ -25,7 +25,7 @@
 - [ ] Lead magnet ready: **"Lead Leakage Calculator"** (interactive) behind link-in-bio — powers OPP-163 / OPP-310.
 
 **Ops & measurement**
-- [ ] Blotato scheduling queue loaded with Day 1–7 at the windows below.
+- [ ] Manual upload queue prepared (Meta Business Suite drafts) for Day 1–7 at the windows below.
 - [ ] Tracking sheet: per-OPP reach, saves, shares, comments, profile visits, link clicks, DMs, demos booked.
 - [ ] 3 micro-influencer / peer-broker DMs lined up to share Day 1 founder reel (peer validation = #1 trust signal).
 - [ ] Comment-response SLA: **reply within 30 min** during 7–9 AM, 12–2 PM, 6–9 PM (research: response speed is the whole game).

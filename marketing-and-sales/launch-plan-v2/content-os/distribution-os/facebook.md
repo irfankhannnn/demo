@@ -39,7 +39,7 @@ FB **Lead Ads** (instant forms — name, phone, "current lead tool?") + Messenge
 IG reels → FB reels/feed (1:1) · IG carousels → FB image posts · case studies → group "success stories" (with permission) · LinkedIn hot-takes → FB page text posts.
 
 ## Publishing workflow
-Content factory → Blotato (IG+FB simultaneously) → group participation manual (authenticity) → winning posts promoted as Lead Ads via meta-ads MCP → leads flow to `/api/marketing/events` → WhatsApp nurture.
+Content factory → manual upload (IG+FB via Meta Business Suite) → group participation manual (authenticity) → winning posts promoted as Lead Ads via meta-ads MCP → leads flow to `/api/marketing/events` → WhatsApp nurture.
 
 ## Metrics
 Group DMs started, lead-ad CPL, lead-ad → demo rate, page reach (overflow), cost per qualified lead by group/ad. Feed `growth-dashboard.md`.

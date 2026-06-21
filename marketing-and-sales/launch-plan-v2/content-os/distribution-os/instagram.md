@@ -3,7 +3,7 @@
 > **The #1 channel for RealEstateFlow.** Mumbai & Pune brokers consume ~60% of their content here (`02-market-research §9.1`), sound-off, one-handed, between site visits. Instagram is where reach, relatability, and warm-lead capture happen. This file is the **strategy layer**; the **deep execution system** (grid plan, Reels engine, Stories engine, highlight architecture, hashtag banks, DM-automation flows, growth playbook) lives in **`distribution-os/instagram/`** — cross-reference it for day-to-day production.
 >
 > **Handles:** IG `@realtyflow_india` · site `realtyflow.in` · demo `demo.realtyflow.in` · trial `app.realtyflow.in/signup`
-> **Plugs into:** `production-sop/10-content-factory.md` (Step 10 publish) · Blotato MCP scheduling · `09-content-type-system.md` (CT-*) · `08-cta-library.md` (CTA-*).
+> **Plugs into:** `production-sop/10-content-factory.md` (Step 10 publish) · manual upload (Meta Business Suite / native apps) · `09-content-type-system.md` (CT-*) · `08-cta-library.md` (CTA-*).
 
 ---
 
@@ -92,7 +92,7 @@ Keyword-comment CTAs ("comment 'CRM'") are the workhorse — they trigger the DM
 
 | From → To | What | How |
 |---|---|---|
-| **IG Reel → Facebook Reel** | same 9:16, same caption | Blotato cross-post (Reels→IG+FB, `10-content-factory` Step 10) |
+| **IG Reel → Facebook Reel** | same 9:16, same caption | manual cross-post (Reels→IG+FB, `10-content-factory` Step 10) |
 | **IG Reel → YouTube Shorts** | same vertical cut, add SEO title/desc | see `youtube.md` (repurpose reels) |
 | **IG Reel → WhatsApp Status / broadcast** | top-performing drama/proof clips | see `whatsapp.md` |
 | **IG Carousel → LinkedIn document/carousel** | EDU/Authority slides, English-leaned | see `linkedin.md` |
@@ -101,16 +101,16 @@ Keyword-comment CTAs ("comment 'CRM'") are the workhorse — they trigger the DM
 
 **Inbound:** Pune Marathi drama variants and UGC originate per-geo, then a Hinglish master version is cut for pan-city reuse.
 
-## 7. Publishing Workflow (Content Factory + Blotato)
+## 7. Publishing Workflow (Content Factory + Manual Upload)
 
 ```
 Pick OPP/CT-* → FW-* → CH-* → HK-* → script (lang tag) → scene/VP-* →
 Higgsfield (HF-*) gen → stitch + burned-in subtitles (sound-off!) → caption + hashtags →
-assign CTA-* → SCHEDULE in Blotato (peak slot) → cross-post (IG+FB Reels) → Recipe Log
+assign CTA-* → UPLOAD manually (peak slot, Meta Business Suite) → cross-post (IG+FB Reels) → Recipe Log
 ```
 
 - **Step 8 caption:** hook restated → 2–4 value lines in the language tag → 1 CTA line → 5–10 hashtags (broad `#realestate #realtor` + niche `#mumbairealestate #punerealestate #realestatecrm` + Hinglish `#propertydealsindia`).
-- **Blotato MCP:** schedule IG (Reels/posts/Stories) at peak windows; same job fans the Reel to FB. Pune `mr-dominant` variants scheduled to Pune-geo audiences.
+- **Manual upload:** schedule IG (Reels/posts/Stories) at peak windows via Meta Business Suite (or the IG app); cross-post the same Reel to FB. Pune `mr-dominant` variants posted to Pune-geo audiences.
 - **Quality gate** (`10-content-factory`): claim ∈ business memory, hook visual ≤1s, subtitles present, language tag matches geo/persona, recurring CH-* consistency prompt used, brand color/9:16, single CTA, ₹/lakh/crore, RERA-safe, Recipe logged.
 - **Deep system handoff:** grid/Reels/Stories/highlight architecture, hashtag rotation, DM-automation copy, and the IG-specific growth playbook all live in **`distribution-os/instagram/`** — this file governs *what & why*, that folder governs *how at scale*.
 

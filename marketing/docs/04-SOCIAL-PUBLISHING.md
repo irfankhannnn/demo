@@ -1,41 +1,44 @@
-# Social Media Publishing Guide — Blotato MCP
+# Social Media Publishing Guide — Manual Upload
 
-Schedule and publish content to Instagram, Facebook, LinkedIn, TikTok, X, and more.
-
----
-
-## Blotato MCP Overview
-
-Blotato MCP gives Claude direct access to publish and schedule social media content.
-
-**Connected platforms (once authenticated):**
-- Instagram Business (@realtyflow_india)
-- Facebook Page (/RealtyFlowCRM)
-- LinkedIn Company Page (/company/realtyflow)
-- TikTok (@realtyflow_india)
-- Twitter/X (@RealtyFlowCRM)
-- Pinterest, Threads, Bluesky (optional)
+Publish content to Instagram, Facebook, LinkedIn, YouTube, and more — by generating the asset + caption here and uploading it yourself. **No scheduling MCP is configured;** the recommended (free) scheduler is **Meta Business Suite** for IG + FB.
 
 ---
 
-## Quick Reference: Post Commands
+## How Publishing Works
 
-| Action | What to say to Claude |
-|--------|----------------------|
-| Publish now (image) | "Post this image to Instagram now with this caption" |
-| Schedule post | "Schedule this for tomorrow 9am IST on Instagram" |
-| Schedule week | "Schedule these 7 posts across the week on IG and FB" |
-| Cross-post | "Post this to Instagram, Facebook, and LinkedIn simultaneously" |
-| List scheduled | "Show my scheduled Blotato posts" |
-| Cancel scheduled | "Cancel the Instagram post scheduled for Friday" |
+1. **Generate** the asset (Higgsfield) + caption (skills) → saved in `marketing/assets/` + `marketing/posts/`.
+2. **Download** the image/video file.
+3. **Upload + schedule** on each platform:
+
+| Platform | Where to upload/schedule | Notes |
+|---|---|---|
+| Instagram + Facebook | [Meta Business Suite](https://business.facebook.com) → **Planner** → Create Post | Free. Schedules both IG + FB in one go. Native apps also work. |
+| Instagram Stories/Reels | IG app (or Meta Business Suite) | Reels: upload 9:16 MP4, add caption + cover. |
+| YouTube Shorts | YouTube Studio → Create → Upload | Add SEO title/desc/tags; schedule natively. |
+| LinkedIn | LinkedIn post box → clock icon (schedule) or app | English-leaning copy. |
+
+**Accounts:** IG `@realtyflow_india` · FB `/RealtyFlowCRM` · LinkedIn `/company/realtyflow` · YouTube `@realtyflow`.
 
 ---
 
-## Example 1: Publish an Instagram Post Immediately
+## What Claude Can Do For You
+
+Claude generates everything *up to* the upload — you do the final upload (2 clicks in Meta Business Suite):
+
+| Ask Claude to… | Result |
+|---|---|
+| Generate the asset | Image/video saved to `marketing/assets/` |
+| Write the caption + hashtags | Caption saved to `marketing/posts/<platform>/` |
+| Build a week's calendar | A schedule table (platform + time + file + caption) ready to paste into Meta Business Suite |
+| Optimize timing | Recommended peak slots for the Indian audience (see table below) |
+
+---
+
+## Example 1: Instagram Post (generate, then upload)
+
+Claude produces the asset + caption; you upload to IG via Meta Business Suite.
 
 ```
-Use Blotato MCP to publish to Instagram (@realtyflow_india) now.
-
 Image: marketing/assets/images/ig-post-before-after-01.png
 
 Caption:
@@ -57,17 +60,14 @@ Aap bhi try karo — free hai!
 #RealtyFlow #RealEstateCRM #IndianRealEstate #RealtorLife #PropTech
 #MumbaiRealEstate #PuneProperty #CRMForRealtors #LeadManagement
 #RealEstateIndia #PropertyDeals #RealtorTips #AgentLife"
-
-Post immediately.
 ```
+→ Meta Business Suite → Create Post → Instagram → upload image + paste caption → Publish now.
 
 ---
 
-## Example 2: Schedule Facebook Post
+## Example 2: Facebook Post (schedule)
 
 ```
-Use Blotato MCP to schedule a Facebook post on /RealtyFlowCRM.
-
 Image: marketing/assets/images/fb-ad-banner-agency-owner-01.png
 
 Copy:
@@ -86,121 +86,76 @@ RealtyFlow aapko deta hai:
 Mumbai, Pune, Delhi, Bangalore — sab jagah use ho raha hai.
 
 Free trial → realtyflow.in/trial"
-
-Schedule for: Thursday 10:00 AM IST
 ```
+→ Meta Business Suite → Create Post → Facebook → **Schedule** for Thursday 10:00 AM IST.
 
 ---
 
 ## Example 3: Cross-Post to Multiple Platforms
 
-```
-Use Blotato MCP to cross-post the following content to three platforms simultaneously.
+Generate one asset + 3 platform-specific captions, then upload to each.
 
+```
 Image: marketing/assets/images/ig-post-before-after-01.png
 
 Instagram caption: [Hinglish casual version with emojis and hashtags]
 "Yaar, ab bhi Excel mein lead track kar rahe ho? 😅
-
 Before RealtyFlow: 3 spreadsheets, 50 chats, chaos 😩
 After RealtyFlow: 1 dashboard, everything visible 🎯
-
 Free try karo — link in bio!
 #RealtyFlow #IndianRealEstate #CRM #RealtorLife #PropTech"
 
 Facebook post: [More educational, slightly longer]
-"Real estate agents — kya aap abhi bhi Excel ya WhatsApp groups mein 
+"Real estate agents — kya aap abhi bhi Excel ya WhatsApp groups mein
 leads manage kar rahe hain?
-
 2026 mein India ke top real estate agents CRM use karte hain kyunki:
 • Average 40% more deals close hoti hain
 • Zero missed follow-ups
 • Team visibility without micromanagement
-
 RealtyFlow exactly iske liye bana hai. Indian real estate ke liye.
 Free trial available → realtyflow.in"
 
 LinkedIn post: [Professional English tone]
-"India's real estate market is growing at 15% YoY, but most agents 
+"India's real estate market is growing at 15% YoY, but most agents
 are still managing ₹2 crore+ deals on spreadsheets.
-
-The top-performing agencies I've spoken with in Mumbai and Pune have 
+The top-performing agencies I've spoken with in Mumbai and Pune have
 one thing in common: a purpose-built CRM.
-
-RealtyFlow is built specifically for Indian real estate workflows — 
+RealtyFlow is built specifically for Indian real estate workflows —
 WhatsApp integration, RERA compliance, Hinglish UI, INR pricing.
-
 Free trial: realtyflow.in"
-
-Post all three simultaneously.
 ```
+→ Meta Business Suite handles IG + FB together; post LinkedIn separately.
 
 ---
 
-## Example 4: Schedule Full Week Content Calendar
+## Example 4: Full Week Content Calendar
+
+Ask Claude to generate the assets + captions, then load them as **drafts in Meta Business Suite Planner** for the week:
 
 ```
-Use Blotato MCP to schedule this 7-day content calendar starting Monday.
+All images in marketing/assets/images/week-01/
 
-All images are in marketing/assets/images/week-01/
-
-Monday 9 AM IST → Instagram
-Image: day-1.png
-Caption: "Kitne leads hai? Kitne close hue? Pata nahi? RealtyFlow try karo.
-#RealtyFlow #RealEstate #CRM"
-
-Tuesday 10 AM IST → Facebook  
-Image: day-2.png
-Post: "Feature spotlight: Pipeline Dashboard..."
-[full caption here]
-
-Wednesday 7 PM IST → Instagram
-Image: day-3.png
-Caption: "Customer story..."
-[full caption]
-
-Thursday 9 AM IST → LinkedIn
-Image: day-4.png
-Post: "5 lead management mistakes..."
-[professional copy]
-
-Friday 10 AM IST → Instagram + Facebook (cross-post)
-Image: day-5.png
-[captions for each]
-
-Saturday 9 AM IST → Instagram Stories
-Image: day-6.png (story format)
-
-Sunday 6 PM IST → Instagram Reel
-Video: marketing/assets/videos/ig-reel-before-after-01.mp4
-Caption: "Yeh dekho phir batao..."
-
-Schedule all 7 posts as above.
+Monday 9 AM IST → Instagram — day-1.png
+  "Kitne leads hai? Kitne close hue? Pata nahi? RealtyFlow try karo. #RealtyFlow #RealEstate #CRM"
+Tuesday 10 AM IST → Facebook — day-2.png — "Feature spotlight: Pipeline Dashboard..."
+Wednesday 7 PM IST → Instagram — day-3.png — "Customer story..."
+Thursday 9 AM IST → LinkedIn — day-4.png — "5 lead management mistakes..."
+Friday 10 AM IST → Instagram + Facebook (cross-post) — day-5.png
+Saturday 9 AM IST → Instagram Stories — day-6.png (story format)
+Sunday 6 PM IST → Instagram Reel — ig-reel-before-after-01.mp4 — "Yeh dekho phir batao..."
 ```
+→ In Meta Business Suite Planner, create each as a scheduled post at the time shown.
 
 ---
 
 ## Example 5: Instagram Story Campaign (3-Day Launch)
 
+Generate the story frames; post manually from the IG app each morning (Stories can't be pre-scheduled in all tools):
+
 ```
-Use Blotato MCP to schedule a 3-day Instagram Story launch sequence.
-
-Day 1 (Friday 10 AM): TEASER
-Image: marketing/assets/images/story-teaser.png
-Text overlay: "Kuch bada aa raha hai..."
-Link: realtyflow.in (swipe up)
-
-Day 2 (Saturday 10 AM): BUILD ANTICIPATION
-Image: marketing/assets/images/story-buildout.png  
-Text: "Kal ho jayega reveal!"
-Poll sticker: "Kya aap ready hain? Yes / Bilkul!"
-
-Day 3 (Sunday 10 AM): LAUNCH
-Image: marketing/assets/images/story-launch.png
-Text: "Ab aa gaya! Free Trial shuru karo!"
-Link sticker: realtyflow.in/trial
-
-Schedule all 3 as Instagram Stories.
+Day 1 (Fri 10 AM) TEASER — story-teaser.png — "Kuch bada aa raha hai..." + link sticker realtyflow.in
+Day 2 (Sat 10 AM) BUILD — story-buildout.png — "Kal ho jayega reveal!" + poll "Ready? Yes / Bilkul!"
+Day 3 (Sun 10 AM) LAUNCH — story-launch.png — "Ab aa gaya! Free Trial shuru karo!" + link realtyflow.in/trial
 ```
 
 ---
@@ -212,33 +167,23 @@ Schedule all 3 as Instagram Stories.
 | Instagram | 9 AM, 12 PM, 7 PM | Tue, Wed, Thu |
 | Facebook | 9-11 AM, 1-3 PM | Wed, Thu, Fri |
 | LinkedIn | 8-10 AM, 12 PM | Tue, Wed, Thu |
-| TikTok | 7-9 AM, 7-9 PM | Any weekday |
+| YouTube | 5-8 PM | Fri, Sat, Sun |
 | Twitter/X | 8 AM, 12 PM, 5 PM | Mon-Fri |
 
-**Ask Claude to auto-optimize:**
-```
-"Schedule this post at the optimal time for Instagram engagement this week. 
-The target audience is Indian real estate professionals."
-```
+**Ask Claude:** *"Give me the optimal posting slots for Instagram this week for Indian real estate professionals,"* then schedule those slots in Meta Business Suite.
 
 ---
 
-## Listing and Managing Scheduled Posts
+## Managing Scheduled Posts
 
-```
-"Show all my scheduled Blotato posts for this week"
-"Show only Instagram scheduled posts"
-"Cancel the Facebook post scheduled for Friday"
-"Move the Instagram post from Wednesday to Thursday 9 AM IST"
-"Duplicate this post and schedule it again for next Monday"
-```
+All scheduling/editing happens in **Meta Business Suite → Planner** (IG + FB) or each platform's native scheduler:
+- View/reschedule/cancel scheduled posts from the Planner calendar.
+- Duplicate a high-performer and re-schedule it for a later date.
 
 ---
 
-## Analytics (if available in Blotato)
+## Analytics
 
-```
-"Show engagement metrics for my last 5 Instagram posts"
-"Which post this week had the highest reach on Facebook?"
-"What's the average engagement rate on my Instagram posts this month?"
-```
+- **Instagram/Facebook:** Meta Business Suite → Insights (reach, engagement, best post).
+- **YouTube:** YouTube Studio → Analytics.
+- **In-product attribution:** once `EP-1/EP-2` ship, tag each post with its `OPP-*` so the Growth Platform can tie reach → demos → revenue (see `marketing-and-sales/launch-plan-v2/content-os/growth-platform/`).

@@ -31,7 +31,7 @@
 | `voiceover-gen` | ElevenLabs TTS, multi-language subtitles | orator | None |
 | `landing-page` | HTML landing pages with Hinglish copy, conversion optimized | landing-page-builder | None |
 | `seo-blog` | SEO blog articles, editorial calendars (Hinglish) | seo-content-writer | None |
-| `social-content` | Instagram, Twitter, LinkedIn posts with visuals | nano-designer, ugc-planner | blotato |
+| `social-content` | Instagram, Twitter, LinkedIn posts with visuals | nano-designer, ugc-planner | None (manual upload) |
 | `copywriting` | Sales copy, email, landing page text | sdr, nurture-bot, landing-page-builder | None |
 | `content-strategy` | Content calendar, pillar topics, distribution plan | seo-content-writer, brand-strategist | None |
 
@@ -115,7 +115,6 @@
 |-------|-------------|----------|--------------|
 | `higgsfield` | Nano Banana Pro, Veo 3.1, Kling 3.0, Sora 2 (video/image) | nano-designer, motion-engineer | higgsfield |
 | `meta-ads` | Facebook/Instagram campaign API (29 tools) | media-buyer | meta-ads |
-| `blotato` | Social media scheduling (IG, FB, LinkedIn, TikTok, X) | nano-designer, ugc-planner | blotato |
 
 ---
 
@@ -496,7 +495,7 @@ User
 | media-buyer | ✅ | ✅ | ✅ | ✅ | meta-ads |
 | ab-optimizer | ✅ | ✅ | ✅ | ✅ | None |
 | lead-scraper | ✅ | ✅ | ✅ (SerpApi) | ✅ | None |
-| sdr | ✅ | ✅ | ❌ | ✅ (Email APIs) | blotato |
+| sdr | ✅ | ✅ | ❌ | ✅ (Email APIs) | None |
 | nurture-bot | ✅ | ✅ | ✅ | ✅ (CRM APIs) | None |
 | pipeline-manager | ✅ | ✅ | ✅ | ✅ | Google Sheets |
 | orchestrator | ✅ | ✅ | ✅ | ✅ | All |
@@ -510,7 +509,7 @@ User
 | **Total Skills** | 64 |
 | **Total Agents** | 20 |
 | **Teams** | 6 |
-| **MCPs Required** | 3 (higgsfield, meta-ads, blotato) |
+| **MCPs Required** | 2 (higgsfield, meta-ads) |
 | **Skills per Agent (avg)** | 3-5 |
 | **Agents per Team (avg)** | 3.3 |
 | **Dependencies (max chain)** | 5-6 agents |

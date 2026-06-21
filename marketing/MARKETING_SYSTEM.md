@@ -25,9 +25,9 @@ This is a complete, brand-consistent marketing automation system for **RealtyFlo
         ▼                                     ▼
 ┌──────────────────┐               ┌──────────────────────┐
 │  SOCIAL PUBLISH  │               │    PAID ADS          │
-│  Blotato MCP     │               │    Meta Ads MCP      │
-│  IG, FB, LinkedIn│               │    FB + IG campaigns │
-│  TikTok, X, etc  │               │    CAPI, audiences   │
+│  Manual upload   │               │    Meta Ads MCP      │
+│  (Meta Business  │               │    FB + IG campaigns │
+│  Suite + apps)   │               │    CAPI, audiences   │
 └──────────────────┘               └──────────────────────┘
 ```
 
@@ -59,7 +59,7 @@ copy to marketing/posts/facebook/fb-ad-rajesh-01.md"
 
 | Doc | What It Covers |
 |-----|----------------|
-| [01-AUTHENTICATION.md](docs/01-AUTHENTICATION.md) | Connect Higgsfield, Meta Ads, Blotato (do this first) |
+| [01-AUTHENTICATION.md](docs/01-AUTHENTICATION.md) | Connect Higgsfield, Meta Ads (do this first) |
 | [02-IMAGE-GENERATION.md](docs/02-IMAGE-GENERATION.md) | Generate images, banners, ad creatives |
 | [03-VIDEO-GENERATION.md](docs/03-VIDEO-GENERATION.md) | Create video ads, reels, explainers |
 | [04-SOCIAL-PUBLISHING.md](docs/04-SOCIAL-PUBLISHING.md) | Schedule and publish to IG, FB, LinkedIn |

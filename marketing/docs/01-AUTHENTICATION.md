@@ -77,42 +77,15 @@ Pixel ID: XXXXXXXXXX
 
 ---
 
-## 3. Blotato MCP (Social Media Publishing)
+## 3. Social Media Publishing (Manual Upload — no MCP)
 
-**What it unlocks:** Schedule and publish to Instagram, Facebook, TikTok, LinkedIn, X, Pinterest, Threads, Bluesky
+**How publishing works:** there is **no scheduling MCP** configured. Generate the asset (Higgsfield) + caption (skills), download the file, and upload it yourself:
 
-### Step 1: Purchase Blotato Plan
-Go to blotato.com → sign up → choose "Starter" ($29/mo) or higher.
+- **Instagram + Facebook:** [Meta Business Suite](https://business.facebook.com) → Planner → Create Post → schedule at the peak window. (Native IG/FB apps also work.)
+- **YouTube Shorts:** YouTube Studio → Create → Upload → schedule.
+- **LinkedIn:** LinkedIn native scheduler (clock icon under the post box) or the app.
 
-### Step 2: Get API Key
-In Blotato dashboard:
-- Settings → API Keys → Create New Key
-- Copy the key (starts with `blotato_...`)
-
-### Step 3: Add the MCP (already done if `.mcp.json` exists)
-```bash
-! claude mcp add --transport http --scope project blotato https://mcp.blotato.com/sse
-```
-
-### Step 4: Configure API Key
-When prompted, enter your Blotato API key. Or set as environment variable:
-```bash
-# Add to your .env or system environment
-BLOTATO_API_KEY=blotato_your_key_here
-```
-
-### Step 5: Connect Social Accounts
-In Blotato dashboard:
-- Accounts → Connect → Instagram Business (connect @realtyflow_india)
-- Accounts → Connect → Facebook Page (connect /RealtyFlowCRM)
-- Accounts → Connect → LinkedIn Company Page
-- Repeat for TikTok, X as needed
-
-### Step 6: Verify
-In Claude Code:
-```
-"List my connected Blotato social accounts"
-```
+> Meta Business Suite is **free** and is the recommended scheduler for IG + FB. See `04-SOCIAL-PUBLISHING.md` for the full manual workflow.
 
 ---
 
@@ -125,8 +98,7 @@ In Claude Code:
 Expected output:
 ```
 higgsfield    ✓ connected
-meta-ads      ✓ connected  
-blotato       ✓ connected
+meta-ads      ✓ connected
 ```
 
 If any show "disconnected" or "auth required", re-run the auth steps above.
@@ -139,5 +111,4 @@ If any show "disconnected" or "auth required", re-run the auth steps above.
 |---|---|
 | Higgsfield "401 Unauthorized" | Re-run `claude mcp list` to trigger re-auth |
 | Meta Ads "No ad accounts found" | Ensure you're signed in to correct FB Business account |
-| Blotato "Invalid API key" | Double-check key from Blotato dashboard → Settings → API Keys |
 | MCP not appearing in Claude | Restart Claude Code after adding MCPs |

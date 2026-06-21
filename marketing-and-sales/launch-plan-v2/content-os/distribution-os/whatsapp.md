@@ -76,15 +76,15 @@ WhatsApp is mid/bottom-funnel — categories skew **WHATSAPP · COMMUNITY · DM 
 | **Founder note → community message** | warmth + mission (see `founder-brand.md`) |
 | **WhatsApp group pain points → IG meme/Reel** | reverse flow: harvest real broker complaints as content fuel |
 
-## 7. Publishing Workflow (Content Factory + Blotato)
+## 7. Publishing Workflow (Content Factory + Manual Upload)
 
 ```
-IG/FB asset published → select top performers → push to Status (manual/Blotato where supported)
-                     → value drops scheduled to Broadcast (≤2/wk)
+IG/FB asset published → select top performers → push to Status (manual)
+                     → value drops posted to Broadcast (≤2/wk)
 Inbound keyword → auto-reply template → human handoff (nurture-bot/sdr) → CRM tag → pipeline
 ```
 
-- **Blotato MCP:** schedules WhatsApp Status/broadcast where the channel is connected; for 1:1 conversation and keyword flows, the **deep system in `distribution-os/whatsapp/`** defines the WhatsApp Business API / auto-reply tooling and template library.
+- **Status/broadcast:** post WhatsApp Status/broadcast manually; for 1:1 conversation and keyword flows, the **deep system in `distribution-os/whatsapp/`** defines the WhatsApp Business API / auto-reply tooling and template library.
 - **Compliance:** opt-in required for broadcasts; honour opt-out; no cold blasting (kills the channel). Templates approved per WhatsApp Business policy.
 - **Language:** match the lead's tongue (Pune → Marathi handshake, then Hinglish/English for product mechanics, `03-language-strategy §8`). Never bot-speak; one natural slang touch max.
 - **Quality gate:** human-first tone, single clear next step, ₹/lakh/crore, RERA-safe, source tagged, opt-in respected.

@@ -103,7 +103,7 @@ Be the **most insightful voice in RE-owner comment sections.** Comments out-reac
 ## 11. Publishing workflow
 
 ```
-Draft in content factory (en-leaning) → schedule via Blotato →
+Draft in content factory (en-leaning) → upload manually (LinkedIn native scheduler / app) →
 engage MANUALLY (commenting/DMs can't be automated — authenticity) → log source=linkedin
 ```
 

@@ -94,7 +94,7 @@ Write the IG caption: hook restated → 2–4 lines value in language tag → 1 
 Pull a CTA (`CTA-*`) whose category matches the content-type default and whose `funnel_stage` matches intent (TOFU reach → FOLLOW/SAVE; MOFU → COMMENT/DM/LEAD-MAGNET; BOFU → DEMO/TRIAL/WHATSAPP). Place it as the script's last spoken line AND the caption ender.
 
 ## Step 10 — Publish
-Schedule via Blotato MCP (IG/FB/LinkedIn). Pick slot from peak windows in `02-market-research.md`. Cross-post: Reels→IG+FB; Authority→LinkedIn; Stories→IG. Save the final **recipe log** (below).
+Upload manually to IG/FB/LinkedIn (Meta Business Suite + native apps). Pick slot from peak windows in `02-market-research.md`. Cross-post: Reels→IG+FB; Authority→LinkedIn; Stories→IG. Save the final **recipe log** (below).
 
 ---
 
@@ -120,7 +120,7 @@ Store logs in `workspaces/{{ACTIVE_WORKSPACE}}/recipe-log.md`. These power reuse
 ---
 
 ## Batch Mode (factory at scale)
-To produce a week: pick top N opportunities by score from the content plan → run Steps 2–9 for each → group by character to batch-generate Higgsfield assets (reuse the same Soul across a shoot) → schedule the week in Blotato. Batching by character is the biggest speed + consistency win.
+To produce a week: pick top N opportunities by score from the content plan → run Steps 2–9 for each → group by character to batch-generate Higgsfield assets (reuse the same Soul across a shoot) → upload the week manually (Meta Business Suite). Batching by character is the biggest speed + consistency win.
 
 ---
 

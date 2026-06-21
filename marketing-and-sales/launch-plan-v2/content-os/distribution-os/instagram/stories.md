@@ -144,7 +144,7 @@ Highlights are the **pinned, always-on mini-funnels** a new profile visitor taps
 ## 7. Frequency & Production SOP
 
 - **Volume:** 4–7 frames/day, 6 days/week (Sunday lighter). ~30–40 frames/week.
-- **Batch:** produce a week of stories in one sitting; schedule via Blotato at peak windows.
+- **Batch:** produce a week of stories in one sitting; upload manually at peak windows (Meta Business Suite / IG app).
 - **Language mix (per `03-language-strategy`):** ~55% Hindi/Hinglish spine, ~30% Marathi (Pune frames + Pune Highlight), ~15% English-leaning (pricing/proof). Subtitles burned for sound-off.
 - **Pune rule:** at least 1 mr-dominant frame/day; the Pune Highlight is always-on.
 - **Rule of one:** one primary CTA per frame; log the CTA-ID used for tracking (per cta-library §"How the factory assigns").

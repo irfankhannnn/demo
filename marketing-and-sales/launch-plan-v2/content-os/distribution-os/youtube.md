@@ -35,7 +35,7 @@ SEO titles/descriptions with demo link; lead magnets in description (CTA-LEAD-MA
 - Case-study reel → full long-form interview with the customer.
 
 ## Publishing workflow
-Render in `my-video/` (Remotion) / edit → upload → optimise title/desc/tags/thumbnail → pin demo CTA → add end-screen + cards → cross-link. Schedule natively or via Blotato where supported.
+Render in `my-video/` (Remotion) / edit → upload → optimise title/desc/tags/thumbnail → pin demo CTA → add end-screen + cards → cross-link. Schedule natively in YouTube Studio.
 
 ## Metrics
 Shorts views, long-form watch time / retention, search impressions + CTR for target keywords, description-link clicks, YouTube→demo. Feed `growth-dashboard.md`.

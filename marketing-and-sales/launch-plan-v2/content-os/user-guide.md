@@ -37,7 +37,7 @@ You can produce publish-ready content **right now**, before any code is built.
 ### The Content Factory (what happens under the hood) — `production-sop/10-content-factory.md`
 ```
 Business Memory → Framework → Character → Hook → Script → Scene →
-Higgsfield Generation → Caption → CTA → Publish (Blotato) → Log recipe
+Higgsfield Generation → Caption → CTA → Publish (manual upload) → Log recipe
 ```
 
 ### Quality gate (must all pass before publishing)
@@ -188,7 +188,7 @@ All definitions live in `growth-platform/analytics/metric-dictionary.md`.
 - **Engineering:** read `implementation/epics.md` + `growth-platform/implementation/epics/epics.md`; spec EP-1 (Lead attribution fields). Time-box 2 days.
 - **Product:** read `growth-platform/activation/activation-framework.md`; define the 5 milestones + in-app checklist. Time-box 3 days.
 - **Growth:** set up UTM tracking (campaign/source/content/medium); run a ₹2k Meta Lead Ads test; log to `growth-platform/campaigns/`.
-- **Content:** ship 8–10 reels this week via `production-sop/11-prompt-library.md`; tag each `OPP-*`; queue in Blotato. Don't wait for analytics.
+- **Content:** ship 8–10 reels this week via `production-sop/11-prompt-library.md`; tag each `OPP-*`; upload manually (Meta Business Suite / native apps). Don't wait for analytics.
 - **Analytics:** prepare to receive the `MKT_EVENT` stream (EP-2, wk 3–4); build the raw funnel dashboard (reach → DM → demo → trial → activation).
 
 ---

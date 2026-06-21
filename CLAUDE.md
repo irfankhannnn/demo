@@ -11,7 +11,8 @@
 |-----|---------|------|
 | `higgsfield` | AI image + video generation (Nano Banana Pro, Veo 3.1, Kling 3.0, Sora 2) | OAuth at mcp.higgsfield.ai |
 | `meta-ads` | Facebook/Instagram campaign creation + management (29 tools) | Facebook Business OAuth |
-| `blotato` | Social media scheduling + publishing to IG, FB, LinkedIn, TikTok, X | Blotato API key |
+
+> **Social scheduling:** publishing is done by **manual upload** (Meta Business Suite + native IG/FB/YouTube apps) — no scheduling MCP is configured.
 
 ### Marketing Outputs
 - `marketing/assets/` — Generated images, videos, audio

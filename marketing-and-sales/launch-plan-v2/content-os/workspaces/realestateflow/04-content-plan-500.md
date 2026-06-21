@@ -365,7 +365,7 @@ This file + the CSV are the **intake queue** for the content factory (`10-conten
 1. **Pull by priority.** Sort `04-content-plan-500.csv` by `priority_score` (or filter by `cta_category=DEMO/TRIAL` for a lead-gen sprint, by `content_type=CT-MEME` for a reach sprint, by `city=Pune` for a geo push). Pick the OPP-ids you want this week.
 2. **Hand the row to the factory.** Each row already specifies the recipe: `content_type` (CT-*) → default `framework`, `characters` (CH-*), `language` tag, `hook_category`, and `cta_category`. The factory expands the CT recipe (`09-content-type-system.md` Master Recipe Table) into a full script: hook (first 1.5s, in the row's language), framework structure, character dialogue locked to the CH-* consistency prompts, burned-in subtitles (subtitle-language = spoken-language, romanized), and the CTA.
 3. **Generate assets** via the Higgsfield workflow the CT recipe names (HF-DRAMA-DIALOGUE, HF-DEMO-SCREEN, HF-UGC-SELFIE, HF-TALKING-HEAD, etc.) using the saved character Soul IDs so the cast stays consistent across every reel.
-4. **Schedule** at the peak windows from market research (6–8 AM, 12–1 PM, 6–8 PM; Friday evenings strongest) via Blotato.
+4. **Upload manually** at the peak windows from market research (6–8 AM, 12–1 PM, 6–8 PM; Friday evenings strongest) via Meta Business Suite / native apps.
 5. **Balance check.** The pipeline-manager enforces the monthly language split (55/30/15) and a healthy mix of reach vs lead-gen vs trust content using the `content_type` / `language` / `cta_category` columns.
 6. **Feed results back.** Winners (high saves/DMs) get re-cut into variants (UGC for paid); losers get retired. ab-optimizer + media-buyer pull the `cta_category=DEMO/TRIAL` rows for Meta ad creative.
 

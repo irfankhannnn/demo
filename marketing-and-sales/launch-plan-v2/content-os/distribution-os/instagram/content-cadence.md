@@ -73,7 +73,7 @@ Produce a **week in one sitting** to keep the cast consistent and the factory ef
 2. **Group by character/preset** — shoot all CH-OWNER cabin pieces together, all CH-BROKER selfies together (one Higgsfield session per Soul ID, one VP preset).
 3. **Run the factory** (`10-content-factory.md` Steps 1–9): hook → framework → dialogue → VO/subtitles → CTA-id.
 4. **Render** in `my-video/`; export covers (`VP-THUMB-*`).
-5. **Schedule** the whole week via Blotato to IG+FB+YT at the slot table below.
+5. **Upload** the whole week manually to IG+FB+YT (Meta Business Suite / native apps) at the slot table below.
 6. **Stories + broadcast** batched separately (`stories.md §7`, `broadcast-channels.md §3`).
 
 ---

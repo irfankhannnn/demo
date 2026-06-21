@@ -303,7 +303,7 @@ For each framework: lead `HF-*` workflow → Higgsfield model/skill → camera s
 - 9:16 · Inter · one accent/frame · hook visual <1s · subtitles on · product on phone/laptop · real Indian faces/natural light · ₹/lakh/crore on-screen · logo bug · only `CH-*` characters. Reject and regenerate if any fail.
 
 ### Step 9 — Export & route
-- Export 1080×1920 MP4 → `marketing-and-sales/assets/` (Content Factory ownership). Hand to scheduling (`blotato`) / ads (`meta-ads`) as needed.
+- Export 1080×1920 MP4 → `marketing-and-sales/assets/` (Content Factory ownership). Download for manual upload (Meta Business Suite / native apps); route to ads (`meta-ads`) as needed.
 
 ### Step 10 (optional) — Supercomputer / Skill packaging
 - Once an `HF-*` recipe is stable, package it as a Higgsfield **Skill / slash workflow** (e.g. `/realestateflow-ugc`, `/realestateflow-drama`) so Supercomputer can run the whole pipeline from one brief. 🟡 Verify Skill authoring availability on your plan.

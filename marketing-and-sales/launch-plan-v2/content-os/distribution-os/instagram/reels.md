@@ -142,7 +142,7 @@ Series fuel the **series loop** (`growth-loops.md`): recurring CH-* cast → ret
 1. **Source** the OPP-* from `04-content-plan-500.csv` (filter by theme-day's CT + city + language).
 2. **Run the content factory** Steps 1–9 (`10-content-factory.md`): hook → framework → CH-* dialogue → VO/subtitles → CTA-ID.
 3. **Render** in `my-video/` via the CT's Higgsfield workflow (HF-DRAMA-DIALOGUE / HF-DEMO-SCREEN / HF-UGC-SELFIE / HF-TALKING-HEAD) using saved Soul IDs.
-4. **Schedule** via Blotato to **IG + FB Reels + YouTube Shorts** at the peak slot (drama → 9–11 PM; edu/carousel → 7–8 AM; demo/BOFU → Fri/Sat 1–2 PM & 9 PM).
+4. **Upload** manually to **IG + FB Reels + YouTube Shorts** (Meta Business Suite / native apps) at the peak slot (drama → 9–11 PM; edu/carousel → 7–8 AM; demo/BOFU → Fri/Sat 1–2 PM & 9 PM).
 5. **Caption:** Hinglish mini-context + SEO keywords ("real estate CRM", "lead leakage", "AI calling for brokers") + the CTA line + 8–12 hashtags (`growth-loops.md §hashtags`).
 6. **First 60 min:** reply to EVERY comment, pin the CTA comment, move buying-intent comments to DM (`comments.md`).
 7. **Log:** OPP-id, CTA-id, posting time → feeds `growth-dashboard.md` + content attribution.

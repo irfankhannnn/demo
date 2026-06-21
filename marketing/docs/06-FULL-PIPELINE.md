@@ -13,8 +13,8 @@ Read brand docs  →   Generate content   →   Check + refine
                       marketingskills
                             │
 Stage 6: MONITOR        Stage 5: ADS            Stage 4: PUBLISH
-Track metrics    ←   Launch campaigns   ←   Schedule posts
-Meta Ads MCP          Meta Ads MCP            Blotato MCP
+Track metrics    ←   Launch campaigns   ←   Upload posts
+Meta Ads MCP          Meta Ads MCP            Manual (Meta Business Suite)
 ```
 
 ---
@@ -65,7 +65,7 @@ Save to: marketing/posts/instagram/week-[XX]-captions.md
 
 ### Step 4: Schedule all 7 posts
 ```
-Use Blotato MCP to schedule all 7 Instagram posts from the week-[XX] plan.
+Upload all 7 Instagram posts manually (Meta Business Suite) from the week-[XX] plan.
 
 Images: marketing/assets/images/week-[XX]/
 Captions: marketing/posts/instagram/week-[XX]-captions.md
@@ -128,7 +128,7 @@ Status: ACTIVE. Start date: today.
 
 ### Step 5: Also publish organic posts about the campaign
 ```
-Use Blotato MCP to schedule 3 Instagram posts this week 
+Upload 3 Instagram posts manually (Meta Business Suite) this week 
 supporting the [campaign-name] campaign.
 
 Use the campaign assets in marketing/campaigns/[campaign-name]/assets/
@@ -190,7 +190,7 @@ Budget: ₹1,500/day.
 
 ### Step 5: Drive traffic — organic
 ```
-Use Blotato MCP to schedule 5 social posts over 5 days announcing the page.
+Upload 5 social posts manually (Meta Business Suite) over 5 days announcing the page.
 Use ad-creative skill + social-content skill for platform-specific copy.
 Include landing page URL in all posts.
 Schedule Mon-Fri at 9 AM IST.
