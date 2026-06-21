@@ -112,4 +112,19 @@ content-os/
 
 So when you update Rajesh Bhai's persona once, **every** post that uses `CH-01` improves automatically. Nothing is defined twice.
 
+---
+
+## Built-in quality bar (agency-grade by default)
+
+The system doesn't just generate content — it generates *production-grade* content automatically. A **Premium Production Layer** is baked into every piece (detailed in file 02):
+
+- **Performance** (`VP-PERF-*`) — natural eyes, blinking, breathing, gestures → no dead AI faces.
+- **Physics** (`VP-PHYS-*`) — real weight, grip, gravity, shadows → no floaty AI motion.
+- **Grade** (`VP-GRADE-*`) — cinematic colour looks, protected skin tones.
+- **Motion graphics** (`VP-GFX-*`) — kinetic captions, UI callouts, ₹ counters → SaaS-commercial feel.
+- **Sound** (`VP-MUSIC-*`/`VP-SFX-*`) — music + SFX mixed to spec.
+- **Anti-AI-tell negatives** — every render rejects plastic skin, morphing hands, warped text.
+
+Nothing ships unless it clears the **Production-Grade Scorecard** (avg ≥ 8/10). The result: output that looks like a top creative agency made it, not a bot.
+
 → Next: **02-content-os-explained.md** (how a single post is actually built).

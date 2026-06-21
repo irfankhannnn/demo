@@ -370,6 +370,71 @@ walking, casual, talking to camera"
 
 ---
 
+## 6.5 PREMIUM REALISM PROMPT BLOCKS (mandatory — append to every call)
+
+> This is the single biggest visual-quality lever. Every image/video prompt must carry a **quality block** (positive) and a **negative block** (anti-AI-tell). These encode `VP-PERF-*` / `VP-PHYS-*` / `VP-GRADE-*` from `visual-system/05` into Higgsfield language.
+
+### 6.5.1 Quality block (append to POSITIVE prompt, every shot)
+```
+shot on cinema camera, 35mm/50mm lens look, shallow depth of field, natural realistic
+lighting with soft shadows and accurate Indian skin tones, photorealistic skin texture
+with visible pores and subtle imperfections, soft catchlight in the eyes, true-to-life
+colour, fine detail, cinematic colour grade, professional advertising production quality,
+8k detail, no plastic skin
+```
+
+### 6.5.2 Performance block (append for HUMAN shots — pick the `VP-PERF-*`)
+```
+natural slow blinking, micro eye-darts, subtle breathing, tiny involuntary head movement,
+relaxed asymmetric facial expression, [VP-PERF-* direction verbatim, e.g. furrowed brow,
+eyes flicking to phone, shallow breaths, hand drifting to face], authentic human micro-expression
+```
+
+### 6.5.3 Physics block (append for MOTION shots)
+```
+natural body weight and balance, realistic hand grip on objects, gravity-correct clothing
+and hair movement, grounded footsteps, believable parallax and depth, real soft shadows,
+[VP-PHYS-* cues e.g. chai steam rising, screen glow on face]
+```
+
+### 6.5.4 NEGATIVE block (the anti-AI-tell list — pass to every call)
+```
+plastic skin, waxy skin, airbrushed skin, dead eyes, no blink, frozen face, mannequin,
+uncanny, deformed hands, extra fingers, merged fingers, morphing face, identity drift,
+sliding feet, floating objects, warped text, gibberish text, distorted logo, oversaturated,
+HDR halo, blurry, low-res, stiff motion, robotic movement, conveyor-belt walk, static
+background people, watermark, AI artifacts
+```
+> If the model exposes a `negative_prompt` param, pass 6.5.4 there. If not, prepend `avoid: …` to the prompt. Real product UI and on-screen text → still Remotion/Nano Banana, never AI-faked (see §7).
+
+### 6.5.5 Grade tag (append, map from `VP-GRADE-*`)
+`…, graded VP-GRADE-CLEAN (bright true-to-life)` / `VP-GRADE-MOODY (low-key amber accents)` / `VP-GRADE-GOLDEN (teal-orange golden hour)` / `VP-GRADE-SAAS (crisp cool, vivid blue)`.
+
+**Upgraded image example (CH-OWNER, FW-LEAD-LEAKAGE) — now production-grade:**
+```
+prompt: "<CH-OWNER consistency prompt verbatim>, VP-PERF-WORRY: furrowed brow, eyes flicking
+to phone, shallow breaths, hand drifting to bridge of nose; sitting at desk with laptop and
+steaming chai, glass-walled cabin with city view; mid shot slight low angle, shallow depth of
+field; <6.5.1 quality block>; <6.5.2 performance block>; graded VP-GRADE-MOODY; vertical 9:16,
+royal-blue #2563EB accent"
+negative_prompt: "<6.5.4 negative block>"
+character_id: "CH-OWNER-RajeshBhai"
+quality: "1080p"
+```
+
+---
+
+## 6.6 ADVANCED HIGGSFIELD EXPLOITATION (features we were leaving on the table)
+
+1. **Elements (environment + prop lock)** — train not just faces but the *recurring sets*: "Apna Properties" Mumbai cabin, open-floor office, model flat. Reference via `@apna-cabin`, `@apna-floor` so every reel shares ONE consistent world (not a new random office each time). Train once like a Soul ID; reuse across all shots.
+2. **Advanced camera combos (Cinema Studio / Kling Motion Control)** — systematize premium moves as named intents: crash-zoom on the twist, FPV-drone establishing, dolly-in on authority, parallax push on reveals, whip-pan transition. Map these onto `VP-CAM-*`/`VP-GFX-TRANSITION`.
+3. **Lens & film-stock language** — speak the camera: "35mm, T1.8, shallow DoF", "anamorphic flare", "filmic grain" — Cinema Studio responds to lens sim; raises the cinematic ceiling.
+4. **Prompt-enhancement OFF for locked shots** — when identity/scene must be exact, disable auto-enhance so it doesn't drift the look; ON only for exploratory b-roll.
+5. **Supercomputer Skill packaging** — once an `HF-*` recipe is stable, publish it as a slash workflow (`/realestateflow-drama`, `/realestateflow-ugc`, `/realestateflow-demo`) so one brief → finished, on-brand, production-grade reel. Version + share across the team. 🟡 verify plan access.
+6. **Higgsfield Marketing Studio** — use for branded ad variants/templated SaaS spots when we want platform-native ad polish fast; keep brand hex + Inter via Remotion overlays.
+
+---
+
 ## 7. Limitations & Fallbacks
 
 | If this fails / is unavailable | Fallback (repo-supported) |

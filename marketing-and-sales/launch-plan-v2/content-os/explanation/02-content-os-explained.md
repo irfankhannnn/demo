@@ -45,10 +45,12 @@ This is the assembly line in `production-sop/10-content-factory.md`. Each step i
 3  CHARACTER Pick the persona       → characters/  (CH-01)
 4  HOOK      Write the grabber      → hooks/       (HK-03)
 5  SCRIPT    Write the caption (Hinglish, 3–5 lines)
-6  SCENE     Describe the visual in words (the prompt)
-7  GENERATE  Render it via Higgsfield MCP  → .png / .mp4
+6  SCENE     Visual + performance VP-PERF + physics VP-PHYS + grade VP-GRADE
+7  GENERATE  Render via Higgsfield (+ premium & NEGATIVE blocks) → .png/.mp4
+7b GFX+SOUND Motion graphics VP-GFX + music/SFX VP-MUSIC/VP-SFX
 8  CAPTION   Polish copy + hashtags + emojis
 9  CTA       Add the button/link    → ctas/        (CTA-05)
+QC SCORECARD Production-grade score ≥ 8 or regenerate  (visual-system §16)
 10 PUBLISH   Upload (Meta Business Suite — manual) or schedule
 ```
 
@@ -106,6 +108,37 @@ You write the scene in words; the workflow file has the structured prompt templa
 
 ---
 
+## The Premium Production Layer (what makes it agency-grade)
+
+Locking *how a character looks* (the consistency prompt) is only half the job. The system also locks *how they perform, move, sound, and get finished* — this is the difference between "AI content" and "studio content." These presets live in `visual-system/05` (§10–16) and `higgsfield/06` (§6.5–6.6), and **every generation inherits them by default**.
+
+Six layers, each an ID you attach to a shot:
+
+- **`VP-PERF-*` — Performance.** Kills the dead AI face. Direction for eyes, blinking, breathing, micro-expressions, hand gestures, timing/pauses. *e.g. `VP-PERF-WORRY` = furrowed brow, eyes flicking to phone, shallow breaths, hand to face.*
+- **`VP-PHYS-*` — Physics.** Real-world motion: weight, grip, gravity on clothes/hair, steam, shadows, screen-glow. Kills floaty/sliding AI motion.
+- **`VP-GRADE-*` — Colour grade.** The cinematic *look* (not just brand hex): `MOODY` for fear, `GOLDEN` teal-orange for wins, `SAAS` crisp-cool for product, skin tones protected.
+- **`VP-GFX-*` — Motion graphics.** What makes it a SaaS *commercial*: kinetic captions, animated UI callouts, ticking ₹ counters, lower-third name chips, premium transitions.
+- **`VP-MUSIC-*` / `VP-SFX-*` — Sound.** Music by mood (tension/uplift/corporate-India/fun) + SFX (whoosh, UI click, ₹-reveal ding), mixed to spec (duck under VO, cut on the beat, −14 LUFS).
+- **Anti-AI-tell negatives.** Every Higgsfield call passes a *negative* block — no plastic skin, no morphing hands, no dead eyes, no warped text.
+
+### The quality bar
+A new **Production-Grade Scorecard** (`05 §16`) scores each piece /10 across 10 dimensions (consistency, performance, physics, camera, grade, graphics, sound, editing, story, no-AI-tells). **Publish only if average ≥ 8 and nothing < 6** — else regenerate the weak shot. The old 10 Non-Negotiables are now the *floor*; the scorecard is the *bar*.
+
+**Example — same shot, before vs after the upgrade:**
+
+```
+BEFORE: "Rajesh at desk, worried, looks at phone."
+        → stiff, waxy, dead-eyed, floaty → looks AI.
+
+AFTER:  "<consistency prompt> + VP-PERF-WORRY (furrowed brow, eyes flick
+        to phone, shallow breaths, hand to nose) + VP-PHYS-OBJECT (chai
+        steam, real phone grip) + quality block (35mm, pores, catchlight)
+        + graded VP-GRADE-MOODY + NEGATIVE block (no plastic skin/morphing)"
+        → alive, cinematic, on-brand → looks like an agency made it.
+```
+
+---
+
 ## A full mini-run
 
 ```
@@ -120,13 +153,16 @@ Ask: "Generate an IG post for Rajesh Bhai about lead chaos."
            ❌ 3 Excel files  ❌ 50 WhatsApp msgs
            ✅ Sab leads ek jagah  ✅ Follow-up automatic
            Free try karo 👇"
-→ Step 6  Scene: "Mumbai agent at desk, clean blue dashboard on screen"
-→ Step 7  Higgsfield → ig-post-chaos-control-01.png
+→ Step 6  Scene + VP-PERF-WORRY + VP-PHYS-OBJECT + VP-GRADE-MOODY
+→ Step 7  Higgsfield (+ quality/performance/physics + NEGATIVE blocks)
+          → ig-post-chaos-control-01.png
+→ Step 7b VP-GFX-KINETIC captions + VP-MUSIC-TENSION + VP-SFX taps
 → Step 8  + hashtags
 → Step 9  CTA-05 "Free Trial → realtyflow.in"
+→ QC      Production-Grade Scorecard: avg 8.6 ✅ (publish)
 → Step 10 Save + upload via Meta Business Suite
 
-One pro post in ~3 minutes.
+One agency-grade post in ~3 minutes.
 ```
 
 → Next: **03-gtm-growth-and-agents.md** (publishing, measuring, and how agents run all this).
