@@ -49,10 +49,18 @@ export default function BuyCreditsModal({ forceOpen, onClose }: BuyCreditsModalP
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to create order');
+        if (res.status === 402) {
+          throw new Error('Insufficient credits to process this request');
+        }
+        throw new Error(err.error || `Failed to create order (${res.status})`);
       }
 
-      const { orderId, amount } = await res.json();
+      const data = await res.json();
+      if (!data.orderId || !data.amount) {
+        throw new Error('Invalid response from server');
+      }
+
+      const { orderId, amount } = data;
 
       await openCheckout({
         orderId,

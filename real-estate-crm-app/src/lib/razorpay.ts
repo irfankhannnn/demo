@@ -28,10 +28,27 @@ interface CheckoutOptions {
 }
 
 export async function openCheckout(opts: CheckoutOptions): Promise<void> {
-  await loadRazorpay();
+  const key = import.meta.env.VITE_RAZORPAY_KEY_ID;
+  if (!key) {
+    throw new Error('Razorpay key is not configured');
+  }
+
+  if (!opts.onSuccess || !opts.onFailure) {
+    throw new Error('onSuccess and onFailure callbacks are required');
+  }
+
+  try {
+    await loadRazorpay();
+  } catch (err) {
+    throw new Error('Failed to load Razorpay. Please check your internet connection.');
+  }
+
+  if (!window.Razorpay) {
+    throw new Error('Razorpay failed to initialize');
+  }
 
   const baseOptions: Record<string, unknown> = {
-    key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+    key,
     name: 'RealEstateFlow',
     prefill: { name: opts.name, email: opts.email, contact: opts.phone },
     handler: opts.onSuccess,

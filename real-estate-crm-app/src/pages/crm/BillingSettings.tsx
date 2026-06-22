@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CreditCard, Users } from 'lucide-react';
+import { ArrowLeft, CreditCard, Users, Bot } from 'lucide-react';
 import { getIdToken, getUserProfile } from '../../utils/authStorage';
 import { getTenantHeaders } from '../../config/tenant';
+import { api } from '../../services/api';
 import { useSubscription } from '../../hooks/useSubscription';
 import PaywallModal from '../../components/PaywallModal';
 import CreditBalanceCard from '../../components/CreditBalanceCard';
@@ -32,6 +33,7 @@ export default function BillingSettings() {
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
+  const [aiStatus, setAiStatus] = useState<{ status: string; monthlyCost?: number } | null>(null);
 
   const loadSubscription = useCallback(async () => {
     try {
@@ -43,19 +45,32 @@ export default function BillingSettings() {
         return;
       }
 
-      const res = await fetch(`${API_URL}/subscriptions/current`, {
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          ...getTenantHeaders(),
-        },
-      });
+      const [res, aiStatusData] = await Promise.all([
+        fetch(`${API_URL}/subscriptions/current`, {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+            ...getTenantHeaders(),
+          },
+        }),
+        api.getAiEmployeeProvisioningStatus().catch((err) => {
+          console.warn('[BillingSettings] AI status fetch failed:', err);
+          return null;
+        }),
+      ]);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || err.error || 'Failed to load subscription');
+        if (res.status === 401) {
+          throw new Error('Your session has expired. Please log in again.');
+        } else if (res.status === 429) {
+          throw new Error('Too many requests. Please wait a moment and try again.');
+        } else {
+          throw new Error(err.message || err.error || 'Failed to load subscription');
+        }
       }
 
       setSubscription(await res.json());
+      setAiStatus(aiStatusData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load subscription');
     } finally {
@@ -167,6 +182,49 @@ export default function BillingSettings() {
                 </p>
               )}
             </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                    aiStatus?.status === 'live' ? 'bg-[#2563EB]' : 'bg-slate-100'
+                  }`}>
+                    <Bot className={`h-6 w-6 ${aiStatus?.status === 'live' ? 'text-white' : 'text-slate-500'}`} />
+                  </div>
+                  <div>
+                    <div className="text-slate-500 text-sm mb-1">AI Employee</div>
+                    <p className="text-lg font-semibold text-slate-900">
+                      {aiStatus?.status === 'live' ? 'Live' : aiStatus?.status === 'suspended' ? 'Suspended' : 'Not provisioned'}
+                    </p>
+                    {aiStatus?.monthlyCost !== undefined && (
+                      <p className="text-sm text-slate-500 mt-1">
+                        ₹{aiStatus.monthlyCost.toLocaleString('en-IN')}/month
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <span className={`text-xs font-medium px-3 py-1 rounded-full ${
+                  aiStatus?.status === 'live'
+                    ? 'bg-green-100 text-green-700'
+                    : aiStatus?.status === 'suspended'
+                    ? 'bg-red-100 text-red-700'
+                    : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {aiStatus?.status === 'live' ? 'Active' : aiStatus?.status === 'suspended' ? 'Suspended' : 'Pending'}
+                </span>
+              </div>
+              {aiStatus?.status === 'live' && (
+                <p className="mt-4 text-sm text-slate-500">
+                  Your AI Employee is active and using credits from your balance. Manage settings from the AI Employee page.
+                </p>
+              )}
+              {aiStatus?.status !== 'live' && (
+                <p className="mt-4 text-sm text-slate-500">
+                  Activate AI Employee to automate lead qualification, routing, and follow-ups.
+                </p>
+              )}
+            </div>
+
             <AgentActivityLog />
           </div>
         )}

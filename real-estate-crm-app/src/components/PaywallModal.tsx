@@ -4,7 +4,7 @@ import { useSubscription } from '../hooks/useSubscription';
 import { openCheckout } from '../lib/razorpay';
 import { trackEvent } from '../lib/analytics';
 
-const PAYWALL_WHITELIST = ['/profile', '/billing', '/crm/settings/billing', '/legal', '/grievance', '/integrations/ai-employee'];
+const PAYWALL_WHITELIST = ['/profile', '/crm/settings/billing', '/legal', '/grievance', '/integrations/ai-employee'];
 
 const TIERS = [
   {
@@ -45,8 +45,8 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
   const [faqOpen, setFaqOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
 
-  const isWhitelisted = PAYWALL_WHITELIST.some(p => window.location.pathname.startsWith(p));
-  const shouldShow = forceOpen || (isTrialExpired && !isPaying && !(subscription?.gracePeriodActive) && !isWhitelisted);
+  const isWhitelisted = PAYWALL_WHITELIST.includes(window.location.pathname);
+  const shouldShow = forceOpen || (isTrialExpired && !isPaying && subscription?.gracePeriodActive !== true && !isWhitelisted);
 
   useEffect(() => {
     if (shouldShow) {

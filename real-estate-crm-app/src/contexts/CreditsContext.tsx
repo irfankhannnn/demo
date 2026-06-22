@@ -10,6 +10,7 @@ interface CreditsState {
   costs: Record<string, number>;
   packs: Record<string, unknown>;
   loading: boolean;
+  error: string | null;
   percentUsed: number;
   refetch: () => void;
 }
@@ -20,6 +21,7 @@ const CreditsContext = createContext<CreditsState>({
   costs: {},
   packs: {},
   loading: true,
+  error: null,
   percentUsed: 0,
   refetch: () => {},
 });
@@ -30,6 +32,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
   const [costs, setCosts] = useState<Record<string, number>>({});
   const [packs, setPacks] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchCredits = useCallback(async () => {
     try {
@@ -43,15 +46,25 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setBalance(data.balance ?? 0);
-        setMonthlyAllotment(data.monthlyAllotment ?? data.freeTier?.monthlyFreeCredits ?? 1000);
-        setCosts(data.costs ?? {});
-        setPacks(data.packs ?? {});
+      if (!res.ok) {
+        console.warn(`[CreditsContext] Failed to fetch credits: ${res.status}`);
+        if (res.status === 401) {
+          setError('Your session has expired. Please log in again.');
+        } else {
+          setError(`Failed to load credits (${res.status})`);
+        }
+        return;
       }
-    } catch {
-      // silent
+
+      const data = await res.json();
+      setBalance(data.balance ?? 0);
+      setMonthlyAllotment(data.monthlyAllotment ?? data.freeTier?.monthlyFreeCredits ?? 1000);
+      setCosts(data.costs ?? {});
+      setPacks(data.packs ?? {});
+      setError(null);
+    } catch (err) {
+      console.error('[CreditsContext] Fetch error:', err);
+      setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -59,7 +72,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchCredits();
-    const interval = setInterval(fetchCredits, 5 * 60 * 1000);
+    const interval = setInterval(fetchCredits, 60 * 1000); // Reduced from 5 min to 1 min
     return () => clearInterval(interval);
   }, [fetchCredits]);
 
@@ -74,6 +87,7 @@ export function CreditsProvider({ children }: { children: ReactNode }) {
       costs,
       packs,
       loading,
+      error,
       percentUsed,
       refetch: fetchCredits,
     }}>

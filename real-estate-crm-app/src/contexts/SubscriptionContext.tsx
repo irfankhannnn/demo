@@ -17,6 +17,7 @@ interface SubscriptionStatus {
 interface SubscriptionContextValue {
   subscription: SubscriptionStatus | null;
   loading: boolean;
+  error: string | null;
   refetch: () => void;
   isPaying: boolean;
   isTrialing: boolean;
@@ -28,6 +29,7 @@ interface SubscriptionContextValue {
 const SubscriptionContext = createContext<SubscriptionContextValue>({
   subscription: null,
   loading: true,
+  error: null,
   refetch: () => {},
   isPaying: false,
   isTrialing: false,
@@ -39,6 +41,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchTrialStatus = useCallback(async () => {
     try {
@@ -52,12 +55,23 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setSubscription(data);
+      if (!res.ok) {
+        console.warn(`[SubscriptionContext] Failed to fetch trial status: ${res.status}`);
+        if (res.status === 401) {
+          setSubscription(null); // Clear on auth failure
+          setError('Your session has expired. Please log in again.');
+        } else {
+          setError(`Failed to load subscription (${res.status})`);
+        }
+        return;
       }
-    } catch {
-      // silent — subscription context is optional
+
+      const data = await res.json();
+      setSubscription(data);
+      setError(null);
+    } catch (err) {
+      console.error('[SubscriptionContext] Fetch error:', err);
+      setError('Network error. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -65,13 +79,14 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchTrialStatus();
-    const interval = setInterval(fetchTrialStatus, 5 * 60 * 1000);
+    const interval = setInterval(fetchTrialStatus, 60 * 1000); // Reduced from 5 min to 1 min
     return () => clearInterval(interval);
   }, [fetchTrialStatus]);
 
   const value: SubscriptionContextValue = {
     subscription,
     loading,
+    error,
     refetch: fetchTrialStatus,
     isPaying: subscription?.isPaying ?? false,
     isTrialing: subscription?.isTrialing ?? false,
