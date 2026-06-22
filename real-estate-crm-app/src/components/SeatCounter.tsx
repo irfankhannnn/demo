@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Users } from 'lucide-react';
 import { getIdToken } from '../utils/authStorage';
+import { getTenantHeaders } from '../config/tenant';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -18,27 +19,43 @@ export default function SeatCounter({ onUpgradeClick }: SeatCounterProps) {
   const [data, setData] = useState<SubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchSubscription = async () => {
-      try {
-        const idToken = getIdToken();
-        if (!idToken) return;
+  const fetchSubscription = useCallback(async () => {
+    try {
+      const idToken = getIdToken();
+      if (!idToken) return;
 
-        const res = await fetch(`${API_URL}/subscriptions/current`, {
-          headers: { Authorization: `Bearer ${idToken}` },
-        });
-        if (res.ok) {
-          const sub = await res.json();
-          setData({ plan: sub.plan, seatsPaid: sub.seatsPaid, seatsUsed: sub.seatsUsed });
-        }
-      } catch {
-        // silent fail — non-critical UI element
-      } finally {
-        setLoading(false);
+      const res = await fetch(`${API_URL}/subscriptions/current`, {
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          ...getTenantHeaders(),
+        },
+      });
+      if (res.ok) {
+        const sub = await res.json();
+        setData({ plan: sub.plan, seatsPaid: sub.seatsPaid, seatsUsed: sub.seatsUsed });
       }
-    };
-    fetchSubscription();
+    } catch {
+      // silent fail — non-critical UI element
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchSubscription();
+    
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchSubscription, 2 * 60 * 1000);
+    
+    // Also refresh on focus
+    const handleFocus = () => fetchSubscription();
+    window.addEventListener('focus', handleFocus);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchSubscription]);
 
   if (loading || !data) return null;
 

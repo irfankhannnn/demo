@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { useSubscription } from '../hooks/useSubscription';
 
@@ -7,8 +7,22 @@ interface TrialCountdownBannerProps {
 }
 
 export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownBannerProps) {
-  const { isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, loading } = useSubscription();
+  const { isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, loading, subscription } = useSubscription();
   const [dismissed, setDismissed] = useState(false);
+  const [now, setNow] = useState(new Date());
+
+  // Update time every minute
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Reset dismissed state when trial expires
+  useEffect(() => {
+    if (isTrialExpired && !gracePeriodActive) {
+      setDismissed(false);
+    }
+  }, [isTrialExpired, gracePeriodActive]);
 
   if (loading || dismissed || isPaying) return null;
 
@@ -17,7 +31,12 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
 
   if (!showExpired && !showTrialing) return null;
 
-  const isUrgent = showExpired || trialDaysLeft <= 3;
+  // Calculate actual days left from trialEndsAt
+  const actualDaysLeft = subscription?.trialEndsAt
+    ? Math.ceil((new Date(subscription.trialEndsAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    : trialDaysLeft;
+
+  const isUrgent = showExpired || actualDaysLeft <= 3;
   const bgColor = isUrgent ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
   const textColor = isUrgent ? 'text-red-800' : 'text-amber-800';
   const iconColor = isUrgent ? 'text-red-500' : 'text-amber-500';
@@ -25,8 +44,8 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
   const message = showExpired
     ? 'Your trial has expired — upgrade now to keep your data.'
     : isUrgent
-      ? `⚠️ ${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left — Upgrade for ₹999/month`
-      : `${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left in trial — Upgrade`;
+      ? `⚠️ ${actualDaysLeft} day${actualDaysLeft !== 1 ? 's' : ''} left — Upgrade for ₹999/month`
+      : `${actualDaysLeft} day${actualDaysLeft !== 1 ? 's' : ''} left in trial — Upgrade`;
 
   return (
     <div className={`border-b ${bgColor} px-4 py-3`}>

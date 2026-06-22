@@ -228,6 +228,33 @@ export default function BillingSettings() {
             <AgentActivityLog />
           </div>
         )}
+
+        {/* Payment History */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Payment History</h2>
+          <p className="text-sm text-slate-500 mb-4">View your past payments and download invoices.</p>
+          <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
+            Payment history will be available here once you make your first payment.
+          </div>
+        </div>
+
+        {/* Seat Management */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Manage Seats</h2>
+          <p className="text-sm text-slate-500 mb-4">Add or remove team members from your plan.</p>
+          <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
+            Seat management will be available once you have an active subscription.
+          </div>
+        </div>
+
+        {/* Credit Usage Analytics */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Credit Usage Analytics</h2>
+          <p className="text-sm text-slate-500 mb-4">Track your credit consumption across features.</p>
+          <div className="text-sm text-slate-600 bg-slate-50 rounded-lg p-4">
+            Credit usage analytics will be available once you start using credits.
+          </div>
+        </div>
       </div>
 
       <PaywallModal

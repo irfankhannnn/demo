@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bot, Clock, CheckCircle, AlertTriangle, ExternalLink, MessageCircle } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
@@ -23,11 +23,7 @@ export default function AIEmployeeStatus() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchStatus();
-  }, []);
-
-  const fetchStatus = async () => {
+  const fetchStatus = useCallback(async () => {
     try {
       setLoading(true);
       const idToken = getIdToken();
@@ -48,7 +44,22 @@ export default function AIEmployeeStatus() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  useEffect(() => {
+    // Poll while status is pending
+    if (data?.status === 'pending') {
+      const interval = setInterval(() => {
+        fetchStatus();
+      }, 30000); // Poll every 30 seconds
+      
+      return () => clearInterval(interval);
+    }
+  }, [data?.status, fetchStatus]);
 
   const formatDate = (iso: string) => {
     return new Date(iso).toLocaleString('en-IN', {
