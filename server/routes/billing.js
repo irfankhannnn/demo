@@ -112,7 +112,18 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       }
     }
 
-    // 4. Atomic idempotency check + log
+    // 4. Validate webhook payload structure before idempotency check
+    if (!body.event || typeof body.event !== 'string') {
+      logger.error('webhook.invalid_event_type', { body });
+      return res.status(400).json({ error: 'invalid_event_type' });
+    }
+
+    if (!body.payload || typeof body.payload !== 'object') {
+      logger.error('webhook.invalid_payload', { body });
+      return res.status(400).json({ error: 'invalid_payload' });
+    }
+
+    // 5. Atomic idempotency check + log
     const eventId = body.event_id || body.id;
     if (!eventId) {
       return res.status(400).json({ error: 'missing_event_id' });
@@ -124,7 +135,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       return res.json({ received: true, duplicate: true });
     }
 
-    // 4. Route to handler based on event type
+    // 6. Route to handler based on event type
     const eventType = body.event;
     const payload = body.payload;
 
@@ -336,6 +347,100 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             }
           } catch (graceErr) {
             logger.error('subscription.grace_period.activation_failed', { tenantId, error: graceErr.message });
+          }
+        }
+        break;
+      }
+
+      case 'payment.refunded':
+      case 'payment.reversed': {
+        const payment = payload?.payment?.entity;
+        const tenantId = payment?.notes?.tenantId || 'unknown';
+        const credits = payment?.notes?.credits ? Number(payment.notes.credits) : 0;
+
+        await serverTrack(tenantId, 'razorpay_payment_refunded', {
+          paymentId: payment?.id,
+          amount: payment?.amount,
+          credits,
+          eventType,
+        });
+
+        // Deduct credits if they were granted for this payment
+        if (tenantId !== 'unknown' && credits > 0) {
+          try {
+            const { deductCredits } = await import('../creditService.js');
+            await deductCredits(tenantId, credits, 'refund', {
+              paymentId: payment?.id,
+              reason: 'payment_refunded',
+            });
+            logger.info('credits.deducted_on_refund', { tenantId, credits, paymentId: payment?.id });
+          } catch (deductErr) {
+            logger.error('credits.deduct_on_refund.failed', { tenantId, credits, error: deductErr.message });
+          }
+        }
+
+        // Suspend subscription if this was a subscription payment
+        if (tenantId !== 'unknown') {
+          try {
+            const { updateSubscriptionStatus } = await import('../subscriptionService.js');
+            await updateSubscriptionStatus(tenantId, {
+              paymentStatus: eventType === 'payment.refunded' ? 'refunded' : 'reversed',
+              isPaying: false,
+              refundedAt: new Date().toISOString(),
+            });
+            logger.info('subscription.suspended_on_refund', { tenantId, eventType });
+          } catch (subErr) {
+            logger.error('subscription.suspend_on_refund.failed', { tenantId, error: subErr.message });
+          }
+        }
+        break;
+      }
+
+      case 'payment.disputed':
+      case 'payment.chargeback': {
+        const payment = payload?.payment?.entity;
+        const tenantId = payment?.notes?.tenantId || 'unknown';
+        const credits = payment?.notes?.credits ? Number(payment.notes.credits) : 0;
+
+        await serverTrack(tenantId, 'razorpay_payment_disputed', {
+          paymentId: payment?.id,
+          amount: payment?.amount,
+          credits,
+          eventType,
+        });
+
+        // Immediately suspend subscription and deduct credits
+        if (tenantId !== 'unknown') {
+          try {
+            const { updateSubscriptionStatus, decrementSeatsPaid } = await import('../subscriptionService.js');
+            const { deductCredits } = await import('../creditService.js');
+
+            // Suspend subscription
+            await updateSubscriptionStatus(tenantId, {
+              paymentStatus: 'chargeback',
+              isPaying: false,
+              chargebackAt: new Date().toISOString(),
+            });
+
+            // Deduct credits if they were granted
+            if (credits > 0) {
+              await deductCredits(tenantId, credits, 'chargeback_reversal', {
+                paymentId: payment?.id,
+                reason: 'payment_disputed',
+              });
+            }
+
+            // Notify founder of chargeback
+            const { sendEmail } = await import('../emailService.js');
+            await sendEmail({
+              to: process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
+              subject: `Payment ${eventType} - ${tenantId}`,
+              html: `<p>Payment ${eventType} for tenant ${tenantId}. Payment ID: ${payment?.id}, Amount: ${payment?.amount}</p>`,
+            }).catch(err => logger.error('chargeback.notification.failed', { error: err.message }));
+
+            logger.warn('subscription.chargeback_processed', { tenantId, eventType, paymentId: payment?.id });
+          } catch (chargebackErr) {
+            logger.error('subscription.chargeback.failed', { tenantId, error: chargebackErr.message });
           }
         }
         break;

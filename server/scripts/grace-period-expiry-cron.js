@@ -34,11 +34,11 @@ export async function handler() {
     if (!tenantId) continue;
 
     try {
-      // 1. Mark grace period as expired
+      // 1. Mark grace period as expired and suspend subscription
       await docClient.send(new UpdateCommand({
         TableName: SUBSCRIPTIONS_TABLE,
         Key: { tenantId },
-        UpdateExpression: 'SET gracePeriodActive = :false, paymentStatus = :status, gracePeriodExpiredAt = :now, updatedAt = :now',
+        UpdateExpression: 'SET gracePeriodActive = :false, isPaying = :false, paymentStatus = :status, gracePeriodExpiredAt = :now, updatedAt = :now',
         ExpressionAttributeValues: {
           ':false': false,
           ':status': 'grace_period_expired',

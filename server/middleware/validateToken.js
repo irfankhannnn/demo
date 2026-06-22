@@ -125,9 +125,9 @@ async function validateToken(req, res, next) {
         const token = authHeader.substring(7);
         const cached = tokenCache.get(token);
         if (cached) {
-          const staleGraceMs = 5 * 60 * 1000; // 5 minutes
+          const staleGraceMs = 30 * 1000; // 30 seconds (reduced from 5 minutes for security)
           if (Date.now() < cached.expiresAt + staleGraceMs) {
-            logger.warn('[validateToken] Using stale cache fallback for token');
+            logger.warn('[validateToken] Using stale cache fallback for token', { token: token.substring(0, 20) + '...' });
             req.user = cached.user;
             req.agency = cached.agency;
             req.tenantId = cached.tenantId;

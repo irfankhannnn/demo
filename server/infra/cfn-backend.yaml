@@ -1038,6 +1038,7 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}"
                   - !GetAtt CreditsTable.Arn
                   - !GetAtt CreditConfigTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*"
               - Effect: Allow
@@ -1057,6 +1058,7 @@ Resources:
                   - !Sub "${ProjectsTable.Arn}/index/*"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}/index/*"
                   - !Sub "${CreditsTable.Arn}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:TransactWriteItems
@@ -1132,6 +1134,7 @@ Resources:
           SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          WEBHOOK_LOG_TABLE: WebhookLog
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
           EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
           BAILEY_ENABLED: !Ref BaileyEnabled

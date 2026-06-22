@@ -106,15 +106,12 @@ export async function deductCredits(tenantId, amount, actionType, meta = {}) {
   const now = new Date().toISOString();
   const sk = ledgerSk();
 
+  // Get current balance for ledger entry (not for validation - transaction handles that atomically)
   const balanceItem = await docClient.send(new GetCommand({
     TableName: TABLE_NAME,
     Key: { tenantId, sk: BALANCE_SK },
   }));
   const balanceBefore = balanceItem.Item?.balance ?? 0;
-
-  if (balanceBefore < cost) {
-    throw new InsufficientCreditsError(balanceBefore, cost);
-  }
 
   try {
     await docClient.send(new TransactWriteCommand({

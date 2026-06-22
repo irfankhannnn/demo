@@ -26,6 +26,12 @@ function isDueForReset(sub, todayStr) {
   if (sub.isPaying) {
     // Paid: use exact billing anniversary day stored by Razorpay webhook
     if (sub.billingAnniversaryDay) {
+      // Validate anniversary day is valid (1-31)
+      if (sub.billingAnniversaryDay < 1 || sub.billingAnniversaryDay > 31) {
+        logger.warn('creditReset.invalid_anniversary_day', { tenantId: sub.tenantId, billingAnniversaryDay: sub.billingAnniversaryDay });
+        return false;
+      }
+
       const today = new Date();
       const todayUtcDate = today.getUTCDate();
       const todayUtcMonth = today.getUTCMonth(); // 0-11

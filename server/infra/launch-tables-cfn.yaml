@@ -165,8 +165,6 @@ Resources:
           AttributeType: S
         - AttributeName: createdAt
           AttributeType: S
-        - AttributeName: isPaying
-          AttributeType: S
         - AttributeName: updatedAt
           AttributeType: S
       KeySchema:
@@ -181,12 +179,10 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
-        - IndexName: isPaying-updatedAt-index
+        - IndexName: updatedAt-index
           KeySchema:
-            - AttributeName: isPaying
-              KeyType: HASH
             - AttributeName: updatedAt
-              KeyType: RANGE
+              KeyType: HASH
           Projection:
             ProjectionType: ALL
       Tags:
