@@ -4,7 +4,7 @@ import axios from 'axios';
 import { createProvisioningRow, activateProvisioning, suspendProvisioning } from '../aiEmployeeProvisioningService.js';
 import { updateAgencyConfig } from '../agencyConfigService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
-import { incrementSeatsPaid, decrementSeatsPaid } from '../subscriptionService.js';
+import { incrementSeatsPaid, decrementSeatsPaid, recomputeSeatsUsed } from '../subscriptionService.js';
 import { logger } from '../logger.js';
 import { sendEmail } from '../emailService.js';
 
@@ -281,6 +281,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         }
 
         // Auto-enable AI Employee if this is an AI Employee plan purchase
+        // Note: subscription.activated handles subscription-based AI Employee activation
+        // This handler handles one-time credit purchases that include AI Employee as an add-on
         const planId = body.payload?.payment?.entity?.notes?.plan_id
           || body.payload?.subscription?.entity?.plan_id
           || '';
@@ -518,20 +520,37 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           } else if (newQuantity < previousQuantity) {
             // Seat downgrade — reduce paid seats
             const seatsRemoved = previousQuantity - newQuantity;
-            try {
-              await decrementSeatsPaid(tenantId, seatsRemoved);
-              await serverTrack(tenantId, 'seat_removed', {
-                seatsRemoved,
-                newTotal: newQuantity,
-              });
-              logger.info('subscription.updated.seats_downgraded', { tenantId, seatsRemoved, newTotal: newQuantity });
-            } catch (downgradeErr) {
-              // decrementSeatsPaid throws if seatsPaid < seatsRemoved (ConditionExpression fails)
-              logger.error('subscription.updated.downgrade.failed', {
+            
+            // Validate that current seat usage doesn't exceed new limit
+            const currentSeatsUsed = await recomputeSeatsUsed(tenantId);
+            
+            if (currentSeatsUsed > newQuantity) {
+              logger.warn('subscription.updated.downgrade_blocked', {
                 tenantId,
-                seatsRemoved,
-                error: downgradeErr.message,
+                currentSeatsUsed,
+                newQuantity,
+                previousQuantity,
+                reason: 'more users than new seat limit',
               });
+              // Don't allow downgrade - log and skip
+              // Could also return error to Razorpay, but that might cause payment issues
+              // For now, we'll log and allow the webhook to succeed without updating seats
+            } else {
+              try {
+                await decrementSeatsPaid(tenantId, seatsRemoved);
+                await serverTrack(tenantId, 'seat_removed', {
+                  seatsRemoved,
+                  newTotal: newQuantity,
+                });
+                logger.info('subscription.updated.seats_downgraded', { tenantId, seatsRemoved, newTotal: newQuantity });
+              } catch (downgradeErr) {
+                // decrementSeatsPaid throws if seatsPaid < seatsRemoved (ConditionExpression fails)
+                logger.error('subscription.updated.downgrade.failed', {
+                  tenantId,
+                  seatsRemoved,
+                  error: downgradeErr.message,
+                });
+              }
             }
           }
           // newQuantity === previousQuantity: no change, no-op

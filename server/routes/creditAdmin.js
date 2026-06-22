@@ -11,6 +11,8 @@ router.use(validateToken, extractTenantId, requireAdmin);
 
 const VALID_COST_KEYS = Object.keys(DEFAULTS.COSTS);
 const MAX_COST_VALUE = 1000; // No single action should cost more than 1000 credits
+const MIN_COST_VALUE = 0;
+const CRITICAL_COST_KEYS = ['lead_add', 'contact_add', 'property_add', 'owner_add', 'tenant_add']; // These must be > 0
 
 // GET /api/credit-config — current config
 router.get('/', async (req, res) => {
@@ -37,13 +39,18 @@ router.put('/costs', async (req, res) => {
           validKeys: VALID_COST_KEYS,
         });
       }
-      if (typeof val !== 'number' || val < 0) {
+      if (typeof val !== 'number' || val < MIN_COST_VALUE) {
         return res.status(400).json({ error: `Invalid cost for ${key}: must be non-negative number` });
       }
       if (val > MAX_COST_VALUE) {
         return res.status(400).json({
           error: `Cost for ${key} exceeds maximum (${MAX_COST_VALUE})`,
           max: MAX_COST_VALUE,
+        });
+      }
+      if (CRITICAL_COST_KEYS.includes(key) && val === 0) {
+        return res.status(400).json({
+          error: `${key} cannot be 0 (critical action)`,
         });
       }
     }

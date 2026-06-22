@@ -119,12 +119,17 @@ async function processTrialReminders() {
         continue;
       }
 
-      await sendTrialEmail(email, emailType, {
-        trialDaysLeft: Math.max(0, Math.ceil(daysLeft)),
-        plan: sub.plan,
-      });
-      await markEmailSent(sub.tenantId, emailType);
-      processed++;
+      try {
+        await sendTrialEmail(email, emailType, {
+          trialDaysLeft: Math.max(0, Math.ceil(daysLeft)),
+          plan: sub.plan,
+        });
+        await markEmailSent(sub.tenantId, emailType);
+        processed++;
+      } catch (err) {
+        console.error(`Failed to send ${emailType} to ${email} for tenant ${sub.tenantId}:`, err.message);
+        // Don't mark as sent; allow retry next cron run
+      }
     }
 
     lastKey = result.LastEvaluatedKey;

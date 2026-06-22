@@ -110,7 +110,13 @@ export async function updateConfig(key, value, updatedBy = 'system') {
       previousValue, // Store for audit
     },
   }));
+  
+  // Clear cache immediately
   clearConfigCache();
+  
+  // Small delay to allow cache invalidation to propagate across Lambda instances
+  // This is a simple approach; for distributed systems, consider DynamoDB Streams
+  await new Promise(resolve => setTimeout(resolve, 100));
 
   logger.info('creditConfig.updated', {
     key,

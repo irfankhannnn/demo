@@ -5,6 +5,18 @@ import { logger } from '../logger.js';
 const tokenCache = new Map();
 const CACHE_TTL_MS = 5 * 1000; // 5 seconds
 
+// Simple JWT decoder (no verification, just for expiration check)
+function decodeJWT(token) {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
+    return JSON.parse(payload);
+  } catch {
+    return null;
+  }
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
@@ -29,6 +41,18 @@ async function validateToken(req, res, next) {
     }
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+    // Check JWT expiration before cache check
+    const decoded = decodeJWT(token);
+    if (decoded && decoded.exp && Date.now() > decoded.exp * 1000) {
+      // Token is expired, remove from cache if present
+      tokenCache.delete(token);
+      res.set(CORS_HEADERS);
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: 'Token expired' 
+      });
+    }
 
     // Check cache first
     const cached = tokenCache.get(token);
