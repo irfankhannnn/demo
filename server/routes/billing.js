@@ -4,7 +4,7 @@ import axios from 'axios';
 import { createProvisioningRow, activateProvisioning, suspendProvisioning } from '../aiEmployeeProvisioningService.js';
 import { updateAgencyConfig } from '../agencyConfigService.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
-import { incrementSeatsPaid } from '../subscriptionService.js';
+import { incrementSeatsPaid, decrementSeatsPaid } from '../subscriptionService.js';
 import { logger } from '../logger.js';
 import { sendEmail } from '../emailService.js';
 
@@ -325,12 +325,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
               logger.warn('subscription.grace_period.activated', { tenantId, gracePeriodEndsAt });
 
               // Notify founder via Brevo
-              const { sendBrevoEmail } = await import('../brevoService.js');
-              await sendBrevoEmail(
-                process.env.BREVO_PAYMENT_FAILED_TEMPLATE_ID || '4',
-                process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
-                { tenantId, gracePeriodEndsAt, paymentId: payment?.id }
-              ).catch(err => logger.error('grace_period.email.failed', { error: err.message }));
+              const { sendEmail } = await import('../emailService.js');
+              await sendEmail({
+                to: process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
+                subject: 'Payment Failed - Grace Period Activated',
+                html: `<p>Payment failed for tenant ${tenantId}. Grace period activated until ${gracePeriodEndsAt}.</p><p>Payment ID: ${payment?.id}</p>`,
+                brevoTemplateId: process.env.BREVO_PAYMENT_FAILED_TEMPLATE_ID || '4',
+                params: { tenantId, gracePeriodEndsAt, paymentId: payment?.id }
+              }).catch(err => logger.error('grace_period.email.failed', { error: err.message }));
             }
           } catch (graceErr) {
             logger.error('subscription.grace_period.activation_failed', { tenantId, error: graceErr.message });
