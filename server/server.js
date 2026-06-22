@@ -1,3 +1,7 @@
+// Load .env BEFORE any other imports that read process.env at module load time.
+// Side-effect imports are evaluated in order, so this runs before bailey.js, etc.
+import 'dotenv/config';
+
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -34,11 +38,9 @@ import feedbackRoutes from './routes/feedback.js';
 import agentToolsRouter from './routes/agentTools.js';
 import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
+import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import validateToken from './middleware/validateToken.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
-
-// Load environment variables
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +54,10 @@ logger.info('server.startup', {
   isLambda,
   nodeEnv: process.env.NODE_ENV,
 });
+
+if (process.env.NODE_ENV === 'production' && process.env.BAILEY_ENABLED === 'true' && !process.env.BAILEY_WEBHOOK_SECRET) {
+  throw new Error('BAILEY_WEBHOOK_SECRET is required in production when BAILEY_ENABLED=true');
+}
 
 // Middleware - Configure CORS with allowlist
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
@@ -73,8 +79,9 @@ app.use(ensureRequestId);
 app.use(requestLogger);
 
 // Billing webhook MUST be before express.json() to preserve raw body for HMAC
+import { webhookRateLimit } from './middleware/rateLimiter.js';
 logger.info('routes.mount', { basePath: '/api/billing', router: 'billingRoutes' });
-app.use('/api/billing', billingRoutes);
+app.use('/api/billing', webhookRateLimit, billingRoutes);
 
 // Webhooks (Bailey WhatsApp) — raw body before JSON parser
 import webhooksRoutes from './routes/webhooks.js';
@@ -105,6 +112,20 @@ app.get('/api/health/deep', deepHealthCheck);
 // Routes
 logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
 app.use('/api/auth', authRoutes);
+
+// AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
+logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
+app.use('/api/crm/agent', agentToolsRouter);
+logger.info('routes.mount', { basePath: '/api/crm/agents', router: 'agentActivityRouter' });
+app.use('/api/crm/agents', agentActivityRouter);
+logger.info('routes.mount', { basePath: '/api/crm/config', router: 'aiEmployeeConfigRouter' });
+app.use('/api/crm/config', aiEmployeeConfigRouter);
+logger.info('routes.mount', { basePath: '/api/whatsapp', router: 'whatsappConversationsRoutes' });
+app.use('/api/whatsapp', whatsappConversationsRoutes);
+// PR-F — AI Employee status (after auth)
+logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
+app.use('/api/ai-employee', aiEmployeeStatusRoutes);
+
 logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
 app.use('/api', b2bLeadsRoutes);
 logger.info('routes.mount', { basePath: '/api/enquiries', router: 'enquiriesRoutes' });
@@ -126,9 +147,6 @@ app.use('/api/notifications', notificationsRoutes);
 // PR-B
 logger.info('routes.mount', { basePath: '/api', router: 'grievanceRoutes' });
 app.use('/api', grievanceRoutes);
-// PR-F — AI Employee status (after auth)
-logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
-app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // PR-H
 logger.info('routes.mount', { basePath: '/api/subscriptions', router: 'subscriptionsRoutes' });
 app.use('/api/subscriptions', subscriptionsRoutes);
@@ -139,13 +157,6 @@ app.use('/api/admin', adminRoutes);
 // PR-K
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);
-// AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
-logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
-app.use('/api/crm/agent', agentToolsRouter);
-logger.info('routes.mount', { basePath: '/api/crm/agents', router: 'agentActivityRouter' });
-app.use('/api/crm/agents', agentActivityRouter);
-logger.info('routes.mount', { basePath: '/api/crm/config', router: 'aiEmployeeConfigRouter' });
-app.use('/api/crm/config', aiEmployeeConfigRouter);
 // === [/LAUNCH ROUTES MOUNTS] ===
 
 // Error handling middleware

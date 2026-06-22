@@ -119,6 +119,7 @@ export async function createTrialSubscription(tenantId, plan = 'solo', options =
     trialEndsAt,
     isPaying: false,
     gracePeriodActive: false,
+    gracePeriodEndsAt: null,
     paymentStatus: 'trialing',
     razorpaySubscriptionId: null,
     nextBillingDate: null,
@@ -195,4 +196,71 @@ export async function setBillingAnniversaryDay(tenantId, day) {
     },
   }));
   logger.info('subscription.billingAnniversaryDay.set', { tenantId, day });
+}
+
+/**
+ * Update subscription status fields (paymentStatus, isPaying, cancelledAt, etc.)
+ * Used by billing webhook on subscription.cancelled / subscription.halted.
+ */
+export async function updateSubscriptionStatus(tenantId, updates) {
+  const now = new Date().toISOString();
+  const setExpressions = ['updatedAt = :now'];
+  const values = { ':now': now };
+
+  for (const [field, value] of Object.entries(updates)) {
+    if (value === null) {
+      // Skip null values to avoid overwriting with null unintentionally
+      continue;
+    }
+    setExpressions.push(`${field} = :${field}`);
+    values[`:${field}`] = value;
+  }
+
+  await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { tenantId },
+    UpdateExpression: `SET ${setExpressions.join(', ')}`,
+    ExpressionAttributeValues: values,
+    ConditionExpression: 'attribute_exists(tenantId)',
+  }));
+
+  logger.info('subscription.status.updated', { tenantId, updates: Object.keys(updates) });
+  return getSubscription(tenantId);
+}
+
+/**
+ * Validate subscription state consistency.
+ * Returns array of issues found (empty = valid).
+ */
+export function validateSubscriptionState(sub) {
+  const issues = [];
+
+  if (!sub) return ['Subscription not found'];
+
+  // isPaying should match paymentStatus
+  if (sub.isPaying && sub.paymentStatus === 'trialing') {
+    issues.push('isPaying=true but paymentStatus=trialing');
+  }
+  if (!sub.isPaying && sub.paymentStatus === 'active') {
+    issues.push('isPaying=false but paymentStatus=active');
+  }
+
+  // gracePeriodActive requires gracePeriodEndsAt
+  if (sub.gracePeriodActive && !sub.gracePeriodEndsAt) {
+    issues.push('gracePeriodActive=true but gracePeriodEndsAt is null');
+  }
+
+  // seatsUsed should not exceed seatsPaid
+  if (sub.seatsUsed > sub.seatsPaid) {
+    issues.push(`seatsUsed (${sub.seatsUsed}) > seatsPaid (${sub.seatsPaid})`);
+  }
+
+  // trialEndsAt should be in future if trialing
+  if (sub.paymentStatus === 'trialing' && sub.trialEndsAt) {
+    if (new Date(sub.trialEndsAt) < new Date()) {
+      issues.push('paymentStatus=trialing but trialEndsAt is in the past');
+    }
+  }
+
+  return issues;
 }

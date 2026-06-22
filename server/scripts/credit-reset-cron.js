@@ -26,7 +26,25 @@ function isDueForReset(sub, todayStr) {
   if (sub.isPaying) {
     // Paid: use exact billing anniversary day stored by Razorpay webhook
     if (sub.billingAnniversaryDay) {
-      return new Date().getUTCDate() === sub.billingAnniversaryDay;
+      const today = new Date();
+      const todayUtcDate = today.getUTCDate();
+      const todayUtcMonth = today.getUTCMonth(); // 0-11
+      const todayUtcYear = today.getUTCFullYear();
+      const anniversaryDay = sub.billingAnniversaryDay;
+
+      // Direct match
+      if (todayUtcDate === anniversaryDay) return true;
+
+      // Handle month-end: if anniversary is 29, 30, or 31 and current month
+      // doesn't have that day, reset on the last day of the month
+      if (anniversaryDay >= 29) {
+        const lastDayOfMonth = new Date(Date.UTC(todayUtcYear, todayUtcMonth + 1, 0)).getUTCDate();
+        if (todayUtcDate === lastDayOfMonth && lastDayOfMonth < anniversaryDay) {
+          return true;
+        }
+      }
+
+      return false;
     }
     // Fallback: approximate from nextBillingDate if available
     if (sub.nextBillingDate) return isAnniversaryToday(sub.nextBillingDate);
@@ -87,19 +105,31 @@ export async function handler() {
         continue;
       }
 
+      // 1. Atomically claim the reset for today with idempotency lock
+      try {
+        await docClient.send(new UpdateCommand({
+          TableName: SUBSCRIPTIONS_TABLE,
+          Key: { tenantId },
+          UpdateExpression: 'SET lastCreditResetAt = :today, updatedAt = :now',
+          ConditionExpression: 'attribute_not_exists(lastCreditResetAt) OR lastCreditResetAt <> :today',
+          ExpressionAttributeValues: {
+            ':today': today,
+            ':now': new Date().toISOString(),
+          },
+        }));
+      } catch (condErr) {
+        if (condErr.name === 'ConditionalCheckFailedException') {
+          // Another cron instance already reset this tenant today — skip
+          logger.info('creditReset.skipped_already_done', { tenantId, today });
+          skipped++;
+          continue;
+        }
+        throw condErr;
+      }
+
+      // 2. Now reset the credits (only one cron instance will reach here)
       const allotment = getMonthlyAllotment(sub, freeTier, packs);
       await resetMonthlyCredits(tenantId, allotment, 'monthly_reset');
-
-      await docClient.send(new UpdateCommand({
-        TableName: SUBSCRIPTIONS_TABLE,
-        Key: { tenantId },
-        UpdateExpression: 'SET lastCreditResetAt = :today, updatedAt = :now',
-        ExpressionAttributeValues: {
-          ':today': today,
-          ':now': new Date().toISOString(),
-        },
-      }));
-
       await metrics.creditReset(tenantId);
       reset++;
     } catch (err) {

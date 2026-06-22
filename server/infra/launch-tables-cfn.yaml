@@ -94,12 +94,37 @@ Resources:
     Properties:
       TableName: WebhookLog
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: webhookEventId
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: processedAt
+          AttributeType: S
+        - AttributeName: eventType
           AttributeType: S
       KeySchema:
         - AttributeName: webhookEventId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: tenantId-processedAt-index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: processedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: eventType-processedAt-index
+          KeySchema:
+            - AttributeName: eventType
+              KeyType: HASH
+            - AttributeName: processedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       TimeToLiveSpecification:
         AttributeName: ttl
         Enabled: true
@@ -136,9 +161,34 @@ Resources:
       AttributeDefinitions:
         - AttributeName: tenantId
           AttributeType: S
+        - AttributeName: paymentStatus
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: isPaying
+          AttributeType: S
+        - AttributeName: updatedAt
+          AttributeType: S
       KeySchema:
         - AttributeName: tenantId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: paymentStatus-createdAt-index
+          KeySchema:
+            - AttributeName: paymentStatus
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: isPaying-updatedAt-index
+          KeySchema:
+            - AttributeName: isPaying
+              KeyType: HASH
+            - AttributeName: updatedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName

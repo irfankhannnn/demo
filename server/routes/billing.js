@@ -143,6 +143,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           const contactPhone = notes.contactPhone || '';
           const contactEmail = notes.contactEmail || '';
 
+          // Validate required fields
+          if (!tenantId) {
+            logger.error('subscription.activated.missing_tenantId', {
+              subscriptionId: subscription?.id,
+              notes,
+            });
+            break;
+          }
+
           if (tenantId) {
             try {
               await createProvisioningRow({
@@ -300,6 +309,33 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           errorCode: payment?.error_code,
           errorDescription: payment?.error_description,
         });
+
+        // Activate 7-day grace period for paying subscribers
+        if (tenantId !== 'unknown') {
+          try {
+            const { getSubscription, updateSubscriptionStatus } = await import('../subscriptionService.js');
+            const sub = await getSubscription(tenantId);
+            if (sub?.isPaying && !sub.gracePeriodActive) {
+              const gracePeriodDays = Number(process.env.GRACE_PERIOD_DAYS) || 7;
+              const gracePeriodEndsAt = new Date(Date.now() + gracePeriodDays * 24 * 60 * 60 * 1000).toISOString();
+              await updateSubscriptionStatus(tenantId, {
+                gracePeriodActive: true,
+                gracePeriodEndsAt,
+              });
+              logger.warn('subscription.grace_period.activated', { tenantId, gracePeriodEndsAt });
+
+              // Notify founder via Brevo
+              const { sendBrevoEmail } = await import('../brevoService.js');
+              await sendBrevoEmail(
+                process.env.BREVO_PAYMENT_FAILED_TEMPLATE_ID || '4',
+                process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
+                { tenantId, gracePeriodEndsAt, paymentId: payment?.id }
+              ).catch(err => logger.error('grace_period.email.failed', { error: err.message }));
+            }
+          } catch (graceErr) {
+            logger.error('subscription.grace_period.activation_failed', { tenantId, error: graceErr.message });
+          }
+        }
         break;
       }
 
@@ -309,6 +345,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const tenantId = subscription?.notes?.tenantId || 'unknown';
         const planId = subscription?.plan_id;
         const aiEmployeePlanId = process.env.RAZORPAY_PLAN_AI_EMPLOYEE || 'plan_test_ai_employee';
+
+        // Validate tenantId
+        if (tenantId === 'unknown') {
+          logger.error('subscription.cancelled.missing_tenantId', {
+            subscriptionId: subscription?.id,
+            notes: subscription?.notes,
+          });
+          break;
+        }
 
         if (tenantId !== 'unknown' && planId === aiEmployeePlanId) {
           try {
@@ -320,7 +365,23 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           }
         }
 
-        // Subscription table update will be done by PR-H subscriptionService
+        // Update Subscriptions table — mark as cancelled/halted
+        try {
+          const { updateSubscriptionStatus } = await import('../subscriptionService.js');
+          await updateSubscriptionStatus(tenantId, {
+            isPaying: false,
+            paymentStatus: eventType === 'subscription.cancelled' ? 'cancelled' : 'halted',
+            cancelledAt: new Date().toISOString(),
+            razorpaySubscriptionId: subscription?.id || null,
+          });
+          logger.info('subscription.cancelled.table_updated', { tenantId, eventType });
+        } catch (subUpdateErr) {
+          logger.error('subscription.cancelled.table_update_failed', {
+            tenantId,
+            error: subUpdateErr.message,
+          });
+        }
+
         await serverTrack(tenantId, 'subscription_cancelled', {
           subscriptionId: subscription?.id,
           planId,
@@ -337,15 +398,36 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         if (
           tenantId &&
           typeof newQuantity === 'number' &&
-          typeof previousQuantity === 'number' &&
-          newQuantity > previousQuantity
+          typeof previousQuantity === 'number'
         ) {
-          const seatsAdded = newQuantity - previousQuantity;
-          await incrementSeatsPaid(tenantId, seatsAdded);
-          await serverTrack(tenantId, 'seat_added', {
-            seatsAdded,
-            newTotal: newQuantity,
-          });
+          if (newQuantity > previousQuantity) {
+            // Seat upgrade
+            const seatsAdded = newQuantity - previousQuantity;
+            await incrementSeatsPaid(tenantId, seatsAdded);
+            await serverTrack(tenantId, 'seat_added', {
+              seatsAdded,
+              newTotal: newQuantity,
+            });
+          } else if (newQuantity < previousQuantity) {
+            // Seat downgrade — reduce paid seats
+            const seatsRemoved = previousQuantity - newQuantity;
+            try {
+              await decrementSeatsPaid(tenantId, seatsRemoved);
+              await serverTrack(tenantId, 'seat_removed', {
+                seatsRemoved,
+                newTotal: newQuantity,
+              });
+              logger.info('subscription.updated.seats_downgraded', { tenantId, seatsRemoved, newTotal: newQuantity });
+            } catch (downgradeErr) {
+              // decrementSeatsPaid throws if seatsPaid < seatsRemoved (ConditionExpression fails)
+              logger.error('subscription.updated.downgrade.failed', {
+                tenantId,
+                seatsRemoved,
+                error: downgradeErr.message,
+              });
+            }
+          }
+          // newQuantity === previousQuantity: no change, no-op
         } else if (tenantId && (typeof newQuantity !== 'number' || typeof previousQuantity !== 'number')) {
           logger.warn('subscription.updated.invalid_quantities', {
             tenantId,
@@ -353,6 +435,45 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             previousQuantity,
           });
         }
+        break;
+      }
+
+      case 'subscription.paused': {
+        const subscription = payload?.subscription?.entity;
+        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        if (tenantId !== 'unknown') {
+          try {
+            const { updateSubscriptionStatus } = await import('../subscriptionService.js');
+            await updateSubscriptionStatus(tenantId, {
+              paymentStatus: 'paused',
+              pausedAt: new Date().toISOString(),
+            });
+            logger.info('subscription.paused', { tenantId });
+          } catch (err) {
+            logger.error('subscription.paused.update_failed', { tenantId, error: err.message });
+          }
+        }
+        await serverTrack(tenantId, 'subscription_paused', { subscriptionId: subscription?.id });
+        break;
+      }
+
+      case 'subscription.resumed': {
+        const subscription = payload?.subscription?.entity;
+        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        if (tenantId !== 'unknown') {
+          try {
+            const { updateSubscriptionStatus } = await import('../subscriptionService.js');
+            await updateSubscriptionStatus(tenantId, {
+              paymentStatus: 'active',
+              isPaying: true,
+              resumedAt: new Date().toISOString(),
+            });
+            logger.info('subscription.resumed', { tenantId });
+          } catch (err) {
+            logger.error('subscription.resumed.update_failed', { tenantId, error: err.message });
+          }
+        }
+        await serverTrack(tenantId, 'subscription_resumed', { subscriptionId: subscription?.id });
         break;
       }
 

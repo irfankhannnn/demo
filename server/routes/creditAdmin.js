@@ -2,12 +2,15 @@ import express from 'express';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { requireAdmin } from '../middleware/requireRole.js';
-import { getFullConfig, updateConfig, clearConfigCache } from '../creditConfig.js';
+import { getFullConfig, updateConfig, clearConfigCache, DEFAULTS } from '../creditConfig.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
 
 router.use(validateToken, extractTenantId, requireAdmin);
+
+const VALID_COST_KEYS = Object.keys(DEFAULTS.COSTS);
+const MAX_COST_VALUE = 1000; // No single action should cost more than 1000 credits
 
 // GET /api/credit-config — current config
 router.get('/', async (req, res) => {
@@ -28,11 +31,31 @@ router.put('/costs', async (req, res) => {
       return res.status(400).json({ error: 'Invalid costs object' });
     }
     for (const [key, val] of Object.entries(costs)) {
+      if (!VALID_COST_KEYS.includes(key)) {
+        return res.status(400).json({
+          error: `Invalid action type: ${key}`,
+          validKeys: VALID_COST_KEYS,
+        });
+      }
       if (typeof val !== 'number' || val < 0) {
-        return res.status(400).json({ error: `Invalid cost for ${key}` });
+        return res.status(400).json({ error: `Invalid cost for ${key}: must be non-negative number` });
+      }
+      if (val > MAX_COST_VALUE) {
+        return res.status(400).json({
+          error: `Cost for ${key} exceeds maximum (${MAX_COST_VALUE})`,
+          max: MAX_COST_VALUE,
+        });
       }
     }
-    await updateConfig('COSTS', costs);
+
+    // Log the config change for audit trail
+    logger.info('creditConfig.costs.updated', {
+      updatedBy: req.user?.userId || 'unknown',
+      changes: costs,
+      timestamp: new Date().toISOString(),
+    });
+
+    await updateConfig('COSTS', costs, req.user?.userId || 'unknown');
     await clearConfigCache();
     res.json({ success: true, costs });
   } catch (err) {
@@ -48,7 +71,15 @@ router.put('/packs', async (req, res) => {
     if (!packs || typeof packs !== 'object') {
       return res.status(400).json({ error: 'Invalid packs object' });
     }
-    await updateConfig('PACKS', packs);
+
+    // Log the config change for audit trail
+    logger.info('creditConfig.packs.updated', {
+      updatedBy: req.user?.userId || 'unknown',
+      changes: Object.keys(packs),
+      timestamp: new Date().toISOString(),
+    });
+
+    await updateConfig('PACKS', packs, req.user?.userId || 'unknown');
     await clearConfigCache();
     res.json({ success: true, packs });
   } catch (err) {
@@ -64,7 +95,15 @@ router.put('/free-tier', async (req, res) => {
     if (typeof monthlyFreeCredits !== 'number' || monthlyFreeCredits < 0) {
       return res.status(400).json({ error: 'monthlyFreeCredits must be >= 0' });
     }
-    await updateConfig('FREE_TIER', { monthlyFreeCredits });
+
+    // Log the config change for audit trail
+    logger.info('creditConfig.freeTier.updated', {
+      updatedBy: req.user?.userId || 'unknown',
+      monthlyFreeCredits,
+      timestamp: new Date().toISOString(),
+    });
+
+    await updateConfig('FREE_TIER', { monthlyFreeCredits }, req.user?.userId || 'unknown');
     await clearConfigCache();
     res.json({ success: true, freeTier: { monthlyFreeCredits } });
   } catch (err) {

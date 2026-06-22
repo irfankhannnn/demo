@@ -88,19 +88,37 @@ export async function getFullConfig() {
   return loadConfig();
 }
 
-export async function updateConfig(key, value) {
+export async function updateConfig(key, value, updatedBy = 'system') {
   if (!['FREE_TIER', 'PACKS', 'COSTS'].includes(key)) {
     throw new Error(`Invalid config key: ${key}`);
   }
+
+  // Fetch previous value for audit
+  const existing = await docClient.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { configKey: key },
+  }));
+  const previousValue = existing.Item?.value ?? null;
+
   await docClient.send(new PutCommand({
     TableName: TABLE_NAME,
     Item: {
       configKey: key,
       value,
       updatedAt: new Date().toISOString(),
+      updatedBy,
+      previousValue, // Store for audit
     },
   }));
   clearConfigCache();
+
+  logger.info('creditConfig.updated', {
+    key,
+    updatedBy,
+    previousValue: previousValue ? '[changed]' : '[initial]',
+    timestamp: new Date().toISOString(),
+  });
+
   return value;
 }
 

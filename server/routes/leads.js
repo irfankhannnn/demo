@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import {
@@ -55,7 +56,7 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
   } catch (error) {
-    console.error('Get leads error:', error);
+    logger.error('leads.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -70,7 +71,7 @@ router.get('/search', validateToken, extractTenantId, async (req, res) => {
     const results = await searchLeads(req.tenantId, q);
     res.json(results);
   } catch (error) {
-    console.error('Search leads error:', error);
+    logger.error('leads.search.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -78,11 +79,34 @@ router.get('/search', validateToken, extractTenantId, async (req, res) => {
 // Get available agents for assignedTo dropdown
 router.get('/agents', validateToken, extractTenantId, async (req, res) => {
   try {
-    const username = req.user?.username || 'Admin';
-    res.json([{ username, label: username }]);
+    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+    const authHeader = req.headers.authorization;
+
+    const response = await axios.get(`${authServiceUrl}/users`, {
+      headers: { Authorization: authHeader },
+      timeout: 5000,
+    });
+
+    const users = response.data?.users || response.data || [];
+    const activeUsers = users.filter(u => u.status === 'ACTIVE');
+    const members = activeUsers.map(u => ({
+      userId: u.userId,
+      username: u.displayName || u.username || u.email || 'Unknown',
+      label: u.displayName || u.username || u.email || 'Unknown',
+      role: u.role,
+    }));
+
+    res.json(members);
   } catch (error) {
-    console.error('Get agents error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    logger.error('leads.agents.fetch_failed', { error: error.message, tenantId: req.tenantId });
+    // Fallback to current user so the UI still works if auth service is down
+    const currentUser = req.user;
+    res.json([{
+      userId: currentUser?.userId || currentUser?.sub || 'admin',
+      username: currentUser?.displayName || currentUser?.username || currentUser?.email || 'Admin',
+      label: currentUser?.displayName || currentUser?.username || currentUser?.email || 'Admin',
+      role: currentUser?.role,
+    }]);
   }
 });
 
@@ -97,7 +121,7 @@ router.get('/buyers', validateToken, extractTenantId, async (req, res) => {
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
   } catch (error) {
-    console.error('Get buyer leads error:', error);
+    logger.error('leads.buyers.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -112,7 +136,7 @@ router.get('/sellers', validateToken, extractTenantId, async (req, res) => {
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
   } catch (error) {
-    console.error('Get seller leads error:', error);
+    logger.error('leads.sellers.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -127,7 +151,7 @@ router.get('/tenants', validateToken, extractTenantId, async (req, res) => {
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
   } catch (error) {
-    console.error('Get tenant leads error:', error);
+    logger.error('leads.tenants.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -142,7 +166,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     const leads = await getLeads(req.tenantId, filters);
     res.json(leads);
   } catch (error) {
-    console.error('Get owner leads error:', error);
+    logger.error('leads.owners.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -205,7 +229,7 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
 
     res.json(metrics);
   } catch (error) {
-    console.error('Get lead metrics error:', error);
+    logger.error('leads.metrics.get.error', { tenantId: req.tenantId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -219,19 +243,27 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
     }
     res.json(lead);
   } catch (error) {
-    console.error('Get lead error:', error);
+    logger.error('leads.get_one.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
+import { creditActionRateLimit } from '../middleware/rateLimiter.js';
+
 // Create lead
-router.post('/', validateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, creditActionRateLimit, async (req, res) => {
   const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
   const { refundCredits } = await import('../creditService.js');
   let creditCharge = null;
+  let leadAddCost = 0;
 
   try {
     await precheckCredits(req.tenantId, 'lead_add');
+
+    // Store the lead_add cost before creating for potential refund
+    const { getCosts } = await import('../creditConfig.js');
+    const costs = await getCosts();
+    leadAddCost = costs['lead_add'] || 0;
 
     const { name, leadType } = req.body;
     if (!name || !name.trim()) {
@@ -245,11 +277,6 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
       createdBy: req.user?.username || 'Admin',
     };
     const lead = await createLead(req.tenantId, leadData);
-
-    // Store the lead_add cost before charging for potential refund
-    const { getCosts } = await import('../creditConfig.js');
-    const costs = await getCosts();
-    const leadAddCost = costs['lead_add'] || 0;
 
     // Charge credits immediately after successful create
     creditCharge = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
@@ -283,15 +310,36 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
 
     res.status(201).json({ ...lead, creditsRemaining: creditCharge.balance });
   } catch (error) {
-    // If credits were charged but the handler subsequently failed, refund them
+    // If credits were charged but the handler subsequently failed, refund them (blocking)
     if (creditCharge?.ledgerId && leadAddCost > 0) {
-      refundCredits(req.tenantId, leadAddCost, 'lead_add', {
-        ledgerId: creditCharge.ledgerId,
-        reason: 'create_lead_failed_post_charge',
-      }).catch(refundErr => console.error('refund.failed', refundErr.message));
+      try {
+        await refundCredits(req.tenantId, leadAddCost, 'lead_add', {
+          ledgerId: creditCharge.ledgerId,
+          reason: 'create_lead_failed_post_charge',
+        });
+        logger.info('leads.refund.succeeded', { tenantId: req.tenantId, ledgerId: creditCharge.ledgerId, amount: leadAddCost });
+      } catch (refundErr) {
+        // Critical: refund failed — credits are lost. Log with high severity and alert.
+        logger.error('leads.refund.failed.critical', {
+          tenantId: req.tenantId,
+          ledgerId: creditCharge.ledgerId,
+          amount: leadAddCost,
+          error: refundErr.message,
+          // Flag for manual reconciliation
+          requiresManualRefund: true,
+        });
+        // Still return error to client, but include refund failure info
+        if (handleCreditError(error, res)) return;
+        return res.status(500).json({
+          error: 'Internal server error',
+          details: 'Credit refund failed — please contact support',
+          refundFailed: true,
+          ledgerId: creditCharge.ledgerId,
+        });
+      }
     }
     if (handleCreditError(error, res)) return;
-    console.error('Create lead error:', error);
+    logger.error('leads.create.error', { tenantId: req.tenantId, error: error.message });
     if (error.message && error.message.startsWith('A lead with this phone number already exists')) {
       return res.status(409).json({ error: error.message });
     }
@@ -309,7 +357,7 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
     const lead = await updateLead(req.tenantId, req.params.id, updateData);
     res.json(lead);
   } catch (error) {
-    console.error('Update lead error:', error);
+    logger.error('leads.update.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     if (error.message === 'Cannot update a converted lead') {
       return res.status(400).json({ error: error.message });
     }
@@ -341,7 +389,7 @@ router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => 
     const result = await convertLead(req.tenantId, req.params.id, options);
     res.json(result);
   } catch (error) {
-    console.error('Convert lead error:', error);
+    logger.error('leads.convert.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     if (error.message === 'Lead has already been converted') {
       return res.status(400).json({ error: error.message });
     }
@@ -375,7 +423,7 @@ router.get('/:id/matching-contacts', validateToken, extractTenantId, async (req,
 
     res.json(matchingContacts);
   } catch (error) {
-    console.error('Get matching contacts error:', error);
+    logger.error('leads.matching_contacts.get.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -386,7 +434,7 @@ router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
     await deleteLead(req.tenantId, req.params.id);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete lead error:', error);
+    logger.error('leads.delete.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     if (error.message === 'Cannot delete a converted lead' || error.message === 'Lead not found') {
       return res.status(400).json({ error: error.message });
     }
@@ -401,7 +449,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
     const notes = await getLeadNotes(req.tenantId, req.params.id);
     res.json(notes);
   } catch (error) {
-    console.error('Get lead notes error:', error);
+    logger.error('leads.notes.get.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -415,7 +463,7 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
     const note = await createLeadNote(req.tenantId, req.params.id, noteData);
     res.status(201).json(note);
   } catch (error) {
-    console.error('Create lead note error:', error);
+    logger.error('leads.notes.create.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -429,7 +477,7 @@ router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res
     const note = await updateLeadNote(req.tenantId, req.params.id, req.params.noteId, { content });
     res.json(note);
   } catch (error) {
-    console.error('Update lead note error:', error);
+    logger.error('leads.notes.update.error', { tenantId: req.tenantId, leadId: req.params.id, noteId: req.params.noteId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -439,7 +487,7 @@ router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, 
     await deleteLeadNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
   } catch (error) {
-    console.error('Delete lead note error:', error);
+    logger.error('leads.notes.delete.error', { tenantId: req.tenantId, leadId: req.params.id, noteId: req.params.noteId, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

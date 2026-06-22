@@ -29,7 +29,20 @@ function redact(value) {
       key.includes('authorization') ||
       key.includes('password') ||
       key.includes('token') ||
-      key.includes('secret')
+      key.includes('secret') ||
+      key.includes('razorpaypaymentid') ||
+      key.includes('razorpayorderid') ||
+      key.includes('amountpaise') ||
+      key.includes('razorpaykeysecret') ||
+      key.includes('razorpaywebhooksecret') ||
+      key.includes('adminpasswordhash') ||
+      key.includes('jwtsecret') ||
+      key.includes('contactphone') ||
+      key.includes('contactemail') ||
+      key.includes('adminemail') ||
+      key.includes('adminphone') ||
+      key === 'phone' ||
+      key === 'email'
     ) {
       out[k] = '[REDACTED]';
     } else {

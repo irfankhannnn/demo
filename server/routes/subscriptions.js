@@ -172,6 +172,15 @@ router.post('/credits/purchase', validateToken, extractTenantId, requireRole('AD
       return res.status(400).json({ error: 'Invalid credit amount' });
     }
 
+    const MAX_CREDIT_PURCHASE = 100000; // 100k credits max per purchase
+    if (credits > MAX_CREDIT_PURCHASE) {
+      return res.status(400).json({
+        error: 'invalid_credit_amount',
+        message: `Maximum ${MAX_CREDIT_PURCHASE} credits per purchase`,
+        max: MAX_CREDIT_PURCHASE,
+      });
+    }
+
     const receipt = `credits_${req.tenantId}_${Date.now()}`;
     const order = await createOrder({
       amount: amountInr,

@@ -107,6 +107,12 @@ Parameters:
     NoEcho: true
     Default: ''
 
+  BaileyMode:
+    Type: String
+    Default: 'hosted'
+    AllowedValues: ['hosted', 'selfhosted']
+    Description: Bailey mode - hosted (api.bailey.ai) or selfhosted (own Baileys service)
+
   BaileyWebhookSecret:
     Type: String
     NoEcho: true
@@ -122,6 +128,11 @@ Parameters:
     Type: String
     Default: 'https://api.bailey.ai'
     Description: Bailey WhatsApp gateway API base URL
+
+  BaileyApiPrefix:
+    Type: String
+    Default: ''
+    Description: Optional API path prefix for Bailey service (defaults to '/v1' for hosted, '' for selfhosted)
 
   S3BucketName:
     Type: String
@@ -450,6 +461,8 @@ Resources:
     Properties:
       TableName: !Ref CreditsTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: tenantId
           AttributeType: S
@@ -484,6 +497,8 @@ Resources:
     Properties:
       TableName: !Ref CreditConfigTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: configKey
           AttributeType: S
@@ -524,6 +539,38 @@ Resources:
       TimeToLiveSpecification:
         AttributeName: expiresAt
         Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AiEmployeeProvisioningTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AiEmployeeProvisioningTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -991,6 +1038,8 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}"
                   - !GetAtt CreditsTable.Arn
                   - !GetAtt CreditConfigTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*"
               - Effect: Allow
                 Action:
                   - dynamodb:Query
@@ -1086,9 +1135,11 @@ Resources:
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
           EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
           BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
+          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           JWT_SECRET: !Ref JwtSecret
@@ -1462,6 +1513,7 @@ Resources:
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
           AUTH_SERVICE_URL: !Ref AuthServiceUrl
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BREVO_API_KEY: !Ref BrevoApiKey
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
@@ -1538,6 +1590,7 @@ Resources:
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
           AUTH_SERVICE_URL: !Ref AuthServiceUrl
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BREVO_API_KEY: !Ref BrevoApiKey
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
@@ -1619,6 +1672,7 @@ Resources:
           AUTH_SERVICE_URL: !Ref AuthServiceUrl
           INTERNAL_API_KEY: !Ref InternalApiKey
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BREVO_API_KEY: !Ref BrevoApiKey
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
@@ -1674,8 +1728,8 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                 Resource:
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AIEmployeeProvisioning'
-                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/AIEmployeeProvisioning/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
               - Effect: Allow
                 Action:
                   - ses:SendEmail
@@ -1988,8 +2042,10 @@ Resources:
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
+          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
@@ -2088,8 +2144,10 @@ Resources:
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
           BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
           BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
+          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
@@ -2156,6 +2214,18 @@ Outputs:
     Value: !GetAtt AgencyConfigTable.Arn
     Export:
       Name: !Sub "${AWS::StackName}-AgencyConfigTableArn"
+
+  SubscriptionsTableNameOutput:
+    Description: Subscriptions DynamoDB table name (SUBSCRIPTIONS_TABLE)
+    Value: !Ref SubscriptionsTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-SubscriptionsTableName"
+
+  SubscriptionsTableArnOutput:
+    Description: Subscriptions DynamoDB table ARN
+    Value: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+    Export:
+      Name: !Sub "${AWS::StackName}-SubscriptionsTableArn"
 
   S3BucketNameOutput:
     Description: S3 bucket name to use in the backend .env

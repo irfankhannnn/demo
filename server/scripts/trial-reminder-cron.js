@@ -13,7 +13,7 @@
  */
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { sendEmail } from '../emailService.js';
 
 const client = new DynamoDBClient({
@@ -80,9 +80,11 @@ async function processTrialReminders() {
   let processed = 0;
 
   do {
-    const result = await docClient.send(new ScanCommand({
+    // Use GSI for efficient trial-status queries
+    const result = await docClient.send(new QueryCommand({
       TableName: TABLE_NAME,
-      FilterExpression: 'paymentStatus = :trialing',
+      IndexName: 'paymentStatus-createdAt-index',
+      KeyConditionExpression: 'paymentStatus = :trialing',
       ExpressionAttributeValues: {
         ':trialing': 'trialing',
       },
