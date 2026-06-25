@@ -121,12 +121,26 @@ Parameters:
     Default: 'http://localhost:3000,http://localhost:5173'
     Description: Comma-separated list of allowed CORS origins
 
+  SubscriptionsTableName:
+    Type: String
+    Default: Subscriptions
+    AllowedPattern: '^[a-zA-Z0-9_.-]+$'
+    Description: Name of the shared DynamoDB Subscriptions table (created by the server stack). Used only when ServerStackName is not provided.
+
+  ServerStackName:
+    Type: String
+    Default: ''
+    Description: Optional name of the server stack that exports SubscriptionsTableName and SubscriptionsTableArn. If provided, these exports are used instead of the SubscriptionsTableName parameter.
+
 # =============================================================================
 # Conditions
 # =============================================================================
 Conditions:
   HasVpcConfig:
     !Not [!Equals [!Select [0, !Ref SubnetIds], '']]
+
+  UseServerStackExport:
+    !Not [!Equals [!Ref ServerStackName, '']]
 
 # =============================================================================
 # Resources
@@ -913,6 +927,19 @@ Resources:
                   - cognito-idp:RespondToAuthChallenge
                 Resource:
                   - !GetAtt CognitoUserPoolV2.Arn
+        - PolicyName: SubscriptionsReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource:
+                  - !If
+                    - UseServerStackExport
+                    - Fn::ImportValue:
+                        Fn::Sub: '${ServerStackName}-SubscriptionsTableArn'
+                    - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
 
   # ===========================================================================
   # 11. Lambda Function
@@ -937,6 +964,12 @@ Resources:
           AWS_REGION_NAME: !Ref 'AWS::Region'
           ENV: !Ref Env
           OTP_TABLE: !Ref OtpTable
+          SUBSCRIPTIONS_TABLE:
+            !If
+              - UseServerStackExport
+              - Fn::ImportValue:
+                  Fn::Sub: '${ServerStackName}-SubscriptionsTableName'
+              - !Ref SubscriptionsTableName
           INTERNAL_API_KEY: !Ref InternalApiKey
           ALLOWED_ORIGINS: !Ref AllowedOrigins
       Code:
@@ -1148,6 +1181,28 @@ Outputs:
     Value: !GetAtt OtpTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-OtpTableArn'
+
+  SubscriptionsTableName:
+    Description: Subscriptions DynamoDB table name referenced by the auth service (SUBSCRIPTIONS_TABLE)
+    Value:
+      !If
+        - UseServerStackExport
+        - Fn::ImportValue:
+            Fn::Sub: '${ServerStackName}-SubscriptionsTableName'
+        - !Ref SubscriptionsTableName
+    Export:
+      Name: !Sub '${AWS::StackName}-SubscriptionsTableName'
+
+  SubscriptionsTableArn:
+    Description: Subscriptions DynamoDB table ARN referenced by the auth service
+    Value:
+      !If
+        - UseServerStackExport
+        - Fn::ImportValue:
+            Fn::Sub: '${ServerStackName}-SubscriptionsTableArn'
+        - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-SubscriptionsTableArn'
 
   # V2 Cognito Outputs (with Phone Authentication)
   CognitoUserPoolIdV2:

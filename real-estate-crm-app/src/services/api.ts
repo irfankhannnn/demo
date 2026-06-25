@@ -7,6 +7,7 @@ import type {
   CreatePropertyData,
   UpdatePropertyData,
 } from '../types/crm';
+import type { ConversationSummary, WhatsAppConversation } from '../types/whatsapp';
 import { setTokens, type AuthTokens } from '../utils/authStorage';
 import { refreshTokens } from '../utils/cognitoAuth';
 
@@ -1760,7 +1761,7 @@ class ApiService {
   }
 
   // Get available agents for assignedTo dropdown
-  async getLeadAgents(): Promise<Array<{ username: string; label: string }>> {
+  async getLeadAgents(): Promise<Array<{ userId: string; username: string; label: string; role?: string }>> {
     const response = await fetch(`${API_BASE_URL}/crm/leads/agents`, {
       headers: this.getHeaders(),
     });
@@ -2235,6 +2236,12 @@ class ApiService {
     aiEmployeeEnabled?: boolean;
     followupAgentMode?: 'draft' | 'autosend';
     followupAgentAutoSendChannels?: string[];
+    aiPersonality?: 'professional' | 'friendly' | 'direct';
+    autoReply?: boolean;
+    businessHoursStart?: string;
+    businessHoursEnd?: string;
+    timezone?: string;
+    connectedWhatsAppPhone?: string | null;
   }) {
     const response = await fetch(`${API_BASE_URL}/crm/config/ai-employee`, {
       method: 'PATCH',
@@ -2249,6 +2256,64 @@ class ApiService {
       headers: this.getHeaders(),
     });
     return this.handleResponse(response);
+  }
+
+  async sendTestAiMessage() {
+    const response = await fetch(`${API_BASE_URL}/ai-employee/test-message`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+    });
+    return this.handleResponse(response);
+  }
+
+  // ============== WhatsApp Inbox ==============
+
+  async getWhatsAppConversations(): Promise<ConversationSummary[]> {
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations`, {
+      headers: this.getHeaders(),
+    });
+    const result = await this.handleResponse(response);
+    return result.conversations || result.data || result || [];
+  }
+
+  async getWhatsAppConversation(phone: string): Promise<WhatsAppConversation> {
+    const encodedPhone = encodeURIComponent(phone);
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations/${encodedPhone}`, {
+      headers: this.getHeaders(),
+    });
+    const result = await this.handleResponse(response);
+    return result.data || result;
+  }
+
+  async markWhatsAppConversationRead(phone: string): Promise<void> {
+    const encodedPhone = encodeURIComponent(phone);
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations/${encodedPhone}/read`, {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    });
+    await this.handleResponse(response);
+  }
+
+  async sendWhatsAppMessage(phone: string, text: string): Promise<{ success: boolean; sent: boolean; messageId: string }> {
+    const encodedPhone = encodeURIComponent(phone);
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations/${encodedPhone}/messages`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ text }),
+    });
+    return this.handleResponse(response);
+  }
+
+  async getWhatsAppConnectionStatus(phone: string): Promise<{ connected: boolean; state?: string; error?: string; sessionId?: string | null }> {
+    const encodedPhone = encodeURIComponent(phone);
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/status/${encodedPhone}`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) {
+      return { connected: false, error: 'status_check_failed' };
+    }
+    const result = await this.handleResponse(response);
+    return result.data || result;
   }
 }
 

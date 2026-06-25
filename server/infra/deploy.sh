@@ -23,9 +23,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DEPLOY_LAMBDA=false
-DEPLOY_INSTALL=false
-DEPLOY_ZIP=false
+DEPLOY_LAMBDA=true
+DEPLOY_INSTALL=true
+DEPLOY_ZIP=true
 DEPLOY_CFN=true
 
 
@@ -150,6 +150,13 @@ echo "[4/6] Uploading nested template to s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLA
 
 TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}"
 
+# Upload main template (required if >51.2KB)
+MAIN_TEMPLATE_KEY="${ARTIFACT_PREFIX}/cfn-backend.yaml"
+echo "[4/6] Uploading main template to s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}..."
+"$AWS_BIN" s3 cp "$SCRIPT_DIR/cfn-backend.yaml" "s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
+
+MAIN_TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}"
+
 if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   LAMBDA_CODE_PARAMETER_JSON='  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "'"${S3_KEY}"'" },'
 else
@@ -203,9 +210,11 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "EmailProviderPrimary", "ParameterValue": "${EMAIL_PROVIDER_PRIMARY}" },
   { "ParameterKey": "BaileyEnabled", "ParameterValue": "${BAILEY_ENABLED}" },
   { "ParameterKey": "BaileyApiKey", "ParameterValue": "${BAILEY_API_KEY}" },
+  { "ParameterKey": "BaileyMode", "ParameterValue": "${BAILEY_MODE:-hosted}" },
   { "ParameterKey": "BaileyWebhookSecret", "ParameterValue": "${BAILEY_WEBHOOK_SECRET}" },
   { "ParameterKey": "AgentsEnabled", "ParameterValue": "${AGENTS_ENABLED:-false}" },
   { "ParameterKey": "BaileyApiEndpoint", "ParameterValue": "${BAILEY_API_ENDPOINT:-https://api.bailey.ai}" },
+  { "ParameterKey": "BaileyApiPrefix", "ParameterValue": "${BAILEY_API_PREFIX:-}" },
   { "ParameterKey": "PostHogKeyServer", "ParameterValue": "${POSTHOG_KEY_SERVER:-}" },
   { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
@@ -216,6 +225,12 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "AgentActionCredits", "ParameterValue": "${AGENT_ACTION_CREDITS:-15}" },
   { "ParameterKey": "AiEmployeeRolloutPercentage", "ParameterValue": "${AI_EMPLOYEE_ROLLOUT_PERCENTAGE:-100}" },
   { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "${AI_EMPLOYEE_PROVISIONING_TABLE:-AIEmployeeProvisioning}" },
+  { "ParameterKey": "LlmProvider", "ParameterValue": "${LLM_PROVIDER:-bedrock}" },
+  { "ParameterKey": "BedrockModelId", "ParameterValue": "${BEDROCK_MODEL_ID:-anthropic.claude-3-haiku-20240307-v1:0}" },
+  { "ParameterKey": "GeminiApiKey", "ParameterValue": "${GEMINI_API_KEY:-}" },
+  { "ParameterKey": "GeminiModel", "ParameterValue": "${GEMINI_MODEL:-gemini-2.5-flash}" },
+  { "ParameterKey": "CloudwatchMetricsEnabled", "ParameterValue": "${CLOUDWATCH_METRICS_ENABLED:-true}" },
+  { "ParameterKey": "AiAdminWhatsAppNumbers", "ParameterValue": "${AI_ADMIN_WHATSAPP_NUMBERS:-}" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" }
 ]
 EOF
@@ -265,9 +280,11 @@ PARAM_OVERRIDES=(
   "EmailProviderPrimary=${EMAIL_PROVIDER_PRIMARY}"
   "BaileyEnabled=${BAILEY_ENABLED}"
   "BaileyApiKey=${BAILEY_API_KEY}"
+  "BaileyMode=${BAILEY_MODE:-hosted}"
   "BaileyWebhookSecret=${BAILEY_WEBHOOK_SECRET}"
   "AgentsEnabled=${AGENTS_ENABLED}"
   "BaileyApiEndpoint=${BAILEY_API_ENDPOINT:-https://api.bailey.ai}"
+  "BaileyApiPrefix=${BAILEY_API_PREFIX:-}"
   "PostHogKeyServer=${POSTHOG_KEY_SERVER:-}"
   "PostHogHost=${POSTHOG_HOST:-https://eu.i.posthog.com}"
   "InternalApiKey=${INTERNAL_API_KEY:-}"
@@ -278,6 +295,12 @@ PARAM_OVERRIDES=(
   "AgentActionCredits=${AGENT_ACTION_CREDITS:-15}"
   "AiEmployeeRolloutPercentage=${AI_EMPLOYEE_ROLLOUT_PERCENTAGE:-100}"
   "AiEmployeeProvisioningTableName=${AI_EMPLOYEE_PROVISIONING_TABLE:-AIEmployeeProvisioning}"
+  "LlmProvider=${LLM_PROVIDER:-bedrock}"
+  "BedrockModelId=${BEDROCK_MODEL_ID:-anthropic.claude-3-haiku-20240307-v1:0}"
+  "GeminiApiKey=${GEMINI_API_KEY:-}"
+  "GeminiModel=${GEMINI_MODEL:-gemini-2.5-flash}"
+  "CloudwatchMetricsEnabled=${CLOUDWATCH_METRICS_ENABLED:-true}"
+  "AiAdminWhatsAppNumbers=${AI_ADMIN_WHATSAPP_NUMBERS:-}"
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
 )
 
@@ -300,6 +323,8 @@ if [ "$DEPLOY_CFN" = true ]; then
   "$AWS_BIN" cloudformation deploy \
     --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
     --stack-name "$STACK_NAME" \
+    --s3-bucket "$ARTIFACT_BUCKET" \
+    --s3-prefix "${ARTIFACT_PREFIX}" \
     --parameter-overrides "${PARAM_OVERRIDES[@]}" \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "$AWS_REGION" \

@@ -2,6 +2,7 @@ import serverlessExpress from '@vendia/serverless-express';
 import app from './server.js';
 import { applyCorsHeaders, buildResponse } from './utils/response.js';
 import { captureServerException, flushSentry } from './lib/sentry.js';
+import { shutdownPostHog } from './lib/posthog.js';
 
 let serverlessExpressInstance;
 
@@ -107,5 +108,7 @@ export const handler = async (event, context) => {
     });
     await flushSentry();
     throw error;
+  } finally {
+    await shutdownPostHog();
   }
 };

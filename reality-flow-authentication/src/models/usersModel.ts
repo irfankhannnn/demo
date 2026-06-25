@@ -347,9 +347,14 @@ export async function listUsersByTenant(tenantId: string): Promise<UserItem[]> {
     .query({
       TableName: USERS_TABLE,
       KeyConditionExpression: 'TenantId = :tid AND begins_with(SK, :prefix)',
+      FilterExpression: '#status = :active',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
       ExpressionAttributeValues: {
         ':tid': tenantId,
         ':prefix': 'USER#',
+        ':active': 'ACTIVE',
       },
     })
     .promise();
@@ -367,9 +372,14 @@ export async function countUsersByTenant(tenantId: string): Promise<number> {
     .query({
       TableName: USERS_TABLE,
       KeyConditionExpression: 'TenantId = :tid AND begins_with(SK, :prefix)',
+      FilterExpression: '#status = :active',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
       ExpressionAttributeValues: {
         ':tid': tenantId,
         ':prefix': 'USER#',
+        ':active': 'ACTIVE',
       },
       Select: 'COUNT',
     })

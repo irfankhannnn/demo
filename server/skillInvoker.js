@@ -24,10 +24,46 @@ import {
   searchLeads,
 } from './crmDynamodbService.js';
 import { logger } from './logger.js';
+import { canUserAccessTool } from './userCategoryService.js';
+
+// ─── Context enrichment functions ─────────────────────────────────────────────
+
+/**
+ * Enrich context with lead information for agent
+ * @param {string} tenantId
+ * @param {string} leadId
+ * @returns {Promise<Object>} Lead context with key fields
+ */
+export async function enrichContextWithLead(tenantId, leadId) {
+  if (!leadId) return {};
+
+  try {
+    const lead = await getLead(tenantId, leadId);
+    if (!lead) return {};
+
+    return {
+      leadId,
+      leadName: lead.name,
+      leadPhone: lead.phone,
+      leadEmail: lead.email,
+      leadType: lead.leadType,
+      leadScore: lead.score,
+      leadSource: lead.source,
+      leadStatus: lead.status,
+      lastInteraction: lead.lastInteractionAt,
+      notes: Array.isArray(lead.notes)
+        ? lead.notes.slice(0, 3) // Last 3 notes (array form)
+        : (lead.notes ? [String(lead.notes)] : []), // Handle string or undefined
+    };
+  } catch (err) {
+    logger.warn('skillInvoker.enrichContextWithLead.failed', { tenantId, leadId, error: err.message });
+    return {}; // Graceful fallback
+  }
+}
 
 // ─── Tool schema registry ─────────────────────────────────────────────────────
 
-const TOOL_SCHEMAS = {
+export const TOOL_SCHEMAS = {
   // ── Lead ops ──────────────────────────────────────────────────────────────
   create_lead: {
     required: ['name', 'leadType'],
@@ -40,6 +76,7 @@ const TOOL_SCHEMAS = {
   search_leads: {
     required: [],
     types: { query: 'string', status: 'string', leadType: 'string' },
+    description: 'Search leads by name, phone, email, area, address, property type, or requirement. Example queries: "Raj", "Kurla", "2BHK", "buyer"',
   },
   update_lead: {
     required: ['leadId'],
@@ -172,11 +209,31 @@ function sanitizeInput(input) {
 
 /**
  * Invoke a CRM skill action for a tenant (direct DynamoDB path, in-Lambda).
+ * Enforces user category-based tool access control.
  */
 export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {}) {
   if (!tenantId) return { ok: false, error: 'tenantId required' };
   if (!ALLOWED_TOOLS.includes(toolName)) {
     return { ok: false, error: `Tool not allowed: ${toolName}` };
+  }
+
+  // Check user category permissions if userId provided
+  // Security: fail-closed by default. Set ALLOW_FAIL_OPEN=true only for emergency debugging.
+  if (userId) {
+    try {
+      const hasAccess = await canUserAccessTool(tenantId, userId, toolName);
+      if (!hasAccess) {
+        logger.warn('skillInvoker.invokeSkill.access_denied', { tenantId, userId, toolName });
+        return { ok: false, error: `User does not have access to tool: ${toolName}` };
+      }
+    } catch (err) {
+      logger.error('skillInvoker.invokeSkill.permission_check_failed', { tenantId, userId, toolName, error: err.message });
+      if (process.env.ALLOW_FAIL_OPEN !== 'true') {
+        // Fail-closed: deny access when permission service is unavailable
+        return { ok: false, error: `Permission check failed for tool: ${toolName}` };
+      }
+      logger.warn('skillInvoker.invokeSkill.fail_open_enabled', { tenantId, userId, toolName });
+    }
   }
 
   const input = sanitizeInput(rawInput || {});

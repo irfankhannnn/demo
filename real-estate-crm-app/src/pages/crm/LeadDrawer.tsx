@@ -52,6 +52,8 @@ import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
 
+import LeadAssignmentDropdown, { TeamMember } from '../../components/LeadAssignmentDropdown';
+
 import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMContact, CRMMeeting } from '../../types/crm';
 
 
@@ -134,6 +136,8 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
   const [updatingMeeting, setUpdatingMeeting] = useState(false);
 
+  const [members, setMembers] = useState<TeamMember[]>([]);
+
 
 
   // Conversion modal state
@@ -190,6 +194,8 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       loadLead();
 
+      loadMembers();
+
     }
 
   }, [leadId]);
@@ -237,6 +243,48 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
     } finally {
 
       setLoading(false);
+
+    }
+
+  };
+
+
+
+  const loadMembers = async () => {
+
+    try {
+
+      const data = await api.getLeadAgents().catch(() => []);
+
+      setMembers(Array.isArray(data) ? (data as TeamMember[]) : []);
+
+    } catch (e) {
+
+      console.error('Error loading members:', e);
+
+      setMembers([]);
+
+    }
+
+  };
+
+
+
+  const handleAssign = async (assignedLeadId: string, memberId: string | null) => {
+
+    try {
+
+      await api.updateLead(assignedLeadId, { assignedTo: memberId || null });
+
+      await loadLead();
+
+      onUpdate();
+
+    } catch (e) {
+
+      console.error('Error assigning lead:', e);
+
+      alert('Failed to assign lead');
 
     }
 
@@ -915,6 +963,26 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                       <option value="high">High</option>
 
                     </select>
+
+                  </div>
+
+                  <div>
+
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Assigned To</label>
+
+                    <LeadAssignmentDropdown
+
+                      leadId={leadId!}
+
+                      assignedTo={lead.assignedTo}
+
+                      members={members}
+
+                      onAssign={handleAssign}
+
+                      disabled={isConverted}
+
+                    />
 
                   </div>
 

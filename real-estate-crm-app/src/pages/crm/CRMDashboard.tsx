@@ -21,13 +21,15 @@ import {
   ShoppingCart,
   UserPlus,
   Bot,
+  MessageCircle,
+  Inbox,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
-import { getUserProfile, clearAuthSilently } from '../../utils/authStorage';
+import { getUserProfile, clearAuthSilently, getIdToken } from '../../utils/authStorage';
 import { resetAnalytics } from '../../lib/analytics';
 import { redirectToLogout } from '../../utils/cognitoAuth';
 
@@ -43,6 +45,7 @@ export default function CRMDashboard() {
   const navigate = useNavigate();
   const profile = getUserProfile();
   const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'FOUNDER' || profile?.role === 'OWNER';
+  const baileyEnabled = import.meta.env.VITE_BAILEY_ENABLED === 'true';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -55,6 +58,114 @@ export default function CRMDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const hasRun = useRef(false);
+
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null);
+  const [whatsappState, setWhatsappState] = useState<string | null>(null);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const [checkingWhatsapp, setCheckingWhatsapp] = useState(false);
+
+  const API_URL = import.meta.env.VITE_API_URL as string;
+  const CONNECTED_PHONE_KEY = 'connectedWhatsAppPhone';
+  const WHATSAPP_POLL_INTERVAL_MS = 30000;
+
+  function safeLocalStorageGet(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch (err) {
+      console.warn('localStorage.getItem failed', err);
+      return null;
+    }
+  }
+
+  function formatWhatsAppPhone(phone: string | null): string {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) {
+      return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+    }
+    if (digits.length === 10) {
+      return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
+    }
+    return phone;
+  }
+
+  async function fetchWhatsappStatus(phoneNumber: string): Promise<{
+    connected: boolean;
+    state?: string;
+    error?: string;
+    sessionId?: string | null;
+  }> {
+    try {
+      const idToken = getIdToken();
+      const res = await fetch(`${API_URL}/auth/whatsapp/status/${encodeURIComponent(phoneNumber)}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        return { connected: false, error: err.error || 'status_check_failed' };
+      }
+
+      const data = await res.json();
+      return {
+        connected: !!data.connected,
+        state: data.state || 'unknown',
+        error: data.error || undefined,
+        sessionId: data.sessionId || null,
+      };
+    } catch (err) {
+      return { connected: false, error: err instanceof Error ? err.message : 'unknown' };
+    }
+  }
+
+  useEffect(() => {
+    if (!baileyEnabled) return;
+
+    let cancelled = false;
+    let interval: NodeJS.Timeout | null = null;
+
+    const resolvePhone = async () => {
+      try {
+        const config = await api.getAiEmployeeConfig();
+        return config.connectedWhatsAppPhone || safeLocalStorageGet(CONNECTED_PHONE_KEY);
+      } catch {
+        return safeLocalStorageGet(CONNECTED_PHONE_KEY);
+      }
+    };
+
+    const startPolling = async () => {
+      const phoneNumber = await resolvePhone();
+      if (!phoneNumber) {
+        setWhatsappConnected(false);
+        setWhatsappPhone(null);
+        return;
+      }
+
+      setWhatsappPhone(phoneNumber);
+
+      const check = async () => {
+        if (cancelled) return;
+        setCheckingWhatsapp(true);
+        const result = await fetchWhatsappStatus(phoneNumber);
+        if (cancelled) return;
+        setWhatsappConnected(result.connected);
+        setWhatsappState(result.state || null);
+        setWhatsappError(result.error || null);
+        setCheckingWhatsapp(false);
+      };
+
+      await check();
+      interval = setInterval(check, WHATSAPP_POLL_INTERVAL_MS);
+    };
+
+    startPolling();
+
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [baileyEnabled]);
 
   useEffect(() => {
     if (hasRun.current) return;
@@ -700,6 +811,58 @@ export default function CRMDashboard() {
                   AI Employee
                 </span>
                 <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
+            {isAdmin && baileyEnabled && (
+              <div
+                onClick={() => navigate('/onboarding/connect-whatsapp')}
+                className={`cursor-pointer flex flex-col gap-1 px-3 py-2.5 text-sm rounded-xl transition-all duration-200 group border ${
+                  whatsappConnected
+                    ? 'bg-green-50/50 border-green-200/70 hover:border-green-400/70'
+                    : 'bg-white/50 border-slate-200/70 hover:border-green-400/70'
+                } ${checkingWhatsapp ? 'opacity-80' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-semibold">
+                    <span
+                      className={`relative flex h-2.5 w-2.5 ${
+                        whatsappConnected ? 'bg-green-500' : 'bg-red-500'
+                      } rounded-full ${checkingWhatsapp ? 'animate-pulse' : ''}`}
+                    >
+                      {whatsappConnected && (
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+                      )}
+                    </span>
+                    <MessageCircle className={`w-4 h-4 transition-colors ${whatsappConnected ? 'text-green-600' : 'text-slate-400 group-hover:text-green-600'}`} />
+                    <span className={whatsappConnected ? 'text-green-700' : 'text-slate-600 group-hover:text-green-700'}>
+                      {whatsappConnected ? 'WhatsApp Connected' : whatsappPhone ? 'WhatsApp Disconnected' : 'Connect WhatsApp'}
+                    </span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 transition-all ${whatsappConnected ? 'text-green-300 group-hover:text-green-500' : 'text-slate-300 group-hover:text-green-500'} group-hover:translate-x-0.5`} />
+                </div>
+                {whatsappPhone && (
+                  <p className={`text-xs pl-[1.125rem] ${whatsappConnected ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatWhatsAppPhone(whatsappPhone)}
+                    {whatsappState && whatsappState !== 'unknown' && (
+                      <span className="ml-2 opacity-75">({whatsappState})</span>
+                    )}
+                  </p>
+                )}
+                {whatsappError && !whatsappConnected && (
+                  <p className="text-xs pl-[1.125rem] text-red-500">{whatsappError}</p>
+                )}
+              </div>
+            )}
+            {isAdmin && baileyEnabled && whatsappConnected && (
+              <button
+                onClick={() => navigate('/crm/whatsapp-inbox')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/70 hover:border-green-400/70 bg-white/50 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Inbox className="w-4 h-4 text-green-600 group-hover:text-green-700 transition-colors" />
+                  WhatsApp Inbox
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-green-500 group-hover:translate-x-0.5 transition-all" />
               </button>
             )}
             {/* AI Calling - DISABLED */}

@@ -8,7 +8,6 @@ import {
   Mail,
   ArrowLeft,
   RefreshCw,
-  UserPlus,
   Home,
   ShoppingCart,
   Key,
@@ -21,12 +20,15 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMLead, LeadMetrics } from '../../types/crm';
+import { getUserProfile } from '../../utils/authStorage';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import LeadDrawer from './LeadDrawer';
+import LeadAssignmentDropdown, { TeamMember } from '../../components/LeadAssignmentDropdown';
 import Toast from '../../components/Toast';
 
 type LeadTypeFilter = 'all' | 'buyer' | 'seller' | 'tenant' | 'owner';
 type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
+type AssignmentFilter = 'all' | 'my' | 'unassigned';
 type ViewMode = 'active' | 'converted' | 'all';
 
 export default function LeadList() {
@@ -38,8 +40,10 @@ export default function LeadList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<LeadTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('active');
   const [showFilters, setShowFilters] = useState(false);
+  const [members, setMembers] = useState<TeamMember[]>([]);
   
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -57,17 +61,19 @@ export default function LeadList() {
 
   useEffect(() => {
     applyFilters();
-  }, [leads, searchQuery, typeFilter, statusFilter, viewMode]);
+  }, [leads, searchQuery, typeFilter, statusFilter, assignmentFilter, viewMode]);
 
   const loadLeads = async () => {
     try {
       setLoading(true);
-      const [leadsData, metricsData] = await Promise.all([
+      const [leadsData, metricsData, membersData] = await Promise.all([
         api.getLeads(),
         api.getLeadMetrics(),
+        api.getLeadAgents().catch(() => []),
       ]);
       setLeads(leadsData);
       setMetrics(metricsData);
+      setMembers(Array.isArray(membersData) ? membersData : []);
     } catch (error) {
       console.error('Error loading leads:', error);
       if (error instanceof Error && error.message.includes('token')) {
@@ -107,6 +113,15 @@ export default function LeadList() {
       filtered = filtered.filter((l) => l.status === statusFilter);
     }
 
+    const profile = getUserProfile();
+    if (assignmentFilter !== 'all') {
+      filtered = filtered.filter((l) => {
+        if (assignmentFilter === 'unassigned') return !l.assignedTo;
+        if (assignmentFilter === 'my') return l.assignedTo === profile?.userId || l.assignedTo === profile?.cognitoSub;
+        return true;
+      });
+    }
+
     filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     setFilteredLeads(filtered);
   };
@@ -115,7 +130,18 @@ export default function LeadList() {
     setSearchQuery('');
     setTypeFilter('all');
     setStatusFilter('all');
+    setAssignmentFilter('all');
     setShowFilters(false);
+  };
+
+  const handleAssign = async (leadId: string, memberId: string | null) => {
+    try {
+      await api.updateLead(leadId, { assignedTo: memberId || null });
+      await loadLeads();
+    } catch (error) {
+      console.error('Error assigning lead:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to assign lead', 'error');
+    }
   };
 
   const handleViewModeChange = (mode: ViewMode) => {
@@ -244,6 +270,22 @@ export default function LeadList() {
       },
     },
     {
+      key: 'assignedTo',
+      header: 'Assigned To',
+      sortable: true,
+      render: (lead) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <LeadAssignmentDropdown
+            leadId={lead.leadId}
+            assignedTo={lead.assignedTo}
+            members={members}
+            onAssign={handleAssign}
+            disabled={lead.convertedAt ? true : false}
+          />
+        </div>
+      ),
+    },
+    {
       key: 'source',
       header: 'Source',
       sortable: true,
@@ -323,6 +365,18 @@ export default function LeadList() {
           <option value="negotiating">Negotiating</option>
           <option value="converted">Converted</option>
           <option value="lost">Lost</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Assigned</label>
+        <select
+          value={assignmentFilter}
+          onChange={(e) => setAssignmentFilter(e.target.value as AssignmentFilter)}
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)] focus:border-amber-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
+        >
+          <option value="all">All Leads</option>
+          <option value="my">My Leads</option>
+          <option value="unassigned">Unassigned</option>
         </select>
       </div>
     </div>
@@ -497,7 +551,7 @@ export default function LeadList() {
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           loading={loading}
-          emptyMessage={searchQuery || typeFilter !== 'all' || statusFilter !== 'all' ? 'No leads match your search' : 'No leads yet'}
+          emptyMessage={searchQuery || typeFilter !== 'all' || statusFilter !== 'all' || assignmentFilter !== 'all' ? 'No leads match your search' : 'No leads yet'}
           filters={filterContent}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters(!showFilters)}

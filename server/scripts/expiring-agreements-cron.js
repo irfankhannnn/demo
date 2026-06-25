@@ -151,7 +151,7 @@ export async function handler() {
           expiring.length > 5 ? `...and ${expiring.length - 5} more. Check your email.` : '',
         ].filter(Boolean).join('\n');
 
-        await sendWhatsAppMessage(whatsAppPhoneNumber, summary)
+        await sendWhatsAppMessage(whatsAppPhoneNumber, summary, null, whatsAppPhoneNumber)
           .catch(err => logger.error('expiringAgreements.whatsapp.failed', { tenantId, error: err.message }));
       }
 

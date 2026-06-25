@@ -1,6 +1,7 @@
-﻿import express from 'express';
+import express from 'express';
 import { logger } from '../logger.js';
 import multer from 'multer';
+import { requireAdminOrManager } from '../middleware/requireRole.js';
 import {
   createCustomer,
   getCustomers,
@@ -152,7 +153,7 @@ router.get('/customers/:id', validateToken, extractTenantId, async (req, res) =>
 });
 
 // Create customer
-router.post('/customers', validateToken, extractTenantId, validateBody(createCustomerSchema), async (req, res) => {
+router.post('/customers', validateToken, extractTenantId, requireAdminOrManager, validateBody(createCustomerSchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'tenant_add');
@@ -168,7 +169,7 @@ router.post('/customers', validateToken, extractTenantId, validateBody(createCus
 });
 
 // Update customer
-router.put('/customers/:id', validateToken, extractTenantId, validateBody(updateCustomerSchema), async (req, res) => {
+router.put('/customers/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateCustomerSchema), async (req, res) => {
   try {
     const customer = await updateCustomer(req.tenantId, req.params.id, req.body);
     res.json(customer);
@@ -190,7 +191,7 @@ router.get('/customers/:id/notes', validateToken, extractTenantId, async (req, r
 });
 
 // Create customer note
-router.post('/customers/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/customers/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const note = await createCustomerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -200,7 +201,7 @@ router.post('/customers/:id/notes', validateToken, extractTenantId, async (req, 
   }
 });
 
-router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updated = await updateCustomerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -210,7 +211,7 @@ router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, async
   }
 });
 
-router.delete('/customers/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/customers/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteCustomerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -251,7 +252,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     if (sortBy) dbFilters.sortBy = sortBy;
     if (sortOrder) dbFilters.sortOrder = sortOrder;
 
-    // Fetch all matching owners (no pagination yet — we need to compute counts first)
+    // Fetch all matching owners (no pagination yet � we need to compute counts first)
     const [ownersInitial, propertiesResult, ownerContacts, sellerContacts] = await Promise.all([
       getOwners(req.tenantId, dbFilters),
       getProperties(req.tenantId),
@@ -379,7 +380,7 @@ router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create owner
-router.post('/owners', validateToken, extractTenantId, validateBody(createOwnerSchema), async (req, res) => {
+router.post('/owners', validateToken, extractTenantId, requireAdminOrManager, validateBody(createOwnerSchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'owner_add');
@@ -395,7 +396,7 @@ router.post('/owners', validateToken, extractTenantId, validateBody(createOwnerS
 });
 
 // Update owner
-router.put('/owners/:id', validateToken, extractTenantId, validateBody(updateOwnerSchema), async (req, res) => {
+router.put('/owners/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateOwnerSchema), async (req, res) => {
   try {
     const owner = await updateOwner(req.tenantId, req.params.id, req.body);
     res.json(owner);
@@ -416,7 +417,7 @@ router.get('/owners/:id/notes', validateToken, extractTenantId, async (req, res)
   }
 });
 
-router.post('/owners/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/owners/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const note = await createOwnerNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -426,7 +427,7 @@ router.post('/owners/:id/notes', validateToken, extractTenantId, async (req, res
   }
 });
 
-router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updated = await updateOwnerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -436,7 +437,7 @@ router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (r
   }
 });
 
-router.delete('/owners/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/owners/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteOwnerNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -747,7 +748,7 @@ router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async 
 });
 
 // Create property
-router.post('/properties', validateToken, extractTenantId, validateBody(createPropertySchema), async (req, res) => {
+router.post('/properties', validateToken, extractTenantId, requireAdminOrManager, validateBody(createPropertySchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'property_add');
@@ -763,7 +764,7 @@ router.post('/properties', validateToken, extractTenantId, validateBody(createPr
 });
 
 // Update property
-router.put('/properties/:id', validateToken, extractTenantId, validateBody(updatePropertySchema), async (req, res) => {
+router.put('/properties/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updatePropertySchema), async (req, res) => {
   try {
     const property = await updateProperty(req.tenantId, req.params.id, req.body);
     res.json(property);
@@ -774,7 +775,7 @@ router.put('/properties/:id', validateToken, extractTenantId, validateBody(updat
 });
 
 // Upload property images
-router.post('/properties/:id/images', validateToken, extractTenantId, upload.array('images', 10), async (req, res) => {
+router.post('/properties/:id/images', validateToken, extractTenantId, requireAdminOrManager, upload.array('images', 10), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -802,7 +803,7 @@ router.post('/properties/:id/images', validateToken, extractTenantId, upload.arr
 });
 
 // Upload property videos
-router.post('/properties/:id/videos', validateToken, extractTenantId, upload.array('videos', 5), async (req, res) => {
+router.post('/properties/:id/videos', validateToken, extractTenantId, requireAdminOrManager, upload.array('videos', 5), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -830,7 +831,7 @@ router.post('/properties/:id/videos', validateToken, extractTenantId, upload.arr
 });
 
 // Delete property image
-router.delete('/properties/:id/images/:key', validateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/images/:key', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -851,7 +852,7 @@ router.delete('/properties/:id/images/:key', validateToken, extractTenantId, asy
 });
 
 // Delete property video
-router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -874,7 +875,7 @@ router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, asy
 // ============== Owner Document Upload Routes ==============
 
 // Upload owner documents (photo, PAN, Aadhar)
-router.post('/owners/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/owners/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -962,7 +963,7 @@ router.get('/owners/:id/with-documents', validateToken, extractTenantId, async (
 // ============== Customer/Tenant Document Upload Routes ==============
 
 // Upload customer documents (photo, PAN, Aadhar)
-router.post('/customers/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/customers/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -1070,7 +1071,7 @@ router.get('/properties/:id/agreements', validateToken, extractTenantId, async (
 });
 
 // Create property agreement
-router.post('/properties/:id/agreements', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/agreements', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -1100,7 +1101,7 @@ router.post('/properties/:id/agreements', validateToken, extractTenantId, upload
 });
 
 // Update property agreement
-router.put('/properties/:id/agreements/:agreementId', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/agreements/:agreementId', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
   try {
     const agreementData = JSON.parse(req.body.data || '{}');
 
@@ -1147,7 +1148,7 @@ router.get('/properties/:id/verifications', validateToken, extractTenantId, asyn
 });
 
 // Create property verification
-router.post('/properties/:id/verifications', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/verifications', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -1177,7 +1178,7 @@ router.post('/properties/:id/verifications', validateToken, extractTenantId, upl
 });
 
 // Update property verification
-router.put('/properties/:id/verifications/:verificationId', validateToken, extractTenantId, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/verifications/:verificationId', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
   try {
     const verificationData = JSON.parse(req.body.data || '{}');
 
@@ -1224,7 +1225,7 @@ router.get('/properties/:id/documents', validateToken, extractTenantId, async (r
 });
 
 // Upload property document
-router.post('/properties/:id/documents/upload', validateToken, extractTenantId, upload.fields([
+router.post('/properties/:id/documents/upload', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
   { name: 'files', maxCount: 20 },
   { name: 'file', maxCount: 1 },
 ]), async (req, res) => {
@@ -1296,7 +1297,7 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
 });
 
 // Delete property document
-router.delete('/properties/:id/documents/:documentId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/properties/:id/documents/:documentId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const documents = await getPropertyDocuments(req.tenantId, req.params.id);
     const document = documents.find(d => d.documentId === req.params.documentId);
@@ -1648,7 +1649,7 @@ router.get('/meetings/:id/history', validateToken, extractTenantId, async (req, 
 });
 
 // Create meeting
-router.post('/meetings', validateToken, extractTenantId, validateBody(createMeetingSchema), async (req, res) => {
+router.post('/meetings', validateToken, extractTenantId, requireAdminOrManager, validateBody(createMeetingSchema), async (req, res) => {
   try {
     const meeting = await createMeeting(req.tenantId, req.body);
     res.status(201).json(meeting);
@@ -1659,7 +1660,7 @@ router.post('/meetings', validateToken, extractTenantId, validateBody(createMeet
 });
 
 // Update meeting
-router.put('/meetings/:id', validateToken, extractTenantId, validateBody(updateMeetingSchema), async (req, res) => {
+router.put('/meetings/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateMeetingSchema), async (req, res) => {
   try {
     const meeting = await updateMeeting(req.tenantId, req.params.id, req.body);
     res.json(meeting);
@@ -1670,7 +1671,7 @@ router.put('/meetings/:id', validateToken, extractTenantId, validateBody(updateM
 });
 
 // Delete meeting
-router.delete('/meetings/:id', validateToken, extractTenantId, async (req, res) => {
+router.delete('/meetings/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteMeeting(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -1722,7 +1723,7 @@ router.get('/search/properties', validateToken, extractTenantId, async (req, res
 // ============== Property Status Management ==============
 
 // List property for sale
-router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { listedPrice } = req.body;
     if (!listedPrice) {
@@ -1738,7 +1739,7 @@ router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, asy
 });
 
 // List property for rent
-router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { expectedRent, securityDeposit } = req.body;
     if (!expectedRent) {
@@ -1754,7 +1755,7 @@ router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, asy
 });
 
 // Mark property as sold
-router.post('/properties/:id/mark-sold', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/mark-sold', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { soldPrice, buyerId, saleType, reasonLost, notes, brokerageAmount, brokerageLost } = req.body;
     
@@ -1778,7 +1779,7 @@ router.post('/properties/:id/mark-sold', validateToken, extractTenantId, async (
 });
 
 // Mark property as rented
-router.post('/properties/:id/mark-rented', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/mark-rented', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { customerId, rentalDetails } = req.body;
     if (!customerId || !rentalDetails) {
@@ -1794,7 +1795,7 @@ router.post('/properties/:id/mark-rented', validateToken, extractTenantId, async
 });
 
 // Vacate property
-router.post('/properties/:id/vacate', validateToken, extractTenantId, async (req, res) => {
+router.post('/properties/:id/vacate', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const result = await vacateProperty(req.tenantId, req.params.id);
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
@@ -1808,7 +1809,7 @@ router.post('/properties/:id/vacate', validateToken, extractTenantId, async (req
 // ============== Buyer Purchase Management ==============
 
 // Add purchase to buyer
-router.post('/buyers/:id/purchases', validateToken, extractTenantId, async (req, res) => {
+router.post('/buyers/:id/purchases', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const purchaseDetails = req.body;
     if (!purchaseDetails.propertyId) {
@@ -1823,7 +1824,7 @@ router.post('/buyers/:id/purchases', validateToken, extractTenantId, async (req,
 });
 
 // Update buyer purchase
-router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, async (req, res) => {
+router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updates = req.body;
     const updatedPurchase = await updateBuyerPurchase(
@@ -1842,7 +1843,7 @@ router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, 
 // ============== Tenant Rental Management ==============
 
 // Update tenant's current rental
-router.put('/customers/:id/current-rental', validateToken, extractTenantId, async (req, res) => {
+router.put('/customers/:id/current-rental', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const rentalDetails = req.body;
     const updatedRental = await updateCurrentRental(req.tenantId, req.params.id, rentalDetails);
@@ -1854,7 +1855,7 @@ router.put('/customers/:id/current-rental', validateToken, extractTenantId, asyn
 });
 
 // Archive tenant's current rental to history
-router.post('/customers/:id/archive-rental', validateToken, extractTenantId, async (req, res) => {
+router.post('/customers/:id/archive-rental', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const result = await moveTenantToHistory(req.tenantId, req.params.id);
     res.json(result);

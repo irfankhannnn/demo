@@ -14,6 +14,9 @@ const router = express.Router();
 
 const ALLOWED_MODES = ['draft', 'autosend'];
 const ALLOWED_CHANNELS = ['whatsapp', 'email'];
+const ALLOWED_PERSONALITIES = ['professional', 'friendly', 'direct'];
+const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const VALID_TIMEZONES = Intl.supportedValuesOf?.('timeZone') || ['Asia/Kolkata', 'UTC'];
 
 // GET /api/crm/config/ai-employee
 router.get('/ai-employee', validateToken, extractTenantId, requireAdmin, async (req, res) => {
@@ -24,6 +27,14 @@ router.get('/ai-employee', validateToken, extractTenantId, requireAdmin, async (
       aiEmployeeEnabled: config?.aiEmployeeEnabled || false,
       followupAgentMode: config?.followupAgentMode || 'draft',
       followupAgentAutoSendChannels: config?.followupAgentAutoSendChannels || ['whatsapp'],
+      aiPersonality: config?.aiPersonality || 'professional',
+      autoReply: config?.autoReply !== false,
+      businessHoursStart: config?.businessHoursStart || '09:00',
+      businessHoursEnd: config?.businessHoursEnd || '18:00',
+      timezone: config?.timezone || 'Asia/Kolkata',
+      connectedWhatsAppPhone: config?.connectedWhatsAppPhone || null,
+      whitelistedPhones: config?.whitelistedPhones || [],
+      blacklistedPhones: config?.blacklistedPhones || [],
     });
   } catch (err) {
     logger.error('config.ai-employee.get.failed', { tenantId, error: err.message });
@@ -34,7 +45,19 @@ router.get('/ai-employee', validateToken, extractTenantId, requireAdmin, async (
 // PATCH /api/crm/config/ai-employee
 router.patch('/ai-employee', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   const tenantId = req.tenantId;
-  const { aiEmployeeEnabled, followupAgentMode, followupAgentAutoSendChannels } = req.body || {};
+  const {
+    aiEmployeeEnabled,
+    followupAgentMode,
+    followupAgentAutoSendChannels,
+    aiPersonality,
+    autoReply,
+    businessHoursStart,
+    businessHoursEnd,
+    timezone,
+    connectedWhatsAppPhone,
+    whitelistedPhones,
+    blacklistedPhones,
+  } = req.body || {};
 
   const update = {};
 
@@ -58,6 +81,91 @@ router.patch('/ai-employee', validateToken, extractTenantId, requireAdmin, async
       return res.status(400).json({ error: `Invalid channels: ${invalid.join(', ')}. Allowed: ${ALLOWED_CHANNELS.join(', ')}` });
     }
     update.followupAgentAutoSendChannels = followupAgentAutoSendChannels;
+  }
+
+  if (aiPersonality !== undefined) {
+    if (!ALLOWED_PERSONALITIES.includes(aiPersonality)) {
+      return res.status(400).json({ error: `Invalid aiPersonality — must be one of: ${ALLOWED_PERSONALITIES.join(', ')}` });
+    }
+    update.aiPersonality = aiPersonality;
+  }
+
+  if (autoReply !== undefined) {
+    update.autoReply = !!autoReply;
+  }
+
+  if (businessHoursStart !== undefined) {
+    if (businessHoursStart && !TIME_REGEX.test(businessHoursStart)) {
+      return res.status(400).json({ error: 'businessHoursStart must be HH:MM (24-hour format)' });
+    }
+    update.businessHoursStart = businessHoursStart || null;
+  }
+
+  if (businessHoursEnd !== undefined) {
+    if (businessHoursEnd && !TIME_REGEX.test(businessHoursEnd)) {
+      return res.status(400).json({ error: 'businessHoursEnd must be HH:MM (24-hour format)' });
+    }
+    update.businessHoursEnd = businessHoursEnd || null;
+  }
+
+  if (update.businessHoursStart && update.businessHoursEnd) {
+    const [startHour, startMin] = update.businessHoursStart.split(':').map(Number);
+    const [endHour, endMin] = update.businessHoursEnd.split(':').map(Number);
+    if (startHour * 60 + startMin >= endHour * 60 + endMin) {
+      return res.status(400).json({ error: 'businessHoursStart must be before businessHoursEnd' });
+    }
+  }
+
+  if (timezone !== undefined) {
+    if (timezone && !VALID_TIMEZONES.includes(timezone)) {
+      return res.status(400).json({ error: 'Invalid timezone' });
+    }
+    update.timezone = timezone || 'Asia/Kolkata';
+  }
+
+  if (connectedWhatsAppPhone !== undefined) {
+    // Normalize: strip all non-digit characters except leading +
+    let normalized = null;
+    if (connectedWhatsAppPhone) {
+      const raw = String(connectedWhatsAppPhone);
+      // Remove all non-digit characters except leading +
+      const withoutFormatting = raw.replace(/[^\d+]/g, '');
+      // Remove leading + to get digits only
+      const digitsOnly = withoutFormatting.replace(/^\+/, '');
+      
+      // Length check first to avoid regex backtracking on very long inputs
+      if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+        return res.status(400).json({ error: 'Invalid connectedWhatsAppPhone format — must be 10-15 digits' });
+      }
+      // Validate: digits only
+      if (!/^\d+$/.test(digitsOnly)) {
+        return res.status(400).json({ error: 'Invalid connectedWhatsAppPhone format — must contain only digits' });
+      }
+      
+      // Store normalized number (digits only, no +)
+      normalized = digitsOnly;
+    }
+    update.connectedWhatsAppPhone = normalized || null;
+  }
+
+  if (whitelistedPhones !== undefined) {
+    if (!Array.isArray(whitelistedPhones)) {
+      return res.status(400).json({ error: 'whitelistedPhones must be an array' });
+    }
+    // Normalize each phone to digits only
+    update.whitelistedPhones = whitelistedPhones
+      .map(p => String(p || '').replace(/\D/g, ''))
+      .filter(p => p.length >= 10 && p.length <= 15);
+  }
+
+  if (blacklistedPhones !== undefined) {
+    if (!Array.isArray(blacklistedPhones)) {
+      return res.status(400).json({ error: 'blacklistedPhones must be an array' });
+    }
+    // Normalize each phone to digits only
+    update.blacklistedPhones = blacklistedPhones
+      .map(p => String(p || '').replace(/\D/g, ''))
+      .filter(p => p.length >= 10 && p.length <= 15);
   }
 
   if (!Object.keys(update).length) {

@@ -59,7 +59,7 @@ export async function handler() {
       }
 
       if (isBaileyEnabled() && whatsAppPhoneNumber) {
-        await sendWhatsAppMessage(whatsAppPhoneNumber, lines);
+        await sendWhatsAppMessage(whatsAppPhoneNumber, lines, null, whatsAppPhoneNumber);
       }
 
       processed++;

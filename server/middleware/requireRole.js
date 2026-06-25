@@ -31,4 +31,4 @@ export function requireRole(...allowedRoles) {
 }
 
 export const requireAdmin = requireRole('ADMIN', 'FOUNDER', 'OWNER');
-export const requireAdminOrManager = requireRole('ADMIN', 'MANAGER');
+export const requireAdminOrManager = requireRole('ADMIN', 'MANAGER', 'FOUNDER', 'OWNER');

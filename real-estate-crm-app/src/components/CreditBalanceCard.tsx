@@ -1,4 +1,4 @@
-import { Coins, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react';
+import { Coins, AlertTriangle, TrendingDown, TrendingUp, Clock } from 'lucide-react';
 import { useCredits } from '../hooks/useCredits';
 
 interface CreditBalanceCardProps {
@@ -61,6 +61,10 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
   const hasComparison = typeof lastMonthUsage === 'number';
   const usageChange = hasComparison ? thisMonthUsage - lastMonthUsage! : 0;
 
+  // Calculate estimated days until credits run out
+  const dailyUsageRate = thisMonthUsage > 0 ? thisMonthUsage / Math.max(1, new Date().getDate()) : 0;
+  const estimatedDaysLeft = dailyUsageRate > 0 ? Math.ceil(balance / dailyUsageRate) : null;
+
   const progressColor = isEmpty ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-[#2563EB]';
   const borderColor = isEmpty ? 'border-red-200' : isLow ? 'border-amber-200' : 'border-slate-200';
   const bgColor = isEmpty ? 'bg-red-50' : isLow ? 'bg-amber-50' : 'bg-white';
@@ -119,8 +123,8 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
         </div>
       )}
 
-      {/* This month vs last month */}
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      {/* This month vs last month + estimated days */}
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="p-3 rounded-lg bg-white/60 border border-slate-100">
           <p className="text-xs text-slate-500">This month used</p>
           <p className="text-lg font-semibold text-slate-900">{thisMonthUsage.toLocaleString('en-IN')}</p>
@@ -140,6 +144,17 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
             )}
           </div>
         </div>
+        {estimatedDaysLeft !== null && !isEmpty && (
+          <div className="p-3 rounded-lg bg-white/60 border border-slate-100">
+            <div className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5 text-slate-400" />
+              <p className="text-xs text-slate-500">Est. days left</p>
+            </div>
+            <p className={`text-lg font-semibold ${estimatedDaysLeft <= 7 ? 'text-red-600' : 'text-slate-900'}`}>
+              {estimatedDaysLeft}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Credit breakdown by category */}

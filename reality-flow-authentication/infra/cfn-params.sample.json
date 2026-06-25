@@ -19,5 +19,7 @@
   { "ParameterKey": "GoogleClientSecret", "ParameterValue": "__GOOGLE_CLIENT_SECRET__" },
   { "ParameterKey": "CognitoDomainPrefix", "ParameterValue": "__COGNITO_DOMAIN_PREFIX__" },
   { "ParameterKey": "IdentityCallbackURL", "ParameterValue": "__IDENTITY_CALLBACK_URL__" },
-  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "__IDENTITY_LOGOUT_URL__" }
+  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "__IDENTITY_LOGOUT_URL__" },
+  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "Subscriptions" },
+  { "ParameterKey": "ServerStackName", "ParameterValue": "" }
 ]

@@ -14,3 +14,16 @@ Thumbs.db
 
 # Auto-generated deployment files
 server/infra/cfn-params.json
+
+# Environment files (contain secrets — never commit real .env files)
+.env
+.env.local
+.env.production
+server/.env
+real-estate-crm-app/.env
+real-estate-crm-app/.env.production
+reality-flow-authentication/.env
+onboarding-page/.env
+marketing-and-sales/creative/landing-pages/.env
+tests/playwright/.env
+

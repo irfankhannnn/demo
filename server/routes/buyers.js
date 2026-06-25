@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager } from '../middleware/requireRole.js';
 import {
   createBuyer,
   getBuyers,
@@ -71,7 +72,7 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create buyer
-router.post('/', validateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'contact_add');
@@ -115,7 +116,7 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update buyer
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -157,7 +158,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create buyer note
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const noteData = {
       ...req.body,
@@ -215,7 +216,7 @@ router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) 
 // ============== Buyer Document Upload Routes ==============
 
 // Upload buyer documents (photo, PAN, Aadhar)
-router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -301,7 +302,7 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
 });
 
 // Create an owner listing from a buyer's purchased property
-router.post('/:id/list-property', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/list-property', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { propertyId, listingType } = req.body;
     if (!propertyId) {

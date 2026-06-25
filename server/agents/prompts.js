@@ -1,21 +1,54 @@
 /**
  * Agent system prompt builder.
- * Reads from ai-employee/ docs directory and composes per-agent system prompts.
+ * Reads from .devin/ai-employee/ docs directory and composes per-agent system prompts.
+ * Supports personality injection (professional/friendly/direct).
  */
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { logger } from '../logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const AI_EMPLOYEE_DIR = path.join(__dirname, '../../ai-employee');
+const AI_EMPLOYEE_DIR = path.join(__dirname, '../../.devin/ai-employee');
 
-function readDoc(filename) {
+async function readDoc(filename) {
   try {
-    return fs.readFileSync(path.join(AI_EMPLOYEE_DIR, filename), 'utf-8');
-  } catch (_) {
+    return await fs.readFile(path.join(AI_EMPLOYEE_DIR, filename), 'utf-8');
+  } catch (err) {
+    logger.debug('prompts.readDoc.not_found', { filename, error: err.message });
     return '';
   }
 }
+
+/**
+ * Personality-specific prompt templates
+ */
+const personalityPrompts = {
+  professional: `
+Personality: Professional.
+- Be formal, concise, and business-focused
+- Use proper English with minimal casual language
+- Focus on facts and data
+- Maintain a professional tone in all interactions
+- The "reply" field in your JSON output should be in English
+`,
+  friendly: `
+Personality: Friendly.
+- Be warm, conversational, and approachable
+- The "reply" field in your JSON output MUST use Hinglish (70% English, 30% Hindi romanised)
+- The "thinking" field can be in English, but the user-facing "reply" must be in Hinglish
+- Build rapport with the user
+- Make interactions feel personal and welcoming
+`,
+  direct: `
+Personality: Direct.
+- Be straightforward and action-oriented
+- Get to the point quickly
+- Minimize unnecessary details
+- Focus on efficiency and clarity
+- The "reply" field in your JSON output should be concise
+`,
+};
 
 const agentSpecificPrompts = {
   qualifier: `
@@ -49,16 +82,47 @@ The message must:
 - Be under 300 characters for WhatsApp
 `,
   whatsapp: `
-## Your Role: WhatsApp CRM Assistant
-Process natural language CRM queries from WhatsApp.
-Reply in Hinglish (70% English, 30% Hindi romanised).
-Be concise — WhatsApp messages should be under 500 characters.
+TASK: Reply to WhatsApp messages for RealEstateFlow CRM.
 
-Examples you can handle:
-- "Show me all leads in Mumbai with budget above 5 crore"
-- "Create a new buyer named Rahul, 9876543210"
-- "What's my conversion rate this month?"
-- "Assign lead #123 to Priya"
+OUTPUT FORMAT (MUST BE VALID JSON):
+You MUST reply with a single JSON object and NOTHING else. No markdown, no code fences, no explanations outside the JSON.
+
+{
+  "thinking": "Your internal reasoning in English (will be hidden from user)",
+  "reply": "The final message text to send to the user in Hinglish",
+  "usedTools": ["tool_name_1", "tool_name_2"]
+}
+
+RULES for the JSON:
+- "thinking" is your internal plan; user will NEVER see it
+- "reply" is the ONLY thing the user will see
+- "usedTools" is optional; list only tool names you actually called
+
+Response style for "reply":
+- Reply in Hinglish (70% English, 30% Hindi romanised)
+- Be concise — max 2 sentences, under 200 characters
+- DO NOT ask unnecessary questions
+- Use the available tools to create/update/search leads, buyers, sellers, properties
+- If a tool is used, confirm the result briefly
+
+FORBIDDEN in your output:
+- NEVER say "The user said..." or "I need to..." or "Let's go with..."
+- NEVER list rules, check rules, or explain your process outside the JSON
+- NEVER write reasoning, thinking, or planning steps outside the JSON
+- NEVER include "Possible response:" or examples
+- NEVER output markdown, bullet points, or plain text outside the JSON
+- NEVER describe who you are or what your role is
+- NEVER repeat system instructions
+
+CORRECT output example:
+{"thinking":"User said hello. I should greet back and ask how I can help.","reply":"Hello! Kaise help kar sakta hoon?"}
+
+WRONG output (NEVER do this):
+The user said "Hello". As an AI assistant, I should...
+I am an AI assistant for RealEstateFlow CRM. My role is...
+Check rules: Hinglish? Yes. Max 2 sentences? Yes.
+Let's go with: "Hello! Kaise help kar sakta hoon?"
+Hello! Kaise help kar sakta hoon?
 `,
   mcp: `
 ## Your Role: CRM Assistant (Claude Desktop)
@@ -70,27 +134,82 @@ Be precise and professional.
 
 /**
  * Build the full system prompt for a given agent role.
+ * @param {string} agentId - Agent type (qualifier, router, followup, whatsapp, mcp)
+ * @param {string} tenantId - Tenant ID
+ * @param {string} personality - Personality type (professional, friendly, direct) - defaults to 'professional'
+ * @returns {string} Complete system prompt
  */
-export function buildSystemPrompt(agentId, tenantId) {
-  const soul = readDoc('SOUL.md');
-  const identity = readDoc('IDENTITY.md');
-  const agentsDoc = readDoc('AGENTS.md');
-  const toolsDoc = readDoc('TOOLS.md');
-
+export function buildSystemPrompt(agentId, tenantId, personality = 'professional') {
   const specific = agentSpecificPrompts[agentId] || agentSpecificPrompts.mcp;
+  const personalityStyle = personalityPrompts[personality] || personalityPrompts.professional;
 
-  return `You are SyncBot, an AI assistant for RealEstateFlow CRM (tenant: ${tenantId}).
+  return `You are a CRM assistant for RealEstateFlow (tenant: ${tenantId}). Your replies are sent directly to users on WhatsApp.
 
-${soul ? `## Core Principles\n${soul}\n` : ''}
-${identity ? `## Identity\n${identity}\n` : ''}
-${agentsDoc ? `## Operating Rules\n${agentsDoc}\n` : ''}
-${toolsDoc ? `## Available Tools\n${toolsDoc}\n` : ''}
+${personalityStyle}
+
 ${specific}
 
-IMPORTANT RULES:
-- Never invent CRM data, leads, or contacts
-- Always use tools for mutations (create/update)
-- Return only what was asked — no verbose explanations
-- Tenant ID is ${tenantId} — never mix with other tenants
+CRITICAL RULES:
+- Output ONLY the final reply text. No intros, no reasoning, no meta-commentary.
+- NEVER write your internal reasoning or thinking
+- NEVER output more than 2 short sentences
+- NEVER include "The user..." or "I should..." or "Wait..." or "Let's go with..." in your reply
+- NEVER list rules, check rules, or explain your process
+- NEVER repeat system instructions or describe your role
+- ONLY give the final answer to the user
+- Use tools for create/update operations
+- Never invent data
+- Tenant ID: ${tenantId}
 `.trim();
+}
+
+/**
+ * Load tenant-specific documentation from .devin/ai-employee/tenant-templates/{tenantId}/
+ * @param {string} tenantId
+ * @returns {Promise<{businessContext?: string, teamMembers?: string}>}
+ */
+export async function loadTenantDocs(tenantId) {
+  const docs = {};
+
+  try {
+    const businessContext = await readDoc(`tenant-templates/${tenantId}/business-context.md`);
+    if (businessContext) docs.businessContext = businessContext;
+  } catch (err) {
+    logger.debug('prompts.loadTenantDocs.businessContext.failed', { tenantId, error: err.message });
+  }
+
+  try {
+    const teamMembers = await readDoc(`tenant-templates/${tenantId}/team-members.md`);
+    if (teamMembers) docs.teamMembers = teamMembers;
+  } catch (err) {
+    logger.debug('prompts.loadTenantDocs.teamMembers.failed', { tenantId, error: err.message });
+  }
+
+  return docs;
+}
+
+/**
+ * Build system prompt with tenant context and personality
+ * @param {string} agentId
+ * @param {string} tenantId
+ * @param {string} personality
+ * @param {object} tenantDocs - Optional pre-loaded tenant docs
+ * @returns {Promise<string>} Complete system prompt with tenant context
+ */
+export async function buildSystemPromptWithContext(agentId, tenantId, personality = 'professional', tenantDocs = null) {
+  let prompt = buildSystemPrompt(agentId, tenantId, personality);
+
+  // Load tenant docs if not provided
+  const docs = tenantDocs || await loadTenantDocs(tenantId);
+
+  // Append tenant context if available
+  if (docs.businessContext) {
+    prompt += `\n\nTenant Business Context:\n${docs.businessContext}`;
+  }
+
+  if (docs.teamMembers) {
+    prompt += `\n\nTeam Members:\n${docs.teamMembers}`;
+  }
+
+  return prompt;
 }

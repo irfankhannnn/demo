@@ -10,6 +10,36 @@ import { sendEmail } from '../emailService.js';
 
 const router = express.Router();
 
+const TENANT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
+const MAX_WEBHOOK_CREDIT_GRANT = 100000;
+
+function getTenantIdFromNotes(notes = {}, context = {}) {
+  const tenantId = notes.tenantId || notes.tenant_id;
+  if (!tenantId || !TENANT_ID_PATTERN.test(String(tenantId))) {
+    logger.error('billing.webhook.invalid_tenantId', {
+      eventType: context.eventType,
+      entityId: context.entityId,
+      hasTenantId: Boolean(tenantId),
+    });
+    return null;
+  }
+  return String(tenantId);
+}
+
+function parseCreditAmount(value, context = {}) {
+  const credits = Math.floor(Number(value));
+  if (!Number.isFinite(credits) || credits <= 0 || credits > MAX_WEBHOOK_CREDIT_GRANT) {
+    logger.error('billing.webhook.invalid_credit_amount', {
+      eventType: context.eventType,
+      entityId: context.entityId,
+      credits: value,
+      max: MAX_WEBHOOK_CREDIT_GRANT,
+    });
+    return null;
+  }
+  return credits;
+}
+
 /**
  * Server-side PostHog tracking. PR-E creates the real module;
  * this calls it if available, otherwise logs.
@@ -148,7 +178,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         if (planId === aiEmployeePlanId) {
           // Extract tenant info from subscription notes
           const notes = subscription?.notes || {};
-          const tenantId = notes.tenantId;
+          const tenantId = getTenantIdFromNotes(notes, { eventType, entityId: subscription?.id });
           const agencyOwnerId = notes.agencyOwnerId || notes.userId;
           const agencyName = notes.agencyName || '';
           const contactPhone = notes.contactPhone || '';
@@ -218,7 +248,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         }
 
         // Store billing anniversary day for accurate monthly credit reset
-        const activatedTenantId = subscription?.notes?.tenantId;
+        const activatedTenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id });
         if (activatedTenantId && subscription?.start_at) {
           const anniversaryDay = new Date(subscription.start_at * 1000).getUTCDate();
           const { setBillingAnniversaryDay } = await import('../subscriptionService.js');
@@ -229,7 +259,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
         // Generic subscription_started for any plan
         await serverTrack(
-          subscription?.notes?.tenantId || 'unknown',
+          getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown',
           'subscription_started',
           { planId, subscriptionId: subscription?.id }
         );
@@ -238,7 +268,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'subscription.charged': {
         const subscription = payload?.subscription?.entity;
-        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown';
         await serverTrack(tenantId, 'subscription_invoiced', {
           subscriptionId: subscription?.id,
           planId: subscription?.plan_id,
@@ -252,7 +282,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'payment.captured': {
         const payment = payload?.payment?.entity;
-        const tenantId = payment?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(payment?.notes, { eventType, entityId: payment?.id }) || 'unknown';
         await serverTrack(tenantId, 'razorpay_payment_succeeded', {
           paymentId: payment?.id,
           amount: payment?.amount,
@@ -267,7 +297,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             const { isDuplicate } = await logEventIfNotProcessed(creditEventId, 'credit.grant', tenantId);
             if (!isDuplicate) {
               const { grantCredits } = await import('../creditService.js');
-              const credits = Number(payment.notes.credits);
+              const credits = parseCreditAmount(payment.notes.credits, { eventType, entityId: paymentId });
+              if (!credits) break;
               await grantCredits(tenantId, credits, 'purchase', {
                 razorpayPaymentId: paymentId,
                 razorpayOrderId: payment.order_id,
@@ -294,9 +325,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           || planName.toLowerCase().includes('ai-employee');
 
         if (isAiEmployeePlan) {
-          const aiTenantId = body.payload?.payment?.entity?.notes?.tenant_id
-            || body.payload?.subscription?.entity?.notes?.tenant_id
-            || '';
+          const aiTenantId = getTenantIdFromNotes(
+            body.payload?.payment?.entity?.notes || body.payload?.subscription?.entity?.notes,
+            { eventType, entityId: body.payload?.payment?.entity?.id || body.payload?.subscription?.entity?.id }
+          );
           const subscriptionId = body.payload?.subscription?.entity?.id || '';
           const orderId = body.payload?.payment?.entity?.order_id || '';
 
@@ -315,7 +347,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'payment.failed': {
         const payment = payload?.payment?.entity;
-        const tenantId = payment?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(payment?.notes, { eventType, entityId: payment?.id }) || 'unknown';
         await serverTrack(tenantId, 'razorpay_payment_failed', {
           paymentId: payment?.id,
           amount: payment?.amount,
@@ -357,8 +389,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'payment.refunded':
       case 'payment.reversed': {
         const payment = payload?.payment?.entity;
-        const tenantId = payment?.notes?.tenantId || 'unknown';
-        const credits = payment?.notes?.credits ? Number(payment.notes.credits) : 0;
+        const tenantId = getTenantIdFromNotes(payment?.notes, { eventType, entityId: payment?.id }) || 'unknown';
+        const credits = payment?.notes?.credits
+          ? parseCreditAmount(payment.notes.credits, { eventType, entityId: payment?.id }) || 0
+          : 0;
 
         await serverTrack(tenantId, 'razorpay_payment_refunded', {
           paymentId: payment?.id,
@@ -401,8 +435,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'payment.disputed':
       case 'payment.chargeback': {
         const payment = payload?.payment?.entity;
-        const tenantId = payment?.notes?.tenantId || 'unknown';
-        const credits = payment?.notes?.credits ? Number(payment.notes.credits) : 0;
+        const tenantId = getTenantIdFromNotes(payment?.notes, { eventType, entityId: payment?.id }) || 'unknown';
+        const credits = payment?.notes?.credits
+          ? parseCreditAmount(payment.notes.credits, { eventType, entityId: payment?.id }) || 0
+          : 0;
 
         await serverTrack(tenantId, 'razorpay_payment_disputed', {
           paymentId: payment?.id,
@@ -451,7 +487,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'subscription.cancelled':
       case 'subscription.halted': {
         const subscription = payload?.subscription?.entity;
-        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown';
         const planId = subscription?.plan_id;
         const aiEmployeePlanId = process.env.RAZORPAY_PLAN_AI_EMPLOYEE || 'plan_test_ai_employee';
 
@@ -500,7 +536,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'subscription.updated': {
         const subscription = payload?.subscription?.entity;
-        const tenantId = subscription?.notes?.tenantId;
+        const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id });
         const newQuantity = subscription?.quantity;
         const previousQuantity = payload?.subscription?.previousQuantity;
 
@@ -566,7 +602,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'subscription.paused': {
         const subscription = payload?.subscription?.entity;
-        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown';
         if (tenantId !== 'unknown') {
           try {
             const { updateSubscriptionStatus } = await import('../subscriptionService.js');
@@ -585,7 +621,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
       case 'subscription.resumed': {
         const subscription = payload?.subscription?.entity;
-        const tenantId = subscription?.notes?.tenantId || 'unknown';
+        const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown';
         if (tenantId !== 'unknown') {
           try {
             const { updateSubscriptionStatus } = await import('../subscriptionService.js');

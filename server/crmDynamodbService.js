@@ -3209,6 +3209,20 @@ export async function updateLead(tenantId, leadId, data) {
     data.history = history;
   }
 
+  // Add history entry for assignment changes
+  if (data.assignedTo !== undefined && data.assignedTo !== existingLead.assignedTo) {
+    const history = data.history || existingLead.history || [];
+    const fromName = existingLead.assignedTo ? String(existingLead.assignedTo) : 'Unassigned';
+    const toName = data.assignedTo ? String(data.assignedTo) : 'Unassigned';
+    history.push({
+      timestamp: new Date().toISOString(),
+      action: 'Assignment Changed',
+      details: `Lead assigned from ${fromName} to ${toName}`,
+      updatedBy: data.updatedBy || 'System',
+    });
+    data.history = history;
+  }
+
   const immutableKeys = new Set(['PK', 'SK', 'EntityType', 'tenantId', 'leadId', 'createdAt', 'createdBy']);
   Object.keys(data).forEach((key, index) => {
     if (key === 'updatedBy') return; // Skip helper field
@@ -3250,6 +3264,26 @@ export async function updateLead(tenantId, leadId, data) {
       });
     } catch (err) {
       logger.error('updateLead.logContactActivity.error', { leadId, error: err.message });
+    }
+  }
+
+  // Log contact activity for assignment change
+  if (data.assignedTo !== undefined && data.assignedTo !== existingLead.assignedTo) {
+    try {
+      const fromName = existingLead.assignedTo ? String(existingLead.assignedTo) : 'Unassigned';
+      const toName = data.assignedTo ? String(data.assignedTo) : 'Unassigned';
+      await logContactActivity(tenantId, {
+        activityType: 'lead_assigned',
+        subjectEntityType: 'lead',
+        subjectEntityId: leadId,
+        subjectEntityName: existingLead.name,
+        title: `Lead Assigned to ${toName}`,
+        description: `Lead assigned from ${fromName} to ${toName}.`,
+        performedBy: data.updatedBy || 'System',
+        payload: { leadId, fromAssignee: existingLead.assignedTo, toAssignee: data.assignedTo },
+      });
+    } catch (err) {
+      logger.error('updateLead.logContactActivity.assignment.error', { leadId, error: err.message });
     }
   }
 
@@ -4478,10 +4512,40 @@ export async function searchLeads(tenantId, query, filters = {}) {
   // Apply text search if query provided
   if (query && query.trim().length >= 2) {
     const normalizedQuery = query.toLowerCase().trim();
+    const normalizedQueryPhone = normalizedQuery.replace(/[\s-]/g, '');
     filtered = filtered.filter(lead => {
       const nameMatch = lead.name?.toLowerCase().includes(normalizedQuery);
-      const phoneMatch = lead.phone?.replace(/[\s-]/g, '').includes(normalizedQuery.replace(/[\s-]/g, ''));
-      return nameMatch || phoneMatch;
+      const phoneMatch = lead.phone?.replace(/[\s-]/g, '').includes(normalizedQueryPhone);
+      const emailMatch = lead.email?.toLowerCase().includes(normalizedQuery);
+      const notesMatch = lead.notes?.toLowerCase().includes(normalizedQuery);
+
+      // Seller property fields
+      const sellerAreaMatch = lead.sellerProperty?.area?.toLowerCase().includes(normalizedQuery);
+      const sellerAddressMatch = lead.sellerProperty?.address?.toLowerCase().includes(normalizedQuery);
+      const sellerBuildingMatch = lead.sellerProperty?.buildingName?.toLowerCase().includes(normalizedQuery);
+      const sellerCityMatch = lead.sellerProperty?.city?.toLowerCase().includes(normalizedQuery);
+      const sellerFlatMatch = lead.sellerProperty?.flatNumber?.toLowerCase().includes(normalizedQuery);
+
+      // Buyer requirement fields
+      const buyerPreferredAreaMatch = lead.buyerRequirement?.preferredArea?.toLowerCase().includes(normalizedQuery);
+      const buyerRequirementMatch = lead.buyerRequirement?.requirement?.toLowerCase().includes(normalizedQuery);
+      const buyerPropertyTypeMatch = lead.buyerRequirement?.propertyType?.toLowerCase().includes(normalizedQuery);
+
+      // Owner property fields
+      const ownerAreaMatch = lead.ownerProperty?.area?.toLowerCase().includes(normalizedQuery);
+      const ownerAddressMatch = lead.ownerProperty?.address?.toLowerCase().includes(normalizedQuery);
+      const ownerBuildingMatch = lead.ownerProperty?.buildingName?.toLowerCase().includes(normalizedQuery);
+      const ownerCityMatch = lead.ownerProperty?.city?.toLowerCase().includes(normalizedQuery);
+
+      // Tenant requirement fields
+      const tenantPreferredAreaMatch = lead.tenantRequirement?.preferredArea?.toLowerCase().includes(normalizedQuery);
+      const tenantRequirementMatch = lead.tenantRequirement?.requirement?.toLowerCase().includes(normalizedQuery);
+
+      return nameMatch || phoneMatch || emailMatch || notesMatch ||
+        sellerAreaMatch || sellerAddressMatch || sellerBuildingMatch || sellerCityMatch || sellerFlatMatch ||
+        buyerPreferredAreaMatch || buyerRequirementMatch || buyerPropertyTypeMatch ||
+        ownerAreaMatch || ownerAddressMatch || ownerBuildingMatch || ownerCityMatch ||
+        tenantPreferredAreaMatch || tenantRequirementMatch;
     });
   }
   

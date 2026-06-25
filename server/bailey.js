@@ -48,10 +48,15 @@ function disabledResponse(method, fallback = null) {
   return fallback;
 }
 
-function baileyHeaders() {
+function baileyHeaders({ includeAdminKey = false } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (process.env.BAILEY_API_KEY) {
     headers.Authorization = `Bearer ${process.env.BAILEY_API_KEY}`;
+  }
+  // Admin key is required by the Bailey service for destructive operations
+  // (forceNew re-linking, deleteAuthState). Sent as a separate header.
+  if (includeAdminKey && process.env.BAILEY_ADMIN_API_KEY) {
+    headers['x-admin-api-key'] = process.env.BAILEY_ADMIN_API_KEY;
   }
   return headers;
 }
@@ -60,7 +65,7 @@ function baileyHeaders() {
  * Get Bailey pairing QR for WhatsApp connection.
  * Returns no-op shape when Bailey is disabled.
  */
-export async function getPairingQr(phone) {
+export async function getPairingQr(phone, forceNew = false) {
   const { enabled, mode, endpoint, prefix } = getConfig();
 
   if (!enabled) {
@@ -78,9 +83,9 @@ export async function getPairingQr(phone) {
   try {
     const response = await axios.post(
       baileyUrl(endpoint, prefix, '/pairing/qr'),
-      { phone: phone.replace(/\s/g, '') },
+      { phone: phone.replace(/\s/g, ''), forceNew },
       {
-        headers: baileyHeaders(),
+        headers: baileyHeaders({ includeAdminKey: forceNew }),
         timeout: 10000,
       }
     );
@@ -90,7 +95,7 @@ export async function getPairingQr(phone) {
       sessionId: response.data?.sessionId,
     };
   } catch (err) {
-    logger.error('bailey.getPairingQr.failed', { error: err.message, mode });
+    logger.error('bailey.getPairingQr.failed', { error: err.message, mode, forceNew });
     throw err;
   }
 }
@@ -144,7 +149,7 @@ export async function sendWhatsAppMessage(to, text, media, from) {
 /**
  * Get connection status for a phone number from the Bailey service.
  */
-export async function disconnectWhatsApp(phone) {
+export async function disconnectWhatsApp(phone, deleteAuthState = false) {
   const { enabled, endpoint, prefix } = getConfig();
 
   if (!enabled) {
@@ -164,15 +169,16 @@ export async function disconnectWhatsApp(phone) {
   try {
     const response = await axios.post(
       baileyUrl(endpoint, prefix, '/pairing/logout'),
-      { phone: normalized },
+      { phone: normalized, deleteAuthState },
       {
-        headers: baileyHeaders(),
+        headers: baileyHeaders({ includeAdminKey: deleteAuthState }),
         timeout: 10000,
       }
     );
     return {
       enabled: true,
       disconnected: response.data?.ok || false,
+      authStateDeleted: response.data?.authStateDeleted || false,
     };
   } catch (err) {
     logger.error('bailey.disconnectWhatsApp.failed', { error: err.message, phone: normalized });
@@ -270,4 +276,36 @@ export function isBaileyEnabled() {
 
 export function getBaileyMode() {
   return getConfig().mode;
+}
+
+/**
+ * List all WhatsApp sessions managed by Bailey service
+ */
+export async function listWhatsAppSessions() {
+  const { enabled, mode, endpoint, prefix } = getConfig();
+
+  if (!enabled) {
+    return { enabled: false, sessions: [] };
+  }
+
+  if (!endpoint) {
+    return { enabled: true, sessions: [], error: 'Bailey API endpoint not configured' };
+  }
+
+  try {
+    const response = await axios.get(
+      baileyUrl(endpoint, prefix, '/pairing/sessions'),
+      {
+        headers: baileyHeaders(),
+        timeout: 5000,
+      }
+    );
+    return {
+      enabled: true,
+      sessions: response.data?.sessions || [],
+    };
+  } catch (err) {
+    logger.error('bailey.listWhatsAppSessions.failed', { error: err.message, mode });
+    return { enabled: true, sessions: [], error: err.message };
+  }
 }

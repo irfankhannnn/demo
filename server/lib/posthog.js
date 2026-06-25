@@ -14,8 +14,6 @@ function getPostHogClient() {
   if (!client && process.env.POSTHOG_KEY_SERVER) {
     client = new PostHog(process.env.POSTHOG_KEY_SERVER, {
       host: process.env.POSTHOG_HOST || 'https://eu.i.posthog.com',
-      flushAt: 1,
-      flushInterval: 0,
     });
   }
   return client;
@@ -32,5 +30,8 @@ export async function serverTrack(distinctId, event, properties = {}) {
 }
 
 export async function shutdownPostHog() {
-  if (client) await client.shutdownAsync();
+  if (!client) return;
+  const ph = client;
+  client = null;
+  await ph.shutdownAsync();
 }

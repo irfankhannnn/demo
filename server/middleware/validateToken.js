@@ -5,6 +5,14 @@ import { logger } from '../logger.js';
 const tokenCache = new Map();
 const CACHE_TTL_MS = 5 * 1000; // 5 seconds
 
+function cleanupExpiredTokenCache(now = Date.now()) {
+  for (const [token, cached] of tokenCache.entries()) {
+    if (now >= cached.expiresAt) {
+      tokenCache.delete(token);
+    }
+  }
+}
+
 // Simple JWT decoder (no verification, just for expiration check)
 function decodeJWT(token) {
   try {
@@ -30,6 +38,8 @@ const CORS_HEADERS = {
  */
 async function validateToken(req, res, next) {
   try {
+    cleanupExpiredTokenCache();
+
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -176,15 +186,5 @@ async function validateToken(req, res, next) {
     });
   }
 }
-
-// Cleanup expired cache entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, cached] of tokenCache.entries()) {
-    if (now >= cached.expiresAt) {
-      tokenCache.delete(token);
-    }
-  }
-}, 5 * 60 * 1000);
 
 export default validateToken;

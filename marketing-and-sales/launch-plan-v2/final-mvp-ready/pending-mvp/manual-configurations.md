@@ -9,7 +9,8 @@
 | `SesFromEmail` | `noreply@realestateflow.in` | Yes | Must be SES-verified |
 | `EmailProviderPrimary` | `ses` | Yes | Set `brevo` to skip SES |
 | `BaileyEnabled` | `false` | No | `true` only after WABA approval |
-| `BaileyApiKey` | — | If Bailey | NoEcho in CFN |
+| `BaileyMode` | `hosted` | No | `hosted` or `selfhosted` |
+| `BaileyApiKey` | — | If hosted | NoEcho in CFN |
 | `BaileyWebhookSecret` | — | If Bailey | HMAC verify inbound |
 | `AgentsEnabled` | `false` | No | `true` for pilot only |
 | `RAZORPAY_KEY_ID` | — | Yes | Orders + subscriptions |
@@ -52,12 +53,27 @@ Webhook must pass `notes: { tenantId, credits }` on payment capture.
 
 ## Bailey WhatsApp
 
+### Option 1: Hosted Bailey.ai
+
 ```
 BAILEY_ENABLED=true
+BAILEY_MODE=hosted
 BAILEY_API_KEY=<from Bailey dashboard>
 BAILEY_WEBHOOK_SECRET=<random 32+ char secret>
 BAILEY_API_ENDPOINT=https://api.bailey.ai
 ```
+
+### Option 2: Self-hosted Baileys library
+
+```
+BAILEY_ENABLED=true
+BAILEY_MODE=selfhosted
+BAILEY_WEBHOOK_SECRET=<random 32+ char secret>
+BAILEY_API_ENDPOINT=https://your-baileys-service.example.com
+BAILEY_API_KEY=<random 32+ char secret>  # must match baileys-service BAILEYS_API_KEY
+```
+
+Deploy the separate `baileys-service/` project. See `baileys-service/README.md`.
 
 Frontend (optional):
 ```
@@ -100,6 +116,6 @@ Requires Bedrock model access enabled in AWS account.
 
 | Flag | Default | When to enable |
 |------|---------|----------------|
-| `BAILEY_ENABLED` | false | WABA approved + webhook URL live |
+| `BAILEY_ENABLED` | false | Self-hosted Baileys ready OR WABA approved + webhook URL live |
 | `AGENTS_ENABLED` | false | Bedrock access + credit system verified |
 | `EMAIL_PROVIDER_PRIMARY=ses` | ses | After SES domain verified |

@@ -28,10 +28,10 @@ function isStaleForFollowup(lead) {
   return ageDays >= STALE_MIN_DAYS && ageDays <= STALE_MAX_DAYS;
 }
 
-async function sendViaWhatsApp(phone, message) {
+async function sendViaWhatsApp(phone, message, from) {
   const { isBaileyEnabled, sendWhatsAppMessage } = await import('../bailey.js');
   if (!isBaileyEnabled() || !phone) return false;
-  await sendWhatsAppMessage(phone, message);
+  await sendWhatsAppMessage(phone, message, null, from);
   return true;
 }
 
@@ -67,14 +67,16 @@ async function processFollowupForTenant(tenantId) {
   }
   if (!leads.length) return { processed: 0, skipped: true, reason: 'no_eligible_leads' };
 
-  const leads = (leadsResult.data?.items || leadsResult.data || []).filter(isStaleForFollowup);
-  logger.info('leadFollowup: stale leads found', { tenantId, count: leads.length, mode });
+  // Filter to stale leads (no activity in STALE_MIN_DAYS..STALE_MAX_DAYS)
+  const staleLeads = leads.filter(isStaleForFollowup);
+  if (!staleLeads.length) return { processed: 0, skipped: true, reason: 'no_stale_leads' };
+  logger.info('leadFollowup: stale leads found', { tenantId, count: staleLeads.length, mode });
 
   let draftCount = 0;
   let sentCount = 0;
   let errorCount = 0;
 
-  for (const lead of leads) {
+  for (const lead of staleLeads) {
     try {
       const agentResult = await invokeAgent(
         tenantId,
@@ -124,7 +126,7 @@ async function processFollowupForTenant(tenantId) {
     }
   }
 
-  return { processed: leads.length, draftCount, sentCount, errorCount, mode };
+  return { processed: staleLeads.length, draftCount, sentCount, errorCount, mode };
 }
 
 export async function handler(event) {

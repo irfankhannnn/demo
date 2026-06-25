@@ -12,7 +12,9 @@ import {
   DollarSign, 
   Home, 
   MapPin, 
-  AlertCircle 
+  AlertCircle,
+  MessageCircle,
+  Bot
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -100,6 +102,11 @@ export default function ContactActivityTimeline({ contactId, entityType, entityI
         return <Home className="w-5 h-5 text-rose-500" />;
       case 'khata_entry':
         return <DollarSign className="w-5 h-5 text-amber-500" />;
+      case 'whatsapp_message_received':
+      case 'whatsapp_message_sent':
+        return <MessageCircle className="w-5 h-5 text-green-500" />;
+      case 'whatsapp_ai_reply':
+        return <Bot className="w-5 h-5 text-blue-500" />;
       default:
         return <Clock className="w-5 h-5 text-gray-500" />;
     }
@@ -124,6 +131,9 @@ export default function ContactActivityTimeline({ contactId, entityType, entityI
       case 'property_rented':
       case 'rental_started': return 'bg-rose-50 dark:bg-rose-950/25';
       case 'khata_entry': return 'bg-amber-50 dark:bg-amber-950/25';
+      case 'whatsapp_message_received':
+      case 'whatsapp_message_sent':
+      case 'whatsapp_ai_reply': return 'bg-green-50 dark:bg-green-950/25';
       default: return 'bg-gray-50 dark:bg-gray-850/25';
     }
   };

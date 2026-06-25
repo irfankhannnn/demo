@@ -43,8 +43,10 @@ AGENTS_ENABLED=false
 CLOUDWATCH_METRICS_ENABLED=true
 
 # Bailey (when enabling E1 WhatsApp)
-BAILEY_API_KEY=<credentials>
+BAILEY_MODE=hosted                  # or selfhosted
+BAILEY_API_KEY=<credentials>        # required for hosted mode
 BAILEY_WEBHOOK_SECRET=<webhook secret>
+BAILEY_API_ENDPOINT=https://api.bailey.ai  # or your self-hosted Baileys service URL
 
 # Internal API (service-to-service auth for crons)
 INTERNAL_API_KEY=<strong-random-key>
@@ -421,16 +423,36 @@ curl -X POST \
 
 #### 9.1 Bailey WhatsApp (when credentials ready)
 
+**Option A — Hosted Bailey.ai:**
+
 ```bash
 # 1. Obtain Bailey account + WABA approval
 # 2. Set in Lambda env:
 BAILEY_ENABLED=true
+BAILEY_MODE=hosted
 BAILEY_API_KEY=<credentials>
 BAILEY_WEBHOOK_SECRET=<webhook-secret>
 
 # 3. Register webhook with Bailey
 # URL: https://api.realestateflow.in/api/webhooks/whatsapp
 # Events: messages.incoming
+
+# 4. Deploy auth service changes (WhatsAppIndex GSI + internal endpoints)
+```
+
+**Option B — Self-hosted Baileys library:**
+
+```bash
+# 1. Deploy the separate baileys-service project (see baileys-service/README.md)
+# 2. Set in Lambda env:
+BAILEY_ENABLED=true
+BAILEY_MODE=selfhosted
+BAILEY_WEBHOOK_SECRET=<same secret used in baileys-service>
+BAILEY_API_KEY=<same secret used in baileys-service>
+BAILEY_API_ENDPOINT=https://your-baileys-service.example.com
+
+# 3. Point baileys-service CRM_WEBHOOK_URL to:
+# https://api.realestateflow.in/api/webhooks/whatsapp
 
 # 4. Deploy auth service changes (WhatsAppIndex GSI + internal endpoints)
 

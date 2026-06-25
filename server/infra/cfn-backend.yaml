@@ -90,6 +90,11 @@ Parameters:
     Default: cloudberry-real-estate-credit-config
     Description: DynamoDB table for owner-editable credit configuration
 
+  UserCategoriesTableName:
+    Type: String
+    Default: cloudberry-real-estate-user-categories
+    Description: DynamoDB table for WhatsApp user category assignments
+
   SesFromEmail:
     Type: String
     Default: noreply@realestateflow.in
@@ -317,6 +322,44 @@ Parameters:
     Default: AIEmployeeProvisioning
     Description: DynamoDB table for AI Employee provisioning rows
 
+  # ── Phase 2: AI Employee LLM & Observability ─────────────────────────────────
+  LlmProvider:
+    Type: String
+    Default: bedrock
+    AllowedValues:
+      - bedrock
+      - gemini
+    Description: LLM provider for AI agent invocations (bedrock | gemini)
+
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-haiku-20240307-v1:0
+    Description: Bedrock model ID for AI agent invocations
+
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Google Gemini API key (required only if LlmProvider=gemini)
+
+  GeminiModel:
+    Type: String
+    Default: gemini-2.5-flash
+    Description: Gemini model name (used only if LlmProvider=gemini)
+
+  CloudwatchMetricsEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enable Phase 2 CloudWatch custom metrics emission
+
+  AiAdminWhatsAppNumbers:
+    Type: String
+    Default: ''
+    Description: Comma-separated admin WhatsApp numbers allowed to trigger the AI
+
 Resources:
   PropertiesTable:
     Type: AWS::DynamoDB::Table
@@ -505,6 +548,42 @@ Resources:
       KeySchema:
         - AttributeName: configKey
           KeyType: HASH
+
+  UserCategoriesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref UserCategoriesTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: phone
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phone
+          KeyType: HASH
+        - AttributeName: tenantId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
 
   AgentAuditTable:
     Type: AWS::DynamoDB::Table
@@ -1038,6 +1117,7 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}"
                   - !GetAtt CreditsTable.Arn
                   - !GetAtt CreditConfigTable.Arn
+                  - !GetAtt UserCategoriesTable.Arn
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*"
@@ -1059,6 +1139,7 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}/index/*"
                   - !Sub "${CreditsTable.Arn}/index/*"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog/index/*"
+                  - !Sub "${UserCategoriesTable.Arn}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:TransactWriteItems
@@ -1134,6 +1215,7 @@ Resources:
           SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
           WEBHOOK_LOG_TABLE: WebhookLog
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
           EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
@@ -1820,6 +1902,8 @@ Resources:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}/*'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserCategoriesTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserCategoriesTableName}/*'
               - Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -1947,6 +2031,7 @@ Resources:
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
@@ -1998,12 +2083,30 @@ Resources:
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:Scan
-                  - dynamodb:UpdateItem
+                  - dynamodb:BatchGetItem
                 Resource:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+              # Phase 2: Credits, agency config, and provisioning tables
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
               - Effect: Allow
                 Action:
                   - ses:SendEmail
@@ -2024,6 +2127,11 @@ Resources:
                 Resource:
                   - !GetAtt AgentAuditTable.Arn
                   - !Sub '${AgentAuditTable.Arn}/index/*'
+              # Phase 2: CloudWatch metrics emission
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
 
   LeadFollowupFunction:
     Type: AWS::Lambda::Function
@@ -2053,7 +2161,15 @@ Resources:
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          # Phase 2: LLM & observability
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
 
 
   LeadFollowupRule:
@@ -2102,13 +2218,30 @@ Resources:
                   - dynamodb:GetItem
                   - dynamodb:PutItem
                   - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
                   - dynamodb:Query
                   - dynamodb:Scan
+                  - dynamodb:BatchGetItem
                 Resource:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              # Phase 2: Credits, agency config, and provisioning tables
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
               - Effect: Allow
                 Action:
                   - events:PutEvents
@@ -2127,6 +2260,11 @@ Resources:
                 Resource:
                   - !GetAtt AgentAuditTable.Arn
                   - !Sub '${AgentAuditTable.Arn}/index/*'
+              # Phase 2: CloudWatch metrics emission
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
 
   WhatsAppProcessorFunction:
     Type: AWS::Lambda::Function
@@ -2146,6 +2284,7 @@ Resources:
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2155,7 +2294,15 @@ Resources:
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          # Phase 2: LLM & observability
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
 
 
   WhatsAppProcessorRule:
@@ -2229,6 +2376,18 @@ Outputs:
     Value: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
     Export:
       Name: !Sub "${AWS::StackName}-SubscriptionsTableArn"
+
+  UserCategoriesTableNameOutput:
+    Description: User Categories DynamoDB table name (USER_CATEGORIES_TABLE_NAME)
+    Value: !Ref UserCategoriesTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-UserCategoriesTableName"
+
+  UserCategoriesTableArnOutput:
+    Description: User Categories DynamoDB table ARN
+    Value: !GetAtt UserCategoriesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-UserCategoriesTableArn"
 
   S3BucketNameOutput:
     Description: S3 bucket name to use in the backend .env

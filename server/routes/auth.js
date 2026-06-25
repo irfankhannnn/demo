@@ -3,8 +3,18 @@ import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { logger } from '../logger.js';
 import { serverTrack } from '../lib/posthog.js';
-import { getPairingQr, isBaileyEnabled } from '../bailey.js';
+import { getPairingQr, getConnectionStatus, disconnectWhatsApp, isBaileyEnabled, listWhatsAppSessions } from '../bailey.js';
 import { requireAdmin } from '../middleware/requireRole.js';
+
+const PHONE_REGEX = /^\+?\d{10,15}$/;
+
+function validatePhone(phone) {
+  const normalized = String(phone || '').replace(/\s/g, '');
+  if (!PHONE_REGEX.test(normalized)) {
+    throw new Error('Invalid phone number format');
+  }
+  return normalized;
+}
 
 const router = express.Router();
 
@@ -109,16 +119,54 @@ router.post('/post-registration', validateToken, extractTenantId, async (req, re
 // === [/LAUNCH ROUTES] ===
 
 // POST /api/auth/whatsapp/pairing-qr — Bailey WhatsApp pairing (optional, admin only)
+// Body: { phone: string, forceNew?: boolean } — pass forceNew:true to wipe auth and start clean
 router.post('/whatsapp/pairing-qr', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     if (!isBaileyEnabled()) {
       return res.json({ enabled: false, qrCode: null, sessionId: null });
     }
-    const { phone } = req.body;
-    const result = await getPairingQr(phone);
+    const { phone, forceNew } = req.body;
+    const result = await getPairingQr(phone, forceNew === true);
     res.json(result);
   } catch (err) {
     logger.error('auth.whatsapp.pairing.error', { error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/whatsapp/status/:phone — poll Bailey connection status
+router.get('/whatsapp/status/:phone', validateToken, extractTenantId, requireAdmin, async (req, res) => {
+  try {
+    const phone = validatePhone(req.params.phone);
+    const status = await getConnectionStatus(phone);
+    res.json(status);
+  } catch (err) {
+    logger.error('auth.whatsapp.status.error', { error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/whatsapp/disconnect/:phone — disconnect a Bailey session
+// Body: { deleteAuthState?: boolean } — pass true to wipe auth files for a clean re-link
+router.post('/whatsapp/disconnect/:phone', validateToken, extractTenantId, requireAdmin, async (req, res) => {
+  try {
+    const phone = validatePhone(req.params.phone);
+    const deleteAuthState = req.body?.deleteAuthState === true;
+    const result = await disconnectWhatsApp(phone, deleteAuthState);
+    res.json(result);
+  } catch (err) {
+    logger.error('auth.whatsapp.disconnect.error', { error: err.message });
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /api/auth/whatsapp/sessions — list all WhatsApp sessions for tenant
+router.get('/whatsapp/sessions', validateToken, extractTenantId, requireAdmin, async (req, res) => {
+  try {
+    const result = await listWhatsAppSessions();
+    res.json(result);
+  } catch (err) {
+    logger.error('auth.whatsapp.sessions.error', { error: err.message });
     res.status(400).json({ error: err.message });
   }
 });

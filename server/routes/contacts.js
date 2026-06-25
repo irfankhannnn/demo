@@ -2,6 +2,7 @@
 import multer from 'multer';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager } from '../middleware/requireRole.js';
 import { uploadToS3, getSignedUrl } from '../s3Service.js';
 import {
   createContact,
@@ -154,7 +155,7 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
 });
 
 // Create contact
-router.post('/', validateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'contact_add');
@@ -170,7 +171,7 @@ router.post('/', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create or update contact by phone (dedupe)
-router.post('/upsert-by-phone', validateToken, extractTenantId, async (req, res) => {
+router.post('/upsert-by-phone', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await createOrUpdateContactByPhone(req.tenantId, req.body);
     res.status(contact.wasExisting ? 200 : 201).json(contact);
@@ -181,7 +182,7 @@ router.post('/upsert-by-phone', validateToken, extractTenantId, async (req, res)
 });
 
 // Update contact
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await updateContact(req.tenantId, req.params.id, req.body);
     res.json(contact);
@@ -192,7 +193,7 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update contact role
-router.put('/:id/role', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/role', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { role, enabled, profileData } = req.body;
     if (!role) {
@@ -213,7 +214,7 @@ router.put('/:id/role', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Delete contact
-router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteContact(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -226,7 +227,7 @@ router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
 // ============== Contact Document Upload Routes ==============
 
 // Upload contact documents (photo, PAN, Aadhar)
-router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -303,7 +304,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const note = await createContactNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -313,7 +314,7 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updated = await updateContactNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -323,7 +324,7 @@ router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res
   }
 });
 
-router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteContactNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -336,7 +337,7 @@ router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, 
 // ============== Migration Routes ==============
 
 // Migrate a single owner to contact
-router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await migrateOwnerToContact(req.tenantId, req.params.ownerId);
     res.json(contact);
@@ -347,7 +348,7 @@ router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, async (re
 });
 
 // Migrate a single customer to contact
-router.post('/migrate/customer/:customerId', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/customer/:customerId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await migrateCustomerToContact(req.tenantId, req.params.customerId);
     res.json(contact);
@@ -358,7 +359,7 @@ router.post('/migrate/customer/:customerId', validateToken, extractTenantId, asy
 });
 
 // Migrate all owners and customers to contacts
-router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/all', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const results = {
       owners: { migrated: 0, errors: [] },

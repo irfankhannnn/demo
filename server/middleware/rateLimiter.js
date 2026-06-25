@@ -24,17 +24,17 @@ function getClientIp(req) {
 function createRateLimit(windowMs = WINDOW_MS, maxRequests = MAX_REQUESTS) {
   const map = new Map();
 
-  setInterval(() => {
-    const now = Date.now();
+  function cleanupExpired(now) {
     for (const [key, record] of map.entries()) {
       if (now > record.resetAt + windowMs) map.delete(key);
     }
-  }, Math.min(windowMs * 5, 10 * 60 * 1000)).unref?.();
+  }
 
   return function rateLimit(req, res, next) {
     const ip = getClientIp(req);
     const key = typeof ip === 'string' ? ip : String(ip);
     const now = Date.now();
+    cleanupExpired(now);
 
     let record = map.get(key);
     if (!record || now > record.resetAt) {
@@ -65,12 +65,11 @@ export const strictRateLimit = createRateLimit(60 * 1000, 30);
 function createTenantRateLimit(windowMs = WINDOW_MS, maxRequests = 200) {
   const map = new Map();
 
-  setInterval(() => {
-    const now = Date.now();
+  function cleanupExpired(now) {
     for (const [key, record] of map.entries()) {
       if (now > record.resetAt + windowMs) map.delete(key);
     }
-  }, Math.min(windowMs * 5, 10 * 60 * 1000)).unref?.();
+  }
 
   return function tenantRateLimit(req, res, next) {
     const tenantId = req.tenantId || req.user?.tenantId;
@@ -78,6 +77,7 @@ function createTenantRateLimit(windowMs = WINDOW_MS, maxRequests = 200) {
 
     const key = `tenant:${tenantId}`;
     const now = Date.now();
+    cleanupExpired(now);
 
     let record = map.get(key);
     if (!record || now > record.resetAt) {

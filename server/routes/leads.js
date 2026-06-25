@@ -2,6 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager } from '../middleware/requireRole.js';
 import {
   createLead,
   getLeads,
@@ -251,7 +252,7 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 import { creditActionRateLimit } from '../middleware/rateLimiter.js';
 
 // Create lead
-router.post('/', validateToken, extractTenantId, creditActionRateLimit, async (req, res) => {
+router.post('/', validateToken, extractTenantId, requireAdminOrManager, creditActionRateLimit, async (req, res) => {
   const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
   const { refundCredits } = await import('../creditService.js');
   let creditCharge = null;
@@ -348,7 +349,7 @@ router.post('/', validateToken, extractTenantId, creditActionRateLimit, async (r
 });
 
 // Update lead
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const updateData = {
       ...req.body,
@@ -367,7 +368,7 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
 
 // Convert lead to buyer/tenant/owner
 // IMPORTANT: Buyer and Tenant conversions now require transaction details
-router.post('/:id/convert', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/convert', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const {
       existingContactId,
@@ -429,7 +430,7 @@ router.get('/:id/matching-contacts', validateToken, extractTenantId, async (req,
 });
 
 // Delete lead
-router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteLead(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -454,7 +455,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const noteData = {
       ...req.body,
@@ -468,7 +469,7 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const { content } = req.body;
     if (!content || !content.trim()) {
@@ -482,7 +483,7 @@ router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res
   }
 });
 
-router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteLeadNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
