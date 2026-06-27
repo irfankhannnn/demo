@@ -3145,6 +3145,78 @@ export async function getLead(tenantId, leadId) {
 }
 
 /**
+ * Mapping of lead type → the structured requirement/property field that holds
+ * the type-specific data. Used to validate that agents update the correct
+ * field for the lead type.
+ */
+export const LEAD_TYPE_REQUIREMENT_FIELD = {
+  buyer: 'buyerRequirement',
+  seller: 'sellerProperty',
+  tenant: 'tenantRequirement',
+  owner: 'ownerProperty',
+};
+
+/**
+ * All structured requirement/property fields on a lead.
+ */
+export const REQUIREMENT_FIELDS = Object.values(LEAD_TYPE_REQUIREMENT_FIELD);
+
+/**
+ * Validate that the requirement/property fields in an update payload are
+ * compatible with the lead's type. Throws with a clear, agent-friendly
+ * message if a mismatched field is being updated.
+ *
+ * @param {object} existingLead - The current lead from DynamoDB
+ * @param {object} data - The update payload
+ * @throws {Error} if a requirement field does not match the lead type
+ */
+export function validateRequirementFields(existingLead, data) {
+  const leadType = existingLead.leadType;
+  if (!leadType) return; // Cannot validate without a lead type
+
+  const expectedField = LEAD_TYPE_REQUIREMENT_FIELD[leadType];
+  if (!expectedField) return; // Unknown lead type, skip validation
+
+  for (const field of REQUIREMENT_FIELDS) {
+    if (data[field] === undefined) continue;
+    if (field === expectedField) continue;
+    throw new Error(
+      `Lead '${existingLead.name || existingLead.leadId}' is a '${leadType}' lead. ` +
+      `Use '${expectedField}' to update its ${leadType} data, not '${field}'.`
+    );
+  }
+}
+
+/**
+ * Merge incoming requirement/property objects with existing ones so that
+ * partial updates (e.g., only budget) do not wipe out other fields like
+ * preferredArea, bhk, or propertyType.
+ *
+ * - Skips null/undefined/non-object values (preserves existing data).
+ * - Mutates and returns `data` in place for convenience.
+ *
+ * @param {object} existingLead - The current lead from DynamoDB
+ * @param {object} data - The update payload (mutated)
+ * @returns {object} The mutated data object
+ */
+export function mergeRequirementObjects(existingLead, data) {
+  for (const key of REQUIREMENT_FIELDS) {
+    if (data[key] === undefined || data[key] === null) {
+      // Skip — do not wipe existing data on null/undefined
+      delete data[key];
+      continue;
+    }
+    if (typeof data[key] !== 'object' || Array.isArray(data[key])) {
+      // Not an object — skip merge, let downstream validation handle it
+      continue;
+    }
+    // Shallow-merge: existing fields preserved unless overridden by new data
+    data[key] = { ...(existingLead[key] || {}), ...data[key] };
+  }
+  return data;
+}
+
+/**
  * Update a lead
  */
 export async function updateLead(tenantId, leadId, data) {
@@ -3190,6 +3262,14 @@ export async function updateLead(tenantId, leadId, data) {
       }
     }
   }
+
+  // Validate that requirement/property fields match the lead type
+  validateRequirementFields(existingLead, data);
+
+  // Merge requirement objects so partial updates (e.g., only budget) do not
+  // wipe out existing fields like preferredArea, bhk, or propertyType.
+  // Also strips null/undefined requirement fields to prevent data loss.
+  mergeRequirementObjects(existingLead, data);
 
   const updateExpressions = [];
   const attributeNames = {};
@@ -4359,6 +4439,38 @@ export async function updateBuyer(tenantId, buyerId, data) {
   }));
 
   return await getBuyer(tenantId, buyerId);
+}
+
+/**
+ * Delete a buyer
+ * - Legacy BUYER entity: delete the row
+ * - CONTACT-as-buyer: remove the buyer role from the contact
+ */
+export async function deleteBuyer(tenantId, buyerId) {
+  if (!tenantId) {
+    throw new Error('Tenant ID is required');
+  }
+
+  const existing = await getBuyer(tenantId, buyerId);
+  if (!existing) {
+    throw new Error('Buyer not found');
+  }
+
+  if (existing.isFromContact && existing.contactId) {
+    // Remove the buyer role from the unified contact; do not delete the whole contact
+    await updateContactRole(tenantId, existing.contactId, 'buyer', false);
+    return true;
+  }
+
+  // Legacy BUYER entity
+  await docClient.send(new DeleteCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#BUYER#${buyerId}`,
+      SK: 'PROFILE',
+    },
+  }));
+  return true;
 }
 
 // ============== SELLER Entity REMOVED ==============

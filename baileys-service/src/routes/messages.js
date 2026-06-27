@@ -17,10 +17,21 @@ router.post('/send', async (req, res) => {
     }
 
     const result = await sendMessage(from, to, text, media);
+    // Distinguish between queued (connection not ready) and actually sent.
+    if (result?.queued) {
+      logger.warn('message.send.queued', { from, to, messageId: result.messageId });
+      return res.status(202).json({
+        enabled: true,
+        sent: false,
+        queued: true,
+        messageId: result.messageId || null,
+      });
+    }
     logger.info('message.send.success', { from, to, messageId: result?.key?.id });
     return res.json({
       enabled: true,
       sent: true,
+      queued: false,
       messageId: result?.key?.id || null,
     });
   } catch (err) {

@@ -121,7 +121,10 @@ export async function buildLeadUpdateContext(tenantId, context = {}) {
     toolName: 'update_lead',
     guidelines: {
       // Update guidelines
-      allowedFields: ['status', 'score', 'assignedTo', 'notes', 'lastInteractionAt'],
+      allowedFields: [
+        'status', 'score', 'assignedTo', 'notes', 'lastInteractionAt',
+        'buyerRequirement', 'sellerProperty', 'ownerProperty', 'tenantRequirement',
+      ],
       requireConfirmation: baseContext.conversationState?.status === 'active',
       logChanges: true,
       notifyAssignee: true,

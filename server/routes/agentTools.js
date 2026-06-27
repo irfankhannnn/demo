@@ -5,7 +5,8 @@
  */
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { invokeSkill, ALLOWED_TOOLS } from '../skillInvoker.js';
+import { invokeSkill } from '../skillInvoker.js';
+import { ALLOWED_TOOL_NAMES } from '../shared/toolDefinitions.js';
 import { logger } from '../logger.js';
 
 const router = Router();
@@ -56,8 +57,8 @@ router.post('/tool', verifyMcpToken, async (req, res) => {
     return res.status(400).json({ error: 'Missing toolName' });
   }
 
-  if (!ALLOWED_TOOLS.includes(toolName)) {
-    return res.status(400).json({ error: `Tool '${toolName}' not allowed`, allowedTools: ALLOWED_TOOLS });
+  if (!ALLOWED_TOOL_NAMES.includes(toolName)) {
+    return res.status(400).json({ error: `Tool '${toolName}' not allowed`, allowedTools: ALLOWED_TOOL_NAMES });
   }
 
   try {
@@ -73,7 +74,7 @@ router.post('/tool', verifyMcpToken, async (req, res) => {
  * GET /api/crm/agent/tools — list allowed tools
  */
 router.get('/tools', verifyMcpToken, (req, res) => {
-  return res.json({ tools: ALLOWED_TOOLS });
+  return res.json({ tools: ALLOWED_TOOL_NAMES });
 });
 
 export default router;

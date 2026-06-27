@@ -61,6 +61,88 @@ function baileyHeaders({ includeAdminKey = false } = {}) {
   return headers;
 }
 
+const WHATSAPP_MAX_TEXT_LENGTH = 4096;
+const WHATSAPP_SAFE_CHUNK_LENGTH = 4000;
+
+/**
+ * Split a long message into WhatsApp-sized chunks at word boundaries.
+ * WhatsApp text messages have a hard limit of 4096 characters.
+ */
+export function chunkWhatsAppText(text, maxLength = WHATSAPP_SAFE_CHUNK_LENGTH) {
+  if (!text || text.length <= maxLength) return [text];
+
+  const chunks = [];
+  let remaining = text;
+  while (remaining.length > maxLength) {
+    // Try to break at a newline first, then at the last space before maxLength.
+    let breakAt = remaining.lastIndexOf('\n', maxLength);
+    if (breakAt <= 0) breakAt = remaining.lastIndexOf(' ', maxLength);
+    if (breakAt <= 0) breakAt = maxLength; // hard break if no word boundary found
+
+    chunks.push(remaining.slice(0, breakAt).trimEnd());
+    remaining = remaining.slice(breakAt).trimStart();
+  }
+  if (remaining.length > 0) chunks.push(remaining);
+  return chunks;
+}
+
+/**
+ * Send a long WhatsApp message as multiple chunks if needed.
+ * Each chunk is retried with backoff. Returns all messageIds.
+ *
+ * NOTE: If a mid-sequence chunk fails after earlier chunks succeeded, the
+ * caller's retry will re-send all chunks, including previously-sent ones.
+ * This can result in duplicate chunks being delivered to the recipient.
+ * The alternative (tracking per-chunk delivery state in DynamoDB) adds
+ * significant complexity and is not warranted given the rarity of partial
+ * failures. The dedup claim at the processor level prevents duplicate AI
+ * invocations, but duplicate WhatsApp messages may still occur.
+ */
+export async function sendWhatsAppMessageChunks(to, text, media, from) {
+  const { enabled } = getConfig();
+  if (!enabled) {
+    return disabledResponse('sendWhatsAppMessageChunks', { enabled: false, sent: false, messageIds: [], queued: false });
+  }
+
+  if (!to || !text) {
+    throw new Error('to and text are required');
+  }
+
+  const chunks = chunkWhatsAppText(text);
+  const messageIds = [];
+  const sentChunks = [];
+  let lastError = null;
+  let anyQueued = false;
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i];
+    try {
+      const result = await sendWhatsAppMessage(to, chunk, i === 0 ? media : null, from);
+      // Treat queued messages as NOT delivered. The server needs to know the
+      // message wasn't actually sent so it can retry via Lambda/EventBridge.
+      if (result?.queued) {
+        anyQueued = true;
+        continue;
+      }
+      if (result?.messageId) messageIds.push(result.messageId);
+      sentChunks.push(i);
+    } catch (err) {
+      lastError = err;
+      // Stop on first failure; remaining chunks are not sent.
+      break;
+    }
+  }
+
+  // If nothing was actually delivered, throw so the caller retries the whole
+  // message. The Baileys pending-delivery queue is not reliable enough to
+  // treat a queued message as a successful delivery.
+  if (messageIds.length === 0) {
+    if (lastError) throw lastError;
+    if (anyQueued) throw new Error('WhatsApp message was queued but not delivered (connection not ready)');
+  }
+
+  return { enabled: true, sent: true, messageIds, totalChunks: chunks.length, sentChunks, queued: false };
+}
+
 /**
  * Get Bailey pairing QR for WhatsApp connection.
  * Returns no-op shape when Bailey is disabled.
@@ -101,7 +183,25 @@ export async function getPairingQr(phone, forceNew = false) {
 }
 
 /**
- * Send WhatsApp message via Bailey API.
+ * Determine whether a failed send should be retried.
+ * Mirrors the OpenClaw heuristic for transient WhatsApp/Baileys errors.
+ */
+function isRetryableSendError(err) {
+  const text = String(err?.message || err?.response?.statusText || '').toLowerCase();
+  const status = err?.response?.status;
+  const isRetryableStatus = typeof status === 'number' && status >= 500 && status < 600;
+  return /closed|reset|timed\s*out|timeout|disconnect|econnreset|socket|network/.test(text) || isRetryableStatus;
+}
+
+/**
+ * Sleep helper for retry backoff.
+ */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Send WhatsApp message via Bailey API with exponential backoff retry.
  * Returns no-op when disabled.
  *
  * In self-hosted mode, `from` is the WhatsApp business number that owns the
@@ -122,28 +222,52 @@ export async function sendWhatsAppMessage(to, text, media, from) {
     throw new Error('to and text are required');
   }
 
-  try {
-    const payload = { to: to.replace(/\s/g, ''), text };
-    if (media) payload.media = media;
-    if (from) payload.from = from.replace(/\s/g, '');
+  const payload = { to: to.replace(/\s/g, ''), text };
+  if (media) payload.media = media;
+  if (from) payload.from = from.replace(/\s/g, '');
 
-    const response = await axios.post(
-      baileyUrl(endpoint, prefix, '/messages/send'),
-      payload,
-      {
-        headers: baileyHeaders(),
-        timeout: 10000,
+  const maxAttempts = 3;
+  const baseDelay = 500;
+
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await axios.post(
+        baileyUrl(endpoint, prefix, '/messages/send'),
+        payload,
+        {
+          headers: baileyHeaders(),
+          timeout: 10000,
+        }
+      );
+      // If the Baileys service queued the message because the connection is not
+      // ready, report it as not sent so the caller can retry.
+      if (response.data?.queued) {
+        return {
+          enabled: true,
+          sent: false,
+          queued: true,
+          messageId: response.data?.messageId || null,
+        };
       }
-    );
-    return {
-      enabled: true,
-      sent: true,
-      messageId: response.data?.messageId || response.data?.id,
-    };
-  } catch (err) {
-    logger.error('bailey.sendWhatsAppMessage.failed', { error: err.message, to, mode });
-    throw err;
+      return {
+        enabled: true,
+        sent: true,
+        queued: false,
+        messageId: response.data?.messageId || response.data?.id,
+      };
+    } catch (err) {
+      lastErr = err;
+      const isLast = attempt === maxAttempts;
+      const shouldRetry = isRetryableSendError(err);
+      logger.warn('bailey.sendWhatsAppMessage.attempt_failed', { attempt, maxAttempts, to, error: err.message, willRetry: !isLast && shouldRetry });
+      if (isLast || !shouldRetry) break;
+      await sleep(baseDelay * attempt); // 500ms, 1000ms
+    }
   }
+
+  logger.error('bailey.sendWhatsAppMessage.failed', { error: lastErr.message, to, mode, attempts: maxAttempts });
+  throw lastErr;
 }
 
 /**

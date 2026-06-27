@@ -36,6 +36,13 @@ export function parseWhatsAppCommand(text) {
 /**
  * Lambda handler for WhatsApp message processing (EventBridge trigger).
  */
+function minutesFromTime(timeStr) {
+  if (!timeStr || !/^\d{1,2}:\d{2}$/.test(String(timeStr))) return null;
+  const [h, m] = String(timeStr).split(':').map((v) => parseInt(v, 10));
+  if (Number.isNaN(h) || Number.isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
 function isWithinBusinessHours(start, end, timezone = 'Asia/Kolkata') {
   if (!start || !end) return true;
   try {
@@ -46,10 +53,20 @@ function isWithinBusinessHours(start, end, timezone = 'Asia/Kolkata') {
       hour12: false,
     });
     const parts = formatter.formatToParts(new Date());
-    const hour = parts.find((p) => p.type === 'hour')?.value;
-    const minute = parts.find((p) => p.type === 'minute')?.value;
-    const current = `${hour}:${minute}`;
-    return current >= start && current <= end;
+    const hour = parseInt(parts.find((p) => p.type === 'hour')?.value, 10);
+    const minute = parseInt(parts.find((p) => p.type === 'minute')?.value, 10);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return true;
+
+    const current = hour * 60 + minute;
+    const startMinutes = minutesFromTime(start);
+    const endMinutes = minutesFromTime(end);
+    if (startMinutes === null || endMinutes === null) return true;
+
+    // Handle cross-midnight ranges like 22:00-02:00.
+    if (endMinutes < startMinutes) {
+      return current >= startMinutes || current <= endMinutes;
+    }
+    return current >= startMinutes && current <= endMinutes;
   } catch {
     return true;
   }
@@ -57,12 +74,12 @@ function isWithinBusinessHours(start, end, timezone = 'Asia/Kolkata') {
 
 export async function handler(event) {
   const { logger } = await import('../logger.js');
-  const { sendWhatsAppMessage, isBaileyEnabled } = await import('../bailey.js');
-  const { logMessage, hasMessage } = await import('../whatsappConversationService.js');
+  const { sendWhatsAppMessageChunks, chunkWhatsAppText, isBaileyEnabled } = await import('../bailey.js');
+  const { logMessage, claimMessageProcessing, markMessageProcessingComplete, markMessageProcessingFailed } = await import('../whatsappConversationService.js');
   const { getAgencyConfig } = await import('../agencyConfigService.js');
   const { canReceiveMessage, canAutoReply } = await import('../whatsappAccessControl.js');
   const { resolveCategory } = await import('../userCategoryService.js');
-  const { getConversationState, initializeConversationState, recordMessageInConversation, extractEntitiesFromToolResults, updateLastDiscussedEntities } = await import('../conversationStateService.js');
+  const { getConversationState, initializeConversationState, recordMessageInConversation, extractEntitiesFromToolResults, updateLastDiscussedEntities, resetConversationStateIfStale } = await import('../conversationStateService.js');
 
   const details = [];
   const seenMessageIds = new Set(); // In-memory dedup for duplicate messages in the same batch
@@ -86,16 +103,28 @@ export async function handler(event) {
         continue;
       }
 
+      // Atomic dedup: only one Lambda invocation may process this message.
+      // The claim is a DynamoDB row with a conditional write. If a previous
+      // invocation crashed mid-process, the claim becomes stale after 5 min
+      // and can be stolen by a retry.
+      let claimResult;
       try {
-        const alreadyProcessed = await hasMessage(tenantId, normalizedFrom, messageId);
-        if (alreadyProcessed) {
-          logger.info('whatsapp.processor.duplicate_skip', { tenantId, messageId, from: normalizedFrom, reason: 'dynamodb' });
-          details.push({ messageId, tenantId, success: true, action: 'duplicate_skip' });
-          continue;
-        }
+        claimResult = await claimMessageProcessing(tenantId, normalizedFrom, messageId);
       } catch (err) {
-        logger.warn('whatsapp.processor.dedup_check.failed', { tenantId, messageId, from: normalizedFrom, error: err.message });
+        logger.warn('whatsapp.processor.claim.failed', { tenantId, messageId, from: normalizedFrom, error: err.message });
+        claimResult = { claimed: false, reason: 'error' };
       }
+      if (!claimResult.claimed) {
+        logger.info('whatsapp.processor.duplicate_skip', { tenantId, messageId, from: normalizedFrom, reason: claimResult.reason || 'claim_failed' });
+        details.push({ messageId, tenantId, success: true, action: 'duplicate_skip', reason: claimResult.reason });
+        continue;
+      }
+
+      // NOTE: We no longer fall back to hasMessage() to skip processing. If the
+      // claim was acquired, the message must be processed. Falling back to the
+      // logged message table would prevent legitimate retries after a failed
+      // reply delivery (the inbound message is logged but the reply never went
+      // out). The atomic claim is the single source of truth for dedup.
       seenMessageIds.add(dedupKey);
       const agencyConfig = await getAgencyConfig(tenantId).catch(() => ({}));
       const autoReply = agencyConfig?.autoReply !== false;
@@ -109,6 +138,13 @@ export async function handler(event) {
       const aiEmployeeConfig = agencyConfig?.aiEmployee || {};
       const accessCheck = await canReceiveMessage(normalizedFrom, tenantId, aiEmployeeConfig);
       if (!accessCheck.allowed) {
+        // We will not process this message, so release the claim to avoid
+        // blocking retries for the full TTL duration.
+        try {
+          await markMessageProcessingComplete(tenantId, normalizedFrom, messageId);
+        } catch (err) {
+          logger.error('whatsapp.processor.mark_complete.failed', { tenantId, messageId, error: err.message });
+        }
         logger.info('whatsapp.processor.access_denied', { tenantId, messageId, from: normalizedFrom, reason: accessCheck.reason });
         details.push({ messageId, tenantId, success: false, action: 'access_denied', reason: accessCheck.reason });
         continue;
@@ -126,8 +162,10 @@ export async function handler(event) {
       });
       logger.debug('whatsapp.processor.category_resolved', { tenantId, from: normalizedFrom, category });
 
-      // Ensure conversation state exists for this contact
+      // Ensure conversation state exists for this contact. Reset stale state so
+      // old intent/topic/entities don't leak into a new conversation after a gap.
       try {
+        await resetConversationStateIfStale(tenantId, normalizedFrom, 2, { source: 'whatsapp', category });
         let convState = await getConversationState(tenantId, normalizedFrom);
         if (!convState) {
           convState = await initializeConversationState(tenantId, normalizedFrom, { source: 'whatsapp', category });
@@ -147,6 +185,7 @@ export async function handler(event) {
           fromMe: false,
           aiGenerated: false,
           status: 'received',
+          isGroup: detail.isGroup ?? false,
           createdAt: detail.receivedAt,
         });
       } catch (err) {
@@ -263,32 +302,69 @@ export async function handler(event) {
           // baileys-service sends to the correct JID type (LID vs @s.whatsapp.net).
           // Fall back to normalizedFrom for classic phone-number senders.
           const replyTo = fromJid || normalizedFrom;
-          await sendWhatsAppMessage(replyTo, replyText, null, to);
-          creditsCharged += 1;
+          const chunkResult = await sendWhatsAppMessageChunks(replyTo, replyText, null, to);
+          const sentCount = chunkResult.messageIds?.length || 0;
+          const totalChunks = chunkResult.totalChunks || sentCount;
+          creditsCharged += sentCount || 1;
+          if (sentCount < totalChunks) {
+            logger.warn('whatsapp.processor.partial_chunk_delivery', { tenantId, messageId, sentCount, totalChunks });
+          }
+          // Mark the atomic processing claim as completed only after all chunks are
+          // sent so EventBridge/Lambda retries do not trigger another AI response.
           try {
-            await logMessage(tenantId, normalizedFrom, {
-              messageId: `${messageId}-reply`,
-              direction: 'outbound',
-              from: to,
-              to: from,
-              text: replyText,
-              fromMe: true,
-              aiGenerated,
-              toolCalls,
-              creditsCharged: 1,
-              status: 'sent',
-              createdAt: new Date().toISOString(),
-            });
+            await markMessageProcessingComplete(tenantId, normalizedFrom, messageId);
           } catch (err) {
-            logger.error('whatsapp.processor.log_outbound.failed', { tenantId, messageId, error: err.message });
+            logger.error('whatsapp.processor.mark_complete.failed', { tenantId, messageId, error: err.message });
+          }
+          // Log each sent chunk as a separate outbound message for accurate conversation history.
+          const chunks = chunkWhatsAppText(replyText);
+          for (let i = 0; i < sentCount; i++) {
+            try {
+              await logMessage(tenantId, normalizedFrom, {
+                messageId: chunkResult.messageIds?.[i] || `${messageId}-reply-${i}`,
+                direction: 'outbound',
+                from: to,
+                to: from,
+                text: chunks[i],
+                fromMe: true,
+                aiGenerated,
+                toolCalls: i === 0 ? toolCalls : [],
+                creditsCharged: i === 0 ? 1 : 0,
+                status: 'sent',
+                createdAt: new Date().toISOString(),
+              });
+            } catch (err) {
+              logger.error('whatsapp.processor.log_outbound.failed', { tenantId, messageId, chunkIndex: i, error: err.message });
+            }
           }
         } catch (err) {
           logger.error('whatsapp.processor.reply_failed', { error: err.message, tenantId });
+          // Release the dedup claim so a Lambda/EventBridge retry can reclaim
+          // and re-send the message once the Baileys connection is healthy.
+          try {
+            await markMessageProcessingFailed(tenantId, normalizedFrom, messageId);
+          } catch (releaseErr) {
+            logger.error('whatsapp.processor.mark_failed.failed', { tenantId, messageId, error: releaseErr.message });
+          }
+          // Propagate the failure so the webhook/Lambda invocation is considered
+          // failed and can be retried. The dedup claim has been released above.
+          throw err;
+        }
+      } else {
+        // Bailey is disabled; we still consumed the message, so mark the claim
+        // complete to avoid unnecessary retries.
+        try {
+          await markMessageProcessingComplete(tenantId, normalizedFrom, messageId);
+        } catch (err) {
+          logger.error('whatsapp.processor.mark_complete.failed', { tenantId, messageId, error: err.message });
         }
       }
       details.push({ messageId, tenantId, success, action });
     } catch (err) {
       logger.error('whatsapp.processor.record_failed', { error: err.message });
+      // Propagate the first critical failure (e.g., reply could not be sent)
+      // so the webhook/Lambda invocation can be retried.
+      throw err;
     }
   }
 

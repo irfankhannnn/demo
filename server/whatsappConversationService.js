@@ -1,5 +1,5 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, UpdateCommand, BatchGetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, QueryCommand, GetCommand, UpdateCommand, DeleteCommand, BatchGetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { logger } from './logger.js';
 import { getAgencyConfig } from './agencyConfigService.js';
 import { normalizeWhatsAppPhone, classifyWhatsAppId } from './utils/whatsapp.js';
@@ -10,6 +10,12 @@ const TABLE_NAME = process.env.CRM_DYNAMODB_TABLE_NAME;
 
 const META_READ_SK = 'META#read';
 const TTL_SECONDS = 90 * 24 * 60 * 60;
+// Only include messages from the last N hours when building LLM conversation context.
+// This prevents old, unrelated conversations from leaking into the current reply.
+const CONTEXT_TIME_WINDOW_HOURS = 2;
+// Group chats can accumulate many messages quickly; cap context for groups to avoid
+// bloating the LLM prompt and keep replies focused on the recent conversation.
+const MAX_GROUP_CONTEXT_MESSAGES = 20;
 
 const WHITELISTED_NUMBERS = (process.env.AI_ADMIN_WHATSAPP_NUMBERS || '')
   .split(',')
@@ -69,6 +75,7 @@ function formatMessage(item) {
     creditsCharged: item.creditsCharged || 0,
     status: item.status,
     createdAt: item.createdAt,
+    isGroup: item.isGroup ?? false,
   };
 }
 
@@ -184,6 +191,12 @@ export async function logMessage(tenantId, contactPhone, message) {
     createdAt: timestamp,
     expiresAt: Math.floor(Date.now() / 1000) + TTL_SECONDS,
   };
+  if (message.replyPending !== undefined) {
+    item.replyPending = message.replyPending;
+  }
+  if (message.isGroup !== undefined) {
+    item.isGroup = message.isGroup;
+  }
 
   try {
     await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
@@ -268,6 +281,229 @@ export async function hasMessage(tenantId, contactPhone, messageId) {
   } catch (err) {
     logger.error('whatsappConversationService.hasMessage.failed', { tenantId, contactPhone, messageId, error: err.message });
     return false; // Allow processing if check fails
+  }
+}
+
+/**
+ * Retrieve a message by its messageId for a contact.
+ * Returns the raw item or null if not found.
+ */
+export async function getMessageById(tenantId, contactPhone, messageId) {
+  if (!TABLE_NAME || !messageId) return null;
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return null;
+
+  try {
+    const result = await docClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      FilterExpression: 'messageId = :messageId',
+      ExpressionAttributeValues: {
+        ':pk': buildPk(tenantId, normalizedPhone),
+        ':prefix': 'MESSAGE#',
+        ':messageId': messageId,
+      },
+      ScanIndexForward: false,
+      Limit: 200,
+    }));
+    return result.Items?.[0] || null;
+  } catch (err) {
+    logger.error('whatsappConversationService.getMessageById.failed', { tenantId, contactPhone, messageId, error: err.message });
+    return null;
+  }
+}
+
+/**
+ * Mark the replyPending flag on the inbound message with the given messageId.
+ * Used by the processor to ensure one inbound message yields exactly one reply.
+ */
+export async function updateMessageReplyPending(tenantId, contactPhone, messageId, replyPending) {
+  if (!TABLE_NAME || !messageId) return;
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return;
+
+  const message = await getMessageById(tenantId, normalizedPhone, messageId);
+  if (!message) return;
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { PK: message.PK, SK: message.SK },
+      UpdateExpression: 'SET replyPending = :replyPending',
+      ExpressionAttributeValues: { ':replyPending': replyPending },
+    }));
+  } catch (err) {
+    logger.error('whatsappConversationService.updateMessageReplyPending.failed', { tenantId, contactPhone, messageId, error: err.message });
+    throw err;
+  }
+}
+
+const DEDUP_TTL_SECONDS = 5 * 60; // 5 minutes
+
+/**
+ * Build the sort key for a message processing dedup claim.
+ */
+function buildDedupSk(messageId) {
+  return `DEDUP#${messageId}`;
+}
+
+async function getDedupClaim(tenantId, contactPhone, messageId) {
+  if (!TABLE_NAME || !messageId) return null;
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return null;
+
+  try {
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLE_NAME,
+      Key: { PK: buildPk(tenantId, normalizedPhone), SK: buildDedupSk(messageId) },
+    }));
+    return result.Item || null;
+  } catch (err) {
+    logger.error('whatsappConversationService.getDedupClaim.failed', { tenantId, contactPhone, messageId, error: err.message });
+    return null;
+  }
+}
+
+/**
+ * Atomically claim the right to process a message.
+ * Uses a DynamoDB conditional Put to ensure only one Lambda invocation
+ * processes the message. If an existing claim is stuck in 'processing' for
+ * longer than the stale threshold, it is stolen by the new invocation.
+ * @returns {Promise<{ claimed: boolean, reason?: string, stolen?: boolean }>}
+ */
+export async function claimMessageProcessing(tenantId, contactPhone, messageId) {
+  if (!TABLE_NAME || !messageId) return { claimed: false, reason: 'invalid_input' };
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return { claimed: false, reason: 'invalid_phone' };
+
+  const pk = buildPk(tenantId, normalizedPhone);
+  const sk = buildDedupSk(messageId);
+  const now = Date.now();
+  const claimedAt = new Date(now).toISOString();
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: TABLE_NAME,
+      Item: {
+        PK: pk,
+        SK: sk,
+        tenantId,
+        contactPhone: normalizedPhone,
+        messageId,
+        status: 'processing',
+        claimedAt,
+        expiresAt: Math.floor(now / 1000) + DEDUP_TTL_SECONDS,
+      },
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    }));
+    return { claimed: true };
+  } catch (err) {
+    if (err.name !== 'ConditionalCheckFailedException') {
+      logger.error('whatsappConversationService.claimMessageProcessing.failed', { tenantId, contactPhone, messageId, error: err.message });
+      return { claimed: false, reason: 'error' };
+    }
+
+    const existing = await getDedupClaim(tenantId, normalizedPhone, messageId);
+    if (!existing) return { claimed: false, reason: 'claim_missing' };
+    if (existing.status === 'completed') return { claimed: false, reason: 'already_completed' };
+
+    const claimedTime = new Date(existing.claimedAt).getTime();
+    const staleThreshold = now - DEDUP_TTL_SECONDS * 1000;
+    if (claimedTime < staleThreshold) {
+      try {
+        await docClient.send(new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: { PK: pk, SK: sk },
+          UpdateExpression: 'SET #status = :status, claimedAt = :claimedAt, expiresAt = :expiresAt',
+          ConditionExpression: '#status = :processing AND claimedAt < :threshold',
+          ExpressionAttributeNames: { '#status': 'status' },
+          ExpressionAttributeValues: {
+            ':status': 'processing',
+            ':processing': 'processing',
+            ':claimedAt': claimedAt,
+            ':expiresAt': Math.floor(now / 1000) + DEDUP_TTL_SECONDS,
+            ':threshold': new Date(staleThreshold).toISOString(),
+          },
+        }));
+        return { claimed: true, stolen: true };
+      } catch (stealErr) {
+        // The steal may have failed because the stale claim was deleted by TTL
+        // cleanup between our read and the update. Try a fresh conditional put in
+        // that case. If the row now exists (e.g., another Lambda claimed it), this
+        // will safely fail with ConditionalCheckFailedException.
+        if (stealErr.name === 'ConditionalCheckFailedException') {
+          try {
+            await docClient.send(new PutCommand({
+              TableName: TABLE_NAME,
+              Item: {
+                PK: pk,
+                SK: sk,
+                tenantId,
+                contactPhone: normalizedPhone,
+                messageId,
+                status: 'processing',
+                claimedAt,
+                expiresAt: Math.floor(now / 1000) + DEDUP_TTL_SECONDS,
+              },
+              ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+            }));
+            return { claimed: true, stolen: true };
+          } catch (retryErr) {
+            // Another writer won the race; fall through to processing.
+          }
+        }
+        return { claimed: false, reason: 'processing' };
+      }
+    }
+    return { claimed: false, reason: 'processing' };
+  }
+}
+
+/**
+ * Mark a message processing claim as completed.
+ */
+export async function markMessageProcessingComplete(tenantId, contactPhone, messageId) {
+  if (!TABLE_NAME || !messageId) return;
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return;
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { PK: buildPk(tenantId, normalizedPhone), SK: buildDedupSk(messageId) },
+      UpdateExpression: 'SET #status = :status',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':status': 'completed' },
+    }));
+  } catch (err) {
+    logger.error('whatsappConversationService.markMessageProcessingComplete.failed', { tenantId, contactPhone, messageId, error: err.message });
+  }
+}
+
+/**
+ * Mark a message processing claim as failed so a Lambda/EventBridge retry can
+ * reclaim it immediately. This is used when the WhatsApp reply could not be
+ * delivered (e.g., Baileys connection queued but never sent).
+ */
+export async function markMessageProcessingFailed(tenantId, contactPhone, messageId) {
+  if (!TABLE_NAME || !messageId) return;
+
+  const normalizedPhone = normalizeWhatsAppPhone(contactPhone);
+  if (!normalizedPhone) return;
+
+  try {
+    await docClient.send(new DeleteCommand({
+      TableName: TABLE_NAME,
+      Key: { PK: buildPk(tenantId, normalizedPhone), SK: buildDedupSk(messageId) },
+    }));
+    logger.warn('whatsappConversationService.markMessageProcessingFailed', { tenantId, contactPhone, messageId, reason: 'reply_delivery_failed' });
+  } catch (err) {
+    logger.error('whatsappConversationService.markMessageProcessingFailed.error', { tenantId, contactPhone, messageId, error: err.message });
   }
 }
 
@@ -469,21 +705,36 @@ export async function getConversationContext(tenantId, contactPhone, limit = 10)
   }
 
   try {
+    // Filter out messages older than the context window so a new conversation
+    // doesn't inherit stale context from hours or days ago.
+    const timeCutoff = new Date(Date.now() - CONTEXT_TIME_WINDOW_HOURS * 60 * 60 * 1000).toISOString();
+    const skCutoff = `MESSAGE#${timeCutoff}`;
     const result = await docClient.send(new QueryCommand({
       TableName: TABLE_NAME,
-      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      KeyConditionExpression: 'PK = :pk AND SK >= :skCutoff',
       ExpressionAttributeValues: {
         ':pk': buildPk(tenantId, normalizedPhone),
-        ':prefix': 'MESSAGE#',
+        ':skCutoff': skCutoff,
       },
       ScanIndexForward: false, // Newest first
       Limit: Math.min(limit, 100), // Cap at 100 to prevent excessive reads
     }));
 
     // Format messages for LLM (oldest first)
-    const messages = (result.Items || [])
-      .reverse()
-      .map(msg => {
+    let items = result.Items || [];
+    items.reverse();
+
+    // Group chats can generate many messages; keep only the most recent N for
+    // context. We classify the conversation by the LATEST message's isGroup
+    // flag so a single historical group message doesn't shrink an otherwise
+    // 1:1 conversation's context window.
+    const latestIsGroup = items.length > 0 && items[items.length - 1].isGroup === true;
+    if (latestIsGroup && items.length > MAX_GROUP_CONTEXT_MESSAGES) {
+      items = items.slice(items.length - MAX_GROUP_CONTEXT_MESSAGES);
+      logger.debug('whatsappConversationService.getConversationContext.group_limit_applied', { tenantId, contactPhone, originalCount: (result.Items || []).length, limitedCount: items.length });
+    }
+
+    const messages = items.map(msg => {
         let content = msg.text || '';
         // Append tool call summaries so the LLM remembers what data was retrieved
         if (msg.fromMe && Array.isArray(msg.toolCalls) && msg.toolCalls.length > 0) {

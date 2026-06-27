@@ -176,7 +176,11 @@ router.post('/whatsapp', webhookRateLimit, async (req, res) => {
         return res.status(200).json({ ok: true, processed: true });
       } catch (err) {
         logger.error('webhooks.whatsapp.local_process.failed', { messageId, tenantId, error: err.message, stack: err.stack });
-        return res.status(200).json({ ok: true, processed: false, error: err.message });
+        // Return 503 so the baileys-service webhook forwarder retries the
+        // webhook and the message can be re-processed once the connection is
+        // healthy. In production Lambda mode the thrown error triggers the
+        // Lambda retry path directly.
+        return res.status(503).json({ ok: false, processed: false, error: err.message });
       }
     }
 

@@ -8,6 +8,7 @@ import { getBalance, deductCredits } from '../creditService.js';
 import { invokeSkill, ALLOWED_TOOLS, TOOL_SCHEMAS, enrichContextWithLead } from '../skillInvoker.js';
 import { logAgentAction } from './agentAuditService.js';
 import { buildSystemPrompt } from './prompts.js';
+import { sanitizeAndFormatReply } from './responseFormatter.js';
 import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { getConversationContext } from '../whatsappConversationService.js';
@@ -37,48 +38,101 @@ function isEnabledForRollout(tenantId, rolloutPercentage) {
   return (hash % 100) < rolloutPercentage;
 }
 
-function buildAnthropicToolDefinitions() {
-  return ALLOWED_TOOLS.map(tool => {
-    const schema = TOOL_SCHEMAS[tool];
-    const properties = {};
-    if (schema) {
-      for (const [key, type] of Object.entries(schema.types)) {
-        properties[key] = { type, description: `Parameter: ${key}` };
+/**
+ * Natural-language trigger hints for tools. These are appended to the tool
+ * descriptions so the LLM knows WHEN to call each tool (especially for
+ * list/show/search requests in Hinglish and English).
+ */
+const TOOL_TRIGGER_HINTS = {
+  search_leads: 'Use this when the user asks to list, search, show, find, or get leads (e.g., "leads dikhao", "show leads", "lead list").',
+  get_lead: 'Use this when the user asks for a specific lead by ID or refers to a specific lead.',
+  get_owners: 'Use this when the user asks to list, search, show, find, or get owners (e.g., "owners dikhao", "show owners", "owner list").',
+  get_owner: 'Use this when the user asks for a specific owner by ID.',
+  get_owner_by_phone: 'Use this when the user asks to find an owner by phone number.',
+  search_tenants: 'Use this when the user asks to list, search, show, find, or get tenants/customers (e.g., "customers dikhao", "tenant list", "show tenants").',
+  get_tenant: 'Use this when the user asks for a specific tenant by ID.',
+  get_tenant_by_phone: 'Use this when the user asks to find a tenant by phone number.',
+  search_properties: 'Use this when the user asks to list, search, show, find, or get properties (e.g., "properties dikhao", "show properties", "property list").',
+  get_property: 'Use this when the user asks for a specific property by ID.',
+  get_upcoming_meetings: 'Use this when the user asks to list, search, show, or find meetings (e.g., "meetings dikhao", "upcoming meetings", "calendar").',
+  search_contacts: 'Use this when the user asks to list, search, show, or find contacts (e.g., "contacts dikhao", "show contacts", "contact list").',
+  find_contact_by_phone: 'Use this when the user asks to find a contact by phone number.',
+  search_buyers: 'Use this when the user asks to list, search, show, or find buyers (e.g., "buyers dikhao", "buyer list").',
+  get_buyer: 'Use this when the user asks for a specific buyer by ID.',
+};
+
+/**
+ * Build the JSON-schema `properties` map for a tool from its TOOL_SCHEMAS entry.
+ * Supports nested object schemas via `schema.nestedSchemas[key]`.
+ * Uses paramDescriptions from schema if available, otherwise falls back to generic.
+ */
+function buildToolProperties(schema) {
+  const properties = {};
+  if (!schema) return properties;
+  const paramDescs = schema.paramDescriptions || {};
+  for (const [key, typeDef] of Object.entries(schema.types)) {
+    const type = typeof typeDef === 'string' ? typeDef : typeDef.type;
+    const prop = { type, description: paramDescs[key] || `Parameter: ${key}` };
+    if (type === 'object' && schema.nestedSchemas && schema.nestedSchemas[key]) {
+      const nested = schema.nestedSchemas[key];
+      prop.properties = {};
+      for (const [nestedKey, nestedType] of Object.entries(nested)) {
+        prop.properties[nestedKey] = { type: nestedType, description: paramDescs[`${key}.${nestedKey}`] || `Parameter: ${key}.${nestedKey}` };
       }
     }
+    if (type === 'array') {
+      if (typeof typeDef === 'object' && typeDef.items) {
+        prop.items = typeDef.items;
+      } else if (schema.items && schema.items[key]) {
+        // Backward compatibility: legacy array schemas declared items separately
+        prop.items = schema.items[key];
+      }
+    }
+    properties[key] = prop;
+  }
+  return properties;
+}
+
+function buildToolDescription(tool, schema) {
+  const parts = [];
+  if (schema?.description) parts.push(schema.description);
+  // Only append trigger hint if the description doesn't already contain trigger info
+  const hint = TOOL_TRIGGER_HINTS[tool];
+  if (hint && (!schema?.description || !schema.description.toLowerCase().includes('use this when'))) {
+    parts.push(hint);
+  }
+  if (parts.length === 0) {
+    return schema
+      ? `CRM tool: ${tool.replace(/_/g, ' ')}. Required: ${schema.required.join(', ') || 'none'}.`
+      : `Execute CRM operation: ${tool.replace(/_/g, ' ')}`;
+  }
+  return parts.join(' ');
+}
+
+export function buildAnthropicToolDefinitions() {
+  return ALLOWED_TOOLS.map(tool => {
+    const schema = TOOL_SCHEMAS[tool];
     return {
       name: tool,
-      description: schema?.description
-        || (schema
-          ? `CRM tool: ${tool.replace(/_/g, ' ')}. Required: ${schema.required.join(', ') || 'none'}.`
-          : `Execute CRM operation: ${tool.replace(/_/g, ' ')}`),
+      description: buildToolDescription(tool, schema),
       input_schema: {
         type: 'object',
-        properties,
+        properties: buildToolProperties(schema),
         required: schema?.required || [],
       },
     };
   });
 }
 
-function buildGeminiToolDefinitions() {
+export function buildGeminiToolDefinitions() {
   return ALLOWED_TOOLS.map(tool => {
     const schema = TOOL_SCHEMAS[tool];
-    const properties = {};
-    if (schema) {
-      for (const [key, type] of Object.entries(schema.types)) {
-        properties[key] = { type, description: `Parameter: ${key}` };
-      }
-    }
     return {
       name: tool,
-      description: schema?.description
-        || (schema
-          ? `CRM tool: ${tool.replace(/_/g, ' ')}. Required: ${schema.required.join(', ') || 'none'}.`
-          : `Execute CRM operation: ${tool.replace(/_/g, ' ')}`),
+      description: buildToolDescription(tool, schema),
       parameters: {
         type: 'object',
-        properties,
+        properties: buildToolProperties(schema),
         required: schema?.required || [],
       },
     };
@@ -264,6 +318,7 @@ async function runGeminiLoop(chat, prompt, tenantId, agentId, context, historyMe
   let result = await chat.sendMessage(fullPrompt);
   const toolResults = [];
   let lastText = '';
+  let lastFunctionCalls = [];
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const response = result.response;
@@ -271,11 +326,28 @@ async function runGeminiLoop(chat, prompt, tenantId, agentId, context, historyMe
     if (text) lastText = text;
 
     const functionCalls = response.functionCalls();
-    if (!functionCalls || functionCalls.length === 0) break;
+    lastFunctionCalls = functionCalls || [];
+
+    // Log raw Gemini output for debugging
+    logger.info('agent.gemini.response.raw', {
+      turn,
+      hasText: !!text,
+      textLength: text?.length || 0,
+      textPreview: (text || '').substring(0, 500),
+      functionCallCount: functionCalls?.length || 0,
+      functionCallNames: (functionCalls || []).map(fc => fc.name),
+    });
+
+    if (!functionCalls || functionCalls.length === 0) {
+      logger.info('agent.gemini.no_function_call', { turn, hadText: !!text });
+      break;
+    }
 
     const call = functionCalls[0];
     const toolName = call.name;
     const toolInput = call.args || {};
+
+    logger.info('agent.gemini.function_call', { turn, toolName, toolInput });
 
     let toolResult;
     if (ALLOWED_TOOLS.includes(toolName)) {
@@ -295,7 +367,13 @@ async function runGeminiLoop(chat, prompt, tenantId, agentId, context, historyMe
     }]);
   }
 
-  return { text: sanitizeAgentReply(lastText), toolResults: toolResults.length > 0 ? toolResults : undefined };
+  logger.info('agent.gemini.loop.complete', {
+    toolCallsMade: toolResults.length,
+    hadFunctionCalls: lastFunctionCalls.length > 0,
+    finalTextLength: lastText.length,
+  });
+
+  return { rawText: lastText, text: sanitizeAgentReply(lastText), toolResults: toolResults.length > 0 ? toolResults : undefined };
 }
 
 async function runBedrockLoop(prompt, systemPrompt, tenantId, agentId, context, historyMessages = []) {
@@ -345,7 +423,100 @@ async function runBedrockLoop(prompt, systemPrompt, tenantId, agentId, context, 
 
   const sanitized = sanitizeAgentReply(lastText);
   logger.info('agent.llm.response.final', { rawTextLength: lastText?.length, rawText: lastText?.substring(0, 800), sanitizedTextLength: sanitized?.length, sanitizedText: sanitized?.substring(0, 800), toolCalls: toolResults.length });
-  return { text: sanitized, toolResults: toolResults.length > 0 ? toolResults : undefined };
+  return { rawText: lastText, text: sanitized, toolResults: toolResults.length > 0 ? toolResults : undefined };
+}
+
+/**
+ * Validate JSON output from LLM
+ * @param {string} text - Raw LLM output
+ * @returns {object|null} Parsed JSON or null if invalid
+ */
+export function validateJsonOutput(text) {
+  if (!text || typeof text !== 'string') return null;
+
+  try {
+    const trimmed = text.trim();
+    const jsonText = trimmed.replace(/^```json\s*|\s*```$/gi, '').trim();
+    if (!jsonText.startsWith('{')) return null;
+    const parsed = JSON.parse(jsonText);
+    if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 0) {
+      return parsed;
+    }
+  } catch (err) {
+    return null;
+  }
+
+  return null;
+}
+
+/**
+ * Detect if LLM should have called a tool but did not
+ * @param {string} prompt - User's message
+ * @param {object} output - LLM output { text, toolResults }
+ * @returns {boolean} True if retry is needed
+ */
+export function shouldRetryForToolCall(prompt, output) {
+  if (!prompt || !output) return false;
+
+  // If tool was called, no retry needed
+  if (output.toolResults && output.toolResults.length > 0) return false;
+
+  const lower = prompt.toLowerCase();
+
+  // Skip retry if user is negating or refusing (e.g., "don't show leads", "no meetings", "mat dikhao")
+  // Use word boundaries to avoid false positives inside words like "only", "know", "now".
+  const negationPatterns = [
+    /\bno\b/,
+    /\bnot\b/,
+    /\bnever\b/,
+    /\bnone\b/,
+    /\bdon'?t\b/,
+    /\bwon'?t\b/,
+    /\bcan'?t\b/,
+    /\bdo not\b/,
+    /\bmat\b/,
+    /\bnahi\b/,
+  ];
+  if (negationPatterns.some(pattern => pattern.test(lower))) {
+    return false;
+  }
+
+  // Detect list/search/show/find intent
+  const listKeywords = ['dikhao', 'batao', 'show', 'list', 'find', 'search', 'get', 'all', 'sab', 'upcoming', 'dekhna', 'chahiye'];
+  const entityKeywords = ['lead', 'leads', 'owner', 'owners', 'tenant', 'tenants', 'customer', 'customers', 'property', 'properties', 'meeting', 'meetings', 'contact', 'contacts', 'buyer', 'buyers'];
+
+  const hasListIntent = listKeywords.some(kw => lower.includes(kw));
+  const hasEntity = entityKeywords.some(kw => lower.includes(kw));
+
+  // If user asked for a list but no tool was called, retry
+  if (hasListIntent && hasEntity) {
+    logger.info('agent.retry.list_intent_not_called', { prompt: prompt.slice(0, 100) });
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Suggest the most likely tool for a given prompt based on entity keywords.
+ * Used to make retry prompts more specific.
+ * @param {string} prompt - User's message
+ * @returns {string|null} Tool name or null if no match
+ */
+export function suggestToolForPrompt(prompt) {
+  if (!prompt) return null;
+  const lower = prompt.toLowerCase();
+
+  // Check in order of specificity
+  if (/\bmeeting|\bcalendar|\bupcoming\b/.test(lower)) return 'get_upcoming_meetings';
+  if (/\bcontact/.test(lower)) return 'search_contacts';
+  if (/\bproperty|\bproperties/.test(lower)) return 'search_properties';
+  if (/\bowner/.test(lower)) return 'get_owners';
+  if (/\btenant|\bcustomer/.test(lower)) return 'search_tenants';
+  if (/\bbuyer/.test(lower)) return 'search_buyers';
+  if (/\blead|\bleads/.test(lower)) return 'search_leads';
+
+  return null;
 }
 
 /**
@@ -497,22 +668,67 @@ ${leadContext.notes && leadContext.notes.length > 0 ? `- Recent Notes: ${leadCon
 
   try {
     let output;
-    if (LLM_PROVIDER === 'gemini') {
-      const chat = await createGeminiChat(systemPrompt);
-      output = await runGeminiLoop(chat, prompt, tenantId, agentId, context, conversationHistory);
-    } else {
-      output = await runBedrockLoop(prompt, systemPrompt, tenantId, agentId, context, conversationHistory);
+    let retryCount = 0;
+    const MAX_RETRIES = 2;
+
+    // Helper: run LLM with the given prompt
+    async function runLlm(p) {
+      if (LLM_PROVIDER === 'gemini') {
+        const chat = await createGeminiChat(systemPrompt);
+        return await runGeminiLoop(chat, p, tenantId, agentId, context, conversationHistory);
+      } else {
+        return await runBedrockLoop(p, systemPrompt, tenantId, agentId, context, conversationHistory);
+      }
+    }
+
+    // Initial LLM invocation
+    output = await runLlm(prompt);
+
+    // Post-LLM validation and retry loop with re-validation
+    while (retryCount < MAX_RETRIES) {
+      const jsonValid = validateJsonOutput(output.rawText);
+      const needsToolRetry = shouldRetryForToolCall(prompt, output);
+
+      if (jsonValid && !needsToolRetry) {
+        // Output is valid and no tool retry needed — accept it
+        break;
+      }
+
+      if (!jsonValid) {
+        // Retry 1: Invalid JSON — ask for valid JSON
+        retryCount++;
+        logger.info('agent.retry.invalid_json', { retryCount, prompt: prompt.slice(0, 100) });
+        const retryPrompt = `${prompt}\n\nIMPORTANT: You MUST output valid JSON. Reply with ONLY: {"thinking":"...","reply":"...","usedTools":[]}`;
+        output = await runLlm(retryPrompt);
+        continue;
+      }
+
+      if (needsToolRetry) {
+        // Retry 2: Tool should have been called but wasn't
+        retryCount++;
+        const suggestedTool = suggestToolForPrompt(prompt);
+        logger.info('agent.retry.missing_tool_call', { retryCount, prompt: prompt.slice(0, 100), suggestedTool });
+        const retryPrompt = `${prompt}\n\nYou MUST call a tool function. Do NOT output JSON text. Do NOT reply conversationally.${suggestedTool ? ` Call the ${suggestedTool} function now.` : ' Call search_leads, get_owners, search_tenants, search_properties, search_contacts, or get_upcoming_meetings as appropriate.'} If listing all items, pass empty parameters {}.`;
+        output = await runLlm(retryPrompt);
+
+        // Re-validate after retry — if still no tool call, log and accept
+        if (!output.toolResults || output.toolResults.length === 0) {
+          logger.warn('agent.retry.still_no_tool_call', { retryCount, prompt: prompt.slice(0, 100), suggestedTool });
+        }
+        // Loop continues — will re-check conditions
+      }
     }
 
     const durationMs = Date.now() - startMs;
-    await logAgentAction(tenantId, agentId, 'invoke', { prompt: prompt.slice(0, 200), context }, { text: output.text, toolResults: output.toolResults }, AGENT_ACTION_CREDITS);
+    await logAgentAction(tenantId, agentId, 'invoke', { prompt: prompt.slice(0, 200), context, retryCount }, { text: output.text, toolResults: output.toolResults }, AGENT_ACTION_CREDITS);
 
     try { await metrics.agentActionInvoked(tenantId, agentId); } catch (_) {}
 
+    const formattedText = sanitizeAndFormatReply(output.text, output.toolResults);
     return {
       ok: true,
       result: {
-        text: output.text,
+        text: formattedText,
         toolResults: output.toolResults,
         durationMs,
       },

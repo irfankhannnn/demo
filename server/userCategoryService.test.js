@@ -57,7 +57,10 @@ describe('User Category Service', () => {
       const agentTools = USER_CATEGORIES.agent.allowedTools;
       expect(agentTools).toContain('create_lead');
       expect(agentTools).toContain('search_leads');
-      expect(agentTools).not.toContain('create_tenant');
+      expect(agentTools).toContain('create_tenant');
+      // Agent cannot delete records
+      expect(agentTools).not.toContain('delete_lead');
+      expect(agentTools).not.toContain('delete_owner');
     });
 
     test('viewer should only have read tools', () => {
@@ -145,7 +148,7 @@ describe('User Category Service', () => {
 
     test('viewer should have read-only tools', () => {
       const viewerTools = USER_CATEGORIES.viewer.allowedTools;
-      const readOnlyTools = viewerTools.filter(tool => tool.startsWith('get_') || tool.startsWith('search_'));
+      const readOnlyTools = viewerTools.filter(tool => tool.startsWith('get_') || tool.startsWith('search_') || tool.startsWith('find_'));
       expect(readOnlyTools.length).toBe(viewerTools.length);
     });
   });
@@ -161,6 +164,8 @@ describe('User Category Service', () => {
       expect(USER_CATEGORIES[defaultCategory]).toBeDefined();
     });
   });
+
+
 
   describe('Get All Categories', () => {
     test('should return all categories', () => {
@@ -215,12 +220,13 @@ describe('User Category Service', () => {
   describe('Tool Filtering Logic', () => {
     test('should filter tools correctly for agent', () => {
       const agentTools = USER_CATEGORIES.agent.allowedTools;
-      const requestedTools = ['create_lead', 'create_tenant', 'update_lead'];
+      const requestedTools = ['create_lead', 'create_tenant', 'update_lead', 'delete_lead'];
       const filtered = requestedTools.filter(tool => agentTools.includes(tool));
       
       expect(filtered).toContain('create_lead');
+      expect(filtered).toContain('create_tenant');
       expect(filtered).toContain('update_lead');
-      expect(filtered).not.toContain('create_tenant');
+      expect(filtered).not.toContain('delete_lead');
     });
 
     test('should filter tools correctly for viewer', () => {

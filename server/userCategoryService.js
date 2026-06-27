@@ -110,12 +110,22 @@ export const USER_CATEGORIES = {
     name: 'Administrator',
     description: 'Full access to all tools',
     allowedTools: [
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'create_lead_note',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact',
-      'create_property', 'get_property', 'search_properties', 'update_property',
-      'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant',
-      'create_owner', 'get_owner', 'get_owners',
-      'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer',
+      // Leads
+      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'delete_lead', 'create_lead_note', 'get_lead_notes', 'update_lead_note', 'delete_lead_note',
+      // Contacts
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'delete_contact', 'update_contact_role', 'find_contact_by_phone',
+      // Properties
+      'create_property', 'get_property', 'search_properties', 'update_property', 'delete_property', 'create_property_document', 'get_property_documents', 'delete_property_document',
+      // Tenants / Customers
+      'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'delete_tenant', 'get_tenant_by_phone', 'create_tenant_note', 'get_tenant_notes', 'update_tenant_note', 'delete_tenant_note', 'get_tenant_rental_history', 'update_tenant_current_rental', 'archive_tenant_rental',
+      // Owners
+      'create_owner', 'get_owner', 'get_owners', 'search_owners', 'update_owner', 'delete_owner', 'get_owner_by_phone', 'create_owner_note', 'get_owner_notes', 'update_owner_note', 'delete_owner_note',
+      // Buyers
+      'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer', 'delete_buyer', 'create_buyer_note', 'get_buyer_notes', 'update_buyer_note', 'delete_buyer_note',
+      // Meetings
+      'create_meeting', 'get_meeting', 'get_meetings', 'get_upcoming_meetings', 'update_meeting', 'delete_meeting',
+      // Metrics
+      'get_crm_metrics',
     ],
     canAssignLeads: true,
     canDeleteLeads: true,
@@ -124,12 +134,15 @@ export const USER_CATEGORIES = {
   },
   agent: {
     name: 'Sales Agent',
-    description: 'Can create/update leads, search properties, manage contacts',
+    description: 'Can create/update leads, owners, tenants, properties, contacts, buyers, and meetings',
     allowedTools: [
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact',
+      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note', 'get_lead_notes',
+      'create_owner', 'get_owner', 'get_owners', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
+      'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
+      'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
     ],
     canAssignLeads: false,
     canDeleteLeads: false,
@@ -138,12 +151,15 @@ export const USER_CATEGORIES = {
   },
   team_lead: {
     name: 'Team Lead',
-    description: 'Can manage team leads, assign, and view analytics',
+    description: 'Can manage team leads, owners, tenants, properties, contacts, buyers, and meetings',
     allowedTools: [
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'create_lead_note',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact',
+      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'create_lead_note', 'get_lead_notes',
+      'create_owner', 'get_owner', 'get_owners', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
+      'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
+      'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
     ],
     canAssignLeads: true,
     canDeleteLeads: false,
@@ -152,12 +168,15 @@ export const USER_CATEGORIES = {
   },
   viewer: {
     name: 'Viewer',
-    description: 'Read-only access to leads and properties',
+    description: 'Read-only access to leads, owners, tenants, properties, contacts, buyers, and meetings',
     allowedTools: [
       'get_lead', 'search_leads',
-      'get_contact', 'search_contacts',
+      'get_owner', 'get_owners', 'get_owner_by_phone',
+      'get_tenant', 'search_tenants', 'get_tenant_by_phone',
+      'get_contact', 'search_contacts', 'find_contact_by_phone',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
+      'get_meeting', 'get_upcoming_meetings',
     ],
     canAssignLeads: false,
     canDeleteLeads: false,
@@ -166,12 +185,15 @@ export const USER_CATEGORIES = {
   },
   whatsapp_bot: {
     name: 'WhatsApp Bot',
-    description: 'Limited tools for WhatsApp conversations',
+    description: 'Limited tools for WhatsApp conversations including leads, owners, tenants, properties, contacts, buyers, and meetings',
     allowedTools: [
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note',
-      'create_contact', 'get_contact', 'search_contacts',
+      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note', 'get_lead_notes',
+      'get_owner', 'get_owners', 'create_owner', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
+      'get_tenant', 'search_tenants', 'create_tenant', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
+      'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
     ],
     canAssignLeads: false,
     canDeleteLeads: false,
@@ -269,10 +291,18 @@ export async function setUserCategory(tenantId, userId, category) {
  * @returns {Promise<boolean>} True if user can access tool
  */
 export async function canUserAccessTool(tenantId, userId, toolName) {
-  const userCategory = await getUserCategory(tenantId, userId);
+  let userCategory = await getUserCategory(tenantId, userId);
   if (!userCategory) {
-    logger.warn('userCategoryService.canUserAccessTool.categoryNotFound', { tenantId, userId });
-    return false;
+    // SECURITY: Only fall back to the default category in local dev. In production,
+    // unknown users MUST be explicitly provisioned; otherwise they should be denied.
+    if (process.env.ALLOW_USER_CATEGORY_DEFAULT_FALLBACK === 'true') {
+      const defaultCategory = getDefaultUserCategory();
+      userCategory = USER_CATEGORIES[defaultCategory];
+      logger.warn('userCategoryService.canUserAccessTool.usingDefault', { tenantId, userId, category: defaultCategory });
+    } else {
+      logger.warn('userCategoryService.canUserAccessTool.categoryNotFound', { tenantId, userId });
+      return false;
+    }
   }
 
   const hasAccess = userCategory.allowedTools.includes(toolName);
@@ -291,10 +321,18 @@ export async function canUserAccessTool(tenantId, userId, toolName) {
  * @returns {Promise<Array<string>>} Filtered list of allowed tools
  */
 export async function filterToolsByUserCategory(tenantId, userId, tools) {
-  const userCategory = await getUserCategory(tenantId, userId);
+  let userCategory = await getUserCategory(tenantId, userId);
   if (!userCategory) {
-    logger.warn('userCategoryService.filterToolsByUserCategory.categoryNotFound', { tenantId, userId });
-    return []; // Deny all if category not found
+    // SECURITY: Only fall back to the default category in local dev. In production,
+    // unknown users MUST be explicitly provisioned; otherwise they should be denied.
+    if (process.env.ALLOW_USER_CATEGORY_DEFAULT_FALLBACK === 'true') {
+      const defaultCategory = getDefaultUserCategory();
+      userCategory = USER_CATEGORIES[defaultCategory];
+      logger.warn('userCategoryService.filterToolsByUserCategory.usingDefault', { tenantId, userId, category: defaultCategory });
+    } else {
+      logger.warn('userCategoryService.filterToolsByUserCategory.categoryNotFound', { tenantId, userId });
+      return [];
+    }
   }
 
   const filtered = tools.filter(tool => userCategory.allowedTools.includes(tool));

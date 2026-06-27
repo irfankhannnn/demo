@@ -4,7 +4,7 @@
  */
 
 import { buildSystemPrompt, loadTenantDocs, buildSystemPromptWithContext } from './prompts.js';
-import { sanitizeAgentReply } from './agentRuntime.js';
+import { sanitizeAgentReply, buildGeminiToolDefinitions, buildAnthropicToolDefinitions, shouldRetryForToolCall, validateJsonOutput } from './agentRuntime.js';
 
 describe('Agent Runtime - System Prompt Building', () => {
   describe('Personality Injection', () => {
@@ -49,8 +49,8 @@ describe('Agent Runtime - System Prompt Building', () => {
     test('should include critical rules', () => {
       const prompt = buildSystemPrompt('whatsapp', 'tenant-123');
       expect(prompt).toContain('CRITICAL RULES');
-      expect(prompt).toContain('NEVER write your internal reasoning');
       expect(prompt).toContain('NEVER output more than 2 short sentences');
+      expect(prompt).toContain('CALL THE TOOL FUNCTION');
     });
   });
 
@@ -81,9 +81,20 @@ describe('Agent Runtime - System Prompt Building', () => {
       expect(prompt).toContain('WhatsApp');
       expect(prompt).toContain('Hinglish');
       expect(prompt).toContain('200 characters');
-      expect(prompt).toContain('MUST BE VALID JSON');
+      expect(prompt).toContain('TWO RESPONSE MODES');
       expect(prompt).toContain('reply');
       expect(prompt).toContain('thinking');
+    });
+
+    test('whatsapp agent should include mandatory tool-calling rules', () => {
+      const prompt = buildSystemPrompt('whatsapp', 'tenant-123');
+      expect(prompt).toContain('CRITICAL RULE: CALL TOOLS IMMEDIATELY');
+      expect(prompt).toContain('search_leads');
+      expect(prompt).toContain('get_owners');
+      expect(prompt).toContain('search_tenants');
+      expect(prompt).toContain('search_properties');
+      expect(prompt).toContain('get_upcoming_meetings');
+      expect(prompt).toContain('leads dikhao');
     });
   });
 
@@ -131,6 +142,58 @@ describe('Agent Runtime - System Prompt Building', () => {
         expect(prompt).toContain('CRITICAL RULES');
       });
     });
+  });
+});
+
+describe('Agent Runtime - Tool Definitions', () => {
+  test('buildGeminiToolDefinitions returns function declarations for all tools', () => {
+    const tools = buildGeminiToolDefinitions();
+    expect(Array.isArray(tools)).toBe(true);
+    expect(tools.length).toBeGreaterThan(0);
+
+    const createMeeting = tools.find(t => t.name === 'create_meeting');
+    expect(createMeeting).toBeDefined();
+    expect(createMeeting.parameters.properties.attendees).toBeDefined();
+    expect(createMeeting.parameters.properties.attendees.type).toBe('array');
+    expect(createMeeting.parameters.properties.attendees.items).toBeDefined();
+    expect(createMeeting.parameters.properties.attendees.items.type).toBe('string');
+    expect(createMeeting.parameters.properties.attendees.items.description).toContain('Attendee');
+  });
+
+  test('buildGeminiToolDefinitions includes trigger hints for list tools', () => {
+    const tools = buildGeminiToolDefinitions();
+    const searchLeads = tools.find(t => t.name === 'search_leads');
+    expect(searchLeads).toBeDefined();
+    expect(searchLeads.description).toContain('list');
+    expect(searchLeads.description).toContain('search');
+    const getOwners = tools.find(t => t.name === 'get_owners');
+    expect(getOwners).toBeDefined();
+    expect(getOwners.description).toContain('owners');
+  });
+
+  test('buildAnthropicToolDefinitions includes input schemas for all tools', () => {
+    const tools = buildAnthropicToolDefinitions();
+    expect(Array.isArray(tools)).toBe(true);
+    expect(tools.length).toBeGreaterThan(0);
+
+    const createMeeting = tools.find(t => t.name === 'create_meeting');
+    expect(createMeeting).toBeDefined();
+    expect(createMeeting.input_schema.properties.attendees).toBeDefined();
+    expect(createMeeting.input_schema.properties.attendees.type).toBe('array');
+    expect(createMeeting.input_schema.properties.attendees.items).toBeDefined();
+  });
+
+  test('all Gemini array parameters include an items schema', () => {
+    const tools = buildGeminiToolDefinitions();
+    for (const tool of tools) {
+      const properties = tool.parameters?.properties || {};
+      for (const [key, prop] of Object.entries(properties)) {
+        if (prop.type === 'array') {
+          expect(prop.items).toBeDefined();
+          expect(prop.items.type).toBeDefined();
+        }
+      }
+    }
   });
 });
 
@@ -225,6 +288,51 @@ Lead Information:
       expect(leadStr).toContain('Jane Smith');
       expect(leadStr).toContain('N/A');
     });
+  });
+});
+
+describe('Agent Runtime - Retry Logic', () => {
+  test('shouldRetryForToolCall detects list intent', () => {
+    const result = shouldRetryForToolCall('leads dikhao', { text: '{"reply":"Hello"}', toolResults: [] });
+    expect(result).toBe(true);
+  });
+
+  test('shouldRetryForToolCall ignores negated requests', () => {
+    expect(shouldRetryForToolCall('don\'t show me leads', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(false);
+    expect(shouldRetryForToolCall('no meetings please', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(false);
+    expect(shouldRetryForToolCall('mat dikhao owners', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(false);
+    expect(shouldRetryForToolCall('won\'t show buyers', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(false);
+    expect(shouldRetryForToolCall('can\'t find tenants', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(false);
+  });
+
+  test('shouldRetryForToolCall does not false-positive on words containing "no"', () => {
+    expect(shouldRetryForToolCall('show me only hot leads', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(true);
+    expect(shouldRetryForToolCall('i know all the owners', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(true);
+    expect(shouldRetryForToolCall('show me leads now', { text: '{"reply":"Okay"}', toolResults: [] })).toBe(true);
+  });
+
+  test('shouldRetryForToolCall does not retry when tool was called', () => {
+    const result = shouldRetryForToolCall('leads dikhao', { text: '{"reply":"Here"}', toolResults: [{ tool: 'search_leads' }] });
+    expect(result).toBe(false);
+  });
+
+  test('shouldRetryForToolCall returns false for non-list prompts', () => {
+    expect(shouldRetryForToolCall('hello', { text: '{"reply":"Hi"}', toolResults: [] })).toBe(false);
+  });
+
+  test('validateJsonOutput parses valid JSON with reply', () => {
+    const result = validateJsonOutput('{"thinking":"plan","reply":"Hello","usedTools":[]}');
+    expect(result).toEqual({ thinking: 'plan', reply: 'Hello', usedTools: [] });
+  });
+
+  test('validateJsonOutput returns null for sanitized reply text', () => {
+    // After sanitization, output.text is just the reply string, not JSON
+    expect(validateJsonOutput('Hello! Kaise help kar sakta hoon?')).toBeNull();
+  });
+
+  test('validateJsonOutput returns null for invalid JSON', () => {
+    expect(validateJsonOutput('not json')).toBeNull();
+    expect(validateJsonOutput('')).toBeNull();
   });
 });
 

@@ -14,9 +14,13 @@ import {
   DEFAULT_SESSION_PHONE,
   QR_TIMEOUT_MS,
   SEND_MESSAGE_TIMEOUT_MS,
+  MESSAGE_DEBOUNCE_MS,
   CRM_WEBHOOK_URL,
   CRM_WEBHOOK_SECRET,
   BROWSER_NAME,
+  HEALTH_PROBE_INTERVAL_MS,
+  HEALTH_PROBE_TIMEOUT_MS,
+  DEFAULT_QUERY_TIMEOUT_MS,
 } from './config.js';
 import { forwardWebhook } from './webhookForwarder.js';
 import ConnectionController from './connection-controller.js';
@@ -32,9 +36,14 @@ const connectionControllers = new Map();
 /** @type {Map<string, NodeJS.Timeout>} */
 const sessionHeartbeats = new Map();
 
-// Track message IDs sent by this service to avoid echo loops in self-chat.
-// Using LRU cache with TTL for automatic cleanup.
-const sentMessageIds = new LRUCache({
+/** @type {Map<string, NodeJS.Timeout>} */
+const healthProbeTimers = new Map();
+
+// Track outbound message IDs sent by this service to avoid echo loops in self-chat.
+// Key format: `${sessionPhone}:${remoteJid}:${messageId}`. The composite key is
+// more defensive than messageId alone and matches the OpenClaw pattern for
+// outbound idempotency.
+const outboundMessageIds = new LRUCache({
   max: 10000,
   ttl: 24 * 60 * 60 * 1000, // 24 hours
 });
@@ -45,6 +54,13 @@ const processedMessageIds = new LRUCache({
   max: 50000,
   ttl: 24 * 60 * 60 * 1000, // 24 hours
 });
+
+// Per-sender debounce buffers for rapid consecutive messages. Keyed by
+// `${sessionPhone}:${remoteJid}` to match the OpenClaw inbound debounce pattern.
+const debounceBuffers = new Map();
+// Cap the number of messages buffered per sender to avoid unbounded memory
+// growth under spam. Older messages are dropped once the cap is exceeded.
+const MAX_DEBOUNCE_BUFFER_SIZE = 100;
 
 /**
  * Extract the phone number from a JID.
@@ -62,12 +78,85 @@ function jidToPhone(jid) {
 }
 
 /**
- * Add a sent message ID to the LRU cache.
+ * Normalize a LID JID by stripping the device suffix.
+ * e.g. "10076144300114:2@lid" -> "10076144300114@lid"
+ * @param {string} jid
+ * @returns {string}
+ */
+function normalizeLid(jid) {
+  return jid?.replace(/:\d+(?=@lid)/, '') || '';
+}
+
+/**
+ * Canonicalize a JID for use as a cache key. Strips device suffixes so that
+ * "918291537522:94@s.whatsapp.net" and "918291537522@s.whatsapp.net" compare
+ * equal. This prevents echo-detection misses when Baileys reports the same
+ * chat with different device suffixes on send vs. receive.
+ * @param {string} jid
+ * @returns {string}
+ */
+function normalizeJidForKey(jid) {
+  if (!jid) return '';
+  return String(jid).replace(/:\d+(?=@)/, '');
+}
+
+/**
+ * Determine if an incoming message is a self-chat (message to/from the same
+ * WhatsApp account). WhatsApp uses multiple JID formats (phone, LID, device
+ * suffix), so we check several strategies.
+ * @param {string} remoteJid
+ * @param {string} remotePhone
+ * @param {string} sessionPhone
+ * @param {string} ownJid
+ * @param {string} ownLid
+ * @param {string} ownPhone
+ * @returns {boolean}
+ */
+function isSelfChat(remoteJid, remotePhone, sessionPhone, ownJid, ownLid, ownPhone) {
+  return (
+    remoteJid === `${sessionPhone}@s.whatsapp.net` ||
+    remoteJid === ownJid ||
+    (ownLid && normalizeLid(remoteJid) === normalizeLid(ownLid)) ||
+    (remotePhone && remotePhone === sessionPhone) ||
+    (remotePhone && ownPhone && remotePhone === ownPhone)
+  );
+}
+
+/**
+ * Add a sent message ID to the outbound idempotency cache.
+ * @param {string} sessionPhone
+ * @param {string} remoteJid
  * @param {string} id
  */
-function addSentMessageId(id) {
-  if (!id) return;
-  sentMessageIds.set(id, true);
+function addOutboundMessageId(sessionPhone, remoteJid, id) {
+  if (!sessionPhone || !remoteJid || !id) return;
+  const key = `${normalizePhone(sessionPhone)}:${normalizeJidForKey(remoteJid)}:${id}`;
+  outboundMessageIds.set(key, true);
+}
+
+/**
+ * Check if a message ID was sent by this service.
+ * @param {string} sessionPhone
+ * @param {string} remoteJid
+ * @param {string} id
+ * @returns {boolean}
+ */
+function hasOutboundMessageId(sessionPhone, remoteJid, id) {
+  if (!sessionPhone || !remoteJid || !id) return false;
+  const key = `${normalizePhone(sessionPhone)}:${normalizeJidForKey(remoteJid)}:${id}`;
+  return outboundMessageIds.has(key);
+}
+
+/**
+ * Remove a sent message ID from the outbound idempotency cache (after echo skip).
+ * @param {string} sessionPhone
+ * @param {string} remoteJid
+ * @param {string} id
+ */
+function deleteOutboundMessageId(sessionPhone, remoteJid, id) {
+  if (!sessionPhone || !remoteJid || !id) return;
+  const key = `${normalizePhone(sessionPhone)}:${normalizeJidForKey(remoteJid)}:${id}`;
+  outboundMessageIds.delete(key);
 }
 
 /**
@@ -81,6 +170,102 @@ function markMessageProcessed(id) {
   if (processedMessageIds.has(id)) return false;
   processedMessageIds.set(id, true);
   return true;
+}
+
+/**
+ * Check if a message should skip debouncing (media, location, replies, etc.).
+ * @param {import('@whiskeysockets/baileys').proto.IWebMessageInfo} message
+ * @returns {boolean}
+ */
+function shouldSkipDebounce(message) {
+  if (!message) return true;
+  if (message.message?.imageMessage || message.message?.videoMessage || message.message?.audioMessage || message.message?.documentMessage) return true;
+  if (message.message?.locationMessage) return true;
+  if (message.message?.extendedTextMessage?.contextInfo?.quotedMessage) return true;
+  return false;
+}
+
+/**
+ * Build a debounce key for a sender in a session. Phone is normalized so that
+ * sessions stored with different formatting still collapse to the same buffer.
+ */
+function buildDebounceKey(sessionPhone, remoteJid) {
+  const phone = sessionPhone ? normalizePhone(sessionPhone) : '';
+  const jid = normalizeJidForKey(remoteJid);
+  return `${phone}:${jid}`;
+}
+
+/**
+ * Flush a debounce buffer and forward the combined message to the CRM.
+ * Returns a Promise that resolves once handleIncomingMessage completes (or
+ * rejects on failure) so callers (e.g. shutdown) can await the flush.
+ * @returns {Promise<void>}
+ */
+function flushDebounceBuffer(key, session) {
+  const buffer = debounceBuffers.get(key);
+  if (!buffer) return Promise.resolve();
+  debounceBuffers.delete(key);
+
+  if (buffer.messages.length === 0) return Promise.resolve();
+
+  if (buffer.messages.length === 1) {
+    return handleIncomingMessage(session, buffer.messages[0]).catch((err) => {
+      logger.error({ phone: session.phone, key, error: err.message }, 'baileys.debounce.handle_failed');
+    });
+  }
+
+  const latest = buffer.messages[buffer.messages.length - 1];
+  const combinedText = buffer.messages
+    .map((m) => getMessageText(m))
+    .filter(Boolean)
+    .join('\n');
+
+  const combined = {
+    ...latest,
+    message: {
+      ...latest.message,
+      conversation: combinedText,
+      extendedTextMessage: { text: combinedText },
+    },
+  };
+
+  return handleIncomingMessage(session, combined).catch((err) => {
+    logger.error({ phone: session.phone, key, error: err.message }, 'baileys.debounce.handle_failed');
+  });
+}
+
+/**
+ * Buffer an incoming message for debouncing. If no new message arrives from the
+ * same sender within MESSAGE_DEBOUNCE_MS, the buffer is flushed and a combined
+ * message is forwarded. Default is 0 (disabled) to avoid adding latency.
+ */
+function debounceIncomingMessage(session, message) {
+  const remoteJid = message.key?.remoteJid;
+  const key = buildDebounceKey(session.phone, remoteJid);
+
+  if (!debounceBuffers.has(key)) {
+    debounceBuffers.set(key, { messages: [], timer: null });
+  }
+
+  const buffer = debounceBuffers.get(key);
+  buffer.messages.push(message);
+
+  // Cap buffer size to avoid unbounded memory growth under spam. Drop the
+  // oldest message so the buffer always reflects the most recent activity.
+  if (buffer.messages.length > MAX_DEBOUNCE_BUFFER_SIZE) {
+    buffer.messages.shift();
+    logger.warn({ phone: session.phone, key, maxSize: MAX_DEBOUNCE_BUFFER_SIZE }, 'baileys.debounce.buffer_capped');
+  }
+
+  if (buffer.timer) {
+    clearTimeout(buffer.timer);
+  }
+
+  buffer.timer = setTimeout(() => {
+    flushDebounceBuffer(key, session);
+  }, MESSAGE_DEBOUNCE_MS);
+
+  logger.debug({ phone: session.phone, key, count: buffer.messages.length, debounceMs: MESSAGE_DEBOUNCE_MS }, 'baileys.debounce.buffered');
 }
 
 /**
@@ -107,6 +292,184 @@ function stopHeartbeat(phone) {
     clearInterval(heartbeat);
     sessionHeartbeats.delete(normalized);
   }
+}
+
+/**
+ * Check if an error from the health probe indicates a half-open or
+ * crypto-corrupted socket. These are the failure patterns we want to recover
+ * from without forcing the customer to re-scan QR.
+ * @param {Error} error
+ * @returns {boolean}
+ */
+function isHealthProbeFailure(error) {
+  if (!error) return false;
+  const message = String(error.message || error).toLowerCase();
+  return (
+    message.includes('bad mac') ||
+    message.includes('no matching session') ||
+    message.includes('invalid prekey id') ||
+    message.includes('session not found') ||
+    message.includes('mac verification') ||
+    error?.output?.statusCode === 408 ||
+    error?.statusCode === 408
+  );
+}
+
+/**
+ * Start a periodic health probe for a session.
+ * While the socket reports 'open', periodically send a lightweight presence
+ * update and enforce a short timeout. If the probe fails, force the socket
+ * to close so the existing reconnect logic takes over.
+ * @param {import('./types').Session} session
+ */
+function startHealthProbe(session) {
+  stopHealthProbe(session.phone);
+  const phone = session.phone;
+  const timer = setInterval(async () => {
+    const sock = session.socket;
+    if (!sock || session.connectionState !== 'open') {
+      return;
+    }
+
+    const ownJid = sock.user?.id;
+    if (!ownJid) {
+      return;
+    }
+
+    const probeId = `probe_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`;
+    const probeLogger = logger.child({ phone, probeId });
+    probeLogger.debug('baileys.health_probe.start');
+
+    const controller = connectionControllers.get(phone);
+    const probeTimeout = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Health probe timeout'));
+      }, HEALTH_PROBE_TIMEOUT_MS);
+    });
+
+    try {
+      await Promise.race([
+        sock.sendPresenceUpdate('available', ownJid),
+        probeTimeout,
+      ]);
+      probeLogger.debug('baileys.health_probe.success');
+      if (controller) {
+        controller.recordActivity();
+      }
+    } catch (err) {
+      probeLogger.warn({ error: err.message }, 'baileys.health_probe.failed');
+      if (isHealthProbeFailure(err)) {
+        probeLogger.warn({ error: err.message }, 'baileys.health_probe.half_open');
+        // Force reconnect through the existing connection.update close path
+        if (typeof sock.end === 'function') {
+          try {
+            sock.end();
+          } catch (endErr) {
+            probeLogger.warn({ error: endErr.message }, 'baileys.health_probe.end_failed');
+          }
+        }
+      }
+    }
+  }, HEALTH_PROBE_INTERVAL_MS);
+
+  healthProbeTimers.set(phone, timer);
+}
+
+/**
+ * Stop the health probe for a given phone number.
+ * @param {string} phone
+ */
+function stopHealthProbe(phone) {
+  const normalized = normalizePhone(phone);
+  const timer = healthProbeTimers.get(normalized);
+  if (timer) {
+    clearInterval(timer);
+    healthProbeTimers.delete(normalized);
+  }
+}
+
+/**
+ * Create a proxy logger that intercepts Baileys internal error logs so we can
+ * react to the "init queries timed out" / 408 half-open state immediately.
+ * The proxy forwards every call to the underlying pino logger while checking
+ * error logs for the known failure signatures.
+ * @param {import('./types').Session} session
+ * @param {import('pino').Logger} baseLogger
+ * @returns {import('pino').Logger}
+ */
+function createSocketLogger(session, baseLogger) {
+  const child = baseLogger.child({ module: 'baileys-socket' });
+
+  /**
+   * Detect an init-query timeout or related half-open error from the log payload.
+   * @param {any[]} args
+   * @returns {Error|null}
+   */
+  function detectInitQueryTimeout(args) {
+    for (const arg of args) {
+      if (arg && typeof arg === 'object') {
+        const err = arg.err || arg.error || arg;
+        if (err && typeof err === 'object') {
+          const message = String(err.message || arg.message || '').toLowerCase();
+          const statusCode = err.output?.statusCode || err.statusCode || arg.statusCode;
+          if (
+            message.includes('init queries') ||
+            statusCode === 408 ||
+            (message.includes('timed out') && args.some(a => String(a).toLowerCase().includes('init queries')))
+          ) {
+            return err instanceof Error ? err : new Error(String(err.message || err));
+          }
+        }
+      }
+      if (typeof arg === 'string') {
+        const lower = arg.toLowerCase();
+        if (lower.includes('init queries')) {
+          for (const other of args) {
+            if (other && typeof other === 'object') {
+              const err = other.err || other.error || other;
+              if (err && typeof err === 'object') {
+                const msg = String(err.message || '').toLowerCase();
+                if (msg.includes('timed out') || msg.includes('timeout') || err.output?.statusCode === 408 || err.statusCode === 408) {
+                  return err instanceof Error ? err : new Error(msg);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function logInitQueryTimeout(error) {
+    // Log the timeout but do not forcibly close the socket here.  A fresh
+    // WhatsApp Web link often needs the full 60-second query window for the
+    // initial sync, and forcibly ending the socket prevents the connection
+    // from completing.  Actual half-open sockets are handled by the health probe.
+    logger.warn(
+      { phone: session.phone, error: error.message },
+      'baileys.init_queries.timeout.half_open'
+    );
+  }
+
+  return new Proxy(child, {
+    get(target, prop, receiver) {
+      const original = Reflect.get(target, prop, receiver);
+      if ((prop === 'error' || prop === 'fatal') && typeof original === 'function') {
+        return (...args) => {
+          const timeoutError = detectInitQueryTimeout(args);
+          if (timeoutError) {
+            logInitQueryTimeout(timeoutError);
+          }
+          return original.apply(target, args);
+        };
+      }
+      if (typeof original === 'function') {
+        return original.bind(target);
+      }
+      return original;
+    },
+  });
 }
 
 async function ensureSessionDir(phone) {
@@ -186,12 +549,22 @@ function getMessageText(message) {
 async function handleIncomingMessage(session, message) {
   // For group messages, the actual sender is in key.participant; remoteJid is the group.
   const senderJid = message.key?.participant || message.key?.remoteJid;
-  const from = jidToPhone(senderJid);
   const to = session.phone;
   const text = getMessageText(message);
   const messageId = message.key?.id;
   const fromMe = message.key?.fromMe === true;
-  const isSelfChat = from === to;
+
+  const ownJid = session.socket?.user?.id;
+  const ownLid = session.socket?.user?.lid;
+  const remoteJid = message.key?.remoteJid;
+  const remotePhone = jidToPhone(remoteJid);
+  const ownPhone = jidToPhone(ownJid);
+
+  // When self-chat is detected, we use the session phone as the sender so downstream
+  // conversation context is stored under the real phone number, not the LID digits.
+  const isSelfChatResult = isSelfChat(remoteJid, remotePhone, session.phone, ownJid, ownLid, ownPhone);
+
+  const from = isSelfChatResult ? session.phone : jidToPhone(senderJid);
 
   if (!from || !messageId) {
     logger.warn({ reason: 'missing_from_or_id' }, 'baileys.incoming.skip');
@@ -232,13 +605,16 @@ async function handleIncomingMessage(session, message) {
     return;
   }
 
+  const isGroup = String(remoteJid).endsWith('@g.us');
+
   const payload = {
     messageId,
     from,
     to,
     text,
     fromMe,
-    isSelfChat,
+    isSelfChat: isSelfChatResult,
+    isGroup,
     fromJid: senderJid,        // original JID (e.g. 10076144300114@lid) for replies
     timestamp: new Date().toISOString(),
   };
@@ -332,14 +708,14 @@ export async function createSession(phone, options = {}) {
 
   const sock = makeWASocket({
     version,
-    logger: logger.child({ module: 'baileys-socket' }),
+    logger: createSocketLogger(session, logger),
     printQRInTerminal: false,
     auth: state,
     browser: Browsers.macOS(BROWSER_NAME),
     generateHighQualityLinkPreview: false,
     markOnlineOnConnect: true,
     syncFullHistory: false,
-    defaultQueryTimeoutMs: 60000,
+    defaultQueryTimeoutMs: DEFAULT_QUERY_TIMEOUT_MS,
   });
 
   session.socket = sock;
@@ -379,6 +755,7 @@ export async function createSession(phone, options = {}) {
       if (connection === 'open') {
         session.qrCode = null;
         startHeartbeat(session);
+        startHealthProbe(session);
         
         // Drain pending deliveries queue (await to ensure completion)
         if (controller && controller.hasPendingDeliveries()) {
@@ -394,6 +771,7 @@ export async function createSession(phone, options = {}) {
 
       if (connection === 'close') {
         stopHeartbeat(normalized);
+        stopHealthProbe(normalized);
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         const error = lastDisconnect?.error;
@@ -479,29 +857,13 @@ export async function createSession(phone, options = {}) {
       const text = getMessageText(message);
       const fromMe = message.key?.fromMe;
 
-      /**
-       * Normalize a LID JID by stripping the device suffix.
-       * e.g. "10076144300114:2@lid" → "10076144300114@lid"
-       */
-      const normalizeLid = (jid) => jid?.replace(/:\d+(?=@lid)/, '') || '';
-
-      // Self-chat detection (multiple strategies because WhatsApp uses different JID formats):
-      // 1. remoteJid matches session phone + @s.whatsapp.net (classic format)
-      // 2. remoteJid matches ownJid exactly
-      // 3. remoteJid matches ownLid (LID format, handles :N device suffix)
-      // 4. Extracted phone digits match session phone
-      // 5. Extracted phone digits match own phone digits
-      const isSelfChat =
-        remoteJid === session.phone + '@s.whatsapp.net' ||
-        remoteJid === ownJid ||
-        (ownLid && normalizeLid(remoteJid) === normalizeLid(ownLid)) ||
-        (remotePhone && remotePhone === session.phone) ||
-        (remotePhone && ownPhone && remotePhone === ownPhone);
+      // Self-chat detection (multiple strategies because WhatsApp uses different JID formats).
+      const isSelfChatResult = isSelfChat(remoteJid, remotePhone, session.phone, ownJid, ownLid, ownPhone);
 
       // Only process fromMe messages if they are genuine self-chat or carry
       // an explicit AI trigger prefix. This prevents echo loops where CRM
       // replies sent via Bailey are delivered back as incoming messages.
-      const shouldProcessFromMe = isSelfChat || hasAiTrigger(text);
+      const shouldProcessFromMe = isSelfChatResult || hasAiTrigger(text);
 
       logger.info({
         phone: normalized,
@@ -511,7 +873,7 @@ export async function createSession(phone, options = {}) {
         ownJid,
         ownPhone,
         ownLid,
-        isSelfChat,
+        isSelfChat: isSelfChatResult,
         shouldProcessFromMe,
         hasAiTrigger: hasAiTrigger(text),
         messageId: message.key?.id,
@@ -519,8 +881,8 @@ export async function createSession(phone, options = {}) {
       }, 'baileys.messages.upsert');
 
       // Skip messages sent by this service (echo replies) to prevent loops.
-      if (sentMessageIds.has(message.key?.id)) {
-        sentMessageIds.delete(message.key?.id);
+      if (hasOutboundMessageId(normalized, remoteJid, message.key?.id)) {
+        deleteOutboundMessageId(normalized, remoteJid, message.key?.id);
         logger.info({ phone: normalized, messageId: message.key?.id }, 'baileys.messages.upsert.echo_skip');
         continue;
       }
@@ -531,7 +893,11 @@ export async function createSession(phone, options = {}) {
         continue;
       }
       try {
-        await handleIncomingMessage(session, message);
+        if (MESSAGE_DEBOUNCE_MS > 0 && !shouldSkipDebounce(message)) {
+          debounceIncomingMessage(session, message);
+        } else {
+          await handleIncomingMessage(session, message);
+        }
       } catch (err) {
         // MessageCounterError is a known, non-fatal Baileys decryption error.
         // Log it as a warning so we don't crash the message processing loop.
@@ -684,7 +1050,7 @@ export async function sendMessage(phone, to, text, media = null) {
 
   // Track sent message ID so we don't process our own replies as new incoming messages.
   if (result?.key?.id) {
-    addSentMessageId(result.key.id);
+    addOutboundMessageId(sessionPhone, jid, result.key.id);
   }
   
   // Record activity in ConnectionController
@@ -708,6 +1074,7 @@ export async function disconnectSession(phone, deleteAuthState = false) {
   const controller = connectionControllers.get(normalized);
 
   stopHeartbeat(normalized);
+  stopHealthProbe(normalized);
 
   // Shutdown ConnectionController
   if (controller) {
@@ -778,10 +1145,14 @@ export async function restoreSessions() {
 export async function shutdownAllSessions() {
   logger.info('baileys.shutdown.start', { count: sessions.size });
 
-  // Stop all heartbeats first so they don't fire during shutdown.
+  // Stop all heartbeats and health probes first so they don't fire during shutdown.
   for (const [phone, heartbeat] of sessionHeartbeats.entries()) {
     clearInterval(heartbeat);
     sessionHeartbeats.delete(phone);
+  }
+  for (const [phone, timer] of healthProbeTimers.entries()) {
+    clearInterval(timer);
+    healthProbeTimers.delete(phone);
   }
 
   // Shutdown all ConnectionControllers
@@ -807,12 +1178,38 @@ export async function shutdownAllSessions() {
     }
   }
 
+  // Flush any pending debounce buffers so messages are not lost on shutdown.
+  // Await all flushes so the process does not exit before webhooks are sent.
+  const flushPromises = [];
+  for (const [key, buffer] of debounceBuffers.entries()) {
+    if (buffer.timer) clearTimeout(buffer.timer);
+    const [sessionPhone] = key.split(':');
+    const session = sessions.get(sessionPhone);
+    if (session) {
+      flushPromises.push(flushDebounceBuffer(key, session));
+    }
+  }
+  if (flushPromises.length > 0) {
+    await Promise.all(flushPromises);
+  }
+  debounceBuffers.clear();
+
   sessions.clear();
-  sentMessageIds.clear();
+  outboundMessageIds.clear();
   processedMessageIds.clear();
 
   logger.info('baileys.shutdown.complete', { count: 0 });
 }
+
+// Test-only exports for internal helpers. These are not part of the public API
+// and may change without notice.
+export {
+  isHealthProbeFailure,
+  createSocketLogger,
+  startHealthProbe,
+  stopHealthProbe,
+  healthProbeTimers,
+};
 
 // The exported shutdownAllSessions() must be called by the process lifecycle
 // manager (e.g. baileys-service/src/index.js). Do NOT register signal handlers

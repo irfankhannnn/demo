@@ -173,6 +173,35 @@ export async function recordMessageInConversation(tenantId, contactPhone) {
 }
 
 /**
+ * Reset conversation state if the last message is older than the given gap.
+ * This prevents old intent/topic/entities from leaking into a new conversation.
+ * @param {string} tenantId
+ * @param {string} contactPhone
+ * @param {number} maxGapHours - Maximum allowed gap in hours before resetting
+ * @param {object} initialContext - Context to use when re-initializing
+ * @returns {Promise<Object|null>} Reset state or null if no reset needed
+ */
+export async function resetConversationStateIfStale(tenantId, contactPhone, maxGapHours = 2, initialContext = {}) {
+  if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
+
+  const state = await getConversationState(tenantId, contactPhone);
+  if (!state) return null;
+
+  const lastMessageAt = state.lastMessageAt;
+  if (lastMessageAt) {
+    const lastTime = new Date(lastMessageAt).getTime();
+    const now = Date.now();
+    const gapMs = maxGapHours * 60 * 60 * 1000;
+    if (now - lastTime > gapMs) {
+      await deleteConversationState(tenantId, contactPhone);
+      logger.info('conversationStateService.reset_stale', { tenantId, contactPhone, lastMessageAt, maxGapHours });
+      return initializeConversationState(tenantId, contactPhone, initialContext);
+    }
+  }
+  return null;
+}
+
+/**
  * Close conversation
  * @param {string} tenantId
  * @param {string} contactPhone
