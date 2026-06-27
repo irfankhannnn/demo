@@ -20,6 +20,24 @@ import {
 } from '../crmDynamodbService.js';
 import { logger } from '../logger.js';
 
+// Validate that all required CRM service functions are exported with the
+// expected signatures at module load time. This catches import/contract drift
+// early rather than at runtime when an AI client requests a resource.
+const REQUIRED_RESOURCE_FUNCTIONS = {
+  getLeads,
+  getUpcomingMeetings,
+  getCRMMetrics,
+  getProperties,
+};
+for (const [name, fn] of Object.entries(REQUIRED_RESOURCE_FUNCTIONS)) {
+  if (typeof fn !== 'function') {
+    throw new Error(
+      `MCP resource dependency missing: crmDynamodbService.${name} must be a function. ` +
+        `Check that the export exists and matches the expected signature.`
+    );
+  }
+}
+
 /**
  * Resource definitions
  * Each resource has: uri, name, description, mimeType

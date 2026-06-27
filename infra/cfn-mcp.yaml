@@ -52,6 +52,11 @@ Parameters:
     Default: realtyflow-oauth-codes
     Description: DynamoDB table name for OAuth authorization codes
   
+  OAuthConnectionsTableName:
+    Type: String
+    Default: realtyflow-oauth-connections
+    Description: DynamoDB table name for connected OAuth apps (Claude, ChatGPT, etc.)
+  
   JWTSecret:
     Type: String
     NoEcho: true
@@ -116,6 +121,8 @@ Resources:
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CRMDynamoDBTableName}/index/*'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}'
                   - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}/index/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}/index/*'
 
   JwtAuthorizerLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -155,6 +162,30 @@ Resources:
         - Key: Environment
           Value: !Ref Env
 
+  OAuthConnectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref OAuthConnectionsTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: false
+      Tags:
+        - Key: Service
+          Value: !Ref ServiceName
+        - Key: Environment
+          Value: !Ref Env
+
   # ============================================================================
   # LAMBDA FUNCTIONS
   # ============================================================================
@@ -176,6 +207,7 @@ Resources:
           NODE_ENV: !Ref Env
           CRM_DYNAMODB_TABLE_NAME: !Ref CRMDynamoDBTableName
           OAUTH_CODES_TABLE_NAME: !Ref OAuthCodesTableName
+          OAUTH_CONNECTIONS_TABLE: !Ref OAuthConnectionsTableName
           JWT_SECRET: !Ref JWTSecret
           JWT_REFRESH_SECRET: !Ref JWTRefreshSecret
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
@@ -389,6 +421,12 @@ Outputs:
     Value: !Ref OAuthCodesTable
     Export:
       Name: !Sub '${ServiceName}-${Env}-oauth-codes-table'
+
+  OAuthConnectionsTableName:
+    Description: OAuth connections DynamoDB table name
+    Value: !Ref OAuthConnectionsTable
+    Export:
+      Name: !Sub '${ServiceName}-${Env}-oauth-connections-table'
 
   ApiGatewayId:
     Description: API Gateway ID

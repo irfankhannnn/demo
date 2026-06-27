@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bot, LogOut, Plus, Trash2, ExternalLink, CheckCircle, Clock } from 'lucide-react';
+import { Bot, Plus, Trash2, ExternalLink, CheckCircle, Clock } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { logger } from '../../lib/logger';
 
 interface ConnectedApp {
   clientId: string;
@@ -43,16 +41,36 @@ const AVAILABLE_APPS: AvailableApp[] = [
 ];
 
 export default function AiIntegrations() {
-  const navigate = useNavigate();
   const [connections, setConnections] = useState<ConnectedApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Load connected apps
+  // Load connected apps and detect returning from OAuth redirect
   useEffect(() => {
     loadConnections();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const oauthStatus = urlParams.get('oauth');
+    const oauthClient = urlParams.get('client') || 'AI app';
+
+    if (oauthStatus === 'success') {
+      setSuccessMessage(`${oauthClient} connected successfully`);
+      setError(null);
+      // Refresh the connection list after returning from OAuth flow
+      loadConnections();
+    } else if (oauthStatus === 'error') {
+      const errorMessage = urlParams.get('message') || 'Connection failed';
+      setError(errorMessage);
+      setSuccessMessage(null);
+    }
+
+    // Clean OAuth query params from URL without reloading the page
+    if (oauthStatus) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   const loadConnections = async () => {
@@ -62,7 +80,7 @@ export default function AiIntegrations() {
       setConnections(response.data.connections || []);
       setError(null);
     } catch (err) {
-      logger.error('Failed to load AI integrations', err);
+      console.error('Failed to load AI integrations', err);
       setError('Failed to load integrations');
     } finally {
       setLoading(false);
@@ -79,7 +97,7 @@ export default function AiIntegrations() {
         window.location.href = response.data.redirectUrl;
       }
     } catch (err) {
-      logger.error('Failed to initiate connection', err);
+      console.error('Failed to initiate connection', err);
       setError(`Failed to connect to ${clientId}`);
       setConnecting(null);
     }
@@ -96,7 +114,7 @@ export default function AiIntegrations() {
       setConnections(connections.filter((c) => c.clientId !== clientId));
       setError(null);
     } catch (err) {
-      logger.error('Failed to disconnect', err);
+      console.error('Failed to disconnect', err);
       setError(`Failed to disconnect ${clientId}`);
     } finally {
       setDisconnecting(null);
@@ -133,6 +151,13 @@ export default function AiIntegrations() {
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-700">{error}</p>
+          </div>
+        )}
+
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700">{successMessage}</p>
           </div>
         )}
 

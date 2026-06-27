@@ -116,7 +116,8 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/health/deep', deepHealthCheck);
 
-// OAuth routes (public - no auth required for authorization page)
+// OAuth routes: /authorize requires user auth (mounted inside oauth.js);
+// /token and /revoke are public and use client credentials as per OAuth 2.0.
 logger.info('routes.mount', { basePath: '/oauth', router: 'oauthRoutes' });
 app.use('/oauth', oauthRoutes);
 
@@ -138,7 +139,7 @@ logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeS
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // AI Integrations (Claude, ChatGPT, etc.)
 logger.info('routes.mount', { basePath: '/api/ai-integrations', router: 'aiIntegrationsRoutes' });
-app.use('/api/ai-integrations', aiIntegrationsRoutes);
+app.use('/api/ai-integrations', validateToken, aiIntegrationsRoutes);
 
 logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
 app.use('/api', b2bLeadsRoutes);

@@ -36,6 +36,10 @@
     "ParameterValue": "realtyflow-oauth-codes"
   },
   {
+    "ParameterKey": "OAuthConnectionsTableName",
+    "ParameterValue": "realtyflow-oauth-connections"
+  },
+  {
     "ParameterKey": "JWTSecret",
     "ParameterValue": "your-jwt-secret-key-here-min-32-chars"
   },

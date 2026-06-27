@@ -54,12 +54,8 @@ app.use((req, res, next) => {
 });
 
 /**
- * Middleware: Rate limiting (60 requests/minute per tenant)
- */
-app.use('/mcp', mcpRateLimiter);
-
-/**
  * Middleware: Log all MCP requests
+ * Must be registered before the rate limiter so that 429 responses are logged too.
  */
 app.use((req, res, next) => {
   const startTime = Date.now();
@@ -77,6 +73,11 @@ app.use((req, res, next) => {
   });
   next();
 });
+
+/**
+ * Middleware: Rate limiting (60 requests/minute per tenant)
+ */
+app.use('/mcp', mcpRateLimiter);
 
 /**
  * POST /mcp

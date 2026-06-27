@@ -1,9 +1,14 @@
 /**
  * MCP Rate Limiter Middleware
  * 
- * Limits MCP requests to 60 per minute per tenant
- * Uses in-memory store (suitable for single-instance deployment)
- * For distributed deployments, use Redis
+ * Limits MCP requests to 60 per minute per tenant.
+ * 
+ * ⚠️ IMPORTANT: This implementation uses an in-memory JavaScript Map. It is
+ * only accurate for a single server process. In AWS Lambda / multi-instance
+ * deployments, each invocation/container has its own isolated Map, so a
+ * tenant could exceed the limit by hitting different instances. Replace this
+ * with a shared store (Redis, DynamoDB, ElastiCache) before productionizing at
+ * scale.
  */
 
 import { logger } from '../logger.js';

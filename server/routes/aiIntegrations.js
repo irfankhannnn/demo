@@ -32,6 +32,8 @@ const router = Router();
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
 const OAUTH_CONNECTIONS_TABLE = process.env.OAUTH_CONNECTIONS_TABLE || 'realtyflow-oauth-connections';
+const OAUTH_CODES_TABLE = process.env.OAUTH_CODES_TABLE_NAME || 'realtyflow-oauth-codes';
+const OAUTH_SESSION_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const client = wrapAwsClient(new DynamoDBClient({ region: REGION }), 'DynamoDB', {
   tableName: OAUTH_CONNECTIONS_TABLE,
@@ -105,8 +107,28 @@ router.post('/connect', validateToken, async (req, res) => {
       return res.status(400).json({ error: `Invalid clientId: ${clientId}` });
     }
 
-    // Generate OAuth state
+    // Generate OAuth state and a short-lived browser session code.
+    // The session code lets the /oauth/authorize page authenticate the user
+    // without leaking the JWT in the URL.
     const state = uuidv4();
+    const sessionCode = `session_${uuidv4()}`;
+    const sessionExpiresAt = Math.floor((Date.now() + OAUTH_SESSION_TTL_MS) / 1000);
+
+    await docClient.send(
+      new PutCommand({
+        TableName: OAUTH_CODES_TABLE,
+        Item: {
+          code: sessionCode,
+          type: 'oauth_session',
+          tenantId,
+          userId: req.user.userId,
+          userName: req.user.name || req.user.displayName,
+          userEmail: req.user.email,
+          expiresAt: sessionExpiresAt,
+          createdAt: new Date().toISOString(),
+        },
+      })
+    );
 
     // Build OAuth authorization URL
     const baseUrl = process.env.OAUTH_BASE_URL || 'https://app.realtyflow.com';
@@ -118,16 +140,19 @@ router.post('/connect', validateToken, async (req, res) => {
     authorizationUrl.searchParams.append('state', state);
     authorizationUrl.searchParams.append('response_type', 'code');
     authorizationUrl.searchParams.append('scope', 'read_leads write_leads read_properties write_properties');
+    authorizationUrl.searchParams.append('session', sessionCode);
 
     logger.info('ai_integrations.connect.initiated', {
       tenantId,
       clientId,
       state,
+      sessionCode,
     });
 
     res.json({
       redirectUrl: authorizationUrl.toString(),
       state,
+      sessionCode,
     });
   } catch (err) {
     logger.error('ai_integrations.connect.error', {
@@ -151,16 +176,32 @@ router.delete('/:clientId', validateToken, async (req, res) => {
 
     const { clientId } = req.params;
 
-    // Delete connection from DynamoDB
-    const command = new DeleteCommand({
-      TableName: OAUTH_CONNECTIONS_TABLE,
-      Key: {
-        PK: `TENANT#${tenantId}#OAUTH_CLIENT#${clientId}`,
-        SK: 'PROFILE',
-      },
-    });
+    // Find the matching connection so we can delete it with the correct PK/SK.
+    const queryResult = await docClient.send(
+      new QueryCommand({
+        TableName: OAUTH_CONNECTIONS_TABLE,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': `TENANT#${tenantId}#OAUTH_CLIENTS`,
+        },
+      })
+    );
 
-    await docClient.send(command);
+    const item = (queryResult.Items || []).find((i) => i.clientId === clientId);
+    if (!item) {
+      return res.status(404).json({ error: 'Connection not found' });
+    }
+
+    // Delete connection from DynamoDB using its actual keys
+    await docClient.send(
+      new DeleteCommand({
+        TableName: OAUTH_CONNECTIONS_TABLE,
+        Key: {
+          PK: item.PK,
+          SK: item.SK,
+        },
+      })
+    );
 
     logger.info('ai_integrations.disconnect', {
       tenantId,
