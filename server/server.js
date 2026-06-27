@@ -40,6 +40,9 @@ import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import validateToken from './middleware/validateToken.js';
+// MCP OAuth routes
+import oauthRoutes from './routes/oauth.js';
+import aiIntegrationsRoutes from './routes/aiIntegrations.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,6 +97,10 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Serve static public assets (e.g. /public/area/<city>_<area>.png)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
+// Configure EJS view engine for OAuth authorization page
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 // Rate limiting for API routes (billing webhook excluded — mounted earlier)
 import rateLimit from './middleware/rateLimiter.js';
 app.use('/api', rateLimit);
@@ -108,6 +115,10 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/health/deep', deepHealthCheck);
+
+// OAuth routes (public - no auth required for authorization page)
+logger.info('routes.mount', { basePath: '/oauth', router: 'oauthRoutes' });
+app.use('/oauth', oauthRoutes);
 
 // Routes
 logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
@@ -125,6 +136,9 @@ app.use('/api/whatsapp', whatsappConversationsRoutes);
 // PR-F — AI Employee status (after auth)
 logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
+// AI Integrations (Claude, ChatGPT, etc.)
+logger.info('routes.mount', { basePath: '/api/ai-integrations', router: 'aiIntegrationsRoutes' });
+app.use('/api/ai-integrations', aiIntegrationsRoutes);
 
 logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
 app.use('/api', b2bLeadsRoutes);

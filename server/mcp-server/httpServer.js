@@ -37,6 +37,7 @@ import { invokeSkill } from '../skillInvoker.js';
 import { TOOLS, ALLOWED_TOOL_NAMES } from './tools.js';
 import { RESOURCE_DEFINITIONS, RESOURCE_HANDLERS } from './resources.js';
 import { PROMPT_DEFINITIONS, getPrompt } from './prompts.js';
+import { mcpRateLimiter } from '../middleware/mcpRateLimiter.js';
 import { logger } from '../logger.js';
 
 const app = express();
@@ -51,6 +52,11 @@ app.use((req, res, next) => {
   req.clientId = req.headers['x-client-id'] || 'unknown';
   next();
 });
+
+/**
+ * Middleware: Rate limiting (60 requests/minute per tenant)
+ */
+app.use('/mcp', mcpRateLimiter);
 
 /**
  * Middleware: Log all MCP requests

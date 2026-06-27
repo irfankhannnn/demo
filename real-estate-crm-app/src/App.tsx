@@ -79,6 +79,7 @@ import BillingSettings from './pages/crm/BillingSettings';
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
 import AiEmployeePage from './pages/crm/AiEmployee';
 import WhatsAppInbox from './pages/crm/WhatsAppInbox';
+import AiIntegrations from './pages/crm/AiIntegrations';
 
 
 
@@ -368,6 +369,9 @@ function App() {
             <Route path="/crm/khata/:entryId" element={<ProtectedRoute authState={authState}><KhataEntryForm /></ProtectedRoute>} />
             <Route path="/crm/khata/:entryId/edit" element={<ProtectedRoute authState={authState}><KhataEntryForm /></ProtectedRoute>} />
             <Route path="/crm/khata/settlement" element={<ProtectedRoute authState={authState}><KhataSettlement /></ProtectedRoute>} />
+            
+            {/* AI Integrations */}
+            <Route path="/crm/ai-integrations" element={<ProtectedRoute authState={authState}><AiIntegrations /></ProtectedRoute>} />
 
             {/* Buyer Routes */}
             <Route path="/crm/buyers" element={<ProtectedRoute authState={authState}><BuyerList /></ProtectedRoute>} />

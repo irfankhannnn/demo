@@ -813,6 +813,18 @@ export default function CRMDashboard() {
                 <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
               </button>
             )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/ai-integrations')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-purple-200/70 hover:border-purple-400/70 bg-purple-50/30 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-600 group-hover:text-purple-700 transition-colors" />
+                  AI Integrations
+                </span>
+                <ChevronRight className="w-4 h-4 text-purple-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
             {isAdmin && baileyEnabled && (
               <div
                 onClick={() => navigate('/onboarding/connect-whatsapp')}
