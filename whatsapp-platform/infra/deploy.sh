@@ -89,26 +89,40 @@ if [ "${SKIP_CFN}" != "true" ]; then
 fi
 
 # Generate params JSON
+# Use simple fallbacks to avoid nested parameter expansion issues
+INTERNAL_API_KEY="${BAILEYS_API_KEY:-${INTERNAL_API_KEY:-change-me}}"
+ADMIN_API_KEY="${BAILEYS_ADMIN_API_KEY:-change-me}"
+WEBHOOK_SECRET="${BAILEYS_WEBHOOK_SECRET:-change-me}"
+ENCRYPTION_KEY="${AUTH_ENCRYPTION_KEY:-change-me}"
+CRM_WEBHOOK="${CRM_WEBHOOK_URL:-}"
+EVENT_BRIDGE="${USE_EVENTBRIDGE:-true}"
+EVENT_BUS="${EVENT_BUS_NAME:-default}"
+MAX_SESSIONS="${MAX_SESSIONS_PER_TASK:-100}"
+DESIRED_COUNT_VAL="${DESIRED_COUNT:-1}"
+TASK_CPU_VAL="${TASK_CPU:-2048}"
+TASK_MEMORY_VAL="${TASK_MEMORY:-4096}"
+ALB_CIDR="${ALB_INGRESS_CIDR:-}"
+
 cat > "${PARAMS_FILE}" <<EOF
 [
   {"ParameterKey": "EnvironmentName", "ParameterValue": "${ENV_NAME}"},
   {"ParameterKey": "ContainerImageUri", "ParameterValue": "${ECR_REPO}:${IMAGE_TAG}"},
   {"ParameterKey": "SessionBucketName", "ParameterValue": "${SESSION_BUCKET_NAME}"},
-  {"ParameterKey": "InternalApiKey", "ParameterValue": "${BAILEYS_API_KEY:-${INTERNAL_API_KEY:-change-me}"},
-  {"ParameterKey": "AdminApiKey", "ParameterValue": "${BAILEYS_ADMIN_API_KEY:-change-me}"},
-  {"ParameterKey": "WebhookSecret", "ParameterValue": "${BAILEYS_WEBHOOK_SECRET:-change-me}"},
-  {"ParameterKey": "AuthEncryptionKey", "ParameterValue": "${AUTH_ENCRYPTION_KEY:-change-me}"},
-  {"ParameterKey": "CrmWebhookUrl", "ParameterValue": "${CRM_WEBHOOK_URL:-}"},
-  {"ParameterKey": "UseEventBridge", "ParameterValue": "${USE_EVENTBRIDGE:-true}"},
-  {"ParameterKey": "EventBusName", "ParameterValue": "${EVENT_BUS_NAME:-default}"},
-  {"ParameterKey": "MaxSessionsPerTask", "ParameterValue": "${MAX_SESSIONS_PER_TASK:-100}"},
-  {"ParameterKey": "DesiredCount", "ParameterValue": "${DESIRED_COUNT:-1}"},
-  {"ParameterKey": "TaskCpu", "ParameterValue": "${TASK_CPU:-2048}"},
-  {"ParameterKey": "TaskMemory", "ParameterValue": "${TASK_MEMORY:-4096}"},
+  {"ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY}"},
+  {"ParameterKey": "AdminApiKey", "ParameterValue": "${ADMIN_API_KEY}"},
+  {"ParameterKey": "WebhookSecret", "ParameterValue": "${WEBHOOK_SECRET}"},
+  {"ParameterKey": "AuthEncryptionKey", "ParameterValue": "${ENCRYPTION_KEY}"},
+  {"ParameterKey": "CrmWebhookUrl", "ParameterValue": "${CRM_WEBHOOK}"},
+  {"ParameterKey": "UseEventBridge", "ParameterValue": "${EVENT_BRIDGE}"},
+  {"ParameterKey": "EventBusName", "ParameterValue": "${EVENT_BUS}"},
+  {"ParameterKey": "MaxSessionsPerTask", "ParameterValue": "${MAX_SESSIONS}"},
+  {"ParameterKey": "DesiredCount", "ParameterValue": "${DESIRED_COUNT_VAL}"},
+  {"ParameterKey": "TaskCpu", "ParameterValue": "${TASK_CPU_VAL}"},
+  {"ParameterKey": "TaskMemory", "ParameterValue": "${TASK_MEMORY_VAL}"},
   {"ParameterKey": "VpcId", "ParameterValue": "${AWS_VPC_ID}"},
   {"ParameterKey": "VpcCidr", "ParameterValue": "${AWS_VPC_CIDR}"},
   {"ParameterKey": "PrivateSubnetIds", "ParameterValue": "${AWS_PRIVATE_SUBNET_IDS}"},
-  {"ParameterKey": "AlbIngressCidr", "ParameterValue": "${ALB_INGRESS_CIDR:-}"}
+  {"ParameterKey": "AlbIngressCidr", "ParameterValue": "${ALB_CIDR}"}
 ]
 EOF
 
