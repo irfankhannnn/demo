@@ -4,6 +4,61 @@ Description: >
   Supports 50-100 active sessions per task with horizontal auto-scaling.
   Uses your existing VPC (no new networking created).
 
+Mappings:
+  ElbAccountIds:
+    us-east-1:
+      AccountId: "127311923021"
+    us-east-2:
+      AccountId: "033677994240"
+    us-west-1:
+      AccountId: "027434742980"
+    us-west-2:
+      AccountId: "797873946194"
+    af-south-1:
+      AccountId: "098369216593"
+    ap-east-1:
+      AccountId: "754344448648"
+    ap-south-1:
+      AccountId: "718504428378"
+    ap-northeast-1:
+      AccountId: "582318560864"
+    ap-northeast-2:
+      AccountId: "600734575887"
+    ap-northeast-3:
+      AccountId: "383597477331"
+    ap-southeast-1:
+      AccountId: "114774131450"
+    ap-southeast-2:
+      AccountId: "783225319266"
+    ap-southeast-3:
+      AccountId: "589379963580"
+    ca-central-1:
+      AccountId: "985666609251"
+    eu-central-1:
+      AccountId: "054676820965"
+    eu-north-1:
+      AccountId: "897822967069"
+    eu-south-1:
+      AccountId: "635631232127"
+    eu-south-2:
+      AccountId: "048601536715"
+    eu-west-1:
+      AccountId: "156460612806"
+    eu-west-2:
+      AccountId: "652711504416"
+    eu-west-3:
+      AccountId: "009996457667"
+    me-south-1:
+      AccountId: "076674570225"
+    sa-east-1:
+      AccountId: "507241528517"
+    us-gov-west-1:
+      AccountId: "048591011584"
+    cn-north-1:
+      AccountId: "638102146993"
+    cn-northwest-1:
+      AccountId: "037604701340"
+
 Parameters:
   EnvironmentName:
     Type: String
@@ -156,6 +211,7 @@ Resources:
 
   SessionKmsAlias:
     Type: AWS::KMS::Alias
+    DeletionPolicy: Delete
     Properties:
       AliasName: !Sub "alias/${EnvironmentName}-whatsapp-sessions"
       TargetKeyId: !Ref SessionKmsKey
@@ -163,8 +219,8 @@ Resources:
   # ─── S3 bucket for ALB access logs ─────────────────────────────────────────────
   AlbAccessLogsBucket:
     Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       BucketName: !Sub "${EnvironmentName}-whatsapp-alb-logs-${AWS::AccountId}"
       PublicAccessBlockConfiguration:
@@ -180,6 +236,7 @@ Resources:
 
   AlbAccessLogsBucketPolicy:
     Type: AWS::S3::BucketPolicy
+    DependsOn: AlbAccessLogsBucket
     Properties:
       Bucket: !Ref AlbAccessLogsBucket
       PolicyDocument:
@@ -187,7 +244,9 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              AWS: !Sub "arn:aws:iam::718504428378:root"
+              AWS: !Sub
+                - "arn:aws:iam::${ElbAccountId}:root"
+                - ElbAccountId: !FindInMap [ElbAccountIds, !Ref "AWS::Region", AccountId]
             Action: s3:PutObject
             Resource: !Sub "${AlbAccessLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
           - Effect: Allow
@@ -232,6 +291,36 @@ Resources:
         - Key: Service
           Value: whatsapp-platform
 
+  SessionStateBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SessionStateBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyUnencryptedTransport
+            Effect: Deny
+            Principal: "*"
+            Action: s3:*
+            Resource:
+              - !GetAtt SessionStateBucket.Arn
+              - !Sub "${SessionStateBucket.Arn}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+          - Sid: AllowTaskRoleAccess
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt TaskRole.Arn
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - s3:ListBucket
+            Resource:
+              - !GetAtt SessionStateBucket.Arn
+              - !Sub "${SessionStateBucket.Arn}/*"
+
   # ─── DynamoDB session metadata table ────────────────────────────────────────
   SessionTable:
     Type: AWS::DynamoDB::Table
@@ -249,6 +338,8 @@ Resources:
           AttributeType: S
         - AttributeName: GSI1SK
           AttributeType: S
+        - AttributeName: ttl
+          AttributeType: N
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
@@ -300,6 +391,7 @@ Resources:
   # ─── Security groups ────────────────────────────────────────────────────────
   AlbSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
     Properties:
       GroupDescription: Internal ALB for WhatsApp Platform
       VpcId: !Ref VpcId
@@ -308,12 +400,17 @@ Resources:
           FromPort: 80
           ToPort: 80
           CidrIp: !If [UseCustomAlbIngress, !Ref AlbIngressCidr, !Ref VpcCidr]
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: !If [UseCustomAlbIngress, !Ref AlbIngressCidr, !Ref VpcCidr]
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-whatsapp-alb-sg"
 
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
     Properties:
       GroupDescription: ECS tasks for WhatsApp Platform
       VpcId: !Ref VpcId
@@ -332,6 +429,8 @@ Resources:
   # ─── CloudWatch Logs ─────────────────────────────────────────────────────────
   PlatformLogGroup:
     Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       LogGroupName: !Sub "/aws/ecs/${EnvironmentName}-whatsapp-platform"
       RetentionInDays: !Ref LogRetentionDays
@@ -339,6 +438,7 @@ Resources:
   # ─── ECS Cluster ─────────────────────────────────────────────────────────────
   EcsCluster:
     Type: AWS::ECS::Cluster
+    DeletionPolicy: Delete
     Properties:
       ClusterName: !Sub "${EnvironmentName}-whatsapp-platform"
       ClusterSettings:
@@ -479,6 +579,9 @@ Resources:
 
   AlbListener:
     Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn:
+      - AlbTargetGroup
+      - InternalAlb
     Properties:
       LoadBalancerArn: !Ref InternalAlb
       Port: 80
@@ -553,7 +656,9 @@ Resources:
   # ─── ECS Service ─────────────────────────────────────────────────────────────
   EcsService:
     Type: AWS::ECS::Service
-    DependsOn: AlbListener
+    DependsOn:
+      - AlbListener
+      - AlbTargetGroup
     Properties:
       ServiceName: !Sub "${EnvironmentName}-whatsapp-platform"
       Cluster: !Ref EcsCluster
