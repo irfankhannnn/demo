@@ -18,7 +18,7 @@ RUN npm install --omit=dev
 
 # Apply patches after install
 COPY patches/ ./patches/
-RUN npx patch-package || true
+RUN npx patch-package
 
 COPY src ./src
 

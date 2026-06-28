@@ -95,11 +95,11 @@ async function bootstrap() {
     const forceExit = setTimeout(() => {
       logger.error('shutdown.forced_exit');
       process.exit(1);
-    }, 15000);
+    }, 20000); // 20s total (10s for sessions + 10s buffer)
     try {
       await new Promise((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
       logger.info('shutdown.http.closed');
-      await shutdownAllSessions();
+      await shutdownAllSessions(10000); // 10s timeout for session shutdown
       logger.info('shutdown.sessions_closed');
     } catch (err) {
       logger.error({ error: err.message }, 'shutdown.error');

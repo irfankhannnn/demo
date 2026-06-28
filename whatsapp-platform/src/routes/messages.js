@@ -1,13 +1,24 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { sendMessage } from '../baileysClient.js';
 import { logger } from '../logger.js';
 import { safeError } from './utils.js';
+import { NODE_ENV } from '../config.js';
 
 const router = Router();
 
+// Rate limit for message sending to prevent storms
+const messageLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: NODE_ENV === 'production' ? 100 : 1000, // 100/min in prod, 1000/min in dev
+  message: { error: 'too_many_messages' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // POST /v1/messages/send
 // Body: { from?, to, text, media? }
-router.post('/send', async (req, res) => {
+router.post('/send', messageLimiter, async (req, res) => {
   try {
     const { from, to, text, media } = req.body || {};
     if (!to || !text) {

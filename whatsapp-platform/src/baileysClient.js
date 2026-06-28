@@ -677,14 +677,30 @@ export async function disconnectSession(phone, deleteAuth = false) {
 export async function restoreSessions() {
   const phones = await listPersistedPhones();
   logger.info({ count: phones.length }, 'restore.sessions');
-  const results = await Promise.allSettled(phones.map(phone => createSession(phone)));
-  const failed = results.filter(r => r.status === 'rejected');
+
+  const results = [];
+  const failed = [];
+
+  // Stagger restoration to avoid connection storms (500ms between sessions)
+  for (const phone of phones) {
+    try {
+      await createSession(phone);
+      results.push({ phone, status: 'fulfilled' });
+    } catch (err) {
+      failed.push({ phone, error: err.message });
+      results.push({ phone, status: 'rejected', error: err.message });
+    }
+    // Wait 500ms before next session to avoid overwhelming WhatsApp
+    await new Promise(resolve => setTimeout(resolve, 500));
+  }
+
   if (failed.length > 0) {
     logger.error({
       total: phones.length, failed: failed.length,
-      errors: failed.map(f => f.reason.message),
+      errors: failed.map(f => f.error),
     }, 'restore.partial_failure');
   }
+
   const restored = results.filter(r => r.status === 'fulfilled').length;
   for (const phone of phones) {
     const status = getSessionStatus(phone);
@@ -695,41 +711,58 @@ export async function restoreSessions() {
   return { total: phones.length, restored, failed: failed.length };
 }
 
-export async function shutdownAllSessions() {
-  logger.info({ count: sessions.size }, 'shutdown.start');
+export async function shutdownAllSessions(timeoutMs = 10000) {
+  logger.info({ count: sessions.size, timeoutMs }, 'shutdown.start');
 
-  for (const [, h] of sessionHeartbeats) clearInterval(h);
-  sessionHeartbeats.clear();
-  for (const [, t] of healthProbeTimers) clearInterval(t);
-  healthProbeTimers.clear();
+  const actualShutdown = async () => {
+    for (const [, h] of sessionHeartbeats) clearInterval(h);
+    sessionHeartbeats.clear();
+    for (const [, t] of healthProbeTimers) clearInterval(t);
+    healthProbeTimers.clear();
 
-  for (const [phone, controller] of connectionControllers) {
-    try { controller.shutdown(); } catch (err) { logger.warn({ phone, error: err.message }, 'shutdown.controller_error'); }
+    for (const [phone, controller] of connectionControllers) {
+      try { controller.shutdown(); } catch (err) { logger.warn({ phone, error: err.message }, 'shutdown.controller_error'); }
+    }
+    connectionControllers.clear();
+
+    for (const [phone, session] of sessions) {
+      try {
+        if (session.socket?.ev?.removeAllListeners) session.socket.ev.removeAllListeners();
+        if (session.socket?.end) session.socket.end();
+      } catch (err) { logger.warn({ phone, error: err.message }, 'shutdown.session_error'); }
+    }
+
+    // Flush debounce buffers
+    const flushPromises = [];
+    for (const [key, buffer] of debounceBuffers) {
+      if (buffer.timer) clearTimeout(buffer.timer);
+      const [sessionPhone] = key.split(':');
+      const session = sessions.get(sessionPhone);
+      if (session) flushPromises.push(flushDebounceBuffer(key, session));
+    }
+    if (flushPromises.length > 0) await Promise.all(flushPromises);
+    debounceBuffers.clear();
+
+    sessions.clear();
+    outboundMessageIds.clear();
+    processedMessageIds.clear();
+    logger.info('shutdown.complete');
+  };
+
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Shutdown timeout')), timeoutMs)
+  );
+
+  try {
+    await Promise.race([actualShutdown(), timeout]);
+  } catch (err) {
+    logger.error({ error: err.message }, 'shutdown.timeout');
+    // Force cleanup even if timeout
+    sessions.clear();
+    outboundMessageIds.clear();
+    processedMessageIds.clear();
+    throw err;
   }
-  connectionControllers.clear();
-
-  for (const [phone, session] of sessions) {
-    try {
-      if (session.socket?.ev?.removeAllListeners) session.socket.ev.removeAllListeners();
-      if (session.socket?.end) session.socket.end();
-    } catch (err) { logger.warn({ phone, error: err.message }, 'shutdown.session_error'); }
-  }
-
-  // Flush debounce buffers
-  const flushPromises = [];
-  for (const [key, buffer] of debounceBuffers) {
-    if (buffer.timer) clearTimeout(buffer.timer);
-    const [sessionPhone] = key.split(':');
-    const session = sessions.get(sessionPhone);
-    if (session) flushPromises.push(flushDebounceBuffer(key, session));
-  }
-  if (flushPromises.length > 0) await Promise.all(flushPromises);
-  debounceBuffers.clear();
-
-  sessions.clear();
-  outboundMessageIds.clear();
-  processedMessageIds.clear();
-  logger.info('shutdown.complete');
 }
 
 // Test-only exports

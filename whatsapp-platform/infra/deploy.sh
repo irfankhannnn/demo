@@ -66,23 +66,14 @@ else
 
   # Inject ContainerImageUri from build
   PARAMS_TMP="${SCRIPT_DIR}/cfn-params-${ENV_NAME}-merged.json"
-  python3 - <<PYEOF
-import json, sys
-
-with open('${PARAMS_FILE}') as f:
-    params = json.load(f)
-
-# Update ContainerImageUri
-for p in params:
-    if p['ParameterKey'] == 'ContainerImageUri':
-        p['ParameterValue'] = '${ECR_REPO}:${IMAGE_TAG}'
-        break
-else:
-    params.append({'ParameterKey': 'ContainerImageUri', 'ParameterValue': '${ECR_REPO}:${IMAGE_TAG}'})
-
-with open('${PARAMS_TMP}', 'w') as f:
-    json.dump(params, f, indent=2)
-PYEOF
+  if command -v jq &> /dev/null; then
+    jq --arg img "${ECR_REPO}:${IMAGE_TAG}" '
+      map(if .ParameterKey == "ContainerImageUri" then .ParameterValue = $img else . end)
+    ' "${PARAMS_FILE}" > "${PARAMS_TMP}"
+  else
+    echo "ERROR: jq is required but not installed. Install with: apt-get install jq (Debian/Ubuntu) or brew install jq (macOS)"
+    exit 1
+  fi
 
   echo "[3/3] Deploying CloudFormation stack: ${STACK_NAME}"
   aws cloudformation deploy \

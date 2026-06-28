@@ -63,6 +63,9 @@ export async function upsertSession(phone, data) {
   }
 
   const existing = await getSession(phone);
+  // TTL: 30 days after updatedAt (Unix timestamp in seconds)
+  const ttlEpoch = Math.floor(new Date(now).getTime() / 1000) + (30 * 24 * 60 * 60);
+
   const item = {
     PK: pk(phone),
     SK,
@@ -77,6 +80,7 @@ export async function upsertSession(phone, data) {
     lastSeenAt: now,
     createdAt: existing?.createdAt || now,
     updatedAt: now,
+    ttl: ttlEpoch,
     version: (existing?.version || 0) + 1,
     GSI1PK: `STATUS#${data.status}`,
     GSI1SK: pk(phone),
