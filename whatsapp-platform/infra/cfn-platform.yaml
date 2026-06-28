@@ -1,0 +1,588 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  WhatsApp Platform — multi-session Baileys workers on ECS Fargate.
+  Supports 50-100 active sessions per task with horizontal auto-scaling.
+  Uses your existing VPC (no new networking created).
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev/staging/prod)
+
+  ContainerImageUri:
+    Type: String
+    Description: ECR image URI (e.g. 123456789012.dkr.ecr.ap-south-1.amazonaws.com/dev-whatsapp-platform:latest)
+
+  SessionBucketName:
+    Type: String
+    Description: Globally unique S3 bucket name for Baileys session auth state
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+
+  SessionTableName:
+    Type: String
+    Default: whatsapp-sessions
+    Description: DynamoDB table name suffix (prefixed with EnvironmentName)
+
+  InternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: >
+      Shared API key for CRM → WhatsApp Platform auth.
+      Must match BAILEYS_API_KEY in CRM Lambda env.
+
+  AdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: >
+      Admin API key for destructive operations (forceNew, deleteAuthState).
+      Defaults to InternalApiKey if not set.
+
+  WebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: HMAC secret for outbound webhooks to CRM (defaults to InternalApiKey)
+
+  AuthEncryptionKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: AES encryption key for local credential backups (optional in S3 mode)
+
+  CrmWebhookUrl:
+    Type: String
+    Default: ""
+    Description: >
+      CRM webhook URL for incoming messages.
+      Set when USE_EVENTBRIDGE=false (direct webhook mode).
+
+  UseEventBridge:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: "true = publish events to EventBridge; false = POST directly to CrmWebhookUrl"
+
+  EventBusName:
+    Type: String
+    Default: "default"
+    Description: EventBridge event bus name (use 'default' or a custom bus ARN)
+
+  MaxSessionsPerTask:
+    Type: Number
+    Default: 100
+    MinValue: 10
+    MaxValue: 100
+    Description: Maximum concurrent Baileys sessions per ECS task
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 20
+    Description: Initial ECS service desired task count
+
+  TaskCpu:
+    Type: String
+    Default: "2048"
+    AllowedValues: ["1024", "2048", "4096"]
+    Description: Fargate task CPU units (2048 = 2 vCPU recommended for 100 sessions)
+
+  TaskMemory:
+    Type: String
+    Default: "4096"
+    AllowedValues: ["2048", "4096", "8192"]
+    Description: Fargate task memory in MiB
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: Existing VPC ID (stack does NOT create VPC/subnets/routes)
+
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >
+      Existing private subnet IDs (min 2, different AZs).
+      Subnets must have outbound internet via your existing NAT gateway.
+
+  VpcCidr:
+    Type: String
+    Description: CIDR block of the existing VPC (e.g. 10.0.0.0/16)
+
+  AlbIngressCidr:
+    Type: String
+    Default: ""
+    Description: Optional narrower CIDR for ALB ingress. Defaults to VpcCidr.
+
+  CloudwatchMetricsEnabled:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+
+Conditions:
+  UseCustomAlbIngress: !Not [!Equals [!Ref AlbIngressCidr, ""]]
+  HasAdminKey: !Not [!Equals [!Ref AdminApiKey, ""]]
+  HasWebhookSecret: !Not [!Equals [!Ref WebhookSecret, ""]]
+  HasAuthEncryptionKey: !Not [!Equals [!Ref AuthEncryptionKey, ""]]
+
+Resources:
+  # ─── KMS key for session state encryption ──────────────────────────────────
+  SessionKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub "${EnvironmentName} WhatsApp session state encryption"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableRootPermissions
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: whatsapp-platform
+
+  SessionKmsAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${EnvironmentName}-whatsapp-sessions"
+      TargetKeyId: !Ref SessionKmsKey
+
+  # ─── S3 bucket for auth state ───────────────────────────────────────────────
+  SessionStateBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref SessionBucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: !GetAtt SessionKmsKey.Arn
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: whatsapp-platform
+
+  # ─── DynamoDB session metadata table ────────────────────────────────────────
+  SessionTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-${SessionTableName}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: status-tenant-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: whatsapp-platform
+
+  # ─── Secrets Manager ────────────────────────────────────────────────────────
+  PlatformSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${EnvironmentName}/whatsapp-platform/credentials"
+      Description: WhatsApp Platform API keys and secrets
+      SecretString: !Sub
+        - |
+          {
+            "internalApiKey": "${InternalApiKey}",
+            "adminApiKey": "${AdminKey}",
+            "webhookSecret": "${WebhookSec}",
+            "authEncryptionKey": "${EncKey}"
+          }
+        - AdminKey: !If [HasAdminKey, !Ref AdminApiKey, !Ref InternalApiKey]
+          WebhookSec: !If [HasWebhookSecret, !Ref WebhookSecret, !Ref InternalApiKey]
+          EncKey: !If [HasAuthEncryptionKey, !Ref AuthEncryptionKey, !Ref InternalApiKey]
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: whatsapp-platform
+
+  # ─── Security groups ────────────────────────────────────────────────────────
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Internal ALB for WhatsApp Platform
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !If [UseCustomAlbIngress, !Ref AlbIngressCidr, !Ref VpcCidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-whatsapp-alb-sg"
+
+  ServiceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS tasks for WhatsApp Platform
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3003
+          ToPort: 3003
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-whatsapp-ecs-sg"
+
+  # ─── CloudWatch Logs ─────────────────────────────────────────────────────────
+  PlatformLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/ecs/${EnvironmentName}-whatsapp-platform"
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ─── ECR Repository ──────────────────────────────────────────────────────────
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${EnvironmentName}-whatsapp-platform"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ─── ECS Cluster ─────────────────────────────────────────────────────────────
+  EcsCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${EnvironmentName}-whatsapp-platform"
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ─── IAM Roles ───────────────────────────────────────────────────────────────
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-whatsapp-platform-execution-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource: !Ref PlatformSecrets
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-whatsapp-platform-task-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: WhatsAppPlatformAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: S3SessionState
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt SessionStateBucket.Arn
+                  - !Sub "${SessionStateBucket.Arn}/*"
+              - Sid: KmsSessionState
+                Effect: Allow
+                Action:
+                  - kms:GenerateDataKey
+                  - kms:Decrypt
+                  - kms:Encrypt
+                Resource: !GetAtt SessionKmsKey.Arn
+              - Sid: DynamoDbSessions
+                Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt SessionTable.Arn
+                  - !Sub "${SessionTable.Arn}/index/*"
+              - Sid: EventBridge
+                Effect: Allow
+                Action: events:PutEvents
+                Resource: "*"
+              - Sid: CloudWatchMetrics
+                Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: "*"
+              - Sid: CloudWatchLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt PlatformLogGroup.Arn
+
+  # ─── ALB ────────────────────────────────────────────────────────────────────
+  InternalAlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvironmentName}-whatsapp-alb"
+      Scheme: internal
+      Type: application
+      Subnets: !Ref PrivateSubnetIds
+      SecurityGroups:
+        - !Ref AlbSecurityGroup
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-whatsapp-tg"
+      Port: 3003
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckPath: /health
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref InternalAlb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AlbTargetGroup
+
+  # ─── ECS Task Definition ────────────────────────────────────────────────────
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${EnvironmentName}-whatsapp-platform"
+      Cpu: !Ref TaskCpu
+      Memory: !Ref TaskMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: whatsapp-platform
+          Image: !Ref ContainerImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 3003
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref PlatformLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: "3003"
+            - Name: LOCAL_STORAGE
+              Value: "false"
+            - Name: USE_EVENTBRIDGE
+              Value: !Ref UseEventBridge
+            - Name: EVENT_BUS_NAME
+              Value: !Ref EventBusName
+            - Name: CRM_WEBHOOK_URL
+              Value: !Ref CrmWebhookUrl
+            - Name: SESSION_BUCKET_NAME
+              Value: !Ref SessionBucketName
+            - Name: SESSION_TABLE_NAME
+              Value: !Sub "${EnvironmentName}-${SessionTableName}"
+            - Name: SESSION_KMS_KEY_ID
+              Value: !Ref SessionKmsKey
+            - Name: MAX_SESSIONS_PER_TASK
+              Value: !Sub "${MaxSessionsPerTask}"
+            - Name: CLOUDWATCH_METRICS_ENABLED
+              Value: !Ref CloudwatchMetricsEnabled
+            - Name: RESTORE_ON_STARTUP
+              Value: "true"
+            - Name: LOG_LEVEL
+              Value: info
+          Secrets:
+            - Name: BAILEYS_API_KEY
+              ValueFrom: !Sub "${PlatformSecrets}:internalApiKey::"
+            - Name: INTERNAL_API_KEY
+              ValueFrom: !Sub "${PlatformSecrets}:internalApiKey::"
+            - Name: BAILEYS_ADMIN_API_KEY
+              ValueFrom: !Sub "${PlatformSecrets}:adminApiKey::"
+            - Name: BAILEYS_WEBHOOK_SECRET
+              ValueFrom: !Sub "${PlatformSecrets}:webhookSecret::"
+            - Name: AUTH_ENCRYPTION_KEY
+              ValueFrom: !Sub "${PlatformSecrets}:authEncryptionKey::"
+
+  # ─── ECS Service ─────────────────────────────────────────────────────────────
+  EcsService:
+    Type: AWS::ECS::Service
+    DependsOn: AlbListener
+    Properties:
+      ServiceName: !Sub "${EnvironmentName}-whatsapp-platform"
+      Cluster: !Ref EcsCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          Subnets: !Ref PrivateSubnetIds
+          SecurityGroups:
+            - !Ref ServiceSecurityGroup
+          AssignPublicIp: DISABLED
+      LoadBalancers:
+        - ContainerName: whatsapp-platform
+          ContainerPort: 3003
+          TargetGroupArn: !Ref AlbTargetGroup
+      HealthCheckGracePeriodSeconds: 60
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ─── Auto Scaling ─────────────────────────────────────────────────────────────
+  ScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    DependsOn: EcsService
+    Properties:
+      MaxCapacity: 20
+      MinCapacity: 1
+      ResourceId: !Sub "service/${EcsCluster}/${EcsService.Name}"
+      ScalableDimension: ecs:service:DesiredCount
+      ServiceNamespace: ecs
+      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+
+  CpuScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${EnvironmentName}-whatsapp-cpu-scaling"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+        TargetValue: 70.0
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+  MemoryScalingPolicy:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub "${EnvironmentName}-whatsapp-memory-scaling"
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+        TargetValue: 80.0
+        ScaleInCooldown: 300
+        ScaleOutCooldown: 60
+
+Outputs:
+  AlbDnsName:
+    Description: Internal ALB DNS name — use as WHATSAPP_PLATFORM_API_URL in CRM
+    Value: !GetAtt InternalAlb.DNSName
+    Export:
+      Name: !Sub "${EnvironmentName}-whatsapp-platform-alb-dns"
+
+  SessionBucket:
+    Description: S3 bucket for session auth state
+    Value: !Ref SessionStateBucket
+    Export:
+      Name: !Sub "${EnvironmentName}-whatsapp-session-bucket"
+
+  SessionTableName:
+    Description: DynamoDB session table name
+    Value: !Ref SessionTable
+    Export:
+      Name: !Sub "${EnvironmentName}-whatsapp-session-table"
+
+  EcrRepositoryUri:
+    Description: ECR repository URI for pushing images
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRepository}"
+    Export:
+      Name: !Sub "${EnvironmentName}-whatsapp-ecr-uri"
+
+  SecretsArn:
+    Description: Secrets Manager ARN for platform credentials
+    Value: !Ref PlatformSecrets
+    Export:
+      Name: !Sub "${EnvironmentName}-whatsapp-platform-secrets"

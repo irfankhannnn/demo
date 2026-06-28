@@ -1,0 +1,77 @@
+diff --git a/node_modules/@whiskeysockets/baileys/lib/Signal/libsignal.js b/node_modules/@whiskeysockets/baileys/lib/Signal/libsignal.js
+index f4458db..7a074a4 100644
+--- a/node_modules/@whiskeysockets/baileys/lib/Signal/libsignal.js
++++ b/node_modules/@whiskeysockets/baileys/lib/Signal/libsignal.js
+@@ -82,7 +82,45 @@ const jidToSignalProtocolAddress = (jid) => {
+ const jidToSignalSenderKeyName = (group, user) => {
+     return new SenderKeyName(group, jidToSignalProtocolAddress(user));
+ };
++/**
++ * Grace period before actually deleting used pre-keys.
++ * Retransmissions reusing the same pre-key ID will succeed during this window.
++ * See: https://github.com/WhiskeySockets/Baileys/issues/1769
++ */
++const PREKEY_GRACE_PERIOD_MS = 5 * 60 * 1000; // 5 minutes
++const PREKEY_CLEANUP_INTERVAL_MS = 60_000; // 1 minute
++
+ function signalStorage({ creds, keys }) {
++    // Scoped per-instance to prevent multi-account collisions
++    const pendingPreKeyDeletions = new Map(); // preKeyId -> expiry timestamp
++    let preKeyCleanupTimer = undefined;
++
++    function ensurePreKeyCleanup() {
++        if (preKeyCleanupTimer) {
++            return;
++        }
++
++        preKeyCleanupTimer = setInterval(() => {
++            const now = Date.now();
++            for (const [id, expiry] of pendingPreKeyDeletions) {
++                if (now >= expiry) {
++                    void keys.set({ 'pre-key': { [id]: null } });
++                    pendingPreKeyDeletions.delete(id);
++                }
++            }
++
++            if (pendingPreKeyDeletions.size === 0 && preKeyCleanupTimer) {
++                clearInterval(preKeyCleanupTimer);
++                preKeyCleanupTimer = undefined;
++            }
++        }, PREKEY_CLEANUP_INTERVAL_MS);
++
++        // Don't block process exit
++        if (preKeyCleanupTimer && typeof preKeyCleanupTimer === 'object' && 'unref' in preKeyCleanupTimer) {
++            preKeyCleanupTimer.unref();
++        }
++    }
++
+     return {
+         loadSession: async (id) => {
+             const { [id]: sess } = await keys.get('session', [id]);
+@@ -107,7 +145,12 @@ function signalStorage({ creds, keys }) {
+                 };
+             }
+         },
+-        removePreKey: (id) => keys.set({ 'pre-key': { [id]: null } }),
++        removePreKey: (id) => {
++            // Delay pre-key deletion so retransmissions using the same
++            // pre-key ID can still decrypt during the grace period.
++            pendingPreKeyDeletions.set(id, Date.now() + PREKEY_GRACE_PERIOD_MS);
++            ensurePreKeyCleanup();
++        },
+         loadSignedPreKey: () => {
+             const key = creds.signedPreKey;
+             return {
+diff --git a/node_modules/@whiskeysockets/baileys/lib/WAUSync/USyncQuery.js b/node_modules/@whiskeysockets/baileys/lib/WAUSync/USyncQuery.js
+index 23babba..0665ef9 100644
+--- a/node_modules/@whiskeysockets/baileys/lib/WAUSync/USyncQuery.js
++++ b/node_modules/@whiskeysockets/baileys/lib/WAUSync/USyncQuery.js
+@@ -23,7 +23,7 @@ export class USyncQuery {
+         return this;
+     }
+     parseUSyncQueryResult(result) {
+-        if (result.attrs.type !== 'result') {
++        if (result?.attrs.type !== 'result') {
+             return;
+         }
+         const protocolMap = Object.fromEntries(this.protocols.map(protocol => {

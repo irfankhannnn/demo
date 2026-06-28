@@ -1,0 +1,20 @@
+[
+  {"ParameterKey": "EnvironmentName",       "ParameterValue": "dev"},
+  {"ParameterKey": "ContainerImageUri",     "ParameterValue": "123456789012.dkr.ecr.ap-south-1.amazonaws.com/dev-whatsapp-platform:latest"},
+  {"ParameterKey": "SessionBucketName",     "ParameterValue": "dev-whatsapp-session-state-123456789012"},
+  {"ParameterKey": "InternalApiKey",        "ParameterValue": "CHANGE_ME_long_random_string"},
+  {"ParameterKey": "AdminApiKey",           "ParameterValue": "CHANGE_ME_different_long_random_string"},
+  {"ParameterKey": "WebhookSecret",         "ParameterValue": "CHANGE_ME_webhook_secret"},
+  {"ParameterKey": "AuthEncryptionKey",     "ParameterValue": "CHANGE_ME_32_char_encryption_key"},
+  {"ParameterKey": "CrmWebhookUrl",         "ParameterValue": "https://api.realestateflow.in/api/webhooks/whatsapp"},
+  {"ParameterKey": "UseEventBridge",        "ParameterValue": "true"},
+  {"ParameterKey": "EventBusName",          "ParameterValue": "default"},
+  {"ParameterKey": "MaxSessionsPerTask",    "ParameterValue": "100"},
+  {"ParameterKey": "DesiredCount",          "ParameterValue": "1"},
+  {"ParameterKey": "TaskCpu",              "ParameterValue": "2048"},
+  {"ParameterKey": "TaskMemory",           "ParameterValue": "4096"},
+  {"ParameterKey": "VpcId",               "ParameterValue": "vpc-xxxxxxxx"},
+  {"ParameterKey": "VpcCidr",             "ParameterValue": "10.0.0.0/16"},
+  {"ParameterKey": "PrivateSubnetIds",    "ParameterValue": "subnet-aaaaaaaa,subnet-bbbbbbbb"},
+  {"ParameterKey": "AlbIngressCidr",      "ParameterValue": ""}
+]
