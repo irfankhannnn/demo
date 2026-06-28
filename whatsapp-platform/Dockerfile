@@ -14,11 +14,11 @@ RUN apt-get update && apt-get install -y \
 COPY package*.json ./
 
 # Install all dependencies (including patch-package for Baileys patches)
+# postinstall script will automatically apply patches
 RUN npm install --omit=dev
 
-# Apply patches after install
+# Copy patches before source so postinstall can apply them
 COPY patches/ ./patches/
-RUN npx patch-package
 
 COPY src ./src
 
