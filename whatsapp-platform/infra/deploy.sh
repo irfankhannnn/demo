@@ -78,6 +78,9 @@ fi
 
 # Check for required AWS infra params
 if [ "${SKIP_CFN}" != "true" ]; then
+  AWS_VPC_ID="${AWS_VPC_ID:-}"
+  AWS_VPC_CIDR="${AWS_VPC_CIDR:-}"
+  AWS_PRIVATE_SUBNET_IDS="${AWS_PRIVATE_SUBNET_IDS:-}"
   if [ -z "${AWS_VPC_ID}" ] || [ "${AWS_VPC_ID}" = "vpc-xxxxxxxx" ]; then
     echo "  ERROR: AWS_VPC_ID is required for ECS deployment"
     echo "  Set AWS_VPC_ID in .env or as env var"
