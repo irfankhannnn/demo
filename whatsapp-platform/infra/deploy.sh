@@ -159,13 +159,11 @@ if [ "${SKIP_CFN}" = "true" ]; then
   echo "[SKIP] CloudFormation deploy (SKIP_CFN=true)"
 else
   echo "[4/4] Deploying CloudFormation stack: ${STACK_NAME}"
-  # Convert Windows paths to Unix paths for AWS CLI
-  TEMPLATE_FILE_UNIX=$(cygpath -u "${SCRIPT_DIR}/cfn-platform.yaml" 2>/dev/null || echo "${SCRIPT_DIR}/cfn-platform.yaml")
-  PARAMS_FILE_UNIX=$(cygpath -u "${PARAMS_FILE}" 2>/dev/null || echo "${PARAMS_FILE}")
+  # Use relative paths so AWS CLI works regardless of shell (Git Bash, WSL, native Unix)
   aws cloudformation deploy \
-    --template-file "${TEMPLATE_FILE_UNIX}" \
+    --template-file "cfn-platform.yaml" \
     --stack-name "${STACK_NAME}" \
-    --parameter-overrides "file://${PARAMS_FILE_UNIX}" \
+    --parameter-overrides "file://cfn-params-${ENV_NAME}.json" \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${REGION}" \
     --no-fail-on-empty-changeset
