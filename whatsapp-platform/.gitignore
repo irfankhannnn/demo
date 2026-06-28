@@ -2,7 +2,6 @@ node_modules/
 .env
 auth_state/
 auth-backups/
-package-lock.json
 infra/cfn-params-*.json
 !infra/cfn-params.example.json
 *.log

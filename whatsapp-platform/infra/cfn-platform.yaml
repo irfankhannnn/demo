@@ -378,6 +378,15 @@ Resources:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource: !Ref PlatformSecrets
+        - PolicyName: KmsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt SessionKmsKey.Arn
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -427,7 +436,7 @@ Resources:
               - Sid: EventBridge
                 Effect: Allow
                 Action: events:PutEvents
-                Resource: "*"
+                Resource: !Sub "arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/${EventBusName}"
               - Sid: CloudWatchMetrics
                 Effect: Allow
                 Action:
@@ -580,7 +589,7 @@ Resources:
     Properties:
       MaxCapacity: 20
       MinCapacity: 1
-      ResourceId: !Sub "service/${EcsCluster}/${EcsService.Name}"
+      ResourceId: !Sub "service/${EcsCluster}/${EcsService}"
       ScalableDimension: ecs:service:DesiredCount
       ServiceNamespace: ecs
       RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
