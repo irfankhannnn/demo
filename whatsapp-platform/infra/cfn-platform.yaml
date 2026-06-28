@@ -333,17 +333,6 @@ Resources:
       LogGroupName: !Sub "/aws/ecs/${EnvironmentName}-whatsapp-platform"
       RetentionInDays: !Ref LogRetentionDays
 
-  # ─── ECR Repository ──────────────────────────────────────────────────────────
-  EcrRepository:
-    Type: AWS::ECR::Repository
-    Properties:
-      RepositoryName: !Sub "${EnvironmentName}-whatsapp-platform"
-      ImageScanningConfiguration:
-        ScanOnPush: true
-      Tags:
-        - Key: Environment
-          Value: !Ref EnvironmentName
-
   # ─── ECS Cluster ─────────────────────────────────────────────────────────────
   EcsCluster:
     Type: AWS::ECS::Cluster
@@ -641,7 +630,7 @@ Outputs:
 
   EcrRepositoryUri:
     Description: ECR repository URI for pushing images
-    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EcrRepository}"
+    Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${EnvironmentName}-whatsapp-platform"
     Export:
       Name: !Sub "${EnvironmentName}-whatsapp-ecr-uri"
 
