@@ -187,7 +187,12 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: logging.s3.amazonaws.com
+              AWS: !Sub "arn:aws:iam::718504428378:root"
+            Action: s3:PutObject
+            Resource: !Sub "${AlbAccessLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+          - Effect: Allow
+            Principal:
+              Service: logdelivery.elasticloadbalancing.amazonaws.com
             Action: s3:PutObject
             Resource: !Sub "${AlbAccessLogsBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
             Condition:
@@ -439,6 +444,7 @@ Resources:
   # ─── ALB ────────────────────────────────────────────────────────────────────
   InternalAlb:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: AlbAccessLogsBucketPolicy
     Properties:
       Name: !Sub "${EnvironmentName}-whatsapp-alb"
       Scheme: internal
