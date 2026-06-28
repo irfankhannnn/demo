@@ -133,10 +133,13 @@ if [ "${SKIP_CFN}" = "true" ]; then
   echo "[SKIP] CloudFormation deploy (SKIP_CFN=true)"
 else
   echo "[4/4] Deploying CloudFormation stack: ${STACK_NAME}"
+  # Convert Windows paths to Unix paths for AWS CLI
+  TEMPLATE_FILE_UNIX=$(cygpath -u "${SCRIPT_DIR}/cfn-platform.yaml" 2>/dev/null || echo "${SCRIPT_DIR}/cfn-platform.yaml")
+  PARAMS_FILE_UNIX=$(cygpath -u "${PARAMS_FILE}" 2>/dev/null || echo "${PARAMS_FILE}")
   aws cloudformation deploy \
-    --template-file "${SCRIPT_DIR}/cfn-platform.yaml" \
+    --template-file "${TEMPLATE_FILE_UNIX}" \
     --stack-name "${STACK_NAME}" \
-    --parameter-overrides file://"${PARAMS_FILE}" \
+    --parameter-overrides file://"${PARAMS_FILE_UNIX}" \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${REGION}" \
     --no-fail-on-empty-changeset
@@ -155,7 +158,21 @@ else
     --stack-name "${STACK_NAME}" \
     --region "${REGION}" \
     --query 'Stacks[0].Outputs[?OutputKey==`AlbDnsName`].OutputValue' \
-    --output text)"
+    --output text 2>/dev/null || echo '')"
+
+  if [ -n "${ALB_DNS}" ]; then
+    echo "  Add to CRM Lambda env:"
+    echo "    BAILEY_ENABLED=true"
+    echo "    BAILEY_MODE=selfhosted"
+    echo "    BAILEY_API_ENDPOINT=http://${ALB_DNS}"
+    echo "    BAILEY_API_KEY=<same as InternalApiKey>"
+    echo "    BAILEY_WEBHOOK_SECRET=<same as WebhookSecret>"
+  else
+    echo "  Note: ALB DNS not found in stack outputs (stack may still be creating)"
+  fi
+  else
+    echo "  Note: ALB DNS not found in stack outputs (stack may still be creating)"
+  fi
   echo "  Add to CRM Lambda env:"
   echo "    BAILEY_ENABLED=true"
   echo "    BAILEY_MODE=selfhosted"
