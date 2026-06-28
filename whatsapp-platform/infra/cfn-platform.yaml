@@ -244,8 +244,6 @@ Resources:
           AttributeType: S
         - AttributeName: GSI1SK
           AttributeType: S
-        - AttributeName: ttl
-          AttributeType: N
       KeySchema:
         - AttributeName: PK
           KeyType: HASH
