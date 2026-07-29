@@ -130,25 +130,150 @@ See `.env.example` for full documentation. Key variables:
 
 ## ECS Deployment
 
+`infra/deploy.sh` is the single entry point for everything — no manual parameter
+files or secret generation required.
+
 ```bash
 cd infra
 
-# Copy and fill parameters
-cp cfn-params.example.json cfn-params-dev.json
-# Edit cfn-params-dev.json
+# One-time: copy .env.example to ../.env if you haven't already (optional —
+# only needed to override defaults; VPC/subnets/secrets are auto-handled).
 
-# Deploy (builds + pushes Docker image + deploys stack)
+# Deploy (builds + pushes Docker image + auto-detects VPC/subnets +
+# auto-generates secrets on first run + deploys/updates the CFN stack)
+bash deploy.sh deploy dev
+# or, shorthand (defaults to the "deploy" command):
 bash deploy.sh dev
+
+# Deploy to staging or prod
+bash deploy.sh deploy staging
+bash deploy.sh deploy prod
 ```
 
-After deploy, the ALB DNS name is printed. Add to CRM Lambda:
+### Environment-Specific Task Sizing
+
+The deployment script automatically applies sensible defaults per environment:
+
+| Environment | CPU | Memory | Desired Count |
+|-------------|-----|--------|---------------|
+| dev | 256 | 512 MB | 0 |
+| staging | 256 | 1 GB | 1 |
+| prod | 512 | 1 GB | 1 |
+
+You can override these by setting `TASK_CPU`, `TASK_MEMORY`, or `DESIRED_COUNT` in `.env`.
+
+### Auto-Detection & Auto-Generation
+
+On first run, `deploy.sh`:
+- Auto-detects your account's default VPC, its CIDR, and its subnets (unless
+  `AWS_VPC_ID` / `AWS_VPC_CIDR` / `AWS_PRIVATE_SUBNET_IDS` are set in `.env`).
+- Auto-generates `BAILEYS_API_KEY`, `BAILEYS_ADMIN_API_KEY`, `BAILEYS_WEBHOOK_SECRET`,
+  and `AUTH_ENCRYPTION_KEY` if left as placeholders, and saves them to
+  `infra/.generated-<env>.env` (gitignored) so subsequent deploys are idempotent.
+- Validates the `TaskCpu`/`TaskMemory` combination against Fargate's allowed pairs
+  before touching CloudFormation.
+
+After deploy, instructions for getting the current task public IP endpoint are printed automatically.
+
+### Dev Cost Controls (no infra changes)
+
+```bash
+bash deploy.sh stop dev     # sets ECS desired count to 0 — stops Fargate billing
+bash deploy.sh start dev    # sets ECS desired count back to 1
+bash deploy.sh status dev   # shows current desired/running/pending task counts
 ```
-BAILEY_ENABLED=true
-BAILEY_MODE=selfhosted
-BAILEY_API_ENDPOINT=http://<alb-dns>
-BAILEY_API_KEY=<same as InternalApiKey>
-BAILEY_WEBHOOK_SECRET=<same as WebhookSecret>
+
+### Cost Estimate
+
+With ALB removed and Fargate Spot enabled:
+
+| State | Monthly Cost |
+|-------|--------------|
+| Running 24/7 (Spot) | ~$3.30 |
+| Stopped (DesiredCount=0) | ~$0.60 |
+
+Disable Spot (`SPOT_CAPACITY=false`) for no interruptions: ~$9.60/month running.
+
+### Getting the Public Endpoint
+
+The ALB has been removed to save cost. The ECS task gets a dynamic public IP on port 3003:
+
+```bash
+bash deploy.sh start dev        # start the service
+bash deploy.sh endpoint dev     # get current public IP endpoint
 ```
+
+Example output:
+```
+http://43.204.123.45:3003
+```
+
+**Important:** The public IP changes when the task restarts.
+
+### Route53 Dynamic DNS (Stable Hostname)
+
+To avoid chasing the public IP, add a Route53 hosted zone and a subdomain:
+
+1. In AWS Route53, create or find your hosted zone (e.g., `realtyflow.com`). Copy the **Hosted Zone ID**.
+2. In `.env`, set:
+
+```bash
+HOSTED_ZONE_ID=Z1234567890ABC
+DOMAIN_NAME=whatsapp.realtyflow.com
+```
+
+3. Deploy:
+
+```bash
+bash deploy.sh deploy dev
+```
+
+A Lambda will automatically update the `A` record whenever the ECS task starts. The first deploy creates the record; subsequent task restarts update it.
+
+Use this in your CRM:
+
+```bash
+BAILEY_API_ENDPOINT=http://whatsapp.realtyflow.com:3003
+```
+
+### Alarm Notifications
+
+Set your email in `.env`:
+
+```bash
+ALARM_EMAIL=your-email@example.com
+```
+
+Then deploy:
+
+```bash
+bash deploy.sh deploy dev
+```
+
+You will receive an email from AWS to confirm the SNS subscription. Click the link.
+
+After confirmation, you will get emails for:
+- Spot interruptions
+- ECS task stops/crashes
+- High CPU/memory usage
+- Task count below desired
+- OOMKilled events
+
+### Production-Ready Features
+
+The CloudFormation template includes:
+
+- **Deployment Circuit Breaker:** Automatic rollback on failed deployments
+- **Fargate Spot:** Enabled by default for 60-70% compute cost savings (tasks may be interrupted with 2-minute warning). Disable via `SPOT_CAPACITY=false`
+- **ECS Exec:** Enabled for debugging running containers (requires SSM Session Manager — ensure your IAM user/role has the `AmazonSSMFullAccess` or `AmazonSSMReadOnlyAccess` policy and the container's task role has the required `ssmmessages:*` permissions)
+- **CloudWatch Alarms:**
+  - CPU utilization (warning at 60%, critical at 80%)
+  - Memory utilization (warning at 70%, critical at 85%)
+  - Task restart detection (running < desired count, skipped when DesiredCount=0)
+  - OOMKilled events (via log metric filter)
+- **CloudWatch Alarm Notifications:** Optional email notifications via `ALARM_EMAIL` env var. The template creates an SNS topic and subscribes your email. You must confirm the subscription by clicking the email link.
+- **Graceful Shutdown:** SIGTERM handler closes HTTP server and Baileys sessions cleanly
+- **Log Retention:** 30 days (configurable via `LOG_RETENTION_DAYS`)
 
 ## Robustness Features
 
@@ -206,7 +331,7 @@ whatsapp-platform/
 │       ├── messages.js             # Message sending
 │       └── utils.js                # Safe error utility
 ├── infra/
-│   ├── cfn-platform.yaml           # CloudFormation (ECS, S3, DynamoDB, ALB, IAM)
+│   ├── cfn-platform.yaml           # CloudFormation (ECS, S3, DynamoDB, IAM, no ALB)
 │   ├── deploy.sh                   # Build + ECR push + CFN deploy
 │   └── cfn-params.example.json     # Parameter template
 ├── patches/

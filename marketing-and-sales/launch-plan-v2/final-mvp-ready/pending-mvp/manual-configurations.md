@@ -68,12 +68,14 @@ BAILEY_API_ENDPOINT=https://api.bailey.ai
 ```
 BAILEY_ENABLED=true
 BAILEY_MODE=selfhosted
-BAILEY_WEBHOOK_SECRET=<random 32+ char secret>
-BAILEY_API_ENDPOINT=https://your-baileys-service.example.com
-BAILEY_API_KEY=<random 32+ char secret>  # must match baileys-service BAILEYS_API_KEY
+BAILEY_API_PREFIX=/v1
+BAILEY_WEBHOOK_SECRET=<random 32+ char secret>  # must match BAILEYS_WEBHOOK_SECRET on platform
+BAILEY_API_ENDPOINT=http://localhost:3003
+BAILEY_API_KEY=<random 32+ char secret>  # must match BAILEYS_API_KEY on platform
+BAILEY_ADMIN_API_KEY=<random 32+ char secret>  # must match BAILEYS_ADMIN_API_KEY on platform
 ```
 
-Deploy the separate `baileys-service/` project. See `baileys-service/README.md`.
+Deploy `whatsapp-platform/`. See `whatsapp-platform/README.md`.
 
 Frontend (optional):
 ```

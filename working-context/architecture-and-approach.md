@@ -9,7 +9,7 @@
                  │ Baileys protocol
                  ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  baileys-service (Node, port 3003)                            │
+│  whatsapp-platform (Node, port 3003)                          │
 │  - Owns the Baileys socket                                    │
 │  - Forwards incoming messages to CRM webhook                  │
 │  - Exposes HTTP API for sending messages                      │
@@ -25,7 +25,7 @@
 │  server (Express, port 4000)                                  │
 │  - Receives webhook                                           │
 │  - Invokes AI agent                                           │
-│  - Calls back to baileys-service to send replies              │
+│  - Calls back to whatsapp-platform to send replies              │
 │  - Logs messages to DynamoDB                                  │
 └─────────────────────────────────────────────────────────────┘
 ```

@@ -16,6 +16,9 @@ import { normalizeLead, normalizeLeads } from './normalizers/leadNormalizer.js';
 import { normalizeOwner, normalizeOwners } from './normalizers/ownerNormalizer.js';
 import { normalizeTenant, normalizeTenants } from './normalizers/tenantNormalizer.js';
 import { normalizeNote, normalizeNotes } from './normalizers/noteNormalizer.js';
+import { normalizeBuyer, normalizeBuyers } from './normalizers/buyerNormalizer.js';
+import { normalizeProperty, normalizeProperties } from './normalizers/propertyNormalizer.js';
+import { normalizeContact, normalizeContacts } from './normalizers/contactNormalizer.js';
 
 // Services (used for entity lookups when the raw result only contains a note)
 import { getLead_Service } from './services/leadService.js';
@@ -27,12 +30,18 @@ import * as LeadAIViewBuilder from './aiViewBuilders/leadAIViewBuilder.js';
 import * as OwnerAIViewBuilder from './aiViewBuilders/ownerAIViewBuilder.js';
 import * as TenantAIViewBuilder from './aiViewBuilders/tenantAIViewBuilder.js';
 import * as MeetingAIViewBuilder from './aiViewBuilders/meetingAIViewBuilder.js';
+import * as BuyerAIViewBuilder from './aiViewBuilders/buyerAIViewBuilder.js';
+import * as PropertyAIViewBuilder from './aiViewBuilders/propertyAIViewBuilder.js';
+import * as ContactAIViewBuilder from './aiViewBuilders/contactAIViewBuilder.js';
 
 // Feature flags
 const USE_AI_DTO_FOR_LEADS = process.env.USE_AI_DTO_FOR_LEADS === 'true';
 const USE_AI_DTO_FOR_OWNERS = process.env.USE_AI_DTO_FOR_OWNERS === 'true';
 const USE_AI_DTO_FOR_TENANTS = process.env.USE_AI_DTO_FOR_TENANTS === 'true';
 const USE_AI_DTO_FOR_MEETINGS = process.env.USE_AI_DTO_FOR_MEETINGS === 'true';
+const USE_AI_DTO_FOR_BUYERS = process.env.USE_AI_DTO_FOR_BUYERS === 'true';
+const USE_AI_DTO_FOR_PROPERTIES = process.env.USE_AI_DTO_FOR_PROPERTIES === 'true';
+const USE_AI_DTO_FOR_CONTACTS = process.env.USE_AI_DTO_FOR_CONTACTS === 'true';
 
 // ─── Tool Registry ───────────────────────────────────────────────────────────
 
@@ -54,6 +63,20 @@ const TENANT_TOOLS = new Set([
 
 const MEETING_TOOLS = new Set([
   'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting', 'delete_meeting',
+]);
+
+const BUYER_TOOLS = new Set([
+  'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer', 'delete_buyer',
+  'create_buyer_note', 'get_buyer_notes',
+]);
+
+const PROPERTY_TOOLS = new Set([
+  'create_property', 'get_property', 'search_properties', 'update_property', 'delete_property',
+]);
+
+const CONTACT_TOOLS = new Set([
+  'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'delete_contact',
+  'update_contact_role', 'create_contact_note', 'get_contact_notes', 'find_contact_by_phone',
 ]);
 
 /**
@@ -79,6 +102,18 @@ export async function transformWithAiDto(toolName, result, context = {}) {
 
     if (USE_AI_DTO_FOR_MEETINGS && MEETING_TOOLS.has(toolName)) {
       return transformMeetingResult(toolName, result, context.input || {});
+    }
+
+    if (USE_AI_DTO_FOR_BUYERS && BUYER_TOOLS.has(toolName)) {
+      return transformBuyerResult(toolName, result, context.input || {});
+    }
+
+    if (USE_AI_DTO_FOR_PROPERTIES && PROPERTY_TOOLS.has(toolName)) {
+      return transformPropertyResult(toolName, result, context.input || {});
+    }
+
+    if (USE_AI_DTO_FOR_CONTACTS && CONTACT_TOOLS.has(toolName)) {
+      return transformContactResult(toolName, result, context.input || {});
     }
 
     return result;
@@ -114,10 +149,9 @@ async function transformLeadResult(toolName, result, tenantId, input) {
     return result;
   }
 
-  // Conversion returns { lead, entity, entityType }
+  // Conversion returns { entity, entityType, conversionSnapshotId, leadId, ... }
   if (toolName === 'convert_lead') {
-    const normalizedLead = normalizeLead(result.lead || result);
-    return LeadAIViewBuilder.buildConvertConfirmation(normalizedLead, result.entityType || input.convertTo);
+    return LeadAIViewBuilder.buildConvertConfirmation(result, result?.entityType || input.convertTo);
   }
 
   const normalized = Array.isArray(result) ? normalizeLeads(result) : normalizeLead(result);
@@ -297,10 +331,134 @@ function transformMeetingResult(toolName, result, input) {
   }
 }
 
+// ─── Buyer transformations ───────────────────────────────────────────────────
+
+function transformBuyerResult(toolName, result, input) {
+  if (toolName === 'create_buyer_note') {
+    const note = normalizeNote(result);
+    return BuyerAIViewBuilder.buildNoteCreateConfirmation(
+      { buyerId: input.buyerId || input.id, name: result?.buyerName || input.name },
+      note,
+    );
+  }
+  if (toolName === 'get_buyer_notes') {
+    return BuyerAIViewBuilder.buildNotesList(normalizeNotes(result || []));
+  }
+  if (!result) {
+    if (toolName === 'get_buyer') {
+      return BuyerAIViewBuilder.buildBuyerNotFoundError(input.buyerId || input.id);
+    }
+    return result;
+  }
+  const list = Array.isArray(result) ? result : (result?.buyers || null);
+  if (toolName === 'search_buyers' || list) {
+    const buyers = normalizeBuyers(list || (Array.isArray(result) ? result : [result]));
+    const total = result?.total || buyers.length;
+    return buyers.length === 0
+      ? BuyerAIViewBuilder.buildEmptySearchResults()
+      : BuyerAIViewBuilder.buildSearchResults(buyers, { total, shown: buyers.length, hasMore: total > buyers.length });
+  }
+  const normalized = normalizeBuyer(result);
+  switch (toolName) {
+    case 'get_buyer':
+      return BuyerAIViewBuilder.buildBuyerDetails(normalized);
+    case 'create_buyer':
+      return BuyerAIViewBuilder.buildCreateConfirmation(normalized);
+    case 'update_buyer':
+      return BuyerAIViewBuilder.buildUpdateConfirmation(normalized, {});
+    case 'delete_buyer':
+      return BuyerAIViewBuilder.buildDeleteConfirmation(normalized);
+    default:
+      return normalized;
+  }
+}
+
+// ─── Property transformations ────────────────────────────────────────────────
+
+function transformPropertyResult(toolName, result, input) {
+  if (!result) {
+    if (toolName === 'get_property') {
+      return PropertyAIViewBuilder.buildPropertyNotFoundError(input.propertyId || input.id);
+    }
+    return result;
+  }
+  const list = Array.isArray(result) ? result : (result?.properties || null);
+  if (toolName === 'search_properties' || list) {
+    const properties = normalizeProperties(list || (Array.isArray(result) ? result : [result]));
+    const total = result?.total || properties.length;
+    return properties.length === 0
+      ? PropertyAIViewBuilder.buildEmptySearchResults()
+      : PropertyAIViewBuilder.buildSearchResults(properties, { total, shown: properties.length, hasMore: total > properties.length });
+  }
+  const normalized = normalizeProperty(result);
+  switch (toolName) {
+    case 'get_property':
+      return PropertyAIViewBuilder.buildPropertyDetails(normalized);
+    case 'create_property':
+      return PropertyAIViewBuilder.buildCreateConfirmation(normalized);
+    case 'update_property':
+      return PropertyAIViewBuilder.buildUpdateConfirmation(normalized, {});
+    case 'delete_property':
+      return PropertyAIViewBuilder.buildDeleteConfirmation(normalized);
+    default:
+      return normalized;
+  }
+}
+
+// ─── Contact transformations ─────────────────────────────────────────────────
+
+function transformContactResult(toolName, result, input) {
+  if (toolName === 'create_contact_note') {
+    const note = normalizeNote(result);
+    return ContactAIViewBuilder.buildNoteCreateConfirmation(
+      { contactId: input.contactId || input.id, name: result?.contactName || input.name },
+      note,
+    );
+  }
+  if (toolName === 'get_contact_notes') {
+    return ContactAIViewBuilder.buildNotesList(normalizeNotes(result || []));
+  }
+  if (toolName === 'find_contact_by_phone') {
+    if (!result) return ContactAIViewBuilder.buildEmptySearchResults();
+    return ContactAIViewBuilder.buildContactDetails(normalizeContact(result));
+  }
+  if (!result) {
+    if (toolName === 'get_contact') {
+      return ContactAIViewBuilder.buildContactNotFoundError(input.contactId || input.id);
+    }
+    return result;
+  }
+  const list = Array.isArray(result) ? result : (result?.contacts || null);
+  if (toolName === 'search_contacts' || list) {
+    const contacts = normalizeContacts(list || (Array.isArray(result) ? result : [result]));
+    const total = result?.total || contacts.length;
+    return contacts.length === 0
+      ? ContactAIViewBuilder.buildEmptySearchResults()
+      : ContactAIViewBuilder.buildSearchResults(contacts, { total, shown: contacts.length, hasMore: total > contacts.length });
+  }
+  const normalized = normalizeContact(result);
+  switch (toolName) {
+    case 'get_contact':
+      return ContactAIViewBuilder.buildContactDetails(normalized);
+    case 'create_contact':
+      return ContactAIViewBuilder.buildCreateConfirmation(normalized);
+    case 'update_contact':
+    case 'update_contact_role':
+      return ContactAIViewBuilder.buildUpdateConfirmation(normalized, {});
+    case 'delete_contact':
+      return ContactAIViewBuilder.buildDeleteConfirmation(normalized);
+    default:
+      return normalized;
+  }
+}
+
 export default {
   transformWithAiDto,
   USE_AI_DTO_FOR_LEADS,
   USE_AI_DTO_FOR_OWNERS,
   USE_AI_DTO_FOR_TENANTS,
   USE_AI_DTO_FOR_MEETINGS,
+  USE_AI_DTO_FOR_BUYERS,
+  USE_AI_DTO_FOR_PROPERTIES,
+  USE_AI_DTO_FOR_CONTACTS,
 };

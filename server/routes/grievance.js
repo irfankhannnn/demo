@@ -1,8 +1,9 @@
 import express from 'express';
+import axios from 'axios';
 import rateLimit from 'express-rate-limit';
 import { sendEmail } from '../emailService.js';
 import validateToken from '../middleware/validateToken.js';
-import { requireAdmin } from '../middleware/requireRole.js';
+import { requirePlatformOperator } from '../middleware/requirePlatformOperator.js';
 import {
   createGrievance,
   getGrievanceById,
@@ -17,9 +18,18 @@ import { serverTrack } from '../lib/posthog.js';
 const router = express.Router();
 
 const SLA_MESSAGE = 'Received. Expect a response within 7 working days.';
-const GRIEVANCE_OFFICER_MAILBOX = process.env.GRIEVANCE_OFFICER_EMAIL || 'info@realestateflow.in';
-const FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'no-reply@realestateflow.in';
-const FROM_NAME = process.env.BREVO_FROM_NAME || 'RealEstateFlow';
+
+function getGrievanceOfficerMailbox() {
+  return process.env.GRIEVANCE_OFFICER_EMAIL || null;
+}
+
+function getFromEmail() {
+  return process.env.BREVO_FROM_EMAIL || null;
+}
+
+function getFromName() {
+  return process.env.BREVO_FROM_NAME || 'RealtyFlow';
+}
 
 // ============== Helpers ==============
 
@@ -105,7 +115,7 @@ async function verifyHcaptcha(token, remoteip) {
     if (remoteip) params.append('remoteip', remoteip);
     const { data } = await axios.post('https://hcaptcha.com/siteverify', params.toString(), {
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      timeout: 5000,
+      timeout: parseInt(process.env.HCAPTCHA_VERIFY_TIMEOUT_MS || '5000', 10),
     });
     return data && data.success === true;
   } catch (err) {
@@ -133,7 +143,7 @@ function ackEmailHtml({ name, trackingId, category }) {
     <p>We have received your grievance and assigned it tracking ID <strong>${escapeHtml(trackingId)}</strong>.</p>
     <p>Category: <strong>${escapeHtml(category)}</strong></p>
     <p>As per the DPDP Act 2023, our Grievance Officer will respond within <strong>7 working days</strong>.</p>
-    <p>Regards,<br/>${escapeHtml(FROM_NAME)} Grievance Team</p>
+    <p>Regards,<br/>${escapeHtml(getFromName())} Grievance Team</p>
   `;
 }
 
@@ -154,8 +164,8 @@ function notifyEmailHtml({ name, email, phone, category, description, trackingId
 
 // ============== Public POST /api/grievance ==============
 const publicLimiter = rateLimit({
-  windowMs: Number(process.env.GRIEVANCE_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000, // 1 hour
-  max: Number(process.env.GRIEVANCE_RATE_LIMIT_MAX) || 5, // 5 requests per IP per hour
+  windowMs: Number(process.env.GRIEVANCE_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000,
+  max: Number(process.env.GRIEVANCE_RATE_LIMIT_MAX) || 5,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => getClientIp(req),
@@ -166,7 +176,16 @@ const publicLimiter = rateLimit({
 
 router.post('/grievance', publicLimiter, async (req, res) => {
   try {
-    // Honeypot: bots fill hidden fields. Reject silently-ish with 400.
+    const officerMailbox = getGrievanceOfficerMailbox();
+    const fromEmail = getFromEmail();
+    if (!officerMailbox || !fromEmail) {
+      logger.error('grievance.config_missing', {
+        hasOfficer: !!officerMailbox,
+        hasFrom: !!fromEmail,
+      });
+      return res.status(503).json({ error: 'Grievance service is temporarily unavailable' });
+    }
+
     if (req.body && typeof req.body.middle_name === 'string' && req.body.middle_name.trim() !== '') {
       logger.warn('grievance.honeypot_triggered', { ip: getClientIp(req) });
       return res.status(400).json({ error: 'Invalid submission.' });
@@ -193,7 +212,6 @@ router.post('/grievance', publicLimiter, async (req, res) => {
       name, email, phone, category, description, ip, userAgent,
     });
 
-    // Fire-and-forget side effects — never block/fail the response on these.
     await Promise.allSettled([
       sendGrievanceEmail({
         to: [{ email, name }],
@@ -201,7 +219,7 @@ router.post('/grievance', publicLimiter, async (req, res) => {
         htmlContent: ackEmailHtml({ name, trackingId, category }),
       }),
       sendGrievanceEmail({
-        to: [{ email: GRIEVANCE_OFFICER_MAILBOX }],
+        to: [{ email: officerMailbox }],
         subject: `New grievance ${trackingId} (${category})`,
         htmlContent: notifyEmailHtml({ name, email, phone, category, description, trackingId }),
       }),
@@ -211,12 +229,12 @@ router.post('/grievance', publicLimiter, async (req, res) => {
     return res.status(200).json({ trackingId, message: SLA_MESSAGE });
   } catch (error) {
     logger.error('grievance.create_failed', { error: error.message });
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ============== Admin GET /api/admin/grievances ==============
-router.get('/admin/grievances', validateToken, requireAdmin, async (req, res) => {
+// Platform-operator only — grievances are platform-wide PII, not tenant-scoped
+router.get('/admin/grievances', validateToken, requirePlatformOperator, async (req, res) => {
   try {
     const { status, category, fromDate, toDate, limit, lastEvaluatedKey } = req.query;
 
@@ -239,18 +257,17 @@ router.get('/admin/grievances', validateToken, requireAdmin, async (req, res) =>
       }
     }
 
-    const result = await listGrievances({ tenantId: req.tenantId,
+    const result = await listGrievances({
       status, category, fromDate, toDate, limit, lastEvaluatedKey: startKey,
     });
     return res.json(result);
   } catch (error) {
     logger.error('grievance.list_failed', { error: error.message });
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ============== Admin PATCH /api/admin/grievances/:id ==============
-router.patch('/admin/grievances/:id', validateToken, requireAdmin, async (req, res) => {
+router.patch('/admin/grievances/:id', validateToken, requirePlatformOperator, async (req, res) => {
   try {
     const { id } = req.params;
     const { status, assignedTo, resolutionNotes, internalNotes, resolvedAt } = req.body || {};
@@ -268,7 +285,7 @@ router.patch('/admin/grievances/:id', validateToken, requireAdmin, async (req, r
     return res.json(updated);
   } catch (error) {
     logger.error('grievance.update_failed', { error: error.message });
-    return res.status(500).json({ error: 'Internal server error', details: error.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

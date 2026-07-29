@@ -13,7 +13,7 @@
 import {
   createLead, getLead, getLeads, updateLead, deleteLead, convertLead,
   createLeadNote, getLeadNotes,
-  searchLeads,
+  searchLeads, unwrapLeadsList,
 } from '../crmDynamodbService.js';
 import { normalizeLead, normalizeLeads } from '../normalizers/leadNormalizer.js';
 import { logger } from '../logger.js';
@@ -53,10 +53,13 @@ export async function getLead_Service(tenantId, leadId, options = {}) {
  */
 export async function getLeads_Service(tenantId, filters = {}, options = {}) {
   try {
-    const leads = await getLeads(tenantId, filters);
+    const result = await getLeads(tenantId, filters);
+    const leads = unwrapLeadsList(result);
     return {
       leads: normalizeLeads(leads),
-      total: leads.length,
+      total: result?.total ?? leads.length,
+      limit: result?.limit,
+      offset: result?.offset,
     };
   } catch (err) {
     logger.error('leadService.getLeads.failed', { tenantId, error: err.message });

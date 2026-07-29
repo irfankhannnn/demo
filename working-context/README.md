@@ -1,34 +1,38 @@
 # Working Context Snapshot
 
-**Project:** Nabi/Git backup of RealtyFlow / Cloudberry Real Estate CRM WhatsApp integration
-**Path:** `D:\reality_flow_crm\nabi-app-git-bkp\`
-**Created:** 2026-06-25
-**Purpose:** Capture the architecture, decisions, and current state of the WhatsApp/Baileys robustness work so future sessions can continue without losing context.
+**Project:** RealtyFlow / Cloudberry Real Estate CRM — WhatsApp SyncBot  
+**Path:** `D:\reality_flow_crm\nabi-app-git-bkp\`  
+**Updated:** 2026-07-19
+
+## Active workstream (start here)
+
+→ **[`syncbot-interaction-design.md`](./syncbot-interaction-design.md)**  
+→ Spec: [`docs/interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md`](../docs/interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md)  
+→ Transformation layer: [`ai-response-design/README.md`](../ai-response-design/README.md)
 
 ## What this folder contains
 
 | File | What it covers |
 |------|----------------|
-| `session-timeline.md` | Chronological list of what was built, reviewed, and fixed in this session |
-| `architecture-and-approach.md` | High-level architecture, component responsibilities, data flow |
-| `openclaw-references.md` | OpenClaw-inspired patterns that were applied (echo loops, debounce, idempotency, retry) |
-| `robustness-implementation.md` | The 10 issues fixed during the code review and the follow-up reliability fixes |
-| `agent-budget-issue.md` | The separate issue where "update budget" created a note instead of updating the lead |
-| `current-issues-and-pending.md` | Open questions, known issues, and next steps |
-| `files-changed.md` | Complete list of files touched in this session |
-| `key-decisions.md` | Important design decisions and their rationale |
-| `testing-notes.md` | Test commands, results, and how to verify |
+| `syncbot-interaction-design.md` | **Active** — consistent WhatsApp responses across entities |
+| `session-timeline.md` | Chronological Baileys/robustness work (historical) |
+| `architecture-and-approach.md` | WhatsApp/Baileys architecture |
+| `openclaw-references.md` | OpenClaw-inspired patterns |
+| `robustness-implementation.md` | Baileys reliability fixes |
+| `agent-budget-issue.md` | Budget update vs note bug |
+| `current-issues-and-pending.md` | Open issues (includes SyncBot UX) |
+| `files-changed.md` | Files touched in earlier sessions |
+| `key-decisions.md` | Design decisions |
+| `testing-notes.md` | Test commands |
 
 ## How to use this
 
-1. Start a new chat session and point the agent at this folder.
-2. Read `README.md` (this file), then `session-timeline.md`, then `current-issues-and-pending.md`.
-3. Use the other files as reference for the specific area you want to work on.
+1. Read `README.md`, then `syncbot-interaction-design.md`, then `current-issues-and-pending.md`.
+2. For Baileys socket issues, use the robustness docs.
+3. For response UX, prefer Interaction Design v1 over outdated checklist items in entity READMEs.
 
 ## Important reminders
 
-- The `baileys-service` runs on port 3003 and owns the Baileys socket.
-- The `server` (Express) runs on port 4000 and receives webhooks from `baileys-service`.
-- In local dev, the server processes webhooks directly; in production, it is invoked by EventBridge.
-- `baileys-service` now patches `@whiskeysockets/baileys` on `npm install` via `patch-package`. If the patches are missing, run `npm install` or `npx patch-package` in `baileys-service`.
-- The `__test_config.mjs` file was deleted earlier; if your IDE still shows it as open, it is a stale tab.
+- `whatsapp-platform` owns the socket; `server` owns the agent + formatter.
+- AI DTO flags default off until each entity pipeline is complete.
+- Do not put WhatsApp templates inside `ai-response-design/` — that is data-only.

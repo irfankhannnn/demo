@@ -11,11 +11,11 @@ import {
   RefreshCw,
   Building2,
   CheckCircle,
-  Clock,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMProperty } from '../../types/crm';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
+import { formatPropertyMarketPrice } from '../../utils/propertyPricing';
 
 export default function PropertyList() {
   const navigate = useNavigate();
@@ -48,6 +48,7 @@ export default function PropertyList() {
       setProperties(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading properties:', error);
+      setProperties([]);
       if (error instanceof Error && error.message.includes('token')) {
         navigate('/login');
       }
@@ -59,16 +60,13 @@ export default function PropertyList() {
   const applyFilters = () => {
     let filtered = [...properties];
 
-    // Filter out inactive listings (properties that are not for-sale/for-rent/rented)
-    filtered = filtered.filter((p) => (p as any).listingStatus !== 'inactive');
-
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
         (p) =>
-          p.title.toLowerCase().includes(query) ||
-          p.area.toLowerCase().includes(query) ||
-          p.city.toLowerCase().includes(query) ||
+          (p.title || '').toLowerCase().includes(query) ||
+          (p.area || '').toLowerCase().includes(query) ||
+          (p.city || '').toLowerCase().includes(query) ||
           p.address?.toLowerCase().includes(query) ||
           (p as any).buildingName?.toLowerCase().includes(query) ||
           p.owner?.name?.toLowerCase().includes(query) ||
@@ -90,7 +88,11 @@ export default function PropertyList() {
       filtered = filtered.filter((p) => !!p.ownerId);
     }
 
-    filtered.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    filtered.sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt || 0).getTime() -
+        new Date(a.updatedAt || a.createdAt || 0).getTime(),
+    );
     setFilteredProperties(filtered);
   };
 
@@ -138,20 +140,12 @@ export default function PropertyList() {
       key: 'rentAmount',
       header: 'Price',
       sortable: true,
-      render: (property) => {
-        const isSale = property.status === 'for-sale' || property.status === 'sold';
-        const price = isSale
-          ? (property.saleInfo?.listedPrice ?? property.saleInfo?.soldPrice ?? 0)
-          : (property.rentalInfo?.expectedRent ?? property.rentAmount ?? 0);
-        return (
-          <div className="flex items-center gap-1 font-semibold text-gray-900">
-            <IndianRupee className="h-4 w-4 text-gray-500" />
-            {Number.isFinite(Number(price)) && Number(price) > 0
-              ? `${Number(price).toLocaleString('en-IN')}${isSale ? '' : '/mo'}`
-              : '-'}
-          </div>
-        );
-      },
+      render: (property) => (
+        <div className="flex items-center gap-1 font-semibold text-gray-900">
+          <IndianRupee className="h-4 w-4 text-gray-500" />
+          {formatPropertyMarketPrice(property)}
+        </div>
+      ),
     },
     {
       key: 'status',
@@ -159,31 +153,40 @@ export default function PropertyList() {
       sortable: true,
       render: (property) => {
         const statusStyles: Record<string, string> = {
-          available: 'bg-emerald-100 text-emerald-700',
+          inactive: 'bg-slate-100 text-slate-600',
+          'not-listed': 'bg-slate-100 text-slate-600',
+          available: 'bg-slate-100 text-slate-600',
           'for-sale': 'bg-blue-100 text-blue-700',
-          'for-rent': 'bg-yellow-100 text-yellow-700',
+          'for-rent': 'bg-amber-100 text-amber-700',
           rented: 'bg-indigo-100 text-indigo-700',
-          sold: 'bg-red-100 text-red-700',
-          'on-hold': 'bg-amber-100 text-amber-700',
-          'out-of-stock': 'bg-gray-100 text-gray-600',
+          sold: 'bg-rose-100 text-rose-700',
+          'on-hold': 'bg-slate-100 text-slate-600',
+          archived: 'bg-gray-100 text-gray-500',
+          'out-of-stock': 'bg-gray-100 text-gray-500',
         };
         const dotStyles: Record<string, string> = {
-          available: 'bg-emerald-500',
+          inactive: 'bg-slate-400',
+          'not-listed': 'bg-slate-400',
+          available: 'bg-slate-400',
           'for-sale': 'bg-blue-500',
-          'for-rent': 'bg-yellow-500',
+          'for-rent': 'bg-amber-500',
           rented: 'bg-indigo-500',
-          sold: 'bg-red-500',
-          'on-hold': 'bg-amber-500',
+          sold: 'bg-rose-500',
+          'on-hold': 'bg-slate-400',
+          archived: 'bg-gray-400',
           'out-of-stock': 'bg-gray-400',
         };
         const statusLabels: Record<string, string> = {
-          available: 'Available',
-          'for-sale': 'For Sale',
-          'for-rent': 'For Rent',
-          rented: 'Rented',
+          inactive: 'Not Listed',
+          'not-listed': 'Not Listed',
+          available: 'Not Listed',
+          'for-sale': 'Available for Sale',
+          'for-rent': 'Available for Rent',
+          rented: 'Occupied',
           sold: 'Sold',
-          'on-hold': 'On Hold',
-          'out-of-stock': 'Out of Stock',
+          'on-hold': 'Not Listed',
+          archived: 'Archived',
+          'out-of-stock': 'Archived',
         };
         return (
           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${statusStyles[property.status] || 'bg-gray-100 text-gray-600'}`}>
@@ -251,13 +254,14 @@ export default function PropertyList() {
           className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(168,85,247,0.10)] focus:border-purple-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Status</option>
-          <option value="available">Available</option>
-          <option value="for-sale">For Sale</option>
-          <option value="for-rent">For Rent</option>
-          <option value="rented">Rented</option>
+          <option value="not-listed">Not Listed</option>
+          <option value="for-sale">Available for Sale</option>
+          <option value="for-rent">Available for Rent</option>
+          <option value="rented">Occupied</option>
           <option value="sold">Sold</option>
-          <option value="on-hold">On Hold</option>
-          <option value="out-of-stock">Out of Stock</option>
+          <option value="archived">Archived</option>
+          <option value="inactive">Not Listed (legacy)</option>
+          <option value="available">Not Listed (legacy)</option>
         </select>
       </div>
       <div>
@@ -365,8 +369,8 @@ export default function PropertyList() {
                 <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{properties.filter(p => (p.status === 'available' || p.status === 'for-sale' || p.status === 'for-rent') && (p as any).listingStatus !== 'inactive').length}</p>
-                <p className="text-xs text-slate-400 font-semibold">Available / Listed</p>
+                <p className="text-xl sm:text-2xl font-bold text-emerald-600 tracking-tight">{properties.filter(p => p.status === 'for-sale' || p.status === 'for-rent').length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Listed</p>
               </div>
             </div>
           </div>
@@ -377,7 +381,7 @@ export default function PropertyList() {
               </div>
               <div className="min-w-0">
                 <p className="text-xl sm:text-2xl font-bold text-blue-600 tracking-tight">{properties.filter(p => p.status === 'rented').length}</p>
-                <p className="text-xs text-slate-400 font-semibold">Rented</p>
+                <p className="text-xs text-slate-400 font-semibold">Occupied</p>
               </div>
             </div>
           </div>
@@ -387,19 +391,8 @@ export default function PropertyList() {
                 <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-rose-600 tracking-tight">{properties.filter(p => p.status === 'sold').length}</p>
-                <p className="text-xs text-slate-400 font-semibold">Sold</p>
-              </div>
-            </div>
-          </div>
-          <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 card-lift group">
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
-                <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xl sm:text-2xl font-bold text-amber-600 tracking-tight">{properties.filter(p => p.status === 'on-hold').length}</p>
-                <p className="text-xs text-slate-400 font-semibold">On Hold</p>
+                <p className="text-xl sm:text-2xl font-bold text-rose-600 tracking-tight">{properties.filter(p => ['not-listed', 'inactive', 'available', 'on-hold'].includes(p.status)).length}</p>
+                <p className="text-xs text-slate-400 font-semibold">Not Listed</p>
               </div>
             </div>
           </div>

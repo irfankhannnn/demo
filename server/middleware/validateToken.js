@@ -1,9 +1,18 @@
 import axios from 'axios';
 import { logger } from '../logger.js';
 
-// In-memory cache for validated tokens (5 second TTL to limit revocation window)
+// In-memory cache for validated tokens (reduces auth-service load; tune via env)
 const tokenCache = new Map();
-const CACHE_TTL_MS = 5 * 1000; // 5 seconds
+const CACHE_TTL_MS = parseInt(process.env.AUTH_TOKEN_CACHE_TTL_MS || '60000', 10);
+const STALE_CACHE_GRACE_MS = parseInt(process.env.AUTH_TOKEN_STALE_GRACE_MS || '300000', 10);
+const AUTH_NETWORK_ERROR_CODES = new Set([
+  'ECONNREFUSED',
+  'ETIMEDOUT',
+  'ECONNABORTED',
+  'ENOTFOUND',
+  'ERR_NETWORK',
+  'EAI_AGAIN',
+]);
 
 function cleanupExpiredTokenCache(now = Date.now()) {
   for (const [token, cached] of tokenCache.entries()) {
@@ -25,16 +34,13 @@ function decodeJWT(token) {
   }
 }
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-};
-
 /**
  * Middleware to validate Cognito tokens via auth microservice
  * Calls AUTH_SERVICE_URL/auth/me to verify token and get user context
- * Caches results for 60s to reduce latency
+ * Caches results (default 60s) to reduce latency.
+ *
+ * Note: CORS is handled centrally by the cors middleware in server.js.
+ * Do not set wildcard CORS headers here.
  */
 async function validateToken(req, res, next) {
   try {
@@ -43,7 +49,6 @@ async function validateToken(req, res, next) {
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      res.set(CORS_HEADERS);
       return res.status(401).json({ 
         error: 'Unauthorized', 
         message: 'Missing or invalid Authorization header' 
@@ -57,10 +62,9 @@ async function validateToken(req, res, next) {
     if (decoded && decoded.exp && Date.now() > decoded.exp * 1000) {
       // Token is expired, remove from cache if present
       tokenCache.delete(token);
-      res.set(CORS_HEADERS);
-      return res.status(401).json({ 
-        error: 'Unauthorized', 
-        message: 'Token expired' 
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Token expired'
       });
     }
 
@@ -73,27 +77,29 @@ async function validateToken(req, res, next) {
     }
 
     // Call auth microservice to validate token
-    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+    const authServiceUrl = process.env.AUTH_SERVICE_URL;
+    if (!authServiceUrl) {
+      return res.status(500).json({ error: 'AUTH_SERVICE_URL not configured' });
+    }
     const requestId = req.headers['x-request-id'] || req.id;
     const response = await axios.get(`${authServiceUrl}/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
         ...(requestId && { 'x-request-id': requestId }),
       },
-      timeout: 3000 // 3 second timeout
+      timeout: parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '3000', 10)
     });
 
     if (response.status === 200 && response.data) {
       const { user, agency } = response.data;
-      
+
       if (!user || !user.tenantId) {
-        res.set(CORS_HEADERS);
-        return res.status(401).json({ 
-          error: 'Unauthorized', 
-          message: 'Invalid user data from auth service' 
+        return res.status(401).json({
+          error: 'Unauthorized',
+          message: 'Invalid user data from auth service'
         });
       }
-      
+
       // Cache the validated token
       tokenCache.set(token, {
         user,
@@ -106,15 +112,14 @@ async function validateToken(req, res, next) {
       req.user = user;
       req.agency = agency;
       req.tenantId = user.tenantId;
-      
+
       return next();
     }
 
     // Invalid response from auth service
-    res.set(CORS_HEADERS);
-    return res.status(401).json({ 
-      error: 'Unauthorized', 
-      message: 'Invalid token' 
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Invalid token'
     });
 
   } catch (error) {
@@ -136,41 +141,34 @@ async function validateToken(req, res, next) {
         url: error.config?.url
       });
       if (status === 401 || status === 403) {
-        res.set(CORS_HEADERS);
-        return res.status(status).json({ 
-          error: 'Unauthorized', 
-          message: 'Invalid or expired token' 
+        return res.status(status).json({
+          error: 'Unauthorized',
+          message: 'Invalid or expired token'
         });
       }
-      res.set(CORS_HEADERS);
-      return res.status(502).json({ 
-        error: 'Bad Gateway', 
-        message: 'Auth service error' 
+      return res.status(502).json({
+        error: 'Bad Gateway',
+        message: 'Auth service error'
       });
     }
 
-    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-      // Auth service is down or unreachable
-      logger.error('[validateToken] Auth service unreachable', { error: error.message });
+    if (AUTH_NETWORK_ERROR_CODES.has(error.code)) {
+      // Auth service is down, slow, or unreachable
+      logger.error('[validateToken] Auth service unreachable', { error: error.message, code: error.code });
 
-      // Graceful fallback: if we have a stale cached entry, use it for up to 5 minutes
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
         const cached = tokenCache.get(token);
-        if (cached) {
-          const staleGraceMs = 30 * 1000; // 30 seconds (reduced from 5 minutes for security)
-          if (Date.now() < cached.expiresAt + staleGraceMs) {
-            logger.warn('[validateToken] Using stale cache fallback for token', { token: token.substring(0, 20) + '...' });
-            req.user = cached.user;
-            req.agency = cached.agency;
-            req.tenantId = cached.tenantId;
-            return next();
-          }
+        if (cached && Date.now() < cached.expiresAt + STALE_CACHE_GRACE_MS) {
+          logger.warn('[validateToken] Using stale cache fallback for token', { token: token.substring(0, 20) + '...' });
+          req.user = cached.user;
+          req.agency = cached.agency;
+          req.tenantId = cached.tenantId;
+          return next();
         }
       }
 
-      res.set(CORS_HEADERS);
       return res.status(503).json({
         error: 'Service Unavailable',
         message: 'Authentication service is currently unavailable'
@@ -179,10 +177,9 @@ async function validateToken(req, res, next) {
 
     // Unknown error
     logger.error('[validateToken] Unexpected error', { error: error.message });
-    res.set(CORS_HEADERS);
-    return res.status(500).json({ 
-      error: 'Internal Server Error', 
-      message: 'Failed to validate token' 
+    return res.status(500).json({
+      error: 'Internal Server Error',
+      message: 'Failed to validate token'
     });
   }
 }

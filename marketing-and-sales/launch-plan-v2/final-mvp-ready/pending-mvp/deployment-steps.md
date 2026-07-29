@@ -443,15 +443,17 @@ BAILEY_WEBHOOK_SECRET=<webhook-secret>
 **Option B — Self-hosted Baileys library:**
 
 ```bash
-# 1. Deploy the separate baileys-service project (see baileys-service/README.md)
+# 1. Deploy whatsapp-platform (see whatsapp-platform/README.md)
 # 2. Set in Lambda env:
 BAILEY_ENABLED=true
 BAILEY_MODE=selfhosted
-BAILEY_WEBHOOK_SECRET=<same secret used in baileys-service>
-BAILEY_API_KEY=<same secret used in baileys-service>
-BAILEY_API_ENDPOINT=https://your-baileys-service.example.com
+BAILEY_API_PREFIX=/v1
+BAILEY_WEBHOOK_SECRET=<same secret as BAILEYS_WEBHOOK_SECRET on platform>
+BAILEY_API_KEY=<same secret as BAILEYS_API_KEY on platform>
+BAILEY_ADMIN_API_KEY=<same secret as BAILEYS_ADMIN_API_KEY on platform>
+BAILEY_API_ENDPOINT=http://whatsapp.realtyflow.com:3003
 
-# 3. Point baileys-service CRM_WEBHOOK_URL to:
+# 3. Point whatsapp-platform CRM_WEBHOOK_URL to (local dev only; ECS uses EventBridge):
 # https://api.realestateflow.in/api/webhooks/whatsapp
 
 # 4. Deploy auth service changes (WhatsAppIndex GSI + internal endpoints)

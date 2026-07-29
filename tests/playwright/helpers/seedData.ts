@@ -131,6 +131,79 @@ function seededRandomInt(seed: number, min: number, maxExclusive: number): numbe
   return min + Math.floor(rng() * (maxExclusive - min));
 }
 
+let runCounter = 0;
+
+function randomHex(byteCount: number): string {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(byteCount);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  return Array.from({ length: byteCount * 2 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seedFor(runStamp: string, offset: number): number {
+  return hashString(`${runStamp}#${offset}`);
+}
+
+const UNIQUE_TAG_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function uniqueTag(runStamp: string, offset: number, length = 5): string {
+  let seed = seedFor(runStamp, offset);
+  let tag = '';
+  for (let i = 0; i < length; i += 1) {
+    tag += UNIQUE_TAG_CHARS[(seed >>> 0) % UNIQUE_TAG_CHARS.length];
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+  }
+  return tag;
+}
+
+export interface TestRunContext {
+  runId: string;
+  runStamp: string;
+  phoneBase: number;
+}
+
+/** Creates a high-entropy run context for one test execution. */
+export function createTestRun(): TestRunContext {
+  runCounter += 1;
+  const timePart = Date.now().toString(36);
+  const randomPart = randomHex(6);
+  const workerPart = process.env.TEST_PARALLEL_INDEX ?? '0';
+  const runId = `${timePart}-${randomPart}-w${workerPart}-n${runCounter}`;
+  return {
+    runId,
+    runStamp: `${timePart}${randomPart}`.slice(0, 18),
+    phoneBase: generatePhoneBase(),
+  };
+}
+
+/** Generates a unique Indian mobile base number (10 digits, starts with 9). */
+export function generatePhoneBase(): number {
+  const arr = new Uint32Array(2);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    crypto.getRandomValues(arr);
+  } else {
+    arr[0] = (Math.random() * 0xffffffff) >>> 0;
+    arr[1] = (Date.now() ^ (Math.random() * 0xffffffff)) >>> 0;
+  }
+  const mixed = (arr[0] ^ arr[1] ^ Date.now() ^ runCounter) >>> 0;
+  return 9_000_000_000 + (mixed % 1_000_000_000);
+}
+
+export function phoneForRun(run: TestRunContext, offset: number): string {
+  return generateTestPhone(offset, run.phoneBase);
+}
+
 export const SEED_DATA = {
   firstNames: [...FIRST_NAMES],
   lastNames: [...LAST_NAMES],
@@ -156,31 +229,42 @@ export function getItemByIndex<T>(arr: readonly T[], index: number): T {
 }
 
 export function generateUniqueName(runStamp: string, offset: number) {
-  const seed = runStamp.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + offset * 7919;
+  const seed = seedFor(runStamp, offset);
   const firstName = getItemByIndex(SEED_DATA.firstNames, seededRandomInt(seed, 0, SEED_DATA.firstNames.length));
   const lastName = getItemByIndex(SEED_DATA.lastNames, seededRandomInt(seed + 1, 0, SEED_DATA.lastNames.length));
-  const fullName = `${firstName} ${lastName}`;
-  return { firstName, lastName, fullName };
+  const tag = uniqueTag(runStamp, offset);
+  const fullName = `${firstName} ${lastName} ${tag}`;
+  return { firstName, lastName, fullName, tag };
 }
 
-export function generateTestPhone(offset: number, phoneBase: number) {
-  const phone = String(phoneBase + offset).padStart(10, '0');
-  return phone;
+export function generateTestPhone(offset: number, phoneBase?: number) {
+  const base = phoneBase ?? generatePhoneBase();
+  let phone = base + offset;
+  if (phone >= 10_000_000_000) {
+    phone = 9_000_000_000 + (phone % 1_000_000_000);
+  }
+  const digits = String(phone).padStart(10, '0').slice(-10);
+  if (!/^[6-9]/.test(digits)) {
+    return `9${digits.slice(1)}`;
+  }
+  return digits;
 }
 
-export function generateTestEmail(firstName: string, offset: number, domain = 'test.com') {
-  return `${firstName}.${offset}.${Date.now()}@${domain}`;
+export function generateTestEmail(firstName: string, offset: number, domain = 'test.com', runStamp?: string) {
+  const safeName = firstName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'user';
+  const tag = runStamp ? uniqueTag(runStamp, offset, 6).toLowerCase() : `${Date.now().toString(36)}${offset}`;
+  return `${safeName}.${tag}@${domain}`;
 }
 
 export function generateUniquePropertyTitle(runStamp: string, offset: number) {
-  const seed = runStamp.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + offset * 7919;
+  const seed = seedFor(runStamp, offset);
   const prefix = getItemByIndex(SEED_DATA.propPrefixes, seededRandomInt(seed, 0, SEED_DATA.propPrefixes.length));
   const suffix = getItemByIndex(SEED_DATA.propSuffixes, seededRandomInt(seed + 1, 0, SEED_DATA.propSuffixes.length));
-  return `${prefix} ${suffix}`;
+  return `${prefix} ${suffix} ${uniqueTag(runStamp, offset + 17)}`;
 }
 
 export function generateUniqueLocation(runStamp: string, offset: number) {
-  const seed = runStamp.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + offset * 7919;
+  const seed = seedFor(runStamp, offset);
   const area = getItemByIndex(SEED_DATA.propAreas, seededRandomInt(seed, 0, SEED_DATA.propAreas.length));
   const city = getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 1, 0, SEED_DATA.propCities.length));
   return { area, city };
@@ -195,7 +279,7 @@ function selectAmenities(seed: number, count: number = 3): string[] {
 }
 
 export function generateLeadRequirement(runStamp: string, leadType: string, offset: number) {
-  const seed = runStamp.split('').reduce((a, c) => a + c.charCodeAt(0), 0) + offset * 7919;
+  const seed = seedFor(runStamp, offset);
   const area = getItemByIndex(SEED_DATA.preferredAreas, seededRandomInt(seed, 0, SEED_DATA.preferredAreas.length));
   const propType = getItemByIndex(SEED_DATA.propTypes, seededRandomInt(seed + 1, 0, SEED_DATA.propTypes.length));
   const bhk = getItemByIndex(SEED_DATA.bhkOpts, seededRandomInt(seed + 2, 0, SEED_DATA.bhkOpts.length));
@@ -203,7 +287,12 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
   const budget = seededRandomInt(seed + 4, 25, 300) * 100_000;
   const timeline = getItemByIndex(SEED_DATA.timelines, seededRandomInt(seed + 5, 0, SEED_DATA.timelines.length));
   const furnishing = getItemByIndex(SEED_DATA.furnishingOpts, seededRandomInt(seed + 22, 0, SEED_DATA.furnishingOpts.length));
-  const amenities = selectAmenities(seed + 23, 3);
+  const city = getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 6, 0, SEED_DATA.propCities.length));
+  const building = getItemByIndex(SEED_DATA.buildings, seededRandomInt(seed + 8, 0, SEED_DATA.buildings.length));
+  const flatNumber = `${seededRandomInt(seed + 9, 1, 20)}${String.fromCharCode(65 + (seed % 4))}`;
+  const floor = String(seededRandomInt(seed + 10, 1, 25));
+  const carpetArea = seededRandomInt(seed + 12, 500, 2500);
+  const address = `${area}, ${city} — 4000${seededRandomInt(seed + 13, 50, 99)}`;
 
   if (leadType === 'buyer') {
     return {
@@ -212,11 +301,6 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       preferredArea: area,
       propertyType: propType,
       bhk,
-      address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 6, 0, SEED_DATA.propCities.length))}`,
-      moveInDate: new Date(Date.now() + seededRandomInt(seed + 7, 30, 180) * 86400000).toISOString().split('T')[0],
-      timeline,
-      furnishing,
-      amenities,
     };
   }
   if (leadType === 'seller') {
@@ -225,16 +309,15 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       area,
       expectedPrice: budget,
       timeline,
-      buildingName: getItemByIndex(SEED_DATA.buildings, seededRandomInt(seed + 8, 0, SEED_DATA.buildings.length)),
-      flatNumber: `${seededRandomInt(seed + 9, 1, 20)}${String.fromCharCode(65 + (seed % 4))}`,
-      floor: String(seededRandomInt(seed + 10, 1, 25)),
-      city: getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 11, 0, SEED_DATA.propCities.length)),
-      carpetArea: seededRandomInt(seed + 12, 500, 2500),
+      buildingName: building,
+      flatNumber,
+      floor,
+      city,
+      carpetArea,
       furnishing,
       bhk,
-      address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 13, 0, SEED_DATA.propCities.length))}`,
-      amenities,
-      description: `Well-maintained ${bhk}BHK ${propType} in ${area}. Ready for immediate possession. ${snippet}`,
+      address,
+      notes: `Well-maintained ${bhk}BHK ${propType} in ${area}. ${snippet}`,
     };
   }
   if (leadType === 'tenant') {
@@ -243,29 +326,24 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
       budget: Math.floor(budget * 0.02),
       preferredArea: area,
       moveInDate: new Date(Date.now() + seededRandomInt(seed + 14, 7, 60) * 86400000).toISOString().split('T')[0],
-      propertyType: propType,
-      bhk,
-      address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 15, 0, SEED_DATA.propCities.length))}`,
-      furnishing,
-      amenities,
     };
   }
   if (leadType === 'owner') {
+    const rentExpected = Math.floor(budget * 0.025);
     return {
       propertyType: propType,
       area,
-      rentExpected: Math.floor(budget * 0.025),
-      buildingName: getItemByIndex(SEED_DATA.buildings, seededRandomInt(seed + 16, 0, SEED_DATA.buildings.length)),
-      flatNumber: `${seededRandomInt(seed + 17, 1, 20)}${String.fromCharCode(65 + (seed % 4))}`,
-      floor: String(seededRandomInt(seed + 18, 1, 25)),
-      city: getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 19, 0, SEED_DATA.propCities.length)),
-      carpetArea: seededRandomInt(seed + 20, 400, 3000),
+      rentExpected,
+      buildingName: building,
+      flatNumber,
+      floor,
+      city,
+      carpetArea,
       furnishing,
       bhk,
-      address: `${area}, ${getItemByIndex(SEED_DATA.propCities, seededRandomInt(seed + 21, 0, SEED_DATA.propCities.length))}`,
-      securityDeposit: Math.floor(budget * 0.05),
-      amenities,
-      description: `Premium ${bhk}BHK ${propType} available for rent in ${area}. Excellent rental yield. ${snippet}`,
+      address,
+      securityDeposit: rentExpected * 3,
+      notes: `Premium ${bhk}BHK ${propType} available for rent in ${area}. ${snippet}`,
     };
   }
   return {};

@@ -12,12 +12,10 @@ import {
   CreditCard,
   Plus,
   Calendar,
-  FileText,
   Trash2,
   AlertCircle,
   DollarSign,
   Home,
-  CheckCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import Toast from '../../components/Toast';
@@ -219,11 +217,12 @@ export default function OwnerDetails() {
 
   const loadOwnerProperties = async () => {
     try {
-      const allProperties = await api.getCRMProperties();
-      const filtered = allProperties.filter((p: any) => p.ownerId === id);
-      setProperties(filtered);
+      if (!id) return;
+      const props = await api.getOwnerProperties(id);
+      setProperties(Array.isArray(props) ? props : []);
     } catch (error) {
       console.error('Error loading properties:', error);
+      setProperties([]);
     }
   };
 
@@ -311,24 +310,6 @@ export default function OwnerDetails() {
       console.error('Error listing property:', error);
       showToast('Failed to list property', 'error');
     }
-  };
-
-  const getPropertyStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
-      'available': { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Available' },
-      'for-sale': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'For Sale' },
-      'for-rent': { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'For Rent' },
-      'rented': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Rented' },
-      'sold': { bg: 'bg-red-100', text: 'text-red-800', label: 'Sold' },
-      'on-hold': { bg: 'bg-amber-100', text: 'text-amber-800', label: 'On Hold' },
-      'out-of-stock': { bg: 'bg-gray-100', text: 'text-gray-600', label: 'Out of Stock' },
-    };
-    const config = statusConfig[status] || statusConfig['available'];
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
-        {config.label}
-      </span>
-    );
   };
 
   if (loading) {
@@ -557,88 +538,82 @@ export default function OwnerDetails() {
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
-                {properties.map((property) => (
-                  <div key={property.propertyId} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-semibold text-gray-900">{property.title}</h4>
-                          {getPropertyStatusBadge(property.status)}
-                        </div>
-                        <p className="text-sm text-gray-600">{property.area}, {property.city}</p>
-                        <p className="text-xs text-gray-500 mt-1">{property.bhk} BHK • {property.propertyType}</p>
+              <div className="space-y-3">
+                {properties.map((property) => {
+                  const isListedForSale = property.status === 'for-sale';
+                  const isListedForRent = property.status === 'for-rent';
+                  const isOnMarket = isListedForSale || isListedForRent;
+                  const canList = !isOnMarket && ['inactive', 'not-listed', 'available', 'sold', 'on-hold'].includes(property.status);
+
+                  return (
+                    <div
+                      key={property.propertyId}
+                      className="border border-slate-200 rounded-xl p-4 hover:border-blue-200 hover:shadow-sm transition-all"
+                    >
+                      <div className="min-w-0">
+                        <h4 className="font-semibold text-gray-900 truncate">
+                          {property.title || 'Property'}
+                        </h4>
+                        <p className="text-sm text-gray-600 mt-0.5">
+                          {[property.area, property.city].filter(Boolean).join(', ') || '—'}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {[
+                            property.propertyType
+                              ? String(property.propertyType).charAt(0).toUpperCase() + String(property.propertyType).slice(1)
+                              : null,
+                            property.bhk ? `${property.bhk} BHK` : null,
+                          ].filter(Boolean).join(' • ') || '—'}
+                        </p>
+                        {isListedForSale && (
+                          <span className="inline-flex mt-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                            Listed for sale
+                            {property.saleInfo?.listedPrice
+                              ? ` · ₹${Number(property.saleInfo.listedPrice).toLocaleString()}`
+                              : ''}
+                          </span>
+                        )}
+                        {isListedForRent && (
+                          <span className="inline-flex mt-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-700">
+                            Listed for rent
+                            {property.rentalInfo?.expectedRent
+                              ? ` · ₹${Number(property.rentalInfo.expectedRent).toLocaleString()}/mo`
+                              : ''}
+                          </span>
+                        )}
+                        {property.status === 'rented' && (
+                          <span className="inline-flex mt-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                            Currently rented
+                          </span>
+                        )}
+                        {!isOnMarket && property.status !== 'rented' && (
+                          <span className="inline-flex mt-2 text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                            Not Listed
+                          </span>
+                        )}
                       </div>
-                    </div>
-                    
-                    {/* Property Actions */}
-                    <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
-                      <button
-                        onClick={() => navigate(`/crm/properties/${property.propertyId}`)}
-                        className="flex items-center gap-1 px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                      >
-                        <FileText className="h-3 w-3" />
-                        View Details
-                      </button>
-                      
-                      {(property.status === 'available' || property.status === 'on-hold') && (
-                        <>
-                          <button
-                            onClick={() => handleListForSale(property)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                          >
-                            <DollarSign className="h-3 w-3" />
-                            List for Sale
-                          </button>
+
+                      {canList && (
+                        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
                           <button
                             onClick={() => handleListForRent(property)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-50 text-amber-800 rounded-lg hover:bg-amber-100"
                           >
-                            <Home className="h-3 w-3" />
+                            <Home className="h-3.5 w-3.5" />
                             List for Rent
                           </button>
-                        </>
-                      )}
-                      
-                      {property.status === 'for-sale' && property.saleInfo?.listedPrice && (
-                        <>
-                          <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-50 text-blue-900 rounded">
-                            <DollarSign className="h-3 w-3" />
-                            Listed: ₹{property.saleInfo.listedPrice.toLocaleString()}
-                          </div>
                           <button
-                            onClick={() => navigate(`/crm/properties/${property.propertyId}`)}
-                            className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200"
+                            onClick={() => handleListForSale(property)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100"
                           >
-                            <CheckCircle className="h-3 w-3" />
-                            Mark as Sold
+                            <DollarSign className="h-3.5 w-3.5" />
+                            List for Sale
                           </button>
-                        </>
-                      )}
-                      
-                      {property.status === 'for-rent' && property.rentalInfo?.expectedRent && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-yellow-50 text-yellow-900 rounded">
-                          <Home className="h-3 w-3" />
-                          Rent: ₹{property.rentalInfo.expectedRent.toLocaleString()}/mo
-                        </div>
-                      )}
-                      
-                      {property.status === 'rented' && property.rentalInfo?.currentTenantId && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-green-50 text-green-900 rounded">
-                          <CheckCircle className="h-3 w-3" />
-                          Rented to: {property.rentalInfo.currentTenantId}
-                        </div>
-                      )}
-                      
-                      {property.status === 'sold' && property.saleInfo?.soldPrice && (
-                        <div className="flex items-center gap-1 px-3 py-1.5 text-xs bg-red-50 text-red-900 rounded">
-                          <CheckCircle className="h-3 w-3" />
-                          Sold: ₹{property.saleInfo.soldPrice.toLocaleString()}
                         </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -830,14 +805,21 @@ export default function OwnerDetails() {
               </div>
             )}
 
-          {/* Unified Activity Timeline */}
+          {/* Activity History */}
           {!isNew && (
             <div className="mt-6 pt-4 border-t">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
                 <Calendar className="h-5 w-5 mr-2 text-purple-600" />
-                Unified Activity Timeline
+                Activity History
               </h3>
-              <ContactActivityTimeline entityType="owner" entityId={id} />
+              <p className="text-sm text-gray-500 mb-6">
+                Full timeline — property listings, sales, ownership changes, meetings, and notes.
+              </p>
+              <ContactActivityTimeline
+                contactId={owner.contactId}
+                entityType="owner"
+                entityId={id}
+              />
             </div>
           )}
         </div>

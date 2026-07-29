@@ -16,14 +16,27 @@ Thumbs.db
 server/infra/cfn-params.json
 
 # Environment files (contain secrets — never commit real .env files)
+# .env.sample files are committed as templates; .env and .env.production are local/deploy secrets.
 .env
 .env.local
 .env.production
 server/.env
+server/.env.production
+server/logs/*.jsonl
+server/logs/gemini-*.jsonl
 real-estate-crm-app/.env
 real-estate-crm-app/.env.production
+whatsapp-platform/.env
+whatsapp-platform/.env.production
 reality-flow-authentication/.env
+reality-flow-mcp/.env
 onboarding-page/.env
 marketing-and-sales/creative/landing-pages/.env
 tests/playwright/.env
+
+# Local AWS/Lambda env dumps (use .env / .env.production instead)
+env-update.json
+**/crm-env*.json
+**/whatsapp-*-env.json
+**/env-compact.json
 

@@ -16,7 +16,7 @@ const client = new DynamoDBClient({
 const docClient = DynamoDBDocumentClient.from(client);
 const NPS_TABLE = process.env.NPS_TABLE || 'NPSResponses';
 const NPS_HMAC_SECRET = process.env.NPS_HMAC_SECRET;
-const FOUNDER_EMAIL = process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in';
+const FOUNDER_EMAIL = process.env.FOUNDER_EMAIL;
 
 function requireNpsSecret() {
   if (!NPS_HMAC_SECRET) {
@@ -58,7 +58,7 @@ router.post('/nps', validateToken, extractTenantId, async (req, res) => {
     logger.info('nps.submitted', { tenantId: req.tenantId, score, responseId });
 
     // Side effect: alert founder for detractors (score ≤ 6)
-    if (score <= 6) {
+    if (score <= 6 && FOUNDER_EMAIL) {
       try {
         await sendEmail({
           to: FOUNDER_EMAIL,
@@ -68,6 +68,8 @@ router.post('/nps', validateToken, extractTenantId, async (req, res) => {
       } catch (notifErr) {
         logger.warn('nps.founderNotif.failed', { error: notifErr.message });
       }
+    } else if (score <= 6) {
+      logger.warn('nps.founderNotif.skipped', { reason: 'FOUNDER_EMAIL not configured' });
     }
 
     // Side effect: tag promoters in Brevo for testimonial outreach

@@ -21,8 +21,7 @@ const IS_LOCAL_DEV = process.env.NODE_ENV === 'development';
 function parseDevTenantMapping() {
   const raw = process.env.DEV_TENANT_MAPPING;
   if (!raw) {
-    // Fallback only in development. Never fall back to hardcoded values in production.
-    return IS_LOCAL_DEV ? { '918291537522': 'acme-corporation-edc6e9feb8' } : {};
+    return {};
   }
   try {
     const parsed = JSON.parse(raw);
@@ -41,9 +40,8 @@ function parseDevTenantMapping() {
   return {};
 }
 
-// Temporary hardcoded tenant mapping for local dev testing.
-// Key: normalized WhatsApp number without + or @s.whatsapp.net suffix.
-// Set via DEV_TENANT_MAPPING env var; falls back to the hardcoded value only in development.
+// DEV-ONLY tenant mapping. Must be explicitly set via DEV_TENANT_MAPPING env var.
+// Never falls back to hardcoded values.
 const HARDCODED_TENANT_BY_PHONE = parseDevTenantMapping();
 
 // Temporary hardcoded admin whitelist for local dev testing.
@@ -60,7 +58,8 @@ const HARDCODED_ADMIN_SENDERS = IS_LOCAL_DEV
 
 /**
  * Resolve tenant by destination WhatsApp number.
- * First checks hardcoded mapping (local dev), then falls back to auth service lookup.
+ * Local dev: DEV_TENANT_MAPPING, then AgencyConfig.connectedWhatsAppPhone, then auth service.
+ * Production: auth service lookup.
  */
 async function resolveTenantByWhatsAppNumber(toNumber) {
   const normalized = normalizeWhatsAppPhone(toNumber);
@@ -71,8 +70,26 @@ async function resolveTenantByWhatsAppNumber(toNumber) {
     return HARDCODED_TENANT_BY_PHONE[normalized];
   }
 
-  // 2. Auth service lookup
-  const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+  // 2. Local dev: AgencyConfig table (same source as CRM WhatsApp connect + message processor)
+  if (IS_LOCAL_DEV) {
+    try {
+      const { getTenantIdByConnectedWhatsAppPhone } = await import('../agencyConfigService.js');
+      const tenantId = await getTenantIdByConnectedWhatsAppPhone(normalized);
+      if (tenantId) {
+        logger.info('webhooks.whatsapp.tenant.agency_config', { phone: normalized, tenantId });
+        return tenantId;
+      }
+    } catch (err) {
+      logger.warn('webhooks.whatsapp.tenant.agency_config_failed', { error: err.message, phone: normalized });
+    }
+  }
+
+  // 3. Auth service lookup
+  const authServiceUrl = process.env.AUTH_SERVICE_URL;
+  if (!authServiceUrl) {
+    logger.warn('webhooks.whatsapp.auth_service_url_not_configured', { toNumber, normalized });
+    return null;
+  }
   const internalKey = process.env.INTERNAL_API_KEY || '';
 
   try {
@@ -80,7 +97,7 @@ async function resolveTenantByWhatsAppNumber(toNumber) {
       `${authServiceUrl}/internal/users/by-whatsapp?phone=${encodeURIComponent(normalized)}`,
       {
         headers: { 'x-internal-api-key': internalKey },
-        signal: AbortSignal.timeout(3000),
+        signal: AbortSignal.timeout(parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '3000', 10)),
       }
     );
     if (response.ok) {
@@ -176,7 +193,7 @@ router.post('/whatsapp', webhookRateLimit, async (req, res) => {
         return res.status(200).json({ ok: true, processed: true });
       } catch (err) {
         logger.error('webhooks.whatsapp.local_process.failed', { messageId, tenantId, error: err.message, stack: err.stack });
-        // Return 503 so the baileys-service webhook forwarder retries the
+        // Return 503 so the whatsapp-platform webhook forwarder retries the
         // webhook and the message can be re-processed once the connection is
         // healthy. In production Lambda mode the thrown error triggers the
         // Lambda retry path directly.

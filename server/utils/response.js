@@ -1,9 +1,4 @@
-export const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-  'Access-Control-Max-Age': '86400'
-};
+import { buildCorsHeaders } from './corsOrigins.js';
 
 function normalizeSingleValueHeader(key, value) {
   if (value == null) return value;
@@ -28,6 +23,8 @@ function canonicalCorsHeaderKey(lowerKey) {
       return 'Access-Control-Allow-Headers';
     case 'access-control-max-age':
       return 'Access-Control-Max-Age';
+    case 'access-control-allow-credentials':
+      return 'Access-Control-Allow-Credentials';
     default:
       return null;
   }
@@ -51,7 +48,7 @@ function dedupeHeadersCaseInsensitive(headers) {
     }
 
     const existingKey = seen.get(lower);
-    if (lower === 'access-control-allow-origin') {
+    if (lower === 'access-control-allow-origin' || lower === 'access-control-allow-credentials') {
       continue;
     }
 
@@ -67,18 +64,31 @@ function dedupeHeadersCaseInsensitive(headers) {
   return out;
 }
 
-export function buildResponse(statusCode, body, headers = {}) {
+/**
+ * @param {number} statusCode
+ * @param {*} body
+ * @param {object} [headers]
+ * @param {string|null} [requestOrigin]
+ */
+export function buildResponse(statusCode, body, headers = {}, requestOrigin = null) {
   return applyCorsHeaders({
     statusCode,
     headers,
-    body: body === '' ? '' : JSON.stringify(body)
-  });
+    body: body === '' ? '' : JSON.stringify(body),
+  }, requestOrigin);
 }
 
-export function applyCorsHeaders(response = {}) {
+/**
+ * Merge allowlisted CORS headers onto a Lambda proxy response.
+ * Never sets Access-Control-Allow-Origin: * (incompatible with credentials).
+ *
+ * @param {object} response
+ * @param {string|null} [requestOrigin]
+ */
+export function applyCorsHeaders(response = {}, requestOrigin = null) {
   const normalizedResponse = {
     ...response,
-    headers: response.headers || {}
+    headers: response.headers || {},
   };
 
   if (normalizedResponse.multiValueHeaders && typeof normalizedResponse.multiValueHeaders === 'object') {
@@ -90,16 +100,20 @@ export function applyCorsHeaders(response = {}) {
     delete normalizedResponse.multiValueHeaders;
   }
 
+  const cors = buildCorsHeaders(requestOrigin);
   normalizedResponse.headers = {
     ...normalizedResponse.headers,
-    ...CORS_HEADERS
+    ...cors,
   };
 
+  // If origin was not allowlisted, strip any inherited ACAO
+  if (!cors['Access-Control-Allow-Origin']) {
+    delete normalizedResponse.headers['Access-Control-Allow-Origin'];
+    delete normalizedResponse.headers['access-control-allow-origin'];
+    delete normalizedResponse.headers['Access-Control-Allow-Credentials'];
+  }
+
   normalizedResponse.headers = dedupeHeadersCaseInsensitive(normalizedResponse.headers);
-  normalizedResponse.headers['Access-Control-Allow-Origin'] = normalizeSingleValueHeader(
-    'Access-Control-Allow-Origin',
-    normalizedResponse.headers['Access-Control-Allow-Origin']
-  );
 
   return normalizedResponse;
 }

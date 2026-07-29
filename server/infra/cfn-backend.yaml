@@ -3,6 +3,12 @@ Description: >
   Real Estate Agency - Core AWS resources
   (core properties table, multi-tenant CRM table, agency config table, S3 bucket).
 
+  NOTE: This template references OAuth tables (OAuthCodesTableName and
+  OAuthConnectionsTableName) that are created by the reality-flow-mcp stack.
+  Deploy the MCP stack first or ensure those tables already exist before
+  deploying this stack; otherwise the CRM Lambda will fail at runtime when
+  accessing them.
+
 Parameters:
   EnvironmentName:
     Type: String
@@ -129,6 +135,15 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: Enable AI Employee agents globally
 
+  AllowUserCategoryDefaultFallback:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      SECURITY: only enable in dev. If true, unknown users fall back to the
+      default user category when checking AI tool permissions. Production must
+      keep this false and explicitly provision user categories.
+
   BaileyApiEndpoint:
     Type: String
     Default: 'https://api.bailey.ai'
@@ -203,14 +218,23 @@ Parameters:
     Default: prod
     Description: Stage name for the CRM API Gateway
 
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      Set to 'true' when the custom domain URL includes the API base path
+      (e.g., /devrealestatecrm/api/...). The Lambda handler will strip that
+      base path so Express routes (mounted at /api/...) match correctly.
+
   AuthServiceUrl:
     Type: String
     Description: URL of the authentication microservice for token validation (e.g., https://auth-api.example.com)
 
   AllowedOrigins:
     Type: String
-    Default: '*'
-    Description: Comma-separated list of allowed CORS origins
+    Default: ''
+    Description: Comma-separated list of allowed CORS origins (never use '*' in production)
 
   ApiGatewayRoutesTemplateUrl:
     Type: String
@@ -227,11 +251,6 @@ Parameters:
     Default: ''
     Description: Brevo (Sendinblue) API key for transactional emails
     NoEcho: true
-
-  FounderNotificationEmail:
-    Type: String
-    Default: 'info@realestateflow.in'
-    Description: Email address for founder notifications (NPS, billing alerts)
 
   RazorpayWebhookSecret:
     Type: String
@@ -284,11 +303,6 @@ Parameters:
     Default: ''
     Description: Internal API key for auth service access (team member lookup)
     NoEcho: true
-
-  BrevoEscalatedTemplateId:
-    Type: String
-    Default: ''
-    Description: Brevo template ID for AI Employee escalation emails
 
   FounderWhatsApp:
     Type: String
@@ -347,6 +361,11 @@ Parameters:
     Default: gemini-2.5-flash
     Description: Gemini model name (used only if LlmProvider=gemini)
 
+  GeminiClassifierModel:
+    Type: String
+    Default: gemini-2.5-flash
+    Description: Gemini classifier model name (used for lead classification)
+
   CloudwatchMetricsEnabled:
     Type: String
     Default: 'true'
@@ -359,6 +378,99 @@ Parameters:
     Type: String
     Default: ''
     Description: Comma-separated admin WhatsApp numbers allowed to trigger the AI
+
+  # --- Externalized operational constants (no hardcoded fallbacks) ----------------
+
+  ServiceAccountUser:
+    Type: String
+    Default: 'system'
+    Description: Service account identifier for automated/system writes
+
+  DefaultCountryCode:
+    Type: String
+    Default: '+91'
+    Description: Default country code for phone normalization (e.g. +91, +971)
+
+  AppUrl:
+    Type: String
+    Default: 'https://app.realestateflow.in'
+    Description: Public app URL used in emails and reminders
+
+  GrievanceOfficerEmail:
+    Type: String
+    Default: 'info@realestateflow.in'
+    Description: DPDP Act 2023 grievance officer email address
+
+  LogLevel:
+    Type: String
+    Default: 'info'
+    Description: Application log level
+
+  McpBaseUrl:
+    Type: String
+    Default: 'https://mcp.realtyflow.com'
+    Description: MCP service base URL for OAuth redirects
+
+  OAuthCodesTableName:
+    Type: String
+    Default: 'realtyflow-oauth-codes'
+    Description: DynamoDB table for OAuth authorization codes and sessions
+
+  OAuthConnectionsTableName:
+    Type: String
+    Default: 'realtyflow-oauth-connections'
+    Description: DynamoDB table for connected AI app integrations
+
+  OAuthCallbackUrl:
+    Type: String
+    Default: 'https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback'
+    Description: Public OAuth callback URL for the CRM backend (where MCP redirects after approval)
+
+  FrontendUrl:
+    Type: String
+    Default: 'http://localhost:3000'
+    Description: Frontend URL for post-OAuth redirect
+
+  RazorpayPlanAiEmployee:
+    Type: String
+    Default: 'plan_test_ai_employee'
+    Description: Razorpay plan ID for AI employee subscription
+
+  FounderEmail:
+    Type: String
+    Default: 'info@realestateflow.in'
+    Description: Founder email address
+
+  BrevoTrialListId:
+    Type: String
+    Default: ''
+    Description: Brevo trial list ID
+
+  BrevoPaymentFailedTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo payment failed template ID
+
+  BrevoAiEmployeePaidTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee paid template ID
+
+  BrevoAiEmployeeEscalatedFounderTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee escalated founder template ID
+
+  BrevoAiEmployeeEscalatedCustomerTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee escalated customer template ID
+
+  BaileyAdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Bailey admin API key for destructive operations
 
 Resources:
   PropertiesTable:
@@ -1121,6 +1233,10 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:Query
@@ -1145,6 +1261,7 @@ Resources:
                   - dynamodb:TransactWriteItems
                 Resource:
                   - !GetAtt CreditsTable.Arn
+                  - !GetAtt CrmTable.Arn
               - Effect: Allow
                 Action:
                   - events:PutEvents
@@ -1211,8 +1328,8 @@ Resources:
           REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
           PROJECTS_TABLE_NAME: !Ref ProjectsTableName
           GRIEVANCES_TABLE_NAME: !Ref GrievancesTableName
-          NPS_TABLE_NAME: !Ref NpsResponsesTableName
-          SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTableName
+          NPS_TABLE: !Ref NpsResponsesTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
           USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
@@ -1231,14 +1348,15 @@ Resources:
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
           CRM_API_BASE_PATH: !Ref CrmApiBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
           AUTH_SERVICE_URL: !Ref AuthServiceUrl
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           NPS_HMAC_SECRET: !Ref NpsHmacSecret
           BREVO_API_KEY: !Ref BrevoApiKey
-          FOUNDER_NOTIFICATION_EMAIL: !Ref FounderNotificationEmail
           RAZORPAY_WEBHOOK_SECRET: !Ref RazorpayWebhookSecret
           RAZORPAY_KEY_ID: !Ref RazorpayKeyId
           RAZORPAY_KEY_SECRET: !Ref RazorpayKeySecret
@@ -1247,6 +1365,33 @@ Resources:
           HCAPTCHA_SECRET_KEY: !Ref HcaptchaSecretKey
           POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
           POSTHOG_HOST: !Ref PostHogHost
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_CLASSIFIER_MODEL: !Ref GeminiClassifierModel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          GRIEVANCE_OFFICER_EMAIL: !Ref GrievanceOfficerEmail
+          SERVICE_ACCOUNT_USER: !Ref ServiceAccountUser
+          DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
+          APP_URL: !Ref AppUrl
+          LOG_LEVEL: !Ref LogLevel
+          MCP_BASE_URL: !Ref McpBaseUrl
+          OAUTH_CODES_TABLE_NAME: !Ref OAuthCodesTableName
+          OAUTH_CONNECTIONS_TABLE: !Ref OAuthConnectionsTableName
+          OAUTH_CALLBACK_URL: !Ref OAuthCallbackUrl
+          FRONTEND_URL: !Ref FrontendUrl
+          WEBHOOK_LOG_TABLE: WebhookLog
+          TENANT_API_KEYS_TABLE: TenantApiKeys
+          FOUNDER_EMAIL: !Ref FounderEmail
+          BREVO_TRIAL_LIST_ID: !Ref BrevoTrialListId
+          BREVO_PAYMENT_FAILED_TEMPLATE_ID: !Ref BrevoPaymentFailedTemplateId
+          BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID: !Ref BrevoAiEmployeePaidTemplateId
+          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedFounderTemplateId
+          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedCustomerTemplateId
+          BAILEY_ADMIN_API_KEY: !Ref BaileyAdminApiKey
+          RAZORPAY_PLAN_AI_EMPLOYEE: !Ref RazorpayPlanAiEmployee
 
   RealEstatePublicRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -1356,7 +1501,7 @@ Resources:
         gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
         gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
 
-  CrmApiResourcesStack:
+  CrmApiResourcesStackV2:
     Type: AWS::CloudFormation::Stack
     Properties:
       TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
@@ -1371,7 +1516,7 @@ Resources:
   CrmApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
-      - CrmApiResourcesStack
+      - CrmApiResourcesStackV2
     Properties:
       RestApiId: !Ref RealEstateCrmRestApi
       StageName: !Ref CrmApiStageName
@@ -1521,7 +1666,6 @@ Resources:
           BREVO_API_KEY: !Ref BrevoApiKey
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail
           EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
-          BREVO_SENDER_EMAIL: !Ref SesFromEmail
 
 
   TrialReminderRule:
@@ -1839,9 +1983,9 @@ Resources:
           AWS_REGION_OVERRIDE: ap-south-1
           AI_EMPLOYEE_PROVISIONING_TABLE: AIEmployeeProvisioning
           BREVO_API_KEY: !Ref BrevoApiKey
-          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoEscalatedTemplateId
-          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoEscalatedTemplateId
-          FOUNDER_EMAIL: !Ref FounderNotificationEmail
+          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedFounderTemplateId
+          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedCustomerTemplateId
+          FOUNDER_EMAIL: !Ref FounderEmail
           FOUNDER_WHATSAPP: !Ref FounderWhatsApp
           POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
           AWS_SES_FROM_EMAIL: !Ref SesFromEmail

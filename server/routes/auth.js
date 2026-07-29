@@ -5,6 +5,8 @@ import { logger } from '../logger.js';
 import { serverTrack } from '../lib/posthog.js';
 import { getPairingQr, getConnectionStatus, disconnectWhatsApp, isBaileyEnabled, listWhatsAppSessions } from '../bailey.js';
 import { requireAdmin } from '../middleware/requireRole.js';
+import { createTrialSubscription, setConsentSignedAt } from '../subscriptionService.js';
+import { isNetworkError } from '../shared/networkErrors.js';
 
 const PHONE_REGEX = /^\+?\d{10,15}$/;
 
@@ -142,7 +144,14 @@ router.get('/whatsapp/status/:phone', validateToken, extractTenantId, requireAdm
     res.json(status);
   } catch (err) {
     logger.error('auth.whatsapp.status.error', { error: err.message });
-    res.status(400).json({ error: err.message });
+    // Pass through networkError flag if present, so frontend can distinguish network errors.
+    // Uses the shared isNetworkError() helper (checks both err.code and err.message)
+    // to stay consistent with bailey.js detection logic.
+    const errorResponse = { error: err.message };
+    if (isNetworkError(err)) {
+      errorResponse.networkError = true;
+    }
+    res.status(400).json(errorResponse);
   }
 });
 

@@ -3,37 +3,6 @@ import { normalizeWhatsAppPhone } from '../utils/whatsapp.js';
 export { normalizeWhatsAppPhone };
 
 /**
- * Parse deterministic WhatsApp command grammar.
- * Returns { action, input } or null for free-text fallback.
- */
-export function parseWhatsAppCommand(text) {
-  if (!text || typeof text !== 'string') return null;
-  const trimmed = text.trim();
-
-  const leadMatch = trimmed.match(/^lead:\s*(.+?),\s*(\+?\d[\d\s-]{8,14}),\s*(\w+)/i);
-  if (leadMatch) {
-    return {
-      action: 'create_lead',
-      input: {
-        name: leadMatch[1].trim(),
-        phone: leadMatch[2].replace(/\s/g, ''),
-        leadType: leadMatch[3].trim().toLowerCase(),
-      },
-    };
-  }
-
-  const searchMatch = trimmed.match(/^search\s+leads?\s+(.+)/i);
-  if (searchMatch) {
-    return {
-      action: 'search_leads',
-      input: { query: searchMatch[1].trim() },
-    };
-  }
-
-  return null;
-}
-
-/**
  * Lambda handler for WhatsApp message processing (EventBridge trigger).
  */
 function minutesFromTime(timeStr) {
@@ -73,26 +42,78 @@ function isWithinBusinessHours(start, end, timezone = 'Asia/Kolkata') {
 }
 
 export async function handler(event) {
+  console.log('whatsapp.processor.invoked', JSON.stringify({ records: event.Records?.length || 0 }));
   const { logger } = await import('../logger.js');
+  console.log('whatsapp.processor.logger_loaded');
   const { sendWhatsAppMessageChunks, chunkWhatsAppText, isBaileyEnabled } = await import('../bailey.js');
   const { logMessage, claimMessageProcessing, markMessageProcessingComplete, markMessageProcessingFailed } = await import('../whatsappConversationService.js');
   const { getAgencyConfig } = await import('../agencyConfigService.js');
   const { canReceiveMessage, canAutoReply } = await import('../whatsappAccessControl.js');
   const { resolveCategory } = await import('../userCategoryService.js');
-  const { getConversationState, initializeConversationState, recordMessageInConversation, extractEntitiesFromToolResults, updateLastDiscussedEntities, resetConversationStateIfStale } = await import('../conversationStateService.js');
+  const { getConversationState, initializeConversationState, recordMessageInConversation, extractEntitiesFromToolResults, extractListAndFocusFromToolResults, updateLastDiscussedEntities, resetConversationStateIfStale } = await import('../conversationStateService.js');
+
+  // Resolve tenantId from the destination WhatsApp number by looking up the Subscriptions table
+  const { DynamoDBClient } = await import('@aws-sdk/client-dynamodb');
+  const { DynamoDBDocumentClient, ScanCommand } = await import('@aws-sdk/lib-dynamodb');
+  const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' }));
+  const AGENCY_CONFIG_TABLE = process.env.AGENCY_CONFIG_DYNAMODB_TABLE_NAME || 'cloudberry-dev-real-estate-agencies';
+
+  async function resolveTenantByWhatsAppNumber(toNumber) {
+    if (!toNumber) return null;
+    const normalized = normalizeWhatsAppPhone(toNumber);
+    try {
+      // Look up in agency config table by connectedWhatsAppPhone
+      const result = await docClient.send(new ScanCommand({
+        TableName: AGENCY_CONFIG_TABLE,
+        ProjectionExpression: 'TenantId, connectedWhatsAppPhone',
+        FilterExpression: 'connectedWhatsAppPhone = :phone',
+        ExpressionAttributeValues: { ':phone': normalized },
+      }));
+      console.log('whatsapp.processor.tenant_scan', JSON.stringify({ table: AGENCY_CONFIG_TABLE, normalized, scannedCount: result.ScannedCount, count: result.Count, items: result.Items?.length }));
+      return result.Items?.[0]?.TenantId || null;
+    } catch (err) {
+      console.log('whatsapp.processor.tenant_lookup_failed', JSON.stringify({ error: err.message, toNumber: normalized, table: AGENCY_CONFIG_TABLE }));
+      logger.warn('whatsapp.processor.tenant_lookup.failed', { error: err.message, toNumber: normalized });
+      return null;
+    }
+  }
 
   const details = [];
   const seenMessageIds = new Set(); // In-memory dedup for duplicate messages in the same batch
-  for (const record of event.Records || []) {
+  // Support both EventBridge (event.detail) and SQS (event.Records[].detail) formats
+  const records = event.Records || [{ detail: event.detail }];
+  for (const record of records) {
     try {
       const detail = typeof record.detail === 'string'
         ? JSON.parse(record.detail)
         : record.detail;
 
-      const { messageId, from, to, text, tenantId, fromJid } = detail;
-      if (!tenantId || !messageId) continue;
+      let { messageId, from, to, text, tenantId, fromJid } = detail;
+      console.log('whatsapp.processor.detail', JSON.stringify({ messageId, from, to, text: text?.slice(0,50), tenantId, fromJid }));
+      // If tenantId is not in the event (WhatsApp Platform doesn't send it), resolve from the `to` number
+      if (!tenantId && to) {
+        tenantId = await resolveTenantByWhatsAppNumber(to);
+        console.log('whatsapp.processor.tenant_resolved', JSON.stringify({ to, tenantId }));
+        logger.info('whatsapp.processor.tenant_resolved', { to, tenantId });
+      }
+      if (!tenantId || !messageId) {
+        console.log('whatsapp.processor.skip_missing_tenant', JSON.stringify({ messageId, from, to, hasTenantId: !!tenantId }));
+        logger.warn('whatsapp.processor.skip_missing_tenant', { messageId, from, to, hasTenantId: !!tenantId });
+        continue;
+      }
 
       const normalizedFrom = normalizeWhatsAppPhone(from);
+      const normalizedTo = normalizeWhatsAppPhone(to);
+
+      // Self-chat check: only allow messages from the connected WhatsApp number itself
+      // This ensures defense-in-depth - the webhook also checks this, but we verify again here
+      const isSelfChat = normalizedFrom && normalizedTo && normalizedFrom === normalizedTo;
+      if (!isSelfChat) {
+        logger.info('whatsapp.processor.self_chat_check_failed', { tenantId, messageId, from: normalizedFrom, to: normalizedTo, reason: 'not_self_chat' });
+        // Skip processing for non-self-chat messages
+        details.push({ messageId, tenantId, success: true, action: 'self_chat_check_failed', reason: 'not_self_chat' });
+        continue;
+      }
 
       // Deduplicate: skip if this message was already processed (Baileys retries/offline)
       // Check in-memory first (same Lambda batch) then DynamoDB (previous invocations)
@@ -192,7 +213,6 @@ export async function handler(event) {
         logger.error('whatsapp.processor.log_inbound.failed', { tenantId, messageId, error: err.message });
       }
 
-      const parsed = parseWhatsAppCommand(text);
       let replyText = 'Sorry, I could not process that message.';
       let success = false;
       let action = 'unknown';
@@ -206,48 +226,38 @@ export async function handler(event) {
         action = 'empty_message';
         replyText = '⚠️ I could not read your message. Please try sending it again.';
         // Still log and continue to send the reply
-      } else if (parsed) {
-        action = parsed.action;
-        try {
-          const { invokeSkill } = await import('../skillInvoker.js');
-          const result = await invokeSkill(tenantId, parsed.action, parsed.input, { userId: 'whatsapp' });
-
-          if (result.ok) {
-            success = true;
-            if (parsed.action === 'create_lead') {
-              replyText = `✅ Lead created: ${parsed.input.name}`;
-            } else if (parsed.action === 'search_leads') {
-              const count = result.data?.items?.length ?? result.data?.length ?? 0;
-              replyText = `Found ${count} lead(s) matching your search.`;
-            } else {
-              replyText = '✅ Done.';
-            }
-          } else {
-            replyText = `❌ ${result.error || 'Action failed'}`;
-          }
-        } catch (err) {
-          logger.error('whatsapp.processor.skill_failed', { error: err.message, tenantId, action });
-          replyText = '❌ Something went wrong. Please try again.';
-        }
       } else if (process.env.AGENTS_ENABLED === 'true' && !isAgentPaused && !isAutoReplyBlocked) {
         action = 'agent_router';
         aiGenerated = true;
         try {
           const { invokeAgent } = await import('../agents/agentRuntime.js');
+          console.log('whatsapp.processor.invoking_agent', JSON.stringify({ tenantId, text: text?.slice(0,50), from: normalizedFrom }));
           const agentResult = await invokeAgent(tenantId, 'whatsapp', text, { source: 'whatsapp', from: normalizedFrom, contactPhone: normalizedFrom, messageId, category });
+          console.log('whatsapp.processor.agent_result', JSON.stringify({ ok: agentResult.ok, error: agentResult.error, hasText: !!agentResult.result?.text, textLength: agentResult.result?.text?.length }));
           if (agentResult.ok) {
             success = true;
             replyText = agentResult.result?.text || '✅ Processed your request.';
-            toolCalls = agentResult.toolResults || [];
+            toolCalls = agentResult.result?.toolResults || agentResult.toolResults || [];
 
             // Extract and persist entities from tool results so next turn has context
             try {
               const currentState = await getConversationState(tenantId, normalizedFrom);
               if (currentState) {
                 const entities = extractEntitiesFromToolResults(toolCalls);
-                if (entities.length > 0) {
-                  await updateLastDiscussedEntities(tenantId, normalizedFrom, entities, 'crm_query');
-                  logger.info('whatsapp.processor.entities_persisted', { tenantId, from: normalizedFrom, count: entities.length, entities: entities.map(e => e.name) });
+                const { lastListResults, currentEntity } = extractListAndFocusFromToolResults(toolCalls);
+                if (entities.length > 0 || lastListResults || currentEntity) {
+                  await updateLastDiscussedEntities(tenantId, normalizedFrom, entities, 'crm_query', {
+                    lastListResults,
+                    currentEntity,
+                  });
+                  logger.info('whatsapp.processor.entities_persisted', {
+                    tenantId,
+                    from: normalizedFrom,
+                    count: entities.length,
+                    listCount: lastListResults?.length || 0,
+                    currentEntity: currentEntity?.name || null,
+                    entities: entities.map(e => e.name),
+                  });
                 }
               } else {
                 logger.debug('whatsapp.processor.entity_extraction.skipped_no_state', { tenantId, from: normalizedFrom });
@@ -258,9 +268,9 @@ export async function handler(event) {
           } else if (agentResult.error === 'insufficient_credits') {
             replyText = '⚠️ Credits khatam ho gaye. Please top up karein.';
           } else if (agentResult.error === 'ai_employee_not_provisioned') {
-            replyText = 'Send "lead: Name, Phone, Type" to create a lead.';
+            replyText = '🤖 AI assistant is not enabled for this account. Please contact your admin or use the CRM dashboard.';
           } else if (agentResult.error === 'ai_employee_disabled_by_tenant') {
-            replyText = 'Send "lead: Name, Phone, Type" to create a lead.';
+            replyText = '🤖 AI assistant is turned off for this agency. Enable it in CRM settings or contact your admin.';
           } else {
             logger.warn('whatsapp.processor.agent_error', { tenantId, messageId, error: agentResult.error });
             if (agentResult.error === 'agents_disabled') {
@@ -286,23 +296,48 @@ export async function handler(event) {
           replyText = '🤖 AI is currently outside business hours. We will respond during working hours.';
         }
       } else {
-        replyText = 'Send "lead: Name, Phone, Type" to create a lead. Example: lead: Rahul, 9876543210, buyer';
+        replyText = '🤖 AI assistant is not available. Enable agents in settings or contact your admin.';
       }
 
       if (aiGenerated && replyText && !replyText.startsWith('🤖 ')) {
         replyText = '🤖 ' + replyText;
       }
 
-      logger.info('whatsapp.processor.final_reply', { messageId, replyTextLength: replyText?.length, replyText });
+      console.log('whatsapp.processor.before_final_reply', JSON.stringify({ messageId, replyTextLength: replyText?.length, isBaileyEnabled: isBaileyEnabled() }));
 
       if (isBaileyEnabled()) {
         try {
           // Reply from the tenant's business number (the `to` number of the inbound message)
           // Use fromJid (original JID, e.g. 10076144300114@lid) when available so the
-          // baileys-service sends to the correct JID type (LID vs @s.whatsapp.net).
+          // whatsapp-platform sends to the correct JID type (LID vs @s.whatsapp.net).
           // Fall back to normalizedFrom for classic phone-number senders.
           const replyTo = fromJid || normalizedFrom;
+          console.log('whatsapp.processor.sending_reply', JSON.stringify({ replyTo, from: to, textLength: replyText?.length }));
+
+          // Connectivity test: try fetching google.com with 5s timeout
+          try {
+            const testController = new AbortController();
+            const testTimeoutId = setTimeout(() => testController.abort(), 5000);
+            const testResp = await fetch('https://www.google.com', { signal: testController.signal });
+            clearTimeout(testTimeoutId);
+            console.log('whatsapp.processor.connectivity_test', JSON.stringify({ status: testResp.status, ok: testResp.ok }));
+          } catch (testErr) {
+            console.log('whatsapp.processor.connectivity_test_failed', JSON.stringify({ error: testErr.message, name: testErr.name }));
+          }
+
+          // Connectivity test: try fetching ALB health with 5s timeout
+          try {
+            const albController = new AbortController();
+            const albTimeoutId = setTimeout(() => albController.abort(), 5000);
+            const albResp = await fetch(`${process.env.BAILEY_API_ENDPOINT}/health`, { signal: albController.signal });
+            clearTimeout(albTimeoutId);
+            console.log('whatsapp.processor.alb_health_check', JSON.stringify({ status: albResp.status, ok: albResp.ok }));
+          } catch (albErr) {
+            console.log('whatsapp.processor.alb_health_check_failed', JSON.stringify({ error: albErr.message, name: albErr.name }));
+          }
+
           const chunkResult = await sendWhatsAppMessageChunks(replyTo, replyText, null, to);
+          console.log('whatsapp.processor.reply_sent', JSON.stringify({ sent: chunkResult.sent, queued: chunkResult.queued, messageIds: chunkResult.messageIds }));
           const sentCount = chunkResult.messageIds?.length || 0;
           const totalChunks = chunkResult.totalChunks || sentCount;
           creditsCharged += sentCount || 1;

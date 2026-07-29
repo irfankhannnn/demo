@@ -1,7 +1,7 @@
 import express from 'express';
 import { logger } from '../logger.js';
 import multer from 'multer';
-import { requireAdminOrManager } from '../middleware/requireRole.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
   createCustomer,
   getCustomers,
@@ -44,6 +44,9 @@ import {
   createOrUpdateOwnerByPhone,
   createOrUpdateCustomerByPhone,
   getContacts,
+  getContact,
+  updateContact,
+  findContactByPhone,
   // Meeting/Calendar operations
   createMeeting,
   getMeetings,
@@ -85,6 +88,8 @@ import {
   createMeetingSchema,
   updateMeetingSchema,
 } from '../validation/crmSchemas.js';
+import { propertyIsCurrentlyOwnedBy } from '../domain/crmDomainModel.js';
+import { withCreateActor, withUpdateActor, resolveRequestActor } from '../utils/requestActor.js';
 
 const router = express.Router();
 const upload = multer({
@@ -98,10 +103,19 @@ const upload = multer({
     }
   },
   limits: { 
-    fileSize: 100 * 1024 * 1024, // 100MB limit for videos
+    fileSize: 100 * 1024 * 1024, // 100MB limit for videos (API Gateway REST caps at 10MB)
     files: 10 // Max 10 files at once
   }
 });
+
+/** Multer / upload validation errors → 400 JSON */
+export function handleCrmUploadErrors(err, req, res, next) {
+  if (!err) return next();
+  if (err instanceof multer.MulterError || String(err.message || '').includes('not allowed')) {
+    return res.status(400).json({ error: err.message || 'Invalid upload' });
+  }
+  return next(err);
+}
 
 // ============== Customer Routes ==============
 
@@ -153,11 +167,11 @@ router.get('/customers/:id', validateToken, extractTenantId, async (req, res) =>
 });
 
 // Create customer
-router.post('/customers', validateToken, extractTenantId, requireAdminOrManager, validateBody(createCustomerSchema), async (req, res) => {
+router.post('/customers', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createCustomerSchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'tenant_add');
-    const customer = await createCustomer(req.tenantId, req.body);
+    const customer = await createCustomer(req.tenantId, withCreateActor(req.user, req.body));
     const creditResult = await chargeCreditsForAction(req.tenantId, 'tenant_add', { recordId: customer.customerId });
     res.status(201).json({ ...customer, creditsRemaining: creditResult.balance });
   } catch (error) {
@@ -169,9 +183,9 @@ router.post('/customers', validateToken, extractTenantId, requireAdminOrManager,
 });
 
 // Update customer
-router.put('/customers/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateCustomerSchema), async (req, res) => {
+router.put('/customers/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateCustomerSchema), async (req, res) => {
   try {
-    const customer = await updateCustomer(req.tenantId, req.params.id, req.body);
+    const customer = await updateCustomer(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
     res.json(customer);
   } catch (error) {
     logger.error('crm.update_customer_error_', { message: 'Update customer error:', error: error?.message });
@@ -191,9 +205,9 @@ router.get('/customers/:id/notes', validateToken, extractTenantId, async (req, r
 });
 
 // Create customer note
-router.post('/customers/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/customers/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const note = await createCustomerNote(req.tenantId, req.params.id, req.body);
+    const note = await createCustomerNote(req.tenantId, req.params.id, withCreateActor(req.user, req.body));
     res.status(201).json(note);
   } catch (error) {
     logger.error('crm.create_customer_note_error_', { message: 'Create customer note error:', error: error?.message });
@@ -201,9 +215,9 @@ router.post('/customers/:id/notes', validateToken, extractTenantId, requireAdmin
   }
 });
 
-router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.put('/customers/:id/notes/:noteId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const updated = await updateCustomerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
+    const updated = await updateCustomerNote(req.tenantId, req.params.id, req.params.noteId, withUpdateActor(req.user, req.body));
     res.json(updated);
   } catch (error) {
     logger.error('crm.update_customer_note_error_', { message: 'Update customer note error:', error: error?.message });
@@ -238,11 +252,18 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       limit, offset
     } = req.query;
 
-    const normalizePhone = (phone) => { const digits = String(phone || '').replace(/[^0-9]/g, ''); const withoutPrefix = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits; return /^[6-9]\d{9}$/.test(withoutPrefix) ? withoutPrefix : ''; };
+    const defaultCountryPrefix = (process.env.DEFAULT_COUNTRY_CODE || '').replace(/^\+/, '');
+    const normalizePhone = (phone) => {
+      const digits = String(phone || '').replace(/[^0-9]/g, '');
+      const withoutPrefix = digits.startsWith(defaultCountryPrefix) && digits.length === 10 + defaultCountryPrefix.length
+        ? digits.slice(defaultCountryPrefix.length)
+        : digits;
+      return /^[6-9]\d{9}$/.test(withoutPrefix) ? withoutPrefix : '';
+    };
 
     // Build DB filters (pre-property-count)
     const dbFilters = {};
-    if (status) dbFilters.status = status;
+    if (status && status !== 'all') dbFilters.status = status;
     if (source) dbFilters.source = source;
     if (area) dbFilters.area = area;
     if (search) dbFilters.search = search;
@@ -252,7 +273,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     if (sortBy) dbFilters.sortBy = sortBy;
     if (sortOrder) dbFilters.sortOrder = sortOrder;
 
-    // Fetch all matching owners (no pagination yet � we need to compute counts first)
+    // Fetch all matching owners (no pagination yet � we need to compute counts first)
     const [ownersInitial, propertiesResult, ownerContacts, sellerContacts] = await Promise.all([
       getOwners(req.tenantId, dbFilters),
       getProperties(req.tenantId),
@@ -261,26 +282,42 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     ]);
     const properties = propertiesResult.properties || [];
 
-    // Backfill: ensure converted leads stored as CONTACT are visible
+    // Backfill: Contact with active owner role → OWNER shell (copy KYC, link ids)
+    // Do not backfill seller-only / past-seller contacts that are not current owners.
     const ownersByPhone = new Set((ownersInitial.owners || []).map((o) => normalizePhone(o.phone)).filter(Boolean));
-    const allContactsToCheck = [...(ownerContacts || []), ...(sellerContacts || [])];
-    const contactsToBackfill = allContactsToCheck.filter((c) => {
+    const contactsToBackfill = (ownerContacts || []).filter((c) => {
+      if (!c?.roles?.owner) return false;
       const phone = normalizePhone(c.phone);
-      return !!phone && !ownersByPhone.has(phone);
+      if (!phone || ownersByPhone.has(phone)) return false;
+      // Prefer contacts that currently own something, or have ownedPropertyIds
+      const ownedIds = c.ownerProfile?.ownedPropertyIds || [];
+      return ownedIds.length > 0;
     });
 
     if (contactsToBackfill.length) {
-      await Promise.all(contactsToBackfill.map((c) =>
-        createOrUpdateOwnerByPhone(req.tenantId, {
+      await Promise.all(contactsToBackfill.map(async (c) => {
+        const owner = await createOrUpdateOwnerByPhone(req.tenantId, {
           name: c.name,
           email: c.email,
           phone: c.phone,
           address: c.address || '',
           notes: c.notes || '',
           status: c.status || 'active',
-          source: c.source || `contact:${c.roles?.owner ? 'owner' : 'seller'}`,
-        })
-      ));
+          source: c.source || 'contact:owner',
+          panNumber: c.panNumber || null,
+          aadharNumber: c.aadharNumber || null,
+          panDocS3Key: c.panDocS3Key || null,
+          aadharDocS3Key: c.aadharDocS3Key || null,
+          photoS3Key: c.photoS3Key || null,
+        });
+        if (owner?.ownerId && c.contactId && c.linkedOwnerId !== owner.ownerId) {
+          try {
+            await updateContact(req.tenantId, c.contactId, { linkedOwnerId: owner.ownerId });
+          } catch (err) {
+            logger.warn('crm.owners.backfill_link_failed', { contactId: c.contactId, error: err.message });
+          }
+        }
+      }));
     }
 
     // Re-fetch after backfill with same filters
@@ -289,31 +326,74 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
       : ownersInitial;
     let owners = ownersResult.owners;
 
-    // Compute property counts
-    const propertyCounts = properties.reduce((acc, property) => {
-      const ownerId = property.ownerId;
-      if (!ownerId) return acc;
-      acc[ownerId] = (acc[ownerId] || 0) + 1;
-      return acc;
-    }, {});
+    // Map contacts by phone for ownership resolution
+    const allContacts = [...(ownerContacts || []), ...(sellerContacts || [])];
+    const contactByPhone = new Map();
+    for (const c of allContacts) {
+      const phone = normalizePhone(c.phone);
+      if (phone) contactByPhone.set(phone, c);
+    }
 
-    // Identify sellers (owners with for-sale/sold properties)
+    // Compute property counts using Contact ownership (canonical) + legacy ownerId
+    const propertyCounts = {};
+    for (const owner of owners) {
+      const contact = contactByPhone.get(normalizePhone(owner.phone));
+      const contactId = contact?.contactId || owner.contactId || null;
+      propertyCounts[owner.ownerId] = (properties || []).filter((p) =>
+        propertyIsCurrentlyOwnedBy(p, { ownerId: owner.ownerId, contactId }),
+      ).length;
+    }
+
+    // Identify sellers: prefer Contact.sellerProfile, fall back to for-sale/sold join
     const forSaleProperties = properties.filter(p => p.status === 'for-sale' || p.status === 'sold');
     const sellerOwnerIds = new Set(forSaleProperties.map(p => p.ownerId).filter(Boolean));
+    const sellerContactPhones = new Set(
+      (sellerContacts || [])
+        .filter((c) => c.roles?.seller)
+        .map((c) => normalizePhone(c.phone))
+        .filter(Boolean)
+    );
 
-    // Attach counts
-    owners = owners.map((owner) => ({
-      ...owner,
-      propertyCount: propertyCounts[owner.ownerId] || 0,
-      isSeller: sellerOwnerIds.has(owner.ownerId),
-    }));
+    // Attach counts + merge KYC from Contact when OWNER is missing it
+    owners = owners.map((owner) => {
+      const contact = contactByPhone.get(normalizePhone(owner.phone));
+      return {
+        ...owner,
+        panNumber: owner.panNumber || contact?.panNumber || null,
+        aadharNumber: owner.aadharNumber || contact?.aadharNumber || null,
+        propertyCount: propertyCounts[owner.ownerId] || 0,
+        isSeller: sellerOwnerIds.has(owner.ownerId)
+          || sellerContactPhones.has(normalizePhone(owner.phone)),
+        sellerLifecycle: contact?.sellerProfile?.lifecycleStatus
+          || (sellerContacts || []).find(
+            (c) => normalizePhone(c.phone) === normalizePhone(owner.phone),
+          )?.sellerProfile?.lifecycleStatus
+          || null,
+        contactId: contact?.contactId
+          || owner.contactId
+          || null,
+      };
+    });
 
     // Apply post-DB filters
+    // Owners module: only people who currently own ≥1 property (zero-property shells stay Contacts)
+    if (!seller || seller !== 'true') {
+      owners = owners.filter((o) => (o.propertyCount || 0) > 0);
+    }
+    // Optional status filter only when explicitly requested (default = all current owners)
+    if (status === 'active') {
+      owners = owners.filter((o) => o.status === 'active');
+    } else if (status === 'inactive') {
+      owners = owners.filter((o) => o.status === 'inactive');
+    }
     if (hasProperties === 'true') {
       owners = owners.filter(o => o.propertyCount > 0);
     }
     if (seller === 'true') {
-      owners = owners.filter(o => o.isSeller);
+      owners = owners.filter((o) => {
+        if (o.sellerLifecycle) return o.sellerLifecycle === 'active';
+        return o.isSeller;
+      });
     }
 
     // Property-attribute filters (join against properties)
@@ -348,7 +428,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
     }
 
     const total = owners.length;
-    const pageLimit = parseInt(limit) || 50;
+    const pageLimit = parseInt(limit) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10);
     const pageOffset = parseInt(offset) || 0;
     const paginated = owners.slice(pageOffset, pageOffset + pageLimit);
 
@@ -372,6 +452,19 @@ router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
     if (!owner) {
       return res.status(404).json({ error: 'Owner not found' });
     }
+    // Enrich KYC from Contact when OWNER shell is missing it
+    try {
+      const contact = owner.phone ? await findContactByPhone(req.tenantId, owner.phone) : null;
+      if (contact) {
+        owner.panNumber = owner.panNumber || contact.panNumber || null;
+        owner.aadharNumber = owner.aadharNumber || contact.aadharNumber || null;
+        owner.contactId = contact.contactId;
+        const props = await getPropertiesByOwner(req.tenantId, owner.ownerId);
+        owner.propertyCount = props.length;
+      }
+    } catch (err) {
+      logger.warn('crm.get_owner.enrich_failed', { ownerId: req.params.id, error: err.message });
+    }
     res.json(owner);
   } catch (error) {
     logger.error('crm.get_owner_error_', { message: 'Get owner error:', error: error?.message });
@@ -380,11 +473,11 @@ router.get('/owners/:id', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create owner
-router.post('/owners', validateToken, extractTenantId, requireAdminOrManager, validateBody(createOwnerSchema), async (req, res) => {
+router.post('/owners', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createOwnerSchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'owner_add');
-    const owner = await createOwner(req.tenantId, req.body);
+    const owner = await createOwner(req.tenantId, withCreateActor(req.user, req.body));
     const creditResult = await chargeCreditsForAction(req.tenantId, 'owner_add', { recordId: owner.ownerId });
     res.status(201).json({ ...owner, creditsRemaining: creditResult.balance });
   } catch (error) {
@@ -396,9 +489,9 @@ router.post('/owners', validateToken, extractTenantId, requireAdminOrManager, va
 });
 
 // Update owner
-router.put('/owners/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateOwnerSchema), async (req, res) => {
+router.put('/owners/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateOwnerSchema), async (req, res) => {
   try {
-    const owner = await updateOwner(req.tenantId, req.params.id, req.body);
+    const owner = await updateOwner(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
     res.json(owner);
   } catch (error) {
     logger.error('crm.update_owner_error_', { message: 'Update owner error:', error: error?.message });
@@ -417,9 +510,9 @@ router.get('/owners/:id/notes', validateToken, extractTenantId, async (req, res)
   }
 });
 
-router.post('/owners/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/owners/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const note = await createOwnerNote(req.tenantId, req.params.id, req.body);
+    const note = await createOwnerNote(req.tenantId, req.params.id, withCreateActor(req.user, req.body));
     res.status(201).json(note);
   } catch (error) {
     logger.error('crm.create_owner_note_error_', { message: 'Create owner note error:', error: error?.message });
@@ -427,9 +520,9 @@ router.post('/owners/:id/notes', validateToken, extractTenantId, requireAdminOrM
   }
 });
 
-router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.put('/owners/:id/notes/:noteId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const updated = await updateOwnerNote(req.tenantId, req.params.id, req.params.noteId, req.body);
+    const updated = await updateOwnerNote(req.tenantId, req.params.id, req.params.noteId, withUpdateActor(req.user, req.body));
     res.json(updated);
   } catch (error) {
     logger.error('crm.update_owner_note_error_', { message: 'Update owner note error:', error: error?.message });
@@ -503,7 +596,26 @@ router.get('/customers/lookup/by-phone', validateToken, extractTenantId, async (
 // Get properties by owner
 router.get('/owners/:id/properties', validateToken, extractTenantId, async (req, res) => {
   try {
-    const properties = await getPropertiesByOwner(req.tenantId, req.params.id);
+    let properties = await getPropertiesByOwner(req.tenantId, req.params.id);
+
+    // Portfolio view: legacy "sold"/"available"/"inactive" → not-listed (owned, not marketing)
+    properties = await Promise.all(
+      (properties || []).map(async (property) => {
+        const needsRepair = ['sold', 'available', 'inactive'].includes(property.status)
+          && property.listingStatus !== 'active';
+        if (!needsRepair) return property;
+        try {
+          const repaired = await updateProperty(req.tenantId, property.propertyId, {
+            status: 'not-listed',
+            listingStatus: 'inactive',
+            GSI2PK: `TENANT#${req.tenantId}#PROPERTY_STATUS#not-listed`,
+          });
+          return repaired || { ...property, status: 'not-listed', listingStatus: 'inactive' };
+        } catch {
+          return { ...property, status: 'not-listed', listingStatus: 'inactive' };
+        }
+      }),
+    );
     
     // Generate signed URLs for images and videos
     const propertiesWithUrls = await Promise.all(
@@ -568,11 +680,20 @@ router.get('/properties', validateToken, extractTenantId, async (req, res) => {
 
     const { properties, total } = await getProperties(req.tenantId, dbFilters);
 
+    // Default list: show all inventory including Not Listed (owned, not marketing).
+    // Hide only archived unless explicitly filtered.
+    let visibleProperties = properties;
+    let visibleTotal = total;
+    if (!status) {
+      visibleProperties = properties.filter((p) => p.status !== 'archived' && p.status !== 'out-of-stock');
+      visibleTotal = visibleProperties.length;
+    }
+
     // Light enrichment: owner name/phone only (avoid N+1 signed URLs for lists)
     const { owners } = await getOwners(req.tenantId);
     const ownerMap = new Map(owners.map(o => [o.ownerId, o]));
 
-    const enriched = properties.map(p => {
+    const enriched = visibleProperties.map(p => {
       const owner = ownerMap.get(p.ownerId);
       return {
         ...p,
@@ -581,12 +702,12 @@ router.get('/properties', validateToken, extractTenantId, async (req, res) => {
       };
     });
 
-    const pageLimit = parseInt(limit) || 50;
+    const pageLimit = parseInt(limit) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10);
     const pageOffset = parseInt(offset) || 0;
 
     res.json({
       properties: enriched,
-      total,
+      total: visibleTotal,
       limit: pageLimit,
       offset: pageOffset,
     });
@@ -644,18 +765,92 @@ router.get('/properties/public/list', apiKeyAuth, extractTenantIdOptional, async
   }
 });
 
+// Get public property details — MUST be registered before /properties/:id
+router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async (req, res) => {
+  try {
+    if (!req.tenantId) {
+      return res.status(400).json({ error: 'Tenant ID is required for public property' });
+    }
+
+    const property = await getProperty(req.tenantId, req.params.id);
+    if (!property || !['available', 'for-sale', 'for-rent'].includes(property.status)) {
+      return res.status(404).json({ error: 'Property not found' });
+    }
+
+    await incrementPropertyViews(req.tenantId, req.params.id);
+
+    const images = await Promise.all(
+      (property.images || []).map(async (key) => ({
+        key,
+        url: await getS3SignedUrl(key),
+      }))
+    );
+    const videos = await Promise.all(
+      (property.videos || []).map(async (key) => ({
+        key,
+        url: await getS3SignedUrl(key),
+      }))
+    );
+
+    const { ownerId, ownerName, ownerPhone, tenantCustomerId, ...publicData } = property;
+    res.json({
+      ...publicData,
+      images,
+      videos,
+    });
+  } catch (error) {
+    logger.error('crm.get_public_property_error_', { message: 'Get public property error:', error: error?.message });
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 // Get single property
 router.get('/properties/:id', validateToken, extractTenantId, async (req, res) => {
   try {
-    const property = await getProperty(req.tenantId, req.params.id);
+    let property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }
+
+    // Legacy: buyer now owns it but status still sold/available/inactive → not-listed
+    if (
+      property.currentOwnerContactId
+      && ['sold', 'available', 'inactive'].includes(property.status)
+      && property.listingStatus !== 'active'
+    ) {
+      try {
+        const repaired = await updateProperty(req.tenantId, property.propertyId, {
+          status: 'not-listed',
+          listingStatus: 'inactive',
+          GSI2PK: `TENANT#${req.tenantId}#PROPERTY_STATUS#not-listed`,
+        });
+        property = repaired || { ...property, status: 'not-listed', listingStatus: 'inactive' };
+      } catch {
+        property = { ...property, status: 'not-listed', listingStatus: 'inactive' };
+      }
+    }
     
     // Get owner, tenant data and signed URLs (handle null/unassigned owner)
-    const owner = property.ownerId 
+    let owner = property.ownerId 
       ? await getOwner(req.tenantId, property.ownerId)
       : null;
+    if (!owner && property.currentOwnerContactId) {
+      const contact = await getContact(req.tenantId, property.currentOwnerContactId);
+      if (contact?.linkedOwnerId) {
+        owner = await getOwner(req.tenantId, contact.linkedOwnerId);
+        if (owner && !property.ownerId) {
+          property = { ...property, ownerId: owner.ownerId };
+        }
+      }
+      if (!owner && contact) {
+        owner = {
+          ownerId: contact.linkedOwnerId || contact.contactId,
+          name: contact.name,
+          phone: contact.phone,
+          status: 'inactive',
+        };
+      }
+    }
     const tenant = property.tenantCustomerId
       ? await getCustomer(req.tenantId, property.tenantCustomerId)
       : null;
@@ -709,50 +904,12 @@ router.get('/properties/:id/rental-history', validateToken, extractTenantId, asy
   }
 });
 
-// Get public property details
-router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async (req, res) => {
-  try {
-    if (!req.tenantId) {
-      return res.status(400).json({ error: 'Tenant ID is required for public property' });
-    }
-    
-    const property = await getProperty(req.tenantId, req.params.id);
-    if (!property || !['available', 'for-sale', 'for-rent'].includes(property.status)) {
-      return res.status(404).json({ error: 'Property not found' });
-    }
-    
-    // Increment view count
-    await incrementPropertyViews(req.tenantId, req.params.id);
-    
-    // Generate signed URLs but DON'T include owner data
-    const images = await Promise.all(
-      (property.images || []).map(async (key) => ({
-        key,
-        url: await getS3SignedUrl(key),
-      }))
-    );
-    const videos = await Promise.all(
-      (property.videos || []).map(async (key) => ({
-        key,
-        url: await getS3SignedUrl(key),
-      }))
-    );
-    
-    // Remove owner info
-    const { ownerId, ...publicData } = property;
-    res.json({ ...publicData, images, videos });
-  } catch (error) {
-    logger.error('crm.get_public_property_error_', { message: 'Get public property error:', error: error?.message });
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-});
-
 // Create property
-router.post('/properties', validateToken, extractTenantId, requireAdminOrManager, validateBody(createPropertySchema), async (req, res) => {
+router.post('/properties', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createPropertySchema), async (req, res) => {
   try {
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     await precheckCredits(req.tenantId, 'property_add');
-    const property = await createProperty(req.tenantId, req.body);
+    const property = await createProperty(req.tenantId, withCreateActor(req.user, req.body));
     const creditResult = await chargeCreditsForAction(req.tenantId, 'property_add', { recordId: property.propertyId });
     res.status(201).json({ ...property, creditsRemaining: creditResult.balance });
   } catch (error) {
@@ -764,9 +921,9 @@ router.post('/properties', validateToken, extractTenantId, requireAdminOrManager
 });
 
 // Update property
-router.put('/properties/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updatePropertySchema), async (req, res) => {
+router.put('/properties/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updatePropertySchema), async (req, res) => {
   try {
-    const property = await updateProperty(req.tenantId, req.params.id, req.body);
+    const property = await updateProperty(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
     res.json(property);
   } catch (error) {
     logger.error('crm.update_property_error_', { message: 'Update property error:', error: error?.message });
@@ -775,7 +932,7 @@ router.put('/properties/:id', validateToken, extractTenantId, requireAdminOrMana
 });
 
 // Upload property images
-router.post('/properties/:id/images', validateToken, extractTenantId, requireAdminOrManager, upload.array('images', 10), async (req, res) => {
+router.post('/properties/:id/images', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.array('images', 10), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -803,7 +960,7 @@ router.post('/properties/:id/images', validateToken, extractTenantId, requireAdm
 });
 
 // Upload property videos
-router.post('/properties/:id/videos', validateToken, extractTenantId, requireAdminOrManager, upload.array('videos', 5), async (req, res) => {
+router.post('/properties/:id/videos', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.array('videos', 5), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -875,7 +1032,7 @@ router.delete('/properties/:id/videos/:key', validateToken, extractTenantId, req
 // ============== Owner Document Upload Routes ==============
 
 // Upload owner documents (photo, PAN, Aadhar)
-router.post('/owners/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
+router.post('/owners/:id/documents', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -946,8 +1103,32 @@ router.get('/owners/:id/with-documents', validateToken, extractTenantId, async (
       return res.status(404).json({ error: 'Owner not found' });
     }
 
+    let panNumber = owner.panNumber || null;
+    let aadharNumber = owner.aadharNumber || null;
+    let contactId = owner.contactId || null;
+    try {
+      const contact = owner.phone ? await findContactByPhone(req.tenantId, owner.phone) : null;
+      if (contact) {
+        contactId = contact.contactId;
+        panNumber = panNumber || contact.panNumber || null;
+        aadharNumber = aadharNumber || contact.aadharNumber || null;
+        // Persist KYC onto OWNER shell when Contact has it
+        const kycPatch = {};
+        if (!owner.panNumber && contact.panNumber) kycPatch.panNumber = contact.panNumber;
+        if (!owner.aadharNumber && contact.aadharNumber) kycPatch.aadharNumber = contact.aadharNumber;
+        if (Object.keys(kycPatch).length) {
+          await updateOwner(req.tenantId, owner.ownerId, kycPatch);
+        }
+      }
+    } catch (err) {
+      logger.warn('crm.get_owner_with_documents.enrich_failed', { ownerId: req.params.id, error: err.message });
+    }
+
     const ownerWithUrls = {
       ...owner,
+      contactId,
+      panNumber,
+      aadharNumber,
       photoUrl: owner.photoS3Key ? await getS3SignedUrl(owner.photoS3Key) : null,
       panDocUrl: owner.panDocS3Key ? await getS3SignedUrl(owner.panDocS3Key) : null,
       aadharDocUrl: owner.aadharDocS3Key ? await getS3SignedUrl(owner.aadharDocS3Key) : null,
@@ -963,7 +1144,7 @@ router.get('/owners/:id/with-documents', validateToken, extractTenantId, async (
 // ============== Customer/Tenant Document Upload Routes ==============
 
 // Upload customer documents (photo, PAN, Aadhar)
-router.post('/customers/:id/documents', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
+router.post('/customers/:id/documents', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -1071,7 +1252,7 @@ router.get('/properties/:id/agreements', validateToken, extractTenantId, async (
 });
 
 // Create property agreement
-router.post('/properties/:id/agreements', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/agreements', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -1101,7 +1282,7 @@ router.post('/properties/:id/agreements', validateToken, extractTenantId, requir
 });
 
 // Update property agreement
-router.put('/properties/:id/agreements/:agreementId', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/agreements/:agreementId', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.single('document'), async (req, res) => {
   try {
     const agreementData = JSON.parse(req.body.data || '{}');
 
@@ -1148,7 +1329,7 @@ router.get('/properties/:id/verifications', validateToken, extractTenantId, asyn
 });
 
 // Create property verification
-router.post('/properties/:id/verifications', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
+router.post('/properties/:id/verifications', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.single('document'), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
@@ -1178,7 +1359,7 @@ router.post('/properties/:id/verifications', validateToken, extractTenantId, req
 });
 
 // Update property verification
-router.put('/properties/:id/verifications/:verificationId', validateToken, extractTenantId, requireAdminOrManager, upload.single('document'), async (req, res) => {
+router.put('/properties/:id/verifications/:verificationId', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.single('document'), async (req, res) => {
   try {
     const verificationData = JSON.parse(req.body.data || '{}');
 
@@ -1225,18 +1406,13 @@ router.get('/properties/:id/documents', validateToken, extractTenantId, async (r
 });
 
 // Upload property document
-router.post('/properties/:id/documents/upload', validateToken, extractTenantId, requireAdminOrManager, upload.fields([
+router.post('/properties/:id/documents/upload', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.fields([
   { name: 'files', maxCount: 20 },
   { name: 'file', maxCount: 1 },
 ]), async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.id);
     if (!property) {
-      res.set({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-      });
       return res.status(404).json({ error: 'Property not found' });
     }
 
@@ -1246,11 +1422,6 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
     ];
 
     if (!files || files.length === 0) {
-      res.set({
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-      });
       return res.status(400).json({ error: 'No file provided' });
     }
 
@@ -1287,11 +1458,6 @@ router.post('/properties/:id/documents/upload', validateToken, extractTenantId, 
     res.status(201).json(created);
   } catch (error) {
     logger.error('crm.upload_property_document_error_', { message: 'Upload property document error:', error: error?.message });
-    res.set({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -1540,26 +1706,11 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     res.json(analytics);
   } catch (error) {
     logger.error('crm.get_business_analytics_error_', { message: 'Get business analytics error:', error: error?.message });
-    res.set({
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-      'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // ============== Meeting/Calendar Routes ==============
-
-// OPTIONS for CORS preflight (no auth required)
-router.options('/meetings', (req, res) => {
-  res.set({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  });
-  res.sendStatus(200);
-});
 
 // Get all meetings (with optional filters)
 router.get('/meetings', validateToken, extractTenantId, async (req, res) => {
@@ -1588,16 +1739,6 @@ router.get('/meetings/upcoming', validateToken, extractTenantId, async (req, res
     logger.error('crm.get_upcoming_meetings_error_', { message: 'Get upcoming meetings error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
-});
-
-// OPTIONS for /meetings/metrics (no auth required)
-router.options('/meetings/metrics', (req, res) => {
-  res.set({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  });
-  res.sendStatus(200);
 });
 
 // Get meeting metrics
@@ -1649,9 +1790,9 @@ router.get('/meetings/:id/history', validateToken, extractTenantId, async (req, 
 });
 
 // Create meeting
-router.post('/meetings', validateToken, extractTenantId, requireAdminOrManager, validateBody(createMeetingSchema), async (req, res) => {
+router.post('/meetings', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createMeetingSchema), async (req, res) => {
   try {
-    const meeting = await createMeeting(req.tenantId, req.body);
+    const meeting = await createMeeting(req.tenantId, withCreateActor(req.user, req.body));
     res.status(201).json(meeting);
   } catch (error) {
     logger.error('crm.create_meeting_error_', { message: 'Create meeting error:', error: error?.message });
@@ -1660,9 +1801,9 @@ router.post('/meetings', validateToken, extractTenantId, requireAdminOrManager, 
 });
 
 // Update meeting
-router.put('/meetings/:id', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateMeetingSchema), async (req, res) => {
+router.put('/meetings/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateMeetingSchema), async (req, res) => {
   try {
-    const meeting = await updateMeeting(req.tenantId, req.params.id, req.body);
+    const meeting = await updateMeeting(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
     res.json(meeting);
   } catch (error) {
     logger.error('crm.update_meeting_error_', { message: 'Update meeting error:', error: error?.message });
@@ -1723,15 +1864,20 @@ router.get('/search/properties', validateToken, extractTenantId, async (req, res
 // ============== Property Status Management ==============
 
 // List property for sale
-router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { listedPrice } = req.body;
     if (!listedPrice) {
       return res.status(400).json({ error: 'Listed price is required' });
     }
-    await listPropertyForSale(req.tenantId, req.params.id, listedPrice);
+    const result = await listPropertyForSale(
+      req.tenantId,
+      req.params.id,
+      listedPrice,
+      resolveRequestActor(req.user).actorName,
+    );
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
-    res.json(updatedProperty);
+    res.json({ ...updatedProperty, listing: result.listing || null });
   } catch (error) {
     logger.error('crm.list_property_for_sale_error_', { message: 'List property for sale error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -1739,23 +1885,61 @@ router.post('/properties/:id/list-for-sale', validateToken, extractTenantId, req
 });
 
 // List property for rent
-router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/properties/:id/list-for-rent', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { expectedRent, securityDeposit } = req.body;
     if (!expectedRent) {
       return res.status(400).json({ error: 'Expected rent is required' });
     }
-    await listPropertyForRent(req.tenantId, req.params.id, expectedRent, securityDeposit || 0);
+    const result = await listPropertyForRent(
+      req.tenantId,
+      req.params.id,
+      expectedRent,
+      securityDeposit || 0,
+      resolveRequestActor(req.user).actorName,
+    );
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
-    res.json(updatedProperty);
+    res.json({ ...updatedProperty, listing: result.listing || null });
   } catch (error) {
     logger.error('crm.list_property_for_rent_error_', { message: 'List property for rent error:', error: error?.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
+// Listings API
+router.get('/listings', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { createListing: _c, getListings, withdrawListing: _w } = await import('../services/listingService.js');
+    const { status, listingType, propertyId, listedByContactId } = req.query;
+    const listings = await getListings(req.tenantId, {
+      status: status || undefined,
+      listingType: listingType || undefined,
+      propertyId: propertyId || undefined,
+      listedByContactId: listedByContactId || undefined,
+    });
+    res.json({ listings, total: listings.length });
+  } catch (error) {
+    logger.error('crm.get_listings_error', { message: error?.message });
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+router.post('/listings/:id/withdraw', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const { withdrawListing } = await import('../services/listingService.js');
+    const listing = await withdrawListing(req.tenantId, req.params.id, {
+      reason: req.body?.reason || 'withdrawn',
+      performedBy: resolveRequestActor(req.user).actorName,
+    });
+    res.json(listing);
+  } catch (error) {
+    logger.error('crm.withdraw_listing_error', { message: error?.message });
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 // Mark property as sold
-router.post('/properties/:id/mark-sold', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/properties/:id/mark-sold', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { soldPrice, buyerId, saleType, reasonLost, notes, brokerageAmount, brokerageLost } = req.body;
     
@@ -1769,7 +1953,19 @@ router.post('/properties/:id/mark-sold', validateToken, extractTenantId, require
       return res.status(400).json({ error: 'Buyer ID is required for a direct sale' });
     }
 
-    await markPropertySold(req.tenantId, req.params.id, soldPrice, buyerId || null, type, reasonLost || null, notes || null, brokerageAmount || null, brokerageLost || null);
+    await markPropertySold(
+      req.tenantId,
+      req.params.id,
+      soldPrice,
+      buyerId || null,
+      type,
+      reasonLost || null,
+      notes || null,
+      brokerageAmount || null,
+      brokerageLost || null,
+      null,
+      resolveRequestActor(req.user).actorName,
+    );
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
@@ -1779,13 +1975,20 @@ router.post('/properties/:id/mark-sold', validateToken, extractTenantId, require
 });
 
 // Mark property as rented
-router.post('/properties/:id/mark-rented', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/properties/:id/mark-rented', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { customerId, rentalDetails } = req.body;
     if (!customerId || !rentalDetails) {
       return res.status(400).json({ error: 'Customer ID and rental details are required' });
     }
-    await markPropertyRented(req.tenantId, req.params.id, customerId, rentalDetails);
+    await markPropertyRented(
+      req.tenantId,
+      req.params.id,
+      customerId,
+      rentalDetails,
+      null,
+      resolveRequestActor(req.user).actorName,
+    );
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
     res.json(updatedProperty);
   } catch (error) {
@@ -1795,7 +1998,7 @@ router.post('/properties/:id/mark-rented', validateToken, extractTenantId, requi
 });
 
 // Vacate property
-router.post('/properties/:id/vacate', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/properties/:id/vacate', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const result = await vacateProperty(req.tenantId, req.params.id);
     const updatedProperty = await getProperty(req.tenantId, req.params.id);
@@ -1809,7 +2012,7 @@ router.post('/properties/:id/vacate', validateToken, extractTenantId, requireAdm
 // ============== Buyer Purchase Management ==============
 
 // Add purchase to buyer
-router.post('/buyers/:id/purchases', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/buyers/:id/purchases', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const purchaseDetails = req.body;
     if (!purchaseDetails.propertyId) {
@@ -1824,7 +2027,7 @@ router.post('/buyers/:id/purchases', validateToken, extractTenantId, requireAdmi
 });
 
 // Update buyer purchase
-router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const updates = req.body;
     const updatedPurchase = await updateBuyerPurchase(
@@ -1843,7 +2046,7 @@ router.put('/buyers/:id/purchases/:propertyId', validateToken, extractTenantId, 
 // ============== Tenant Rental Management ==============
 
 // Update tenant's current rental
-router.put('/customers/:id/current-rental', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.put('/customers/:id/current-rental', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const rentalDetails = req.body;
     const updatedRental = await updateCurrentRental(req.tenantId, req.params.id, rentalDetails);
@@ -1855,7 +2058,7 @@ router.put('/customers/:id/current-rental', validateToken, extractTenantId, requ
 });
 
 // Archive tenant's current rental to history
-router.post('/customers/:id/archive-rental', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/customers/:id/archive-rental', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const result = await moveTenantToHistory(req.tenantId, req.params.id);
     res.json(result);
@@ -1881,5 +2084,7 @@ router.get('/customers/:id/rental-history', validateToken, extractTenantId, asyn
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
+
+router.use(handleCrmUploadErrors);
 
 export default router;

@@ -50,7 +50,7 @@ router.get('/team-analytics/export', async (req, res) => {
 // GET /api/admin/agent-activity
 router.get('/agent-activity', async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit, 10) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10), 100);
     const items = await getAgentActivity(req.tenantId, { limit });
     res.json({ items });
   } catch (err) {

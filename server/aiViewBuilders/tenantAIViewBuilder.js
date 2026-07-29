@@ -7,6 +7,7 @@
  */
 
 import { formatDate, formatMoney, buildEnvelope, buildPaginationMetadata } from './utils.js';
+import { buildTenantRecommendation } from './recommendations.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,10 @@ export function buildSearchResults(tenants, pagination = {}, options = {}) {
 export function buildTenantDetails(tenant, options = {}) {
   const { includeNotes = true, maxNotes = 5 } = options;
   const notes = Array.isArray(tenant.notes) ? tenant.notes.slice(0, maxNotes) : [];
+  const latestNote = notes.length
+    ? (typeof notes[0] === 'string' ? notes[0] : (notes[0].content || notes[0].text || null))
+    : null;
+  const currentRental = deriveCurrentRentalSummary(tenant);
 
   return buildEnvelope(
     {
@@ -92,11 +97,15 @@ export function buildTenantDetails(tenant, options = {}) {
       address: tenant.address,
       status: tenant.status,
       source: tenant.source,
+      budget: tenant.budget || null,
+      preferredArea: tenant.preferredArea || null,
       createdAt: formatDate(tenant.createdAt),
+      lastActivityAt: formatDate(tenant.lastActivityAt || tenant.updatedAt),
       tags: tenant.tags || [],
       kycStatus: tenant.kycStatus,
-      currentRental: deriveCurrentRentalSummary(tenant),
+      currentRental,
       rentalHistoryCount: tenant.rentalHistoryCount || 0,
+      latestNote,
       notes: includeNotes ? notes : undefined,
     },
     {
@@ -109,6 +118,7 @@ export function buildTenantDetails(tenant, options = {}) {
         hasCurrentRental: tenant.hasCurrentRental,
         historyCount: tenant.rentalHistoryCount || 0,
       },
+      recommendation: buildTenantRecommendation({ ...tenant, currentRental }),
     }
   );
 }

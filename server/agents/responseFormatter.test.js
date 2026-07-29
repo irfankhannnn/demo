@@ -82,15 +82,14 @@ describe('Response Formatter', () => {
   };
 
   describe('formatToolResult', () => {
-    test('formats a single buyer lead', () => {
+    test('formats create_lead as compact confirmation', () => {
       const result = formatToolResult('create_lead', { ok: true, data: buyerLead });
       expect(result).toContain('Faizan');
-      expect(result).toContain('Buyer Lead');
-      expect(result).toContain('High');
+      expect(result).toContain('created');
       expect(result).toContain('₹80L');
       expect(result).toContain('Andheri West');
-      expect(result).toContain('BHK: 2BHK');
-      expect(result).toContain('Lead ID');
+      expect(result).not.toContain('Lead ID');
+      expect(result).not.toContain('Quick Stats');
     });
 
     test('formats a single seller lead', () => {
@@ -107,13 +106,14 @@ describe('Response Formatter', () => {
       expect(result).toContain('For Rent');
       expect(result).toContain('₹65k');
       expect(result).toContain('Bandra');
-      expect(result).toContain('BHK: 2BHK');
+      expect(result).toContain('2 BHK');
+      expect(result).not.toContain('Property ID');
     });
 
-    test('formats a single buyer', () => {
+    test('formats create_buyer as compact confirmation', () => {
       const result = formatToolResult('create_buyer', { ok: true, data: buyer });
       expect(result).toContain('Rahul Sharma');
-      expect(result).toContain('Active');
+      expect(result).toContain('created');
       expect(result).toContain('₹95L');
       expect(result).toContain('Andheri');
     });
@@ -121,7 +121,9 @@ describe('Response Formatter', () => {
     test('formats a single owner', () => {
       const result = formatToolResult('get_owner', { ok: true, data: owner });
       expect(result).toContain('Mr. Kapoor');
-      expect(result).toContain('9000000000');
+      expect(result).toContain('90000 00000');
+      expect(result).toContain('Property Owner');
+      expect(result).not.toContain('Owner ID');
     });
 
     test('formats a single tenant', () => {
@@ -135,7 +137,8 @@ describe('Response Formatter', () => {
       const result = formatToolResult('get_contact', { ok: true, data: contact });
       expect(result).toContain('Sunita');
       expect(result).toContain('Broker');
-      expect(result).toContain('9777777777');
+      expect(result).toContain('97777 77777');
+      expect(result).not.toContain('Contact ID');
     });
 
     test('formats a list of leads', () => {
@@ -169,7 +172,7 @@ describe('Response Formatter', () => {
         data: [buyerLead, sellerLead],
       };
       const result = formatToolResult('search_leads', { ok: true, data: aiDto });
-      expect(result).toContain('Here are the 5 leads');
+      expect(result).toContain('*Leads (5)*');
       expect(result).toContain('+3 more');
       expect(result).toContain('show more');
     });
@@ -208,11 +211,10 @@ describe('Response Formatter', () => {
         relatedEntityId: 'lead-1',
       };
       const result = formatToolResult('create_meeting', { ok: true, data: meeting });
-      expect(result).toContain('*Site Visit*');
-      expect(result).toContain('1 Jul 2026');
-      expect(result).toContain('Scheduled');
+      expect(result).toContain('Site Visit');
+      expect(result).toContain('created');
       expect(result).toContain('Andheri West');
-      expect(result).toContain('Meeting ID');
+      expect(result).not.toContain('Meeting ID');
     });
 
     test('formats a list of meetings', () => {
@@ -264,7 +266,7 @@ describe('Response Formatter', () => {
       expect(result).toContain('*Sale Deed*');
       expect(result).toContain('Legal');
       expect(result).toContain('https://example.com/deed.pdf');
-      expect(result).toContain('Document ID');
+      expect(result).not.toContain('Document ID');
     });
 
     test('formats CRM metrics', () => {
@@ -307,6 +309,80 @@ describe('Response Formatter', () => {
       const result = formatAgentReply(longReply, [{ tool: 'create_lead', result: { ok: true, data: buyerLead } }]);
       expect(result).toContain('Faizan');
       expect(result).not.toContain('all the details you provided');
+    });
+
+    test('formats leads summary one type per line', () => {
+      const result = formatToolResult('get_leads_summary', {
+        ok: true,
+        data: {
+          total: 16,
+          active: 14,
+          unassigned: 13,
+          byType: { buyer: 8, seller: 2, tenant: 4, owner: 2 },
+          byPriority: { high: 5, medium: 9, low: 2 },
+        },
+      });
+      expect(result).toContain('📊 Lead Summary');
+      expect(result).toContain('Total Leads: 16');
+      expect(result).toContain('• Buyer: 8');
+      expect(result).toContain('🔴 High: 5');
+      expect(result).toContain('⚠️ Unassigned: 13');
+      expect(result).not.toContain('|');
+    });
+
+    test('keeps LLM reply for get_crm_metrics when user asked a focused question', () => {
+      const llmReply = 'Aapke paas total 15 leads hain. Aur kuch janna hai aapko?';
+      const metrics = { leadsCount: 15, totalProperties: 2, totalOwners: 1 };
+      const result = formatAgentReply(llmReply, [{ tool: 'get_crm_metrics', result: { ok: true, data: metrics } }]);
+      expect(result).toBe(llmReply);
+      expect(result).not.toContain('*CRM Metrics*');
+    });
+
+    test('falls back to metrics card when LLM reply is missing', () => {
+      const metrics = { leadsCount: 15, totalProperties: 2 };
+      const result = formatAgentReply('', [{ tool: 'get_crm_metrics', result: { ok: true, data: metrics } }]);
+      expect(result).toContain('*CRM Metrics*');
+      expect(result).toContain('Leads Count: 15');
+    });
+
+    test('keeps LLM reply for create_lead_note instead of broken lead card', () => {
+      const llmReply = 'Ji, Ashok Menon ki lead pe note add kar diya hai.';
+      const noteResult = {
+        ok: true,
+        data: {
+          metadata: { action: 'note_added' },
+          data: {
+            leadId: 'f2296942-c1d7-493b-986d-8faae136c255',
+            leadName: 'Ashok Menon',
+            noteId: 'fea591eb-640c-49a9-b575-e6532cebbe36',
+            content: 'He is looking for a property with parking also',
+            createdAt: '2026-07-19',
+          },
+        },
+      };
+      const result = formatAgentReply(llmReply, [{ tool: 'create_lead_note', result: noteResult }]);
+      expect(result).toBe(llmReply);
+      expect(result).not.toContain('undefined');
+      expect(result).not.toContain('Leads created');
+    });
+
+    test('formats note confirmation when LLM reply is missing', () => {
+      const noteResult = {
+        ok: true,
+        data: {
+          metadata: { action: 'note_added' },
+          data: {
+            leadId: 'lead-1',
+            leadName: 'Ashok Menon',
+            noteId: 'note-1',
+            content: 'Needs parking',
+          },
+        },
+      };
+      const result = formatAgentReply('', [{ tool: 'create_lead_note', result: noteResult }]);
+      expect(result).toContain('Ashok Menon');
+      expect(result).toContain('Needs parking');
+      expect(result).not.toContain('undefined');
     });
   });
 

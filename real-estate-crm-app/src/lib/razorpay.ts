@@ -28,7 +28,8 @@ interface CheckoutOptions {
 }
 
 export async function openCheckout(opts: CheckoutOptions): Promise<void> {
-  const key = import.meta.env.VITE_RAZORPAY_KEY_ID;
+  const key = import.meta.env.VITE_RAZORPAY_KEY_ID
+    || (import.meta.env.DEV ? 'rzp_test_playwright' : '');
   if (!key) {
     throw new Error('Razorpay key is not configured');
   }

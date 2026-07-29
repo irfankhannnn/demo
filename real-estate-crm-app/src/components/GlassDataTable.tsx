@@ -29,6 +29,8 @@ interface GlassDataTableProps<T> {
   headerClassName?: string;
   rowClassName?: (item: T) => string;
   stickyHeader?: boolean;
+  tableFixed?: boolean;
+  compact?: boolean;
 }
 
 export default function GlassDataTable<T>({
@@ -49,6 +51,8 @@ export default function GlassDataTable<T>({
   headerClassName = '',
   rowClassName,
   stickyHeader = true,
+  tableFixed = false,
+  compact = false,
 }: GlassDataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -136,15 +140,15 @@ export default function GlassDataTable<T>({
 
       {/* Table Container */}
       <div className="relative overflow-hidden rounded-2xl glass-premium border border-white/40 shadow-xl shadow-black/5">
-        <div className="overflow-x-auto">
-          <table className="w-full">
+        <div className={tableFixed ? 'overflow-x-hidden' : 'overflow-x-auto'}>
+          <table className={`w-full ${tableFixed ? 'table-fixed' : ''}`}>
             <thead className={`${stickyHeader ? 'sticky top-0 z-10' : ''} ${headerClassName}`}>
               <tr className="bg-gradient-to-r from-slate-50/90 to-white/90 backdrop-blur-xl border-b border-slate-200/50">
                 {columns.map((column) => (
                   <th
                     key={column.key}
                     style={{ width: column.width }}
-                    className={`px-4 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider ${
+                    className={`${compact ? 'px-3 py-3' : 'px-4 py-4'} text-left text-xs font-bold text-slate-500 uppercase tracking-wider ${
                       column.sortable ? 'cursor-pointer hover:bg-slate-100/50 transition-colors select-none' : ''
                     } ${column.className || ''}`}
                     onClick={() => column.sortable && handleSort(column.key)}
@@ -207,7 +211,7 @@ export default function GlassDataTable<T>({
                     {columns.map((column) => (
                       <td
                         key={column.key}
-                        className={`px-4 py-4 text-sm text-slate-700 font-medium ${column.className || ''}`}
+                        className={`${compact ? 'px-3 py-3' : 'px-4 py-4'} text-sm text-slate-700 font-medium ${column.className || ''}`}
                       >
                         {column.render
                           ? column.render(item, index)

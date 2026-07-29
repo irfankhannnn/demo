@@ -930,13 +930,16 @@ export default function TenantDetails() {
             </div>
           )}
 
-          {/* Unified Activity Timeline */}
+          {/* Activity History */}
           {!isNew && (
             <div className="mt-6 pt-4 border-t">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <FileText className="h-5 w-5 mr-2 text-purple-600" />
-                Unified Activity Timeline
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-teal-600" />
+                Activity History
               </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Leases, rent changes, meetings, notes, and property links — full tenant timeline.
+              </p>
               <ContactActivityTimeline entityType="customer" entityId={id} />
             </div>
           )}

@@ -5,6 +5,7 @@ import { logger } from '../logger.js';
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 const AUDIT_TABLE = process.env.AGENT_AUDIT_TABLE_NAME || 'cloudberry-real-estate-agent-audit';
+const AUDIT_LOG_TTL_SECONDS = parseInt(process.env.AUDIT_LOG_TTL_SECONDS || '7776000', 10); // 90 days
 
 /**
  * Log an agent action to the dedicated AgentAudit table.
@@ -28,7 +29,7 @@ export async function logAgentAction(tenantId, agentId, action, input, output, c
     createdAt: now,
     GSI1PK: tenantId,
     GSI1SK: `${agentId}#${now}`,
-    expiresAt: Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60, // 90-day TTL
+    expiresAt: Math.floor(Date.now() / 1000) + AUDIT_LOG_TTL_SECONDS,
   };
 
   try {

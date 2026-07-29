@@ -11,10 +11,17 @@
   {"ParameterKey": "EventBusName",          "ParameterValue": "default"},
   {"ParameterKey": "MaxSessionsPerTask",    "ParameterValue": "100"},
   {"ParameterKey": "DesiredCount",          "ParameterValue": "1"},
-  {"ParameterKey": "TaskCpu",              "ParameterValue": "2048"},
-  {"ParameterKey": "TaskMemory",           "ParameterValue": "4096"},
+  {"ParameterKey": "TaskCpu",              "ParameterValue": "256"},
+  {"ParameterKey": "TaskMemory",           "ParameterValue": "512"},
   {"ParameterKey": "VpcId",               "ParameterValue": "vpc-xxxxxxxx"},
   {"ParameterKey": "VpcCidr",             "ParameterValue": "10.0.0.0/16"},
   {"ParameterKey": "PrivateSubnetIds",    "ParameterValue": "subnet-aaaaaaaa,subnet-bbbbbbbb"},
-  {"ParameterKey": "AlbIngressCidr",      "ParameterValue": ""}
+  {"ParameterKey": "DirectIngressCidr",   "ParameterValue": "0.0.0.0/0"},
+  {"ParameterKey": "HostedZoneId",          "ParameterValue": ""},
+  {"ParameterKey": "DomainName",            "ParameterValue": ""},
+  {"ParameterKey": "SpotCapacity",          "ParameterValue": "true"},
+  {"ParameterKey": "CloudwatchMetricsEnabled", "ParameterValue": "true"},
+  {"ParameterKey": "LogRetentionDays",    "ParameterValue": "30"},
+  {"ParameterKey": "AlarmEmail",          "ParameterValue": ""}
 ]
+

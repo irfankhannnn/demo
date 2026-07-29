@@ -15,6 +15,7 @@ import { getPropertiesByStatus } from '../crmDynamodbService.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdmin, requireAdminOrManager } from '../middleware/requireRole.js';
 import validateBody from '../middleware/validateBody.js';
 import {
   updateNotificationSettingsSchema,
@@ -33,7 +34,7 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
     const options = {
       category: category || null,
       unreadOnly: unreadOnly === 'true',
-      limit: limit ? parseInt(limit, 10) : 50,
+      limit: limit ? parseInt(limit, 10) : parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10),
     };
 
     const notifications = await getNotifications(req.tenantId, options);
@@ -79,7 +80,7 @@ router.post('/mark-all-read', validateToken, extractTenantId, async (req, res) =
 });
 
 // Delete old notifications (cleanup)
-router.delete('/cleanup', validateToken, extractTenantId, async (req, res) => {
+router.delete('/cleanup', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const { daysOld } = req.query;
     const result = await deleteOldNotifications(req.tenantId, daysOld ? parseInt(daysOld, 10) : 30);
@@ -93,7 +94,7 @@ router.delete('/cleanup', validateToken, extractTenantId, async (req, res) => {
 // ============== Notification Processing Routes ==============
 
 // Process due scheduled notifications (can be called by a cron job or manually)
-router.post('/process-scheduled', validateToken, extractTenantId, async (req, res) => {
+router.post('/process-scheduled', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const result = await processDueNotifications(req.tenantId);
     res.json(result);
@@ -104,7 +105,7 @@ router.post('/process-scheduled', validateToken, extractTenantId, async (req, re
 });
 
 // Generate rent expiry notifications (can be called by a cron job or manually)
-router.post('/generate-rent-expiry', validateToken, extractTenantId, async (req, res) => {
+router.post('/generate-rent-expiry', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     // Get notification settings
     const config = await getAgencyConfig(req.tenantId);
@@ -123,7 +124,7 @@ router.post('/generate-rent-expiry', validateToken, extractTenantId, async (req,
 });
 
 // Combined processing endpoint (process scheduled + generate rent expiry)
-router.post('/process-all', validateToken, extractTenantId, async (req, res) => {
+router.post('/process-all', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const results = {
       scheduled: null,
@@ -173,7 +174,7 @@ router.get('/settings', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update notification settings
-router.put('/settings', validateToken, extractTenantId, validateBody(updateNotificationSettingsSchema), async (req, res) => {
+router.put('/settings', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateNotificationSettingsSchema), async (req, res) => {
   try {
     const {
       rentedExpiryThresholdDays,
@@ -202,7 +203,7 @@ router.put('/settings', validateToken, extractTenantId, validateBody(updateNotif
 // ============== Test/Debug Routes ==============
 
 // Create a test notification (for debugging)
-router.post('/test', validateToken, extractTenantId, validateBody(createTestNotificationSchema), async (req, res) => {
+router.post('/test', validateToken, extractTenantId, requireAdmin, validateBody(createTestNotificationSchema), async (req, res) => {
   try {
     const { category, type, title, message, deepLink } = req.body;
 

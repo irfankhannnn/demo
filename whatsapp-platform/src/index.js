@@ -11,7 +11,7 @@ import {
   LOCAL_STORAGE,
   USE_EVENTBRIDGE,
 } from './config.js';
-import { listSessions, restoreSessions, shutdownAllSessions } from './baileysClient.js';
+import { drainPendingInbound, listSessions, restoreSessions, shutdownAllSessions } from './baileysClient.js';
 import { publishSessionMetrics } from './observability/metrics.js';
 import { apiKeyAuth } from './middleware/apiKeyAuth.js';
 import healthRoutes from './routes/health.js';
@@ -67,14 +67,13 @@ app.use((err, _req, res, _next) => {
 });
 
 async function bootstrap() {
-  if (RESTORE_ON_STARTUP) {
-    try {
-      const result = await restoreSessions();
-      logger.info(result, 'whatsapp-platform.sessions_restored');
-    } catch (err) {
-      logger.warn({ error: err.message }, 'whatsapp-platform.restore_failed');
-    }
-  }
+  // Retry only persisted, current messages that have not yet been acknowledged
+  // by CRM. This is independent from WhatsApp reconnect churn.
+  setInterval(() => {
+    drainPendingInbound().catch((err) =>
+      logger.error({ error: err.message }, 'inbound_delivery.periodic_drain_failed')
+    );
+  }, 5_000).unref();
 
   // CloudWatch metrics every 60s
   if (CLOUDWATCH_METRICS_ENABLED) {
@@ -87,6 +86,15 @@ async function bootstrap() {
 
   const server = app.listen(PORT, () => {
     logger.info({ port: PORT, health: `http://localhost:${PORT}/health` }, 'whatsapp-platform.started');
+    if (RESTORE_ON_STARTUP) {
+      restoreSessions()
+        .then((result) => logger.info(result, 'whatsapp-platform.sessions_restored'))
+        .catch((err) => logger.warn({ error: err.message }, 'whatsapp-platform.restore_failed'));
+    }
+  });
+  server.once('error', (err) => {
+    logger.error({ error: err.message, code: err.code, port: PORT }, 'whatsapp-platform.listen_failed');
+    process.exit(1);
   });
 
   // Graceful shutdown

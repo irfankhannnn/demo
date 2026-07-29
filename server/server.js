@@ -4,7 +4,6 @@ import 'dotenv/config';
 
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { ensureRequestId } from './requestId.js';
@@ -40,15 +39,17 @@ import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import validateToken from './middleware/validateToken.js';
-// MCP OAuth routes
-import oauthRoutes from './routes/oauth.js';
+// AI Integrations dashboard API (frontend uses this to list/disconnect OAuth clients)
 import aiIntegrationsRoutes from './routes/aiIntegrations.js';
+// Public OAuth callback — must NOT have validateToken (browser redirect, no auth header)
+import aiIntegrationsPublicRoutes from './routes/aiIntegrationsPublic.js';
 // === [/LAUNCH ROUTES IMPORTS] ===
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+app.set('etag', false); // prevent 304 empty-body responses breaking API clients
 const PORT = process.env.PORT || 3001;
 const isLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
 
@@ -74,9 +75,9 @@ app.use(cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-tenant-id', 'Cache-Control', 'Pragma'],
   credentials: true,
-  maxAge: 86400
+  maxAge: parseInt(process.env.CORS_MAX_AGE_SECONDS || '86400', 10)
 }));
 app.use(ensureRequestId);
 app.use(requestLogger);
@@ -91,18 +92,21 @@ import webhooksRoutes from './routes/webhooks.js';
 logger.info('routes.mount', { basePath: '/api/webhooks', router: 'webhooksRoutes' });
 app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhooksRoutes);
 
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.REQUEST_BODY_LIMIT || '1mb' }));
+
+// CRM API responses must not be cached (ETag 304 breaks JSON clients)
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.set('Pragma', 'no-cache');
+  next();
+});
 
 // Serve static public assets (e.g. /public/area/<city>_<area>.png)
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
-// Configure EJS view engine for OAuth authorization page
-app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, 'views'));
-
 // Rate limiting for API routes (billing webhook excluded — mounted earlier)
-import rateLimit from './middleware/rateLimiter.js';
+import rateLimit, { authRateLimit } from './middleware/rateLimiter.js';
 app.use('/api', rateLimit);
 
 // Security headers (CSP, X-Frame-Options, etc.)
@@ -116,14 +120,9 @@ app.get('/api/health', (req, res) => {
 
 app.get('/api/health/deep', deepHealthCheck);
 
-// OAuth routes: /authorize requires user auth (mounted inside oauth.js);
-// /token and /revoke are public and use client credentials as per OAuth 2.0.
-logger.info('routes.mount', { basePath: '/oauth', router: 'oauthRoutes' });
-app.use('/oauth', oauthRoutes);
-
 // Routes
 logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRateLimit, authRoutes);
 
 // AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
 logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
@@ -137,7 +136,10 @@ app.use('/api/whatsapp', whatsappConversationsRoutes);
 // PR-F — AI Employee status (after auth)
 logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
-// AI Integrations (Claude, ChatGPT, etc.)
+// AI Integrations — public OAuth callback (no auth required, browser redirect from MCP)
+logger.info('routes.mount', { basePath: '/api/ai-integrations/callback', router: 'aiIntegrationsPublicRoutes' });
+app.use('/api/ai-integrations', aiIntegrationsPublicRoutes);
+// AI Integrations — auth-protected routes (list, connect, disconnect, desktop-session)
 logger.info('routes.mount', { basePath: '/api/ai-integrations', router: 'aiIntegrationsRoutes' });
 app.use('/api/ai-integrations', validateToken, aiIntegrationsRoutes);
 
@@ -173,6 +175,11 @@ app.use('/api/admin', adminRoutes);
 logger.info('routes.mount', { basePath: '/api/feedback', router: 'feedbackRoutes' });
 app.use('/api/feedback', feedbackRoutes);
 // === [/LAUNCH ROUTES MOUNTS] ===
+
+// JSON 404 for unknown API paths
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Not found', path: req.originalUrl });
+});
 
 // Error handling middleware
 app.use(errorHandler);

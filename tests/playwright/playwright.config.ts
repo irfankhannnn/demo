@@ -85,5 +85,8 @@ export default defineConfig({
     reuseExistingServer: !IS_CI,
     stdout: 'pipe',
     stderr: 'pipe',
+    env: {
+      VITE_RAZORPAY_KEY_ID: process.env.VITE_RAZORPAY_KEY_ID || 'rzp_test_playwright',
+    },
   },
 });

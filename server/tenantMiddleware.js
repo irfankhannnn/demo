@@ -1,41 +1,28 @@
-﻿const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With,x-tenant-id',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-};
+﻿import { applyExpressCorsHeaders } from './utils/corsOrigins.js';
 
 /**
- * Middleware to extract and validate tenant_id
- * Priority: server-derived tenantId from validateToken > x-tenant-id header
- * This prevents client header spoofing when validateToken is used.
+ * Middleware to extract and validate tenant_id.
+ * Priority: server-derived tenantId from validateToken / apiKeyAuth only.
+ * NEVER trust the client-provided x-tenant-id header for authenticated routes.
  */
 export function extractTenantId(req, res, next) {
-  // Only accept server-derived tenantId set by validateToken middleware.
-  // NEVER trust the client-provided x-tenant-id header.
   if (req.tenantId) {
     return next();
   }
 
-  res.set(CORS_HEADERS);
+  applyExpressCorsHeaders(req, res);
   return res.status(400).json({
     error: 'Tenant ID is required. Authentication middleware must run before tenant extraction.',
   });
 }
 
 /**
- * Optional tenant extraction (for public endpoints)
- * Priority: server-derived tenantId from validateToken > x-tenant-id header
+ * Optional tenant extraction for public endpoints that already resolved tenant
+ * via apiKeyAuth (or another trusted middleware). Does NOT accept client
+ * x-tenant-id — that header is never a source of truth.
  */
 export function extractTenantIdOptional(req, res, next) {
-  // If validateToken already set tenantId, use it (server-derived, trusted)
-  if (req.tenantId) {
-    return next();
-  }
-  // For public endpoints, validate the x-tenant-id header format
-  const tenantId = req.headers['x-tenant-id'];
-  if (tenantId && /^[a-zA-Z0-9_-]+$/.test(tenantId)) {
-    req.tenantId = tenantId;
-  } else {
+  if (!req.tenantId) {
     req.tenantId = null;
   }
   next();

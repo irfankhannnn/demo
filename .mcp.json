@@ -13,12 +13,11 @@
       "url": "https://mcp.blotato.com/sse"
     },
     "nabi-crm": {
-      "type": "stdio",
-      "command": "node",
-      "args": ["server/mcp-server/index.js"],
-      "env": {
-        "MCP_TENANT_ID": "${MCP_TENANT_ID}",
-        "CRM_DYNAMODB_TABLE_NAME": "${CRM_DYNAMODB_TABLE_NAME}"
+      "type": "http",
+      "url": "${MCP_API_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TOKEN}",
+        "x-tenant-id": "${MCP_TENANT_ID}"
       }
     },
     "git": {

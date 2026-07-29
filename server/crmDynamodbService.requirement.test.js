@@ -103,6 +103,13 @@ describe('validateRequirementFields', () => {
     const data = { sellerProperty: undefined, buyerRequirement: { budget: 100 } };
     expect(() => validateRequirementFields(existing, data)).not.toThrow();
   });
+
+  test('ignores empty object requirement fields for wrong lead type', () => {
+    const existing = { leadId: 'L1', leadType: 'buyer', name: 'Raj' };
+    const data = { tenantRequirement: {}, buyerRequirement: { budget: 100 } };
+    expect(() => validateRequirementFields(existing, data)).not.toThrow();
+    expect(data).not.toHaveProperty('tenantRequirement');
+  });
 });
 
 describe('mergeRequirementObjects', () => {

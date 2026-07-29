@@ -3,68 +3,56 @@ import { useNavigate } from 'react-router-dom';
 import { MessageCircle, SkipForward, CheckCircle, Lock, LogOut, RefreshCw } from 'lucide-react';
 import { api } from '../../services/api';
 import { getIdToken } from '../../utils/authStorage';
+import {
+  CONNECTED_PHONE_KEY,
+  normalizeWhatsAppPhone,
+  formatWhatsAppPhone,
+  validateWhatsAppPhone,
+  isStorageUnreliable,
+  safeLocalStorageGet,
+  safeLocalStorageSet,
+  safeLocalStorageRemove,
+  fetchConnectionStatus,
+  saveConnectedPhone as apiSaveConnectedPhone,
+  clearConnectedPhone as apiClearConnectedPhone,
+  resolveConnectedPhone,
+  WhatsappConnectionSync,
+  WhatsappPoller,
+  WHATSAPP_QR_POLL_INTERVAL_MS,
+  WHATSAPP_QR_POLL_TIMEOUT_MS,
+  type WhatsappStatusResult,
+} from '../../utils/whatsappConnection';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 const BAILEY_ENABLED = import.meta.env.VITE_BAILEY_ENABLED === 'true';
-const CONNECTED_PHONE_KEY = 'connectedWhatsAppPhone';
-
-const STATUS_POLL_INTERVAL_MS = 3000;
-const STATUS_POLL_TIMEOUT_MS = 120000;
 
 type Provider = 'bailey' | 'meta';
 
-function safeLocalStorageGet(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch (err) {
-    console.warn('localStorage.getItem failed', err);
-    return null;
+/**
+ * Build a consistent user-facing status message from a status result.
+ * Centralized here so the mount check and the manual refresh share the
+ * same wording for each error type.
+ */
+function buildStatusMessage(result: WhatsappStatusResult): string {
+  if (result.errorType === 'network') {
+    return 'Network error checking connection. Please try again.';
   }
-}
-
-function safeLocalStorageSet(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch (err) {
-    console.warn('localStorage.setItem failed', err);
+  if (result.errorType === 'auth') {
+    return 'Authentication failed. Please log in again.';
   }
-}
-
-function safeLocalStorageRemove(key: string): void {
-  try {
-    localStorage.removeItem(key);
-  } catch (err) {
-    console.warn('localStorage.removeItem failed', err);
+  if (result.error) {
+    return `Could not verify WhatsApp connection: ${result.error}. You can scan a new QR code to reconnect.`;
   }
-}
-
-async function saveConnectedPhone(phone: string): Promise<boolean> {
-  try {
-    safeLocalStorageSet(CONNECTED_PHONE_KEY, phone);
-    await api.updateAiEmployeeConfig({ connectedWhatsAppPhone: phone });
-    return true;
-  } catch (err) {
-    console.error('Failed to save connected phone to config:', err);
-    // Keep the local storage value but return false to indicate sync failed
-    return false;
-  }
-}
-
-async function clearConnectedPhone(): Promise<boolean> {
-  try {
-    safeLocalStorageRemove(CONNECTED_PHONE_KEY);
-    await api.updateAiEmployeeConfig({ connectedWhatsAppPhone: null });
-    return true;
-  } catch (err) {
-    console.error('Failed to clear connected phone from config:', err);
-    // Keep the local storage cleared but return false to indicate sync failed
-    return false;
-  }
+  return 'WhatsApp is not connected. Scan a new QR code to reconnect.';
 }
 
 export default function ConnectWhatsApp() {
   const navigate = useNavigate();
   const mountedRef = useRef(true);
+  const pollerRef = useRef<WhatsappPoller | null>(null);
+  const syncRef = useRef<WhatsappConnectionSync | null>(null);
+  const qrGenerationInProgressRef = useRef(false);
+
   const [provider, setProvider] = useState<Provider>('bailey');
   const [phone, setPhone] = useState('');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -72,80 +60,100 @@ export default function ConnectWhatsApp() {
   const [error, setError] = useState('');
   const [connected, setConnected] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
+  const [storageUnreliable, setStorageUnreliable] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
 
   if (!BAILEY_ENABLED) {
     navigate('/crm', { replace: true });
     return null;
   }
 
-  // Cleanup mounted flag on unmount to prevent state updates after unmount.
+  // Cleanup mounted flag and resources on unmount.
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      pollerRef.current?.stop();
+      syncRef.current?.close();
     };
   }, []);
 
-  // On mount, check connection status FIRST before showing the QR flow.
-  // If the phone is already connected, show the connected state immediately.
+  // Check if storage is unreliable (incognito mode) on mount.
   useEffect(() => {
-    const storedPhone = safeLocalStorageGet(CONNECTED_PHONE_KEY);
-    if (!storedPhone) {
-      setLoading(false);
-      return;
-    }
-
-    setPhone(storedPhone);
-    setLoading(true);
-    let cancelled = false;
-
-    const check = async () => {
-      if (cancelled || !mountedRef.current) return;
-
-      const result = await fetchConnectionStatus(storedPhone);
-      if (cancelled || !mountedRef.current) return;
-
-      if (result.connected) {
-        setConnected(true);
-        setStatusMessage('');
-      } else {
-        // Status check failed or disconnected — allow the user to get a new QR code.
-        setStatusMessage(
-          result.error
-            ? `Could not verify WhatsApp connection: ${result.error}. You can scan a new QR code to reconnect.`
-            : 'WhatsApp is not connected. Scan a new QR code to reconnect.'
-        );
+    isStorageUnreliable().then((unreliable) => {
+      if (unreliable && mountedRef.current) {
+        setStorageUnreliable(true);
+        setStatusMessage('⚠️ Private browsing detected. Your connection state may not persist after closing the browser.');
       }
-      setLoading(false);
-    };
+    });
+  }, []);
 
-    check();
-
+  // Set up cross-tab synchronization.
+  useEffect(() => {
+    syncRef.current = new WhatsappConnectionSync();
+    const unsubscribe = syncRef.current.onChange((state) => {
+      if (!mountedRef.current) return;
+      if (state.phone !== undefined) setPhone(state.phone || '');
+      if (state.connected !== undefined) setConnected(state.connected);
+      if (state.error !== undefined) setError(state.error || '');
+    });
     return () => {
-      cancelled = true;
+      unsubscribe();
+      syncRef.current?.close();
     };
   }, []);
 
-  async function fetchConnectionStatus(phoneNumber: string): Promise<{ connected: boolean; error?: string }> {
-    try {
-      const idToken = getIdToken();
-      const res = await fetch(`${API_URL}/auth/whatsapp/status/${encodeURIComponent(phoneNumber)}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+  // On mount, resolve phone from API config (single source of truth) and check connection status.
+  useEffect(() => {
+    const loadPhoneAndCheck = async () => {
+      try {
+        const resolvedPhone = await resolveConnectedPhone(() => api.getAiEmployeeConfig());
+        if (!mountedRef.current) return;
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        console.error('status fetch failed', err);
-        return { connected: false, error: err.error || 'status_check_failed' };
+        if (!resolvedPhone) {
+          setLoading(false);
+          return;
+        }
+
+        setPhone(resolvedPhone);
+        setLoading(true);
+        let cancelled = false;
+
+        const check = async () => {
+          if (cancelled || !mountedRef.current) return;
+          const result = await fetchConnectionStatus(resolvedPhone);
+          if (cancelled || !mountedRef.current) return;
+
+          if (result.connected) {
+            setConnected(true);
+            setStatusMessage('');
+          } else {
+            // Distinguish between network errors and actual disconnection.
+            setStatusMessage(buildStatusMessage(result));
+          }
+          setLoading(false);
+        };
+
+        await check();
+      } catch (err) {
+        console.error('Failed to load phone and check status:', err);
+        if (mountedRef.current) {
+          setLoading(false);
+          setStatusMessage('Failed to load connection status. Please refresh the page.');
+        }
       }
+    };
 
-      const data = await res.json();
-      return { connected: !!data.connected, error: data.error };
-    } catch (err) {
-      console.error('status fetch error', err);
-      return { connected: false, error: err instanceof Error ? err.message : 'unknown' };
-    }
-  }
+    loadPhoneAndCheck();
+  }, []);
+
+  // Publish state changes to other tabs.
+  // syncRef is a stable ref so it's intentionally omitted from deps;
+  // we only want to republish when phone/connected/error actually change.
+  useEffect(() => {
+    syncRef.current?.publish({ phone, connected, error });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phone, connected, error]);
 
   const handleRefreshStatus = async () => {
     if (!phone) return;
@@ -156,18 +164,15 @@ export default function ConnectWhatsApp() {
 
     if (result.connected) {
       setConnected(true);
-      const syncSuccess = await saveConnectedPhone(phone);
-      if (!syncSuccess) {
+      const saveResult = await apiSaveConnectedPhone(phone, (config) => api.updateAiEmployeeConfig(config));
+      if (!saveResult.success) {
         setError('WhatsApp connection verified, but failed to save to config. Please try again.');
       }
       setStatusMessage('');
+      syncRef.current?.publish({ phone, connected: true, error: '' });
     } else {
       setConnected(false);
-      setStatusMessage(
-        result.error
-          ? `Status check failed: ${result.error}. You can scan a new QR code to reconnect.`
-          : 'WhatsApp is not connected. Scan a new QR code to reconnect.'
-      );
+      setStatusMessage(buildStatusMessage(result));
     }
     setLoading(false);
   };
@@ -176,60 +181,76 @@ export default function ConnectWhatsApp() {
   useEffect(() => {
     if (!qrCode || connected || !phone) return;
 
-    let cancelled = false;
+    const maxAttempts = WHATSAPP_QR_POLL_TIMEOUT_MS / WHATSAPP_QR_POLL_INTERVAL_MS;
     let attempts = 0;
-    const maxAttempts = STATUS_POLL_TIMEOUT_MS / STATUS_POLL_INTERVAL_MS;
 
-    const checkStatus = async () => {
-      if (cancelled) return;
+    const handlePollerResult = async (result: WhatsappStatusResult) => {
+      if (!mountedRef.current) return;
       attempts += 1;
-
-      const result = await fetchConnectionStatus(phone);
-      if (cancelled) return;
 
       if (result.connected) {
         setConnected(true);
-        const syncSuccess = await saveConnectedPhone(phone);
-        if (!syncSuccess) {
+        const saveResult = await apiSaveConnectedPhone(phone, (config) => api.updateAiEmployeeConfig(config));
+        if (!saveResult.success) {
           setError('WhatsApp connection verified, but failed to save to config. Please refresh.');
         }
         setStatusMessage('');
-        cancelled = true;
+        syncRef.current?.publish({ phone, connected: true, error: '' });
+        pollerRef.current?.stop();
         return;
       }
 
       if (attempts >= maxAttempts) {
         setStatusMessage('Still waiting for connection. If your phone is stuck, try refreshing the QR code.');
-        cancelled = true;
+        pollerRef.current?.stop();
         return;
       }
 
       setStatusMessage('Waiting for you to scan and connect...');
     };
 
-    checkStatus();
-    const interval = setInterval(checkStatus, STATUS_POLL_INTERVAL_MS);
+    pollerRef.current = new WhatsappPoller();
+    pollerRef.current.start(phone, WHATSAPP_QR_POLL_INTERVAL_MS, handlePollerResult);
 
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      pollerRef.current?.stop();
+      pollerRef.current = null;
     };
   }, [qrCode, connected, phone]);
 
   const handleGetQr = async () => {
     if (provider !== 'bailey') return;
+    // Edge case 12: Prevent concurrent QR generation with in-progress flag.
+    if (qrGenerationInProgressRef.current) {
+      setError('QR code generation already in progress. Please wait.');
+      return;
+    }
+
+    // Edge case 11: Validate phone number before requesting QR.
+    const validation = validateWhatsAppPhone(phone);
+    if (!validation.valid) {
+      setPhoneError(validation.error || 'Invalid phone number');
+      return;
+    }
+    setPhoneError('');
+
+    qrGenerationInProgressRef.current = true;
     setLoading(true);
     setError('');
     setConnected(false);
     setStatusMessage('');
     setQrCode(null);
-    const cleared = await clearConnectedPhone();
-    if (!cleared) {
-      setError('Failed to clear previous connection. Please try again.');
-      setLoading(false);
-      return;
-    }
+
     try {
+      // Edge case 10: Clear connection with rollback on failure.
+      const clearResult = await apiClearConnectedPhone((config) => api.updateAiEmployeeConfig(config));
+      if (!clearResult.success) {
+        setError('Failed to clear previous connection. Please try again.');
+        setLoading(false);
+        qrGenerationInProgressRef.current = false;
+        return;
+      }
+
       const idToken = getIdToken();
       const res = await fetch(`${API_URL}/auth/whatsapp/pairing-qr`, {
         method: 'POST',
@@ -237,7 +258,7 @@ export default function ConnectWhatsApp() {
           Authorization: `Bearer ${idToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ phone: validation.normalized }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -252,10 +273,11 @@ export default function ConnectWhatsApp() {
       // Already connected — show success immediately.
       if (data.connected) {
         setConnected(true);
-        const syncSuccess = await saveConnectedPhone(phone);
-        if (!syncSuccess) {
+        const saveResult = await apiSaveConnectedPhone(validation.normalized, (config) => api.updateAiEmployeeConfig(config));
+        if (!saveResult.success) {
           setError('WhatsApp connection verified, but failed to save to config. Please try again.');
         }
+        syncRef.current?.publish({ phone: validation.normalized, connected: true, error: '' });
         return;
       }
 
@@ -264,6 +286,7 @@ export default function ConnectWhatsApp() {
       setError(err instanceof Error ? err.message : 'Failed to get QR code');
     } finally {
       if (mountedRef.current) setLoading(false);
+      qrGenerationInProgressRef.current = false;
     }
   };
 
@@ -285,13 +308,15 @@ export default function ConnectWhatsApp() {
       if (!data.disconnected) {
         throw new Error(data.error || 'Disconnect failed on service side');
       }
-      const syncSuccess = await clearConnectedPhone();
-      if (!syncSuccess) {
+      // Edge case 10: Rollback on disconnect failure.
+      const clearResult = await apiClearConnectedPhone((config) => api.updateAiEmployeeConfig(config));
+      if (!clearResult.success) {
         setError('WhatsApp disconnected, but failed to clear config. Please refresh.');
       }
       setConnected(false);
       setQrCode(null);
       setStatusMessage('');
+      syncRef.current?.publish({ phone: '', connected: false, error: '' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to disconnect');
     } finally {
@@ -396,6 +421,12 @@ export default function ConnectWhatsApp() {
               {/* Bailey Connection Form */}
               {provider === 'bailey' && (
                 <div>
+                  {storageUnreliable && (
+                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 text-sm">
+                      ⚠️ Private browsing detected. Your connection state may not persist after closing the browser.
+                    </div>
+                  )}
+
                   {error && (
                     <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-3 mb-4 text-sm">
                       {error}
@@ -403,7 +434,11 @@ export default function ConnectWhatsApp() {
                   )}
 
                   {statusMessage && (
-                    <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-3 mb-4 text-sm">
+                    <div className={`rounded-lg p-3 mb-4 text-sm border ${
+                      statusMessage.includes('Network') || statusMessage.includes('Authentication')
+                        ? 'bg-orange-50 border-orange-200 text-orange-800'
+                        : 'bg-blue-50 border-blue-200 text-blue-800'
+                    }`}>
                       {statusMessage}
                     </div>
                   )}
@@ -414,10 +449,18 @@ export default function ConnectWhatsApp() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => {
+                      setPhone(e.target.value);
+                      setPhoneError('');
+                    }}
                     placeholder="+91 98765 43210"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2 mb-4 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full border rounded-lg px-3 py-2 mb-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                      phoneError ? 'border-red-300' : 'border-slate-300'
+                    }`}
                   />
+                  {phoneError && (
+                    <p className="text-red-600 text-xs mb-4">{phoneError}</p>
+                  )}
 
                   {qrCode && (
                     <div className="mb-4 p-4 bg-slate-50 rounded-lg text-center">

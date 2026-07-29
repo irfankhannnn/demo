@@ -1,8 +1,10 @@
 import crypto from 'crypto';
 import axios from 'axios';
 import { logger } from './logger.js';
+import { isNetworkError } from './shared/networkErrors.js';
 
 const VALID_MODES = ['hosted', 'selfhosted'];
+const BAILEY_TIMEOUT_MS = parseInt(process.env.BAILEY_TIMEOUT_MS || '10000', 10);
 
 /**
  * Read Bailey config lazily so dotenv.config() has time to load .env
@@ -17,11 +19,11 @@ function getConfig() {
     logger.warn('bailey.invalid_mode', { mode, validModes: VALID_MODES });
   }
 
-  // Endpoint: hosted defaults to api.bailey.ai; selfhosted MUST be set explicitly
-  const endpointRaw = process.env.BAILEY_API_ENDPOINT || (mode === 'hosted' ? 'https://api.bailey.ai' : '');
-  if (enabled && mode === 'selfhosted' && !endpointRaw) {
+  // Endpoint: controlled via env var only; no hardcoded fallback.
+  const endpointRaw = process.env.BAILEY_API_ENDPOINT || '';
+  if (enabled && !endpointRaw) {
     logger.error('bailey.missing_endpoint', {
-      message: 'BAILEY_API_ENDPOINT must be set when BAILEY_MODE=selfhosted',
+      message: 'BAILEY_API_ENDPOINT must be set when BAILEY_ENABLED=true',
     });
   }
   const endpoint = endpointRaw.replace(/\/+$/, ''); // strip trailing slashes
@@ -168,7 +170,7 @@ export async function getPairingQr(phone, forceNew = false) {
       { phone: phone.replace(/\s/g, ''), forceNew },
       {
         headers: baileyHeaders({ includeAdminKey: forceNew }),
-        timeout: 10000,
+        timeout: BAILEY_TIMEOUT_MS,
       }
     );
     return {
@@ -187,10 +189,11 @@ export async function getPairingQr(phone, forceNew = false) {
  * Mirrors the OpenClaw heuristic for transient WhatsApp/Baileys errors.
  */
 function isRetryableSendError(err) {
-  const text = String(err?.message || err?.response?.statusText || '').toLowerCase();
+  if (isNetworkError(err)) return true;
+  const text = String(err?.message || err?.cause?.message || err?.response?.statusText || '').toLowerCase();
   const status = err?.response?.status;
   const isRetryableStatus = typeof status === 'number' && status >= 500 && status < 600;
-  return /closed|reset|timed\s*out|timeout|disconnect|econnreset|socket|network/.test(text) || isRetryableStatus;
+  return /fetch failed|closed|reset|timed\s*out|timeout|disconnect|econnreset|socket|network|econnrefused|und_err/.test(text) || isRetryableStatus;
 }
 
 /**
@@ -232,35 +235,48 @@ export async function sendWhatsAppMessage(to, text, media, from) {
   let lastErr;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await axios.post(
-        baileyUrl(endpoint, prefix, '/messages/send'),
-        payload,
-        {
-          headers: baileyHeaders(),
-          timeout: 10000,
-        }
-      );
+      const url = baileyUrl(endpoint, prefix, '/messages/send');
+      console.log('bailey.sendWhatsAppMessage.attempt', JSON.stringify({ attempt, url, to: payload.to, from: payload.from, timeout: BAILEY_TIMEOUT_MS }));
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => { console.log('bailey.sendWhatsAppMessage.aborting', JSON.stringify({ attempt })); controller.abort(); }, BAILEY_TIMEOUT_MS);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(process.env.BAILEY_API_KEY ? { Authorization: `Bearer ${process.env.BAILEY_API_KEY}` } : {}) },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      console.log('bailey.sendWhatsAppMessage.response', JSON.stringify({ attempt, status: response.status, ok: response.ok }));
+      const data = await response.json();
+      console.log('bailey.sendWhatsAppMessage.data', JSON.stringify({ attempt, queued: data.queued, messageId: data.messageId }));
       // If the Baileys service queued the message because the connection is not
       // ready, report it as not sent so the caller can retry.
-      if (response.data?.queued) {
+      if (data?.queued) {
         return {
           enabled: true,
           sent: false,
           queued: true,
-          messageId: response.data?.messageId || null,
+          messageId: data?.messageId || null,
         };
+      }
+      if (!response.ok) {
+        throw new Error(`Bailey API returned ${response.status}: ${JSON.stringify(data)}`);
       }
       return {
         enabled: true,
         sent: true,
         queued: false,
-        messageId: response.data?.messageId || response.data?.id,
+        messageId: data?.messageId || data?.id,
       };
     } catch (err) {
       lastErr = err;
       const isLast = attempt === maxAttempts;
       const shouldRetry = isRetryableSendError(err);
-      logger.warn('bailey.sendWhatsAppMessage.attempt_failed', { attempt, maxAttempts, to, error: err.message, willRetry: !isLast && shouldRetry });
+      logger.warn('bailey.sendWhatsAppMessage.attempt_failed', {
+        attempt, maxAttempts, to, error: err.message,
+        code: err?.cause?.code || err?.code,
+        willRetry: !isLast && shouldRetry,
+      });
       if (isLast || !shouldRetry) break;
       await sleep(baseDelay * attempt); // 500ms, 1000ms
     }
@@ -296,7 +312,7 @@ export async function disconnectWhatsApp(phone, deleteAuthState = false) {
       { phone: normalized, deleteAuthState },
       {
         headers: baileyHeaders({ includeAdminKey: deleteAuthState }),
-        timeout: 10000,
+        timeout: BAILEY_TIMEOUT_MS,
       }
     );
     return {
@@ -332,20 +348,35 @@ export async function getConnectionStatus(phone) {
       baileyUrl(endpoint, prefix, `/pairing/status/${normalized}`),
       {
         headers: baileyHeaders(),
-        timeout: 5000,
+        timeout: BAILEY_TIMEOUT_MS,
       }
     );
+    
+    // Edge case 7: Detect session expiration by checking state transitions.
+    // If state is 'PAIRING_PROMPT_TIMEOUT' or 'DISCONNECTED', session has expired.
+    const state = response.data?.state || 'unknown';
+    const connected = response.data?.connected || false;
+    const isExpired = state === 'PAIRING_PROMPT_TIMEOUT' || state === 'DISCONNECTED';
+    
     return {
       enabled: true,
-      connected: response.data?.connected || false,
-      state: response.data?.state || 'unknown',
+      connected: connected && !isExpired,
+      state,
       qrCode: response.data?.qrCode || null,
       sessionId: response.data?.sessionId || null,
       error: response.data?.error || null,
+      sessionExpired: isExpired, // New field for frontend to detect expiration
     };
   } catch (err) {
     logger.error('bailey.getConnectionStatus.failed', { error: err.message, phone: normalized, mode });
-    return { enabled: true, connected: false, error: err.message };
+    // Distinguish network errors from API errors using the shared helper
+    // (covers common Node.js network error codes + message-based heuristics).
+    return {
+      enabled: true,
+      connected: false,
+      error: err.message,
+      networkError: isNetworkError(err), // Flag for frontend to distinguish error types
+    };
   }
 }
 
@@ -421,7 +452,7 @@ export async function listWhatsAppSessions() {
       baileyUrl(endpoint, prefix, '/pairing/sessions'),
       {
         headers: baileyHeaders(),
-        timeout: 5000,
+        timeout: BAILEY_TIMEOUT_MS,
       }
     );
     return {

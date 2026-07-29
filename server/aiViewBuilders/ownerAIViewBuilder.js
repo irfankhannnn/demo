@@ -7,6 +7,7 @@
  */
 
 import { formatDate, formatMoney, buildEnvelope, buildPaginationMetadata } from './utils.js';
+import { buildOwnerRecommendation } from './recommendations.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -64,6 +65,10 @@ export function buildSearchResults(owners, pagination = {}, options = {}) {
 export function buildOwnerDetails(owner, options = {}) {
   const { includeNotes = true, maxNotes = 5, includeProperties = true } = options;
   const notes = Array.isArray(owner.notes) ? owner.notes.slice(0, maxNotes) : [];
+  const properties = includeProperties ? buildOwnerProperties(owner.properties || []) : [];
+  const latestNote = notes.length
+    ? (typeof notes[0] === 'string' ? notes[0] : (notes[0].content || notes[0].text || null))
+    : null;
 
   return buildEnvelope(
     {
@@ -75,10 +80,13 @@ export function buildOwnerDetails(owner, options = {}) {
       source: owner.source || null,
       createdAt: formatDate(owner.createdAt),
       lastActivityAt: formatDate(owner.lastActivityAt),
-      propertyCount: owner.propertyCount || 0,
+      propertyCount: owner.propertyCount || properties.length || 0,
       tags: owner.tags || [],
+      documentsVerified: owner.documentsVerified || false,
+      kycStatus: owner.kycStatus || owner.verificationStatus || null,
+      latestNote,
       notes: includeNotes ? notes : undefined,
-      properties: includeProperties ? buildOwnerProperties(owner.properties || []) : undefined,
+      properties: includeProperties ? properties : undefined,
     },
     {
       notes: includeNotes ? {
@@ -89,6 +97,7 @@ export function buildOwnerDetails(owner, options = {}) {
       properties: includeProperties ? {
         total: (owner.properties || []).length,
       } : null,
+      recommendation: buildOwnerRecommendation(owner, properties),
     }
   );
 }

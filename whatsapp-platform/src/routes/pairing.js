@@ -2,12 +2,11 @@ import { Router } from 'express';
 import { createSession, getSessionStatus, disconnectSession, listSessions } from '../baileysClient.js';
 import { logger } from '../logger.js';
 import { safeError } from './utils.js';
-import { apiKeyAuth, verifyAdminKey } from '../middleware/apiKeyAuth.js';
+import { verifyAdminKey } from '../middleware/apiKeyAuth.js';
 import { pairingRateLimit } from '../middleware/pairingRateLimit.js';
 
 const router = Router();
 
-router.use(apiKeyAuth);
 router.post('*', ...pairingRateLimit);
 
 // POST /v1/pairing/qr  — start pairing (returns QR code)

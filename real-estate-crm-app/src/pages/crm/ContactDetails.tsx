@@ -19,6 +19,7 @@ import {
   Trash2,
   Edit3,
   Check,
+  Clock,
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
@@ -42,7 +43,7 @@ export default function ContactDetails() {
     phone: '',
     email: '',
     address: '',
-    roles: { owner: false, buyer: false, tenant: false },
+    roles: { owner: false, seller: false, buyer: false, tenant: false },
     status: 'active',
     notes: '',
     panNumber: '',
@@ -56,7 +57,7 @@ export default function ContactDetails() {
   const [notes, setNotes] = useState<CRMContactNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'documents' | 'notes'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'roles' | 'documents' | 'notes' | 'history'>('profile');
   const [newNote, setNewNote] = useState('');
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [editNoteContent, setEditNoteContent] = useState('');
@@ -128,7 +129,7 @@ export default function ContactDetails() {
     }
   };
 
-  const handleRoleToggle = async (role: 'owner' | 'buyer' | 'tenant') => {
+  const handleRoleToggle = async (role: 'owner' | 'seller' | 'buyer' | 'tenant') => {
     const newRoles = {
       ...contact.roles,
       [role]: !contact.roles?.[role],
@@ -146,9 +147,45 @@ export default function ContactDetails() {
     }
   };
 
+  const handleSellerLifecycleChange = async (lifecycleStatus: 'active' | 'past' | 'inactive') => {
+    const sellerProfile = {
+      ...(contact.sellerProfile || {}),
+      lifecycleStatus,
+    };
+    setContact({ ...contact, sellerProfile });
+    if (!isNew && id) {
+      try {
+        await api.updateContact(id, { sellerProfile });
+      } catch (error) {
+        console.error('Error updating seller lifecycle:', error);
+        showToast('Failed to update seller status', 'error');
+      }
+    }
+  };
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'owner': return Home;
+      case 'seller': return Tag;
+      case 'buyer': return ShoppingCart;
+      case 'tenant': return Key;
+      default: return User;
+    }
+  };
+
+  const getRoleColor = (role: string, active: boolean) => {
+    if (!active) return 'bg-gray-100 text-gray-400 border-gray-200';
+    switch (role) {
+      case 'owner': return 'bg-blue-100 text-blue-700 border-blue-300';
+      case 'seller': return 'bg-purple-100 text-purple-700 border-purple-300';
+      case 'buyer': return 'bg-orange-100 text-orange-700 border-orange-300';
+      case 'tenant': return 'bg-teal-100 text-teal-700 border-teal-300';
+      default: return 'bg-gray-100 text-gray-700 border-gray-300';
+    }
+  };
+
   const handleAddNote = async () => {
     if (!newNote.trim() || !id) return;
-
     try {
       const note = await api.createContactNote(id, { content: newNote });
       setNotes([note, ...notes]);
@@ -160,7 +197,6 @@ export default function ContactDetails() {
 
   const handleUpdateNote = async (noteId: string) => {
     if (!editNoteContent.trim() || !id) return;
-
     try {
       await api.updateContactNote(id, noteId, { content: editNoteContent });
       setNotes(notes.map((n) => (n.noteId === noteId ? { ...n, content: editNoteContent } : n)));
@@ -173,31 +209,11 @@ export default function ContactDetails() {
 
   const handleDeleteNote = async (noteId: string) => {
     if (!id) return;
-
     try {
       await api.deleteContactNote(id, noteId);
       setNotes(notes.filter((n) => n.noteId !== noteId));
     } catch (error) {
       console.error('Error deleting note:', error);
-    }
-  };
-
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'owner': return Home;
-      case 'buyer': return ShoppingCart;
-      case 'tenant': return Key;
-      default: return User;
-    }
-  };
-
-  const getRoleColor = (role: string, active: boolean) => {
-    if (!active) return 'bg-gray-100 text-gray-400 border-gray-200';
-    switch (role) {
-      case 'owner': return 'bg-blue-100 text-blue-700 border-blue-300';
-      case 'buyer': return 'bg-orange-100 text-orange-700 border-orange-300';
-      case 'tenant': return 'bg-teal-100 text-teal-700 border-teal-300';
-      default: return 'bg-gray-100 text-gray-700 border-gray-300';
     }
   };
 
@@ -252,7 +268,7 @@ export default function ContactDetails() {
         {/* Tabs */}
         <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 shadow-xl mb-4">
           <div className="flex border-b border-white/20 overflow-x-auto">
-            {(['profile', 'roles', 'documents', 'notes'] as const).map((tab) => (
+            {(['profile', 'roles', 'documents', 'notes', 'history'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -405,7 +421,7 @@ export default function ContactDetails() {
               A contact can have multiple roles. Toggle the roles that apply to this contact.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {(['owner', 'buyer', 'tenant'] as const).map((role) => {
+              {(['owner', 'seller', 'buyer', 'tenant'] as const).map((role) => {
                 const Icon = getRoleIcon(role);
                 const isActive = contact.roles?.[role] || false;
                 return (
@@ -432,6 +448,29 @@ export default function ContactDetails() {
               })}
             </div>
 
+            {contact.roles?.seller && (
+              <div className="mt-6 p-4 bg-purple-50 rounded-lg">
+                <h4 className="font-medium text-purple-800 mb-2">Seller Profile</h4>
+                <label className="block text-sm text-purple-700 mb-1">Lifecycle status</label>
+                <select
+                  value={contact.sellerProfile?.lifecycleStatus || 'active'}
+                  onChange={(e) =>
+                    handleSellerLifecycleChange(e.target.value as 'active' | 'past' | 'inactive')
+                  }
+                  className="w-full sm:w-56 px-3 py-2 border border-purple-200 rounded-lg bg-white text-sm"
+                >
+                  <option value="active">Active seller</option>
+                  <option value="past">Past seller</option>
+                  <option value="inactive">Inactive seller</option>
+                </select>
+                {Array.isArray(contact.sellerProfile?.soldPropertyIds) && contact.sellerProfile!.soldPropertyIds!.length > 0 && (
+                  <p className="text-xs text-purple-600 mt-2">
+                    Sold properties: {contact.sellerProfile!.soldPropertyIds!.length}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Role-specific profiles would go here */}
             {contact.roles?.buyer && contact.buyerProfile && (
               <div className="mt-6 p-4 bg-orange-50 rounded-lg">
@@ -441,6 +480,20 @@ export default function ContactDetails() {
                   {contact.buyerProfile.budget && <p>Budget: ₹{contact.buyerProfile.budget.toLocaleString()}</p>}
                   {contact.buyerProfile.preferredArea && <p>Preferred Area: {contact.buyerProfile.preferredArea}</p>}
                 </div>
+              </div>
+            )}
+
+            {contact.roles?.owner && (
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <h4 className="font-medium text-blue-800 mb-2">Owner Profile</h4>
+                <p className="text-sm text-blue-700 capitalize">
+                  Status: {contact.ownerProfile?.lifecycleStatus || 'active'}
+                </p>
+                {Array.isArray(contact.ownerProfile?.ownedPropertyIds) && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Owned properties: {contact.ownerProfile!.ownedPropertyIds!.length}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -614,16 +667,21 @@ export default function ContactDetails() {
               </div>
             )}
 
-            {/* Unified Activity Timeline */}
-            {!isNew && (
-              <div className="mt-6 pt-4 border-t">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <FileText className="h-5 w-5 mr-2 text-purple-600" />
-                  Unified Activity Timeline
-                </h3>
-                <ContactActivityTimeline contactId={id} />
-              </div>
-            )}
+            {/* Unified Activity Timeline moved to History tab */}
+          </div>
+        )}
+
+        {/* History Tab */}
+        {activeTab === 'history' && !isNew && (
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
+              <Clock className="h-5 w-5 mr-2 text-purple-600" />
+              Activity History
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">
+              Full timeline — lead conversions, purchases, rentals, property listings, meetings, notes, and more.
+            </p>
+            <ContactActivityTimeline contactId={id} />
           </div>
         )}
       </main>

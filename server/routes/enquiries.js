@@ -11,6 +11,7 @@ import {
   updateEnquiryNote,
   deleteEnquiryNote,
 } from '../enquiryDynamodbService.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 import {
   createOwner,
   createCustomer,
@@ -25,6 +26,9 @@ import {
 } from '../crmDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
+import apiKeyAuth from '../middleware/apiKeyAuth.js';
+import { strictRateLimit } from '../middleware/rateLimiter.js';
 import validateBody from '../middleware/validateBody.js';
 import {
   createEnquirySchema,
@@ -38,12 +42,13 @@ import {
 const router = express.Router();
 
 // ============== Public Enquiry Submission Routes ==============
+// Tenant is resolved from API key only — never from client x-tenant-id.
 
 /**
- * Submit contact form enquiry (public - no auth required)
+ * Submit contact form enquiry (public - API key required)
  * POST /api/enquiries/contact
  */
-router.post('/contact', extractTenantIdOptional, async (req, res) => {
+router.post('/contact', strictRateLimit, apiKeyAuth, extractTenantIdOptional, async (req, res) => {
   try {
     if (!req.tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
@@ -89,7 +94,7 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, validateBody(createEnquiryNoteSchema), async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createEnquiryNoteSchema), async (req, res) => {
   try {
     const note = await createEnquiryNote(req.tenantId, req.params.id, req.body);
     res.status(201).json(note);
@@ -99,7 +104,7 @@ router.post('/:id/notes', validateToken, extractTenantId, validateBody(createEnq
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, validateBody(updateEnquiryNoteSchema), async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateEnquiryNoteSchema), async (req, res) => {
   try {
     const updated = await updateEnquiryNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -109,7 +114,7 @@ router.put('/:id/notes/:noteId', validateToken, extractTenantId, validateBody(up
   }
 });
 
-router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteEnquiryNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -120,10 +125,10 @@ router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, 
 });
 
 /**
- * Submit consultation form enquiry (public - no auth required)
+ * Submit consultation form enquiry (public - API key required)
  * POST /api/enquiries/consultation
  */
-router.post('/consultation', extractTenantIdOptional, async (req, res) => {
+router.post('/consultation', strictRateLimit, apiKeyAuth, extractTenantIdOptional, async (req, res) => {
   try {
     if (!req.tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
@@ -160,7 +165,7 @@ router.post('/consultation', extractTenantIdOptional, async (req, res) => {
  * Create an enquiry manually (CRM - auth required)
  * POST /api/enquiries
  */
-router.post('/', validateToken, extractTenantId, validateBody(createEnquirySchema), async (req, res) => {
+router.post('/', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createEnquirySchema), async (req, res) => {
   try {
     const {
       formType,
@@ -267,7 +272,7 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
  * Update enquiry status/notes (CRM - auth required)
  * PUT /api/enquiries/:id
  */
-router.put('/:id', validateToken, extractTenantId, validateBody(updateEnquirySchema), async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateEnquirySchema), async (req, res) => {
   try {
     const { status, notes, assignedTo } = req.body;
     
@@ -289,7 +294,7 @@ router.put('/:id', validateToken, extractTenantId, validateBody(updateEnquirySch
  * Uses upsert logic - if owner/tenant with same phone exists, updates them instead of creating duplicate
  * POST /api/enquiries/:id/convert
  */
-router.post('/:id/convert', validateToken, extractTenantId, validateBody(convertEnquirySchema), async (req, res) => {
+router.post('/:id/convert', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(convertEnquirySchema), async (req, res) => {
   try {
     const { convertTo } = req.body; // 'owner' or 'tenant'
     
@@ -367,7 +372,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
           content: conversionSummaryNote,
           createdBy:
             (req.user && (req.user.username || req.user.email || req.user.id)) ||
-            'System',
+            SERVICE_ACCOUNT_USER,
         });
         
         // Then, transfer each enquiry discussion note
@@ -377,7 +382,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
           
           await createOwnerNote(req.tenantId, createdRecord.ownerId, {
             content: note.content,
-            createdBy: note.createdBy || 'System',
+            createdBy: note.createdBy || SERVICE_ACCOUNT_USER,
             // Preserve original timestamp in the note content
             createdAt: note.createdAt,
           });
@@ -421,7 +426,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
           content: conversionSummaryNote,
           createdBy:
             (req.user && (req.user.username || req.user.email || req.user.id)) ||
-            'System',
+            SERVICE_ACCOUNT_USER,
         });
         
         // Then, transfer each enquiry discussion note
@@ -431,7 +436,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
           
           await createCustomerNote(req.tenantId, createdRecord.customerId, {
             content: note.content,
-            createdBy: note.createdBy || 'System',
+            createdBy: note.createdBy || SERVICE_ACCOUNT_USER,
             // Preserve original timestamp in the note content
             createdAt: note.createdAt,
           });
@@ -456,7 +461,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
         content: `Converted to ${convertTo} on ${convertedAtDisplay}`,
         createdBy:
           (req.user && (req.user.username || req.user.email || req.user.id)) ||
-          'System',
+          SERVICE_ACCOUNT_USER,
       });
     } catch (noteError) {
       console.error('Failed to create enquiry conversion note:', noteError);
@@ -481,7 +486,7 @@ router.post('/:id/convert', validateToken, extractTenantId, validateBody(convert
  * Close enquiry (CRM - auth required)
  * PUT /api/enquiries/:id/close
  */
-router.put('/:id/close', validateToken, extractTenantId, validateBody(closeEnquirySchema), async (req, res) => {
+router.put('/:id/close', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(closeEnquirySchema), async (req, res) => {
   try {
     const { reason } = req.body;
     
@@ -516,7 +521,7 @@ router.put('/:id/close', validateToken, extractTenantId, validateBody(closeEnqui
  * Reopen closed enquiry (CRM - auth required)
  * PUT /api/enquiries/:id/reopen
  */
-router.put('/:id/reopen', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/reopen', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const enquiry = await getEnquiry(req.tenantId, req.params.id);
     if (!enquiry) {

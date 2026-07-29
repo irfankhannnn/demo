@@ -32,6 +32,16 @@ import NotificationCenter from '../../components/NotificationCenter';
 import { getUserProfile, clearAuthSilently, getIdToken } from '../../utils/authStorage';
 import { resetAnalytics } from '../../lib/analytics';
 import { redirectToLogout } from '../../utils/cognitoAuth';
+import {
+  CONNECTED_PHONE_KEY,
+  formatWhatsAppPhone,
+  fetchConnectionStatus,
+  resolveConnectedPhone,
+  WhatsappPoller,
+  WhatsappConnectionSync,
+  WHATSAPP_POLL_INTERVAL_MS,
+  type WhatsappStatusResult,
+} from '../../utils/whatsappConnection';
 
 interface UnifiedCrmCounts {
   buyers: number;
@@ -39,6 +49,7 @@ interface UnifiedCrmCounts {
   owners: number;
   tenants: number;
   leads: number;
+  contacts: number;
 }
 
 export default function CRMDashboard() {
@@ -53,6 +64,7 @@ export default function CRMDashboard() {
     owners: 0,
     tenants: 0,
     leads: 0,
+    contacts: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -64,78 +76,46 @@ export default function CRMDashboard() {
   const [whatsappState, setWhatsappState] = useState<string | null>(null);
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [checkingWhatsapp, setCheckingWhatsapp] = useState(false);
+  const [whatsappErrorType, setWhatsappErrorType] = useState<string | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL as string;
-  const CONNECTED_PHONE_KEY = 'connectedWhatsAppPhone';
-  const WHATSAPP_POLL_INTERVAL_MS = 30000;
+  const pollerRef = useRef<WhatsappPoller | null>(null);
+  const syncRef = useRef<WhatsappConnectionSync | null>(null);
+  const mountedRef = useRef(true);
 
-  function safeLocalStorageGet(key: string): string | null {
-    try {
-      return localStorage.getItem(key);
-    } catch (err) {
-      console.warn('localStorage.getItem failed', err);
-      return null;
-    }
-  }
+  // Set up cross-tab synchronization for WhatsApp state.
+  useEffect(() => {
+    syncRef.current = new WhatsappConnectionSync();
+    const unsubscribe = syncRef.current.onChange((state) => {
+      if (!mountedRef.current) return;
+      if (state.phone !== undefined) setWhatsappPhone(state.phone || null);
+      if (state.connected !== undefined) setWhatsappConnected(state.connected);
+      if (state.error !== undefined) setWhatsappError(state.error || null);
+      if (state.errorType !== undefined) setWhatsappErrorType(state.errorType || null);
+    });
+    return () => {
+      unsubscribe();
+      syncRef.current?.close();
+    };
+  }, []);
 
-  function formatWhatsAppPhone(phone: string | null): string {
-    if (!phone) return '';
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length === 12 && digits.startsWith('91')) {
-      return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
-    }
-    if (digits.length === 10) {
-      return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
-    }
-    return phone;
-  }
+  // Cleanup on unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      pollerRef.current?.stop();
+      syncRef.current?.close();
+    };
+  }, []);
 
-  async function fetchWhatsappStatus(phoneNumber: string): Promise<{
-    connected: boolean;
-    state?: string;
-    error?: string;
-    sessionId?: string | null;
-  }> {
-    try {
-      const idToken = getIdToken();
-      const res = await fetch(`${API_URL}/auth/whatsapp/status/${encodeURIComponent(phoneNumber)}`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        return { connected: false, error: err.error || 'status_check_failed' };
-      }
-
-      const data = await res.json();
-      return {
-        connected: !!data.connected,
-        state: data.state || 'unknown',
-        error: data.error || undefined,
-        sessionId: data.sessionId || null,
-      };
-    } catch (err) {
-      return { connected: false, error: err instanceof Error ? err.message : 'unknown' };
-    }
-  }
-
+  // Poll WhatsApp status on mount and when Bailey is enabled.
   useEffect(() => {
     if (!baileyEnabled) return;
 
-    let cancelled = false;
-    let interval: NodeJS.Timeout | null = null;
-
-    const resolvePhone = async () => {
-      try {
-        const config = await api.getAiEmployeeConfig();
-        return config.connectedWhatsAppPhone || safeLocalStorageGet(CONNECTED_PHONE_KEY);
-      } catch {
-        return safeLocalStorageGet(CONNECTED_PHONE_KEY);
-      }
-    };
-
     const startPolling = async () => {
-      const phoneNumber = await resolvePhone();
+      const phoneNumber = await resolveConnectedPhone(() => api.getAiEmployeeConfig());
+      if (!mountedRef.current) return;
+
       if (!phoneNumber) {
         setWhatsappConnected(false);
         setWhatsappPhone(null);
@@ -144,26 +124,25 @@ export default function CRMDashboard() {
 
       setWhatsappPhone(phoneNumber);
 
-      const check = async () => {
-        if (cancelled) return;
-        setCheckingWhatsapp(true);
-        const result = await fetchWhatsappStatus(phoneNumber);
-        if (cancelled) return;
+      const handlePollerResult = (result: WhatsappStatusResult) => {
+        if (!mountedRef.current) return;
+        setCheckingWhatsapp(false);
         setWhatsappConnected(result.connected);
         setWhatsappState(result.state || null);
         setWhatsappError(result.error || null);
-        setCheckingWhatsapp(false);
+        setWhatsappErrorType(result.errorType || null);
       };
 
-      await check();
-      interval = setInterval(check, WHATSAPP_POLL_INTERVAL_MS);
+      setCheckingWhatsapp(true);
+      pollerRef.current = new WhatsappPoller();
+      pollerRef.current.start(phoneNumber, WHATSAPP_POLL_INTERVAL_MS, handlePollerResult);
     };
 
     startPolling();
 
     return () => {
-      cancelled = true;
-      if (interval) clearInterval(interval);
+      pollerRef.current?.stop();
+      pollerRef.current = null;
     };
   }, [baileyEnabled]);
 
@@ -187,6 +166,7 @@ export default function CRMDashboard() {
         owners: metricsData.totalOwners || 0,
         tenants: metricsData.tenantsCount || 0,
         leads: metricsData.leadsCount || 0,
+        contacts: metricsData.contactsCount || 0,
       });
     } catch (error) {
       console.error('Error loading CRM dashboard data:', error);
@@ -346,12 +326,30 @@ export default function CRMDashboard() {
                 <div className="flex items-center mt-2.5 text-sm">
                   <span className="text-orange-600 flex items-center font-semibold bg-orange-50/70 px-2.5 py-1 rounded-full border border-orange-100/50">
                     <ShoppingCart className="w-3 h-3 mr-1" />
-                    Contacts
+                    Seeking &amp; purchased
                   </span>
                 </div>
               </div>
               <div className="p-2.5 sm:p-3 bg-orange-50 rounded-2xl group-hover:bg-orange-100/80 transition-colors duration-300 shadow-sm">
                 <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/contacts')}>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Contacts</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.contacts}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-indigo-600 flex items-center font-semibold bg-indigo-50/70 px-2.5 py-1 rounded-full border border-indigo-100/50">
+                    <User className="w-3 h-3 mr-1" />
+                    Full history
+                  </span>
+                </div>
+              </div>
+              <div className="p-2.5 sm:p-3 bg-indigo-50 rounded-2xl group-hover:bg-indigo-100/80 transition-colors duration-300 shadow-sm">
+                <User className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
               </div>
             </div>
           </div>
@@ -364,7 +362,7 @@ export default function CRMDashboard() {
                 <div className="flex items-center mt-2.5 text-sm">
                   <span className="text-blue-600 flex items-center font-semibold bg-blue-50/70 px-2.5 py-1 rounded-full border border-blue-100/50">
                     <Building2 className="w-3 h-3 mr-1" />
-                    Contacts
+                    Current owners
                   </span>
                 </div>
               </div>
@@ -381,10 +379,10 @@ export default function CRMDashboard() {
                 <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{metrics?.totalProperties || 0}</h3>
                 <div className="flex items-center mt-2.5 text-sm gap-2">
                   <span className="text-blue-600 bg-blue-50/70 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-100/50">
-                    {metrics?.availableProperties || 0} Avail
+                    {metrics?.availableProperties || 0} Listed
                   </span>
                   <span className="text-purple-600 bg-purple-50/70 px-2.5 py-1 rounded-full text-xs font-semibold border border-purple-100/50">
-                    {metrics?.rentedProperties || 0} Rented
+                    {metrics?.rentedProperties || 0} Occupied
                   </span>
                 </div>
               </div>
@@ -402,7 +400,7 @@ export default function CRMDashboard() {
                 <div className="flex items-center mt-2.5 text-sm">
                   <span className="text-teal-600 flex items-center font-semibold bg-teal-50/70 px-2.5 py-1 rounded-full border border-teal-100/50">
                     <Users className="w-3 h-3 mr-1" />
-                    Contacts
+                    Occupants
                   </span>
                 </div>
               </div>
@@ -420,7 +418,7 @@ export default function CRMDashboard() {
                 <div className="flex items-center mt-2.5 text-sm">
                   <span className="text-emerald-600 flex items-center font-semibold bg-emerald-50/70 px-2.5 py-1 rounded-full border border-emerald-100/50">
                     <Users className="w-3 h-3 mr-1" />
-                    Owners with listings
+                    Active sellers
                   </span>
                 </div>
               </div>
@@ -752,6 +750,16 @@ export default function CRMDashboard() {
               <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 group-hover:translate-x-0.5 transition-all" />
             </button>
             <button
+              onClick={() => navigate('/crm/contacts')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
+            >
+              <span className="flex items-center gap-2">
+                <User className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                Contacts
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+            </button>
+            <button
               onClick={() => navigate('/crm/owners')}
               className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-blue-200/70 font-semibold"
             >
@@ -861,7 +869,14 @@ export default function CRMDashboard() {
                   </p>
                 )}
                 {whatsappError && !whatsappConnected && (
-                  <p className="text-xs pl-[1.125rem] text-red-500">{whatsappError}</p>
+                  <p className={`text-xs pl-[1.125rem] ${
+                    whatsappErrorType === 'network' ? 'text-orange-500' :
+                    whatsappErrorType === 'auth' ? 'text-purple-500' :
+                    'text-red-500'
+                  }`}>
+                    {whatsappErrorType === 'network' ? '⚠️ Network error: ' : whatsappErrorType === 'auth' ? '🔐 Auth error: ' : ''}
+                    {whatsappError}
+                  </p>
                 )}
               </div>
             )}

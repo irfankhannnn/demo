@@ -44,24 +44,27 @@ async function publishToWebhook(detailType, detail) {
   logger.info({ detailType, phone: detail.phone }, 'event.published.webhook');
 }
 
-async function publish(source, detailType, detail) {
+async function publish(source, detailType, detail, { throwOnFailure = false } = {}) {
   try {
     if (USE_EVENTBRIDGE) {
       await publishToEventBridge(source, detailType, detail);
     }
-    // Always forward incoming messages via webhook regardless of mode
-    // (so CRM gets messages in local/hybrid mode too)
+    // Local/simple mode: forward incoming messages directly to CRM webhook.
+    // ECS production uses EventBridge only (CRM Lambda rule handles delivery).
     if (!USE_EVENTBRIDGE && source === 'whatsapp.incoming') {
       await publishToWebhook(detailType, detail);
     }
+    return true;
   } catch (err) {
     logger.error({ source, detailType, error: err.message }, 'event.publish.failed');
+    if (throwOnFailure) throw err;
+    return false;
   }
 }
 
 export const events = {
   messageReceived(detail) {
-    return publish('whatsapp.incoming', 'message.received', detail);
+    return publish('whatsapp.incoming', 'message.received', detail, { throwOnFailure: true });
   },
   messageSent(detail) {
     return publish('whatsapp.outbound', 'message.sent', detail);

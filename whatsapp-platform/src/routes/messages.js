@@ -17,17 +17,20 @@ const messageLimiter = rateLimit({
 });
 
 // POST /v1/messages/send
-// Body: { from?, to, text, media? }
+// Body: { from?, to, text, media?, idempotencyKey? }
 router.post('/send', messageLimiter, async (req, res) => {
   try {
-    const { from, to, text, media } = req.body || {};
+    const { from, to, text, media, idempotencyKey } = req.body || {};
     if (!to || !text) {
       return res.status(400).json({ error: 'to and text are required' });
     }
     if (from && !/^\d{7,15}$/.test(from.replace(/\D/g, ''))) {
       return res.status(400).json({ error: 'invalid_from_format' });
     }
-    const result = await sendMessage(from, to, text, media);
+    if (idempotencyKey && !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
+      return res.status(400).json({ error: 'invalid_idempotency_key' });
+    }
+    const result = await sendMessage(from, to, text, media, idempotencyKey || null);
     if (result?.queued) {
       logger.warn({ from, to, messageId: result.messageId }, 'message.send.queued');
       return res.status(202).json({ enabled: true, sent: false, queued: true, messageId: result.messageId || null });

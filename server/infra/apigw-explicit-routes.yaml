@@ -15428,6 +15428,65 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # Deep health check — sibling under /api/health so it is not blocked by the
+  # explicit /api/health resource (which would otherwise exclude /api/{proxy+}).
+  HealthDeepResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref HealthResource
+      PathPart: deep
+
+  HealthDeepGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref HealthDeepResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  HealthDeepOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref HealthDeepResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
 
   # ============== Auth (post-registration hook) ==============
   AuthResource:
@@ -15582,6 +15641,249 @@ Resources:
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref AuthWhatsAppPairingQrResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============== Auth WhatsApp status (GET /auth/whatsapp/status/{phone}) ==============
+  AuthWhatsAppStatusResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AuthWhatsAppResource
+      PathPart: status
+
+  AuthWhatsAppStatusPhoneResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AuthWhatsAppStatusResource
+      PathPart: '{phone}'
+
+  AuthWhatsAppStatusPhoneGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppStatusPhoneResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 400
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 401
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 403
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 404
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  AuthWhatsAppStatusPhoneOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppStatusPhoneResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============== Auth WhatsApp disconnect (POST /auth/whatsapp/disconnect/{phone}) ==============
+  AuthWhatsAppDisconnectResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AuthWhatsAppResource
+      PathPart: disconnect
+
+  AuthWhatsAppDisconnectPhoneResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AuthWhatsAppDisconnectResource
+      PathPart: '{phone}'
+
+  AuthWhatsAppDisconnectPhonePostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppDisconnectPhoneResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 400
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 401
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 403
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 404
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  AuthWhatsAppDisconnectPhoneOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppDisconnectPhoneResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ============== Auth WhatsApp sessions (GET /auth/whatsapp/sessions) ==============
+  AuthWhatsAppSessionsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AuthWhatsAppResource
+      PathPart: sessions
+
+  AuthWhatsAppSessionsGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppSessionsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 400
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 401
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 403
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  AuthWhatsAppSessionsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AuthWhatsAppSessionsResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:
@@ -16733,6 +17035,60 @@ Resources:
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref AdminGrievanceIdResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Catch-all under /api/admin/{proxy+} so team-analytics, agent-activity, etc.
+  # reach Lambda (explicit /api/admin otherwise blocks /api/{proxy+}).
+  AdminProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref AdminGrievancesResource
+      PathPart: "{proxy+}"
+
+  AdminProxyAnyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AdminProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  AdminProxyOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref AdminProxyResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
       Integration:

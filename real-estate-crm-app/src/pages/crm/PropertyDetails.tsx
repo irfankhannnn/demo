@@ -21,7 +21,6 @@ import { api } from '../../services/api';
 import { CRMProperty, CRMOwner, CRMCustomer, CRMPropertyDocument } from '../../types/crm';
 import { KhataPartyType } from '../../types/khata';
 import GoogleMapPicker from '../../components/GoogleMapPicker';
-import CreateOwnerModal from '../../components/CreateOwnerModal';
 import CreateTenantModal from '../../components/CreateTenantModal';
 import Toast from '../../components/Toast';
 import NumericInput from '../../components/NumericInput';
@@ -30,7 +29,7 @@ import { PermissionGuard } from '../../components/PermissionGuard';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
-type PropertyStatus = 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
+type PropertyStatus = 'inactive' | 'not-listed' | 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock' | 'archived';
 type AgreementStatus = 'pending' | 'done';
 type VerificationStatus = 'pending' | 'done' | 'not_done';
 
@@ -48,13 +47,10 @@ export default function PropertyDetails() {
   const [property, setProperty] = useState<CRMProperty | null>(null);
   
   // Search states for dropdowns
-  const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
   const [tenantSearchQuery, setTenantSearchQuery] = useState('');
-  const [isOwnerDropdownOpen, setIsOwnerDropdownOpen] = useState(false);
   const [isTenantDropdownOpen, setIsTenantDropdownOpen] = useState(false);
   
   // Refs for dropdown containers
-  const ownerDropdownRef = useRef<HTMLDivElement>(null);
   const tenantDropdownRef = useRef<HTMLDivElement>(null);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [uploadingVideos, setUploadingVideos] = useState(false);
@@ -71,7 +67,6 @@ export default function PropertyDetails() {
   } | null>(null);
   
   // New features state
-  const [showOwnerModal, setShowOwnerModal] = useState(false);
   const [showTenantModal, setShowTenantModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
@@ -204,21 +199,20 @@ export default function PropertyDetails() {
   };
 
   useEffect(() => {
-    loadOwners();
+    if (!isEditing && preselectedOwnerId) {
+      loadOwners();
+    }
     loadCustomers();
     loadBuyers();
     if (isEditing && id) {
       loadProperty();
       loadDocuments();
     }
-  }, [id, isEditing]);
+  }, [id, isEditing, preselectedOwnerId]);
 
   // Click outside handler to close dropdowns
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (ownerDropdownRef.current && !ownerDropdownRef.current.contains(event.target as Node)) {
-        setIsOwnerDropdownOpen(false);
-      }
       if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(event.target as Node)) {
         setIsTenantDropdownOpen(false);
       }
@@ -232,11 +226,48 @@ export default function PropertyDetails() {
 
   const loadOwners = async () => {
     try {
-      const data = await api.getOwners();
-      setOwners(data.filter((o: CRMOwner) => o.status === 'active'));
+      // Include all current owners (active + inactive shells that still own property)
+      const data = await api.getOwners({ status: 'all' });
+      setOwners(data);
     } catch (error) {
       console.error('Error loading owners:', error);
     }
+  };
+
+  const ensureOwnerInDropdown = async (propertyData: typeof property) => {
+    if (!propertyData) return;
+    let ownerId = propertyData.ownerId || '';
+    if (!ownerId && propertyData.currentOwnerContactId) {
+      try {
+        const contact = await api.getContact(propertyData.currentOwnerContactId);
+        ownerId = contact?.linkedOwnerId || '';
+      } catch {
+        /* best-effort */
+      }
+    }
+    if (!ownerId && propertyData.ownershipHistory?.length) {
+      const latest = propertyData.ownershipHistory[propertyData.ownershipHistory.length - 1];
+      ownerId = latest?.toOwnerId || '';
+    }
+    if (!ownerId) return;
+
+    setOwners((prev) => {
+      if (prev.some((o) => o.ownerId === ownerId)) return prev;
+      const snapshot = propertyData.ownerSnapshot;
+      return [
+        ...prev,
+        {
+          ownerId,
+          name: propertyData.ownerName || snapshot?.name || 'Current owner',
+          phone: propertyData.ownerPhone || snapshot?.phone || '',
+          email: snapshot?.email || '',
+          status: 'inactive',
+          address: '',
+          createdAt: propertyData.updatedAt || propertyData.createdAt || '',
+        } as CRMOwner,
+      ];
+    });
+    setFormData((prev) => ({ ...prev, ownerId }));
   };
 
   const loadCustomers = async () => {
@@ -266,20 +297,29 @@ export default function PropertyDetails() {
       const data = await api.getCRMProperty(id);
       setProperty(data);
       setOriginalStatus(data.status);
-      
-      // Determine current owner: if property has ownership history, use the latest owner
-      // Otherwise use the original ownerId
+
+      // Normalize legacy post-sale status for the form
+      const normalizedStatus = (data.status === 'sold' || data.status === 'available' || data.status === 'inactive')
+        && data.listingStatus !== 'active'
+        ? 'not-listed'
+        : data.status;
+
       let currentOwnerId = data.ownerId || '';
-      if (data.ownershipHistory && data.ownershipHistory.length > 0) {
+      if (!currentOwnerId && data.currentOwnerContactId) {
+        try {
+          const contact = await api.getContact(data.currentOwnerContactId);
+          currentOwnerId = contact?.linkedOwnerId || data.ownerId || '';
+        } catch {
+          currentOwnerId = data.ownerId || '';
+        }
+      }
+      if (!currentOwnerId && data.ownershipHistory?.length) {
         const latestOwnership = data.ownershipHistory[data.ownershipHistory.length - 1];
-        // If the property was sold to another owner, use that owner's ID
         if (latestOwnership.toOwnerId) {
           currentOwnerId = latestOwnership.toOwnerId;
         }
-        // If sold to a buyer (toOwnerId is null but buyerId exists), keep original owner
-        // The buyer will be shown in the ownership history section
       }
-      
+
       setFormData({
         ownerId: currentOwnerId,
         title: data.title,
@@ -301,7 +341,7 @@ export default function PropertyDetails() {
         furnishing: data.furnishing,
         amenities: data.amenities || [],
         availableFrom: data.availableFrom ? new Date(data.availableFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-        status: data.status,
+        status: normalizedStatus,
         tenantCustomerId: data.tenantCustomerId || '',
         brokerageAmount: data.brokerageAmount || 0,
         expectedBrokerage: data.expectedBrokerage || 0,
@@ -312,6 +352,7 @@ export default function PropertyDetails() {
         tenantMoveInDate: data.tenantMoveInDate || '',
         tenureMonths: data.tenureMonths || 11,
       });
+      await ensureOwnerInDropdown({ ...data, ownerId: currentOwnerId, status: normalizedStatus });
     } catch (error) {
       console.error('Error loading property:', error);
       if (error instanceof Error && error.message.includes('token')) {
@@ -395,7 +436,6 @@ export default function PropertyDetails() {
     const isSaleStatus = formData.status === 'for-sale' || formData.status === 'sold';
     const apiData: any = {
       ...formData,
-      ownerId: formData.ownerId || null,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
       longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
       tenantCustomerId: formData.tenantCustomerId || undefined,
@@ -405,6 +445,13 @@ export default function PropertyDetails() {
       brokerageAmount: formData.brokerageAmount || undefined,
       expectedBrokerage: formData.expectedBrokerage || undefined,
     };
+
+    // Ownership is set at creation or via Mark as Sold — never changed on edit
+    if (isEditing) {
+      delete apiData.ownerId;
+    } else {
+      apiData.ownerId = preselectedOwnerId || formData.ownerId || null;
+    }
 
     if (isSaleStatus) {
       apiData.saleInfo = {
@@ -688,17 +735,21 @@ export default function PropertyDetails() {
   };
 
   // Filtered lists based on search
-  const filteredOwners = owners.filter(owner => 
-    owner.name.toLowerCase().includes(ownerSearchQuery.toLowerCase()) ||
-    owner.phone.includes(ownerSearchQuery)
-  );
-
   const filteredCustomers = customers.filter(customer =>
     customer.name.toLowerCase().includes(tenantSearchQuery.toLowerCase()) ||
     customer.phone.includes(tenantSearchQuery)
   );
 
-  const selectedOwner = owners.find(o => o.ownerId === formData.ownerId);
+  const selectedOwner = formData.ownerId
+    ? (owners.find((o) => o.ownerId === formData.ownerId)
+      || (property?.ownerName
+        ? {
+            ownerId: formData.ownerId,
+            name: property.ownerName,
+            phone: property.ownerPhone || property.ownerSnapshot?.phone || '',
+          } as CRMOwner
+        : undefined))
+    : undefined;
   const selectedCustomer = customers.find(c => c.customerId === formData.tenantCustomerId);
 
   const toggleAmenity = (amenity: string) => {
@@ -707,15 +758,6 @@ export default function PropertyDetails() {
       ? current.filter((a) => a !== amenity)
       : [...current, amenity];
     setFormData({ ...formData, amenities: updated });
-  };
-
-  // Handler when new owner is created from modal
-  const handleOwnerCreated = async (ownerId: string, ownerName: string) => {
-    // Refresh owners list
-    await loadOwners();
-    // Auto-select the newly created owner
-    setFormData((prev) => ({ ...prev, ownerId }));
-    setToast({ message: `Owner "${ownerName}" created successfully!`, type: 'success' });
   };
 
   // Handler when new tenant is created from modal
@@ -778,92 +820,62 @@ export default function PropertyDetails() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h2>
 
                 <div className="space-y-4">
-                  {/* Owner Selection - Now Optional */}
-                  <div className="relative" ref={ownerDropdownRef}>
+                  {/* Owner — read-only; ownership changes via Mark as Sold only */}
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Owner <span className="text-gray-400 text-xs">(Optional)</span>
+                      {formData.status === 'sold' ? 'Current Owner' : 'Owner'}
                     </label>
-                    <div className="flex gap-2">
-                      <div className="flex-1 relative">
-                        <button
-                          type="button"
-                          onClick={() => setIsOwnerDropdownOpen(!isOwnerDropdownOpen)}
-                          disabled={formData.status === 'sold'}
-                          className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between ${formData.status === 'sold' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                          <span className={selectedOwner ? 'text-gray-900' : 'text-gray-500'}>
-                            {selectedOwner ? `${selectedOwner.name} - ${selectedOwner.phone}` : 'Unassigned / No Owner'}
-                          </span>
-                          <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        
-                        {isOwnerDropdownOpen && (
-                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
-                            <div className="p-2 border-b border-gray-200">
-                              <input
-                                type="text"
-                                placeholder="Search by name or phone..."
-                                value={ownerSearchQuery}
-                                onChange={(e) => setOwnerSearchQuery(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </div>
-                            <div className="py-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setFormData({ ...formData, ownerId: '' });
-                                  setIsOwnerDropdownOpen(false);
-                                  setOwnerSearchQuery('');
-                                }}
-                                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${!formData.ownerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
-                              >
-                                Unassigned / No Owner
-                              </button>
-                              {filteredOwners.map((owner) => (
-                                <button
-                                  key={owner.ownerId}
-                                  type="button"
-                                  onClick={() => {
-                                    setFormData({ ...formData, ownerId: owner.ownerId });
-                                    setIsOwnerDropdownOpen(false);
-                                    setOwnerSearchQuery('');
-                                  }}
-                                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${formData.ownerId === owner.ownerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
-                                >
-                                  {owner.name} - {owner.phone}
-                                </button>
-                              ))}
-                              {filteredOwners.length === 0 && ownerSearchQuery && (
-                                <div className="px-4 py-2 text-sm text-gray-500">
-                                  No owners found
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowOwnerModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shrink-0"
-                        title="Add New Owner"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span className="hidden sm:inline">Add New</span>
-                      </button>
-                    </div>
-                    {!formData.ownerId && (
-                      <p className="mt-1 text-xs text-amber-600">
-                        Property will be created without an owner. You can assign one later.
+                    {selectedOwner ? (
+                      <>
+                        <p className="text-gray-900 font-medium">
+                          {selectedOwner.name}
+                          {selectedOwner.phone ? ` · ${selectedOwner.phone}` : ''}
+                        </p>
+                        <div className="flex flex-wrap gap-3 mt-2">
+                          {formData.ownerId && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/crm/owners/${formData.ownerId}`)}
+                              className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
+                            >
+                              View owner profile
+                            </button>
+                          )}
+                          {property?.currentOwnerContactId && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/crm/contacts/${property.currentOwnerContactId}`)}
+                              className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
+                            >
+                              View contact
+                            </button>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-sm text-gray-500">
+                        {isEditing
+                          ? 'No owner linked to this property.'
+                          : preselectedOwnerId
+                            ? 'Owner will be linked from the owner profile you started from.'
+                            : 'Unassigned — create this property from an Owner/Seller profile to link ownership.'}
                       </p>
                     )}
-                    {formData.status === 'sold' && property?.saleInfo?.soldToBuyerId && (
-                      <p className="mt-1 text-xs text-blue-600">
-                        This property has been sold. Owner field is locked.
+                    {isEditing && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        Ownership cannot be changed here. Use <strong>Mark as Sold</strong> to transfer to a buyer.
+                      </p>
+                    )}
+                    {property?.previousOwnerContactId && formData.status !== 'sold' && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Previous owner:{' '}
+                        <button
+                          type="button"
+                          className="underline text-purple-700"
+                          onClick={() => navigate(`/crm/contacts/${property.previousOwnerContactId}`)}
+                        >
+                          view contact
+                        </button>
                       </p>
                     )}
                   </div>
@@ -1203,13 +1215,18 @@ export default function PropertyDetails() {
                       }}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
-                      <option value="available">Available</option>
-                      <option value="for-sale">For Sale</option>
-                      <option value="for-rent">For Rent</option>
-                      <option value="rented">Rented</option>
-                      <option value="sold">Sold</option>
-                      <option value="on-hold">On Hold</option>
-                      <option value="out-of-stock">Out of Stock</option>
+                      <option value="not-listed">Not Listed</option>
+                      <option value="for-sale">Available for Sale</option>
+                      <option value="for-rent">Available for Rent</option>
+                      <option value="rented">Occupied</option>
+                      {(formData.status === 'sold' || formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold' || formData.status === 'out-of-stock' || formData.status === 'archived') && (
+                        <option value={formData.status}>
+                          {formData.status === 'sold' ? 'Sold (legacy)'
+                            : formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold'
+                              ? 'Not Listed (legacy)'
+                              : formData.status}
+                        </option>
+                      )}
                     </select>
                   </div>
 
@@ -1873,10 +1890,30 @@ export default function PropertyDetails() {
                             </span>
                           </div>
                           <p className="text-sm text-gray-800 font-medium">
-                            {entry.fromOwnerName || 'Unassigned'} 
-                            <span className="text-gray-400 mx-1">&rarr;</span> 
+                            {entry.fromOwnerName || 'Unassigned'}
+                            <span className="text-gray-400 mx-1">&rarr;</span>
                             {entry.toOwnerName || 'Third-Party'}
                           </p>
+                          <div className="flex flex-wrap gap-3 mt-1 text-xs">
+                            {(entry.fromContactId || entry.sellerContactId) && (
+                              <button
+                                type="button"
+                                className="text-purple-700 underline"
+                                onClick={() => navigate(`/crm/contacts/${entry.fromContactId || entry.sellerContactId}`)}
+                              >
+                                Seller contact
+                              </button>
+                            )}
+                            {(entry.toContactId || entry.buyerContactId) && (
+                              <button
+                                type="button"
+                                className="text-purple-700 underline"
+                                onClick={() => navigate(`/crm/contacts/${entry.toContactId || entry.buyerContactId}`)}
+                              >
+                                Buyer / new owner
+                              </button>
+                            )}
+                          </div>
                           {entry.salePrice && (
                             <p className="text-sm text-gray-600 mt-1">
                               Sold for <span className="font-semibold text-gray-900">&#x20B9;{entry.salePrice.toLocaleString()}</span>
@@ -2101,13 +2138,6 @@ export default function PropertyDetails() {
       </main>
 
       {/* Modals */}
-      {showOwnerModal && (
-        <CreateOwnerModal
-          onClose={() => setShowOwnerModal(false)}
-          onOwnerCreated={handleOwnerCreated}
-        />
-      )}
-
       {showTenantModal && (
         <CreateTenantModal
           onClose={() => setShowTenantModal(false)}

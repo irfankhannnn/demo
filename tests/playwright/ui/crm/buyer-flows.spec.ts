@@ -1,19 +1,19 @@
 import { test, expect } from '@playwright/test';
 import { BASE_URL } from '../../helpers/config';
 import { setupEvidence, snap } from '../../helpers/evidence';
-import { generateUniqueName, generateTestPhone, generateTestEmail, generateLeadRequirement } from '../../helpers/seedData';
+import { createTestRun, generateUniqueName, generateTestEmail, generateLeadRequirement, phoneForRun } from '../../helpers/seedData';
 
 test.describe('Buyer CRUD', () => {
   test('create buyer with complete details and verify list', async ({ page }) => {
     const ctx = setupEvidence('buyer-flows');
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 0);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 0);
     const buyerName = nameObj.fullName;
-    const buyerPhone = generateTestPhone(1, 7_000_000_000 + (Date.now() % 1_000_000));
-    const buyerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 1, 'test.com');
-    const buyerReq = generateLeadRequirement(runStamp, 'buyer', 0);
+    const buyerPhone = phoneForRun(run, 1);
+    const buyerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 1, 'test.com', run.runStamp);
+    const buyerReq = generateLeadRequirement(run.runStamp, 'buyer', 0);
 
     await page.goto(`${BASE_URL}/crm/buyers/new`);
     await page.waitForLoadState('networkidle');

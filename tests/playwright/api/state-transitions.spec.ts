@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { API_URL } from '../helpers/config';
+import { jsonAuthHeaders, resolveApiAuth } from '../helpers/apiAuth';
 
-const TEST_TOKEN = process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
-const jsonHeaders = (token: string) => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${token}`,
-});
+const jsonHeaders = (token: string) => jsonAuthHeaders({ token });
 
 test.describe('State Transition Validation Tests', () => {
+  let TEST_TOKEN = '';
+
   test.beforeAll(() => {
-    test.skip(!TEST_TOKEN, 'TEST_TOKEN not set — skipping state transition tests');
+    TEST_TOKEN = resolveApiAuth().token || process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
+    test.skip(!TEST_TOKEN, 'TEST_TOKEN / auth cache not set — skipping state transition tests');
   });
 
   // ============================================================

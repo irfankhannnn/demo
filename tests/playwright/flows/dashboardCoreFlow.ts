@@ -2,21 +2,23 @@ import { expect, Page, test } from '@playwright/test';
 import { BASE_URL } from '../helpers/config';
 import { EvidenceCtx, createLogger, snap } from '../helpers/evidence';
 import {
-  SEED_DATA, generateTestPhone, generateTestEmail, getItemByIndex,
+  SEED_DATA, generateTestEmail, getItemByIndex,
   generateUniqueName, generateUniquePropertyTitle, generateUniqueLocation,
+  createTestRun, phoneForRun,
 } from '../helpers/seedData';
 import {
   uploadOwnerPhoto, uploadOwnerPan, uploadOwnerAadhar, assertOwnerKycUploadsVisible,
 } from '../helpers/uploadHelpers';
+import { paceBetweenEntitySteps, saveAndWaitForApi } from '../helpers/saveHelpers';
 
 type LeadType = 'buyer' | 'seller' | 'tenant' | 'owner';
 
 export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promise<void> {
   const log = createLogger(ctx.feature);
-  const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-  const phoneBase = 7_000_000_000 + ((Date.now() + Math.floor(Math.random() * 1_000_000)) % 1_000_000_00);
-  const phoneFor = (offset: number) => generateTestPhone(offset, phoneBase);
-  const emailFor = (prefix: string, offset: number) => generateTestEmail(prefix, offset, 'test.com');
+  const run = createTestRun();
+  const { runStamp } = run;
+  const phoneFor = (offset: number) => phoneForRun(run, offset);
+  const emailFor = (prefix: string, offset: number) => generateTestEmail(prefix, offset, 'test.com', runStamp);
 
   const ownerNameObj = generateUniqueName(runStamp, 0);
   const ownerName = ownerNameObj.fullName;
@@ -35,49 +37,10 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
 
   const saveAndWait = async (apiPathPattern: RegExp) => {
     lastDialogMessage = null;
-    const saveBtn = page.locator('button').filter({ hasText: /Save|Create|Submit|Add|Publish/i }).first();
-    await expect(saveBtn).toBeVisible({ timeout: 10_000 });
-
-    const responsePromise = page.waitForResponse(
-      (r) => apiPathPattern.test(r.url()) && (r.request().method() === 'POST' || r.request().method() === 'PUT' || r.request().method() === 'PATCH'),
-      { timeout: 30_000 },
-    );
-
-    await saveBtn.click();
-
-    let body: any = null;
-    try {
-      const response = await responsePromise;
-      body = await response.json().catch(() => null);
-      if (!response.ok()) {
-        // Retry once on 502/503 (likely auth service or gateway transient failure)
-        if (response.status() === 502 || response.status() === 503) {
-          log('Save', 'WARN', `Got ${response.status()} — retrying once after 2s`);
-          await page.waitForTimeout(2_000);
-          const retryPromise = page.waitForResponse(
-            (r) => apiPathPattern.test(r.url()) && (r.request().method() === 'POST' || r.request().method() === 'PUT' || r.request().method() === 'PATCH'),
-            { timeout: 30_000 },
-          );
-          await saveBtn.click();
-          const retryResponse = await retryPromise;
-          body = await retryResponse.json().catch(() => null);
-          if (!retryResponse.ok()) {
-            throw new Error(`Save failed (retry): ${retryResponse.status()} — ${JSON.stringify(body)}`);
-          }
-        } else {
-          throw new Error(`Save failed: ${response.status()} — ${JSON.stringify(body)}`);
-        }
-      }
-    } catch (err) {
-      if (lastDialogMessage) throw new Error(`Save failed — backend error: "${lastDialogMessage}"`);
-      throw err;
-    }
-
-    // Wait for button to return to idle state
-    await expect(saveBtn).toBeVisible({ timeout: 5_000 });
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1_000);
-    return body;
+    return saveAndWaitForApi(page, apiPathPattern, {
+      log,
+      getLastDialogMessage: () => lastDialogMessage,
+    });
   };
 
   const loadAndAssertPage = async (url: string, headingText: RegExp) => {
@@ -127,6 +90,7 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     await assertOwnerKycUploadsVisible(page);
     await snap(page, ctx, '02-owner-kyc-uploaded');
     log('Owner KYC', 'PASS', 'All KYC documents uploaded and visible');
+    await paceBetweenEntitySteps(page);
   });
 
   // Property
@@ -150,6 +114,7 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     await page.waitForTimeout(2_000);
     await snap(page, ctx, '03-property-created');
     log('Property', 'PASS', `${propertyTitle} created`);
+    await paceBetweenEntitySteps(page);
   });
 
   // Tenant
@@ -187,6 +152,7 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     await page.unroute('**/api/crm/customers');
     await snap(page, ctx, '04-tenant-created');
     log('Tenant', 'PASS', `${tenantName} created`);
+    await paceBetweenEntitySteps(page);
   });
 
   // Buyer
@@ -201,7 +167,7 @@ export async function runDashboardCoreFlow(page: Page, ctx: EvidenceCtx): Promis
     await page.getByPlaceholder('Email address').fill(buyerEmail);
     const budgetInput = page.locator('input[placeholder="Budget"], input[placeholder="Budget amount"]').first();
     if (await budgetInput.isVisible({ timeout: 2_000 }).catch(() => false)) await budgetInput.fill('5000000');
-    await saveAndWait(/\/crm\/contacts/);
+    await saveAndWait(/\/crm\/buyers/);
     await snap(page, ctx, '05-buyer-created');
     log('Buyer', 'PASS', `${buyerName} created`);
   });

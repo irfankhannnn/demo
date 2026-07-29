@@ -1,0 +1,21 @@
+{
+  "loggedAt": "2026-07-22T16:48:06.677Z",
+  "sessionId": "1784738883644-5fd8a1bc",
+  "tenantId": "acme-corporation-edc6e9feb8",
+  "agentId": "planner",
+  "kind": "planner",
+  "type": "generate_content_response",
+  "model": "gemini-2.5-pro",
+  "text": "",
+  "functionCalls": [
+    {
+      "name": "search_properties",
+      "args": {}
+    }
+  ],
+  "plan": {
+    "kind": "tool",
+    "toolName": "search_properties",
+    "input": {}
+  }
+}

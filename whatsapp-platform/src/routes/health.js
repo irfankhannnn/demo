@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { listSessions } from '../baileysClient.js';
 import { MAX_SESSIONS_PER_TASK } from '../config.js';
+import { getInboundDeliveryStats } from '../inbound-deliveries.js';
+import { getOutboundDeliveryStats } from '../outbound-deliveries.js';
 
 const router = Router();
 
@@ -34,9 +36,13 @@ router.get('/sessions', (_req, res) => {
 });
 
 // Deep health check
-router.get('/deep', (_req, res) => {
+router.get('/deep', async (_req, res) => {
   const snap = getSnapshot();
   const mem = process.memoryUsage();
+  const [inbound, outbound] = await Promise.all([
+    getInboundDeliveryStats(),
+    getOutboundDeliveryStats(),
+  ]);
   const health = {
     status: snap.connected > 0 ? 'healthy' : 'degraded',
     service: 'whatsapp-platform',
@@ -48,6 +54,7 @@ router.get('/deep', (_req, res) => {
       externalMb: Math.round(mem.external / 1024 / 1024),
     },
     sessions: snap,
+    deliveries: { inbound, outbound },
     checks: {
       memoryHealthy: mem.heapUsed / mem.heapTotal < 0.9,
       hasConnectedSessions: snap.connected > 0,

@@ -30,8 +30,6 @@ import {
 
   IndianRupee,
 
-  MapPin,
-
   Calendar,
 
   X,
@@ -53,8 +51,16 @@ import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
 
 import LeadAssignmentDropdown, { TeamMember } from '../../components/LeadAssignmentDropdown';
+import LeadActivityHistory from '../../components/LeadActivityHistory';
+import Toast from '../../components/Toast';
 
-import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMContact, CRMMeeting } from '../../types/crm';
+import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } from '../../types/crm';
+import { LEAD_SOURCE_OPTIONS, isKnownLeadSource } from '../../utils/leadConstants';
+import { buildLeadSavePayload } from '../../utils/leadSavePayload';
+import { canManageLeads } from '../../utils/rbac';
+import { isLeadConverted } from '../../utils/leadConversion';
+import LeadPropertyFields from '../../components/LeadPropertyFields';
+import BuyerRequirementFields from '../../components/BuyerRequirementFields';
 
 
 
@@ -138,53 +144,30 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
   const [members, setMembers] = useState<TeamMember[]>([]);
 
+  const [customSource, setCustomSource] = useState('');
 
 
-  // Conversion modal state
-
-  const [showConvertModal, setShowConvertModal] = useState(false);
-
-  const [matchingContacts, setMatchingContacts] = useState<CRMContact[]>([]);
 
   const [converting, setConverting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
 
   useEffect(() => {
-
-    if (!showConvertModal && !showOutcomeModal) return;
-
+    if (!showOutcomeModal) return;
     const onKeyDown = (e: KeyboardEvent) => {
-
       if (e.key !== 'Escape') return;
-
       if (showOutcomeModal) {
-
         setShowOutcomeModal(false);
-
         setOutcomeMeeting(null);
-
         setOutcomeText('');
-
-        return;
-
       }
-
-      if (showConvertModal) {
-
-        setShowConvertModal(false);
-
-        setMatchingContacts([]);
-
-      }
-
     };
-
     window.addEventListener('keydown', onKeyDown);
-
     return () => window.removeEventListener('keydown', onKeyDown);
-
-  }, [showConvertModal, showOutcomeModal]);
+  }, [showOutcomeModal]);
 
 
 
@@ -236,6 +219,12 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       setNotes(notesData);
 
+      if (leadData.source && !isKnownLeadSource(leadData.source)) {
+        setCustomSource(leadData.source);
+      } else {
+        setCustomSource('');
+      }
+
     } catch (error) {
 
       console.error('Error loading lead:', error);
@@ -284,7 +273,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       console.error('Error assigning lead:', e);
 
-      alert('Failed to assign lead');
+      showToast('Failed to assign lead', 'error');
 
     }
 
@@ -338,7 +327,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       console.error('Failed to update meeting status', e);
 
-      alert('Failed to update meeting');
+      showToast('Failed to update meeting', 'error');
 
     } finally {
 
@@ -392,7 +381,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       console.error('Failed to save meeting outcome', e);
 
-      alert('Failed to save meeting summary');
+      showToast('Failed to save meeting summary', 'error');
 
     } finally {
 
@@ -408,7 +397,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
     if (!lead.name || !lead.leadType) {
 
-      alert('Name and lead type are required');
+      showToast('Name and lead type are required', 'error');
 
       return;
 
@@ -420,37 +409,11 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       setSaving(true);
 
-      const payload = {
-
-        leadType: lead.leadType as LeadType,
-
-        name: lead.name,
-
-        phone: lead.phone,
-
-        email: lead.email,
-
-        source: lead.source,
-
-        status: lead.status,
-
-        priority: lead.priority,
-
-        buyerRequirement: lead.buyerRequirement || undefined,
-
-        sellerProperty: lead.sellerProperty || undefined,
-
-        tenantRequirement: lead.tenantRequirement || undefined,
-
-        ownerProperty: lead.ownerProperty || undefined,
-
-        notes: lead.notes,
-
-      };
-
-
+      const payload = buildLeadSavePayload(lead);
 
       await api.updateLead(leadId!, payload);
+
+      showToast('Lead updated successfully', 'success');
 
       onUpdate();
 
@@ -458,7 +421,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       console.error('Error saving lead:', error);
 
-      alert('Failed to save lead');
+      showToast('Failed to save lead', 'error');
 
     } finally {
 
@@ -555,86 +518,59 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
 
   const handleConvertClick = async () => {
+    if (!leadId || !lead) return;
+    if (converting) return;
 
-    if (!leadId) return;
-
-    setShowConvertModal(true);
-
-    try {
-
-      const contacts = await api.getMatchingContactsForLead(leadId);
-
-      setMatchingContacts(contacts);
-
-    } catch (error) {
-
-      console.error('Error fetching matching contacts:', error);
-
-      setMatchingContacts([]);
-
-    }
-
-  };
-
-
-
-  const handleConvert = async (existingContactId?: string) => {
-
-    if (!leadId) return;
-
-
-
-    if (lead.leadType === 'buyer' || lead.leadType === 'tenant') {
-
-      setShowConvertModal(false);
-
-      setMatchingContacts([]);
-
-      onClose();
-
-      navigate(`/crm/leads/${leadId}?convert=1`);
-
+    if (!lead.phone?.trim()) {
+      showToast('Please add a phone number before converting.', 'error');
       return;
-
     }
 
-
+    // Buyer/tenant need purchase or lease details — open full convert flow on lead page
+    if (lead.leadType === 'buyer' || lead.leadType === 'tenant') {
+      onClose();
+      navigate(`/crm/leads/${leadId}?convert=1`);
+      return;
+    }
 
     try {
-
       setConverting(true);
-
-      const options = existingContactId ? { existingContactId } : {};
-
-      await api.convertLead(leadId, options);
-
-      setShowConvertModal(false);
-
-      setMatchingContacts([]);
-
-      alert('Lead converted successfully');
-
-      loadLead();
-
+      const payload = lead.leadType === 'seller' ? { createPropertyListing: true } : {};
+      const result = await api.convertLead(leadId, payload);
+      showToast('Lead converted successfully.', 'success');
       onUpdate();
-
-    } catch (error) {
-
+      onClose();
+      if (result?.contactId) {
+        navigate(`/crm/contacts/${result.contactId}`);
+      } else if (result?.entityType === 'owner' && result?.entity?.ownerId) {
+        navigate(`/crm/owners/${result.entity.ownerId}`);
+      } else {
+        navigate('/crm/leads');
+      }
+    } catch (error: unknown) {
       console.error('Error converting lead:', error);
-
-      alert('Failed to convert lead');
-
+      const err = error as Error & { code?: string; convertedTo?: { entityType?: string; entityId?: string } };
+      if (err.code === 'ALREADY_CONVERTED' || err.message?.toLowerCase().includes('already converted')) {
+        onClose();
+        onUpdate();
+        if (err.convertedTo?.entityType === 'owner' && err.convertedTo.entityId) {
+          navigate(`/crm/owners/${err.convertedTo.entityId}`);
+        } else if (err.convertedTo?.entityType === 'seller' && err.convertedTo.entityId) {
+          navigate(`/crm/owners/${err.convertedTo.entityId}`);
+        } else {
+          loadLead();
+        }
+        return;
+      }
+      showToast(err.message || 'Failed to convert lead', 'error');
     } finally {
-
       setConverting(false);
-
     }
-
   };
 
 
 
-  const isConverted = !!lead.convertedAt;
+  const isConverted = isLeadConverted(lead);
 
 
 
@@ -752,7 +688,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                       <p className="text-sm text-green-600">
 
-                        Converted to {lead.convertedTo?.role} on {new Date(lead.convertedAt!).toLocaleDateString()}
+                        Converted to {lead.convertedTo?.role} on {new Date(lead.convertedAt || lead.updatedAt).toLocaleDateString()}
 
                       </p>
 
@@ -773,17 +709,12 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                 <div className="mb-4">
 
                   <button
-
                     onClick={handleConvertClick}
-
-                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95"
-
+                    disabled={converting}
+                    className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 disabled:opacity-50"
                   >
-
                     <UserPlus className="h-5 w-5" />
-
-                    <span>Convert Lead</span>
-
+                    <span>{converting ? 'Converting...' : 'Convert Lead'}</span>
                   </button>
 
                 </div>
@@ -892,21 +823,69 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                     <label className="block text-sm font-medium text-gray-700 mb-1">Source</label>
 
-                    <input
+                    <select
 
-                      type="text"
+                      value={lead.source && isKnownLeadSource(lead.source) ? lead.source : lead.source ? 'Other' : ''}
 
-                      value={lead.source || ''}
+                      onChange={(e) => {
 
-                      onChange={(e) => setLead({ ...lead, source: e.target.value })}
+                        const val = e.target.value;
+
+                        if (val === 'Other') {
+
+                          setLead({ ...lead, source: customSource || '' });
+
+                        } else {
+
+                          setCustomSource('');
+
+                          setLead({ ...lead, source: val });
+
+                        }
+
+                      }}
 
                       disabled={isConverted}
 
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
 
-                      placeholder="e.g., Referral, Website, Walk-in"
+                    >
 
-                    />
+                      <option value="">Select source</option>
+
+                      {LEAD_SOURCE_OPTIONS.map((s) => (
+
+                        <option key={s} value={s}>{s}</option>
+
+                      ))}
+
+                    </select>
+
+                    {(lead.source && !isKnownLeadSource(lead.source)) || (!lead.source && customSource) ? (
+
+                      <input
+
+                        type="text"
+
+                        value={customSource}
+
+                        onChange={(e) => {
+
+                          setCustomSource(e.target.value);
+
+                          setLead({ ...lead, source: e.target.value });
+
+                        }}
+
+                        disabled={isConverted}
+
+                        className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+
+                        placeholder="Enter custom source"
+
+                      />
+
+                    ) : null}
 
                   </div>
 
@@ -1026,341 +1005,12 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                    <div className="sm:col-span-2">
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Buyer Requirements</label>
-
-                      <div className="flex gap-2">
-
-                        <textarea
-
-                          value={lead.buyerRequirement?.requirement || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            buyerRequirement: { ...lead.buyerRequirement, requirement: e.target.value }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          rows={2}
-
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="What are they looking for?"
-
-                        />
-
-                        <SpeechToTextButton
-
-                          disabled={isConverted}
-
-                          onText={(text) => setLead((prev) => ({
-
-                            ...prev,
-
-                            buyerRequirement: {
-
-                              ...prev.buyerRequirement,
-
-                              requirement: `${(prev.buyerRequirement?.requirement || '').trim()}${(prev.buyerRequirement?.requirement || '').trim() ? ' ' : ''}${text}`
-
-                            }
-
-                          }))}
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Budget</label>
-
-                      <div className="relative">
-
-                        <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-
-                          type="number"
-
-                          value={lead.buyerRequirement?.budget || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            buyerRequirement: { ...lead.buyerRequirement, budget: Number(e.target.value) }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="Budget amount"
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Preferred Area</label>
-
-                      <div className="relative">
-
-                        <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-
-                          type="text"
-
-                          value={lead.buyerRequirement?.preferredArea || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            buyerRequirement: { ...lead.buyerRequirement, preferredArea: e.target.value }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="Preferred location"
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
-
-                      <select
-
-                        value={lead.buyerRequirement?.propertyType || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          buyerRequirement: { ...lead.buyerRequirement, propertyType: e.target.value, propertySubType: '' }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                      >
-
-                        <option value="">Select type</option>
-
-                        <option value="residential">Residential</option>
-
-                        <option value="commercial">Commercial</option>
-
-                        <option value="land">Land/Plot</option>
-
-                      </select>
-
-                    </div>
-
-                    {lead.buyerRequirement?.propertyType && (
-
-                      <div>
-
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-
-                          {lead.buyerRequirement.propertyType === 'residential' && 'Residential Type'}
-
-                          {lead.buyerRequirement.propertyType === 'commercial' && 'Commercial Type'}
-
-                          {lead.buyerRequirement.propertyType === 'land' && 'Land Type'}
-
-                        </label>
-
-                        <select
-
-                          value={lead.buyerRequirement?.propertySubType || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            buyerRequirement: { ...lead.buyerRequirement, propertySubType: e.target.value }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                        >
-
-                          <option value="">Select subtype</option>
-
-                          {lead.buyerRequirement.propertyType === 'residential' && (
-
-                            <>
-
-                              <option value="apartment">Apartment</option>
-
-                              <option value="house">Independent House</option>
-
-                              <option value="villa">Villa</option>
-
-                              <option value="penthouse">Penthouse</option>
-
-                              <option value="studio">Studio Apartment</option>
-
-                            </>
-
-                          )}
-
-                          {lead.buyerRequirement.propertyType === 'commercial' && (
-
-                            <>
-
-                              <option value="office">Office Space</option>
-
-                              <option value="shop">Shop/Showroom</option>
-
-                              <option value="warehouse">Warehouse</option>
-
-                              <option value="coworking">Co-working Space</option>
-
-                              <option value="restaurant">Restaurant Space</option>
-
-                            </>
-
-                          )}
-
-                          {lead.buyerRequirement.propertyType === 'land' && (
-
-                            <>
-
-                              <option value="residential-plot">Residential Plot</option>
-
-                              <option value="commercial-plot">Commercial Plot</option>
-
-                              <option value="agricultural">Agricultural Land</option>
-
-                              <option value="industrial">Industrial Plot</option>
-
-                            </>
-
-                          )}
-
-                        </select>
-
-                      </div>
-
-                    )}
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-
-                        {lead.buyerRequirement?.propertyType === 'residential' ? 'BHK' : 
-
-                         lead.buyerRequirement?.propertyType === 'commercial' ? 'Size Category' :
-
-                         lead.buyerRequirement?.propertyType === 'land' ? 'Plot Size Category' : 'BHK'}
-
-                      </label>
-
-                      <select
-
-                        value={lead.buyerRequirement?.bhk || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          buyerRequirement: { ...lead.buyerRequirement, bhk: Number(e.target.value) }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                      >
-
-                        <option value="">Any</option>
-
-                        {(!lead.buyerRequirement?.propertyType || lead.buyerRequirement?.propertyType === 'residential') && (
-
-                          <>
-
-                            <option value="1">1 BHK</option>
-
-                            <option value="2">2 BHK</option>
-
-                            <option value="3">3 BHK</option>
-
-                            <option value="4">4 BHK</option>
-
-                            <option value="5">5+ BHK</option>
-
-                          </>
-
-                        )}
-
-                        {lead.buyerRequirement?.propertyType === 'commercial' && (
-
-                          <>
-
-                            <option value="1">Small (&lt; 500 sqft)</option>
-
-                            <option value="2">Medium (500-1500 sqft)</option>
-
-                            <option value="3">Large (1500-3000 sqft)</option>
-
-                            <option value="4">Very Large (&gt; 3000 sqft)</option>
-
-                          </>
-
-                        )}
-
-                        {lead.buyerRequirement?.propertyType === 'land' && (
-
-                          <>
-
-                            <option value="1">Small (&lt; 1000 sqft)</option>
-
-                            <option value="2">Medium (1000-2500 sqft)</option>
-
-                            <option value="3">Large (2500-5000 sqft)</option>
-
-                            <option value="4">Very Large (&gt; 5000 sqft)</option>
-
-                          </>
-
-                        )}
-
-                      </select>
-
-                    </div>
-
-                  </div>
+                  <BuyerRequirementFields
+                    value={lead.buyerRequirement}
+                    onChange={(buyerRequirement) => setLead({ ...lead, buyerRequirement })}
+                    disabled={isConverted}
+                    showSpeechToText
+                  />
 
                 </div>
 
@@ -1400,191 +1050,13 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
-
-                      <select
-
-                        value={lead.sellerProperty?.propertyType || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          sellerProperty: { ...lead.sellerProperty, propertyType: e.target.value }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                      >
-
-                        <option value="">Select type</option>
-
-                        <option value="apartment">Apartment</option>
-
-                        <option value="house">House</option>
-
-                        <option value="villa">Villa</option>
-
-                        <option value="office">Office</option>
-
-                        <option value="land">Land</option>
-
-                      </select>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Area/Location</label>
-
-                      <input
-
-                        type="text"
-
-                        value={lead.sellerProperty?.area || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          sellerProperty: { ...lead.sellerProperty, area: e.target.value }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                        placeholder="Property location"
-
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Expected Price</label>
-
-                      <div className="relative">
-
-                        <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-
-                          type="number"
-
-                          value={lead.sellerProperty?.expectedPrice || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            sellerProperty: { ...lead.sellerProperty, expectedPrice: Number(e.target.value) }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="Expected price"
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Timeline</label>
-
-                      <div className="flex gap-2">
-
-                        <input
-
-                          type="number"
-
-                          min="1"
-
-                          value={lead.sellerProperty?.timelineValue || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            sellerProperty: { 
-
-                              ...lead.sellerProperty, 
-
-                              timelineValue: Number(e.target.value),
-
-                              timeline: e.target.value && lead.sellerProperty?.timelineUnit 
-
-                                ? `${e.target.value} ${lead.sellerProperty.timelineUnit}` 
-
-                                : ''
-
-                            }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="Enter number"
-
-                        />
-
-                        <select
-
-                          value={lead.sellerProperty?.timelineUnit || 'months'}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            sellerProperty: { 
-
-                              ...lead.sellerProperty, 
-
-                              timelineUnit: e.target.value as 'days' | 'months',
-
-                              timeline: lead.sellerProperty?.timelineValue 
-
-                                ? `${lead.sellerProperty.timelineValue} ${e.target.value}` 
-
-                                : ''
-
-                            }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                        >
-
-                          <option value="days">Days</option>
-
-                          <option value="months">Months</option>
-
-                        </select>
-
-                      </div>
-
-                    </div>
-
-                  </div>
+                  <LeadPropertyFields
+                    variant="seller"
+                    value={lead.sellerProperty}
+                    onChange={(sellerProperty) => setLead({ ...lead, sellerProperty })}
+                    disabled={isConverted}
+                    sellerTimelineMode="structured"
+                  />
 
                 </div>
 
@@ -1792,107 +1264,12 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                   </h3>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
-
-                      <select
-
-                        value={lead.ownerProperty?.propertyType || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          ownerProperty: { ...lead.ownerProperty, propertyType: e.target.value }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                      >
-
-                        <option value="">Select type</option>
-
-                        <option value="apartment">Apartment</option>
-
-                        <option value="house">House</option>
-
-                        <option value="villa">Villa</option>
-
-                        <option value="office">Office</option>
-
-                      </select>
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Area/Location</label>
-
-                      <input
-
-                        type="text"
-
-                        value={lead.ownerProperty?.area || ''}
-
-                        onChange={(e) => setLead({
-
-                          ...lead,
-
-                          ownerProperty: { ...lead.ownerProperty, area: e.target.value }
-
-                        })}
-
-                        disabled={isConverted}
-
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                        placeholder="Property location"
-
-                      />
-
-                    </div>
-
-                    <div>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Expected Rent</label>
-
-                      <div className="relative">
-
-                        <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-
-                        <input
-
-                          type="number"
-
-                          value={lead.ownerProperty?.rentExpected || ''}
-
-                          onChange={(e) => setLead({
-
-                            ...lead,
-
-                            ownerProperty: { ...lead.ownerProperty, rentExpected: Number(e.target.value) }
-
-                          })}
-
-                          disabled={isConverted}
-
-                          className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-
-                          placeholder="Expected monthly rent"
-
-                        />
-
-                      </div>
-
-                    </div>
-
-                  </div>
+                  <LeadPropertyFields
+                    variant="owner"
+                    value={lead.ownerProperty}
+                    onChange={(ownerProperty) => setLead({ ...lead, ownerProperty })}
+                    disabled={isConverted}
+                  />
 
                 </div>
 
@@ -2220,6 +1597,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                                 </button>
 
+                                {canManageLeads() && (
                                 <button
 
                                   onClick={() => handleNoteDelete(note.noteId)}
@@ -2235,6 +1613,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                                   <Trash2 className="h-3.5 w-3.5" />
 
                                 </button>
+                                )}
 
                               </div>
 
@@ -2254,43 +1633,7 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
 
 
-                {lead.history && lead.history.length > 0 && (
-
-                  <div className="mt-6 pt-4 border-t">
-
-                    <h4 className="text-sm font-medium text-gray-700 mb-3">History</h4>
-
-                    <div className="space-y-2">
-
-                      {lead.history.map((entry, index) => (
-
-                        <div key={index} className="flex items-start text-sm">
-
-                          <div className="w-2 h-2 bg-amber-500 rounded-full mt-1.5 mr-3 flex-shrink-0"></div>
-
-                          <div>
-
-                            <span className="font-medium">{entry.action}</span>
-
-                            <span className="text-gray-500"> - {entry.details}</span>
-
-                            <div className="text-xs text-gray-400">
-
-                              {entry.updatedBy} • {new Date(entry.timestamp).toLocaleString()}
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      ))}
-
-                    </div>
-
-                  </div>
-
-                )}
+                <LeadActivityHistory history={lead.history} members={members} />
 
               </div>
 
@@ -2304,123 +1647,6 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
 
 
-      {/* Conversion Modal */}
-
-      {showConvertModal && (
-
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-
-          <div className="w-full max-w-md max-h-[80vh] overflow-hidden rounded-2xl border border-white/30 bg-white/70 shadow-2xl backdrop-blur-xl">
-
-            <div className="p-5 overflow-y-auto max-h-[80vh]">
-
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Convert Lead</h3>
-
-              <p className="text-sm text-gray-500 mb-4">
-
-                Converting <strong>{lead.name}</strong> to a{' '}
-
-                <strong>{lead.leadType}</strong> contact.
-
-              </p>
-
-
-
-              {matchingContacts.length > 0 && (
-
-                <div className="mb-4">
-
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-
-                    Found {matchingContacts.length} matching contact(s):
-
-                  </p>
-
-                  <div className="space-y-2">
-
-                    {matchingContacts.map((contact) => (
-
-                      <button
-
-                        key={contact.contactId}
-
-                        onClick={() => handleConvert(contact.contactId)}
-
-                        disabled={converting}
-
-                        className="w-full text-left p-3 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-
-                      >
-
-                        <div className="font-medium">{contact.name}</div>
-
-                        <div className="text-sm text-gray-500">{contact.phone}</div>
-
-                        <div className="text-xs text-indigo-600 mt-1">
-
-                          Click to link to this contact
-
-                        </div>
-
-                      </button>
-
-                    ))}
-
-                  </div>
-
-                  <div className="my-4 border-t border-gray-200"></div>
-
-                </div>
-
-              )}
-
-
-
-              <div className="flex gap-3">
-
-                <button
-
-                  onClick={() => handleConvert()}
-
-                  disabled={converting}
-
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-
-                >
-
-                  {converting ? 'Converting...' : 'Create New Contact'}
-
-                </button>
-
-                <button
-
-                  onClick={() => {
-
-                    setShowConvertModal(false);
-
-                    setMatchingContacts([]);
-
-                  }}
-
-                  disabled={converting}
-
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50"
-
-                >
-
-                  Cancel
-
-                </button>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      )}
 
 
 
@@ -2590,6 +1816,13 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
       )}
 
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </>
 
   );

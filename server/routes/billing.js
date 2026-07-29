@@ -11,7 +11,11 @@ import { sendEmail } from '../emailService.js';
 const router = express.Router();
 
 const TENANT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
-const MAX_WEBHOOK_CREDIT_GRANT = 100000;
+const MAX_WEBHOOK_CREDIT_GRANT = parseInt(process.env.MAX_WEBHOOK_CREDIT_GRANT || '100000', 10);
+const AI_EMPLOYEE_PLAN_ID = process.env.RAZORPAY_PLAN_AI_EMPLOYEE;
+if (!AI_EMPLOYEE_PLAN_ID) {
+  logger.warn('billing.razorpay_plan_ai_employee_not_configured');
+}
 
 function getTenantIdFromNotes(notes = {}, context = {}) {
   const tenantId = notes.tenantId || notes.tenant_id;
@@ -173,9 +177,8 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'subscription.activated': {
         const subscription = payload?.subscription?.entity;
         const planId = subscription?.plan_id;
-        const aiEmployeePlanId = process.env.RAZORPAY_PLAN_AI_EMPLOYEE || 'plan_test_ai_employee';
 
-        if (planId === aiEmployeePlanId) {
+        if (AI_EMPLOYEE_PLAN_ID && planId === AI_EMPLOYEE_PLAN_ID) {
           // Extract tenant info from subscription notes
           const notes = subscription?.notes || {};
           const tenantId = getTenantIdFromNotes(notes, { eventType, entityId: subscription?.id });
@@ -207,21 +210,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
               });
 
               // Email founder
-              await sendBrevoEmail(
-                process.env.BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID,
-                process.env.FOUNDER_EMAIL || 'info@realestateflow.in',
-                {
-                  agencyName,
-                  tenantId,
-                  contactPhone,
-                  contactEmail,
-                  paidAt: new Date().toISOString(),
-                }
-              );
+              const founderEmail = process.env.FOUNDER_EMAIL;
+              if (founderEmail) {
+                await sendBrevoEmail(
+                  process.env.BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID,
+                  founderEmail,
+                  {
+                    agencyName,
+                    tenantId,
+                    contactPhone,
+                    contactEmail,
+                    paidAt: new Date().toISOString(),
+                  }
+                );
+              } else {
+                logger.warn('billing.ai_employee_paid.founder_email_not_configured', { tenantId });
+              }
 
               // AiSensy broadcast
               if (contactPhone) {
-                const phone = contactPhone.startsWith('+91') ? contactPhone : `+91${contactPhone}`;
+                const defaultCountryCode = process.env.DEFAULT_COUNTRY_CODE || '';
+                const phone = contactPhone.startsWith('+') ? contactPhone : `${defaultCountryCode}${contactPhone}`;
                 await sendAiSensyBroadcast('AI-Employee-Onboarding-Pending', agencyName, phone);
               }
 
@@ -370,14 +379,20 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
               logger.warn('subscription.grace_period.activated', { tenantId, gracePeriodEndsAt });
 
               // Notify founder via Brevo
-              const { sendEmail } = await import('../emailService.js');
-              await sendEmail({
-                to: process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
-                subject: 'Payment Failed - Grace Period Activated',
-                html: `<p>Payment failed for tenant ${tenantId}. Grace period activated until ${gracePeriodEndsAt}.</p><p>Payment ID: ${payment?.id}</p>`,
-                brevoTemplateId: process.env.BREVO_PAYMENT_FAILED_TEMPLATE_ID || '4',
-                params: { tenantId, gracePeriodEndsAt, paymentId: payment?.id }
-              }).catch(err => logger.error('grace_period.email.failed', { error: err.message }));
+              const founderNotificationEmail = process.env.FOUNDER_EMAIL;
+              const paymentFailedTemplateId = process.env.BREVO_PAYMENT_FAILED_TEMPLATE_ID;
+              if (founderNotificationEmail) {
+                const { sendEmail } = await import('../emailService.js');
+                await sendEmail({
+                  to: founderNotificationEmail,
+                  subject: 'Payment Failed - Grace Period Activated',
+                  html: `<p>Payment failed for tenant ${tenantId}. Grace period activated until ${gracePeriodEndsAt}.</p><p>Payment ID: ${payment?.id}</p>`,
+                  brevoTemplateId: paymentFailedTemplateId,
+                  params: { tenantId, gracePeriodEndsAt, paymentId: payment?.id }
+                }).catch(err => logger.error('grace_period.email.failed', { error: err.message }));
+              } else {
+                logger.warn('billing.grace_period.founder_notification_email_not_configured', { tenantId });
+              }
             }
           } catch (graceErr) {
             logger.error('subscription.grace_period.activation_failed', { tenantId, error: graceErr.message });
@@ -469,12 +484,17 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
             }
 
             // Notify founder of chargeback
-            const { sendEmail } = await import('../emailService.js');
-            await sendEmail({
-              to: process.env.FOUNDER_NOTIFICATION_EMAIL || 'info@realestateflow.in',
-              subject: `Payment ${eventType} - ${tenantId}`,
-              html: `<p>Payment ${eventType} for tenant ${tenantId}. Payment ID: ${payment?.id}, Amount: ${payment?.amount}</p>`,
-            }).catch(err => logger.error('chargeback.notification.failed', { error: err.message }));
+            const founderNotificationEmail = process.env.FOUNDER_EMAIL;
+            if (founderNotificationEmail) {
+              const { sendEmail } = await import('../emailService.js');
+              await sendEmail({
+                to: founderNotificationEmail,
+                subject: `Payment ${eventType} - ${tenantId}`,
+                html: `<p>Payment ${eventType} for tenant ${tenantId}. Payment ID: ${payment?.id}, Amount: ${payment?.amount}</p>`,
+              }).catch(err => logger.error('chargeback.notification.failed', { error: err.message }));
+            } else {
+              logger.warn('billing.chargeback.founder_notification_email_not_configured', { tenantId });
+            }
 
             logger.warn('subscription.chargeback_processed', { tenantId, eventType, paymentId: payment?.id });
           } catch (chargebackErr) {
@@ -489,7 +509,6 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
         const subscription = payload?.subscription?.entity;
         const tenantId = getTenantIdFromNotes(subscription?.notes, { eventType, entityId: subscription?.id }) || 'unknown';
         const planId = subscription?.plan_id;
-        const aiEmployeePlanId = process.env.RAZORPAY_PLAN_AI_EMPLOYEE || 'plan_test_ai_employee';
 
         // Validate tenantId
         if (tenantId === 'unknown') {
@@ -500,7 +519,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
           break;
         }
 
-        if (tenantId !== 'unknown' && planId === aiEmployeePlanId) {
+        if (AI_EMPLOYEE_PLAN_ID && planId === AI_EMPLOYEE_PLAN_ID) {
           try {
             await suspendProvisioning(tenantId, eventType);
             await updateAgencyConfig(tenantId, { aiEmployeeEnabled: false });

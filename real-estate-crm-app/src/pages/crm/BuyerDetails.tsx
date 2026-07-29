@@ -157,20 +157,26 @@ export default function BuyerDetails() {
     try {
       setSaving(true);
       if (isNew) {
-        const created = await api.createContact({
+        const created = await api.createBuyer({
           name: contact.name,
           phone: contact.phone,
           email: contact.email,
           address: contact.address,
-          roles: { ...contact.roles, buyer: true },
-          status: contact.status as 'active' | 'inactive',
-          source: contact.source,
+          status: contact.status || 'active',
+          source: contact.source || 'direct',
           tags: contact.tags,
           notes: contact.notes,
+          budget: contact.buyerProfile?.budget,
+          preferredArea: contact.buyerProfile?.preferredArea,
+          propertyType: contact.buyerProfile?.propertyType,
+          requirement: contact.buyerProfile?.requirement,
+          bhk: contact.buyerProfile?.bhk,
+          furnishing: contact.buyerProfile?.furnishing,
+          priority: contact.buyerProfile?.priority,
         });
         if (draftActivityNote.trim()) {
           try {
-            await api.createContactNote(created.contactId, { content: draftActivityNote });
+            await api.createBuyerNote(created.buyerId, { content: draftActivityNote });
           } catch (e) {
             console.error('Error adding initial buyer note:', e);
           }
@@ -181,7 +187,7 @@ export default function BuyerDetails() {
           trackEvent('buyer_added', { source: 'form' });
           localStorage.setItem(firstUseKey, '1');
         }
-        navigate(`/crm/buyers/${created.contactId}`, { replace: true });
+        navigate(`/crm/buyers/${created.buyerId}`, { replace: true });
       } else if (isLegacyBuyer) {
         await api.updateBuyer(id!, {
           name: contact.name,
@@ -572,13 +578,16 @@ export default function BuyerDetails() {
             </div>
           )}
 
-          {/* Unified Activity Timeline */}
+          {/* Activity History */}
           {!isNew && (
             <div className="mt-6 pt-4 border-t">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center">
                 <History className="h-5 w-5 mr-2 text-purple-600" />
-                Unified Activity Timeline
+                Activity History
               </h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Purchases, meetings, notes, and property links — full buyer timeline.
+              </p>
               <ContactActivityTimeline entityType="buyer" entityId={id} />
             </div>
           )}

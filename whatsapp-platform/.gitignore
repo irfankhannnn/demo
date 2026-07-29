@@ -1,7 +1,9 @@
 node_modules/
 .env
+.env.production
 auth_state/
 auth-backups/
 infra/cfn-params-*.json
 !infra/cfn-params.example.json
+infra/.generated-*.env
 *.log

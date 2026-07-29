@@ -82,13 +82,20 @@ jest.unstable_mockModule('./crmDynamodbService.js', () => ({
   getCRMMetrics: jest.fn().mockResolvedValue({ totalLeads: 10, totalProperties: 5 }),
 
   searchLeads: jest.fn().mockResolvedValue([{ leadId: 'lead-1', name: 'Test' }]),
+  unwrapLeadsList: (result) => (Array.isArray(result) ? result : (result?.leads ?? [])),
+  hasLeadConversionTarget: (lead) => !!(lead?.convertedTo && (lead.convertedTo.entityId || lead.convertedTo.contactId)),
+  isLeadConverted: (lead) => !!(lead?.convertedTo && (lead.convertedTo.entityId || lead.convertedTo.contactId)),
+  isLeadConversionInProgress: () => false,
+  getLeadConversionSnapshots: jest.fn().mockResolvedValue([]),
+  getLeadConversionSnapshotsByLeadId: jest.fn().mockResolvedValue([]),
 }));
 
 jest.unstable_mockModule('./userCategoryService.js', () => ({
   canUserAccessTool: jest.fn().mockResolvedValue(true),
 }));
 
-const { invokeSkill, ALLOWED_TOOLS, TOOL_SCHEMAS } = await import('./skillInvoker.js');
+const { invokeSkill } = await import('./skillInvoker.js');
+const { ALLOWED_TOOL_NAMES: ALLOWED_TOOLS, TOOL_SCHEMAS } = await import('./shared/toolDefinitions.js');
 const crm = await import('./crmDynamodbService.js');
 
 const TENANT_ID = 'tenant-123';
@@ -131,6 +138,18 @@ describe('skillInvoker', () => {
   test('delete_lead calls deleteLead', async () => {
     const result = await invokeSkill(TENANT_ID, 'delete_lead', { leadId: 'lead-1' });
     expect(crm.deleteLead).toHaveBeenCalledWith(TENANT_ID, 'lead-1');
+    expect(result.ok).toBe(true);
+  });
+
+  test('get_lead passes leadId string not input object', async () => {
+    const result = await invokeSkill(TENANT_ID, 'get_lead', { leadId: 'lead-1' });
+    expect(crm.getLead).toHaveBeenCalledWith(TENANT_ID, 'lead-1');
+    expect(result.ok).toBe(true);
+  });
+
+  test('get_property passes propertyId string', async () => {
+    const result = await invokeSkill(TENANT_ID, 'get_property', { propertyId: 'p1' });
+    expect(crm.getProperty).toHaveBeenCalledWith(TENANT_ID, 'p1');
     expect(result.ok).toBe(true);
   });
 

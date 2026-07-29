@@ -1,63 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   WhatsApp Platform — multi-session Baileys workers on ECS Fargate.
-  Supports 50-100 active sessions per task with horizontal auto-scaling.
+  Compute is configurable (CPU/memory/desired count) so MVP/dev deployments can run tiny
+  (0.25 vCPU / 512 MB) while production can scale up later.
   Uses your existing VPC (no new networking created).
-
-Mappings:
-  ElbAccountIds:
-    us-east-1:
-      AccountId: "127311923021"
-    us-east-2:
-      AccountId: "033677994240"
-    us-west-1:
-      AccountId: "027434742980"
-    us-west-2:
-      AccountId: "797873946194"
-    af-south-1:
-      AccountId: "098369216593"
-    ap-east-1:
-      AccountId: "754344448648"
-    ap-south-1:
-      AccountId: "718504428378"
-    ap-northeast-1:
-      AccountId: "582318560864"
-    ap-northeast-2:
-      AccountId: "600734575887"
-    ap-northeast-3:
-      AccountId: "383597477331"
-    ap-southeast-1:
-      AccountId: "114774131450"
-    ap-southeast-2:
-      AccountId: "783225319266"
-    ap-southeast-3:
-      AccountId: "589379963580"
-    ca-central-1:
-      AccountId: "985666609251"
-    eu-central-1:
-      AccountId: "054676820965"
-    eu-north-1:
-      AccountId: "897822967069"
-    eu-south-1:
-      AccountId: "635631232127"
-    eu-south-2:
-      AccountId: "048601536715"
-    eu-west-1:
-      AccountId: "156460612806"
-    eu-west-2:
-      AccountId: "652711504416"
-    eu-west-3:
-      AccountId: "009996457667"
-    me-south-1:
-      AccountId: "076674570225"
-    sa-east-1:
-      AccountId: "507241528517"
-    us-gov-west-1:
-      AccountId: "048591011584"
-    cn-north-1:
-      AccountId: "638102146993"
-    cn-northwest-1:
-      AccountId: "037604701340"
 
 Parameters:
   EnvironmentName:
@@ -137,21 +83,21 @@ Parameters:
   DesiredCount:
     Type: Number
     Default: 1
-    MinValue: 1
+    MinValue: 0
     MaxValue: 20
-    Description: Initial ECS service desired task count
+    Description: ECS service desired task count (set to 0 in dev when not testing to stop charges)
 
   TaskCpu:
     Type: String
-    Default: "2048"
-    AllowedValues: ["1024", "2048", "4096"]
-    Description: Fargate task CPU units (2048 = 2 vCPU recommended for 100 sessions)
+    Default: "256"
+    AllowedValues: ["256", "512", "1024", "2048", "4096"]
+    Description: Fargate task CPU units (256 = 0.25 vCPU recommended for MVP/dev workloads; 2048 for 100 sessions)
 
   TaskMemory:
     Type: String
-    Default: "4096"
-    AllowedValues: ["2048", "4096", "8192"]
-    Description: Fargate task memory in MiB
+    Default: "512"
+    AllowedValues: ["512", "1024", "2048", "4096", "8192"]
+    Description: Fargate task memory in MiB (512 MiB recommended for MVP/dev; increase to 1024 if unstable)
 
   VpcId:
     Type: AWS::EC2::VPC::Id
@@ -167,10 +113,26 @@ Parameters:
     Type: String
     Description: CIDR block of the existing VPC (e.g. 10.0.0.0/16)
 
-  AlbIngressCidr:
+  DirectIngressCidr:
+    Type: String
+    Default: "0.0.0.0/0"
+    Description: CIDR allowed to access the ECS task directly on port 3003. Use 0.0.0.0/0 for public access, or your VPC/Office IP for restricted access.
+
+  HostedZoneId:
     Type: String
     Default: ""
-    Description: Optional narrower CIDR for ALB ingress. Defaults to VpcCidr.
+    Description: Route53 hosted zone ID for dynamic DNS. Leave empty to disable dynamic DNS.
+
+  DomainName:
+    Type: String
+    Default: ""
+    Description: DNS record name to update (e.g., whatsapp.realtyflow.com). Must be in the HostedZoneId zone. Leave empty to disable dynamic DNS.
+
+  SpotCapacity:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: Use Fargate Spot capacity for 60-70% cost savings. AWS can interrupt tasks with 2-minute warning.
 
   CloudwatchMetricsEnabled:
     Type: String
@@ -181,11 +143,62 @@ Parameters:
     Type: Number
     Default: 30
 
+  AlarmEmail:
+    Type: String
+    Default: ""
+    Description: Email address for CloudWatch alarm and Spot interruption notifications. Leave empty to disable notifications.
+
+Rules:
+  # Fargate only accepts specific CPU/Memory pairs. These rules fail fast with a
+  # clear message instead of a cryptic error deep into stack creation/update.
+  # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html
+  ValidTaskSizeFor256Cpu:
+    RuleCondition: !Equals [!Ref TaskCpu, "256"]
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref TaskMemory, "512"]
+          - !Equals [!Ref TaskMemory, "1024"]
+          - !Equals [!Ref TaskMemory, "2048"]
+        AssertDescription: "TaskCpu=256 (.25 vCPU) requires TaskMemory of 512, 1024, or 2048 MB"
+  ValidTaskSizeFor512Cpu:
+    RuleCondition: !Equals [!Ref TaskCpu, "512"]
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref TaskMemory, "1024"]
+          - !Equals [!Ref TaskMemory, "2048"]
+          - !Equals [!Ref TaskMemory, "4096"]
+        AssertDescription: "TaskCpu=512 (.5 vCPU) requires TaskMemory of 1024, 2048, 3072, or 4096 MB (this template only offers 1024/2048/4096)"
+  ValidTaskSizeFor1024Cpu:
+    RuleCondition: !Equals [!Ref TaskCpu, "1024"]
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref TaskMemory, "2048"]
+          - !Equals [!Ref TaskMemory, "4096"]
+          - !Equals [!Ref TaskMemory, "8192"]
+        AssertDescription: "TaskCpu=1024 (1 vCPU) requires TaskMemory between 2048-8192 MB (this template only offers 2048/4096/8192)"
+  ValidTaskSizeFor2048Cpu:
+    RuleCondition: !Equals [!Ref TaskCpu, "2048"]
+    Assertions:
+      - Assert: !Or
+          - !Equals [!Ref TaskMemory, "4096"]
+          - !Equals [!Ref TaskMemory, "8192"]
+        AssertDescription: "TaskCpu=2048 (2 vCPU) requires TaskMemory of 4096 or 8192 MB in this template"
+  ValidTaskSizeFor4096Cpu:
+    RuleCondition: !Equals [!Ref TaskCpu, "4096"]
+    Assertions:
+      - Assert: !Equals [!Ref TaskMemory, "8192"]
+        AssertDescription: "TaskCpu=4096 (4 vCPU) requires TaskMemory of 8192 MB in this template"
+
 Conditions:
-  UseCustomAlbIngress: !Not [!Equals [!Ref AlbIngressCidr, ""]]
   HasAdminKey: !Not [!Equals [!Ref AdminApiKey, ""]]
   HasWebhookSecret: !Not [!Equals [!Ref WebhookSecret, ""]]
   HasAuthEncryptionKey: !Not [!Equals [!Ref AuthEncryptionKey, ""]]
+  HasDesiredTasks: !Not [!Equals [!Ref DesiredCount, "0"]]
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+  UseSpotCapacity: !Equals [!Ref SpotCapacity, "true"]
+  HasDynamicDns: !And
+    - !Not [!Equals [!Ref HostedZoneId, ""]]
+    - !Not [!Equals [!Ref DomainName, ""]]
 
 Resources:
   # ─── KMS key for session state encryption ──────────────────────────────────
@@ -340,25 +353,6 @@ Resources:
           Value: whatsapp-platform
 
   # ─── Security groups ────────────────────────────────────────────────────────
-  AlbSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    DeletionPolicy: Delete
-    Properties:
-      GroupDescription: Internal ALB for WhatsApp Platform
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: !If [UseCustomAlbIngress, !Ref AlbIngressCidr, !Ref VpcCidr]
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: !If [UseCustomAlbIngress, !Ref AlbIngressCidr, !Ref VpcCidr]
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-whatsapp-alb-sg"
-
   ServiceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     DeletionPolicy: Delete
@@ -369,7 +363,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: 3003
           ToPort: 3003
-          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          CidrIp: !Ref DirectIngressCidr
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0
@@ -491,50 +485,14 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !GetAtt PlatformLogGroup.Arn
-
-  # ─── ALB ────────────────────────────────────────────────────────────────────
-  InternalAlb:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: !Sub "${EnvironmentName}-whatsapp-alb"
-      Scheme: internal
-      Type: application
-      Subnets: !Ref PrivateSubnetIds
-      SecurityGroups:
-        - !Ref AlbSecurityGroup
-      LoadBalancerAttributes:
-        - Key: access_logs.s3.enabled
-          Value: false
-      Tags:
-        - Key: Environment
-          Value: !Ref EnvironmentName
-
-  AlbTargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      Name: !Sub "${EnvironmentName}-whatsapp-tg"
-      Port: 3003
-      Protocol: HTTP
-      VpcId: !Ref VpcId
-      TargetType: ip
-      HealthCheckPath: /health
-      HealthCheckIntervalSeconds: 30
-      HealthCheckTimeoutSeconds: 5
-      HealthyThresholdCount: 2
-      UnhealthyThresholdCount: 3
-
-  AlbListener:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    DependsOn:
-      - AlbTargetGroup
-      - InternalAlb
-    Properties:
-      LoadBalancerArn: !Ref InternalAlb
-      Port: 80
-      Protocol: HTTP
-      DefaultActions:
-        - Type: forward
-          TargetGroupArn: !Ref AlbTargetGroup
+              - Sid: EcsExecForDebugging
+                Effect: Allow
+                Action:
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: "*"
 
   # ─── ECS Task Definition ────────────────────────────────────────────────────
   TaskDefinition:
@@ -602,74 +560,453 @@ Resources:
   # ─── ECS Service ─────────────────────────────────────────────────────────────
   EcsService:
     Type: AWS::ECS::Service
-    DependsOn:
-      - AlbListener
-      - AlbTargetGroup
     Properties:
       ServiceName: !Sub "${EnvironmentName}-whatsapp-platform"
       Cluster: !Ref EcsCluster
       TaskDefinition: !Ref TaskDefinition
       DesiredCount: !Ref DesiredCount
-      LaunchType: FARGATE
+      CapacityProviderStrategy:
+        - CapacityProvider: FARGATE_SPOT
+          Weight: !If [UseSpotCapacity, 1, 0]
+          Base: 0
+        - CapacityProvider: FARGATE
+          Weight: !If [UseSpotCapacity, 0, 1]
+          Base: 0
       NetworkConfiguration:
         AwsvpcConfiguration:
           Subnets: !Ref PrivateSubnetIds
           SecurityGroups:
             - !Ref ServiceSecurityGroup
-          AssignPublicIp: DISABLED
-      LoadBalancers:
-        - ContainerName: whatsapp-platform
-          ContainerPort: 3003
-          TargetGroupArn: !Ref AlbTargetGroup
+          AssignPublicIp: ENABLED
       HealthCheckGracePeriodSeconds: 60
+      DeploymentConfiguration:
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      EnableExecuteCommand: true
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
 
-  # ─── Auto Scaling ─────────────────────────────────────────────────────────────
-  ScalableTarget:
-    Type: AWS::ApplicationAutoScaling::ScalableTarget
-    DependsOn: EcsService
-    Properties:
-      MaxCapacity: 20
-      MinCapacity: 1
-      ResourceId: !Sub "service/${EcsCluster}/${EcsService}"
-      ScalableDimension: ecs:service:DesiredCount
-      ServiceNamespace: ecs
-      RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+  # ─── Auto Scaling (disabled for initial deployment, enable after stack is stable) ──
+  # NOTE: If you enable this, set MinCapacity to match your DesiredCount default (0 for
+  # dev/idle, 1+ for prod). MinCapacity: 1 will fight against `deploy.sh stop`, which sets
+  # DesiredCount to 0 — Application Auto Scaling will scale it back up to MinCapacity.
+  # ScalableTarget:
+  #   Type: AWS::ApplicationAutoScaling::ScalableTarget
+  #   DependsOn: EcsService
+  #   Properties:
+  #     MaxCapacity: 20
+  #     MinCapacity: 1
+  #     ResourceId: !Sub "service/${EcsCluster}/${EcsService}"
+  #     ScalableDimension: ecs:service:DesiredCount
+  #     ServiceNamespace: ecs
+  #     RoleARN: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService"
+  #
+  # CpuScalingPolicy:
+  #   Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  #   Properties:
+  #     PolicyName: !Sub "${EnvironmentName}-whatsapp-cpu-scaling"
+  #     PolicyType: TargetTrackingScaling
+  #     ScalingTargetId: !Ref ScalableTarget
+  #     TargetTrackingScalingPolicyConfiguration:
+  #       PredefinedMetricSpecification:
+  #         PredefinedMetricType: ECSServiceAverageCPUUtilization
+  #       TargetValue: 70.0
+  #       ScaleInCooldown: 300
+  #       ScaleOutCooldown: 60
+  #
+  # MemoryScalingPolicy:
+  #   Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  #   Properties:
+  #     PolicyName: !Sub "${EnvironmentName}-whatsapp-memory-scaling"
+  #     PolicyType: TargetTrackingScaling
+  #     ScalingTargetId: !Ref ScalableTarget
+  #     TargetTrackingScalingPolicyConfiguration:
+  #       PredefinedMetricSpecification:
+  #         PredefinedMetricType: ECSServiceAverageMemoryUtilization
+  #       TargetValue: 80.0
+  #       ScaleInCooldown: 300
+  #       ScaleOutCooldown: 60
 
-  CpuScalingPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  # ─── SNS Topic for Alarms & Spot Interruption Notifications ──────────────────
+  AlarmSnsTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlarmEmail
     Properties:
-      PolicyName: !Sub "${EnvironmentName}-whatsapp-cpu-scaling"
-      PolicyType: TargetTrackingScaling
-      ScalingTargetId: !Ref ScalableTarget
-      TargetTrackingScalingPolicyConfiguration:
-        PredefinedMetricSpecification:
-          PredefinedMetricType: ECSServiceAverageCPUUtilization
-        TargetValue: 70.0
-        ScaleInCooldown: 300
-        ScaleOutCooldown: 60
+      TopicName: !Sub "${EnvironmentName}-whatsapp-platform-alarms"
+      DisplayName: !Sub "${EnvironmentName} WhatsApp Platform Alerts"
 
-  MemoryScalingPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  AlarmSnsSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlarmEmail
     Properties:
-      PolicyName: !Sub "${EnvironmentName}-whatsapp-memory-scaling"
-      PolicyType: TargetTrackingScaling
-      ScalingTargetId: !Ref ScalableTarget
-      TargetTrackingScalingPolicyConfiguration:
-        PredefinedMetricSpecification:
-          PredefinedMetricType: ECSServiceAverageMemoryUtilization
-        TargetValue: 80.0
-        ScaleInCooldown: 300
-        ScaleOutCooldown: 60
+      Protocol: email
+      TopicArn: !Ref AlarmSnsTopic
+      Endpoint: !Ref AlarmEmail
+
+  # ─── EventBridge Rule: Spot Interruption Warning ─────────────────────────────
+  SpotInterruptionRule:
+    Type: AWS::Events::Rule
+    Condition: HasAlarmEmail
+    Properties:
+      Name: !Sub "${EnvironmentName}-whatsapp-spot-interruption"
+      Description: "Notify when Fargate Spot task receives interruption warning"
+      EventPattern:
+        source:
+          - aws.ecs
+        detail-type:
+          - ECS Task State Change
+        detail:
+          clusterArn:
+            - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${EcsCluster}"
+          stoppedReason:
+            - prefix: "Your Spot capacity has been interrupted"
+      Targets:
+        - Id: sns
+          Arn: !Ref AlarmSnsTopic
+
+  # ─── EventBridge Rule: Task Stopped (crash, OOM, etc.) ───────────────────────
+  TaskStoppedRule:
+    Type: AWS::Events::Rule
+    Condition: HasAlarmEmail
+    Properties:
+      Name: !Sub "${EnvironmentName}-whatsapp-task-stopped"
+      Description: "Notify when ECS task stops unexpectedly"
+      EventPattern:
+        source:
+          - aws.ecs
+        detail-type:
+          - ECS Task State Change
+        detail:
+          clusterArn:
+            - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${EcsCluster}"
+          lastStatus:
+            - STOPPED
+          desiredStatus:
+            - STOPPED
+      Targets:
+        - Id: sns
+          Arn: !Ref AlarmSnsTopic
+
+  # ─── Route53 Dynamic DNS ───────────────────────────────────────────────────
+  # Updates a Route53 A record whenever an ECS task enters RUNNING state.
+  DynamicDnsRole:
+    Type: AWS::IAM::Role
+    Condition: HasDynamicDns
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: dynamic-dns-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ecs:DescribeTasks
+                  - ec2:DescribeNetworkInterfaces
+                  - route53:ChangeResourceRecordSets
+                Resource: "*"
+
+  DynamicDnsFunction:
+    Type: AWS::Lambda::Function
+    Condition: HasDynamicDns
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-whatsapp-dynamic-dns"
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !GetAtt DynamicDnsRole.Arn
+      Timeout: 30
+      Environment:
+        Variables:
+          CLUSTER_NAME: !Ref EcsCluster
+          SERVICE_NAME: !Sub "${EnvironmentName}-whatsapp-platform"
+          RECORD_NAME: !Ref DomainName
+          HOSTED_ZONE_ID: !Ref HostedZoneId
+      Code:
+        ZipFile: |
+          import json
+          import os
+          import boto3
+
+          ecs = boto3.client('ecs')
+          ec2 = boto3.client('ec2')
+          route53 = boto3.client('route53')
+
+          CLUSTER_NAME = os.environ['CLUSTER_NAME']
+          SERVICE_NAME = os.environ['SERVICE_NAME']
+          RECORD_NAME = os.environ['RECORD_NAME']
+          HOSTED_ZONE_ID = os.environ['HOSTED_ZONE_ID']
+
+          def handler(event, context):
+              detail = event.get('detail', {})
+              if detail.get('lastStatus') != 'RUNNING' or detail.get('desiredStatus') != 'RUNNING':
+                  return {'statusCode': 200, 'body': 'ignored: not running'}
+
+              cluster_arn = detail.get('clusterArn', '')
+              if CLUSTER_NAME not in cluster_arn:
+                  return {'statusCode': 200, 'body': 'ignored: different cluster'}
+
+              task_arn = detail.get('taskArn')
+              if not task_arn:
+                  return {'statusCode': 200, 'body': 'ignored: no task arn'}
+
+              try:
+                  task = ecs.describe_tasks(cluster=cluster_arn, tasks=[task_arn])['tasks'][0]
+              except Exception as e:
+                  print(f"describe_tasks failed: {e}")
+                  return {'statusCode': 500, 'body': str(e)}
+
+              eni_id = None
+              for attachment in task.get('attachments', []):
+                  if attachment.get('type') == 'ElasticNetworkInterface':
+                      for d in attachment.get('details', []):
+                          if d.get('name') == 'networkInterfaceId':
+                              eni_id = d.get('value')
+                              break
+                  if eni_id:
+                      break
+
+              if not eni_id:
+                  print("No network interface found")
+                  return {'statusCode': 200, 'body': 'ignored: no network interface'}
+
+              try:
+                  eni = ec2.describe_network_interfaces(NetworkInterfaceIds=[eni_id])['NetworkInterfaces'][0]
+                  public_ip = eni.get('Association', {}).get('PublicIp')
+              except Exception as e:
+                  print(f"describe_network_interfaces failed: {e}")
+                  return {'statusCode': 500, 'body': str(e)}
+
+              if not public_ip:
+                  print("No public IP found")
+                  return {'statusCode': 200, 'body': 'ignored: no public ip'}
+
+              try:
+                  route53.change_resource_record_sets(
+                      HostedZoneId=HOSTED_ZONE_ID,
+                      ChangeBatch={
+                          'Changes': [{
+                              'Action': 'UPSERT',
+                              'ResourceRecordSet': {
+                                  'Name': RECORD_NAME,
+                                  'Type': 'A',
+                                  'TTL': 60,
+                                  'ResourceRecords': [{'Value': public_ip}]
+                              }
+                          }]
+                      }
+                  )
+              except Exception as e:
+                  print(f"route53 update failed: {e}")
+                  return {'statusCode': 500, 'body': str(e)}
+
+              print(f"Updated {RECORD_NAME} -> {public_ip}")
+              return {'statusCode': 200, 'body': f'updated {RECORD_NAME} -> {public_ip}'}
+
+  DynamicDnsEventRule:
+    Type: AWS::Events::Rule
+    Condition: HasDynamicDns
+    Properties:
+      Name: !Sub "${EnvironmentName}-whatsapp-dynamic-dns"
+      Description: "Update Route53 A record when ECS task enters RUNNING state"
+      EventPattern:
+        source:
+          - aws.ecs
+        detail-type:
+          - ECS Task State Change
+        detail:
+          clusterArn:
+            - !Sub "arn:aws:ecs:${AWS::Region}:${AWS::AccountId}:cluster/${EcsCluster}"
+          lastStatus:
+            - RUNNING
+          desiredStatus:
+            - RUNNING
+      Targets:
+        - Id: lambda
+          Arn: !GetAtt DynamicDnsFunction.Arn
+
+  DynamicDnsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasDynamicDns
+    DependsOn: DynamicDnsEventRule
+    Properties:
+      FunctionName: !Ref DynamicDnsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt DynamicDnsEventRule.Arn
+
+  # ─── CloudWatch Alarms ───────────────────────────────────────────────────────
+  # CPU Utilization Alarms
+  CpuAlarmWarning:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-cpu-warning"
+      AlarmDescription: "ECS service CPU utilization above 60%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 60
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${EnvironmentName}-whatsapp-platform"
+        - Name: ClusterName
+          Value: !Ref EcsCluster
+
+  CpuAlarmCritical:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-cpu-critical"
+      AlarmDescription: "ECS service CPU utilization above 80%"
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${EnvironmentName}-whatsapp-platform"
+        - Name: ClusterName
+          Value: !Ref EcsCluster
+
+  # Memory Utilization Alarms
+  MemoryAlarmWarning:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-memory-warning"
+      AlarmDescription: "ECS service memory utilization above 70%"
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${EnvironmentName}-whatsapp-platform"
+        - Name: ClusterName
+          Value: !Ref EcsCluster
+
+  MemoryAlarmCritical:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-memory-critical"
+      AlarmDescription: "ECS service memory utilization above 85%"
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${EnvironmentName}-whatsapp-platform"
+        - Name: ClusterName
+          Value: !Ref EcsCluster
+
+  # Task Restart Alarm — only meaningful when we expect at least one task running
+  TaskRestartAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Condition: HasDesiredTasks
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-task-restart"
+      AlarmDescription: "ECS service running tasks less than desired count"
+      MetricName: RunningCount
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 3
+      Threshold: !Ref DesiredCount
+      ComparisonOperator: LessThanThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+      Dimensions:
+        - Name: ServiceName
+          Value: !Sub "${EnvironmentName}-whatsapp-platform"
+        - Name: ClusterName
+          Value: !Ref EcsCluster
+
+  # OOMKilled Log Metric Filters — multiple filters because metric filter syntax
+  # does not support OR (||). Each filter increments the same custom metric.
+  OomKilledMetricFilterOutOfMemory:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PlatformLogGroup
+      FilterPattern: '"OutOfMemory"'
+      MetricTransformations:
+        - MetricName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+          MetricNamespace: WhatsAppPlatform
+          MetricValue: 1
+
+  OomKilledMetricFilterOOMKilled:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PlatformLogGroup
+      FilterPattern: '"OOMKilled"'
+      MetricTransformations:
+        - MetricName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+          MetricNamespace: WhatsAppPlatform
+          MetricValue: 1
+
+  OomKilledMetricFilterContainerKilled:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PlatformLogGroup
+      FilterPattern: '"Container killed"'
+      MetricTransformations:
+        - MetricName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+          MetricNamespace: WhatsAppPlatform
+          MetricValue: 1
+
+  OomKilledMetricFilterHeap:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PlatformLogGroup
+      FilterPattern: '"JavaScript heap out of memory"'
+      MetricTransformations:
+        - MetricName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+          MetricNamespace: WhatsAppPlatform
+          MetricValue: 1
+
+  # OOMKilled Alarm
+  OomKilledAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+      AlarmDescription: "Container killed due to out of memory"
+      MetricName: !Sub "${EnvironmentName}-whatsapp-oom-killed"
+      Namespace: WhatsAppPlatform
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
 
 Outputs:
-  AlbDnsName:
-    Description: Internal ALB DNS name — use as WHATSAPP_PLATFORM_API_URL in CRM
-    Value: !GetAtt InternalAlb.DNSName
+  ServiceName:
+    Description: ECS service name — use to look up running task public IP
+    Value: !Sub "${EnvironmentName}-whatsapp-platform"
     Export:
-      Name: !Sub "${EnvironmentName}-whatsapp-platform-alb-dns"
+      Name: !Sub "${EnvironmentName}-whatsapp-platform-service-name"
 
   SessionBucket:
     Description: S3 bucket for session auth state

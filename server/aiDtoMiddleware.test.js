@@ -39,14 +39,21 @@ jest.unstable_mockModule('./crmDynamodbService.js', () => ({
   }),
   deleteLead: jest.fn().mockResolvedValue(true),
   convertLead: jest.fn().mockResolvedValue({
-    lead: { leadId: 'lead-001', name: 'Raj Kumar', status: 'converted' },
-    entity: { ownerId: 'owner-001' },
+    entity: { ownerId: 'owner-001', name: 'Raj Kumar' },
     entityType: 'owner',
+    conversionSnapshotId: 'snap-001',
+    leadId: 'lead-001',
+    role: 'owner',
+    lead: null,
   }),
   createLeadNote: jest.fn().mockResolvedValue({ noteId: 'n1', content: 'note' }),
   getLeadNotes: jest.fn().mockResolvedValue([{ noteId: 'n1', content: 'note' }]),
   updateLeadNote: jest.fn().mockResolvedValue({ noteId: 'n1', content: 'updated' }),
   deleteLeadNote: jest.fn().mockResolvedValue(true),
+  unwrapLeadsList: (result) => (Array.isArray(result) ? result : (result?.leads ?? [])),
+  hasLeadConversionTarget: () => false,
+  isLeadConverted: () => false,
+  isLeadConversionInProgress: () => false,
 
   // Owner functions used by ownerService
   getOwner: jest.fn().mockResolvedValue({

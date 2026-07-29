@@ -36,6 +36,9 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
     ? Math.ceil((new Date(subscription.trialEndsAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
     : trialDaysLeft;
 
+  // Only surface the banner in the final week of trial (or when expired)
+  if (showTrialing && !showExpired && actualDaysLeft > 7) return null;
+
   const isUrgent = showExpired || actualDaysLeft <= 3;
   const bgColor = isUrgent ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
   const textColor = isUrgent ? 'text-red-800' : 'text-amber-800';

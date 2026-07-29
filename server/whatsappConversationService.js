@@ -9,13 +9,13 @@ const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.CRM_DYNAMODB_TABLE_NAME;
 
 const META_READ_SK = 'META#read';
-const TTL_SECONDS = 90 * 24 * 60 * 60;
+const TTL_SECONDS = parseInt(process.env.WHATSAPP_CONTEXT_TTL_SECONDS || '7776000', 10); // 90 days
 // Only include messages from the last N hours when building LLM conversation context.
 // This prevents old, unrelated conversations from leaking into the current reply.
-const CONTEXT_TIME_WINDOW_HOURS = 2;
+const CONTEXT_TIME_WINDOW_HOURS = parseInt(process.env.WHATSAPP_CONTEXT_TIME_WINDOW_HOURS || '2', 10);
 // Group chats can accumulate many messages quickly; cap context for groups to avoid
 // bloating the LLM prompt and keep replies focused on the recent conversation.
-const MAX_GROUP_CONTEXT_MESSAGES = 20;
+const MAX_GROUP_CONTEXT_MESSAGES = parseInt(process.env.WHATSAPP_MAX_GROUP_CONTEXT_MESSAGES || '20', 10);
 
 const WHITELISTED_NUMBERS = (process.env.AI_ADMIN_WHATSAPP_NUMBERS || '')
   .split(',')

@@ -18,7 +18,7 @@ router.use(validateToken, extractTenantId, requireAdminOrManager);
 router.get('/activity', async (req, res) => {
   const tenantId = req.tenantId;
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const limit = Math.min(parseInt(req.query.limit, 10) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '20', 10), 100);
     const agentId = req.query.agentId || undefined;
     const items = await getAgentActivity(tenantId, { limit, agentId });
     return res.json({ activities: items });

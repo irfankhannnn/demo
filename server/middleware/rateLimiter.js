@@ -1,5 +1,14 @@
-const WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS = 100;
+const WINDOW_MS = parseInt(process.env.RATE_LIMIT_WINDOW_MS || '60000', 10);
+const MAX_REQUESTS = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10);
+
+const noopRateLimit = (_req, _res, next) => next();
+
+function isRateLimitDisabled() {
+  if (process.env.RATE_LIMIT_DISABLED === 'true') return true;
+  if (process.env.RATE_LIMIT_DISABLED === 'false') return false;
+  const env = (process.env.NODE_ENV || 'development').toLowerCase();
+  return env === 'development' || env === 'dev';
+}
 
 function getClientIp(req) {
   // In production behind API Gateway, trust the API Gateway source IP
@@ -22,6 +31,8 @@ function getClientIp(req) {
 }
 
 function createRateLimit(windowMs = WINDOW_MS, maxRequests = MAX_REQUESTS) {
+  if (isRateLimitDisabled()) return noopRateLimit;
+
   const map = new Map();
 
   function cleanupExpired(now) {
@@ -54,15 +65,26 @@ function createRateLimit(windowMs = WINDOW_MS, maxRequests = MAX_REQUESTS) {
   };
 }
 
-export const webhookRateLimit = createRateLimit(60 * 1000, 20);
-export const authRateLimit = createRateLimit(60 * 1000, 10);
-export const strictRateLimit = createRateLimit(60 * 1000, 30);
+export const webhookRateLimit = createRateLimit(
+  parseInt(process.env.WEBHOOK_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  parseInt(process.env.WEBHOOK_RATE_LIMIT_MAX_REQUESTS || '20', 10)
+);
+export const authRateLimit = createRateLimit(
+  parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || '10', 10)
+);
+export const strictRateLimit = createRateLimit(
+  parseInt(process.env.STRICT_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  parseInt(process.env.STRICT_RATE_LIMIT_MAX_REQUESTS || '30', 10)
+);
 
 /**
  * Per-tenant rate limiter. Uses tenantId from req.tenantId (set by extractTenantId middleware).
  * Must be mounted AFTER extractTenantId.
  */
 function createTenantRateLimit(windowMs = WINDOW_MS, maxRequests = 200) {
+  if (isRateLimitDisabled()) return noopRateLimit;
+
   const map = new Map();
 
   function cleanupExpired(now) {
@@ -97,8 +119,14 @@ function createTenantRateLimit(windowMs = WINDOW_MS, maxRequests = 200) {
   };
 }
 
-export const tenantRateLimit = createTenantRateLimit(60 * 1000, 200);
-export const creditActionRateLimit = createTenantRateLimit(60 * 1000, 30); // 30 credit-charging actions per minute
+export const tenantRateLimit = createTenantRateLimit(
+  parseInt(process.env.TENANT_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  parseInt(process.env.TENANT_RATE_LIMIT_MAX_REQUESTS || '200', 10)
+);
+export const creditActionRateLimit = createTenantRateLimit(
+  parseInt(process.env.CREDIT_ACTION_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  parseInt(process.env.CREDIT_ACTION_RATE_LIMIT_MAX_REQUESTS || '30', 10)
+); // credit-charging actions per minute
 
 const rateLimit = createRateLimit();
 export default rateLimit;

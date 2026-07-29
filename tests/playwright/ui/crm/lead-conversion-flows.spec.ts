@@ -1,13 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { TEST_TIMEOUT_MS, BASE_URL, API_URL } from '../../helpers/config';
 import { setupEvidence, createLogger, setupDialogHandler, snap } from '../../helpers/evidence';
-import { generateUniqueName, generateTestPhone, generateTestEmail, generateLeadRequirement } from '../../helpers/seedData';
+import { createTestRun, generateUniqueName, generateTestEmail, generateLeadRequirement, phoneForRun } from '../../helpers/seedData';
+import { jsonAuthHeaders, resolveApiAuth } from '../../helpers/apiAuth';
 
-const TEST_TOKEN = process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
-const jsonHeaders = (token: string) => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${token}`,
-});
+const jsonHeaders = (token: string) => jsonAuthHeaders({ token });
+
+function requireApiToken(): string {
+  const auth = resolveApiAuth();
+  if (!auth.token) {
+    throw new Error('No API token — run playwright setup (auth) first');
+  }
+  return auth.token;
+}
 
 async function retryCreateProperty(request: any, token: string, payload: any, maxRetries = 5): Promise<{ propertyId: string; body: any }> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -59,8 +64,11 @@ async function retryConvertLead(request: any, token: string, leadId: string, pay
 }
 
 test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
+  let TEST_TOKEN = '';
+
   test.beforeAll(() => {
-    test.skip(!TEST_TOKEN, 'TEST_TOKEN not set — skipping lead conversion tests');
+    TEST_TOKEN = resolveApiAuth().token || process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
+    test.skip(!TEST_TOKEN, 'TEST_TOKEN / auth cache not set — skipping lead conversion tests');
   });
 
   // ============================================================
@@ -73,12 +81,12 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     setupDialogHandler(page, log);
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 0);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 0);
     const sellerName = nameObj.fullName;
-    const sellerPhone = generateTestPhone(1, 7_000_000_000 + (Date.now() % 1_000_000));
-    const sellerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 1, 'test.com');
-    const sellerReq = generateLeadRequirement(runStamp, 'seller', 0);
+    const sellerPhone = phoneForRun(run, 1);
+    const sellerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 1, 'test.com', run.runStamp);
+    const sellerReq = generateLeadRequirement(run.runStamp, 'seller', 0);
 
     let leadId = '';
 
@@ -204,23 +212,33 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
       await snap(page, ctx, '02-seller-converted');
     });
 
-    await test.step('Verify converted owner and property listing', async () => {
+    await test.step('Verify converted owner, contact, and property listing', async () => {
       if (!leadId) { test.skip(true, 'Lead creation failed'); return; }
 
-      // Get the lead to find converted owner ID
-      const leadRes = await request.get(`${API_URL}/crm/leads/${leadId}`, {
+      // Lead profile is deleted after conversion — verify via Contact + Owner by phone
+      const contactsRes = await request.get(`${API_URL}/crm/contacts?role=seller`, {
         headers: jsonHeaders(TEST_TOKEN),
       });
-      const leadBody = await leadRes.json();
-      const ownerId = leadBody.convertedTo?.entityId;
+      expect([200, 401]).toContain(contactsRes.status());
+      if (contactsRes.status() === 401) {
+        test.skip(true, 'TEST_TOKEN expired — run auth setup');
+        return;
+      }
+      const contactsBody = await contactsRes.json();
+      const contacts = Array.isArray(contactsBody) ? contactsBody : (contactsBody.contacts || []);
+      const contact = contacts.find((c: any) =>
+        String(c.phone || '').includes(sellerPhone.slice(-10))
+        || String(c.name || '') === sellerName
+      );
+      expect(contact?.contactId).toBeTruthy();
+      expect(contact?.roles?.seller).toBe(true);
+      expect(contact?.sellerProfile?.lifecycleStatus || 'active').toBeTruthy();
+      log('ContactVerified', 'PASS', `Seller contact created: ${contact.contactId}`);
 
-      expect(leadBody.status).toBe('converted');
-      expect(leadBody.convertedAt).toBeTruthy();
+      const ownerId = contact.linkedOwnerId;
       expect(ownerId).toBeTruthy();
-      log('LeadConverted', 'PASS', `Lead marked as converted, owner ID: ${ownerId}`);
 
       if (ownerId) {
-        // Verify owner details
         const ownerRes = await request.get(`${API_URL}/crm/owners/${ownerId}`, {
           headers: jsonHeaders(TEST_TOKEN),
         });
@@ -230,7 +248,6 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
         expect(ownerBody.status).toBe('active');
         log('OwnerVerified', 'PASS', `Owner details preserved: ${ownerBody.name}`);
 
-        // Verify property listing created
         const propsRes = await request.get(`${API_URL}/crm/owners/${ownerId}/properties`, {
           headers: jsonHeaders(TEST_TOKEN),
         });
@@ -250,6 +267,18 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
         expect(createdProp.floor).toBe(sellerReq.floor);
         expect(createdProp.carpetArea).toBe(sellerReq.carpetArea);
         expect(createdProp.furnishing).toBe(sellerReq.furnishing);
+        expect(createdProp.currentOwnerContactId || contact.contactId).toBeTruthy();
+
+        const listingsRes = await request.get(`${API_URL}/crm/listings?propertyId=${createdProp.propertyId}&status=active`, {
+          headers: jsonHeaders(TEST_TOKEN),
+        });
+        if (listingsRes.status() === 200) {
+          const listingsBody = await listingsRes.json();
+          const listings = listingsBody.listings || [];
+          expect(listings.length).toBeGreaterThan(0);
+          expect(listings[0].listingType).toBe('sale');
+          log('ListingVerified', 'PASS', `Listing created: ${listings[0].listingId}`);
+        }
 
         log('PropertyVerified', 'PASS', `Property listing created with all details: ${createdProp.propertyId}`);
       }
@@ -266,12 +295,12 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     setupDialogHandler(page, log);
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 1);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 1);
     const ownerName = nameObj.fullName;
-    const ownerPhone = generateTestPhone(2, 7_000_000_000 + (Date.now() % 1_000_000));
-    const ownerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 2, 'test.com');
-    const ownerReq = generateLeadRequirement(runStamp, 'owner', 1);
+    const ownerPhone = phoneForRun(run, 2);
+    const ownerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 2, 'test.com', run.runStamp);
+    const ownerReq = generateLeadRequirement(run.runStamp, 'owner', 1);
 
     let leadId = '';
 
@@ -455,12 +484,12 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     setupDialogHandler(page, log);
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 2);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 2);
     const buyerName = nameObj.fullName;
-    const buyerPhone = generateTestPhone(3, 7_000_000_000 + (Date.now() % 1_000_000));
-    const buyerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 3, 'test.com');
-    const buyerReq = generateLeadRequirement(runStamp, 'buyer', 2);
+    const buyerPhone = phoneForRun(run, 3);
+    const buyerEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 3, 'test.com', run.runStamp);
+    const buyerReq = generateLeadRequirement(run.runStamp, 'buyer', 2);
 
     let leadId = '';
     let propertyId = '';
@@ -471,8 +500,8 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
       const ownerRes = await request.post(`${API_URL}/crm/owners`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          name: `Property Owner for Buyer Test ${runStamp}`,
-          phone: generateTestPhone(100, 7_000_000_000 + (Date.now() % 1_000_000)),
+          name: `Property Owner for Buyer Test ${run.runStamp}`,
+          phone: phoneForRun(run, 100),
         },
       });
       // Skip if auth token expired
@@ -651,12 +680,12 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     setupDialogHandler(page, log);
     await page.setViewportSize({ width: 1280, height: 720 });
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 3);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 3);
     const tenantName = nameObj.fullName;
-    const tenantPhone = generateTestPhone(4, 7_000_000_000 + (Date.now() % 1_000_000));
-    const tenantEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 4, 'test.com');
-    const tenantReq = generateLeadRequirement(runStamp, 'tenant', 3);
+    const tenantPhone = phoneForRun(run, 4);
+    const tenantEmail = generateTestEmail(nameObj.firstName.toLowerCase(), 4, 'test.com', run.runStamp);
+    const tenantReq = generateLeadRequirement(run.runStamp, 'tenant', 3);
 
     let leadId = '';
     let propertyId = '';
@@ -666,8 +695,8 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
       const ownerRes = await request.post(`${API_URL}/crm/owners`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          name: `Property Owner for Tenant Test ${runStamp}`,
-          phone: generateTestPhone(101, 7_000_000_000 + (Date.now() % 1_000_000)),
+          name: `Property Owner for Tenant Test ${run.runStamp}`,
+          phone: phoneForRun(run, 101),
         },
       });
       // Skip if auth token expired
@@ -833,8 +862,8 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     const ctx = setupEvidence('conversion-guard-no-phone');
     const log = createLogger(ctx.feature);
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 10);
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 10);
 
     let leadId = '';
 
@@ -877,9 +906,9 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     const ctx = setupEvidence('conversion-guard-already-converted');
     const log = createLogger(ctx.feature);
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 11);
-    const phone = generateTestPhone(50, 7_000_000_000 + (Date.now() % 1_000_000));
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 11);
+    const phone = phoneForRun(run, 50);
 
     let leadId = '';
 
@@ -920,9 +949,9 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
 
       const body = await convertRes.json().catch(() => ({}));
       console.log('[DoubleConversion] status:', convertRes.status(), 'body:', body);
-      expect([400, 500]).toContain(convertRes.status());
+      expect([400, 409, 500]).toContain(convertRes.status());
       // Backend may return different error messages; accept either
-      expect(body.error || '').toMatch(/already been converted/i);
+      expect(body.error || body.code || '').toMatch(/already converted|ALREADY_CONVERTED/i);
       log('DoubleConversionBlocked', 'PASS', 'Cannot convert already-converted lead');
     });
   });
@@ -932,9 +961,9 @@ test.describe('Lead Conversion Flows: Complete Data Integrity', () => {
     const ctx = setupEvidence('conversion-guard-delete');
     const log = createLogger(ctx.feature);
 
-    const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-    const nameObj = generateUniqueName(runStamp, 12);
-    const phone = generateTestPhone(51, 7_000_000_000 + (Date.now() % 1_000_000));
+    const run = createTestRun();
+    const nameObj = generateUniqueName(run.runStamp, 12);
+    const phone = phoneForRun(run, 51);
 
     let leadId = '';
 

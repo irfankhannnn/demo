@@ -9,6 +9,7 @@ import {
 import bcrypt from 'bcryptjs';
 import { logger } from './logger.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { normalizeWhatsAppPhone } from './utils/whatsapp.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -45,6 +46,28 @@ export async function getAgencyConfig(tenantId) {
   });
 
   return result.Item || null;
+}
+
+/**
+ * Resolve tenantId from a connected WhatsApp phone number (AgencyConfig.connectedWhatsAppPhone).
+ * Used by local webhook processing and whatsapp-message-processor.
+ */
+export async function getTenantIdByConnectedWhatsAppPhone(phone) {
+  const normalized = normalizeWhatsAppPhone(phone);
+  if (!normalized) return null;
+
+  const result = await logger.span(
+    'ddb.getTenantByWhatsAppPhone',
+    { tableName: AGENCY_CONFIG_TABLE_NAME, phone: normalized },
+    async () => docClient.send(new ScanCommand({
+      TableName: AGENCY_CONFIG_TABLE_NAME,
+      ProjectionExpression: 'TenantId, connectedWhatsAppPhone',
+      FilterExpression: 'connectedWhatsAppPhone = :phone',
+      ExpressionAttributeValues: { ':phone': normalized },
+    }))
+  );
+
+  return result.Items?.[0]?.TenantId || null;
 }
 
 /**

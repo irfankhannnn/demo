@@ -2,7 +2,7 @@ import express from 'express';
 import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
-import { requireAdminOrManager } from '../middleware/requireRole.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
   createLead,
   getLeads,
@@ -16,20 +16,55 @@ import {
   deleteLeadNote,
   searchLeads,
   getContacts,
+  unwrapLeadsList,
+  isLeadConverted,
+  getLeadConversionSnapshots,
+  getLeadConversionSnapshotsByLeadId,
 } from '../crmDynamodbService.js';
+import { projectLeadFromConversionSnapshot } from '../services/leadConversionService.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { logger } from '../logger.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
+import { resolveRequestActor } from '../utils/requestActor.js';
 
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
 const router = express.Router();
+
+async function fetchTeamMemberMap(req) {
+  const map = {};
+  try {
+    const authServiceUrl = process.env.AUTH_SERVICE_URL;
+    if (!authServiceUrl) return map;
+
+    const response = await axios.get(`${authServiceUrl}/users`, {
+      headers: { Authorization: req.headers.authorization },
+      timeout: parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '5000', 10),
+    });
+
+    const users = response.data?.users || response.data || [];
+    for (const user of users) {
+      if (user.userId) {
+        map[user.userId] = user.displayName || user.username || user.email || 'Team member';
+      }
+    }
+  } catch (error) {
+    logger.warn('leads.team_member_map.fetch_failed', { error: error.message, tenantId: req.tenantId });
+    const currentUser = req.user;
+    const currentId = currentUser?.userId || currentUser?.sub;
+    if (currentId) {
+      map[currentId] = currentUser?.displayName || currentUser?.username || currentUser?.email || SERVICE_ACCOUNT_USER;
+    }
+  }
+  return map;
+}
 
 // ============== Lead CRUD Routes ==============
 
 // Get all leads with optional filters + pagination
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, city, search, assignedTo, source, propertyType, propertySubType, createdBy, updatedBy, converted } = req.query;
+    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, city, search, assignedTo, unassigned, source, propertyType, propertySubType, createdBy, updatedBy, converted } = req.query;
     const filters = {};
     if (leadType) filters.leadType = leadType;
     if (status) filters.status = status;
@@ -46,6 +81,7 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
     if (area) filters.area = area;
     if (search) filters.search = search;
     if (assignedTo) filters.assignedTo = assignedTo;
+    if (unassigned === 'true') filters.unassigned = true;
     if (source) filters.source = source;
     if (city) filters.city = city;
     if (propertyType) filters.propertyType = propertyType;
@@ -80,12 +116,15 @@ router.get('/search', validateToken, extractTenantId, async (req, res) => {
 // Get available agents for assignedTo dropdown
 router.get('/agents', validateToken, extractTenantId, async (req, res) => {
   try {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+    const authServiceUrl = process.env.AUTH_SERVICE_URL;
+    if (!authServiceUrl) {
+      return res.status(500).json({ error: 'AUTH_SERVICE_URL not configured' });
+    }
     const authHeader = req.headers.authorization;
 
     const response = await axios.get(`${authServiceUrl}/users`, {
       headers: { Authorization: authHeader },
-      timeout: 5000,
+      timeout: parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '5000', 10),
     });
 
     const users = response.data?.users || response.data || [];
@@ -104,8 +143,8 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
     const currentUser = req.user;
     res.json([{
       userId: currentUser?.userId || currentUser?.sub || 'admin',
-      username: currentUser?.displayName || currentUser?.username || currentUser?.email || 'Admin',
-      label: currentUser?.displayName || currentUser?.username || currentUser?.email || 'Admin',
+      username: currentUser?.displayName || currentUser?.username || currentUser?.email || SERVICE_ACCOUNT_USER,
+      label: currentUser?.displayName || currentUser?.username || currentUser?.email || SERVICE_ACCOUNT_USER,
       role: currentUser?.role,
     }]);
   }
@@ -176,7 +215,7 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
 router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
   try {
     const { from, to } = req.query;
-    let allLeads = await getLeads(req.tenantId);
+    let allLeads = unwrapLeadsList(await getLeads(req.tenantId, {}));
     if (from) {
       allLeads = allLeads.filter(l => l.createdAt >= from);
     }
@@ -184,8 +223,16 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
       allLeads = allLeads.filter(l => l.createdAt <= to);
     }
 
+    let conversions = await getLeadConversionSnapshots(req.tenantId, {});
+    if (from) {
+      conversions = conversions.filter((c) => (c.convertedAt || '') >= from);
+    }
+    if (to) {
+      conversions = conversions.filter((c) => (c.convertedAt || '') <= to);
+    }
+
     const metrics = {
-      total: allLeads.length,
+      total: allLeads.length + conversions.length,
       byType: {
         buyer: 0,
         seller: 0,
@@ -197,7 +244,7 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
         contacted: 0,
         qualified: 0,
         negotiating: 0,
-        converted: 0,
+        converted: conversions.length,
         lost: 0,
       },
       byPriority: {
@@ -209,23 +256,28 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
     };
 
     allLeads.forEach(lead => {
-      // Count by type
       if (metrics.byType[lead.leadType] !== undefined) {
         metrics.byType[lead.leadType]++;
       }
-      // Count by status
-      if (metrics.byStatus[lead.status] !== undefined) {
-        metrics.byStatus[lead.status]++;
+      const statusKey = isLeadConverted(lead) ? 'converted' : (lead.status || 'new');
+      if (metrics.byStatus[statusKey] !== undefined) {
+        metrics.byStatus[statusKey]++;
       }
-      // Count by priority
       if (metrics.byPriority[lead.priority] !== undefined) {
         metrics.byPriority[lead.priority]++;
       }
     });
 
-    // Calculate conversion rate
-    if (metrics.total > 0) {
-      metrics.conversionRate = Math.round((metrics.byStatus.converted / metrics.total) * 100);
+    conversions.forEach((snap) => {
+      const lt = snap.leadType || snap.role;
+      if (lt && metrics.byType[lt] !== undefined) {
+        metrics.byType[lt]++;
+      }
+    });
+
+    const denom = allLeads.length + conversions.length;
+    if (denom > 0) {
+      metrics.conversionRate = Math.round((metrics.byStatus.converted / denom) * 100);
     }
 
     res.json(metrics);
@@ -235,14 +287,33 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-// Get single lead
+// Conversion history MUST be registered before /:id
+router.get('/conversions/history', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { leadType, search } = req.query;
+    const snapshots = await getLeadConversionSnapshots(req.tenantId, { leadType, search });
+    res.json({ conversions: snapshots, total: snapshots.length });
+  } catch (error) {
+    logger.error('leads.conversions.history.error', { tenantId: req.tenantId, error: error.message });
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Get single lead (falls back to immutable conversion snapshot after convert)
 router.get('/:id', validateToken, extractTenantId, async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.id);
-    if (!lead) {
-      return res.status(404).json({ error: 'Lead not found' });
+    if (lead) {
+      return res.json(lead);
     }
-    res.json(lead);
+
+    const snapshots = await getLeadConversionSnapshotsByLeadId(req.tenantId, req.params.id);
+    const archived = projectLeadFromConversionSnapshot(snapshots[0]);
+    if (archived) {
+      return res.json(archived);
+    }
+
+    return res.status(404).json({ error: 'Lead not found' });
   } catch (error) {
     logger.error('leads.get_one.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -251,8 +322,8 @@ router.get('/:id', validateToken, extractTenantId, async (req, res) => {
 
 import { creditActionRateLimit } from '../middleware/rateLimiter.js';
 
-// Create lead
-router.post('/', validateToken, extractTenantId, requireAdminOrManager, creditActionRateLimit, async (req, res) => {
+// Create lead — all members can create
+router.post('/', validateToken, extractTenantId, requireCrmMemberOrAbove, creditActionRateLimit, async (req, res) => {
   const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
   const { refundCredits } = await import('../creditService.js');
   let creditCharge = null;
@@ -273,9 +344,12 @@ router.post('/', validateToken, extractTenantId, requireAdminOrManager, creditAc
     if (!leadType || !['buyer', 'seller', 'tenant', 'owner'].includes(leadType)) {
       return res.status(400).json({ error: 'leadType must be buyer, seller, tenant, or owner' });
     }
+    const assigneeLabelMap = await fetchTeamMemberMap(req);
+    const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
     const leadData = {
       ...req.body,
-      createdBy: req.user?.username || 'Admin',
+      createdBy: actorName,
+      createdByUserId: actorUserId,
     };
     const lead = await createLead(req.tenantId, leadData);
 
@@ -348,39 +422,48 @@ router.post('/', validateToken, extractTenantId, requireAdminOrManager, creditAc
   }
 });
 
-// Update lead
-router.put('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+// Update lead — all members can update
+router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
+    const assigneeLabelMap = await fetchTeamMemberMap(req);
+    const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
     const updateData = {
       ...req.body,
-      updatedBy: req.user?.username || 'Admin',
+      updatedBy: actorName,
+      updatedByUserId: actorUserId,
     };
-    const lead = await updateLead(req.tenantId, req.params.id, updateData);
+    const lead = await updateLead(req.tenantId, req.params.id, updateData, { assigneeLabelMap });
     res.json(lead);
   } catch (error) {
     logger.error('leads.update.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     if (error.message === 'Cannot update a converted lead') {
       return res.status(400).json({ error: error.message });
     }
+    if (error.message?.includes("' to update its ")) {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
-// Convert lead to buyer/tenant/owner
-// IMPORTANT: Buyer and Tenant conversions now require transaction details
-router.post('/:id/convert', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+// Convert lead — all members can convert (atomic: succeeds completely or fails completely)
+router.post('/:id/convert', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const {
       existingContactId,
-      purchaseDetails,    // Required for buyer conversion
-      leaseDetails,       // Required for tenant conversion
-      kycDetails,         // Optional KYC info during conversion
-      createPropertyListing, // For seller-type leads (default true)
+      purchaseDetails,
+      leaseDetails,
+      kycDetails,
+      createPropertyListing,
     } = req.body;
+
+    const assigneeLabelMap = await fetchTeamMemberMap(req);
+    const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
 
     const options = {
       existingContactId,
-      convertedBy: req.user?.username || 'Admin',
+      convertedBy: actorName,
+      convertedByUserId: actorUserId,
       purchaseDetails,
       leaseDetails,
       kycDetails,
@@ -390,16 +473,39 @@ router.post('/:id/convert', validateToken, extractTenantId, requireAdminOrManage
     const result = await convertLead(req.tenantId, req.params.id, options);
     res.json(result);
   } catch (error) {
-    logger.error('leads.convert.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
-    if (error.message === 'Lead has already been converted') {
-      return res.status(400).json({ error: error.message });
+    logger.error('leads.convert.error', { tenantId: req.tenantId, leadId: req.params.id, code: error.code, error: error.message });
+
+    if (error.code === 'ALREADY_CONVERTED' || error.message === 'Lead already converted' || error.message === 'Lead has already been converted') {
+      return res.status(409).json({
+        error: error.message,
+        code: 'ALREADY_CONVERTED',
+        convertedTo: error.convertedTo || null,
+        conversionSnapshotId: error.conversionSnapshotId || null,
+      });
     }
-    if (error.message === 'Specified contact not found') {
+    if (error.code === 'CONVERSION_TOO_LARGE' || error.code === 'VALIDATION_ERROR') {
+      return res.status(400).json({ error: error.message, code: error.code });
+    }
+    if (error.message === 'Specified contact not found' || error.message === 'Lead not found') {
       return res.status(404).json({ error: error.message });
     }
-    if (error.message.includes('required')) {
+    if (error.message?.includes('required')) {
       return res.status(400).json({ error: error.message });
     }
+    res.status(500).json({ error: error.message || 'Internal server error', code: error.code || 'CONVERSION_FAILED' });
+  }
+});
+
+router.get('/:id/conversion', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const snapshots = await getLeadConversionSnapshotsByLeadId(req.tenantId, req.params.id);
+    if (!snapshots.length) {
+      return res.status(404).json({ error: 'Conversion snapshot not found' });
+    }
+    const archived = projectLeadFromConversionSnapshot(snapshots[0]);
+    res.json({ ...snapshots[0], archivedLead: archived });
+  } catch (error) {
+    logger.error('leads.conversion.get.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -447,19 +553,33 @@ router.delete('/:id', validateToken, extractTenantId, requireAdminOrManager, asy
 
 router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
-    const notes = await getLeadNotes(req.tenantId, req.params.id);
-    res.json(notes);
+    const lead = await getLead(req.tenantId, req.params.id);
+    if (lead) {
+      const notes = await getLeadNotes(req.tenantId, req.params.id);
+      return res.json(notes);
+    }
+
+    const snapshots = await getLeadConversionSnapshotsByLeadId(req.tenantId, req.params.id);
+    const archived = projectLeadFromConversionSnapshot(snapshots[0]);
+    if (archived) {
+      return res.json(archived.snapshotNotes || []);
+    }
+
+    res.json([]);
   } catch (error) {
     logger.error('leads.notes.get.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
+    const assigneeLabelMap = await fetchTeamMemberMap(req);
+    const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
     const noteData = {
       ...req.body,
-      createdBy: req.user?.username || 'Admin',
+      createdBy: actorName,
+      createdByUserId: actorUserId,
     };
     const note = await createLeadNote(req.tenantId, req.params.id, noteData);
     res.status(201).json(note);
@@ -469,13 +589,19 @@ router.post('/:id/notes', validateToken, extractTenantId, requireAdminOrManager,
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { content } = req.body;
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Content is required' });
     }
-    const note = await updateLeadNote(req.tenantId, req.params.id, req.params.noteId, { content });
+    const assigneeLabelMap = await fetchTeamMemberMap(req);
+    const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
+    const note = await updateLeadNote(req.tenantId, req.params.id, req.params.noteId, {
+      content,
+      updatedBy: actorName,
+      updatedByUserId: actorUserId,
+    });
     res.json(note);
   } catch (error) {
     logger.error('leads.notes.update.error', { tenantId: req.tenantId, leadId: req.params.id, noteId: req.params.noteId, error: error.message });

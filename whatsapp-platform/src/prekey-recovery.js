@@ -13,6 +13,8 @@ import { logger } from './logger.js';
 const MAX_PREKEY_ATTEMPTS = 3;
 const PREKEY_ROTATION_THRESHOLD = 10; // Rotate when < 10 keys remaining
 
+export { MAX_PREKEY_ATTEMPTS };
+
 /**
  * Check if an error is a PreKey-related error
  * @param {Error} error

@@ -20,10 +20,10 @@ const router = express.Router();
 
 router.use(validateToken, extractTenantId, requireAdminOrManager);
 
-// Rate limit for message sending: max 30 messages per minute per user
+// Rate limit for message sending
 const sendMessageRateLimit = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
+  windowMs: parseInt(process.env.WHATSAPP_SEND_RATE_LIMIT_WINDOW_MS || '60000', 10),
+  max: parseInt(process.env.WHATSAPP_SEND_RATE_LIMIT_MAX || '30', 10),
   keyGenerator: (req) => `send:${req.user?.sub || req.ip}`,
   handler: (req, res) => {
     logger.warn('whatsappConversations.rate_limited', { tenantId: req.tenantId, ip: req.ip });
@@ -32,7 +32,7 @@ const sendMessageRateLimit = rateLimit({
 });
 
 function parseLimit(query) {
-  return Math.min(parseInt(query.limit, 10) || 20, 100);
+  return Math.min(parseInt(query.limit, 10) || parseInt(process.env.WHATSAPP_CONVERSATION_PAGE_LIMIT || '20', 10), 100);
 }
 
 // GET /api/whatsapp/conversations?limit=20&startKey=...

@@ -6,10 +6,13 @@ import { logger } from './logger.js';
  * Fetch team members from auth service using forwarded admin token.
  */
 async function fetchTeamMembers(authHeader) {
-  const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+  const authServiceUrl = process.env.AUTH_SERVICE_URL;
+  if (!authServiceUrl) {
+    throw new Error('AUTH_SERVICE_URL not configured');
+  }
   const response = await axios.get(`${authServiceUrl}/users`, {
     headers: { Authorization: authHeader },
-    timeout: 5000,
+    timeout: parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '5000', 10),
   });
   return response.data?.users || response.data || [];
 }

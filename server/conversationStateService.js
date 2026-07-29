@@ -10,7 +10,7 @@ import { logger } from './logger.js';
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.CRM_DYNAMODB_TABLE_NAME;
-const TTL_SECONDS = 24 * 60 * 60; // 24 hours
+const TTL_SECONDS = parseInt(process.env.CONVERSATION_STATE_TTL_SECONDS || '86400', 10); // 24 hours
 
 /**
  * Build partition key for conversation state
@@ -257,6 +257,48 @@ export async function addContextToConversation(tenantId, contactPhone, contextUp
   return updateConversationState(tenantId, contactPhone, { context: mergedContext });
 }
 
+function unwrapToolPayload(data) {
+  if (!data || typeof data !== 'object') return data;
+  // AI DTO envelope { metadata, data }
+  if (data.metadata && typeof data.metadata === 'object' && 'data' in data) {
+    return data.data;
+  }
+  return data;
+}
+
+function entityIdFromItem(item) {
+  return item.id || item.leadId || item.propertyId || item.buyerId
+    || item.customerId || item.tenantRecordId || item.ownerId || item.contactId
+    || item.meetingId || null;
+}
+
+function entityTypeFromTool(toolName) {
+  const t = String(toolName || '');
+  if (t.includes('lead')) return 'lead';
+  if (t.includes('buyer')) return 'buyer';
+  if (t.includes('owner')) return 'owner';
+  if (t.includes('tenant') || t.includes('customer')) return 'tenant';
+  if (t.includes('property')) return 'property';
+  if (t.includes('contact')) return 'contact';
+  if (t.includes('meeting')) return 'meeting';
+  return 'record';
+}
+
+function listItemsFromPayload(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return null;
+  if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.leads)) return payload.leads;
+  if (Array.isArray(payload.buyers)) return payload.buyers;
+  if (Array.isArray(payload.owners)) return payload.owners;
+  if (Array.isArray(payload.customers)) return payload.customers;
+  if (Array.isArray(payload.properties)) return payload.properties;
+  if (Array.isArray(payload.contacts)) return payload.contacts;
+  if (Array.isArray(payload.meetings)) return payload.meetings;
+  return null;
+}
+
 /**
  * Extract entities from tool results for context tracking
  * @param {Array} toolResults - Array of { tool, result } objects
@@ -270,39 +312,38 @@ export function extractEntitiesFromToolResults(toolResults) {
     if (!tc || typeof tc !== 'object') continue;
     const result = tc.result;
     if (!result || !result.ok) continue;
-    const data = result.data;
+    const data = unwrapToolPayload(result.data);
     if (!data || typeof data !== 'object') continue;
 
     const MAX_ENTITY_NAME_LEN = 100;
     const MAX_ENTITY_ID_LEN = 50;
     const MAX_ENTITY_PHONE_LEN = 20;
+    const type = entityTypeFromTool(tc.tool);
 
-    // Array results (search_*)
-    const items = Array.isArray(data) ? data : (Array.isArray(data.items) ? data.items : null);
+    const items = listItemsFromPayload(data);
     if (Array.isArray(items)) {
-      for (const item of items.slice(0, 3)) {
+      for (const item of items.slice(0, 5)) {
         if (!item || typeof item !== 'object') continue;
         const name = item.name || item.leadName || item.propertyTitle || item.title;
         if (!name) continue;
+        const id = entityIdFromItem(item);
         entities.push({
-          type: String(tc.tool || 'unknown').replace(/^(search_|get_|create_)/, '').replace(/s$/, '').slice(0, MAX_ENTITY_NAME_LEN),
+          type,
           name: String(name).slice(0, MAX_ENTITY_NAME_LEN),
-          id: (item.id || item.leadId || item.propertyId || item.buyerId || item.tenantId || item.ownerId || null)
-            ? String(item.id || item.leadId || item.propertyId || item.buyerId || item.tenantId || item.ownerId).slice(0, MAX_ENTITY_ID_LEN) : null,
+          id: id ? String(id).slice(0, MAX_ENTITY_ID_LEN) : null,
           phone: (item.phone || item.contactPhone || null)
             ? String(item.phone || item.contactPhone).slice(0, MAX_ENTITY_PHONE_LEN) : null,
           source: String(tc.tool || 'unknown').slice(0, MAX_ENTITY_NAME_LEN),
         });
       }
     } else {
-      // Single result (get_*)
       const name = data.name || data.leadName || data.propertyTitle || data.title;
       if (name) {
+        const id = entityIdFromItem(data);
         entities.push({
-          type: String(tc.tool || 'unknown').replace(/^(search_|get_|create_)/, '').replace(/s$/, '').slice(0, MAX_ENTITY_NAME_LEN),
+          type,
           name: String(name).slice(0, MAX_ENTITY_NAME_LEN),
-          id: (data.id || data.leadId || data.propertyId || data.buyerId || data.tenantId || data.ownerId || null)
-            ? String(data.id || data.leadId || data.propertyId || data.buyerId || data.tenantId || data.ownerId).slice(0, MAX_ENTITY_ID_LEN) : null,
+          id: id ? String(id).slice(0, MAX_ENTITY_ID_LEN) : null,
           phone: (data.phone || data.contactPhone || null)
             ? String(data.phone || data.contactPhone).slice(0, MAX_ENTITY_PHONE_LEN) : null,
           source: String(tc.tool || 'unknown').slice(0, MAX_ENTITY_NAME_LEN),
@@ -315,21 +356,64 @@ export function extractEntitiesFromToolResults(toolResults) {
 }
 
 /**
+ * Build indexed lastListResults + currentEntity from tool results (Interaction Design memory).
+ */
+export function extractListAndFocusFromToolResults(toolResults) {
+  let lastListResults = null;
+  let currentEntity = null;
+  if (!Array.isArray(toolResults)) return { lastListResults, currentEntity };
+
+  for (const tc of toolResults) {
+    if (!tc?.result?.ok) continue;
+    const payload = unwrapToolPayload(tc.result.data);
+    if (!payload || typeof payload !== 'object') continue;
+    const type = entityTypeFromTool(tc.tool);
+    const items = listItemsFromPayload(payload);
+    if (Array.isArray(items) && items.length > 0) {
+      lastListResults = items.slice(0, 10).map((item, idx) => ({
+        index: idx + 1,
+        type,
+        id: entityIdFromItem(item) || null,
+        name: item.name || item.title || null,
+      }));
+      if (items.length === 1) {
+        const only = items[0];
+        currentEntity = {
+          type,
+          id: entityIdFromItem(only) || null,
+          name: only.name || only.title || null,
+        };
+      }
+    } else if (entityIdFromItem(payload) || payload.name || payload.title) {
+      currentEntity = {
+        type,
+        id: entityIdFromItem(payload) || null,
+        name: payload.name || payload.title || null,
+      };
+    }
+  }
+  return { lastListResults, currentEntity };
+}
+
+/**
  * Update the most recently discussed entities in conversation state
  * @param {string} tenantId
  * @param {string} contactPhone
  * @param {Array} entities - Entities extracted from tool results
  * @param {string} topic - Optional topic override
+ * @param {object} [extra] - Optional { lastListResults, currentEntity }
  * @returns {Promise<Object>} Updated state
  */
-export async function updateLastDiscussedEntities(tenantId, contactPhone, entities, topic) {
-  if (!Array.isArray(entities) || entities.length === 0) return null;
+export async function updateLastDiscussedEntities(tenantId, contactPhone, entities, topic, extra = {}) {
+  if ((!Array.isArray(entities) || entities.length === 0)
+    && !extra.lastListResults && !extra.currentEntity) {
+    return null;
+  }
   const state = await getConversationState(tenantId, contactPhone);
   const existing = state?.context?.lastDiscussedEntities || [];
-  // Keep the most recent entities at the top, deduplicate by id (or name for id-less entities)
   const byId = new Map();
   const byName = new Map();
-  for (const e of [...entities, ...existing]) {
+  for (const e of [...(entities || []), ...existing]) {
     if (!e || typeof e !== 'object') continue;
     if (e.id) {
       if (!byId.has(e.id)) byId.set(e.id, e);
@@ -338,7 +422,13 @@ export async function updateLastDiscussedEntities(tenantId, contactPhone, entiti
     }
   }
   const merged = [...byId.values(), ...byName.values()].slice(0, 5);
-  const updates = { context: { ...state?.context, lastDiscussedEntities: merged } };
+  const context = {
+    ...state?.context,
+    lastDiscussedEntities: merged,
+  };
+  if (extra.lastListResults) context.lastListResults = extra.lastListResults;
+  if (extra.currentEntity) context.currentEntity = extra.currentEntity;
+  const updates = { context };
   if (topic) updates.topic = topic;
   return updateConversationState(tenantId, contactPhone, updates);
 }

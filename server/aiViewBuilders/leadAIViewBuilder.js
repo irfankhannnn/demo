@@ -7,14 +7,17 @@
  */
 
 import { formatDate, formatMoney, buildEnvelope, buildPaginationMetadata } from './utils.js';
+import { buildLeadRecommendation } from './recommendations.js';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function deriveLeadStatus(lead) {
+  const converted = !!(lead?.convertedTo && (lead.convertedTo.entityId || lead.convertedTo.contactId))
+    || String(lead?.status || '').toLowerCase() === 'converted';
   return {
-    status: lead.status || 'new',
+    status: converted ? 'converted' : (lead.status || 'new'),
     isQualified: ['qualified', 'negotiating'].includes(lead.status),
-    isConverted: lead.status === 'converted',
+    isConverted: converted,
     isLost: lead.status === 'lost',
   };
 }
@@ -141,6 +144,10 @@ export function buildSearchResults(leads, pagination = {}, options = {}) {
 export function buildLeadDetails(lead, options = {}) {
   const { includeNotes = true, maxNotes = 5 } = options;
   const notes = Array.isArray(lead.notes) ? lead.notes.slice(0, maxNotes) : [];
+  const requirement = buildRequirement(lead);
+  const latestNote = notes.length
+    ? (typeof notes[0] === 'string' ? notes[0] : (notes[0].content || notes[0].text || null))
+    : null;
 
   return buildEnvelope(
     {
@@ -156,8 +163,11 @@ export function buildLeadDetails(lead, options = {}) {
       assignedTo: lead.assignedTo || null,
       createdAt: formatDate(lead.createdAt),
       lastActivityAt: formatDate(lead.lastActivityAt),
-      requirement: buildRequirement(lead),
+      nextFollowUpDate: formatDate(lead.nextFollowUpDate),
+      requirement,
       tags: lead.tags || [],
+      interactions: Array.isArray(lead.history) ? lead.history.length : (lead.interactions || 0),
+      latestNote,
       notes: includeNotes ? notes : undefined,
       history: lead.history || [],
     },
@@ -167,6 +177,7 @@ export function buildLeadDetails(lead, options = {}) {
         shown: notes.length,
         hasMore: (lead.notes || []).length > maxNotes,
       } : null,
+      recommendation: buildLeadRecommendation(lead, requirement),
     }
   );
 }
@@ -255,16 +266,27 @@ export function buildFullLead(lead) {
 /**
  * Build convertConfirmation view
  */
-export function buildConvertConfirmation(lead, convertedTo) {
+export function buildConvertConfirmation(result, entityType) {
+  const lead = result?.lead || result;
+  const entity = result?.entity;
+  const resolvedType = result?.entityType || entityType || lead?.convertedTo?.entityType || lead?.convertedTo;
+  const entityId = entity?.buyerId || entity?.ownerId || entity?.customerId || result?.entityId || lead?.convertedTo?.entityId || null;
+
   return buildEnvelope(
     {
-      leadId: lead.leadId,
-      name: lead.name,
-      phone: lead.phone,
-      convertedTo,
+      leadId: result?.leadId || lead?.leadId || null,
+      leadName: lead?.name || entity?.name || null,
+      leadType: lead?.leadType || result?.role || null,
+      name: lead?.name || entity?.name || null,
+      phone: lead?.phone || entity?.phone || null,
+      convertedTo: resolvedType,
+      entityType: resolvedType,
+      entityId,
+      conversionSnapshotId: result?.conversionSnapshotId || null,
+      convertedAt: formatDate(result?.convertedAt || lead?.convertedAt),
       status: 'converted',
     },
-    { action: 'converted' }
+    { action: 'converted', convertedTo: resolvedType }
   );
 }
 

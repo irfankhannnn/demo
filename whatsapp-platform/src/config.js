@@ -56,6 +56,12 @@ export const ECS_TASK_ARN = process.env.ECS_TASK_ARN || '';
 export const MAX_SESSIONS_PER_TASK = parseInt(process.env.MAX_SESSIONS_PER_TASK || '100', 10);
 export const RESTORE_ON_STARTUP = process.env.RESTORE_ON_STARTUP !== 'false';
 
+// ─── Message processing ──────────────────────────────────────────────────────
+// PROCESS_EXTERNAL_MESSAGES=true  → process messages from other people (default)
+// PROCESS_EXTERNAL_MESSAGES=false → ignore messages from other people, only process self-chat
+// Messages from yourself (fromMe=true) are ALWAYS processed regardless of this flag.
+export const PROCESS_EXTERNAL_MESSAGES = process.env.PROCESS_EXTERNAL_MESSAGES !== 'false';
+
 // ─── Baileys session tuning ───────────────────────────────────────────────────
 export const DEFAULT_SESSION_PHONE = process.env.DEFAULT_SESSION_PHONE || '';
 export const BROWSER_NAME = process.env.BROWSER_NAME || 'Chrome';

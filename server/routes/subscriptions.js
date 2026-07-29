@@ -138,7 +138,7 @@ router.get('/credits', validateToken, extractTenantId, async (req, res) => {
 // GET /api/subscriptions/credits/ledger
 router.get('/credits/ledger', validateToken, extractTenantId, async (req, res) => {
   try {
-    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const limit = Math.min(parseInt(req.query.limit, 10) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10), 100);
     const startKey = req.query.startKey ? JSON.parse(req.query.startKey) : undefined;
     const result = await getLedger(req.tenantId, { limit, startKey });
     res.json(result);
@@ -172,7 +172,7 @@ router.post('/credits/purchase', validateToken, extractTenantId, requireRole('AD
       return res.status(400).json({ error: 'Invalid credit amount' });
     }
 
-    const MAX_CREDIT_PURCHASE = 100000; // 100k credits max per purchase
+    const MAX_CREDIT_PURCHASE = parseInt(process.env.MAX_CREDIT_PURCHASE || '100000', 10);
     if (credits > MAX_CREDIT_PURCHASE) {
       return res.status(400).json({
         error: 'invalid_credit_amount',

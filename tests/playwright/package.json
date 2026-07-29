@@ -28,6 +28,7 @@
     "test:paywall": "playwright test ui/crm/paywall.spec.ts",
     "test:nps": "playwright test ui/crm/nps.spec.ts",
     "test:timeline": "playwright test ui/crm/unified-timeline-flows.spec.ts",
+    "test:properties": "playwright test ui/crm/property-flows.spec.ts",
 
     "test:auth": "playwright test ui/public/auth.spec.ts",
     "test:cookie": "playwright test ui/public/cookie-consent.spec.ts",
@@ -36,6 +37,7 @@
     "test:seat-cap": "playwright test api/seat-cap.spec.ts",
     "test:cross-tenant": "playwright test api/cross-tenant-pentest.spec.ts",
     "test:state-transitions": "playwright test api/state-transitions.spec.ts",
+    "test:ownership-transfer": "playwright test api/ownership-transfer.spec.ts",
     "test:validation-security": "playwright test api/validation-security.spec.ts",
     "test:cors-public": "playwright test api/cors-public-endpoints.spec.ts",
     "test:penetration": "playwright test api/penetration-security.spec.ts",

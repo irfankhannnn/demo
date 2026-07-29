@@ -22,7 +22,66 @@ import { logger } from './logger.js';
 import { canUserAccessTool } from './userCategoryService.js';
 import { transformWithAiDto } from './aiDtoMiddleware.js';
 import { normalizeToolInput } from './agents/inputNormalizer.js';
+import { isValidEntityId } from './agents/followUpResolver.js';
 import { TOOL_SCHEMAS, ALLOWED_TOOL_NAMES, getHandler, validateToolDefinitions } from './shared/toolDefinitions.js';
+
+// 0 = log full tool results (default for dev). Set TOOL_LOG_MAX_RESULT_CHARS>0 to cap size in prod.
+const TOOL_LOG_MAX_CHARS = parseInt(process.env.TOOL_LOG_MAX_RESULT_CHARS ?? '0', 10);
+
+/**
+ * Serialize a value for logs. By default logs the full payload (dev-friendly).
+ * Set TOOL_LOG_MAX_RESULT_CHARS to a positive number to truncate large results.
+ * @param {*} value
+ * @param {number} [maxChars]
+ */
+export function serializeToolPayloadForLog(value, maxChars = TOOL_LOG_MAX_CHARS) {
+  const limit = Number.isFinite(maxChars) && maxChars > 0 ? maxChars : Infinity;
+  try {
+    const json = JSON.stringify(value);
+    if (json.length <= limit) {
+      return { payload: value, size: json.length, truncated: false };
+    }
+    return { preview: json.slice(0, limit), size: json.length, truncated: true };
+  } catch (err) {
+    const fallback = String(value);
+    if (fallback.length <= limit) {
+      return { payload: value, size: fallback.length, truncated: false, stringifyError: err.message };
+    }
+    return {
+      preview: fallback.slice(0, limit),
+      size: fallback.length,
+      truncated: true,
+      stringifyError: err.message,
+    };
+  }
+}
+
+function logToolRequest({ tenantId, userId, toolName, handler, input, source }) {
+  logger.info('skillInvoker.request', {
+    tenantId,
+    userId: userId || null,
+    toolName,
+    handler: handler || null,
+    input: input ?? {},
+    source: source || null,
+  });
+}
+
+function logToolResponse({ tenantId, userId, toolName, source, durationMs, result }) {
+  const serialized = serializeToolPayloadForLog(result);
+  logger.info('skillInvoker.response', {
+    tenantId,
+    userId: userId || null,
+    toolName,
+    source: source || null,
+    durationMs,
+    ok: result?.ok !== false && !result?.error,
+    error: result?.error || null,
+    resultSize: serialized.size,
+    resultTruncated: serialized.truncated,
+    result: serialized.payload ?? serialized.preview,
+  });
+}
 
 // ─── Context enrichment functions ─────────────────────────────────────────────
 
@@ -450,16 +509,69 @@ function sanitizeInput(input) {
   return out;
 }
 
+/** Extract leadId / propertyId / … from tool input. */
+function extractEntityId(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const key = Object.keys(input).find(
+    (k) => (k.endsWith('Id') || k === 'id')
+      && input[k] != null
+      && String(input[k]).trim() !== '',
+  );
+  return key ? input[key] : null;
+}
+
+/** get/delete by id — handler signature is (tenantId, entityId), not (tenantId, inputObject). */
+const AGGREGATE_OR_LOOKUP_TOOLS = new Set([
+  'get_owners', 'get_contacts', 'get_customers', 'get_leads', 'get_buyers',
+  'get_upcoming_meetings', 'get_crm_metrics', 'get_leads_summary', 'get_properties_summary',
+  'get_buyers_summary', 'get_pipeline_summary', 'get_followup_summary', 'get_priority_leads',
+  'get_recent_activity', 'get_daily_brief', 'get_business_health', 'get_dashboard_snapshot',
+  'get_owner_by_phone', 'get_tenant_by_phone', 'get_customer_by_phone', 'find_contact_by_phone',
+]);
+
+function isEntityIdLookupTool(toolName, input) {
+  if (!extractEntityId(input)) return false;
+  if (AGGREGATE_OR_LOOKUP_TOOLS.has(toolName)) return false;
+  if (toolName.endsWith('_notes')) return false;
+  if (/^search_/.test(toolName)) return false;
+  if (/summary/i.test(toolName)) return false;
+  return /^get_/.test(toolName) || /^delete_/.test(toolName);
+}
+
 // ─── Tool execution ───────────────────────────────────────────────────────────
 
 /**
  * Invoke a CRM skill action for a tenant (direct DynamoDB path, in-Lambda).
  * Enforces user category-based tool access control.
  */
-export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {}) {
-  if (!tenantId) return { ok: false, error: 'tenantId required' };
+export async function invokeSkill(tenantId, toolName, rawInput, { userId, source } = {}) {
+  const startMs = Date.now();
+  let requestLogged = false;
+
+  const emitRequest = (input, handler = null) => {
+    if (requestLogged) return;
+    requestLogged = true;
+    logToolRequest({ tenantId, userId, toolName, handler, input, source });
+  };
+
+  const finish = (result, input = rawInput ?? {}, handler = null) => {
+    emitRequest(input, handler);
+    logToolResponse({
+      tenantId,
+      userId,
+      toolName,
+      source,
+      durationMs: Date.now() - startMs,
+      result,
+    });
+    return result;
+  };
+
+  if (!tenantId) {
+    return finish({ ok: false, error: 'tenantId required' }, rawInput ?? {});
+  }
   if (!ALLOWED_TOOL_NAMES.includes(toolName)) {
-    return { ok: false, error: `Tool not allowed: ${toolName}` };
+    return finish({ ok: false, error: `Tool not allowed: ${toolName}` }, rawInput ?? {});
   }
 
   // Check user category permissions if userId provided
@@ -469,13 +581,13 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {})
       const hasAccess = await canUserAccessTool(tenantId, userId, toolName);
       if (!hasAccess) {
         logger.warn('skillInvoker.invokeSkill.access_denied', { tenantId, userId, toolName });
-        return { ok: false, error: `User does not have access to tool: ${toolName}` };
+        return finish({ ok: false, error: `User does not have access to tool: ${toolName}` }, rawInput ?? {});
       }
     } catch (err) {
       logger.error('skillInvoker.invokeSkill.permission_check_failed', { tenantId, userId, toolName, error: err.message });
       if (process.env.ALLOW_FAIL_OPEN !== 'true') {
         // Fail-closed: deny access when permission service is unavailable
-        return { ok: false, error: `Permission check failed for tool: ${toolName}` };
+        return finish({ ok: false, error: `Permission check failed for tool: ${toolName}` }, rawInput ?? {});
       }
       logger.warn('skillInvoker.invokeSkill.fail_open_enabled', { tenantId, userId, toolName });
     }
@@ -489,7 +601,32 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {})
   try {
     validateInput(toolName, input);
   } catch (err) {
-    return { ok: false, error: err.message };
+    return finish({ ok: false, error: err.message }, input);
+  }
+
+  const idLookupTools = {
+    get_lead: 'leadId',
+    delete_lead: 'leadId',
+    get_buyer: 'buyerId',
+    delete_buyer: 'buyerId',
+    get_owner: 'ownerId',
+    delete_owner: 'ownerId',
+    get_property: 'propertyId',
+    delete_property: 'propertyId',
+    get_contact: 'contactId',
+    delete_contact: 'contactId',
+    get_tenant: 'tenantRecordId',
+    delete_tenant: 'tenantRecordId',
+    get_meeting: 'meetingId',
+    delete_meeting: 'meetingId',
+  };
+  const idField = idLookupTools[toolName];
+  const idValue = idField ? (input[idField] ?? input.customerId) : null;
+  if (idField && idValue && !isValidEntityId(String(idValue))) {
+    return finish({
+      ok: false,
+      error: `Invalid ${idField}. Use the exact UUID from search results — do not invent slug ids.`,
+    }, input);
   }
 
   const by = userId || 'agent';
@@ -500,8 +637,10 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {})
     // Dynamic handler lookup (replaces 200-line switch/case)
     const handlerName = getHandler(toolName);
     if (!handlerName || typeof crmDynamodbService[handlerName] !== 'function') {
-      return { ok: false, error: `Handler not found for tool: ${toolName}` };
+      return finish({ ok: false, error: `Handler not found for tool: ${toolName}` }, input, handlerName);
     }
+
+    emitRequest(input, handlerName);
 
     const handler = crmDynamodbService[handlerName];
 
@@ -532,29 +671,26 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId } = {})
       data = await handler(tenantId, id);
     } else {
       // All other tools (search, get, delete, etc.)
-      // Check if handler expects 2 or 3 arguments
-      if (handler.length === 2) {
-        // 2-arg handler: tenantId, input
+      const entityId = extractEntityId(input);
+
+      // Many CRM getters are (tenantId, id) but have .length === 2 — must not pass the full input object as id.
+      if (isEntityIdLookupTool(toolName, input)) {
+        data = await handler(tenantId, entityId);
+      } else if (handler.length === 2) {
         data = await handler(tenantId, input);
+      } else if (entityId) {
+        data = await handler(tenantId, entityId, input);
       } else {
-        // 3-arg handler: tenantId, id, input (for get/delete operations)
-        const idField = Object.keys(input).find(k => k.endsWith('Id') || k === 'id');
-        const id = input[idField] || input.id;
-        if (id) {
-          data = await handler(tenantId, id, input);
-        } else {
-          data = await handler(tenantId, input);
-        }
+        data = await handler(tenantId, input);
       }
     }
 
     // Apply AI DTO transformation if feature flags are enabled
     const transformedData = await transformWithAiDto(toolName, data, { tenantId, userId, input });
 
-    logger.info('skillInvoker.success', { tenantId, toolName });
-    return { ok: true, data: transformedData };
+    return finish({ ok: true, data: transformedData }, input, handlerName);
   } catch (err) {
     logger.error('skillInvoker.failed', { tenantId, toolName, error: err.message });
-    return { ok: false, error: err.message };
+    return finish({ ok: false, error: err.message }, input, getHandler(toolName));
   }
 }

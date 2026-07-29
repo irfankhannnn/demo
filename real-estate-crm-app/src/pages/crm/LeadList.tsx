@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Target,
   Plus,
-  Eye,
-  Phone,
-  Mail,
   ArrowLeft,
   RefreshCw,
   Home,
@@ -21,18 +18,24 @@ import {
 import { api } from '../../services/api';
 import { CRMLead, LeadMetrics } from '../../types/crm';
 import { getUserProfile } from '../../utils/authStorage';
+import { canManageLeads } from '../../utils/rbac';
+import { isLeadConverted } from '../../utils/leadConversion';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import LeadDrawer from './LeadDrawer';
 import LeadAssignmentDropdown, { TeamMember } from '../../components/LeadAssignmentDropdown';
 import Toast from '../../components/Toast';
+import { readFlashToast } from '../../utils/flashToast';
 
 type LeadTypeFilter = 'all' | 'buyer' | 'seller' | 'tenant' | 'owner';
 type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
-type AssignmentFilter = 'all' | 'my' | 'unassigned';
+type AssignmentFilter = 'all' | 'my' | 'unassigned' | `agent:${string}`;
 type ViewMode = 'active' | 'converted' | 'all';
+
+const LEADS_PAGE_SIZE = 50;
 
 export default function LeadList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [leads, setLeads] = useState<CRMLead[]>([]);
   const [filteredLeads, setFilteredLeads] = useState<CRMLead[]>([]);
   const [metrics, setMetrics] = useState<LeadMetrics | null>(null);
@@ -44,6 +47,9 @@ export default function LeadList() {
   const [viewMode, setViewMode] = useState<ViewMode>('active');
   const [showFilters, setShowFilters] = useState(false);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [totalLeads, setTotalLeads] = useState(0);
+  const [pageOffset, setPageOffset] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
   
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -56,24 +62,109 @@ export default function LeadList() {
   };
 
   useEffect(() => {
-    loadLeads();
-  }, []);
+    const flash = readFlashToast(location.state);
+    if (!flash) return;
+    showToast(flash.message, flash.type);
+    navigate(location.pathname + location.search, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
 
   useEffect(() => {
-    applyFilters();
-  }, [leads, searchQuery, typeFilter, statusFilter, assignmentFilter, viewMode]);
+    const delay = searchQuery.trim().length >= 2 ? 400 : 0;
+    const timer = setTimeout(() => {
+      loadLeads({ reset: true });
+    }, delay);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typeFilter, statusFilter, assignmentFilter, viewMode, searchQuery]);
 
-  const loadLeads = async () => {
+  const buildLeadFilters = (offset: number) => {
+    const profile = getUserProfile();
+    const filters: Parameters<typeof api.getLeads>[0] = {
+      limit: LEADS_PAGE_SIZE,
+      offset,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+    };
+
+    if (typeFilter !== 'all') filters.leadType = typeFilter;
+    if (statusFilter !== 'all') filters.status = statusFilter;
+    if (viewMode === 'active') filters.excludeConverted = true;
+    if (viewMode === 'converted') filters.converted = true;
+    if (searchQuery.trim().length >= 2) filters.search = searchQuery.trim();
+
+    if (assignmentFilter === 'my') {
+      const userId = profile?.userId || profile?.cognitoSub;
+      if (userId) filters.assignedTo = userId;
+    } else if (assignmentFilter === 'unassigned') {
+      filters.unassigned = true;
+    } else if (assignmentFilter.startsWith('agent:')) {
+      filters.assignedTo = assignmentFilter.slice('agent:'.length);
+    }
+
+    return filters;
+  };
+
+  const loadLeads = async ({ reset = false, append = false }: { reset?: boolean; append?: boolean } = {}) => {
     try {
-      setLoading(true);
-      const [leadsData, metricsData, membersData] = await Promise.all([
-        api.getLeads(),
-        api.getLeadMetrics(),
-        api.getLeadAgents().catch(() => []),
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
+      // Converted leads are archived as immutable snapshots — not active LEAD rows
+      if (viewMode === 'converted') {
+        const [history, metricsData] = await Promise.all([
+          api.getLeadConversionHistory({
+            leadType: typeFilter !== 'all' ? typeFilter : undefined,
+            search: searchQuery.trim().length >= 2 ? searchQuery.trim() : undefined,
+          }),
+          !append ? api.getLeadMetrics() : Promise.resolve(metrics),
+        ]);
+        const conversions = Array.isArray(history?.conversions) ? history.conversions : [];
+        const mapped: CRMLead[] = conversions.map((snap: any) => {
+          const source = snap.sourceLeadSnapshot?.lead || {};
+          return {
+            ...source,
+            leadId: snap.leadId || source.leadId,
+            leadType: snap.leadType || source.leadType,
+            name: source.name || 'Converted lead',
+            status: 'converted',
+            convertedAt: snap.convertedAt,
+            convertedTo: {
+              entityType: snap.entityType,
+              entityId: snap.entityId,
+              role: snap.role,
+            },
+            createdAt: source.createdAt || snap.convertedAt,
+            updatedAt: snap.convertedAt,
+          } as CRMLead;
+        });
+        setLeads(mapped);
+        setTotalLeads(history?.total ?? mapped.length);
+        setPageOffset(0);
+        if (!append) setMetrics(metricsData);
+        return;
+      }
+
+      const offset = append ? pageOffset + LEADS_PAGE_SIZE : 0;
+      const filters = buildLeadFilters(offset);
+      // Active/all views never request converted=true from Lead store
+      if (viewMode === 'active') filters.excludeConverted = true;
+
+      const [leadsResult, metricsData, membersData] = await Promise.all([
+        api.getLeads(filters),
+        !append ? api.getLeadMetrics() : Promise.resolve(metrics),
+        members.length ? Promise.resolve(members) : api.getLeadAgents().catch(() => []),
       ]);
-      setLeads(leadsData);
-      setMetrics(metricsData);
-      setMembers(Array.isArray(membersData) ? membersData : []);
+
+      const nextLeads = leadsResult.leads;
+      setLeads((prev) => (append ? [...prev, ...nextLeads] : nextLeads));
+      setTotalLeads(leadsResult.total);
+      setPageOffset(offset);
+      if (!append) setMetrics(metricsData);
+      if (!members.length) setMembers(Array.isArray(membersData) ? membersData : []);
     } catch (error) {
       console.error('Error loading leads:', error);
       if (error instanceof Error && error.message.includes('token')) {
@@ -81,50 +172,19 @@ export default function LeadList() {
       }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...leads];
-
-    // Apply view mode filter first
+  useEffect(() => {
     if (viewMode === 'active') {
-      filtered = filtered.filter((l) => !l.convertedAt);
+      setFilteredLeads(leads.filter((lead) => !isLeadConverted(lead)));
     } else if (viewMode === 'converted') {
-      filtered = filtered.filter((l) => !!l.convertedAt);
+      setFilteredLeads(leads.filter((lead) => isLeadConverted(lead)));
+    } else {
+      setFilteredLeads(leads);
     }
-    // 'all' shows everything, no filter needed
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(
-        (l) =>
-          l.name.toLowerCase().includes(query) ||
-          l.phone?.includes(query) ||
-          l.email?.toLowerCase().includes(query)
-      );
-    }
-
-    if (typeFilter !== 'all') {
-      filtered = filtered.filter((l) => l.leadType === typeFilter);
-    }
-
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter((l) => l.status === statusFilter);
-    }
-
-    const profile = getUserProfile();
-    if (assignmentFilter !== 'all') {
-      filtered = filtered.filter((l) => {
-        if (assignmentFilter === 'unassigned') return !l.assignedTo;
-        if (assignmentFilter === 'my') return l.assignedTo === profile?.userId || l.assignedTo === profile?.cognitoSub;
-        return true;
-      });
-    }
-
-    filtered.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    setFilteredLeads(filtered);
-  };
+  }, [leads, viewMode]);
 
   const resetFilters = () => {
     setSearchQuery('');
@@ -132,12 +192,20 @@ export default function LeadList() {
     setStatusFilter('all');
     setAssignmentFilter('all');
     setShowFilters(false);
+    setPageOffset(0);
   };
+
+  const handleAssignmentFilterChange = (value: string) => {
+    setAssignmentFilter(value as AssignmentFilter);
+    setPageOffset(0);
+  };
+
+  const hasMoreLeads = leads.length < totalLeads;
 
   const handleAssign = async (leadId: string, memberId: string | null) => {
     try {
       await api.updateLead(leadId, { assignedTo: memberId || null });
-      await loadLeads();
+      await loadLeads({ reset: true });
     } catch (error) {
       console.error('Error assigning lead:', error);
       showToast(error instanceof Error ? error.message : 'Failed to assign lead', 'error');
@@ -159,7 +227,7 @@ export default function LeadList() {
       await api.deleteLead(deleteLeadId);
       setDeleteLeadId(null);
       setDeleteLeadName('');
-      await loadLeads();
+      await loadLeads({ reset: true });
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to delete lead', 'error');
     } finally {
@@ -182,22 +250,38 @@ export default function LeadList() {
       key: 'name',
       header: 'Lead',
       sortable: true,
+      width: '26%',
       render: (lead) => (
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
-            <span className="text-white font-semibold text-sm">
-              {lead.name.charAt(0).toUpperCase()}
-            </span>
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-amber-500/20">
+              <span className="text-white font-semibold text-xs">
+                {lead.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="font-medium text-gray-900 truncate">{lead.name}</p>
+              {lead.email && (
+                <p className="text-xs text-gray-500 truncate hidden 2xl:block">
+                  {lead.email}
+                </p>
+              )}
+            </div>
           </div>
-          <div>
-            <p className="font-medium text-gray-900">{lead.name}</p>
-            {lead.email && (
-              <p className="text-xs text-gray-500 flex items-center gap-1">
-                <Mail className="h-3 w-3" />
-                {lead.email}
-              </p>
-            )}
-          </div>
+          {canManageLeads() && !isLeadConverted(lead) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeleteLeadId(lead.leadId);
+                setDeleteLeadName(lead.name);
+              }}
+              className="shrink-0 p-1 text-rose-500 hover:bg-rose-50 rounded-lg opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+              title="Delete lead"
+              aria-label={`Delete ${lead.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -205,17 +289,17 @@ export default function LeadList() {
       key: 'phone',
       header: 'Phone',
       sortable: true,
+      width: '12%',
+      className: 'hidden xl:table-cell',
       render: (lead) => (
-        <div className="flex items-center gap-2">
-          <Phone className="h-4 w-4 text-gray-400" />
-          <span>{lead.phone || '-'}</span>
-        </div>
+        <span className="text-sm whitespace-nowrap">{lead.phone || '-'}</span>
       ),
     },
     {
       key: 'leadType',
       header: 'Type',
       sortable: true,
+      width: '10%',
       render: (lead) => {
         const typeStyles: Record<string, string> = {
           buyer: 'bg-orange-50/80 text-orange-700 ring-1 ring-orange-200',
@@ -236,6 +320,7 @@ export default function LeadList() {
       key: 'status',
       header: 'Status',
       sortable: true,
+      width: '11%',
       render: (lead) => {
         const statusStyles: Record<string, string> = {
           new: 'bg-blue-50/80 text-blue-700 ring-1 ring-blue-200',
@@ -256,6 +341,7 @@ export default function LeadList() {
       key: 'priority',
       header: 'Priority',
       sortable: true,
+      width: '10%',
       render: (lead) => {
         const priorityStyles: Record<string, string> = {
           high: 'bg-rose-50/80 text-rose-700 ring-1 ring-rose-200',
@@ -271,8 +357,9 @@ export default function LeadList() {
     },
     {
       key: 'assignedTo',
-      header: 'Assigned To',
+      header: 'Assigned',
       sortable: true,
+      width: '14%',
       render: (lead) => (
         <div onClick={(e) => e.stopPropagation()}>
           <LeadAssignmentDropdown
@@ -280,7 +367,8 @@ export default function LeadList() {
             assignedTo={lead.assignedTo}
             members={members}
             onAssign={handleAssign}
-            disabled={lead.convertedAt ? true : false}
+            disabled={isLeadConverted(lead)}
+            compact
           />
         </div>
       ),
@@ -289,54 +377,27 @@ export default function LeadList() {
       key: 'source',
       header: 'Source',
       sortable: true,
+      width: '10%',
+      className: 'hidden lg:table-cell',
       render: (lead) => (
-        <span className="text-sm text-gray-600">{lead.source || '-'}</span>
+        <span className="text-sm text-gray-600 truncate block">{lead.source || '-'}</span>
       ),
     },
     {
       key: 'createdAt',
       header: 'Created',
       sortable: true,
+      width: '9%',
       render: (lead) => (
-        <span className="text-sm text-gray-500">
+        <span className="text-sm text-gray-500 whitespace-nowrap">
           {new Date(lead.createdAt).toLocaleDateString()}
         </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      width: '140px',
-      render: (lead) => (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); setSelectedLeadId(lead.leadId); }}
-            className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-lg hover:from-amber-600 hover:to-orange-700 transition-all duration-200 text-xs font-bold shadow-sm shadow-amber-500/15 btn-press"
-          >
-            <Eye className="h-3 w-3" />
-            View
-          </button>
-          {lead.convertedAt ? (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50/80 text-emerald-700 ring-1 ring-emerald-200">
-              <CheckCircle className="h-3 w-3" />
-              Converted
-            </span>
-          ) : (
-            <button
-              onClick={(e) => { e.stopPropagation(); setDeleteLeadId(lead.leadId); setDeleteLeadName(lead.name); }}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-50/80 text-rose-600 ring-1 ring-rose-200 rounded-lg hover:bg-rose-100 transition-all text-xs font-bold btn-press"
-              title="Delete lead"
-            >
-              <Trash2 className="h-3 w-3" />
-            </button>
-          )}
-        </div>
       ),
     },
   ];
 
   const filterContent = (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div>
         <label className="block text-sm font-bold text-slate-600 mb-1.5">Type</label>
         <select
@@ -368,15 +429,20 @@ export default function LeadList() {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-bold text-slate-600 mb-1.5">Assigned</label>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Agent</label>
         <select
           value={assignmentFilter}
-          onChange={(e) => setAssignmentFilter(e.target.value as AssignmentFilter)}
+          onChange={(e) => handleAssignmentFilterChange(e.target.value)}
           className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)] focus:border-amber-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
         >
           <option value="all">All Leads</option>
           <option value="my">My Leads</option>
           <option value="unassigned">Unassigned</option>
+          {members.map((member) => (
+            <option key={member.userId} value={`agent:${member.userId}`}>
+              {member.label || member.username}
+            </option>
+          ))}
         </select>
       </div>
     </div>
@@ -393,7 +459,7 @@ export default function LeadList() {
       )}
       {/* Header */}
       <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="w-full max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <button
@@ -413,7 +479,7 @@ export default function LeadList() {
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button
-                onClick={loadLeads}
+                onClick={() => loadLeads({ reset: true })}
                 disabled={loading}
                 className="p-2.5 glass-premium border border-white/40 rounded-xl hover:bg-white/80 transition-all duration-200 shadow-sm"
                aria-label="Refresh data">
@@ -431,7 +497,7 @@ export default function LeadList() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="w-full max-w-[96rem] mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Stats Cards */}
         {metrics && (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6 stagger-children">
@@ -546,7 +612,16 @@ export default function LeadList() {
           data={filteredLeads}
           columns={columns}
           keyExtractor={(lead) => lead.leadId}
-          onRowClick={(lead) => setSelectedLeadId(lead.leadId)}
+          onRowClick={(lead) => {
+            if (viewMode === 'converted' && lead.convertedTo?.entityId) {
+              const t = lead.convertedTo.entityType;
+              if (t === 'buyer') navigate(`/crm/buyers/${lead.convertedTo.entityId}`);
+              else if (t === 'tenant') navigate(`/crm/tenants/${lead.convertedTo.entityId}`);
+              else if (t === 'owner' || t === 'seller') navigate(`/crm/owners/${lead.convertedTo.entityId}`);
+              return;
+            }
+            setSelectedLeadId(lead.leadId);
+          }}
           searchPlaceholder="Search by name, phone, or email..."
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
@@ -555,7 +630,27 @@ export default function LeadList() {
           filters={filterContent}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters(!showFilters)}
+          tableFixed
+          compact
         />
+
+        {!loading && totalLeads > 0 && (
+          <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <p className="text-sm text-slate-500 font-medium">
+              Showing {filteredLeads.length} of {totalLeads} leads
+            </p>
+            {hasMoreLeads && (
+              <button
+                type="button"
+                onClick={() => loadLeads({ append: true })}
+                disabled={loadingMore}
+                className="px-4 py-2 rounded-xl text-sm font-semibold glass-premium border border-white/40 hover:bg-white/80 transition-all disabled:opacity-60"
+              >
+                {loadingMore ? 'Loading…' : 'Load more'}
+              </button>
+            )}
+          </div>
+        )}
       </main>
 
       {/* Lead Drawer */}
@@ -563,7 +658,7 @@ export default function LeadList() {
         <LeadDrawer
           leadId={selectedLeadId}
           onClose={() => setSelectedLeadId(null)}
-          onUpdate={loadLeads}
+          onUpdate={() => loadLeads({ reset: true })}
         />
       )}
 

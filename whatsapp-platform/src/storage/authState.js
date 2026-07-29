@@ -112,13 +112,54 @@ async function useS3AuthState(phone) {
     keys[file] = await s3Read(phone, file, bucket);
   }
 
-  const state = { creds, keys };
+  // Baileys expects state.keys to have get(type, ids) and set(data) methods
+  // — same contract as useMultiFileAuthState
+  // get(type, ids) → returns { [id]: value }
+  // set(data) → receives { [type]: { [id]: value } }
+  const state = {
+    creds,
+    keys: {
+      get: async (type, ids) => {
+        const result = {};
+        for (const id of ids) {
+          const file = `${type}-${id}.json`;
+          if (keys[file]) {
+            result[id] = keys[file];
+          } else {
+            const data = await s3Read(phone, file, bucket);
+            if (data) {
+              keys[file] = data;
+              result[id] = data;
+            }
+          }
+        }
+        return result;
+      },
+      set: async (data) => {
+        // data is { [type]: { [id]: value } } — write each key to S3
+        const tasks = [];
+        for (const [type, ids] of Object.entries(data)) {
+          for (const [id, value] of Object.entries(ids)) {
+            const file = `${type}-${id}.json`;
+            if (value === null || value === undefined) {
+              delete keys[file];
+              tasks.push(
+                getS3().send(new DeleteObjectCommand({ Bucket: bucket, Key: `${prefixFor(phone)}${file}` }))
+                  .catch(() => {})
+              );
+            } else {
+              keys[file] = value;
+              tasks.push(s3Write(phone, file, value, bucket));
+            }
+          }
+        }
+        await Promise.all(tasks);
+      },
+    },
+  };
 
   const saveCreds = async () => {
     await s3Write(phone, 'creds.json', state.creds, bucket);
-    await Promise.all(
-      Object.entries(state.keys).map(([file, data]) => s3Write(phone, file, data, bucket))
-    );
   };
 
   return { state, saveCreds };

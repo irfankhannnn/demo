@@ -458,3 +458,261 @@ crmDynamodbService.js (CRM operations)
 
 Last Updated: 2024
 Status: PHASE 1 COMPLETE, PHASE 2 PENDING
+
+---
+
+## PHASE 5: MCP-REMOTE + CLAUDE DESKTOP INTEGRATION ✅ COMPLETE
+
+### Objective
+Connect the deployed RealtyFlow MCP microservice to Claude Desktop via `mcp-remote` using Dynamic Client Registration (DCR) and OAuth 2.0.
+
+### Root Issues Fixed
+
+1. **API Gateway remaps `WWW-Authenticate` → `x-amzn-remapped-www-authenticate`**
+   - AWS REST API Gateway always rewrites the `WWW-Authenticate` response header.
+   - `mcp-remote` expects `WWW-Authenticate`, so it could not discover the protected resource metadata.
+   - **Fix:** Patched `mcp-remote` to also read `x-amzn-remapped-www-authenticate` (case-insensitive).
+
+2. **API Gateway stage path breaks OAuth discovery URLs**
+   - Authorization server URL is `https://<api-id>.execute-api.<region>.amazonaws.com/dev`.
+   - `mcp-remote` tries `/.well-known/oauth-authorization-server/dev` and `/dev/.well-known/openid-configuration`, but never `/dev/.well-known/oauth-authorization-server`.
+   - **Fix:** Patched `mcp-remote` `buildDiscoveryUrls()` to try the correct stage-relative metadata path first.
+
+3. **`mcp-remote` loses `_resourceMetadataUrl` after OAuth callback**
+   - A new `StreamableHTTPClientTransport` is created after the browser redirects back with the authorization code.
+   - The new transport had `_resourceMetadataUrl = undefined`, so it fell back to broken discovery URLs.
+   - **Fix:** Patched both `StreamableHTTPClientTransport` and `SSEClientTransport` constructors to derive `_resourceMetadataUrl` from `authProvider.protectedResourceMetadata.resource`.
+
+4. **MCP Lambda did not pass `tenantId` to the controller**
+   - `jwtAuth.ts` set `(req as any).tenantId`, but `mcpController.ts` read `req.headers['x-tenant-id']`.
+   - Result: every authenticated MCP request returned `401 Unauthorized: tenant not resolved`.
+   - **Fix:** Updated `mcpController.ts` to read `reqAny.tenantId` as a fallback to `req.headers['x-tenant-id']`.
+
+### Files Created
+
+1. `patch_mcp_remote.py` — Re-applies all `mcp-remote` patches after `npm install -g mcp-remote`.
+2. `test_oauth_flow.py` — Standalone end-to-end OAuth DCR + token + MCP test.
+3. `C:\Users\zishan\AppData\Roaming\Claude\claude_desktop_config.json` — Claude Desktop MCP server config.
+
+### Files Modified
+
+1. `src/middleware/jwtAuth.ts` — Also sets `x-tenant-id` / `x-user-id` / `x-client-id` / `x-scopes` headers.
+2. `src/controllers/mcpController.ts` — Reads `(req as any).tenantId` as fallback.
+3. `infra/cfn-backend.yaml` — Removed ineffective `WWW-Authenticate` `IntegrationResponses`/`ResponseParameters` for AWS_PROXY integrations.
+4. `C:\Users\zishan\AppData\Roaming\npm\node_modules\mcp-remote\dist\chunk-65X3S4HB.js` — Patched locally.
+
+### Verified End-to-End Flow
+
+1. `mcp-remote` fetches `/.well-known/oauth-protected-resource`.
+2. `mcp-remote` registers a public client via `POST /oauth/register` → `201 Created`.
+3. Browser/test mode approves authorization via `POST /oauth/authorize`.
+4. Callback redirects to `http://localhost:9547/oauth/callback` with authorization code.
+5. `mcp-remote` exchanges code for tokens via `POST /oauth/token` → `200 OK`.
+6. `mcp-remote` calls `POST /mcp` with `Authorization: Bearer <token>` → `200 OK` with tools list.
+
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "realtyflow": {
+      "command": "mcp-remote",
+      "args": [
+        "https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/mcp"
+      ]
+    }
+  }
+}
+```
+
+### Important Notes
+
+- **Re-run patch after mcp-remote updates:** `python d:\reality_flow_crm\nabi-app-git-bkp\patch_mcp_remote.py`
+- The CloudFormation `WWW-Authenticate` remapping does not work for `AWS_PROXY` integrations; the client-side patch is required.
+- `MCP_TEST_MODE=true` enables the auto-approve test path for OAuth authorization.
+- Tokens are stored in `C:\Users\zishan\.mcp-auth\mcp-remote-0.1.37\` and reused across restarts.
+
+### Deployment URLs
+
+- **MCP API:** `https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/mcp`
+- **OAuth Authorize:** `https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/oauth/authorize`
+- **OAuth Token:** `https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/oauth/token`
+- **OAuth Register:** `https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/oauth/register`
+- **OAuth Metadata:** `https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/.well-known/oauth-authorization-server`
+
+---
+
+## PHASE 5 FOLLOW-UP: TOOL EXECUTION HANG FIX
+
+### Issues Fixed
+
+After the OAuth/MCP handshake succeeded, `tools/call` (e.g., `search_leads`) hung because the request never reached the CRM backend correctly.
+
+#### 1. Double `/api` in CRM backend URL
+
+- **File:** `reality-flow-mcp/infra/cfn-params.json`
+- **Problem:** `CrmApiUrl` was set to `https://services-api.cloudberrysolutions.in/devrealestatecrm/api`, and `crmClient.ts` appends `/api/crm/agent/tool`, producing `/api/api/crm/agent/tool`.
+- **Fix:** Changed `CrmApiUrl` to `https://services-api.cloudberrysolutions.in/devrealestatecrm`.
+
+#### 2. OAuth userId lost at CRM backend
+
+- **File:** `server/routes/agentTools.js`
+- **Problem:** The route passed `userId: 'mcp-agent'` hardcoded to `invokeSkill`, ignoring the `x-user-id` header from the MCP service.
+- **Fix:** Route now reads `req.headers['x-user-id']` and passes it through to `invokeSkill`.
+
+#### 3. Test user permission denied
+
+- **File:** `server/userCategoryService.js`
+- **Problem:** `canUserAccessTool()` fails closed when no user category record exists. The test user `test-user-123` (used when `MCP_TEST_MODE=true`) has no category record.
+- **Fix:** Added `AllowUserCategoryDefaultFallback` CloudFormation parameter to `server/infra/cfn-backend.yaml` and `server/infra/cfn-params.sample.json`. Set to `true` in dev to fall back to the default category for unknown users; production must keep it `false` and provision explicit categories.
+
+#### 4. Observability gap
+
+- **File:** `reality-flow-mcp/src/services/crmClient.ts`
+- **Fix:** Added `crmClient.invoke.request` log line that records the exact URL, tenantId, and toolName before calling the CRM backend.
+
+### Files Modified
+
+1. `reality-flow-mcp/infra/cfn-params.json` — removed `/api` from `CrmApiUrl`.
+2. `server/routes/agentTools.js` — pass `x-user-id` header to `invokeSkill`.
+3. `server/infra/cfn-backend.yaml` — added `AllowUserCategoryDefaultFallback` parameter and Lambda env var.
+4. `server/infra/cfn-params.sample.json` — added sample value for the new parameter.
+5. `reality-flow-mcp/src/services/crmClient.ts` — added request URL logging.
+6. `reality-flow-mcp/dist/services/crmClient.js` — rebuilt via `npm run build`.
+
+### Redeploy Steps
+
+1. **MCP service:**
+   ```powershell
+   cd d:\reality_flow_crm\nabi-app-git-bkp\reality-flow-mcp
+   npm run build
+   Compress-Archive -Path "node_modules","dist","package.json" -DestinationPath "function.zip" -Force
+   aws s3 cp function.zip s3://realestate-flow-lambda-packages/realestate-flow-mcp/function.zip
+   aws cloudformation deploy `
+     --template-file infra/cfn-backend.yaml `
+     --stack-name realestate-flow-mcp-dev `
+     --parameter-overrides file://infra/cfn-params.json `
+     --capabilities CAPABILITY_NAMED_IAM
+   ```
+
+2. **CRM backend:**
+   ```powershell
+   cd d:\reality_flow_crm\nabi-app-git-bkp\server
+   # Build / package / deploy per the CRM backend deploy script
+   # Set AllowUserCategoryDefaultFallback=true for dev if using the test user
+   ```
+
+3. **Restart Claude Desktop** after MCP redeploy.
+
+### Verification
+
+After redeploy, run:
+```bash
+# 1. Test the CRM backend tool endpoint directly
+curl -X POST https://services-api.cloudberrysolutions.in/devrealestatecrm/api/crm/agent/tool \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <service_token>" \
+  -H "x-tenant-id: test-agency" \
+  -H "x-user-id: test-user-123" \
+  -d '{"toolName":"search_leads","input":{"limit":5}}'
+
+# 2. Check MCP Lambda CloudWatch logs
+aws logs tail /aws/lambda/realestate-flow-mcp-dev --since 10m
+```
+
+### Security Notes
+
+- `MCP_TEST_MODE=true` and `AllowUserCategoryDefaultFallback=true` are **dev-only**.
+- Production must disable `MCP_TEST_MODE`, require real user consent, and provision explicit user categories.
+- `ALLOW_USER_CATEGORY_DEFAULT_FALLBACK=false` is the default in the CloudFormation template.
+
+
+---
+
+## PHASE 5: PRODUCTION OAUTH - REAL TENANT AUTHENTICATION - COMPLETE
+
+### Objective
+Transition from hardcoded test-user bypass to a production-grade OAuth flow supporting both Claude Web and Claude Desktop.
+
+### Root Causes Fixed
+
+| Issue | File | Fix |
+|-------|------|-----|
+| Test mode hardcoded | cfn-backend.yaml | Removed MCP_TEST_MODE + MCP_TENANT_ID env vars |
+| Test mode bypass | validateToken.ts | Removed auto-auth block entirely |
+| No login redirect | validateToken.ts | Added 302 redirect to frontend when unauthenticated GET arrives |
+| client_id=anthropic rejected | aiIntegrations.js | Now registers DCR client first (gets dcr_xxx id) |
+| Broken PKCE | aiIntegrations.js | Proper code_verifier + SHA256 code_challenge (RFC 7636 S256) |
+| No callback endpoint | (new file) | aiIntegrationsPublic.js exchanges code for token, stores connection |
+| Public callback blocked by auth | server.js | Public callback mounted before validateToken middleware |
+| Scope hardcoded to all | oauthController.ts | Uses requested scope from form body; falls back to all |
+| Scope display hardcoded | oauth-authorize.ejs | Dynamic scope rendering with human-readable labels |
+| Placeholder MCP URL | server/.env | Updated to actual API Gateway invoke URL |
+| Port 4000 blocked for localhost | clientRegistry.ts | Added 4000 to allowed localhost redirect ports |
+| No Claude Desktop UX | AiIntegrations.tsx | Banner with Approve/Cancel for mcp_oauth_callback param |
+
+### New Files
+
+| File | Purpose |
+|------|---------|
+| server/routes/aiIntegrationsPublic.js | Public OAuth callback handler (GET /api/ai-integrations/callback) |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| reality-flow-mcp/infra/cfn-backend.yaml | Removed MCP_TEST_MODE/MCP_TENANT_ID; added FrontendUrl param |
+| reality-flow-mcp/infra/cfn-params.json | Added FrontendUrl value |
+| reality-flow-mcp/src/middleware/validateToken.ts | Removed test mode; added login redirect for unauthenticated GET |
+| reality-flow-mcp/src/services/clientRegistry.ts | Added port 4000 to allowed localhost ports |
+| reality-flow-mcp/src/controllers/oauthController.ts | scope from form body; not OAUTH_SCOPES.join in postAuthorize |
+| reality-flow-mcp/src/views/oauth-authorize.ejs | Dynamic scope display + scope hidden field in form |
+| reality-flow-mcp/.env | Removed MCP_TENANT_ID; added FRONTEND_URL |
+| server/.env | Fixed MCP_BASE_URL to API Gateway URL; added OAUTH_CALLBACK_URL |
+| server/oauth/oauthProviders.js | Removed static redirectUri; added getOAuthCallbackUrl() |
+| server/routes/aiIntegrations.js | Full rewrite: DCR, proper PKCE, pending state, desktop-session endpoint |
+| server/server.js | Added public callback route before validateToken middleware |
+| real-estate-crm-app/src/pages/crm/AiIntegrations.tsx | Desktop flow UI, trusted host list, mcp_oauth_callback handling |
+
+### Environment Variables Required
+
+MCP Server (cfn-params.json / .env):
+  FRONTEND_URL = https://app.realestateflow.in (or http://localhost:5173 for dev)
+
+CRM Backend (server/.env):
+  MCP_BASE_URL = https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev
+  OAUTH_CALLBACK_URL = https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback
+
+### Deployment Checklist
+
+1. Run npm run build in reality-flow-mcp/ (already passing - zero TS errors)
+2. Package: zip -r function.zip node_modules dist package.json
+3. Upload to S3: realestate-flow-lambda-packages/realestate-flow-mcp/function.zip
+4. Deploy: aws cloudformation deploy --template-file infra/cfn-backend.yaml --parameter-overrides file://infra/cfn-params.json --capabilities CAPABILITY_NAMED_IAM
+5. Deploy CRM backend with updated OAUTH_CALLBACK_URL env var
+6. Verify: GET https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/.well-known/oauth-authorization-server
+
+### Post-Review Security & Robustness Fixes
+
+After the initial implementation, the following additional fixes were applied:
+
+| Issue | File | Fix |
+|-------|------|-----|
+| Hardcoded secrets in test files | `D:\test_mcp_call.js`, `D:\test_mcp_axios.js`, `reality-flow-mcp/test_mcp_axios.js` | Deleted all test files containing production JWT secret |
+| Production secrets in .env | `.gitignore` | Added `reality-flow-mcp/.env` to root `.gitignore` explicitly |
+| API Gateway timeout 29s | `cfn-backend.yaml` | Restored to 58s (Lambda timeout is 60s) |
+| Dual-write to connections table | `oauthController.ts` | Removed MCP-side writes; CRM backend is the single source of truth |
+| Missing scope defaults to all scopes | `oauthController.ts` | Reject authorization with 400 if `scope` is missing |
+| Weak desktop-session URL validation | `aiIntegrations.js` | Exact `/oauth/authorize` path required, no fragments, MCP_BASE_URL required |
+| Session delete failure blocks request | `validateToken.ts` | Log delete error but continue; TTL cleans up |
+| Sequential DynamoDB writes | `aiIntegrations.js` | Parallelized pending + session writes with `Promise.all` |
+| Magic TTL numbers | `aiIntegrations.js` | `OAUTH_SESSION_TTL_SEC`, `OAUTH_PENDING_TTL_SEC`, `DCR_LOOKUP_TTL_SEC` now env-driven |
+| Missing FRONTEND_URL log | `validateToken.ts` | Added warning when `FRONTEND_URL` is not set |
+| Nested redirectError helper | `aiIntegrationsPublic.js` | Extracted to module-level helper |
+| DCR registration flood | `aiIntegrations.js` | Added 24-hour tenant/provider DCR lookup reuse (`dcr_lookup_*`) |
+
+### Additional Security Notes
+
+- **DCR client reuse:** Each tenant/provider combination reuses the same DCR client for 24 hours. This prevents DynamoDB table bloat from repeated "Connect" clicks.
+- **Connections table ownership:** Only the CRM backend writes to `realtyflow-oauth-connections`. The MCP server issues tokens but does not manage connection state.
+- **Scope handling:** The MCP server now rejects authorization requests without an explicit `scope` parameter. The CRM backend always sends the full scope list.

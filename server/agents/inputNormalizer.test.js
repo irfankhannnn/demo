@@ -7,6 +7,8 @@ import {
   normalizeDate,
   normalizePhone,
   normalizeToolInput,
+  normalizeMeetingFields,
+  normalizePropertyStatus,
 } from './inputNormalizer.js';
 
 describe('normalizeMoney', () => {
@@ -138,10 +140,31 @@ describe('normalizeToolInput', () => {
     expect(result.rentExpected).toBe(45000);
   });
 
-  test('normalizes date fields', () => {
-    const input = { scheduledDate: 'tomorrow' };
+  test('maps scheduledDate to meetingDate and meetingTime for create_meeting', () => {
+    const input = { scheduledDate: '2026-08-15T15:30:00', title: 'Site visit' };
     const result = normalizeToolInput('create_meeting', input);
-    expect(result.scheduledDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(result.meetingDate).toBe('2026-08-15');
+    expect(result.meetingTime).toBe('15:30');
+    expect(result.scheduledDate).toBeUndefined();
+  });
+
+  test('defaults meeting time when only date provided', () => {
+    const result = normalizeMeetingFields({ scheduledDate: '2026-08-15' });
+    expect(result.meetingDate).toBe('2026-08-15');
+    expect(result.meetingTime).toBe('10:00');
+  });
+
+  test('maps notes to description for meetings', () => {
+    const result = normalizeMeetingFields({ notes: 'Bring documents' });
+    expect(result.description).toBe('Bring documents');
+    expect(result.notes).toBeUndefined();
+  });
+
+  test('normalizes property status aliases', () => {
+    expect(normalizePropertyStatus('inactive')).toBe('not-listed');
+    expect(normalizePropertyStatus('for-sale')).toBe('for-sale');
+    const result = normalizeToolInput('search_properties', { status: 'inactive' });
+    expect(result.status).toBe('not-listed');
   });
 
   test('normalizes phone fields', () => {

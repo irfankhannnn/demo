@@ -16,9 +16,12 @@ import {
   ShoppingCart,
   Key,
   Tag,
+  Clock,
+  History,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import ContactActivityTimeline, { ContactActivity } from '../../components/ContactActivityTimeline';
 import { CRMContact } from '../../types/crm';
 
 type RoleFilter = 'all' | 'owner' | 'seller' | 'buyer' | 'tenant';
@@ -31,6 +34,8 @@ export default function ContactList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activityPreviews, setActivityPreviews] = useState<Record<string, ContactActivity[]>>({});
+  const [activityPreviewsLoaded, setActivityPreviewsLoaded] = useState(false);
 
   useEffect(() => {
     loadContacts();
@@ -40,11 +45,33 @@ export default function ContactList() {
     applyFilters();
   }, [contacts, searchQuery, roleFilter, statusFilter]);
 
+  const loadActivityPreviews = async (contactList: CRMContact[]) => {
+    if (!contactList.length) {
+      setActivityPreviews({});
+      setActivityPreviewsLoaded(true);
+      return;
+    }
+    try {
+      setActivityPreviewsLoaded(false);
+      const previews = await api.getContactActivityPreviews(
+        contactList.map((c) => c.contactId),
+        3,
+      );
+      setActivityPreviews(previews || {});
+    } catch (error) {
+      console.error('Error loading contact activity previews:', error);
+      setActivityPreviews({});
+    } finally {
+      setActivityPreviewsLoaded(true);
+    }
+  };
+
   const loadContacts = async () => {
     try {
       setLoading(true);
       const data = await api.getContacts();
       setContacts(data);
+      await loadActivityPreviews(data);
     } catch (error) {
       console.error('Error loading contacts:', error);
       if (error instanceof Error && error.message.includes('token')) {
@@ -97,13 +124,38 @@ export default function ContactList() {
     }
   };
 
-  const getRoleBadges = (roles: CRMContact['roles']) => {
+  const getRoleBadges = (contact: CRMContact) => {
+    const roles = contact.roles;
     const badges = [];
     if (roles?.owner) badges.push({ label: 'Owner', color: 'bg-blue-100 text-blue-800', icon: Home });
-    if (roles?.seller) badges.push({ label: 'Seller', color: 'bg-purple-100 text-purple-800', icon: Tag });
+    if (roles?.seller) {
+      const lifecycle = contact.sellerProfile?.lifecycleStatus || 'active';
+      const sellerLabel = lifecycle === 'past' ? 'Past Seller' : lifecycle === 'inactive' ? 'Inactive Seller' : 'Seller';
+      const sellerColor = lifecycle === 'past'
+        ? 'bg-slate-100 text-slate-700'
+        : lifecycle === 'inactive'
+          ? 'bg-gray-100 text-gray-600'
+          : 'bg-purple-100 text-purple-800';
+      badges.push({ label: sellerLabel, color: sellerColor, icon: Tag });
+    }
     if (roles?.buyer) badges.push({ label: 'Buyer', color: 'bg-orange-100 text-orange-800', icon: ShoppingCart });
     if (roles?.tenant) badges.push({ label: 'Tenant', color: 'bg-teal-100 text-teal-800', icon: Key });
     return badges;
+  };
+
+  const formatLastActivity = (iso?: string) => {
+    if (!iso) return null;
+    try {
+      const date = new Date(iso);
+      const diffMs = Date.now() - date.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return 'Today';
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+    } catch {
+      return null;
+    }
   };
 
   const getRoleCount = (role: RoleFilter) => {
@@ -259,7 +311,7 @@ export default function ContactList() {
 
                   {/* Role Badges */}
                   <div className="flex flex-wrap gap-1.5 mb-3">
-                    {getRoleBadges(contact.roles).map((badge) => (
+                    {getRoleBadges(contact).map((badge) => (
                       <span
                         key={badge.label}
                         className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}
@@ -296,6 +348,37 @@ export default function ContactList() {
                       Source: {contact.source}
                     </div>
                   )}
+
+                  {/* Recent History */}
+                  <div
+                    className="mb-4 pt-3 border-t border-gray-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                        <History className="h-3.5 w-3.5" />
+                        Recent History
+                      </h4>
+                      {contact.lastActivityAt && (
+                        <span className="text-[10px] text-gray-400 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {formatLastActivity(contact.lastActivityAt)}
+                        </span>
+                      )}
+                    </div>
+                    <ContactActivityTimeline
+                      compact
+                      limit={3}
+                      activities={
+                        activityPreviewsLoaded
+                          ? (activityPreviews[contact.contactId] || [])
+                          : undefined
+                      }
+                    />
+                    {(activityPreviews[contact.contactId]?.length || 0) === 0 && contact.lastActivityTitle && (
+                      <p className="text-xs text-gray-600 truncate">{contact.lastActivityTitle}</p>
+                    )}
+                  </div>
 
                   {/* Actions */}
                   <div className="flex space-x-2 pt-3 border-t">

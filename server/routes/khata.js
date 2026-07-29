@@ -13,12 +13,14 @@ import {
   updateKhataEntrySchema,
   settleKhataEntrySchema,
 } from '../validation/otherSchemas.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 
 const router = express.Router();
 
-// Apply auth middleware to all khata routes
+// Apply auth middleware to all khata routes (tenant-scoped financial data)
 router.use(validateToken);
 router.use(extractTenantId);
+router.use(requireAdmin);
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const ddbDocClient = DynamoDBDocumentClient.from(client);
@@ -506,7 +508,7 @@ router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) =
     const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     const tenantId = req.tenantId;
     await precheckCredits(tenantId, 'khata_entry');
-    const username = req.user?.username || 'system';
+    const username = req.user?.username || SERVICE_ACCOUNT_USER;
     const {
       propertyId,
       partyType,
@@ -816,7 +818,7 @@ router.put('/entries/:entryId', validateBody(updateKhataEntrySchema), async (req
 router.post('/entries/:entryId/settle', validateBody(settleKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const username = req.user?.username || 'system';
+    const username = req.user?.username || SERVICE_ACCOUNT_USER;
     const { entryId } = req.params;
     const { settlementNotes } = req.body;
 

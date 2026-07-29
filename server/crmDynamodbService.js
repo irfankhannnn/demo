@@ -11,12 +11,37 @@ import {
   DeleteCommand,
   ScanCommand,
   BatchWriteCommand,
+  TransactWriteCommand,
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { getOrCreateArea, incrementAreaPropertyCount } from './areasDynamodbService.js';
 import { logger } from './logger.js';
 import { scheduleMeetingReminder, cancelMeetingReminder } from './notificationDynamodbService.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
+import { collectAllPages } from './utils/dynamoPagination.js';
+import {
+  validateConvertLeadOptions,
+  buildTargetEntity,
+  buildForSalePropertyItem,
+  buildForRentPropertyItem,
+  buildConversionSnapshotItem,
+  buildNoteMigrationActions,
+  buildMeetingRelinkUpdates,
+  buildConvertLeadResult,
+  estimateTransactItemCount,
+  assertTransactSizeOk,
+  phonesMatch,
+  CONVERSION_SYSTEM_KEYS,
+  deepClone,
+} from './services/leadConversionService.js';
+import { normalizeOwnerProperty, normalizeSellerProperty } from './normalizers/leadPropertyNormalizer.js';
+import {
+  propertyIsCurrentlyOwnedBy,
+  isValidPropertyStatusTransition,
+  normalizePropertyMarketStatus,
+  buildOwnerProfile,
+} from './domain/crmDomainModel.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -25,6 +50,39 @@ import path from 'path';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env') });
+
+/** Map tool `query` param to CRM service `search` field. */
+function aliasQueryToSearch(filters = {}) {
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)) return filters;
+  if (filters.query && !filters.search) {
+    const { query, ...rest } = filters;
+    return { ...rest, search: query };
+  }
+  return filters;
+}
+
+/** Case-insensitive enum equality for filter fields. */
+function matchesFilterEnum(fieldValue, filterValue) {
+  if (filterValue == null || filterValue === '' || filterValue === 'all') return true;
+  return String(fieldValue || '').toLowerCase() === String(filterValue).toLowerCase();
+}
+
+/** Normalize getLeads() result — supports legacy array or paginated envelope. */
+export function unwrapLeadsList(result) {
+  if (Array.isArray(result)) return result;
+  return result?.leads ?? [];
+}
+
+function applyLeadAssignmentFilter(leads, filters = {}) {
+  if (filters.unassigned === true || filters.unassigned === 'true') {
+    return leads.filter((l) => !l.assignedTo);
+  }
+  if (filters.assignedTo) {
+    const target = String(filters.assignedTo);
+    return leads.filter((l) => l.assignedTo === target);
+  }
+  return leads;
+}
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
 const CRM_TABLE_NAME = process.env.CRM_DYNAMODB_TABLE_NAME;
@@ -44,6 +102,37 @@ function rejectForbiddenKeys(data) {
   if (forbidden.length > 0) {
     throw new Error(`Forbidden keys in update payload: ${forbidden.join(', ')}`);
   }
+}
+
+/**
+ * Build a DynamoDB SET update expression, skipping undefined values.
+ * Undefined values must not appear in ExpressionAttributeValues — the AWS
+ * document client omits them but leaves the placeholder in UpdateExpression,
+ * which causes "attribute value :valN is not defined" errors.
+ */
+function buildSetUpdateExpression(data, extraProtectedKeys = []) {
+  const protectedKeys = new Set([
+    'PK', 'SK', 'EntityType', 'tenantId', 'createdAt', 'GSI3PK', 'GSI3SK',
+    ...extraProtectedKeys,
+  ]);
+
+  const updateExpressions = [];
+  const attributeNames = {};
+  const attributeValues = {};
+
+  for (const [key, value] of Object.entries(data)) {
+    if (protectedKeys.has(key) || key.startsWith('GSI') || value === undefined) {
+      continue;
+    }
+    const index = updateExpressions.length;
+    const attrName = `#attr${index}`;
+    const attrValue = `:val${index}`;
+    updateExpressions.push(`${attrName} = ${attrValue}`);
+    attributeNames[attrName] = key;
+    attributeValues[attrValue] = value;
+  }
+
+  return { updateExpressions, attributeNames, attributeValues };
 }
 
 /**
@@ -119,11 +208,12 @@ export async function createCustomer(tenantId, data) {
     status: data.status || 'active', // active, inactive
     notes: data.notes || '',
     tags: data.tags || [],
+    assignedTo: data.assignedTo || null,
     
     // Timestamps
     createdAt: now,
     updatedAt: now,
-    createdBy: data.createdBy || 'System',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     
     // Search index
     GSI3PK: `TENANT#${tenantId}#SEARCH`,
@@ -142,16 +232,17 @@ export async function getCustomers(tenantId, filters = {}) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+  filters = aliasQueryToSearch(filters);
 
-  const result = await docClient.send(new ScanCommand({
+  const items = await collectAllPages(docClient, ScanCommand, {
     TableName: CRM_TABLE_NAME,
     FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
     ExpressionAttributeValues: {
       ':type': 'CUSTOMER',
       ':tenantId': tenantId,
     },
-  }));
-  let customers = result.Items || [];
+  }, { maxPages: 100 });
+  let customers = items;
 
   // --- Search filter (name, phone, address) ---
   if (filters.search && filters.search.trim().length >= 2) {
@@ -166,7 +257,7 @@ export async function getCustomers(tenantId, filters = {}) {
 
   // --- Exact-match filters ---
   if (filters.status && filters.status !== 'all') {
-    customers = customers.filter(c => c.status === filters.status);
+    customers = customers.filter((c) => matchesFilterEnum(c.status, filters.status));
   }
   if (filters.source) {
     const sourceQ = filters.source.toLowerCase();
@@ -293,16 +384,24 @@ export async function updateCustomer(tenantId, customerId, data) {
     attributeValues[attrValue] = data[key];
   });
 
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#CUSTOMER#${customerId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#CUSTOMER#${customerId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: 'attribute_exists(PK)',
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Customer not found');
+    }
+    throw err;
+  }
 
   return await getCustomer(tenantId, customerId);
 }
@@ -338,7 +437,7 @@ export async function createCustomerNote(tenantId, customerId, data) {
     noteId,
     customerId,
     content: data.content,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: data.createdAt || new Date().toISOString(),
   };
 
@@ -392,7 +491,7 @@ export async function getCustomerNotes(tenantId, customerId) {
         customerId,
         noteId: 'PROFILE_NOTES',
         content: customerProfile.notes,
-        createdBy: 'System',
+        createdBy: SERVICE_ACCOUNT_USER,
         createdAt: customerProfile.createdAt || new Date().toISOString(),
       }];
     }
@@ -416,7 +515,7 @@ export async function createOwnerNote(tenantId, ownerId, data) {
     noteId,
     ownerId,
     content: data.content,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: data.createdAt || new Date().toISOString(),
   };
   await docClient.send(new PutCommand({
@@ -465,7 +564,7 @@ export async function getOwnerNotes(tenantId, ownerId) {
         ownerId,
         noteId: 'PROFILE_NOTES',
         content: ownerProfile.notes,
-        createdBy: 'System',
+        createdBy: SERVICE_ACCOUNT_USER,
         createdAt: ownerProfile.createdAt || new Date().toISOString(),
       }];
     }
@@ -593,10 +692,17 @@ export async function getOwnerByPhone(tenantId, phone) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+  // Normalize: if phone is an object (from skillInvoker dynamic dispatch), extract 'phone' field
+  if (phone && typeof phone === 'object' && !Array.isArray(phone)) {
+    phone = phone.phone;
+  }
+  if (phone !== undefined && phone !== null && typeof phone !== 'string') {
+    phone = String(phone);
+  }
   if (!phone) {
     return null;
   }
-  
+
   // Normalize phone number (remove spaces, dashes)
   const normalizedPhone = phone.replace(/[\s-]/g, '');
   
@@ -613,10 +719,17 @@ export async function getCustomerByPhone(tenantId, phone) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+  // Normalize: if phone is an object (from skillInvoker dynamic dispatch), extract 'phone' field
+  if (phone && typeof phone === 'object' && !Array.isArray(phone)) {
+    phone = phone.phone;
+  }
+  if (phone !== undefined && phone !== null && typeof phone !== 'string') {
+    phone = String(phone);
+  }
   if (!phone) {
     return null;
   }
-  
+
   // Normalize phone number (remove spaces, dashes)
   const normalizedPhone = phone.replace(/[\s-]/g, '');
   
@@ -660,6 +773,7 @@ export async function createOwner(tenantId, data) {
     tags: data.tags || [], // Tags for categorization
     source: data.source || '', // How they came (e.g., enquiry_contact)
     status: data.status || 'active', // active, inactive
+    assignedTo: data.assignedTo || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     GSI3PK: `TENANT#${tenantId}#SEARCH`,
@@ -678,19 +792,20 @@ export async function getOwners(tenantId, filters = {}) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+  filters = aliasQueryToSearch(filters);
 
-  const result = await docClient.send(new ScanCommand({
+  const items = await collectAllPages(docClient, ScanCommand, {
     TableName: CRM_TABLE_NAME,
     FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
     ExpressionAttributeValues: {
       ':type': 'OWNER',
       ':tenantId': tenantId,
     },
-  }));
-  let owners = result.Items || [];
+  }, { maxPages: 100 });
+  let owners = items;
 
-  if (filters.status) {
-    owners = owners.filter(o => o.status === filters.status);
+  if (filters.status && filters.status !== 'all') {
+    owners = owners.filter((o) => matchesFilterEnum(o.status, filters.status));
   }
   if (filters.source) {
     owners = owners.filter(o => o.source === filters.source);
@@ -786,16 +901,24 @@ export async function updateOwner(tenantId, ownerId, data) {
     attributeValues[attrValue] = data[key];
   });
 
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#OWNER#${ownerId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#OWNER#${ownerId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: 'attribute_exists(PK)',
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Owner not found');
+    }
+    throw err;
+  }
 
   return await getOwner(tenantId, ownerId);
 }
@@ -817,6 +940,145 @@ export async function deleteOwner(tenantId, ownerId) {
 
 // ============== CRM Property Operations ==============
 
+const LISTING_MARKET_STATUSES = new Set(['for-sale', 'for-rent']);
+
+function isListingMarketStatus(status) {
+  return LISTING_MARKET_STATUSES.has(String(status || '').toLowerCase());
+}
+
+/** Resolve the canonical Contact linked to a property's owner. */
+async function resolveContactForProperty(tenantId, property) {
+  if (!property) return null;
+
+  const fromProperty = property.currentOwnerContactId || property.ownerContactId;
+  if (fromProperty) {
+    const contact = await getContact(tenantId, fromProperty);
+    if (contact) return contact;
+  }
+
+  if (property.ownerId) {
+    const owner = await getOwner(tenantId, property.ownerId);
+    if (owner?.contactId) {
+      const contact = await getContact(tenantId, owner.contactId);
+      if (contact) return contact;
+    }
+    if (owner?.phone) {
+      const byPhone = await findContactByPhone(tenantId, owner.phone);
+      if (byPhone) return byPhone;
+    }
+  }
+
+  return null;
+}
+
+async function appendPropertyToContactOwnerProfile(tenantId, contact, propertyId) {
+  if (!contact?.contactId || !propertyId) return;
+
+  const existing = contact.ownerProfile || {};
+  const ownedIds = Array.isArray(existing.ownedPropertyIds) ? [...existing.ownedPropertyIds] : [];
+  if (ownedIds.includes(propertyId)) return;
+
+  ownedIds.push(propertyId);
+  await updateContact(tenantId, contact.contactId, {
+    ownerProfile: buildOwnerProfile({
+      ...existing,
+      ownedPropertyIds: ownedIds,
+    }),
+    roles: {
+      ...(contact.roles || {}),
+      owner: true,
+    },
+  });
+}
+
+async function recordPropertyTimelineActivity(tenantId, contactId, {
+  activityType,
+  property,
+  description = '',
+  performedBy = SERVICE_ACCOUNT_USER,
+  payload = {},
+}) {
+  if (!contactId || !property) return;
+
+  const isRent = property.status === 'for-rent';
+  const titleByType = {
+    property_added: property.title ? `Added ${property.title}` : 'Added a property',
+    property_listed: property.title
+      ? `Listed ${property.title} for ${isRent ? 'rent' : 'sale'}`
+      : `Listed for ${isRent ? 'rent' : 'sale'}`,
+  };
+
+  await createContactActivity(tenantId, contactId, {
+    activityType,
+    subjectEntityType: 'contact',
+    subjectEntityId: contactId,
+    title: titleByType[activityType] || `Property Updated: ${property.title || 'Property'}`,
+    description,
+    performedBy,
+    payload: {
+      propertyId: property.propertyId,
+      propertyTitle: property.title || null,
+      propertyStatus: property.status || null,
+      area: property.area || null,
+      ...payload,
+    },
+  });
+}
+
+async function syncPropertyContactTimeline(tenantId, property, {
+  isNew = false,
+  previousStatus = null,
+  performedBy = SERVICE_ACCOUNT_USER,
+} = {}) {
+  if (!property?.propertyId) return;
+
+  try {
+    const contact = await resolveContactForProperty(tenantId, property);
+    if (!contact?.contactId) return;
+
+    await appendPropertyToContactOwnerProfile(tenantId, contact, property.propertyId);
+
+    const normalizedStatus = normalizePropertyMarketStatus(property.status);
+    const normalizedPrevious = normalizePropertyMarketStatus(previousStatus);
+
+    if (isNew) {
+      const areaLabel = [property.area, property.city].filter(Boolean).join(', ');
+      await recordPropertyTimelineActivity(tenantId, contact.contactId, {
+        activityType: 'property_added',
+        property,
+        description: areaLabel
+          ? `New property registered in ${areaLabel}.`
+          : 'New property registered for this owner.',
+        performedBy,
+      });
+    }
+
+    if (isListingMarketStatus(normalizedStatus)
+      && (isNew || !isListingMarketStatus(normalizedPrevious))) {
+      const price = property.saleInfo?.listedPrice ?? property.rentalInfo?.expectedRent ?? null;
+      await recordPropertyTimelineActivity(tenantId, contact.contactId, {
+        activityType: 'property_listed',
+        property,
+        description: normalizedStatus === 'for-rent'
+          ? `Listed for rent${price != null ? ` at INR ${Number(price).toLocaleString()}/mo` : ''}.`
+          : `Listed for sale${price != null ? ` at INR ${Number(price).toLocaleString()}` : ''}.`,
+        performedBy,
+        payload: {
+          listingType: normalizedStatus === 'for-rent' ? 'rent' : 'sale',
+          listedPrice: property.saleInfo?.listedPrice ?? null,
+          expectedRent: property.rentalInfo?.expectedRent ?? null,
+        },
+      });
+    }
+  } catch (err) {
+    logger.error('syncPropertyContactTimeline.error', {
+      tenantId,
+      propertyId: property?.propertyId,
+      error: err.message,
+    });
+  }
+}
+
 export async function createProperty(tenantId, data) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -825,6 +1087,12 @@ export async function createProperty(tenantId, data) {
   const propertyId = uuidv4();
   // Owner is now optional - can be null/undefined for unassigned properties
   const ownerId = data.ownerId || null;
+  // Canonical current owner is a Contact id (Phase 0/1 domain model)
+  let currentOwnerContactId = data.currentOwnerContactId || data.ownerContactId || null;
+  if (!currentOwnerContactId && ownerId) {
+    const owner = await getOwner(tenantId, ownerId);
+    currentOwnerContactId = owner?.contactId || null;
+  }
   
   const property = {
     PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
@@ -833,15 +1101,21 @@ export async function createProperty(tenantId, data) {
     tenantId,
     propertyId,
     
-    // Ownership
-    ownerId: ownerId, // Links to OWNER entity
+    // Ownership — currentOwnerContactId is canonical; ownerId is legacy bridge
+    ownerId: ownerId, // Links to OWNER entity (legacy)
+    currentOwnerContactId,
+    ownerContactId: currentOwnerContactId, // alias used by khata / getPropertyContacts
+    previousOwnerContactId: data.previousOwnerContactId || null,
+    previousOwnerId: data.previousOwnerId || null,
     ownerName: data.ownerName || null, // Denormalized for display (legacy)
     ownerPhone: data.ownerPhone ? normalizePhoneE164(data.ownerPhone) : null, // Legacy + normalized
     ownerSnapshot: data.ownerSnapshot || (data.ownerName || data.ownerPhone ? {
       name: data.ownerName || null,
       phone: data.ownerPhone ? normalizePhoneE164(data.ownerPhone) : null,
+      contactId: currentOwnerContactId || null,
     } : null),
     convertedFromLeadId: data.convertedFromLeadId || null,
+    latestSaleTransactionId: data.latestSaleTransactionId || null,
     
     // Basic Details
     title: data.title,
@@ -924,8 +1198,10 @@ export async function createProperty(tenantId, data) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     
-    // GSI1 - Owner index
-    GSI1PK: ownerId ? `TENANT#${tenantId}#OWNER#${ownerId}` : `TENANT#${tenantId}#OWNER#UNASSIGNED`,
+    // GSI1 - Owner index (prefer Contact; fall back to legacy OWNER#)
+    GSI1PK: currentOwnerContactId
+      ? `TENANT#${tenantId}#CONTACT#${currentOwnerContactId}`
+      : (ownerId ? `TENANT#${tenantId}#OWNER#${ownerId}` : `TENANT#${tenantId}#OWNER#UNASSIGNED`),
     GSI1SK: `PROPERTY#${propertyId}`,
     
     // GSI2 - Status index
@@ -985,6 +1261,11 @@ export async function createProperty(tenantId, data) {
     });
   }
 
+  await syncPropertyContactTimeline(tenantId, property, {
+    isNew: true,
+    performedBy: data.createdBy || data.performedBy || SERVICE_ACCOUNT_USER,
+  });
+
   return property;
 }
 
@@ -993,18 +1274,24 @@ export async function getProperties(tenantId, filters = {}) {
     throw new Error('Tenant ID is required');
   }
 
-  const result = await docClient.send(new ScanCommand({
+  const items = await collectAllPages(docClient, ScanCommand, {
     TableName: CRM_TABLE_NAME,
     FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
     ExpressionAttributeValues: {
       ':type': 'PROPERTY',
       ':tenantId': tenantId,
     },
-  }));
-  let properties = result.Items || [];
+  }, { maxPages: 100 });
+  let properties = items;
 
   if (filters.status) {
-    properties = properties.filter(p => p.status === filters.status);
+    if (filters.status === 'not-listed') {
+      properties = properties.filter(p =>
+        ['not-listed', 'inactive', 'available', 'on-hold'].includes(p.status),
+      );
+    } else {
+      properties = properties.filter(p => p.status === filters.status);
+    }
   }
   if (filters.propertyType) {
     properties = properties.filter(p => p.propertyType === filters.propertyType);
@@ -1129,16 +1416,81 @@ export async function getPropertiesByOwner(tenantId, ownerId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
-  
-  const result = await docClient.send(new QueryCommand({
-    TableName: CRM_TABLE_NAME,
-    IndexName: 'owner-property-index',
-    KeyConditionExpression: 'GSI1PK = :ownerKey',
-    ExpressionAttributeValues: {
-      ':ownerKey': `TENANT#${tenantId}#OWNER#${ownerId}`,
-    },
-  }));
-  return result.Items || [];
+  if (!ownerId) return [];
+
+  // Dual-read: CONTACT# (canonical) + OWNER# (legacy bridge)
+  const [byContact, byOwner] = await Promise.all([
+    docClient.send(new QueryCommand({
+      TableName: CRM_TABLE_NAME,
+      IndexName: 'owner-property-index',
+      KeyConditionExpression: 'GSI1PK = :ownerKey',
+      ExpressionAttributeValues: {
+        ':ownerKey': `TENANT#${tenantId}#CONTACT#${ownerId}`,
+      },
+    })),
+    docClient.send(new QueryCommand({
+      TableName: CRM_TABLE_NAME,
+      IndexName: 'owner-property-index',
+      KeyConditionExpression: 'GSI1PK = :ownerKey',
+      ExpressionAttributeValues: {
+        ':ownerKey': `TENANT#${tenantId}#OWNER#${ownerId}`,
+      },
+    })),
+  ]);
+
+  const merged = new Map();
+  for (const item of [...(byContact.Items || []), ...(byOwner.Items || [])]) {
+    if (item?.propertyId) merged.set(item.propertyId, item);
+  }
+
+  // Resolve linked Contact for this OWNER id (or treat ownerId as contactId)
+  let contactId = null;
+  try {
+    const owner = await getOwner(tenantId, ownerId);
+    if (owner?.phone) {
+      const contact = await findContactByPhone(tenantId, owner.phone);
+      if (contact?.contactId) contactId = contact.contactId;
+    }
+  } catch {
+    // ignore — fall through
+  }
+  if (!contactId) {
+    const asContact = await getContact(tenantId, ownerId).catch(() => null);
+    if (asContact?.contactId) contactId = asContact.contactId;
+  }
+
+  if (contactId && contactId !== ownerId) {
+    const byLinkedContact = await docClient.send(new QueryCommand({
+      TableName: CRM_TABLE_NAME,
+      IndexName: 'owner-property-index',
+      KeyConditionExpression: 'GSI1PK = :ownerKey',
+      ExpressionAttributeValues: {
+        ':ownerKey': `TENANT#${tenantId}#CONTACT#${contactId}`,
+      },
+    }));
+    for (const item of byLinkedContact.Items || []) {
+      if (item?.propertyId) merged.set(item.propertyId, item);
+    }
+  }
+
+  // Scan fallback: ownerId / currentOwnerContactId match (covers post-sale GSI skew)
+  try {
+    const { properties } = await getProperties(tenantId);
+    for (const p of properties || []) {
+      if (!p?.propertyId || merged.has(p.propertyId)) continue;
+      if (p.ownerId === ownerId) {
+        merged.set(p.propertyId, p);
+        continue;
+      }
+      if (contactId && (p.currentOwnerContactId === contactId || p.ownerContactId === contactId)) {
+        merged.set(p.propertyId, p);
+      }
+    }
+  } catch {
+    // ignore scan fallback failures
+  }
+
+  return Array.from(merged.values());
 }
 
 /**
@@ -1190,26 +1542,27 @@ export async function updateProperty(tenantId, propertyId, data) {
 
   // Handle status change for GSI2
   const currentProperty = await getProperty(tenantId, propertyId);
-  if (data.status && currentProperty && data.status !== currentProperty.status) {
-    // Validate state transitions
-    const validTransitions = {
-      available: ['for-sale', 'for-rent', 'on-hold', 'out-of-stock'],
-      'for-sale': ['sold', 'on-hold', 'available', 'out-of-stock'],
-      'for-rent': ['rented', 'on-hold', 'available', 'out-of-stock'],
-      rented: ['available', 'on-hold'],
-      sold: [],
-      'on-hold': ['available', 'for-sale', 'for-rent'],
-      'out-of-stock': ['available']
-    };
-    const allowed = validTransitions[currentProperty.status] || [];
-    if (!allowed.includes(data.status)) {
-      throw new Error(`Invalid property status transition: cannot change from '${currentProperty.status}' to '${data.status}'`);
+  const previousStatus = currentProperty?.status || null;
+  if (data.status && currentProperty) {
+    data.status = normalizePropertyMarketStatus(data.status);
+    if (data.status !== currentProperty.status) {
+      if (!isValidPropertyStatusTransition(currentProperty.status, data.status)) {
+        throw new Error(`Invalid property status transition: cannot change from '${currentProperty.status}' to '${data.status}'`);
+      }
+      data.GSI2PK = `TENANT#${tenantId}#PROPERTY_STATUS#${data.status}`;
     }
-    data.GSI2PK = `TENANT#${tenantId}#PROPERTY_STATUS#${data.status}`;
   }
 
   // Handle owner change for GSI1 (supports null/unassigned owner)
-  if ('ownerId' in data && currentProperty) {
+  // Prefer CONTACT# when currentOwnerContactId is set
+  if ('currentOwnerContactId' in data && currentProperty) {
+    const contactId = data.currentOwnerContactId || null;
+    data.GSI1PK = contactId
+      ? `TENANT#${tenantId}#CONTACT#${contactId}`
+      : (data.ownerId || currentProperty.ownerId)
+        ? `TENANT#${tenantId}#OWNER#${data.ownerId || currentProperty.ownerId}`
+        : `TENANT#${tenantId}#OWNER#UNASSIGNED`;
+  } else if ('ownerId' in data && currentProperty) {
     const newOwnerId = data.ownerId || null;
     data.GSI1PK = newOwnerId 
       ? `TENANT#${tenantId}#OWNER#${newOwnerId}` 
@@ -1232,16 +1585,24 @@ export async function updateProperty(tenantId, propertyId, data) {
     attributeValues[attrValue] = data[key];
   });
 
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: 'attribute_exists(PK)',
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Property not found');
+    }
+    throw err;
+  }
 
   // Ensure rental history is recorded for rented properties with an active tenant
   const updatedProperty = await getProperty(tenantId, propertyId);
@@ -1358,6 +1719,12 @@ export async function updateProperty(tenantId, propertyId, data) {
     }
   }
 
+  await syncPropertyContactTimeline(tenantId, updatedProperty, {
+    isNew: false,
+    previousStatus,
+    performedBy: data.updatedBy || data.performedBy || SERVICE_ACCOUNT_USER,
+  });
+
   return updatedProperty;
 }
 
@@ -1426,6 +1793,9 @@ export async function getCRMMetrics(tenantId) {
     propertiesResult,
     leadsResult,
     buyersResult,
+    sellerContactsResult,
+    ownerContactsResult,
+    contactsCountResult,
   ] = await Promise.all([
     docClient.send(new ScanCommand({
       TableName: CRM_TABLE_NAME,
@@ -1461,14 +1831,27 @@ export async function getCRMMetrics(tenantId) {
         ExpressionAttributeValues: { ':type': 'BUYER', ':tenantId': tenantId },
         ProjectionExpression: 'phone, buyerId',
       })),
-      docClient.send(new ScanCommand({
-        TableName: CRM_TABLE_NAME,
-        FilterExpression: 'EntityType = :type AND tenantId = :tenantId AND #roles.#buyer = :isBuyer',
-        ExpressionAttributeNames: { '#roles': 'roles', '#buyer': 'buyer' },
-        ExpressionAttributeValues: { ':type': 'CONTACT', ':tenantId': tenantId, ':isBuyer': true },
-        ProjectionExpression: 'phone, contactId',
-      })),
     ]),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'CONTACT', ':tenantId': tenantId },
+      ProjectionExpression: 'contactId, #roles, sellerProfile',
+      ExpressionAttributeNames: { '#roles': 'roles' },
+    })),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'CONTACT', ':tenantId': tenantId },
+      ProjectionExpression: 'contactId, #roles, ownerProfile',
+      ExpressionAttributeNames: { '#roles': 'roles' },
+    })),
+    docClient.send(new ScanCommand({
+      TableName: CRM_TABLE_NAME,
+      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+      ExpressionAttributeValues: { ':type': 'CONTACT', ':tenantId': tenantId },
+      Select: 'COUNT',
+    })),
   ]);
   const customers = customersResult.Items || [];
   const owners = ownersResult.Items || [];
@@ -1476,7 +1859,6 @@ export async function getCRMMetrics(tenantId) {
   const leadsCount = leadsResult.Count || 0;
 
   const legacyBuyers = buyersResult[0].Items || [];
-  const buyerContacts = buyersResult[1].Items || [];
   const phoneMap = new Map();
   for (const b of legacyBuyers) {
     const phone = normalizePhone(b.phone);
@@ -1486,19 +1868,34 @@ export async function getCRMMetrics(tenantId) {
       phoneMap.set(b.buyerId, b);
     }
   }
-  for (const c of buyerContacts) {
-    const phone = normalizePhone(c.phone);
-    if (phone && !phoneMap.has(phone)) {
-      phoneMap.set(phone, c);
-    } else if (!phone) {
-      phoneMap.set(c.contactId, c);
-    }
-  }
   const buyersCount = phoneMap.size;
 
+  const contactByPhone = new Map();
+  for (const c of [
+    ...(sellerContactsResult.Items || []),
+    ...(ownerContactsResult.Items || []),
+  ]) {
+    const phone = normalizePhone(c.phone);
+    if (phone) contactByPhone.set(phone, c);
+  }
+
+  const ownersWithProperties = owners.filter((owner) => {
+    const contact = contactByPhone.get(normalizePhone(owner.phone));
+    const contactId = contact?.contactId || owner.contactId || null;
+    return properties.some((p) => propertyIsCurrentlyOwnedBy(p, {
+      ownerId: owner.ownerId,
+      contactId,
+    }));
+  });
+
   const activeCustomers = customers.filter(c => c.status === 'active').length;
-  const activeOwners = owners.filter(o => o.status === 'active').length;
-  const availableProperties = properties.filter(p => p.status === 'available' || p.status === 'for-sale' || p.status === 'for-rent').length;
+  const activeOwners = ownersWithProperties.filter(o => o.status === 'active').length;
+  const availableProperties = properties.filter(p =>
+    p.status === 'for-sale' || p.status === 'for-rent',
+  ).length;
+  const inactiveProperties = properties.filter(p =>
+    p.status === 'not-listed' || p.status === 'inactive' || p.status === 'available',
+  ).length;
   const onHoldProperties = properties.filter(p => p.status === 'on-hold').length;
   const rentedProperties = properties.filter(p => p.status === 'rented').length;
   const soldProperties = properties.filter(p => p.status === 'sold').length;
@@ -1508,22 +1905,32 @@ export async function getCRMMetrics(tenantId) {
   const verificationsDone = properties.filter(p => p.verificationStatus === 'done').length;
   const verificationsPending = properties.filter(p => p.verificationStatus === 'pending').length;
 
-  // Seller count: Owners who have at least one active property listed for sale (not sold, not inactive)
-  const sellersCount = owners.filter(owner => 
-    properties.some(p => 
-      p.ownerId === (owner.ownerId || owner.contactId) && 
-      p.status === 'for-sale' && 
-      p.listingStatus !== 'inactive'
+  // Seller count: Contact.roles.seller (preferred) with active lifecycle, else legacy for-sale join
+  const sellerContacts = (sellerContactsResult.Items || []).filter((c) =>
+    c.roles?.seller === true
+    && (c.sellerProfile?.lifecycleStatus || 'active') === 'active'
+  );
+  const legacySellersCount = owners.filter(owner =>
+    properties.some(p =>
+      p.ownerId === (owner.ownerId || owner.contactId)
+      && p.status === 'for-sale'
+      && p.listingStatus !== 'inactive'
     )
   ).length;
+  const sellersCount = sellerContacts.length > 0 ? sellerContacts.length : legacySellersCount;
+
+  const ownerContactsCount = (ownerContactsResult.Items || []).filter((c) => c.roles?.owner === true).length;
+  const contactsCount = contactsCountResult.Count || 0;
+  void ownerContactsCount; // retained for future owner-contact rollups
 
   return {
     totalCustomers: customers.length,
     activeCustomers,
-    totalOwners: owners.length,
+    totalOwners: ownersWithProperties.length,
     activeOwners,
     totalProperties: properties.length,
     availableProperties,
+    inactiveProperties,
     onHoldProperties,
     rentedProperties,
     soldProperties,
@@ -1535,6 +1942,7 @@ export async function getCRMMetrics(tenantId) {
     buyersCount,
     sellersCount,
     tenantsCount: customers.length,
+    contactsCount,
   };
 }
 
@@ -1920,7 +2328,7 @@ export async function createMeeting(tenantId, data) {
     outcome: data.outcome || '',
     notes: data.notes || '',
     // Metadata
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     // GSI for querying by date (TENANT#tenantId#DATE#YYYY-MM-DD)
@@ -1945,7 +2353,7 @@ export async function createMeeting(tenantId, data) {
     fromMeetingTime: null,
     toMeetingTime: meeting.meetingTime,
     note: meeting.notes || '',
-    createdBy: meeting.createdBy || 'system',
+    createdBy: meeting.createdBy || SERVICE_ACCOUNT_USER,
   });
 
   // Schedule meeting reminder (15 minutes before)
@@ -1999,7 +2407,7 @@ export async function createMeetingEvent(tenantId, meetingId, data) {
     fromMeetingTime: data.fromMeetingTime ?? null,
     toMeetingTime: data.toMeetingTime ?? null,
     note: data.note ?? '',
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt,
   };
 
@@ -2070,10 +2478,10 @@ export async function getMeetings(tenantId, filters = {}) {
     params.ExpressionAttributeNames = { '#status': 'status' };
   }
 
-  const result = await docClient.send(new ScanCommand(params));
+  const items = await collectAllPages(docClient, ScanCommand, params, { maxPages: 100 });
   
   // Sort by date and time
-  const meetings = result.Items || [];
+  const meetings = items;
   meetings.sort((a, b) => {
     const dateCompare = a.meetingDate.localeCompare(b.meetingDate);
     if (dateCompare !== 0) return dateCompare;
@@ -2240,7 +2648,7 @@ export async function updateMeeting(tenantId, meetingId, data) {
       fromMeetingTime: before.meetingTime ?? null,
       toMeetingTime: after.meetingTime ?? null,
       note: typeof data.notes === 'string' ? data.notes : (after.notes || ''),
-      createdBy: typeof data.updatedBy === 'string' ? data.updatedBy : (after.updatedBy || after.createdBy || 'system'),
+      createdBy: typeof data.updatedBy === 'string' ? data.updatedBy : (after.updatedBy || after.createdBy || SERVICE_ACCOUNT_USER),
     });
 
     // Log contact activity
@@ -2268,7 +2676,7 @@ export async function updateMeeting(tenantId, meetingId, data) {
         subjectEntityName: after.relatedEntityName,
         title,
         description,
-        performedBy: typeof data.updatedBy === 'string' ? data.updatedBy : (after.updatedBy || 'system'),
+        performedBy: typeof data.updatedBy === 'string' ? data.updatedBy : (after.updatedBy || SERVICE_ACCOUNT_USER),
         payload: { meetingId, before, after },
       });
     } catch (logErr) {
@@ -2328,9 +2736,17 @@ export async function deleteMeeting(tenantId, meetingId) {
  * @returns {Promise<array>}
  */
 export async function getUpcomingMeetings(tenantId, days = 7) {
+  // Normalize: if days is an object (from skillInvoker dynamic dispatch), extract 'days' field
+  if (days && typeof days === 'object' && !Array.isArray(days)) {
+    days = days.days;
+  }
+  if (days === undefined || days === null || typeof days !== 'number') {
+    days = 7;
+  }
+
   const today = new Date();
   const startDate = today.toISOString().split('T')[0];
-  
+
   const endDate = new Date(today);
   endDate.setDate(endDate.getDate() + days);
   const endDateStr = endDate.toISOString().split('T')[0];
@@ -2423,10 +2839,14 @@ function normalizePhone(phone) {
     return withoutPrefix;
   }
   return '';
-}/**
+}
+
+const DEFAULT_COUNTRY_CODE = process.env.DEFAULT_COUNTRY_CODE || '';
+
+/**
  * Normalize phone to E.164 format for new writes.
- * Defaults to India (+91) if no country code is present.
- * e.g. "98563 00000" -> "+919856300000"
+ * Defaults to DEFAULT_COUNTRY_CODE if no country code is present.
+ * e.g. "98563 00000" -> "+919856300000"  (when DEFAULT_COUNTRY_CODE=+91)
  *      "+919856300000" -> "+919856300000"
  */
 function normalizePhoneE164(phone) {
@@ -2434,7 +2854,7 @@ function normalizePhoneE164(phone) {
   const digits = String(phone).replace(/[^0-9+]/g, '');
   if (digits.startsWith('+')) return digits;
   const bare = digits.replace(/^0+/, '');
-  if (/^[6-9]\d{9}$/.test(bare)) return `+91${bare}`;
+  if (/^[6-9]\d{9}$/.test(bare)) return `${DEFAULT_COUNTRY_CODE}${bare}`;
   if (/^91[6-9]\d{9}$/.test(bare)) return `+${bare}`;
   return digits;
 }
@@ -2461,6 +2881,32 @@ export async function createContact(tenantId, data) {
     tenant: data.roles?.tenant || false,
   };
 
+  const normalizeSellerProfile = (profile) => {
+    if (!profile && !roles.seller) return null;
+    const base = profile || {};
+    return {
+      lifecycleStatus: base.lifecycleStatus || 'active',
+      listingPreferences: base.listingPreferences || null,
+      notes: base.notes || null,
+      soldPropertyIds: Array.isArray(base.soldPropertyIds) ? base.soldPropertyIds : [],
+      activeListingIds: Array.isArray(base.activeListingIds) ? base.activeListingIds : [],
+      ...base,
+      lifecycleStatus: base.lifecycleStatus || 'active',
+    };
+  };
+
+  const normalizeOwnerProfile = (profile) => {
+    if (!profile && !roles.owner) return null;
+    const base = profile || {};
+    return {
+      lifecycleStatus: base.lifecycleStatus || 'active',
+      ownedPropertyIds: Array.isArray(base.ownedPropertyIds) ? base.ownedPropertyIds : [],
+      notes: base.notes || null,
+      ...base,
+      lifecycleStatus: base.lifecycleStatus || 'active',
+    };
+  };
+
   const contact = {
     PK: `TENANT#${tenantId}#CONTACT#${contactId}`,
     SK: 'PROFILE',
@@ -2475,8 +2921,8 @@ export async function createContact(tenantId, data) {
     // Roles
     roles,
     // Owner/Seller specific fields
-    ownerProfile: data.ownerProfile || null,
-    sellerProfile: data.sellerProfile || null,
+    ownerProfile: normalizeOwnerProfile(data.ownerProfile),
+    sellerProfile: normalizeSellerProfile(data.sellerProfile),
     // Buyer specific fields
     buyerProfile: data.buyerProfile || null,
     // Tenant specific fields
@@ -2498,6 +2944,7 @@ export async function createContact(tenantId, data) {
     tags: data.tags || [],
     notes: data.notes || '',
     status: data.status || 'active',
+    assignedTo: data.assignedTo || null,
     // Migration references (link to old Owner/Customer if migrated)
     linkedOwnerId: data.linkedOwnerId || null,
     linkedCustomerId: data.linkedCustomerId || null,
@@ -2523,24 +2970,46 @@ export async function getContacts(tenantId, filters = {}) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+  filters = aliasQueryToSearch(filters);
 
-  const result = await docClient.send(new ScanCommand({
+  const items = await collectAllPages(docClient, ScanCommand, {
     TableName: CRM_TABLE_NAME,
     FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
     ExpressionAttributeValues: {
       ':type': 'CONTACT',
       ':tenantId': tenantId,
     },
-  }));
+  }, { maxPages: 100 });
 
-  let contacts = result.Items || [];
+  let contacts = items;
 
   // Apply role filters if provided
   if (filters.role) {
     contacts = contacts.filter(c => c.roles && c.roles[filters.role] === true);
   }
+  if (filters.sellerLifecycle) {
+    contacts = contacts.filter((c) =>
+      c.roles?.seller === true
+      && (c.sellerProfile?.lifecycleStatus || 'active') === filters.sellerLifecycle
+    );
+  }
+  if (filters.ownerLifecycle) {
+    contacts = contacts.filter((c) =>
+      c.roles?.owner === true
+      && (c.ownerProfile?.lifecycleStatus || 'active') === filters.ownerLifecycle
+    );
+  }
   if (filters.status) {
-    contacts = contacts.filter(c => c.status === filters.status);
+    contacts = contacts.filter((c) => matchesFilterEnum(c.status, filters.status));
+  }
+  if (filters.search && filters.search.trim().length >= 2) {
+    const q = filters.search.toLowerCase().trim();
+    contacts = contacts.filter((c) => {
+      const nameMatch = c.name?.toLowerCase().includes(q);
+      const phoneMatch = c.phone?.replace(/[\s-]/g, '').includes(q.replace(/[\s-]/g, ''));
+      const emailMatch = c.email?.toLowerCase().includes(q);
+      return nameMatch || phoneMatch || emailMatch;
+    });
   }
   if (filters.area) {
     const areaQuery = filters.area.toLowerCase();
@@ -2574,6 +3043,13 @@ export async function getContact(tenantId, contactId) {
 export async function findContactByPhone(tenantId, phone) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
+  }
+  // Normalize: if phone is an object (from skillInvoker dynamic dispatch), extract 'phone' field
+  if (phone && typeof phone === 'object' && !Array.isArray(phone)) {
+    phone = phone.phone;
+  }
+  if (phone !== undefined && phone !== null && typeof phone !== 'string') {
+    phone = String(phone);
   }
   if (!phone) return null;
 
@@ -2611,6 +3087,11 @@ export async function createOrUpdateContactByPhone(tenantId, data) {
       tenant: existingContact.roles?.tenant || data.roles?.tenant || false,
     };
 
+    const mergeProfile = (existing, incoming) => {
+      if (!existing && !incoming) return undefined;
+      return { ...(existing || {}), ...(incoming || {}) };
+    };
+
     // Merge base fields conservatively (avoid overwriting existing human-entered data)
     const updateData = {
       ...data,
@@ -2619,12 +3100,18 @@ export async function createOrUpdateContactByPhone(tenantId, data) {
       address: existingContact.address || data.address,
       notes: existingContact.notes || data.notes,
       status: existingContact.status || data.status,
+      assignedTo: existingContact.assignedTo || data.assignedTo || null,
       roles: mergedRoles,
-      ownerProfile: data.ownerProfile || existingContact.ownerProfile,
-      sellerProfile: data.sellerProfile || existingContact.sellerProfile,
-      buyerProfile: data.buyerProfile || existingContact.buyerProfile,
-      tenantProfile: data.tenantProfile || existingContact.tenantProfile,
+      ownerProfile: mergeProfile(existingContact.ownerProfile, data.ownerProfile),
+      sellerProfile: mergeProfile(existingContact.sellerProfile, data.sellerProfile),
+      buyerProfile: mergeProfile(existingContact.buyerProfile, data.buyerProfile),
+      tenantProfile: mergeProfile(existingContact.tenantProfile, data.tenantProfile),
     };
+
+    // Drop undefined profile keys so updateContact does not wipe fields
+    for (const key of ['ownerProfile', 'sellerProfile', 'buyerProfile', 'tenantProfile']) {
+      if (updateData[key] === undefined) delete updateData[key];
+    }
 
     const updated = await updateContact(tenantId, existingContact.contactId, updateData);
     return { ...updated, wasExisting: true };
@@ -2642,10 +3129,6 @@ export async function updateContact(tenantId, contactId, data) {
     throw new Error('Tenant ID is required');
   }
 
-  const updateExpressions = [];
-  const attributeNames = {};
-  const attributeValues = {};
-
   data.updatedAt = new Date().toISOString();
 
   // Update normalizedPhone if phone changes
@@ -2653,33 +3136,33 @@ export async function updateContact(tenantId, contactId, data) {
     data.normalizedPhone = normalizePhone(data.phone);
   }
 
-  // Never update DynamoDB key attributes or system fields
-  const protectedKeys = ['PK', 'SK', 'EntityType', 'tenantId', 'createdAt', 'GSI3PK', 'GSI3SK', 'contactId'];
-  const updateData = {};
-  Object.keys(data).forEach(key => {
-    if (!protectedKeys.includes(key) && !key.startsWith('GSI')) {
-      updateData[key] = data[key];
+  const { updateExpressions, attributeNames, attributeValues } = buildSetUpdateExpression(
+    data,
+    ['contactId'],
+  );
+
+  if (updateExpressions.length === 0) {
+    return await getContact(tenantId, contactId);
+  }
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#CONTACT#${contactId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: 'attribute_exists(PK)',
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Contact not found');
     }
-  });
-
-  Object.keys(updateData).forEach((key, index) => {
-    const attrName = `#attr${index}`;
-    const attrValue = `:val${index}`;
-    updateExpressions.push(`${attrName} = ${attrValue}`);
-    attributeNames[attrName] = key;
-    attributeValues[attrValue] = updateData[key];
-  });
-
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#CONTACT#${contactId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
+    throw err;
+  }
 
   return await getContact(tenantId, contactId);
 }
@@ -2716,6 +3199,24 @@ export async function updateContactRole(tenantId, contactId, role, enabled, prof
       ...(contact[profileKey] || {}),
       ...profileData,
     };
+  } else if (enabled && !contact[`${role}Profile`]) {
+    // Seed minimal profile shells when enabling a role
+    if (role === 'seller') {
+      updateData.sellerProfile = {
+        lifecycleStatus: 'active',
+        soldPropertyIds: [],
+        activeListingIds: [],
+      };
+    } else if (role === 'owner') {
+      updateData.ownerProfile = {
+        lifecycleStatus: 'active',
+        ownedPropertyIds: [],
+      };
+    } else if (role === 'buyer') {
+      updateData.buyerProfile = contact.buyerProfile || {};
+    } else if (role === 'tenant') {
+      updateData.tenantProfile = contact.tenantProfile || {};
+    }
   }
 
   return await updateContact(tenantId, contactId, updateData);
@@ -2754,7 +3255,7 @@ export async function createContactNote(tenantId, contactId, data) {
     noteId,
     contactId,
     content: data.content,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: data.createdAt || new Date().toISOString(),
   };
   await docClient.send(new PutCommand({
@@ -2803,7 +3304,7 @@ export async function getContactNotes(tenantId, contactId) {
         contactId,
         noteId: 'PROFILE_NOTES',
         content: contactProfile.notes,
-        createdBy: 'System',
+        createdBy: SERVICE_ACCOUNT_USER,
         createdAt: contactProfile.createdAt || new Date().toISOString(),
       }];
     }
@@ -2863,7 +3364,9 @@ export async function createLead(tenantId, data) {
   const normalizedPhone = data.phone ? normalizePhone(data.phone) : '';
 
   // Normalize seller property timeline data for consistent UI rendering
-  let normalizedSellerProperty = data.sellerProperty || null;
+  let normalizedSellerProperty = data.leadType === 'seller'
+    ? normalizeSellerProperty(data.sellerProperty)
+    : null;
   if (data.leadType === 'seller' && normalizedSellerProperty) {
     const sp = normalizedSellerProperty;
     const existingValue = sp.timelineValue;
@@ -2910,6 +3413,8 @@ export async function createLead(tenantId, data) {
     status: data.status || 'new', // new, contacted, qualified, negotiating, converted, lost
     priority: data.priority || 'medium', // low, medium, high
     assignedTo: data.assignedTo || null,
+    lostReason: data.status === 'lost' ? (data.lostReason || null) : null,
+    lostAt: data.status === 'lost' ? (data.lostAt || new Date().toISOString()) : null,
     // Type-specific data
     // For buyer leads
     buyerRequirement: data.buyerRequirement || null, // { budget, preferredArea, bhk, propertyType, etc. }
@@ -2918,19 +3423,21 @@ export async function createLead(tenantId, data) {
     // For tenant leads
     tenantRequirement: data.tenantRequirement || null,
     // For owner leads (someone looking to list property for rent)
-    ownerProperty: data.ownerProperty || null,
-    // Conversion tracking
-    convertedAt: null,
-    convertedTo: null, // { entityType: 'contact', contactId, role }
+    ownerProperty: data.leadType === 'owner'
+      ? normalizeOwnerProperty(data.ownerProperty)
+      : null,
+    // Conversion tracking — omit convertedAt/convertedTo until conversion completes
+    // (DynamoDB NULL breaks attribute_not_exists checks in atomic convertLead delete)
     // Notes and history
     notes: data.notes || '',
     history: [{
       timestamp: new Date().toISOString(),
       action: 'Lead Created',
       details: `New ${data.leadType} lead created`,
-      updatedBy: data.createdBy || 'System',
+      updatedBy: data.createdBy || SERVICE_ACCOUNT_USER,
+      ...(data.createdByUserId ? { updatedByUserId: data.createdByUserId } : {}),
     }],
-    createdBy: data.createdBy || 'System',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     // GSI for search
@@ -2962,6 +3469,61 @@ export async function createLead(tenantId, data) {
 }
 
 /**
+ * True when conversion destination metadata is present.
+ * Kept for backward-compatible list filters on residual legacy records.
+ */
+export function hasLeadConversionTarget(lead) {
+  const convertedTo = lead?.convertedTo;
+  return !!(convertedTo && (convertedTo.entityId || convertedTo.contactId));
+}
+
+/**
+ * @deprecated Conversion locks are removed. Always returns false.
+ */
+export function isLeadConversionInProgress(_lead) {
+  return false;
+}
+
+/**
+ * True when a lead has successfully left the active pipeline.
+ * After the atomic redesign, successfully converted leads are deleted;
+ * this helper only covers residual legacy rows that still carry convertedTo.
+ */
+export function isLeadConverted(lead) {
+  if (!lead) return false;
+  return hasLeadConversionTarget(lead);
+}
+
+/** Numeric budget/price on a lead for filtering (rupees). */
+export function leadBudgetRupee(lead) {
+  const raw =
+    lead?.buyerRequirement?.budget
+    ?? lead?.tenantRequirement?.budget
+    ?? lead?.sellerProperty?.expectedPrice
+    ?? lead?.ownerProperty?.rentExpected
+    ?? 0;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+export function applyLeadBudgetRangeFilter(leads, filters = {}) {
+  let out = Array.isArray(leads) ? leads : [];
+  if (filters.minBudget != null && filters.minBudget !== '') {
+    const min = Number(filters.minBudget);
+    if (!Number.isNaN(min)) {
+      out = out.filter((l) => leadBudgetRupee(l) >= min);
+    }
+  }
+  if (filters.maxBudget != null && filters.maxBudget !== '') {
+    const max = Number(filters.maxBudget);
+    if (!Number.isNaN(max)) {
+      out = out.filter((l) => leadBudgetRupee(l) <= max);
+    }
+  }
+  return out;
+}
+
+/**
  * Get all leads for a tenant
  */
 export async function getLeads(tenantId, filters = {}) {
@@ -2969,32 +3531,30 @@ export async function getLeads(tenantId, filters = {}) {
     throw new Error('Tenant ID is required');
   }
 
-  const result = await docClient.send(new ScanCommand({
+  const items = await collectAllPages(docClient, ScanCommand, {
     TableName: CRM_TABLE_NAME,
     FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
     ExpressionAttributeValues: {
       ':type': 'LEAD',
       ':tenantId': tenantId,
     },
-  }));
+  }, { maxPages: 100 });
 
-  let leads = result.Items || [];
+  let leads = items;
 
   // Apply filters
   if (filters.leadType) {
-    leads = leads.filter(l => l.leadType === filters.leadType);
+    leads = leads.filter((l) => matchesFilterEnum(l.leadType, filters.leadType));
   }
   if (filters.status) {
-    leads = leads.filter(l => l.status === filters.status);
+    leads = leads.filter((l) => matchesFilterEnum(l.status, filters.status));
   }
-  if (filters.assignedTo) {
-    leads = leads.filter(l => l.assignedTo === filters.assignedTo);
-  }
+  leads = applyLeadAssignmentFilter(leads, filters);
   if (filters.priority) {
-    leads = leads.filter(l => l.priority === filters.priority);
+    leads = leads.filter((l) => matchesFilterEnum(l.priority, filters.priority));
   }
   if (filters.excludeConverted) {
-    leads = leads.filter(l => !l.convertedAt);
+    leads = leads.filter((l) => !isLeadConverted(l));
   }
   if (filters.fromDate) {
     leads = leads.filter(l => l.createdAt >= filters.fromDate);
@@ -3002,20 +3562,7 @@ export async function getLeads(tenantId, filters = {}) {
   if (filters.toDate) {
     leads = leads.filter(l => l.createdAt <= filters.toDate);
   }
-  if (filters.minBudget) {
-    const min = Number(filters.minBudget);
-    leads = leads.filter(l => {
-      const v = l.buyerRequirement?.budget || l.tenantRequirement?.budget || l.sellerProperty?.expectedPrice || l.ownerProperty?.rentExpected || 0;
-      return v >= min;
-    });
-  }
-  if (filters.maxBudget) {
-    const max = Number(filters.maxBudget);
-    leads = leads.filter(l => {
-      const v = l.buyerRequirement?.budget || l.tenantRequirement?.budget || l.sellerProperty?.expectedPrice || l.ownerProperty?.rentExpected || 0;
-      return v <= max;
-    });
-  }
+  leads = applyLeadBudgetRangeFilter(leads, filters);
   if (filters.area) {
     const areaQuery = filters.area.toLowerCase();
     leads = leads.filter(l => {
@@ -3037,9 +3584,6 @@ export async function getLeads(tenantId, filters = {}) {
       const phoneMatch = l.phone?.replace(/[\s-]/g, '').includes(query.replace(/[\s-]/g, ''));
       return nameMatch || phoneMatch;
     });
-  }
-  if (filters.assignedTo) {
-    leads = leads.filter(l => l.assignedTo === filters.assignedTo);
   }
   if (filters.source) {
     leads = leads.filter(l => l.source?.toLowerCase() === filters.source.toLowerCase());
@@ -3083,7 +3627,7 @@ export async function getLeads(tenantId, filters = {}) {
     leads = leads.filter(l => l.updatedBy === filters.updatedBy);
   }
   if (filters.converted) {
-    leads = leads.filter(l => l.convertedAt != null);
+    leads = leads.filter((l) => isLeadConverted(l));
   }
 
   // Sort
@@ -3117,13 +3661,16 @@ export async function getLeads(tenantId, filters = {}) {
     return 0;
   });
 
-  // Pagination
-  const pageOffset = parseInt(filters.offset) || 0;
-  const pageLimit = parseInt(filters.limit);
-  if (pageOffset > 0) leads = leads.slice(pageOffset);
-  if (pageLimit > 0) leads = leads.slice(0, pageLimit);
-
-  return leads;
+  // Pagination — omit limit/offset in filters to fetch all (metrics, summaries)
+  const total = leads.length;
+  const hasPaging = (filters.limit != null && filters.limit !== '')
+    || (filters.offset != null && filters.offset !== '');
+  if (hasPaging) {
+    const limit = Math.min(parseInt(filters.limit, 10) || parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10), 200);
+    const offset = Math.max(parseInt(filters.offset, 10) || 0, 0);
+    return { leads: leads.slice(offset, offset + limit), total, limit, offset };
+  }
+  return { leads, total, limit: total, offset: 0 };
 }
 
 /**
@@ -3178,13 +3725,24 @@ export function validateRequirementFields(existingLead, data) {
   if (!expectedField) return; // Unknown lead type, skip validation
 
   for (const field of REQUIREMENT_FIELDS) {
-    if (data[field] === undefined) continue;
+    if (isEmptyRequirementPayload(data[field])) {
+      delete data[field];
+      continue;
+    }
     if (field === expectedField) continue;
     throw new Error(
       `Lead '${existingLead.name || existingLead.leadId}' is a '${leadType}' lead. ` +
       `Use '${expectedField}' to update its ${leadType} data, not '${field}'.`
     );
   }
+}
+
+function isEmptyRequirementPayload(value) {
+  if (value === undefined || value === null) return true;
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return Object.keys(value).length === 0;
+  }
+  return false;
 }
 
 /**
@@ -3216,26 +3774,155 @@ export function mergeRequirementObjects(existingLead, data) {
   return data;
 }
 
+function formatLeadHistoryValue(value) {
+  if (value === null || value === undefined || value === '') return '(empty)';
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function leadValuesEqual(a, b) {
+  if (a === b) return true;
+  if (a == null && b == null) return true;
+  if (typeof a === 'object' || typeof b === 'object') {
+    return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  }
+  return String(a) === String(b);
+}
+
+const LEAD_SCALAR_HISTORY_FIELDS = [
+  { key: 'name', label: 'Name', action: 'Name Changed' },
+  { key: 'email', label: 'Email', action: 'Email Changed' },
+  { key: 'phone', label: 'Phone', action: 'Phone Changed' },
+  { key: 'source', label: 'Source', action: 'Source Changed' },
+  { key: 'status', label: 'Status', action: 'Status Changed' },
+  { key: 'priority', label: 'Priority', action: 'Priority Changed' },
+  { key: 'notes', label: 'Notes', action: 'Notes Updated' },
+  { key: 'lostReason', label: 'Lost reason', action: 'Lost Reason Changed' },
+];
+
+const LEAD_NESTED_HISTORY_FIELDS = [
+  { key: 'buyerRequirement', label: 'Buyer requirement', action: 'Buyer Requirement Updated' },
+  { key: 'sellerProperty', label: 'Seller property', action: 'Seller Property Updated' },
+  { key: 'tenantRequirement', label: 'Tenant requirement', action: 'Tenant Requirement Updated' },
+  { key: 'ownerProperty', label: 'Owner property', action: 'Owner Property Updated' },
+];
+
+export function buildLeadUpdateHistoryEntries(existingLead, data, updatedBy, options = {}) {
+  const entries = [];
+  const timestamp = new Date().toISOString();
+  const actor = updatedBy || SERVICE_ACCOUNT_USER;
+  const actorUserId = data.updatedByUserId || options.actorUserId || null;
+  const assigneeLabelMap = options.assigneeLabelMap || {};
+  const resolveAssigneeLabel = (id) => {
+    if (!id) return 'Unassigned';
+    return assigneeLabelMap[id] || assigneeLabelMap[String(id)] || 'Team member';
+  };
+
+  for (const { key, label, action } of LEAD_SCALAR_HISTORY_FIELDS) {
+    if (data[key] === undefined) continue;
+    if (leadValuesEqual(data[key], existingLead[key])) continue;
+
+    if (key === 'assignedTo') continue;
+
+    entries.push({
+      timestamp,
+      action,
+      details: `${label} changed from ${formatLeadHistoryValue(existingLead[key])} to ${formatLeadHistoryValue(data[key])}`,
+      updatedBy: actor,
+      updatedByUserId: actorUserId,
+    });
+  }
+
+  if (data.assignedTo !== undefined && !leadValuesEqual(data.assignedTo, existingLead.assignedTo)) {
+    const fromName = resolveAssigneeLabel(existingLead.assignedTo);
+    const toName = resolveAssigneeLabel(data.assignedTo);
+    entries.push({
+      timestamp,
+      action: 'Assignment Changed',
+      details: `Lead assigned from ${fromName} to ${toName}`,
+      updatedBy: actor,
+      updatedByUserId: actorUserId,
+    });
+  }
+
+  for (const { key, label, action } of LEAD_NESTED_HISTORY_FIELDS) {
+    if (data[key] === undefined) continue;
+    if (leadValuesEqual(data[key], existingLead[key])) continue;
+    entries.push({
+      timestamp,
+      action,
+      details: `${label} updated`,
+      updatedBy: actor,
+      updatedByUserId: actorUserId,
+    });
+  }
+
+  return entries;
+}
+
+async function appendLeadHistory(tenantId, leadId, entry) {
+  const lead = await getLead(tenantId, leadId);
+  if (!lead) return;
+
+  const history = [
+    ...(lead.history || []),
+    {
+      timestamp: entry.timestamp || new Date().toISOString(),
+      action: entry.action,
+      details: entry.details,
+      updatedBy: entry.updatedBy || SERVICE_ACCOUNT_USER,
+      ...(entry.updatedByUserId ? { updatedByUserId: entry.updatedByUserId } : {}),
+    },
+  ];
+
+  await docClient.send(new UpdateCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#LEAD#${leadId}`,
+      SK: 'PROFILE',
+    },
+    UpdateExpression: 'SET #history = :history, updatedAt = :updatedAt',
+    ExpressionAttributeNames: { '#history': 'history' },
+    ExpressionAttributeValues: {
+      ':history': history,
+      ':updatedAt': new Date().toISOString(),
+    },
+  }));
+}
+
 /**
  * Update a lead
  */
-export async function updateLead(tenantId, leadId, data) {
+export async function updateLead(tenantId, leadId, data, options = {}) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+
+  // Reject conversion/system mass-assignment
+  for (const key of CONVERSION_SYSTEM_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(data, key)) {
+      throw new Error(`Forbidden keys in update payload: ${key}`);
+    }
+  }
+  rejectForbiddenKeys(data);
 
   const existingLead = await getLead(tenantId, leadId);
   if (!existingLead) {
     throw new Error('Lead not found');
   }
 
-  // Prevent updating converted leads (except notes)
-  if (existingLead.convertedAt && Object.keys(data).some(k => !['notes'].includes(k))) {
+  if (data.status && String(data.status).toLowerCase() === 'converted') {
+    throw new Error('Use convert lead to mark a lead as converted');
+  }
+
+  // Prevent updating converted residual legacy leads (except notes)
+  if (isLeadConverted(existingLead) && Object.keys(data).some(k => !['notes'].includes(k))) {
     throw new Error('Cannot update a converted lead');
   }
 
   // Normalize seller property timeline data for consistent UI rendering
   if (existingLead.leadType === 'seller' && data.sellerProperty) {
+    data.sellerProperty = normalizeSellerProperty(data.sellerProperty) || data.sellerProperty;
     const sp = data.sellerProperty;
     const existingValue = sp.timelineValue;
     const existingUnit = sp.timelineUnit || 'months';
@@ -3263,6 +3950,10 @@ export async function updateLead(tenantId, leadId, data) {
     }
   }
 
+  if (existingLead.leadType === 'owner' && data.ownerProperty) {
+    data.ownerProperty = normalizeOwnerProperty(data.ownerProperty) || data.ownerProperty;
+  }
+
   // Validate that requirement/property fields match the lead type
   validateRequirementFields(existingLead, data);
 
@@ -3277,35 +3968,15 @@ export async function updateLead(tenantId, leadId, data) {
 
   data.updatedAt = new Date().toISOString();
 
-  // Add history entry for status changes
-  if (data.status && data.status !== existingLead.status) {
-    const history = existingLead.history || [];
-    history.push({
-      timestamp: new Date().toISOString(),
-      action: 'Status Changed',
-      details: `Status changed from ${existingLead.status} to ${data.status}`,
-      updatedBy: data.updatedBy || 'System',
-    });
-    data.history = history;
+  const historyEntries = buildLeadUpdateHistoryEntries(existingLead, data, data.updatedBy, options);
+  if (historyEntries.length > 0) {
+    data.history = [...(existingLead.history || []), ...historyEntries];
   }
 
-  // Add history entry for assignment changes
-  if (data.assignedTo !== undefined && data.assignedTo !== existingLead.assignedTo) {
-    const history = data.history || existingLead.history || [];
-    const fromName = existingLead.assignedTo ? String(existingLead.assignedTo) : 'Unassigned';
-    const toName = data.assignedTo ? String(data.assignedTo) : 'Unassigned';
-    history.push({
-      timestamp: new Date().toISOString(),
-      action: 'Assignment Changed',
-      details: `Lead assigned from ${fromName} to ${toName}`,
-      updatedBy: data.updatedBy || 'System',
-    });
-    data.history = history;
-  }
-
-  const immutableKeys = new Set(['PK', 'SK', 'EntityType', 'tenantId', 'leadId', 'createdAt', 'createdBy']);
+  const immutableKeys = new Set(['PK', 'SK', 'EntityType', 'tenantId', 'leadId', 'createdAt', 'createdBy', 'updatedByUserId', 'createdByUserId']);
   Object.keys(data).forEach((key, index) => {
     if (key === 'updatedBy') return; // Skip helper field
+    if (key === 'updatedByUserId' || key === 'createdByUserId') return;
     if (immutableKeys.has(key)) return;
     const attrName = `#attr${index}`;
     const attrValue = `:val${index}`;
@@ -3318,16 +3989,32 @@ export async function updateLead(tenantId, leadId, data) {
     return existingLead;
   }
 
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#LEAD#${leadId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
+  const conditionParts = ['attribute_exists(PK)'];
+  if (data.convertedAt) {
+    conditionParts.push('attribute_not_exists(convertedAt)');
+  }
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#LEAD#${leadId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: conditionParts.join(' AND '),
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      if (data.convertedAt) {
+        throw new Error('Lead already converted');
+      }
+      throw new Error('Lead not found');
+    }
+    throw err;
+  }
 
   // Log contact activity for status change
   if (data.status && data.status !== existingLead.status) {
@@ -3339,7 +4026,7 @@ export async function updateLead(tenantId, leadId, data) {
         subjectEntityName: existingLead.name,
         title: `Lead Status: ${data.status.toUpperCase()}`,
         description: `Status changed from ${existingLead.status} to ${data.status}.`,
-        performedBy: data.updatedBy || 'System',
+        performedBy: data.updatedBy || SERVICE_ACCOUNT_USER,
         payload: { leadId, fromStatus: existingLead.status, toStatus: data.status },
       });
     } catch (err) {
@@ -3350,8 +4037,13 @@ export async function updateLead(tenantId, leadId, data) {
   // Log contact activity for assignment change
   if (data.assignedTo !== undefined && data.assignedTo !== existingLead.assignedTo) {
     try {
-      const fromName = existingLead.assignedTo ? String(existingLead.assignedTo) : 'Unassigned';
-      const toName = data.assignedTo ? String(data.assignedTo) : 'Unassigned';
+      const assigneeLabelMap = options.assigneeLabelMap || {};
+      const resolveAssigneeLabel = (id) => {
+        if (!id) return 'Unassigned';
+        return assigneeLabelMap[id] || assigneeLabelMap[String(id)] || 'Team member';
+      };
+      const fromName = resolveAssigneeLabel(existingLead.assignedTo);
+      const toName = resolveAssigneeLabel(data.assignedTo);
       await logContactActivity(tenantId, {
         activityType: 'lead_assigned',
         subjectEntityType: 'lead',
@@ -3359,7 +4051,7 @@ export async function updateLead(tenantId, leadId, data) {
         subjectEntityName: existingLead.name,
         title: `Lead Assigned to ${toName}`,
         description: `Lead assigned from ${fromName} to ${toName}.`,
-        performedBy: data.updatedBy || 'System',
+        performedBy: data.updatedBy || SERVICE_ACCOUNT_USER,
         payload: { leadId, fromAssignee: existingLead.assignedTo, toAssignee: data.assignedTo },
       });
     } catch (err) {
@@ -3371,30 +4063,51 @@ export async function updateLead(tenantId, leadId, data) {
 }
 
 /**
- * Convert a lead to the appropriate entity type (BUYER, OWNER, CUSTOMER/TENANT)
- * 
- * IMPORTANT: 
- * - Buyer conversion requires purchase transaction details (options.purchaseDetails)
- * - Tenant conversion requires lease agreement details (options.leaseDetails)
- * - Seller-type leads convert to OWNER with property listed for sale
+ * Convert a lead into its canonical module entity in a single DynamoDB transaction.
+ *
+ * Lifecycle:
+ * 1. Preflight reads (lead, notes, meetings, same-module phone match, optional property)
+ * 2. Build all Put/Update/Delete actions
+ * 3. TransactWriteItems — all succeed or none do
+ * 4. Active lead PROFILE + NOTE# children are deleted; immutable LEAD_CONVERSION snapshot retained
+ *
+ * No convertingLockAt / conversion-in-progress / soft-rollback saga.
  */
 export async function convertLead(tenantId, leadId, options = {}) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
 
+  const validated = validateConvertLeadOptions(options);
+
+  // Idempotency: prior successful conversion leaves a snapshot keyed by sourceLeadId
+  const priorSnapshots = await getLeadConversionSnapshotsByLeadId(tenantId, leadId);
+  if (priorSnapshots.length > 0) {
+    const snap = priorSnapshots[0];
+    const err = new Error('Lead already converted');
+    err.code = 'ALREADY_CONVERTED';
+    err.conversionSnapshotId = snap.conversionSnapshotId;
+    err.convertedTo = {
+      entityType: snap.entityType,
+      entityId: snap.entityId,
+      role: snap.role,
+    };
+    throw err;
+  }
+
   const lead = await getLead(tenantId, leadId);
   if (!lead) {
     throw new Error('Lead not found');
   }
-  if (lead.convertedAt) {
-    throw new Error('Lead has already been converted');
+
+  // Residual legacy converted rows (pre-redesign)
+  if (hasLeadConversionTarget(lead)) {
+    const err = new Error('Lead already converted');
+    err.code = 'ALREADY_CONVERTED';
+    err.convertedTo = lead.convertedTo;
+    throw err;
   }
 
-  const leadNotes = await getLeadNotes(tenantId, leadId);
-  const leadMeetings = await getMeetingsByEntity(tenantId, 'lead', leadId);
-
-  // Lead conversions dedupe/merge strictly by phone number into CONTACT.
   if (!lead.phone) {
     throw new Error('Phone number is required to convert a lead');
   }
@@ -3404,373 +4117,631 @@ export async function convertLead(tenantId, leadId, options = {}) {
     throw new Error(`Unknown lead type: ${lead.leadType}`);
   }
 
-  const contactPayload = {
-    name: lead.name,
-    email: lead.email,
-    phone: lead.phone,
-    address: lead.address || '',
-    source: `lead:${lead.leadId}`,
-    notes: lead.notes,
-    status: 'active',
-    roles: {
-      owner: role === 'owner',
+  if (role === 'buyer' && !validated.purchaseDetails) {
+    // purchaseDetails remain optional at API level (UI may require them)
+  }
+  if (role === 'tenant' && !validated.leaseDetails) {
+    // leaseDetails remain optional at API level
+  }
+
+  const [leadNotes, leadMeetings] = await Promise.all([
+    getLeadNotes(tenantId, leadId),
+    getMeetingsByEntity(tenantId, 'lead', leadId),
+  ]);
+
+  // Same-module merge lookup
+  let existingByPhone = null;
+  if (role === 'buyer') {
+    existingByPhone = await findBuyerByPhone(tenantId, lead.phone);
+  } else if (role === 'seller' || role === 'owner') {
+    existingByPhone = await getOwnerByPhone(tenantId, lead.phone);
+  } else if (role === 'tenant') {
+    existingByPhone = await getCustomerByPhone(tenantId, lead.phone);
+  }
+
+  const target = buildTargetEntity(lead, validated, existingByPhone);
+  const convertedAt = new Date().toISOString();
+  const conversionSnapshotId = uuidv4();
+
+  // Finalize entity item keys / search index
+  const entityItem = { ...target.item };
+  delete entityItem.wasExisting;
+  delete entityItem.PK;
+  delete entityItem.SK;
+  delete entityItem.EntityType;
+  delete entityItem.tenantId;
+  delete entityItem.GSI3PK;
+  delete entityItem.GSI3SK;
+
+  if (target.storageType === 'BUYER') {
+    Object.assign(entityItem, {
+      PK: `TENANT#${tenantId}#BUYER#${target.entityId}`,
+      SK: 'PROFILE',
+      EntityType: 'BUYER',
+      tenantId,
+      buyerId: target.entityId,
+      // Seeking = active; purchase at convert = purchased (stays in Buyers module)
+      status: validated.purchaseDetails?.propertyId ? 'purchased' : 'active',
+      conversionSnapshotId,
+      convertedAt,
+      convertedFromLeadId: lead.leadId,
+      sourceLeadSnapshot: deepClone(buildConversionSnapshotItem(tenantId, {
+        conversionSnapshotId,
+        lead,
+        notes: leadNotes,
+        meetings: leadMeetings,
+        entityType: target.entityType,
+        entityId: target.entityId,
+        role,
+        options: validated,
+        convertedAt,
+      }).sourceLeadSnapshot),
+      GSI3PK: `TENANT#${tenantId}#SEARCH`,
+      GSI3SK: `BUYER#${String(entityItem.name || '').toLowerCase()}#${entityItem.phone}`,
+    });
+  } else if (target.storageType === 'OWNER') {
+    Object.assign(entityItem, {
+      PK: `TENANT#${tenantId}#OWNER#${target.entityId}`,
+      SK: 'PROFILE',
+      EntityType: 'OWNER',
+      tenantId,
+      ownerId: target.entityId,
+      conversionSnapshotId,
+      convertedAt,
+      convertedFromLeadId: lead.leadId,
+      sourceLeadSnapshot: deepClone(buildConversionSnapshotItem(tenantId, {
+        conversionSnapshotId,
+        lead,
+        notes: leadNotes,
+        meetings: leadMeetings,
+        entityType: target.entityType,
+        entityId: target.entityId,
+        role,
+        options: validated,
+        convertedAt,
+      }).sourceLeadSnapshot),
+      GSI3PK: `TENANT#${tenantId}#SEARCH`,
+      GSI3SK: `OWNER#${String(entityItem.name || '').toLowerCase()}#${entityItem.phone}`,
+    });
+  } else if (target.storageType === 'CUSTOMER') {
+    Object.assign(entityItem, {
+      PK: `TENANT#${tenantId}#CUSTOMER#${target.entityId}`,
+      SK: 'PROFILE',
+      EntityType: 'CUSTOMER',
+      tenantId,
+      customerId: target.entityId,
+      conversionSnapshotId,
+      convertedAt,
+      convertedFromLeadId: lead.leadId,
+      sourceLeadSnapshot: deepClone(buildConversionSnapshotItem(tenantId, {
+        conversionSnapshotId,
+        lead,
+        notes: leadNotes,
+        meetings: leadMeetings,
+        entityType: target.entityType,
+        entityId: target.entityId,
+        role,
+        options: validated,
+        convertedAt,
+      }).sourceLeadSnapshot),
+      GSI3PK: `TENANT#${tenantId}#SEARCH`,
+      GSI3SK: `CUSTOMER#${String(entityItem.name || '').toLowerCase()}#${entityItem.phone}`,
+    });
+  }
+
+  // Optional listing property (seller/owner)
+  let propertyPut = null;
+  if (role === 'seller' && validated.createPropertyListing !== false) {
+    const existingProps = await getPropertiesByLeadId(tenantId, leadId);
+    if (existingProps.length === 0) {
+      propertyPut = buildForSalePropertyItem(tenantId, lead, entityItem, validated);
+    }
+  } else if (role === 'owner') {
+    const existingProps = await getPropertiesByLeadId(tenantId, leadId);
+    if (existingProps.length === 0) {
+      propertyPut = buildForRentPropertyItem(tenantId, lead, entityItem, validated);
+    }
+  }
+
+  // Optional purchase / lease property updates (built as absolute Put of updated profile)
+  let propertyUpdatePut = null;
+  // Buyer purchase ownership transfer is completed after the conversion
+  // transaction via transferOwnership() — keeps SaleTransaction + seller
+  // lifecycle on the shared path. Purchase rows still land on the buyer entity
+  // inside this transaction.
+  if (role === 'buyer' && validated.purchaseDetails?.propertyId) {
+    const prop = await getProperty(tenantId, validated.purchaseDetails.propertyId);
+    if (!prop) throw new Error('Property not found for purchaseDetails');
+    const now = convertedAt;
+    const saleAmount = Number(validated.purchaseDetails.saleAmount) || 0;
+    const purchases = [...(entityItem.purchases || []), {
+      propertyId: validated.purchaseDetails.propertyId,
+      purchaseDate: validated.purchaseDetails.purchaseDate || now,
+      saleAmount,
+      registrationDate: validated.purchaseDetails.registrationDate || null,
+      registrationNumber: validated.purchaseDetails.registrationNumber || null,
+      stampDutyPaid: validated.purchaseDetails.stampDutyPaid || 0,
+      registrationCharges: validated.purchaseDetails.registrationCharges || 0,
+      brokeragePaid: validated.purchaseDetails.brokeragePaid || 0,
+      notes: validated.purchaseDetails.notes || '',
+    }];
+    entityItem.purchases = purchases;
+  }
+
+  if (role === 'tenant' && validated.leaseDetails?.propertyId) {
+    const prop = await getProperty(tenantId, validated.leaseDetails.propertyId);
+    if (!prop) throw new Error('Property not found for leaseDetails');
+    const lease = validated.leaseDetails;
+    const rentalEntry = {
+      propertyId: lease.propertyId,
+      leaseStartDate: lease.leaseStartDate,
+      leaseEndDate: lease.leaseEndDate || null,
+      monthlyRent: lease.monthlyRent || 0,
+      securityDeposit: lease.securityDeposit || 0,
+      brokeragePaid: lease.brokeragePaid || 0,
+      notes: lease.notes || '',
+    };
+    entityItem.currentRental = rentalEntry;
+    entityItem.rentalHistory = [...(entityItem.rentalHistory || []), rentalEntry];
+
+    propertyUpdatePut = {
+      ...prop,
+      status: 'rented',
+      listingStatus: 'inactive',
+      rentAmount: null,
+      tenantCustomerId: target.entityId,
+      saleInfo: {
+        ...(prop.saleInfo || {}),
+        listedPrice: null,
+      },
+      rentalInfo: {
+        ...(prop.rentalInfo || {}),
+        currentRent: lease.monthlyRent || 0,
+        currentTenantId: target.entityId,
+        leaseStartDate: lease.leaseStartDate || null,
+        leaseEndDate: lease.leaseEndDate || null,
+        securityDeposit: lease.securityDeposit || 0,
+        expectedRent: null,
+      },
+      rentalHistory: [...(prop.rentalHistory || []), {
+        ...rentalEntry,
+        tenantId: target.entityId,
+        tenantName: entityItem.name,
+      }],
+      GSI2PK: `TENANT#${tenantId}#PROPERTY_STATUS#rented`,
+      updatedAt: convertedAt,
+    };
+  }
+
+  const includeProperty = !!propertyPut;
+  const includePropertyUpdate = !!propertyUpdatePut;
+  const estimated = estimateTransactItemCount({
+    noteCount: leadNotes.length,
+    meetingCount: leadMeetings.length,
+    includeProperty,
+    includePropertyUpdate,
+    includeContact: false,
+  });
+  assertTransactSizeOk(estimated);
+
+  const snapshotItem = buildConversionSnapshotItem(tenantId, {
+    conversionSnapshotId,
+    lead,
+    notes: leadNotes,
+    meetings: leadMeetings,
+    entityType: target.entityType,
+    entityId: target.entityId,
+    role,
+    options: validated,
+    convertedAt,
+  });
+
+  const transactItems = [];
+
+  // Snapshot first
+  transactItems.push({
+    Put: {
+      Item: snapshotItem,
+      ConditionExpression: 'attribute_not_exists(PK)',
+    },
+  });
+
+  // Target entity create or replace (merge path still Put full item)
+  if (target.wasExisting) {
+    transactItems.push({
+      Put: {
+        Item: entityItem,
+        ConditionExpression: 'attribute_exists(PK)',
+      },
+    });
+  } else {
+    transactItems.push({
+      Put: {
+        Item: entityItem,
+        ConditionExpression: 'attribute_not_exists(PK)',
+      },
+    });
+  }
+
+  if (propertyPut) {
+    transactItems.push({
+      Put: {
+        Item: propertyPut.item,
+        ConditionExpression: 'attribute_not_exists(PK)',
+      },
+    });
+  }
+
+  if (propertyUpdatePut) {
+    transactItems.push({
+      Put: {
+        Item: propertyUpdatePut,
+        ConditionExpression: 'attribute_exists(PK)',
+      },
+    });
+  }
+
+  // Notes migration
+  for (const action of buildNoteMigrationActions(tenantId, leadId, leadNotes, target)) {
+    if (action.Put) {
+      transactItems.push({ Put: { Item: action.Put.Item } });
+    } else if (action.Delete) {
+      transactItems.push({ Delete: { Key: action.Delete.Key } });
+    }
+  }
+
+  // Meeting re-links
+  for (const action of buildMeetingRelinkUpdates(
+    tenantId,
+    leadMeetings,
+    target.entityType,
+    target.entityId,
+    entityItem.name,
+    entityItem.phone,
+  )) {
+    transactItems.push({
+      Update: {
+        Key: action.Update.Key,
+        UpdateExpression: action.Update.UpdateExpression,
+        ExpressionAttributeValues: action.Update.ExpressionAttributeValues,
+        ConditionExpression: action.Update.ConditionExpression,
+      },
+    });
+  }
+
+  // Delete active lead profile — conversion removes it from the Lead module
+  transactItems.push({
+    Delete: {
+      Key: {
+        PK: `TENANT#${tenantId}#LEAD#${leadId}`,
+        SK: 'PROFILE',
+      },
+      // Allow legacy rows that stored convertedTo: null at creation time
+      ConditionExpression: 'attribute_exists(PK) AND (attribute_not_exists(convertedTo) OR convertedTo = :null)',
+      ExpressionAttributeValues: {
+        ':null': null,
+      },
+    },
+  });
+
+  assertTransactSizeOk(transactItems.length);
+
+  try {
+    await docClient.send(new TransactWriteCommand({
+      TransactItems: transactItems.map((item) => {
+        if (item.Put) return { Put: { TableName: CRM_TABLE_NAME, ...item.Put } };
+        if (item.Delete) return { Delete: { TableName: CRM_TABLE_NAME, ...item.Delete } };
+        if (item.Update) return { Update: { TableName: CRM_TABLE_NAME, ...item.Update } };
+        return item;
+      }),
+    }));
+  } catch (err) {
+    if (err.name === 'TransactionCanceledException' || err.CancellationReasons) {
+      const reasons = err.CancellationReasons || [];
+      const already = reasons.some((r) => r?.Code === 'ConditionalCheckFailed');
+      // Re-check snapshot for concurrent winner
+      const snaps = await getLeadConversionSnapshotsByLeadId(tenantId, leadId);
+      if (snaps.length > 0) {
+        const snap = snaps[0];
+        const alreadyErr = new Error('Lead already converted');
+        alreadyErr.code = 'ALREADY_CONVERTED';
+        alreadyErr.conversionSnapshotId = snap.conversionSnapshotId;
+        alreadyErr.convertedTo = {
+          entityType: snap.entityType,
+          entityId: snap.entityId,
+          role: snap.role,
+        };
+        throw alreadyErr;
+      }
+      logger.error('convertLead.transaction.canceled', {
+        tenantId,
+        leadId,
+        reasons: reasons.map((r, i) => ({ index: i, code: r?.Code, message: r?.Message })),
+        message: err.message,
+      });
+      const leadDeleteFailed = reasons.some(
+        (r, i) => r?.Code === 'ConditionalCheckFailed'
+          && transactItems[i]?.Delete?.Key?.SK === 'PROFILE',
+      );
+      const txErr = new Error(
+        leadDeleteFailed
+          ? 'Lead is already marked as converted and cannot be converted again'
+          : already
+            ? 'Lead conversion conflict — please retry'
+            : (err.message || 'Lead conversion transaction failed'),
+      );
+      txErr.code = 'CONVERSION_FAILED';
+      throw txErr;
+    }
+    logger.error('convertLead.transaction.failed', { tenantId, leadId, error: err.message });
+    throw err;
+  }
+
+  // Strip internal Dynamo keys from response entity
+  const {
+    PK, SK, GSI1PK, GSI2PK, GSI3PK, GSI3SK, ...publicEntity
+  } = entityItem;
+
+  logger.info('convertLead.success', {
+    tenantId,
+    leadId,
+    entityType: target.entityType,
+    entityId: target.entityId,
+    conversionSnapshotId,
+  });
+
+  // Phase 4: upsert canonical Contact + profiles (legacy OWNER/BUYER/CUSTOMER remain for compat)
+  let contact = null;
+  try {
+    const roles = {
+      owner: role === 'owner' || role === 'seller',
       seller: role === 'seller',
       buyer: role === 'buyer',
       tenant: role === 'tenant',
-    },
-    ownerProfile: role === 'owner' ? (lead.ownerProperty || {}) : undefined,
-    sellerProfile: role === 'seller' ? (lead.sellerProperty || {}) : undefined,
-    buyerProfile: role === 'buyer' ? (lead.buyerRequirement || {}) : undefined,
-    tenantProfile: role === 'tenant' ? (lead.tenantRequirement || {}) : undefined,
-    createdBy: options.convertedBy || 'System',
-  };
-
-  let createdEntity;
-  if (options.existingContactId) {
-    const existing = await getContact(tenantId, options.existingContactId);
-    if (!existing) {
-      throw new Error('Specified contact not found');
+    };
+    const contactPayload = {
+      name: entityItem.name,
+      phone: entityItem.phone,
+      email: entityItem.email || null,
+      address: entityItem.address || '',
+      roles,
+      source: `lead_conversion:${leadId}`,
+      panNumber: entityItem.panNumber || null,
+      aadharNumber: entityItem.aadharNumber || null,
+    };
+    if (role === 'seller') {
+      contactPayload.sellerProfile = {
+        lifecycleStatus: 'active',
+        soldPropertyIds: [],
+        activeListingIds: [],
+        notes: lead.notes || null,
+      };
+      contactPayload.ownerProfile = {
+        lifecycleStatus: 'active',
+        ownedPropertyIds: propertyPut?.propertyId ? [propertyPut.propertyId] : [],
+      };
+      contactPayload.linkedOwnerId = target.entityId;
+    } else if (role === 'owner') {
+      contactPayload.ownerProfile = {
+        lifecycleStatus: 'active',
+        ownedPropertyIds: propertyPut?.propertyId ? [propertyPut.propertyId] : [],
+      };
+      contactPayload.linkedOwnerId = target.entityId;
+    } else     if (role === 'buyer') {
+      contactPayload.buyerProfile = {
+        budget: entityItem.budget ?? lead.buyerRequirement?.budget ?? null,
+        preferredArea: entityItem.preferredArea || lead.buyerRequirement?.preferredArea || null,
+        propertyType: entityItem.propertyType || lead.buyerRequirement?.propertyType || null,
+        bhk: entityItem.bhk ?? lead.buyerRequirement?.bhk ?? null,
+        requirement: entityItem.requirement || lead.buyerRequirement?.requirement || null,
+      };
+      contactPayload.status = 'active';
+    } else if (role === 'tenant') {
+      contactPayload.tenantProfile = {
+        requirement: entityItem.tenantRequirement || lead.tenantRequirement || null,
+        budget: entityItem.budget ?? null,
+        preferredArea: entityItem.preferredArea || null,
+        originalCustomerId: target.entityId,
+      };
+      contactPayload.linkedCustomerId = target.entityId;
     }
-
-    const leadPhone = String(lead.phone || '').replace(/[^0-9]/g, '').slice(-10);
-    const existingPhone = String(existing.phone || '').replace(/[^0-9]/g, '').slice(-10);
-    if (!leadPhone || !existingPhone || leadPhone !== existingPhone) {
-      throw new Error('Specified contact does not match lead phone number');
+    if (validated.existingContactId) {
+      contact = await getContact(tenantId, validated.existingContactId);
+      if (contact) {
+        contact = await updateContact(tenantId, contact.contactId, {
+          ...contactPayload,
+          roles: {
+            ...(contact.roles || {}),
+            ...roles,
+          },
+        });
+      }
     }
-
-    createdEntity = await createOrUpdateContactByPhone(tenantId, { ...contactPayload, phone: existing.phone });
-  } else {
-    createdEntity = await createOrUpdateContactByPhone(tenantId, contactPayload);
-  }
-
-  let entityType = 'contact';
-  let entityId = createdEntity.contactId;
-  let entity = createdEntity;
-
-  // Import helpers dynamically to avoid circular dependencies
-  const { 
-    updateCurrentRental, 
-    markPropertyRented, 
-    addPurchaseToBuyer, 
-    markPropertySold,
-    createBrokerageKhataEntry
-  } = await import('./crmHelpers.js');
-
-  // Ensure owner conversions show up in the legacy OWNER list UI.
-  // OwnerList (/crm/owners) queries EntityType='OWNER', not CONTACT.
-  if (role === 'owner' || role === 'seller') {
-    const normalizedLeadPhone = normalizePhoneE164(lead.phone);
-    logger.info('crm.lead.convert.phoneNormalized', {
+    if (!contact) {
+      contact = await createOrUpdateContactByPhone(tenantId, contactPayload);
+    }
+  } catch (err) {
+    logger.error('convertLead.contactUpsert.failed', {
       tenantId,
       leadId,
-      raw: lead.phone,
-      e164: normalizedLeadPhone,
+      error: err.message,
     });
+  }
 
-    const owner = await createOrUpdateOwnerByPhone(tenantId, {
-      name: lead.name,
-      email: lead.email,
-      phone: normalizedLeadPhone,
-      address: lead.address || '',
-      status: 'active',
-      source: `lead:${lead.leadId}`,
-      notes: lead.notes,
-      createdBy: options.convertedBy || 'System',
-    });
-
-    entityType = 'owner';
-    entityId = owner.ownerId;
-    entity = owner;
-
-    // Seller-type leads should create a PROPERTY listing for sale by default.
-    // This is what the UI expects when it treats "Sellers" as owners who have for-sale listings.
-    if (role === 'seller' && options.createPropertyListing !== false) {
-      // Prevent duplicate property listings from the same lead
-      const existingProperties = await getPropertiesByLeadId(tenantId, leadId);
-      if (existingProperties.length > 0) {
-        logger.info('crm.lead.convert.seller.property.skip', { tenantId, leadId, existingCount: existingProperties.length });
-      } else {
-        const sp = lead.sellerProperty || {};
-        const propertyType = sp.propertyType || 'apartment';
-        const area = sp.area || '';
-        const city = sp.city || lead.city || 'Mumbai';
-        const listedPrice = typeof sp.expectedPrice === 'number' ? sp.expectedPrice : null;
-
-        await createProperty(tenantId, {
-        ownerId: owner.ownerId,
-        ownerName: owner.name,
-        ownerPhone: owner.phone,
-        ownerSnapshot: { name: owner.name, phone: owner.phone },
-        convertedFromLeadId: lead.leadId,
-        title: sp.title || `${propertyType} for Sale${area ? ` - ${area}` : ''}`,
-        description: sp.description || lead.notes || '',
-        propertyType,
-        bhk: sp.bhk ? Number(sp.bhk) : 1,
-        buildingName: sp.buildingName || '',
-        flatNumber: sp.flatNumber || '',
-        floor: sp.floor || '',
-        furnishing: sp.furnishing || 'unfurnished',
-        carpetArea: sp.carpetArea ? Number(sp.carpetArea) : 0,
-        area,
-        city,
-        address: sp.address || lead.address || '',
-        status: 'for-sale',
-        listingStatus: 'active',
-        saleInfo: {
-          listedPrice,
-          soldPrice: null,
-          soldDate: null,
-          soldToBuyerId: null,
-        },
-        createdBy: options.convertedBy || 'System',
+  // Create Listing for seller/owner property listings created in conversion
+  if (contact && propertyPut?.propertyId) {
+    try {
+      const { createListing } = await import('./services/listingService.js');
+      const listingType = role === 'seller' ? 'sale' : 'rent';
+      // Attach contact ownership pointer before listing so resolve uses it
+      await updateProperty(tenantId, propertyPut.propertyId, {
+        currentOwnerContactId: contact.contactId,
+        ownerContactId: contact.contactId,
       });
-      logger.info('crm.lead.convert.seller.property.created', { tenantId, leadId, ownerId: owner.ownerId });
-    }
-    }
-
-    // Owner-type leads can optionally create a PROPERTY listing for rent during conversion if details are supplied.
-    if (role === 'owner' && lead.ownerProperty && (lead.ownerProperty.propertyType || lead.ownerProperty.area || lead.ownerProperty.rentExpected)) {
-      // Prevent duplicate property listings from the same lead
-      const existingProperties = await getPropertiesByLeadId(tenantId, leadId);
-      if (existingProperties.length > 0) {
-        logger.info('crm.lead.convert.owner.property.skip', { tenantId, leadId, existingCount: existingProperties.length });
-      } else {
-        const op = lead.ownerProperty;
-        const propertyType = op.propertyType || 'apartment';
-        const area = op.area || '';
-        const city = op.city || lead.city || 'Mumbai';
-        const expectedRent = typeof op.rentExpected === 'number' ? op.rentExpected : 0;
-        const securityDeposit = typeof op.securityDeposit === 'number' ? op.securityDeposit : 0;
-
-        await createProperty(tenantId, {
-        ownerId: owner.ownerId,
-        ownerName: owner.name,
-        ownerPhone: owner.phone,
-        ownerSnapshot: { name: owner.name, phone: owner.phone },
-        convertedFromLeadId: lead.leadId,
-        title: op.title || `${propertyType} for Rent${area ? ` - ${area}` : ''}`,
-        description: op.description || lead.notes || '',
-        propertyType,
-        bhk: op.bhk ? Number(op.bhk) : 1,
-        buildingName: op.buildingName || '',
-        flatNumber: op.flatNumber || '',
-        floor: op.floor || '',
-        furnishing: op.furnishing || 'unfurnished',
-        carpetArea: op.carpetArea ? Number(op.carpetArea) : 0,
-        area,
-        city,
-        address: op.address || lead.address || '',
-        status: 'for-rent',
-        listingStatus: 'active',
-        rentAmount: expectedRent,
-        depositAmount: securityDeposit,
-        rentalInfo: {
-          expectedRent,
-          currentRent: null,
-          currentTenantId: null,
-          leaseStartDate: null,
-          leaseEndDate: null,
-          securityDeposit,
-        },
-        createdBy: options.convertedBy || 'System',
+      const listing = await createListing(tenantId, {
+        propertyId: propertyPut.propertyId,
+        listingType,
+        listedPrice: propertyPut.item?.saleInfo?.listedPrice ?? null,
+        expectedRent: propertyPut.item?.rentalInfo?.expectedRent ?? null,
+        securityDeposit: propertyPut.item?.rentalInfo?.securityDeposit ?? 0,
+        source: `lead_conversion:${leadId}`,
+        // Property already has for-sale/for-rent status from conversion txn
+        skipPropertySync: true,
       });
-      logger.info('crm.lead.convert.owner.property.created', { tenantId, leadId, ownerId: owner.ownerId });
-    }
-    }
-  } else if (role === 'tenant') {
-    // Create/update legacy CUSTOMER (Tenant) so they show up in CRM lists
-    const customer = await createOrUpdateCustomerByPhone(tenantId, {
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      address: lead.address || '',
-      status: 'active',
-      source: `lead:${lead.leadId}`,
-      notes: lead.notes,
-      createdBy: options.convertedBy || 'System',
-    });
-
-    entityType = 'tenant';
-    entityId = customer.customerId;
-    entity = customer;
-
-    // Handle rental mapping if lease details are supplied
-    if (options.leaseDetails && options.leaseDetails.propertyId) {
-      await updateCurrentRental(tenantId, customer.customerId, options.leaseDetails);
-      await markPropertyRented(
+      // Track real listingId on Contact (not propertyId) so seller→past works after sale
+      const existingSeller = contact.sellerProfile || {};
+      const existingOwner = contact.ownerProfile || {};
+      const activeListingIds = Array.isArray(existingSeller.activeListingIds)
+        ? [...existingSeller.activeListingIds]
+        : [];
+      const trackId = listing?.listingId || propertyPut.propertyId;
+      if (trackId && !activeListingIds.includes(trackId)) {
+        activeListingIds.push(trackId);
+      }
+      const ownedPropertyIds = Array.isArray(existingOwner.ownedPropertyIds)
+        ? [...existingOwner.ownedPropertyIds]
+        : [];
+      if (!ownedPropertyIds.includes(propertyPut.propertyId)) {
+        ownedPropertyIds.push(propertyPut.propertyId);
+      }
+      contact = await updateContact(tenantId, contact.contactId, {
+        sellerProfile: {
+          ...existingSeller,
+          lifecycleStatus: 'active',
+          activeListingIds,
+        },
+        ownerProfile: {
+          ...existingOwner,
+          lifecycleStatus: 'active',
+          ownedPropertyIds,
+        },
+        linkedOwnerId: contact.linkedOwnerId || target.entityId,
+      });
+    } catch (err) {
+      logger.error('convertLead.listing.failed', {
         tenantId,
-        options.leaseDetails.propertyId,
-        customer.customerId,
-        options.leaseDetails,
-        `lead-conversion:${leadId}:rental:${options.leaseDetails.propertyId}`
-      );
+        leadId,
+        propertyId: propertyPut.propertyId,
+        error: err.message,
+      });
+    }
+  }
 
-      // Also store rental info on unified CONTACT for consistent data access
-      const rentalEntry = {
-        propertyId: options.leaseDetails.propertyId,
-        leaseStartDate: options.leaseDetails.leaseStartDate,
-        leaseEndDate: options.leaseDetails.leaseEndDate || null,
-        monthlyRent: options.leaseDetails.monthlyRent || 0,
-        securityDeposit: options.leaseDetails.securityDeposit || 0,
-        brokeragePaid: options.leaseDetails.brokeragePaid || 0,
-        notes: options.leaseDetails.notes || '',
-      };
-      await updateContact(tenantId, createdEntity.contactId, {
-        tenantProfile: {
-          ...(createdEntity.tenantProfile || {}),
-          currentRental: rentalEntry,
+  // Complete ownership transfer for buyer purchase via shared service
+  // (SaleTransaction, currentOwnerContactId, seller→past, owner shell).
+  if (role === 'buyer' && validated.purchaseDetails?.propertyId) {
+    try {
+      const { transferOwnership } = await import('./services/transferOwnership.js');
+      await transferOwnership(tenantId, {
+        propertyId: validated.purchaseDetails.propertyId,
+        soldPrice: Number(validated.purchaseDetails.saleAmount) || 0,
+        buyerId: target.entityId,
+        saleType: 'direct',
+        notes: validated.purchaseDetails.notes || null,
+        brokerageAmount: validated.purchaseDetails.brokeragePaid || null,
+        source: `lead_conversion:${leadId}`,
+        skipBuyerPurchase: true,
+      });
+    } catch (err) {
+      logger.error('convertLead.transferOwnership.failed', {
+        tenantId,
+        leadId,
+        propertyId: validated.purchaseDetails.propertyId,
+        error: err.message,
+      });
+    }
+  }
+
+  // Contact timeline: lead converted
+  if (contact?.contactId) {
+    try {
+      await logContactActivity(tenantId, {
+        activityType: 'lead_converted',
+        subjectEntityType: 'contact',
+        subjectEntityId: contact.contactId,
+        subjectEntityName: contact.name || lead.name,
+        title: `Became a ${role}`,
+        description: `Converted from lead ${leadId.length > 8 ? `${leadId.slice(0, 8)}…` : leadId} as ${role}. Original lead is locked for reference.`,
+        performedBy: validated.convertedBy || validated.performedBy || SERVICE_ACCOUNT_USER,
+        payload: {
+          leadId,
+          role,
+          entityType: target.entityType,
+          entityId: target.entityId,
+          conversionSnapshotId,
         },
       });
-    }
-  } else if (role === 'buyer') {
-    // Create/update legacy BUYER so they show up in CRM lists
-    // Copy buyer requirements from lead to buyer entity
-    const buyerReq = lead.buyerRequirement || {};
-    const buyer = await createOrUpdateBuyerByPhone(tenantId, {
-      name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      address: lead.address || '',
-      status: 'active',
-      source: `lead:${lead.leadId}`,
-      notes: lead.notes,
-      // Copy buyer requirements
-      budget: buyerReq.budget || null,
-      propertyType: buyerReq.propertyType || null,
-      preferredArea: buyerReq.preferredArea || null,
-      requirement: buyerReq.requirement || null,
-      bhk: buyerReq.bhk || null,
-      furnishing: buyerReq.furnishing || null,
-      createdBy: options.convertedBy || 'System',
-    });
-
-    entityType = 'buyer';
-    entityId = buyer.buyerId;
-    entity = buyer;
-
-    // Handle purchase mapping if purchase details are supplied
-    if (options.purchaseDetails && options.purchaseDetails.propertyId) {
-      await addPurchaseToBuyer(tenantId, buyer.buyerId, options.purchaseDetails);
-      await markPropertySold(
-        tenantId,
-        options.purchaseDetails.propertyId,
-        options.purchaseDetails.saleAmount,
-        buyer.buyerId,
-        'direct',
-        null,
-        null,
-        options.purchaseDetails.brokeragePaid || null,
-        null,
-        `lead-conversion:${leadId}:purchase:${options.purchaseDetails.propertyId}`
-      );
-
-      // Also store on unified CONTACT for consistent data access
-      const existingHistory = createdEntity.purchaseHistory || [];
-      const newPurchaseEntry = {
-        propertyId: options.purchaseDetails.propertyId,
-        purchaseDate: options.purchaseDetails.purchaseDate || new Date().toISOString(),
-        saleAmount: options.purchaseDetails.saleAmount || 0,
-        registrationDate: options.purchaseDetails.registrationDate || null,
-        registrationNumber: options.purchaseDetails.registrationNumber || null,
-        stampDutyPaid: options.purchaseDetails.stampDutyPaid || 0,
-        registrationCharges: options.purchaseDetails.registrationCharges || 0,
-        brokeragePaid: options.purchaseDetails.brokeragePaid || 0,
-        notes: options.purchaseDetails.notes || '',
-      };
-      await updateContact(tenantId, createdEntity.contactId, {
-        purchaseHistory: [...existingHistory, newPurchaseEntry],
-      });
-
-      // NOTE: We intentionally do NOT auto-create an Owner or a new property listing
-      // during buyer lead conversion. The buyer's post-purchase intent (rent-out / resell)
-      // is a future business decision that should be recorded via an explicit action on
-      // the Buyer profile, not forced at the moment of conversion.
+    } catch (err) {
+      logger.error('convertLead.activity.failed', { leadId, error: err.message });
     }
   }
 
-  if (leadNotes.length) {
-    if (entityType === 'owner') {
-      await Promise.all(leadNotes.map(note => createOwnerNote(tenantId, entityId, {
-        content: note.content,
-        createdBy: note.createdBy,
-        createdAt: note.createdAt,
-      })));
-    } else {
-      await Promise.all(leadNotes.map(note => createContactNote(tenantId, entityId, {
-        content: note.content,
-        createdBy: note.createdBy,
-        createdAt: note.createdAt,
-      })));
-    }
-  }
-
-  // Migrate meetings from lead to new entity
-  if (leadMeetings.length) {
-    await Promise.all(leadMeetings.map(meeting => {
-      // Create new meeting with updated entity reference
-      const newMeetingData = {
-        title: meeting.title,
-        description: meeting.description || '',
-        meetingDate: meeting.meetingDate,
-        meetingTime: meeting.meetingTime,
-        location: meeting.location || '',
-        status: meeting.status || 'scheduled',
-        duration: meeting.duration || 0,
-        attendeeName: meeting.attendeeName || createdEntity.name,
-        attendeeEmail: meeting.attendeeEmail || createdEntity.email,
-        attendeePhone: meeting.attendeePhone || createdEntity.phone,
-        relatedEntityType: entityType,
-        relatedEntityId: entityId,
-        relatedEntityName: createdEntity.name,
-        relatedEntityPhone: createdEntity.phone,
-        notes: meeting.notes || '',
-        outcome: meeting.outcome || '',
-      };
-      return createMeeting(tenantId, newMeetingData);
-    }));
-  }
-
-  // Update lead as converted
-  const history = lead.history || [];
-  history.push({
-    timestamp: new Date().toISOString(),
-    action: 'Lead Converted',
-    details: `Converted to ${entityType} (ID: ${entityId})`,
-    updatedBy: options.convertedBy || 'System',
+  return buildConvertLeadResult({
+    entity: publicEntity,
+    entityType: target.entityType,
+    conversionSnapshotId,
+    convertedAt,
+    leadId,
+    role,
+    contactId: contact?.contactId || null,
+    contact,
   });
+}
 
-  await updateLead(tenantId, leadId, {
-    status: 'converted',
-    convertedAt: new Date().toISOString(),
-    convertedTo: {
-      entityType: entityType,
-      entityId: entityId,
-      role,
+/** Look up conversion snapshots by original leadId (post-delete audit). */
+export async function getLeadConversionSnapshotsByLeadId(tenantId, leadId) {
+  if (!tenantId || !leadId) return [];
+  const items = await collectAllPages(docClient, ScanCommand, {
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId AND sourceLeadId = :leadId',
+    ExpressionAttributeValues: {
+      ':type': 'LEAD_CONVERSION',
+      ':tenantId': tenantId,
+      ':leadId': leadId,
     },
-    history,
-  });
+  }, { maxPages: 20 });
+  return items || [];
+}
 
-  // Log contact activity for lead conversion
-  try {
-    await createContactActivity(tenantId, createdEntity.contactId, {
-      activityType: 'lead_converted',
-      subjectEntityType: 'lead',
-      subjectEntityId: leadId,
-      subjectEntityName: lead.name,
-      title: `Lead Converted to ${entityType.toUpperCase()}`,
-      description: `Lead converted successfully. Assigned role: ${role.toUpperCase()}`,
-      performedBy: options.convertedBy || 'System',
-      payload: { leadId, entityType, entityId, role },
+/** List conversion snapshots for a tenant (converted history). */
+export async function getLeadConversionSnapshots(tenantId, filters = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  let items = await collectAllPages(docClient, ScanCommand, {
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+    ExpressionAttributeValues: {
+      ':type': 'LEAD_CONVERSION',
+      ':tenantId': tenantId,
+    },
+  }, { maxPages: 100 });
+
+  if (filters.leadType) {
+    items = items.filter((s) => String(s.leadType || '').toLowerCase() === String(filters.leadType).toLowerCase());
+  }
+  if (filters.search) {
+    const q = String(filters.search).toLowerCase();
+    items = items.filter((s) => {
+      const name = s.sourceLeadSnapshot?.lead?.name || '';
+      const phone = s.sourceLeadSnapshot?.lead?.phone || '';
+      return name.toLowerCase().includes(q) || phone.includes(q);
     });
-  } catch (err) {
-    logger.error('convertLead.logContactActivity.error', { leadId, error: err.message });
   }
 
-  return {
-    lead: await getLead(tenantId, leadId),
-    entity: entity,
-    entityType: entityType,
-  };
+  items.sort((a, b) => String(b.convertedAt || '').localeCompare(String(a.convertedAt || '')));
+  return items;
+}
+
+export async function findBuyerByPhone(tenantId, phone) {
+  if (!tenantId || !phone) return null;
+  const buyers = await collectAllPages(docClient, ScanCommand, {
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+    ExpressionAttributeValues: {
+      ':type': 'BUYER',
+      ':tenantId': tenantId,
+    },
+  }, { maxPages: 100 });
+  return (buyers || []).find((b) => phonesMatch(b.phone, phone)) || null;
 }
 
 /**
@@ -3785,7 +4756,7 @@ export async function deleteLead(tenantId, leadId) {
   if (!lead) {
     throw new Error('Lead not found');
   }
-  if (lead.convertedAt) {
+  if (isLeadConverted(lead)) {
     throw new Error('Cannot delete a converted lead');
   }
 
@@ -3814,7 +4785,7 @@ export async function createLeadNote(tenantId, leadId, data) {
     noteId,
     leadId,
     content: data.content,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: data.createdAt || new Date().toISOString(),
   };
   await docClient.send(new PutCommand({
@@ -3822,11 +4793,27 @@ export async function createLeadNote(tenantId, leadId, data) {
     Item: note,
   }));
 
+  const actor = data.createdBy || SERVICE_ACCOUNT_USER;
+  const actorUserId = data.createdByUserId || null;
+  const preview = String(data.content || '').trim();
   try {
+    await appendLeadHistory(tenantId, leadId, {
+      action: 'Note Added',
+      details: preview ? `Note added: ${preview.length > 120 ? `${preview.slice(0, 120)}...` : preview}` : 'Note added',
+      updatedBy: actor,
+      updatedByUserId: actorUserId,
+    });
+  } catch (err) {
+    logger.error('createLeadNote.appendHistory.error', { leadId, error: err.message });
+  }
+
+  try {
+    const lead = await getLead(tenantId, leadId);
     await logContactActivity(tenantId, {
       activityType: 'note_added',
       subjectEntityType: 'lead',
       subjectEntityId: leadId,
+      subjectEntityName: lead?.name || '',
       title: 'Note Added (Lead)',
       description: data.content,
       performedBy: data.createdBy,
@@ -3858,22 +4845,46 @@ export async function updateLeadNote(tenantId, leadId, noteId, data) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
   }
+
+  const existingNotes = await getLeadNotes(tenantId, leadId);
+  const existingNote = existingNotes.find((n) => n.noteId === noteId);
+  if (!existingNote) {
+    throw new Error('Note not found');
+  }
+
+  const actor = data.updatedBy || data.createdBy || SERVICE_ACCOUNT_USER;
+  const actorUserId = data.updatedByUserId || data.createdByUserId || null;
   await docClient.send(new UpdateCommand({
     TableName: CRM_TABLE_NAME,
     Key: {
       PK: `TENANT#${tenantId}#LEAD#${leadId}`,
       SK: `NOTE#${noteId}`,
     },
-    UpdateExpression: 'SET #content = :content, #updatedAt = :updatedAt',
+    UpdateExpression: 'SET #content = :content, #updatedAt = :updatedAt, #updatedBy = :updatedBy',
     ExpressionAttributeNames: {
       '#content': 'content',
       '#updatedAt': 'updatedAt',
+      '#updatedBy': 'updatedBy',
     },
     ExpressionAttributeValues: {
       ':content': data.content,
       ':updatedAt': new Date().toISOString(),
+      ':updatedBy': actor,
     },
   }));
+
+  const preview = String(data.content || '').trim();
+  try {
+    await appendLeadHistory(tenantId, leadId, {
+      action: 'Note Updated',
+      details: preview ? `Note updated: ${preview.length > 120 ? `${preview.slice(0, 120)}...` : preview}` : 'Note updated',
+      updatedBy: actor,
+      updatedByUserId: actorUserId,
+    });
+  } catch (err) {
+    logger.error('updateLeadNote.appendHistory.error', { leadId, noteId, error: err.message });
+  }
+
   const notes = await getLeadNotes(tenantId, leadId);
   return notes.find(n => n.noteId === noteId) || null;
 }
@@ -4017,9 +5028,12 @@ export async function getPropertyContacts(tenantId, property) {
     tenantContact: null,
   };
 
-  // Try new contact references first
-  if (property.ownerContactId) {
-    result.ownerContact = await getContact(tenantId, property.ownerContactId);
+  // Try new contact references first (canonical currentOwnerContactId)
+  if (property.currentOwnerContactId || property.ownerContactId) {
+    result.ownerContact = await getContact(
+      tenantId,
+      property.currentOwnerContactId || property.ownerContactId,
+    );
   } else if (property.ownerId) {
     // Fall back to legacy owner
     const owner = await getOwner(tenantId, property.ownerId);
@@ -4114,11 +5128,12 @@ export async function createBuyer(tenantId, data) {
     status: data.status || 'active', // active, inactive
     notes: data.notes || '',
     tags: data.tags || [],
+    assignedTo: data.assignedTo || null,
 
     // Timestamps
     createdAt: now,
     updatedAt: now,
-    createdBy: data.createdBy || 'System',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
 
     // Search index
     GSI3PK: `TENANT#${tenantId}#SEARCH`,
@@ -4177,60 +5192,16 @@ export async function createOrUpdateBuyerByPhone(tenantId, data) {
 export async function getBuyers(tenantId, filters = {}) {
   if (!tenantId) throw new Error('Tenant ID is required');
 
-  // Fetch both legacy BUYER entities and unified CONTACT entities with buyer role
-  const [legacyBuyersResult, buyerContactsResult] = await Promise.all([
-    docClient.send(new ScanCommand({
-      TableName: CRM_TABLE_NAME,
-      FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
-      ExpressionAttributeValues: {
-        ':type': 'BUYER',
-        ':tenantId': tenantId,
-      },
-    })),
-    docClient.send(new ScanCommand({
-      TableName: CRM_TABLE_NAME,
-      FilterExpression: 'EntityType = :type AND tenantId = :tenantId AND #roles.#buyer = :isBuyer',
-      ExpressionAttributeNames: {
-        '#roles': 'roles',
-        '#buyer': 'buyer',
-      },
-      ExpressionAttributeValues: {
-        ':type': 'CONTACT',
-        ':tenantId': tenantId,
-        ':isBuyer': true,
-      },
-    })),
-  ]);
-
-  let buyers = legacyBuyersResult.Items || [];
-  const buyerContacts = buyerContactsResult.Items || [];
-
-  // Convert CONTACT format to BUYER-like format for unified display
-  const contactsAsBuyers = buyerContacts.map(contact => ({
-    ...contact,
-    buyerId: contact.contactId,
-    budget: contact.buyerProfile?.budget || null,
-    propertyType: contact.buyerProfile?.propertyType || null,
-    preferredArea: contact.buyerProfile?.preferredArea || null,
-    requirement: contact.buyerProfile?.requirement || null,
-    priority: contact.buyerProfile?.priority || contact.priority || 'medium',
-    bhk: contact.buyerProfile?.bhk || null,
-    furnishing: contact.buyerProfile?.furnishing || null,
-    isFromContact: true,
-  }));
-
-  // Merge and dedupe by phone number
-  const phoneMap = new Map();
-  [...buyers, ...contactsAsBuyers].forEach(buyer => {
-    const phone = normalizePhone(buyer.phone);
-    if (phone && !phoneMap.has(phone)) {
-      phoneMap.set(phone, buyer);
-    } else if (!phone) {
-      phoneMap.set(buyer.buyerId || buyer.contactId, buyer);
-    }
-  });
-
-  buyers = Array.from(phoneMap.values());
+  // Buyers module lists only canonical BUYER entities.
+  // Unconverted leads and buyer-role CONTACTs must never appear here.
+  let buyers = await collectAllPages(docClient, ScanCommand, {
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+    ExpressionAttributeValues: {
+      ':type': 'BUYER',
+      ':tenantId': tenantId,
+    },
+  }, { maxPages: 100 });
 
   // --- Search filter ---
   if (filters.search && filters.search.trim().length >= 2) {
@@ -4246,13 +5217,13 @@ export async function getBuyers(tenantId, filters = {}) {
 
   // --- Exact-match filters ---
   if (filters.status && filters.status !== 'all') {
-    buyers = buyers.filter(b => b.status === filters.status);
+    buyers = buyers.filter((b) => matchesFilterEnum(b.status, filters.status));
   }
   if (filters.priority && filters.priority !== 'all') {
-    buyers = buyers.filter(b => b.priority === filters.priority);
+    buyers = buyers.filter((b) => matchesFilterEnum(b.priority, filters.priority));
   }
   if (filters.propertyType && filters.propertyType !== 'all') {
-    buyers = buyers.filter(b => b.propertyType === filters.propertyType);
+    buyers = buyers.filter((b) => matchesFilterEnum(b.propertyType, filters.propertyType));
   }
   if (filters.source) {
     buyers = buyers.filter(b => b.source === filters.source);
@@ -4529,7 +5500,7 @@ export async function createBuyerNote(tenantId, buyerId, data) {
     buyerId,
     noteId,
     content: data.content,
-    createdBy: data.createdBy || 'Admin',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: data.createdAt || new Date().toISOString(),
   };
 
@@ -4589,7 +5560,14 @@ export async function getBuyerNotes(tenantId, buyerId) {
  */
 export async function searchOwners(tenantId, query) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  if (!query || query.trim().length < 2) return [];
+  // Normalize: if query is an object (from skillInvoker dynamic dispatch), extract 'query' field
+  if (query && typeof query === 'object' && !Array.isArray(query)) {
+    query = query.query;
+  }
+  if (query !== undefined && query !== null && typeof query !== 'string') {
+    query = String(query);
+  }
+  if (!query || typeof query !== 'string' || query.trim().length < 2) return [];
 
   const { owners } = await getOwners(tenantId, { search: query, limit: 20 });
   return owners;
@@ -4600,7 +5578,14 @@ export async function searchOwners(tenantId, query) {
  */
 export async function searchCustomers(tenantId, query) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  if (!query || query.trim().length < 2) return [];
+  // Normalize: if query is an object (from skillInvoker dynamic dispatch), extract 'query' field
+  if (query && typeof query === 'object' && !Array.isArray(query)) {
+    query = query.query;
+  }
+  if (query !== undefined && query !== null && typeof query !== 'string') {
+    query = String(query);
+  }
+  if (!query || typeof query !== 'string' || query.trim().length < 2) return [];
   
   const normalizedQuery = query.toLowerCase().trim();
   const { customers } = await getCustomers(tenantId);
@@ -4617,12 +5602,23 @@ export async function searchCustomers(tenantId, query) {
  */
 export async function searchLeads(tenantId, query, filters = {}) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  
-  const leads = await getLeads(tenantId);
+
+  // Normalize query: if query is an object (from skillInvoker dynamic dispatch),
+  // extract the 'query' field and merge the rest into filters
+  if (query && typeof query === 'object' && !Array.isArray(query)) {
+    filters = { ...query, ...filters };
+    query = query.query;
+  }
+  // Ensure query is a string or null
+  if (query !== undefined && query !== null && typeof query !== 'string') {
+    query = String(query);
+  }
+
+  const leads = unwrapLeadsList(await getLeads(tenantId));
   let filtered = [...leads];
-  
+
   // Apply text search if query provided
-  if (query && query.trim().length >= 2) {
+  if (query && typeof query === 'string' && query.trim().length >= 2) {
     const normalizedQuery = query.toLowerCase().trim();
     const normalizedQueryPhone = normalizedQuery.replace(/[\s-]/g, '');
     filtered = filtered.filter(lead => {
@@ -4661,21 +5657,51 @@ export async function searchLeads(tenantId, query, filters = {}) {
     });
   }
   
-  // Apply filters
+  // Apply filters (case-insensitive — LLM/UI often send "Qualified"/"Buyer")
   if (filters.leadType && filters.leadType !== 'all') {
-    filtered = filtered.filter(l => l.leadType === filters.leadType);
+    const leadType = String(filters.leadType).toLowerCase();
+    filtered = filtered.filter((l) => String(l.leadType || '').toLowerCase() === leadType);
   }
   if (filters.status && filters.status !== 'all') {
-    filtered = filtered.filter(l => l.status === filters.status);
+    const status = String(filters.status).toLowerCase();
+    if (status === 'converted') {
+      filtered = filtered.filter((l) => isLeadConverted(l));
+    } else {
+      filtered = filtered.filter((l) => String(l.status || '').toLowerCase() === status);
+      filtered = filtered.filter((l) => !isLeadConverted(l));
+    }
+  } else {
+    filtered = filtered.filter((l) => !isLeadConverted(l));
   }
   if (filters.assignedTo) {
-    filtered = filtered.filter(l => l.assignedTo === filters.assignedTo);
+    const assignedTo = String(filters.assignedTo);
+    filtered = filtered.filter((l) => l.assignedTo === assignedTo);
   }
   if (filters.priority && filters.priority !== 'all') {
-    filtered = filtered.filter(l => l.priority === filters.priority);
+    const priority = String(filters.priority).toLowerCase();
+    filtered = filtered.filter((l) => String(l.priority || '').toLowerCase() === priority);
   }
 
-  return filtered.slice(0, 50);
+  filtered = applyLeadBudgetRangeFilter(filtered, filters);
+
+  if (filters.area) {
+    const areaQuery = String(filters.area).toLowerCase();
+    filtered = filtered.filter((l) => {
+      const locations = [
+        l.buyerRequirement?.preferredArea,
+        l.tenantRequirement?.preferredArea,
+        l.sellerProperty?.area,
+        l.ownerProperty?.area,
+        l.sellerProperty?.city,
+        l.ownerProperty?.city,
+      ].filter(Boolean);
+      return locations.some((loc) => loc.toLowerCase().includes(areaQuery));
+    });
+  }
+
+  const pageLimit = Number(filters.limit);
+  const cap = Number.isFinite(pageLimit) && pageLimit > 0 ? pageLimit : 50;
+  return filtered.slice(0, cap);
 }
 
 /**
@@ -4683,12 +5709,21 @@ export async function searchLeads(tenantId, query, filters = {}) {
  */
 export async function searchProperties(tenantId, query, filters = {}) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  
+
+  // Normalize: if query is an object (from skillInvoker dynamic dispatch), extract 'query' field
+  if (query && typeof query === 'object' && !Array.isArray(query)) {
+    filters = { ...query, ...filters };
+    query = query.query;
+  }
+  if (query !== undefined && query !== null && typeof query !== 'string') {
+    query = String(query);
+  }
+
   const properties = await getPropertiesWithDetails(tenantId);
   let filtered = [...properties];
-  
+
   // Apply text search if query provided
-  if (query && query.trim().length >= 2) {
+  if (query && typeof query === 'string' && query.trim().length >= 2) {
     const normalizedQuery = query.toLowerCase().trim();
     filtered = filtered.filter(property => {
       const titleMatch = property.title?.toLowerCase().includes(normalizedQuery);
@@ -4702,18 +5737,18 @@ export async function searchProperties(tenantId, query, filters = {}) {
     });
   }
   
-  // Apply filters
+  // Apply filters (case-insensitive — LLM/UI often send Title Case)
   if (filters.status && filters.status !== 'all') {
-    filtered = filtered.filter(p => p.status === filters.status);
+    filtered = filtered.filter((p) => matchesFilterEnum(p.status, filters.status));
   }
   if (filters.propertyType && filters.propertyType !== 'all') {
-    filtered = filtered.filter(p => p.propertyType === filters.propertyType);
+    filtered = filtered.filter((p) => matchesFilterEnum(p.propertyType, filters.propertyType));
   }
   if (filters.bhk && filters.bhk !== 'all') {
-    filtered = filtered.filter(p => p.bhk === parseInt(filters.bhk));
+    filtered = filtered.filter((p) => p.bhk === parseInt(filters.bhk, 10));
   }
   if (filters.furnishing && filters.furnishing !== 'all') {
-    filtered = filtered.filter(p => p.furnishing === filters.furnishing);
+    filtered = filtered.filter((p) => matchesFilterEnum(p.furnishing, filters.furnishing));
   }
   if (filters.minRent) {
     filtered = filtered.filter(p => p.rentAmount >= parseInt(filters.minRent));
@@ -4730,6 +5765,15 @@ export async function searchProperties(tenantId, query, filters = {}) {
  */
 export async function searchBuyers(tenantId, query, filters = {}) {
   if (!tenantId) throw new Error('Tenant ID is required');
+
+  // Normalize: if query is an object (from skillInvoker dynamic dispatch), extract 'query' field
+  if (query && typeof query === 'object' && !Array.isArray(query)) {
+    filters = { ...query, ...filters };
+    query = query.query;
+  }
+  if (query !== undefined && query !== null && typeof query !== 'string') {
+    query = String(query);
+  }
 
   const { buyers } = await getBuyers(tenantId, { ...filters, search: query, limit: 50 });
   return buyers;
@@ -4973,17 +6017,19 @@ export async function getContactIdForEntity(tenantId, entityType, entityId) {
   let phone = null;
   let name = null;
   let email = null;
+  let leadType = null;
 
   try {
     if (type === 'LEAD') {
-      const lead = await getLead(tenantId, entityId);
-      if (lead) {
-        phone = lead.phone;
-        name = lead.name;
-        email = lead.email;
-      }
+      // Leads must NOT create or resolve Contacts. Contact/entity creation
+      // happens only during successful atomic conversion.
+      return null;
     } else if (type === 'OWNER') {
       const owner = await getOwner(tenantId, entityId);
+      if (owner?.contactId) {
+        const linked = await getContact(tenantId, owner.contactId);
+        if (linked) return owner.contactId;
+      }
       if (owner) {
         phone = owner.phone;
         name = owner.name;
@@ -5012,10 +6058,11 @@ export async function getContactIdForEntity(tenantId, entityType, entityId) {
         phone,
         email,
         roles: {
-          owner: type === 'OWNER',
-          buyer: type === 'BUYER',
-          tenant: type === 'CUSTOMER' || type === 'TENANT',
-        }
+          owner: type === 'OWNER' || (type === 'LEAD' && leadType === 'owner'),
+          seller: type === 'SELLER' || (type === 'LEAD' && leadType === 'seller'),
+          buyer: type === 'BUYER' || (type === 'LEAD' && leadType === 'buyer'),
+          tenant: type === 'CUSTOMER' || type === 'TENANT' || (type === 'LEAD' && leadType === 'tenant'),
+        },
       });
       return contact?.contactId || null;
     }
@@ -5046,7 +6093,7 @@ export async function createContactActivity(tenantId, contactId, data) {
     activityId,
     occurredAt,
     activityType: data.activityType,
-    performedBy: data.performedBy || 'System',
+    performedBy: data.performedBy || SERVICE_ACCOUNT_USER,
     subjectEntityType: data.subjectEntityType,
     subjectEntityId: data.subjectEntityId,
     subjectEntityName: data.subjectEntityName || '',
@@ -5063,7 +6110,396 @@ export async function createContactActivity(tenantId, contactId, data) {
     Item: activity,
   }));
 
+  // Denormalize latest activity onto contact profile for list cards / sorting
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#CONTACT#${contactId}`,
+        SK: 'PROFILE',
+      },
+      UpdateExpression: 'SET lastActivityAt = :at, lastActivityTitle = :title, lastActivityType = :type, updatedAt = :at',
+      ExpressionAttributeValues: {
+        ':at': occurredAt,
+        ':title': data.title || '',
+        ':type': data.activityType || '',
+      },
+      ConditionExpression: 'attribute_exists(PK)',
+    }));
+  } catch (err) {
+    logger.warn('createContactActivity.profileUpdate.error', { tenantId, contactId, error: err.message });
+  }
+
   return activity;
+}
+
+/**
+ * Batch-fetch recent activity previews for contact list cards.
+ */
+export async function getContactActivityPreviews(tenantId, contactIds, limitPerContact = 3) {
+  if (!tenantId || !Array.isArray(contactIds) || contactIds.length === 0) {
+    return {};
+  }
+
+  const uniqueIds = [...new Set(contactIds.filter(Boolean))].slice(0, 100);
+  const limit = Math.min(Math.max(Number(limitPerContact) || 3, 1), 10);
+
+  const entries = await Promise.all(uniqueIds.map(async (contactId) => {
+    try {
+      const result = await docClient.send(new QueryCommand({
+        TableName: CRM_TABLE_NAME,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: {
+          ':pk': `TENANT#${tenantId}#CONTACT#${contactId}`,
+          ':sk': 'ACTIVITY#',
+        },
+        ScanIndexForward: false,
+        Limit: limit,
+      }));
+      return [contactId, result.Items || []];
+    } catch (err) {
+      logger.warn('getContactActivityPreviews.error', { tenantId, contactId, error: err.message });
+      return [contactId, []];
+    }
+  }));
+
+  return Object.fromEntries(entries);
+}
+
+function normalizePhoneDigits(phone) {
+  return String(phone || '').replace(/\D/g, '');
+}
+
+function toIsoDateTime(dateStr, endOfDay = false) {
+  if (!dateStr) return new Date().toISOString();
+  if (String(dateStr).includes('T')) return dateStr;
+  return endOfDay ? `${dateStr}T23:59:59.000Z` : `${dateStr}T12:00:00.000Z`;
+}
+
+function dedupeTimelineActivities(activities) {
+  const semanticWinner = new Map();
+
+  for (const activity of activities) {
+    const dateKey = (activity.occurredAt || '').slice(0, 10);
+    const propertyId = activity.payload?.propertyId
+      || (activity.relatedEntityType === 'property' ? activity.relatedEntityId : '');
+    const semanticKey = `${activity.activityType}:${propertyId}:${dateKey}`;
+    const isSynthetic = String(activity.activityId || '').startsWith('synthetic-');
+    const existing = semanticWinner.get(semanticKey);
+
+    if (!existing) {
+      semanticWinner.set(semanticKey, activity);
+      continue;
+    }
+
+    const existingSynthetic = String(existing.activityId || '').startsWith('synthetic-');
+    if (existingSynthetic && !isSynthetic) {
+      semanticWinner.set(semanticKey, activity);
+    }
+  }
+
+  const seen = new Set();
+  const result = [];
+  for (const activity of activities) {
+    const dateKey = (activity.occurredAt || '').slice(0, 10);
+    const propertyId = activity.payload?.propertyId
+      || (activity.relatedEntityType === 'property' ? activity.relatedEntityId : '');
+    const semanticKey = `${activity.activityType}:${propertyId}:${dateKey}`;
+    if (semanticWinner.get(semanticKey) !== activity) continue;
+
+    const key = activity.activityId || semanticKey;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(activity);
+  }
+
+  return result;
+}
+
+function buildRentalTimelineActivities(customer, contactId, tenantId, entityId) {
+  const activities = [];
+  const rentals = [...(customer.rentalHistory || [])];
+
+  if (customer.currentRental) {
+    const alreadyTracked = rentals.some((rental) =>
+      rental.propertyId === customer.currentRental.propertyId
+      && rental.leaseStartDate === customer.currentRental.leaseStartDate
+    );
+    if (!alreadyTracked) rentals.push(customer.currentRental);
+  }
+
+  rentals.forEach((rental, index) => {
+    const propertyId = rental.propertyId;
+    if (!propertyId) return;
+    const suffix = `${propertyId}-${rental.leaseStartDate || index}`;
+    const propertyTitle = rental.propertyTitle || rental.propertyName || null;
+    const isActive = !rental.leaseEndDate
+      && customer.currentRental?.propertyId === propertyId
+      && customer.currentRental?.leaseStartDate === rental.leaseStartDate;
+
+    if (rental.leaseStartDate) {
+      activities.push({
+        activityId: `synthetic-rental-start-${entityId}-${suffix}`,
+        contactId,
+        tenantId,
+        occurredAt: toIsoDateTime(rental.leaseStartDate),
+        activityType: 'rental_started',
+        performedBy: rental.recordedBy || SERVICE_ACCOUNT_USER,
+        subjectEntityType: 'CUSTOMER',
+        subjectEntityId: entityId,
+        subjectEntityName: customer.name || '',
+        title: propertyTitle ? `Lease started: ${propertyTitle}` : 'Lease started',
+        description: rental.monthlyRent
+          ? `Monthly rent ₹${Number(rental.monthlyRent).toLocaleString('en-IN')}`
+          : 'Tenant moved into property',
+        payload: {
+          propertyId,
+          propertyTitle,
+          rent: rental.monthlyRent,
+          monthlyRent: rental.monthlyRent,
+          deposit: rental.securityDeposit,
+          securityDeposit: rental.securityDeposit,
+          leaseStartDate: rental.leaseStartDate,
+          leaseEndDate: rental.leaseEndDate || null,
+          tenantId: entityId,
+          active: isActive,
+        },
+        relatedEntityType: 'property',
+        relatedEntityId: propertyId,
+        relatedEntityName: propertyTitle,
+      });
+    }
+
+    if (rental.leaseEndDate) {
+      activities.push({
+        activityId: `synthetic-rental-end-${entityId}-${suffix}`,
+        contactId,
+        tenantId,
+        occurredAt: toIsoDateTime(rental.leaseEndDate, true),
+        activityType: 'rental_ended',
+        performedBy: rental.recordedBy || SERVICE_ACCOUNT_USER,
+        subjectEntityType: 'CUSTOMER',
+        subjectEntityId: entityId,
+        subjectEntityName: customer.name || '',
+        title: propertyTitle ? `Lease ended: ${propertyTitle}` : 'Lease ended',
+        description: 'Tenant vacated the property',
+        payload: {
+          propertyId,
+          propertyTitle,
+          rent: rental.monthlyRent,
+          monthlyRent: rental.monthlyRent,
+          deposit: rental.securityDeposit,
+          leaseStartDate: rental.leaseStartDate,
+          leaseEndDate: rental.leaseEndDate,
+          tenantId: entityId,
+        },
+        relatedEntityType: 'property',
+        relatedEntityId: propertyId,
+        relatedEntityName: propertyTitle,
+      });
+    }
+  });
+
+  return activities;
+}
+
+function buildPurchaseTimelineActivities(purchases, contactId, tenantId, entityId, entityType, entityName) {
+  const activities = [];
+  (purchases || []).forEach((purchase, index) => {
+    const propertyId = purchase.propertyId;
+    if (!propertyId) return;
+    const propertyTitle = purchase.propertyTitle || purchase.propertyName || purchase.title || null;
+    const saleAmount = purchase.saleAmount ?? purchase.soldPrice ?? purchase.purchasePrice ?? null;
+    const occurredAt = purchase.purchaseDate || purchase.saleDate || purchase.recordedAt || new Date().toISOString();
+    const sellerName = purchase.sellerName || purchase.fromOwnerName || purchase.seller || null;
+    const amountText = saleAmount != null
+      ? `₹${Number(saleAmount).toLocaleString('en-IN')}`
+      : null;
+
+    activities.push({
+      activityId: `synthetic-purchase-${entityId}-${propertyId}-${occurredAt}-${index}`,
+      contactId,
+      tenantId,
+      occurredAt: toIsoDateTime(occurredAt),
+      activityType: 'purchase_recorded',
+      performedBy: purchase.recordedBy || SERVICE_ACCOUNT_USER,
+      subjectEntityType: entityType,
+      subjectEntityId: entityId,
+      subjectEntityName: entityName || '',
+      title: propertyTitle ? `Purchased ${propertyTitle}` : 'Purchased a property',
+      description: [
+        amountText ? `at ${amountText}` : null,
+        sellerName ? `from ${sellerName}` : null,
+      ].filter(Boolean).join(' · ') || 'Purchase recorded',
+      payload: {
+        propertyId,
+        propertyTitle,
+        soldPrice: saleAmount,
+        saleAmount,
+        purchaseDate: occurredAt,
+        buyerId: entityType === 'BUYER' ? entityId : purchase.buyerId || null,
+        buyerName: entityName || null,
+        sellerName,
+        fromOwnerName: sellerName,
+        saleTransactionId: purchase.saleTransactionId || null,
+      },
+      relatedEntityType: 'property',
+      relatedEntityId: propertyId,
+      relatedEntityName: propertyTitle,
+    });
+  });
+  return activities;
+}
+
+async function enrichTimelinePropertyTitles(tenantId, activities) {
+  const propertyIds = new Set();
+  for (const activity of activities) {
+    const propertyId = activity.payload?.propertyId
+      || (activity.relatedEntityType === 'property' ? activity.relatedEntityId : null);
+    if (!propertyId) continue;
+    const needsTitle = !activity.payload?.propertyTitle && !activity.relatedEntityName;
+    const needsSaleParties = ['property_sold', 'purchase_recorded', 'ownership_changed'].includes(activity.activityType)
+      && (!activity.payload?.buyerName || !activity.payload?.sellerName || activity.payload?.soldPrice == null);
+    if (needsTitle || needsSaleParties) {
+      propertyIds.add(propertyId);
+    }
+  }
+
+  if (propertyIds.size === 0) return activities;
+
+  const propertyById = {};
+  await Promise.all([...propertyIds].map(async (propertyId) => {
+    try {
+      const property = await getProperty(tenantId, propertyId);
+      if (property) propertyById[propertyId] = property;
+    } catch (err) {
+      logger.warn('enrichTimelinePropertyTitles.error', { tenantId, propertyId, error: err.message });
+    }
+  }));
+
+  return activities.map((activity) => {
+    const propertyId = activity.payload?.propertyId
+      || (activity.relatedEntityType === 'property' ? activity.relatedEntityId : null);
+    const property = propertyId ? propertyById[propertyId] : null;
+    if (!property) return activity;
+
+    const history = Array.isArray(property.ownershipHistory) ? property.ownershipHistory : [];
+    const saleTxnId = activity.payload?.saleTransactionId;
+    let historyEntry = null;
+    if (saleTxnId) {
+      historyEntry = history.find((entry) => entry.saleTransactionId === saleTxnId) || null;
+    }
+    if (!historyEntry && history.length > 0) {
+      // Prefer entry matching activity date (same day), else latest
+      const activityDay = String(activity.occurredAt || '').slice(0, 10);
+      historyEntry = history.find((entry) => String(entry.saleDate || '').slice(0, 10) === activityDay)
+        || history[history.length - 1];
+    }
+
+    const propertyTitle = activity.payload?.propertyTitle || property.title || null;
+    const soldPrice = activity.payload?.soldPrice
+      ?? activity.payload?.saleAmount
+      ?? historyEntry?.salePrice
+      ?? property.saleInfo?.soldPrice
+      ?? null;
+    const sellerName = activity.payload?.sellerName
+      || activity.payload?.fromOwnerName
+      || historyEntry?.fromOwnerName
+      || null;
+    const buyerName = activity.payload?.buyerName
+      || activity.payload?.toOwnerName
+      || historyEntry?.toOwnerName
+      || null;
+
+    return {
+      ...activity,
+      relatedEntityName: activity.relatedEntityName || propertyTitle,
+      payload: {
+        ...(activity.payload || {}),
+        propertyTitle,
+        soldPrice: soldPrice != null ? soldPrice : activity.payload?.soldPrice,
+        saleAmount: soldPrice != null ? soldPrice : activity.payload?.saleAmount,
+        sellerName: sellerName || activity.payload?.sellerName || null,
+        buyerName: buyerName || activity.payload?.buyerName || null,
+        fromOwnerName: sellerName || activity.payload?.fromOwnerName || null,
+        toOwnerName: buyerName || activity.payload?.toOwnerName || null,
+        sellerContactId: activity.payload?.sellerContactId || historyEntry?.sellerContactId || historyEntry?.fromContactId || null,
+        buyerContactId: activity.payload?.buyerContactId || historyEntry?.buyerContactId || historyEntry?.toContactId || null,
+        buyerId: activity.payload?.buyerId || historyEntry?.buyerId || null,
+      },
+    };
+  });
+}
+
+async function mergeContactProfileTimeline(tenantId, contactId, activities) {
+  let merged = [...activities];
+  try {
+    const contact = await getContact(tenantId, contactId);
+    if (!contact) return merged;
+
+    if (Array.isArray(contact.purchaseHistory) && contact.purchaseHistory.length > 0) {
+      merged.push(...buildPurchaseTimelineActivities(
+        contact.purchaseHistory,
+        contactId,
+        tenantId,
+        contactId,
+        'CONTACT',
+        contact.name
+      ));
+    }
+
+    if (contact.phone) {
+      const phoneDigits = normalizePhoneDigits(contact.phone);
+      const customers = await getCustomers(tenantId);
+      const matchingCustomers = customers.filter((customer) =>
+        normalizePhoneDigits(customer.phone) === phoneDigits
+      );
+      for (const customer of matchingCustomers) {
+        merged.push(...buildRentalTimelineActivities(customer, contactId, tenantId, customer.customerId));
+      }
+    }
+  } catch (err) {
+    logger.warn('mergeContactProfileTimeline.error', { tenantId, contactId, error: err.message });
+  }
+  return merged;
+}
+
+async function mergeEntityTimeline(tenantId, contactId, entityType, entityId, activities) {
+  const type = String(entityType).toUpperCase();
+  let merged = [...activities];
+
+  try {
+    if (type === 'CUSTOMER' || type === 'TENANT') {
+      const customer = await getCustomer(tenantId, entityId);
+      if (customer) {
+        merged.push(...buildRentalTimelineActivities(customer, contactId, tenantId, entityId));
+      }
+    } else if (type === 'BUYER') {
+      const buyer = await getBuyer(tenantId, entityId);
+      if (buyer) {
+        const purchases = buyer.purchases || buyer.purchaseHistory || [];
+        merged.push(...buildPurchaseTimelineActivities(
+          purchases,
+          contactId,
+          tenantId,
+          entityId,
+          type,
+          buyer.name
+        ));
+      }
+    } else if (type === 'CONTACT') {
+      merged = await mergeContactProfileTimeline(tenantId, entityId, merged);
+    } else if (type === 'OWNER') {
+      const owner = await getOwner(tenantId, entityId);
+      if (owner?.contactId && owner.contactId !== contactId) {
+        // Owner timeline already uses contact activities; no extra merge needed.
+      }
+    }
+  } catch (err) {
+    logger.warn('mergeEntityTimeline.error', { tenantId, entityType, entityId, error: err.message });
+  }
+
+  return merged;
 }
 
 /**
@@ -5089,82 +6525,83 @@ export async function getContactActivityTimeline(tenantId, contactId, entityType
 
   const activities = result.Items || [];
 
-  // If no source entity is provided, return contact activities only
+  let combined = [...activities];
+
   if (!entityType || !entityId) {
-    return activities;
-  }
-
-  // Merge notes and meetings from the source entity
-  const type = String(entityType).toUpperCase();
-  let notes = [];
-  try {
-    if (type === 'CONTACT') {
-      notes = await getContactNotes(tenantId, entityId);
-    } else if (type === 'OWNER') {
-      notes = await getOwnerNotes(tenantId, entityId);
-    } else if (type === 'BUYER') {
-      notes = await getBuyerNotes(tenantId, entityId);
-    } else if (type === 'CUSTOMER' || type === 'TENANT') {
-      notes = await getCustomerNotes(tenantId, entityId);
-    } else if (type === 'LEAD') {
-      notes = await getLeadNotes(tenantId, entityId);
+    combined = await mergeContactProfileTimeline(tenantId, contactId, combined);
+  } else {
+    const type = String(entityType).toUpperCase();
+    let notes = [];
+    try {
+      if (type === 'CONTACT') {
+        notes = await getContactNotes(tenantId, entityId);
+      } else if (type === 'OWNER') {
+        notes = await getOwnerNotes(tenantId, entityId);
+      } else if (type === 'BUYER') {
+        notes = await getBuyerNotes(tenantId, entityId);
+      } else if (type === 'CUSTOMER' || type === 'TENANT') {
+        notes = await getCustomerNotes(tenantId, entityId);
+      } else if (type === 'LEAD') {
+        notes = await getLeadNotes(tenantId, entityId);
+      }
+    } catch (err) {
+      logger.warn('getContactActivityTimeline.notes.error', { tenantId, entityType, entityId, error: err.message });
     }
-  } catch (err) {
-    logger.warn('getContactActivityTimeline.notes.error', { tenantId, entityType, entityId, error: err.message });
-  }
 
-  let meetings = [];
-  try {
-    meetings = await getMeetingsByEntity(tenantId, entityType, entityId);
-  } catch (err) {
-    logger.warn('getContactActivityTimeline.meetings.error', { tenantId, entityType, entityId, error: err.message });
-  }
+    let meetings = [];
+    try {
+      meetings = await getMeetingsByEntity(tenantId, entityType, entityId);
+    } catch (err) {
+      logger.warn('getContactActivityTimeline.meetings.error', { tenantId, entityType, entityId, error: err.message });
+    }
 
-  // Map notes to activity shape
-  const noteActivities = notes.map(note => ({
-    activityId: `note-${note.noteId}`,
-    contactId,
-    tenantId,
-    occurredAt: note.createdAt || note.updatedAt || new Date().toISOString(),
-    activityType: 'note_added',
-    performedBy: note.createdBy || 'System',
-    subjectEntityType: type,
-    subjectEntityId: entityId,
-    subjectEntityName: '',
-    title: 'Note Added',
-    description: note.content,
-    payload: { noteId: note.noteId },
-    relatedEntityType: null,
-    relatedEntityId: null,
-    relatedEntityName: null,
-  }));
-
-  // Map meetings to activity shape
-  const meetingActivities = meetings.map(meeting => {
-    const isCompleted = meeting.status === 'completed';
-    const isCancelled = meeting.status === 'cancelled';
-    return {
-      activityId: `meeting-${meeting.meetingId}`,
+    const noteActivities = notes.map(note => ({
+      activityId: `note-${note.noteId}`,
       contactId,
       tenantId,
-      occurredAt: meeting.createdAt || meeting.updatedAt || new Date().toISOString(),
-      activityType: isCompleted ? 'meeting_completed' : isCancelled ? 'meeting_cancelled' : 'meeting_scheduled',
-      performedBy: meeting.createdBy || 'System',
+      occurredAt: note.createdAt || note.updatedAt || new Date().toISOString(),
+      activityType: 'note_added',
+      performedBy: note.createdBy || SERVICE_ACCOUNT_USER,
       subjectEntityType: type,
       subjectEntityId: entityId,
-      subjectEntityName: meeting.relatedEntityName || '',
-      title: `${meeting.title} (${meeting.status || 'scheduled'})`,
-      description: `Location: ${meeting.location || 'N/A'}${meeting.notes ? `\nNotes: ${meeting.notes}` : ''}`,
-      payload: { meetingId: meeting.meetingId, meetingDate: meeting.meetingDate, meetingTime: meeting.meetingTime },
-      relatedEntityType: meeting.relatedEntityType || null,
-      relatedEntityId: meeting.relatedEntityId || null,
-      relatedEntityName: meeting.relatedEntityName || null,
-    };
-  });
+      subjectEntityName: '',
+      title: 'Note Added',
+      description: note.content,
+      payload: { noteId: note.noteId },
+      relatedEntityType: null,
+      relatedEntityId: null,
+      relatedEntityName: null,
+    }));
 
-  // Combine and sort by occurredAt descending
-  const combined = [...activities, ...noteActivities, ...meetingActivities];
+    const meetingActivities = meetings.map(meeting => {
+      const isCompleted = meeting.status === 'completed';
+      const isCancelled = meeting.status === 'cancelled';
+      return {
+        activityId: `meeting-${meeting.meetingId}`,
+        contactId,
+        tenantId,
+        occurredAt: meeting.createdAt || meeting.updatedAt || new Date().toISOString(),
+        activityType: isCompleted ? 'meeting_completed' : isCancelled ? 'meeting_cancelled' : 'meeting_scheduled',
+        performedBy: meeting.createdBy || SERVICE_ACCOUNT_USER,
+        subjectEntityType: type,
+        subjectEntityId: entityId,
+        subjectEntityName: meeting.relatedEntityName || '',
+        title: `${meeting.title} (${meeting.status || 'scheduled'})`,
+        description: `Location: ${meeting.location || 'N/A'}${meeting.notes ? `\nNotes: ${meeting.notes}` : ''}`,
+        payload: { meetingId: meeting.meetingId, meetingDate: meeting.meetingDate, meetingTime: meeting.meetingTime },
+        relatedEntityType: meeting.relatedEntityType || null,
+        relatedEntityId: meeting.relatedEntityId || null,
+        relatedEntityName: meeting.relatedEntityName || null,
+      };
+    });
+
+    combined = [...combined, ...noteActivities, ...meetingActivities];
+    combined = await mergeEntityTimeline(tenantId, contactId, entityType, entityId, combined);
+  }
+
+  combined = dedupeTimelineActivities(combined);
   combined.sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+  combined = await enrichTimelinePropertyTitles(tenantId, combined);
 
   return combined;
 }
@@ -5184,6 +6621,440 @@ export async function logContactActivity(tenantId, data) {
     logger.error('logContactActivity.error', { tenantId, subjectEntityId: data.subjectEntityId, error: error.message });
   }
   return null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════════
+// BUSINESS INSIGHT & SUMMARY TOOLS (Layer 2 + Layer 3)
+//
+// These sit on top of the CRUD tools. They return small, intent-focused
+// aggregates so the LLM can *curate* a 3-layer WhatsApp reply
+// (answer → context → next action) instead of dumping raw rows.
+// Each returns a plain object; skillInvoker wraps it as { ok, data }.
+// ════════════════════════════════════════════════════════════════════════════════
+
+const LEAD_ACTIVE_STATUSES = ['new', 'contacted', 'qualified', 'negotiating'];
+const LEAD_CLOSED_STATUSES = ['converted', 'lost'];
+
+function _leadBudget(lead) {
+  return Number(
+    lead.buyerRequirement?.budget ||
+    lead.tenantRequirement?.budget ||
+    lead.sellerProperty?.expectedPrice ||
+    lead.ownerProperty?.rentExpected ||
+    0
+  ) || 0;
+}
+
+function _leadArea(lead) {
+  return (
+    lead.buyerRequirement?.preferredArea ||
+    lead.tenantRequirement?.preferredArea ||
+    lead.sellerProperty?.area ||
+    lead.ownerProperty?.area ||
+    lead.sellerProperty?.city ||
+    lead.ownerProperty?.city ||
+    null
+  );
+}
+
+function _leadLastTouch(lead) {
+  return lead.lastActivityAt || lead.lastInteractionAt || lead.updatedAt || lead.createdAt || null;
+}
+
+function _daysSince(dateStr) {
+  if (!dateStr) return Infinity;
+  const t = new Date(dateStr).getTime();
+  if (Number.isNaN(t)) return Infinity;
+  return Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
+}
+
+function _isActiveLead(lead) {
+  if (isLeadConverted(lead)) return false;
+  const s = (lead.status || 'new').toLowerCase();
+  // Incomplete conversion ghosts should still be actionable
+  if (s === 'converted' && !hasLeadConversionTarget(lead)) return true;
+  return !LEAD_CLOSED_STATUSES.includes(s);
+}
+
+function _countBy(items, keyFn) {
+  const out = {};
+  for (const it of items) {
+    const k = keyFn(it);
+    if (k === undefined || k === null || k === '') continue;
+    out[k] = (out[k] || 0) + 1;
+  }
+  return out;
+}
+
+/**
+ * Layer 2 — Lead counts by type/status/priority. Answers "how many leads",
+ * "leads breakdown", "kitni leads hain".
+ */
+export async function getLeadsSummary(tenantId, filters = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const leads = unwrapLeadsList(await getLeads(tenantId, filters || {}));
+
+  const byType = { buyer: 0, seller: 0, tenant: 0, owner: 0 };
+  const byStatus = { new: 0, contacted: 0, qualified: 0, negotiating: 0, converted: 0, lost: 0 };
+  const byPriority = { high: 0, medium: 0, low: 0 };
+  let unassigned = 0;
+
+  for (const l of leads) {
+    const type = (l.leadType || '').toLowerCase();
+    if (byType[type] !== undefined) byType[type] += 1;
+    const status = (l.status || 'new').toLowerCase();
+    if (byStatus[status] !== undefined) byStatus[status] += 1;
+    const priority = (l.priority || 'medium').toLowerCase();
+    if (byPriority[priority] !== undefined) byPriority[priority] += 1;
+    if (!l.assignedTo) unassigned += 1;
+  }
+
+  const active = leads.filter(_isActiveLead).length;
+
+  return {
+    total: leads.length,
+    active,
+    byType,
+    byStatus,
+    byPriority,
+    unassigned,
+  };
+}
+
+/**
+ * Layer 2 — Property inventory snapshot. Answers "how many properties",
+ * "inventory status", "kitni properties available hain".
+ */
+export async function getPropertiesSummary(tenantId, filters = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const properties = await getProperties(tenantId, filters || {});
+
+  const isAvailable = (p) => ['available', 'for-sale', 'for-rent', 'active'].includes((p.status || '').toLowerCase());
+
+  return {
+    total: properties.length,
+    available: properties.filter(isAvailable).length,
+    onHold: properties.filter(p => p.status === 'on-hold').length,
+    rented: properties.filter(p => p.status === 'rented').length,
+    sold: properties.filter(p => p.status === 'sold').length,
+    agreementsPending: properties.filter(p => p.agreementStatus === 'pending').length,
+    verificationsPending: properties.filter(p => p.verificationStatus === 'pending').length,
+    byType: _countBy(properties, p => (p.propertyType || '').toLowerCase() || null),
+  };
+}
+
+/**
+ * Layer 2 — Buyer demand snapshot.
+ */
+export async function getBuyersSummary(tenantId, filters = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const { buyers } = await getBuyers(tenantId, { ...(filters || {}), limit: 1000 });
+
+  const budgets = buyers.map(b => Number(b.budget || b.buyerRequirement?.budget || 0)).filter(v => v > 0);
+  const avgBudget = budgets.length ? Math.round(budgets.reduce((a, b) => a + b, 0) / budgets.length) : 0;
+
+  return {
+    total: buyers.length,
+    active: buyers.filter(b => (b.status || 'active') === 'active').length,
+    highPriority: buyers.filter(b => (b.priority || '').toLowerCase() === 'high').length,
+    avgBudget,
+    byPriority: _countBy(buyers, b => (b.priority || 'medium').toLowerCase()),
+  };
+}
+
+/**
+ * Layer 3 — What needs follow-up. Combines stale active leads (overdue) with
+ * scheduled meetings for today/tomorrow. Answers "follow-ups", "kise call karna hai".
+ */
+export async function getFollowupSummary(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const staleDays = Number(opts?.staleDays) > 0 ? Number(opts.staleDays) : 5;
+
+  const [leadsResult, meetings] = await Promise.all([
+    getLeads(tenantId, {}),
+    getUpcomingMeetings(tenantId, 2).catch(() => []),
+  ]);
+  const leads = unwrapLeadsList(leadsResult);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  const overdueLeads = leads
+    .filter(_isActiveLead)
+    .map(l => ({ lead: l, days: _daysSince(_leadLastTouch(l)) }))
+    .filter(x => x.days >= staleDays)
+    .sort((a, b) => b.days - a.days || _leadBudget(b.lead) - _leadBudget(a.lead));
+
+  const meetingsToday = (meetings || []).filter(m => (m.meetingDate || '').startsWith(todayStr));
+  const meetingsTomorrow = (meetings || []).filter(m => (m.meetingDate || '').startsWith(tomorrowStr));
+
+  return {
+    staleDays,
+    overdueCount: overdueLeads.length,
+    meetingsTodayCount: meetingsToday.length,
+    meetingsTomorrowCount: meetingsTomorrow.length,
+    overdueLeads: overdueLeads.slice(0, 5).map(x => ({
+      leadId: x.lead.leadId,
+      name: x.lead.name,
+      phone: x.lead.phone,
+      leadType: x.lead.leadType,
+      status: x.lead.status,
+      daysSinceContact: x.days === Infinity ? null : x.days,
+      budget: _leadBudget(x.lead) || null,
+      area: _leadArea(x.lead),
+    })),
+    meetingsToday: meetingsToday.slice(0, 5).map(m => ({ meetingId: m.meetingId, title: m.title, meetingDate: m.meetingDate })),
+  };
+}
+
+/**
+ * Layer 2 — Sales pipeline funnel. Answers "pipeline", "funnel", "conversion rate".
+ */
+export async function getPipelineSummary(tenantId) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const leads = unwrapLeadsList(await getLeads(tenantId, {}));
+
+  const stage = { new: 0, contacted: 0, qualified: 0, negotiating: 0, converted: 0, lost: 0 };
+  for (const l of leads) {
+    const s = (l.status || 'new').toLowerCase();
+    if (stage[s] !== undefined) stage[s] += 1;
+  }
+
+  const closed = stage.converted + stage.lost;
+  const conversionRate = closed > 0 ? Math.round((stage.converted / closed) * 100) : 0;
+
+  return {
+    total: leads.length,
+    stages: stage,
+    activeInPipeline: stage.new + stage.contacted + stage.qualified + stage.negotiating,
+    conversionRate,
+  };
+}
+
+/**
+ * Layer 3 — Ranked leads to act on now, each with a human reason.
+ * Answers "who should I call", "priority leads", "hot leads", "aaj kise call karu".
+ */
+export async function getPriorityLeads(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const limit = Number(opts?.limit) > 0 ? Number(opts.limit) : 5;
+  const leads = unwrapLeadsList(await getLeads(tenantId, {})).filter(_isActiveLead);
+
+  const scored = leads.map(l => {
+    const budget = _leadBudget(l);
+    const days = _daysSince(_leadLastTouch(l));
+    const priority = (l.priority || 'medium').toLowerCase();
+    const status = (l.status || 'new').toLowerCase();
+
+    let score = 0;
+    if (budget >= 20000000) score += 40; else if (budget >= 10000000) score += 30; else if (budget >= 5000000) score += 20; else if (budget > 0) score += 10;
+    if (priority === 'high') score += 25; else if (priority === 'medium') score += 10;
+    if (status === 'negotiating') score += 20; else if (status === 'qualified') score += 15; else if (status === 'contacted') score += 5;
+    if (days >= 7) score += 20; else if (days >= 5) score += 12; else if (days >= 3) score += 6;
+
+    const reasonParts = [];
+    if (budget >= 10000000) reasonParts.push('high budget');
+    if (priority === 'high') reasonParts.push('high priority');
+    if (status === 'negotiating' || status === 'qualified') reasonParts.push(`in ${status}`);
+    if (days >= 5) reasonParts.push(`no contact in ${days === Infinity ? '15+' : days} days`);
+    const reason = reasonParts.length ? reasonParts.join(', ') : 'needs first touch';
+
+    return {
+      leadId: l.leadId,
+      name: l.name,
+      phone: l.phone,
+      leadType: l.leadType,
+      status: l.status,
+      priority: l.priority || 'medium',
+      budget: budget || null,
+      area: _leadArea(l),
+      daysSinceContact: days === Infinity ? null : days,
+      score,
+      reason,
+    };
+  });
+
+  scored.sort((a, b) => b.score - a.score || (b.budget || 0) - (a.budget || 0));
+  return { total: scored.length, items: scored.slice(0, limit) };
+}
+
+/**
+ * Layer 3 — What happened recently. Answers "recent activity", "kya naya hua",
+ * "yesterday's activity".
+ */
+export async function getRecentActivity(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const days = Number(opts?.days) > 0 ? Number(opts.days) : 7;
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - days);
+  const cutoffTs = cutoff.getTime();
+
+  const within = (d) => {
+    if (!d) return false;
+    const t = new Date(d).getTime();
+    return !Number.isNaN(t) && t >= cutoffTs;
+  };
+
+  const [leadsResult, properties, meetings] = await Promise.all([
+    getLeads(tenantId, {}),
+    getProperties(tenantId, {}),
+    getMeetings(tenantId, {}).catch(() => []),
+  ]);
+  const leads = unwrapLeadsList(leadsResult);
+  const propertyList = properties?.properties ?? (Array.isArray(properties) ? properties : []);
+
+  const newLeads = leads.filter(l => within(l.createdAt));
+  const newProperties = propertyList.filter(p => within(p.createdAt));
+  const meetingsCompleted = (meetings || []).filter(m => m.status === 'completed' && within(m.updatedAt || m.meetingDate));
+  const convertedLeads = leads.filter((l) => isLeadConverted(l) && within(l.convertedAt || l.updatedAt));
+
+  return {
+    periodDays: days,
+    newLeads: newLeads.length,
+    newProperties: newProperties.length,
+    meetingsCompleted: meetingsCompleted.length,
+    conversions: convertedLeads.length,
+    recentLeads: newLeads
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 5)
+      .map(l => ({ leadId: l.leadId, name: l.name, leadType: l.leadType, createdAt: l.createdAt })),
+  };
+}
+
+/**
+ * Layer 3 — Morning brief. Answers "good morning", "daily brief", "aaj ka plan".
+ */
+export async function getDailyBrief(tenantId) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+
+  const [leadsResult, meetings, propsSummary, priority] = await Promise.all([
+    getLeads(tenantId, {}),
+    getUpcomingMeetings(tenantId, 2).catch(() => []),
+    getPropertiesSummary(tenantId).catch(() => ({ agreementsPending: 0, verificationsPending: 0 })),
+    getPriorityLeads(tenantId, { limit: 3 }).catch(() => ({ items: [] })),
+  ]);
+  const leads = unwrapLeadsList(leadsResult);
+
+  const todayStr = new Date().toISOString().split('T')[0];
+  const newLeadsToday = leads.filter(l => (l.createdAt || '').startsWith(todayStr)).length;
+  const meetingsToday = (meetings || []).filter(m => (m.meetingDate || '').startsWith(todayStr));
+
+  const overdue = leads
+    .filter(_isActiveLead)
+    .filter(l => _daysSince(_leadLastTouch(l)) >= 5).length;
+
+  return {
+    newLeadsToday,
+    meetingsTodayCount: meetingsToday.length,
+    overdueFollowups: overdue,
+    pendingAgreements: propsSummary.agreementsPending || 0,
+    pendingVerifications: propsSummary.verificationsPending || 0,
+    hotLeads: (priority.items || []).map(p => ({ leadId: p.leadId, name: p.name, budget: p.budget, reason: p.reason })),
+    meetingsToday: meetingsToday.slice(0, 5).map(m => ({ meetingId: m.meetingId, title: m.title, meetingDate: m.meetingDate })),
+  };
+}
+
+/**
+ * Layer 3 — Concrete next actions the agent should take now, prioritised.
+ * Answers "what should I do today", "next actions", "kya karu aaj".
+ */
+export async function suggestNextActions(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const limit = Number(opts?.limit) > 0 ? Number(opts.limit) : 5;
+
+  const [priority, followup, props] = await Promise.all([
+    getPriorityLeads(tenantId, { limit: 5 }).catch(() => ({ items: [] })),
+    getFollowupSummary(tenantId, {}).catch(() => ({ meetingsToday: [] })),
+    getPropertiesSummary(tenantId).catch(() => ({ agreementsPending: 0, verificationsPending: 0 })),
+  ]);
+
+  const actions = [];
+
+  for (const m of (followup.meetingsToday || [])) {
+    actions.push({ action: `Attend meeting: ${m.title || 'Untitled'}`, entityType: 'meeting', entityId: m.meetingId, reason: 'Scheduled today', priority: 'high' });
+  }
+  for (const l of (priority.items || [])) {
+    actions.push({ action: `Call ${l.name}`, entityType: 'lead', entityId: l.leadId, reason: l.reason, priority: l.score >= 50 ? 'high' : 'medium' });
+  }
+  if (props.agreementsPending > 0) {
+    actions.push({ action: `Progress ${props.agreementsPending} pending agreement(s)`, entityType: 'property', entityId: null, reason: 'Agreements awaiting completion', priority: 'medium' });
+  }
+  if (props.verificationsPending > 0) {
+    actions.push({ action: `Complete ${props.verificationsPending} pending verification(s)`, entityType: 'property', entityId: null, reason: 'Verifications pending', priority: 'low' });
+  }
+
+  const rank = { high: 0, medium: 1, low: 2 };
+  actions.sort((a, b) => rank[a.priority] - rank[b.priority]);
+
+  return { total: actions.length, actions: actions.slice(0, limit) };
+}
+
+/**
+ * Layer 3 — Business health with simple 7d-over-7d trends. Answers
+ * "business health", "how are we doing", "business kaisa chal raha hai".
+ */
+export async function getBusinessHealth(tenantId) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const leads = unwrapLeadsList(await getLeads(tenantId, {}));
+
+  const now = Date.now();
+  const day = 1000 * 60 * 60 * 24;
+  const inRange = (d, startAgo, endAgo) => {
+    if (!d) return false;
+    const t = new Date(d).getTime();
+    if (Number.isNaN(t)) return false;
+    return t >= now - startAgo * day && t < now - endAgo * day;
+  };
+
+  const inflow7d = leads.filter(l => inRange(l.createdAt, 7, 0)).length;
+  const inflowPrev7d = leads.filter(l => inRange(l.createdAt, 14, 7)).length;
+  const conversions30d = leads.filter(l => inRange(l.convertedAt, 30, 0)).length;
+  const pendingFollowups = leads.filter(_isActiveLead).filter(l => _daysSince(_leadLastTouch(l)) >= 5).length;
+
+  const trend = (cur, prev) => (cur > prev ? 'up' : cur < prev ? 'down' : 'flat');
+
+  const alerts = [];
+  if (pendingFollowups > 0) alerts.push(`${pendingFollowups} follow-ups overdue`);
+  if (inflow7d < inflowPrev7d) alerts.push('Lead inflow is down vs last week');
+
+  return {
+    leadInflow7d: inflow7d,
+    leadInflowPrev7d: inflowPrev7d,
+    inflowTrend: trend(inflow7d, inflowPrev7d),
+    conversions30d,
+    pendingFollowups,
+    alerts,
+  };
+}
+
+/**
+ * Layer 3 — Full one-shot overview combining the key summaries. Answers
+ * "dashboard", "overview", "full summary", "sab kuch dikhao".
+ */
+export async function getDashboardSnapshot(tenantId) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+
+  const [leadsSummary, propertiesSummary, pipeline, followup, priority] = await Promise.all([
+    getLeadsSummary(tenantId).catch(() => null),
+    getPropertiesSummary(tenantId).catch(() => null),
+    getPipelineSummary(tenantId).catch(() => null),
+    getFollowupSummary(tenantId, {}).catch(() => null),
+    getPriorityLeads(tenantId, { limit: 3 }).catch(() => ({ items: [] })),
+  ]);
+
+  return {
+    leads: leadsSummary,
+    properties: propertiesSummary,
+    pipeline,
+    followups: followup ? {
+      overdue: followup.overdueCount,
+      meetingsToday: followup.meetingsTodayCount,
+      meetingsTomorrow: followup.meetingsTomorrowCount,
+    } : null,
+    topPriority: (priority.items || []).map(p => ({ name: p.name, budget: p.budget, reason: p.reason })),
+  };
 }
 
 export { docClient, CRM_TABLE_NAME };

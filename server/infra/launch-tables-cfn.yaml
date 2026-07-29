@@ -142,9 +142,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: tenantId
           AttributeType: S
+        - AttributeName: keyHash
+          AttributeType: S
       KeySchema:
         - AttributeName: tenantId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: keyHash-index
+          KeySchema:
+            - AttributeName: keyHash
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName

@@ -14,18 +14,30 @@ export const createCustomerSchema = z.object({
   budget: z.number().positive().optional(),
 }).strict();
 
-export const updateCustomerSchema = createCustomerSchema.partial().strict();
+export const updateCustomerSchema = createCustomerSchema.partial().strip();
 
 // ============== Owner Schemas ==============
+const optionalOwnerString = (max) => z.string().max(max).nullish();
+
 export const createOwnerSchema = z.object({
   name: z.string().min(1).max(200),
   phone: z.string().min(1).max(50),
-  email: z.string().email().optional().or(z.literal('')),
-  address: z.string().max(500).optional(),
-  notes: z.string().max(2000).optional(),
+  email: z.union([z.string().email(), z.literal('')]).nullish(),
+  address: optionalOwnerString(500),
+  notes: optionalOwnerString(2000),
+  status: z.enum(['active', 'inactive']).optional(),
+  panNumber: optionalOwnerString(20),
+  aadharNumber: optionalOwnerString(20),
+  bankDetails: optionalOwnerString(500),
+  bankName: optionalOwnerString(200),
+  accountNumber: optionalOwnerString(50),
+  ifscCode: optionalOwnerString(20),
+  source: optionalOwnerString(100),
+  tags: z.array(z.string()).optional(),
 }).strict();
 
-export const updateOwnerSchema = createOwnerSchema.partial().strict();
+/** Strip read-only / joined fields the UI may send back on save (sellerProfile, contactId, etc.) */
+export const updateOwnerSchema = createOwnerSchema.partial().strip();
 
 // ============== Property Schemas ==============
 // Aligned with frontend CreatePropertyData and backend createProperty service.
@@ -59,7 +71,7 @@ export const createPropertySchema = z.object({
   furnishing: z.enum(['furnished', 'semi-furnished', 'unfurnished']).optional(),
   amenities: z.array(z.string()).optional(),
   availableFrom: z.string().optional(),
-  status: z.enum(['available', 'for-sale', 'for-rent', 'rented', 'sold', 'on-hold', 'out-of-stock']).optional(),
+  status: z.enum(['available', 'for-sale', 'for-rent', 'rented', 'sold', 'on-hold', 'out-of-stock', 'not-listed', 'inactive', 'archived']).optional(),
   tenantCustomerId: z.string().optional().nullable(),
   tenantMoveInDate: z.string().optional().nullable(),
   tenureMonths: z.number().optional(),

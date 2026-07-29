@@ -4,7 +4,10 @@ import { metrics } from './observability/cloudwatch.js';
 
 const region = process.env.AWS_REGION || 'ap-south-1';
 const sesClient = new SESv2Client({ region });
-const SES_FROM = process.env.AWS_SES_FROM_EMAIL || process.env.BREVO_FROM_EMAIL || 'noreply@realestateflow.in';
+const SES_FROM = process.env.AWS_SES_FROM_EMAIL || process.env.BREVO_FROM_EMAIL;
+if (!SES_FROM) {
+  throw new Error('AWS_SES_FROM_EMAIL or BREVO_FROM_EMAIL environment variable is required');
+}
 const PRIMARY = process.env.EMAIL_PROVIDER_PRIMARY || 'ses';
 const TIMEOUT_MS = 5000;
 

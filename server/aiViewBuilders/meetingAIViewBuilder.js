@@ -9,6 +9,7 @@
  */
 
 import { formatDate, buildEnvelope, buildPaginationMetadata } from './utils.js';
+import { buildMeetingRecommendation } from './recommendations.js';
 
 // ─── View Builders ───────────────────────────────────────────────────────────
 
@@ -35,23 +36,23 @@ export function buildMeetingCreateConfirmation(meeting) {
  * Build meetingDetails view
  */
 export function buildMeetingDetails(meeting, relatedEntityName = null) {
-  return buildEnvelope(
-    {
-      meetingId: meeting.meetingId,
-      title: meeting.title,
-      scheduledDate: formatDate(meeting.scheduledDate),
-      status: meeting.status,
-      location: meeting.location || null,
-      description: meeting.description || null,
-      relatedEntityType: meeting.relatedEntityType || null,
-      relatedEntityId: meeting.relatedEntityId || null,
-      relatedEntityName,
-      attendees: meeting.attendees || [],
-      createdBy: meeting.createdBy || null,
-      createdAt: formatDate(meeting.createdAt),
-    },
-    {}
-  );
+  const data = {
+    meetingId: meeting.meetingId,
+    title: meeting.title,
+    scheduledDate: meeting.scheduledDate || formatDate(meeting.scheduledDate),
+    status: meeting.status,
+    location: meeting.location || null,
+    description: meeting.description || null,
+    relatedEntityType: meeting.relatedEntityType || null,
+    relatedEntityId: meeting.relatedEntityId || null,
+    relatedEntityName: relatedEntityName || meeting.relatedEntityName || null,
+    attendees: meeting.attendees || [],
+    createdBy: meeting.createdBy || null,
+    createdAt: formatDate(meeting.createdAt),
+  };
+  return buildEnvelope(data, {
+    recommendation: buildMeetingRecommendation(data),
+  });
 }
 
 /**

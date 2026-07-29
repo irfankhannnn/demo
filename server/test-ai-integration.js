@@ -12,8 +12,15 @@
 import 'dotenv/config';
 import { invokeAgent } from './agents/agentRuntime.js';
 
-const TENANT_ID = process.env.TEST_TENANT_ID || 'acme-corporation-edc6e9feb8';
-const CONTACT_PHONE = process.env.TEST_CONTACT_PHONE || '918291537522';
+const TENANT_ID = process.env.TEST_TENANT_ID;
+const CONTACT_PHONE = process.env.TEST_CONTACT_PHONE;
+
+if (!TENANT_ID) {
+  throw new Error('TEST_TENANT_ID environment variable is required');
+}
+if (!CONTACT_PHONE) {
+  throw new Error('TEST_CONTACT_PHONE environment variable is required');
+}
 
 const TEST_PROMPTS = [
   'Leads ki list dikhao',

@@ -80,6 +80,7 @@ export interface CRMEnquiryNote {
 
 export interface CRMOwner {
   ownerId: string;
+  contactId?: string;
   name: string;
   email?: string;
   phone: string;
@@ -118,12 +119,17 @@ export interface CRMAcquisitionHistory {
 export interface CRMPropertyOwnershipHistory {
   fromOwnerId: string | null;
   toOwnerId: string | null;
+  fromContactId?: string | null;
+  toContactId?: string | null;
   fromOwnerName?: string | null;
   toOwnerName?: string | null;
   saleDate: string;
   salePrice?: number | null;
   soldVia: 'direct' | 'third_party';
   buyerId?: string | null;
+  buyerContactId?: string | null;
+  sellerContactId?: string | null;
+  saleTransactionId?: string | null;
   reasonLost?: string | null;
   notes?: string | null;
 }
@@ -133,9 +139,56 @@ export interface CRMPropertyMedia {
   url: string;
 }
 
+export interface CRMSaleTransaction {
+  saleTransactionId: string;
+  propertyId: string;
+  propertyTitle?: string | null;
+  sellerContactId?: string | null;
+  sellerOwnerId?: string | null;
+  buyerContactId?: string | null;
+  buyerId?: string | null;
+  soldPrice: number;
+  soldAt: string;
+  soldVia: 'direct' | 'third_party';
+  brokerageAmount?: number | null;
+  brokerageLost?: number | null;
+  reasonLost?: string | null;
+  notes?: string | null;
+  source?: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CRMListing {
+  listingId: string;
+  propertyId: string;
+  listingType: 'sale' | 'rent';
+  status: 'draft' | 'active' | 'off_market' | 'expired' | 'withdrawn' | 'sold' | 'rented';
+  listedPrice?: number | null;
+  expectedRent?: number | null;
+  securityDeposit?: number | null;
+  listedByContactId?: string | null;
+  listedByOwnerId?: string | null;
+  title?: string | null;
+  notes?: string | null;
+  source?: string;
+  createdAt: string;
+  updatedAt: string;
+  closedAt?: string | null;
+  saleTransactionId?: string | null;
+}
+
 export interface CRMProperty {
   propertyId: string;
-  ownerId: string | null; // Can be null for unassigned properties
+  /** @deprecated Prefer currentOwnerContactId — legacy OWNER entity id */
+  ownerId: string | null;
+  /** Canonical current owner (Contact id) */
+  currentOwnerContactId?: string | null;
+  /** Alias of currentOwnerContactId (khata / older code) */
+  ownerContactId?: string | null;
+  previousOwnerContactId?: string | null;
+  previousOwnerId?: string | null;
   owner?: CRMOwner | null;
   tenantCustomerId?: string;
   tenant?: CRMCustomer;
@@ -169,12 +222,15 @@ export interface CRMProperty {
     soldPrice?: number | null;
     soldDate?: string | null;
     soldToBuyerId?: string | null;
+    soldToBuyerContactId?: string | null;
     soldVia?: 'direct' | 'third_party' | null;
+    saleTransactionId?: string | null;
     brokeragePaid?: number | null;
     brokerageLost?: number | null;
     reasonLost?: string | null;
     thirdPartyNotes?: string | null;
   } | null;
+  latestSaleTransactionId?: string | null;
   ownershipHistory?: CRMPropertyOwnershipHistory[];
   rentalHistory?: Array<{
     tenantId: string;
@@ -188,7 +244,11 @@ export interface CRMProperty {
   furnishing: 'furnished' | 'semi-furnished' | 'unfurnished';
   amenities: string[];
   availableFrom: string;
-  status: 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock';
+  status: 'available' | 'for-sale' | 'for-rent' | 'rented' | 'sold' | 'on-hold' | 'out-of-stock' | 'inactive' | 'not-listed' | 'archived';
+  /** Marketing visibility (synced from Listing entity) */
+  listingStatus?: 'active' | 'inactive' | string | null;
+  /** Active Listing entity id when listed */
+  activeListingId?: string | null;
   agreementStatus: 'pending' | 'done';
   verificationStatus: 'pending' | 'done' | 'not_done';
   tenantMoveInDate?: string;
@@ -215,6 +275,7 @@ export interface CRMMetrics {
   onHoldProperties: number;
   rentedProperties: number;
   soldProperties: number;
+  inactiveProperties?: number;
   agreementsDone: number;
   agreementsPending: number;
   verificationsDone: number;
@@ -223,6 +284,7 @@ export interface CRMMetrics {
   buyersCount: number;
   sellersCount: number;
   tenantsCount: number;
+  contactsCount: number;
 }
 
 // Property Agreement
@@ -306,6 +368,9 @@ export interface CreateOwnerData {
   panNumber?: string;
   aadharNumber?: string;
   bankDetails?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
   notes?: string;
   status?: 'active' | 'inactive';
 }
@@ -318,6 +383,9 @@ export interface UpdateOwnerData {
   panNumber?: string;
   aadharNumber?: string;
   bankDetails?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
   notes?: string;
   status?: 'active' | 'inactive';
 }
@@ -509,6 +577,9 @@ export interface ContactRoles {
   seller?: boolean;
 }
 
+export type SellerLifecycleStatus = 'active' | 'past' | 'inactive';
+export type OwnerLifecycleStatus = 'active' | 'passive' | 'inactive';
+
 export interface BuyerProfile {
   requirement?: string;
   budget?: number;
@@ -516,11 +587,18 @@ export interface BuyerProfile {
   bhk?: number;
   propertyType?: string;
   timeline?: string;
+  financingStatus?: string;
   migratedFrom?: string;
   originalCustomerId?: string;
 }
 
-// SellerProfile removed - sellers are now owners with properties listed for sale
+export interface SellerProfile {
+  lifecycleStatus?: SellerLifecycleStatus;
+  listingPreferences?: Record<string, unknown> | null;
+  notes?: string | null;
+  soldPropertyIds?: string[];
+  activeListingIds?: string[];
+}
 
 export interface TenantProfile {
   requirement?: string;
@@ -534,6 +612,9 @@ export interface TenantProfile {
 }
 
 export interface OwnerProfile {
+  lifecycleStatus?: OwnerLifecycleStatus;
+  ownedPropertyIds?: string[];
+  notes?: string | null;
   propertyDetails?: Record<string, unknown>;
   migratedFrom?: string;
   originalOwnerId?: string;
@@ -548,8 +629,9 @@ export interface CRMContact {
   address?: string;
   // Roles
   roles: ContactRoles;
-  // Role-specific profiles
+  // Role-specific business profiles
   ownerProfile?: OwnerProfile | null;
+  sellerProfile?: SellerProfile | null;
   buyerProfile?: BuyerProfile | null;
   tenantProfile?: TenantProfile | null;
   // Documents
@@ -586,15 +668,23 @@ export interface CRMContact {
     stampDutyPaid?: number;
     registrationCharges?: number;
     brokeragePaid?: number;
+    saleTransactionId?: string;
     notes?: string;
   }>;
   // Timestamps
   createdAt: string;
   updatedAt: string;
+  lastActivityAt?: string;
+  lastActivityTitle?: string;
+  lastActivityType?: string;
   // Helper flags
   wasExisting?: boolean;
   isLegacyOwner?: boolean;
   isLegacyCustomer?: boolean;
+  // Activity summary (denormalized from timeline)
+  lastActivityAt?: string;
+  lastActivityTitle?: string;
+  lastActivityType?: string;
 }
 
 export interface CRMContactNote {
@@ -612,6 +702,7 @@ export interface CreateContactData {
   address?: string;
   roles?: Partial<ContactRoles>;
   ownerProfile?: OwnerProfile;
+  sellerProfile?: SellerProfile;
   buyerProfile?: BuyerProfile;
   tenantProfile?: TenantProfile;
   panNumber?: string;
@@ -632,6 +723,7 @@ export interface UpdateContactData {
   address?: string;
   roles?: Partial<ContactRoles>;
   ownerProfile?: OwnerProfile;
+  sellerProfile?: SellerProfile;
   buyerProfile?: BuyerProfile;
   tenantProfile?: TenantProfile;
   panNumber?: string;
@@ -708,11 +800,13 @@ export interface LeadHistoryEntry {
   action: string;
   details: string;
   updatedBy: string;
+  updatedByUserId?: string;
 }
 
 export interface LeadConversion {
-  entityType: 'contact';
-  contactId: string;
+  entityType: string;
+  entityId?: string;
+  contactId?: string;
   role: string;
 }
 
@@ -735,6 +829,11 @@ export interface CRMLead {
   // Conversion tracking
   convertedAt?: string | null;
   convertedTo?: LeadConversion | null;
+  convertingLockAt?: string | null;
+  archivedFromSnapshot?: boolean;
+  snapshotNotes?: CRMLeadNote[];
+  snapshotMeetings?: CRMMeeting[];
+  conversionSnapshotId?: string;
   // Lost tracking
   lostReason?: string | null;
   lostAt?: string | null;
@@ -809,8 +908,37 @@ export interface LeadMetrics {
 }
 
 export interface ConvertLeadResult {
-  lead: CRMLead;
-  contact: CRMContact;
+  entity: Record<string, unknown>;
+  entityType: 'buyer' | 'seller' | 'tenant' | 'owner';
+  conversionSnapshotId: string;
+  convertedAt?: string;
+  leadId?: string;
+  role?: string;
+  lead?: CRMLead | null;
+}
+
+export interface ConvertLeadOptions {
+  existingContactId?: string;
+  purchaseDetails?: Record<string, unknown>;
+  leaseDetails?: Record<string, unknown>;
+  kycDetails?: { panNumber?: string; aadharNumber?: string };
+  createPropertyListing?: boolean;
+}
+
+export interface LeadConversionSnapshot {
+  conversionSnapshotId: string;
+  leadId: string;
+  leadType: LeadType;
+  role: string;
+  entityType: string;
+  entityId: string;
+  convertedAt: string;
+  convertedBy?: string;
+  sourceLeadSnapshot?: {
+    lead: CRMLead;
+    notes?: CRMLeadNote[];
+    meetings?: unknown[];
+  };
 }
 
 // ============== Role-Specific Metrics ==============

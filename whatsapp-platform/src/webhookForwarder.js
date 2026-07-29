@@ -81,7 +81,7 @@ export async function forwardWebhook(url, payload, secret, maxRetries = 3) {
           status: err.response?.status,
           isRetryable,
         });
-        return;
+        throw err;
       }
     }
   }

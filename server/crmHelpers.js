@@ -4,6 +4,7 @@
  */
 
 import { docClient, CRM_TABLE_NAME } from './crmDynamodbService.js';
+import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
 import { GetCommand, UpdateCommand, ScanCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -187,252 +188,93 @@ export async function moveTenantToHistory(tenantId, customerId) {
 // ============== PROPERTY Listing Management ==============
 
 /**
- * List a property for sale
+ * List a property for sale — creates a Listing record and syncs Property marketing fields.
  */
-export async function listPropertyForSale(tenantId, propertyId, listedPrice) {
+export async function listPropertyForSale(tenantId, propertyId, listedPrice, performedBy = null) {
   if (!tenantId || !propertyId) throw new Error('Tenant ID and Property ID are required');
-
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, saleInfo = :saleInfo, updatedAt = :updatedAt, GSI2PK = :gsi2pk',
-    ExpressionAttributeNames: {
-      '#status': 'status',
-    },
-    ExpressionAttributeValues: {
-      ':status': 'for-sale',
-      ':listingStatus': 'active',
-      ':saleInfo': {
-        listedPrice: listedPrice || 0,
-        soldPrice: null,
-        soldDate: null,
-        soldToBuyerId: null,
-      },
-      ':updatedAt': new Date().toISOString(),
-      ':gsi2pk': `TENANT#${tenantId}#PROPERTY_STATUS#for-sale`,
-    },
-  }));
-
-  return { success: true };
+  const { createListing } = await import('./services/listingService.js');
+  const listing = await createListing(tenantId, {
+    propertyId,
+    listingType: 'sale',
+    listedPrice,
+    source: 'list_for_sale',
+    performedBy: performedBy || SERVICE_ACCOUNT_USER,
+  });
+  return { success: true, listing };
 }
 
 /**
- * List a property for rent
+ * List a property for rent — creates a Listing record and syncs Property marketing fields.
  */
-export async function listPropertyForRent(tenantId, propertyId, expectedRent, securityDeposit = 0) {
+export async function listPropertyForRent(tenantId, propertyId, expectedRent, securityDeposit = 0, performedBy = null) {
   if (!tenantId || !propertyId) throw new Error('Tenant ID and Property ID are required');
-
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, rentalInfo.expectedRent = :expectedRent, rentalInfo.securityDeposit = :securityDeposit, updatedAt = :updatedAt, GSI2PK = :gsi2pk',
-    ExpressionAttributeNames: {
-      '#status': 'status',
-    },
-    ExpressionAttributeValues: {
-      ':status': 'for-rent',
-      ':listingStatus': 'active',
-      ':expectedRent': expectedRent || 0,
-      ':securityDeposit': securityDeposit,
-      ':updatedAt': new Date().toISOString(),
-      ':gsi2pk': `TENANT#${tenantId}#PROPERTY_STATUS#for-rent`,
-    },
-  }));
-
-  return { success: true };
+  const { createListing } = await import('./services/listingService.js');
+  const listing = await createListing(tenantId, {
+    propertyId,
+    listingType: 'rent',
+    expectedRent,
+    securityDeposit,
+    source: 'list_for_rent',
+    performedBy: performedBy || SERVICE_ACCOUNT_USER,
+  });
+  return { success: true, listing };
 }
 
 /**
- * Mark a property as sold (supports direct sale to buyer or third-party sale)
+ * Mark a property as sold.
+ * Delegates to transferOwnership() so Property.currentOwnerContactId
+ * always reflects reality and SaleTransaction + history are written.
  */
-export async function markPropertySold(tenantId, propertyId, soldPrice, buyerId = null, saleType = 'direct', reasonLost = null, notes = null, brokerageAmount = null, brokerageLost = null, sourceRef = null) {
+export async function markPropertySold(tenantId, propertyId, soldPrice, buyerId = null, saleType = 'direct', reasonLost = null, notes = null, brokerageAmount = null, brokerageLost = null, sourceRef = null, performedBy = null) {
   if (!tenantId || !propertyId) throw new Error('Tenant ID and Property ID are required');
 
-  // Dynamic import to avoid circular dependency
-  const { 
-    getProperty, 
-    getBuyer, 
-    getOwner
-  } = await import('./crmDynamodbService.js');
+  const { transferOwnership } = await import('./services/transferOwnership.js');
 
-  const property = await getProperty(tenantId, propertyId);
-  if (!property) throw new Error('Property not found');
+  const result = await transferOwnership(tenantId, {
+    propertyId,
+    soldPrice,
+    buyerId,
+    saleType: saleType || 'direct',
+    reasonLost,
+    notes,
+    brokerageAmount,
+    brokerageLost,
+    source: sourceRef || 'mark_sold',
+    performedBy: performedBy || SERVICE_ACCOUNT_USER,
+  });
 
-  const now = new Date().toISOString();
-  let previousOwner = null;
-  if (property.ownerId) {
-    previousOwner = await getOwner(tenantId, property.ownerId);
-  }
-
-  // Keep the original seller as the property owner for historical records.
-  // We do NOT auto-create an Owner for the buyer here.
-  // Buyer -> Owner conversion happens only when the buyer explicitly lists the property.
-  const newOwnerId = property.ownerId || null;
-  const newOwnerName = previousOwner ? previousOwner.name : null;
-  const newOwnerPhone = previousOwner ? previousOwner.phone : null;
-  let finalBuyerId = buyerId;
-  let buyerNameForHistory = null;
-
-  // Handle direct sale
-  if (saleType === 'direct') {
-    if (!buyerId) {
-      throw new Error('Buyer ID is required for a direct sale');
-    }
-    const buyer = await getBuyer(tenantId, buyerId);
-    if (!buyer) throw new Error('Buyer not found');
-    buyerNameForHistory = buyer.name;
-  } else {
-    // For third_party, buyerId is null
-    finalBuyerId = null;
-  }
-
-  // Prepare new ownershipHistory entry for the property
-  const newHistoryEntry = {
-    fromOwnerId: property.ownerId || null,
-    toOwnerId: null,
-    fromOwnerName: previousOwner ? previousOwner.name : 'Unassigned',
-    toOwnerName: saleType === 'direct' ? buyerNameForHistory : 'Third-Party / Lost',
-    saleDate: now,
-    salePrice: Number(soldPrice) || null,
-    soldVia: saleType,
-    buyerId: finalBuyerId,
-    reasonLost: saleType === 'third_party' ? reasonLost : null,
-    notes: notes || null
+  return {
+    success: true,
+    ownerId: result.ownerId ?? null,
+    currentOwnerContactId: result.currentOwnerContactId ?? null,
+    saleTransactionId: result.saleTransaction?.saleTransactionId ?? null,
+    property: result.property,
   };
-
-  const updatedHistory = [...(property.ownershipHistory || []), newHistoryEntry];
-
-  // 5. Update Property Profile
-  const gsi1pk = newOwnerId 
-    ? `TENANT#${tenantId}#OWNER#${newOwnerId}` 
-    : `TENANT#${tenantId}#OWNER#UNASSIGNED`;
-
-  const updatedSaleInfo = {
-    listedPrice: property.saleInfo?.listedPrice || null,
-    soldPrice: Number(soldPrice) || null,
-    soldDate: now,
-    soldToBuyerId: finalBuyerId,
-    soldVia: saleType,
-    brokeragePaid: brokerageAmount,
-    brokerageLost: saleType === 'third_party' ? brokerageLost : null,
-    reasonLost: saleType === 'third_party' ? reasonLost : null,
-    thirdPartyNotes: saleType === 'third_party' ? notes : null
-  };
-
-  await docClient.send(new UpdateCommand({
-    TableName: CRM_TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
-      SK: 'PROFILE',
-    },
-    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, ownerId = :ownerId, ownerName = :ownerName, ownerPhone = :ownerPhone, ownerSnapshot = :ownerSnapshot, saleInfo = :saleInfo, ownershipHistory = :ownershipHistory, GSI1PK = :gsi1pk, GSI2PK = :gsi2pk, updatedAt = :updatedAt',
-    ExpressionAttributeNames: {
-      '#status': 'status',
-    },
-    ExpressionAttributeValues: {
-      ':status': 'sold',
-      ':listingStatus': 'inactive',
-      ':ownerId': newOwnerId || null,
-      ':ownerName': newOwnerName,
-      ':ownerPhone': newOwnerPhone,
-      ':ownerSnapshot': newOwnerName || newOwnerPhone ? { name: newOwnerName, phone: newOwnerPhone } : null,
-      ':saleInfo': updatedSaleInfo,
-      ':ownershipHistory': updatedHistory,
-      ':gsi1pk': gsi1pk,
-      ':gsi2pk': `TENANT#${tenantId}#PROPERTY_STATUS#sold`,
-      ':updatedAt': now
-    },
-  }));
-
-  // Auto-create Khata Book entry for property sale brokerage
-  if (brokerageAmount && Number(brokerageAmount) > 0) {
-    try {
-      await createBrokerageKhataEntry(tenantId, {
-        propertyId,
-        partyId: saleType === 'direct' ? (newOwnerId || 'UNASSIGNED') : (property.ownerId || 'UNASSIGNED'),
-        partyType: saleType === 'direct' ? 'BUYER' : 'SELLER',
-        partyName: saleType === 'direct' ? (newOwnerName || 'Buyer') : (property.ownerSnapshot?.name || property.ownerName || 'Owner'),
-        amount: Number(brokerageAmount),
-        transactionType: 'TO_TAKE',
-        sourceRef: sourceRef || `property-sale-mark-sold:${propertyId}`,
-        description: `Brokerage for property sale: ${property.title || ''}`,
-      });
-    } catch (err) {
-      console.error('Error creating sale brokerage khata entry in helper:', err);
-    }
-  } else if (saleType === 'third_party' && brokerageLost && Number(brokerageLost) > 0) {
-    try {
-      await createBrokerageKhataEntry(tenantId, {
-        propertyId,
-        partyId: property.ownerId || 'UNASSIGNED',
-        partyType: 'SELLER',
-        partyName: property.ownerSnapshot?.name || property.ownerName || 'Owner',
-        amount: Number(brokerageLost),
-        transactionType: 'TO_GIVE',
-        sourceRef: sourceRef || `property-sale-lost:${propertyId}`,
-        description: `Lost brokerage - property sold to third party: ${property.title || ''}`,
-      });
-    } catch (err) {
-      console.error('Error creating lost brokerage khata entry in helper:', err);
-    }
-  }
-
-  // Log contact activity for buyer (direct sale)
-  if (saleType === 'direct' && buyerId) {
-    try {
-      const { logContactActivity } = await import('./crmDynamodbService.js');
-      await logContactActivity(tenantId, {
-        activityType: 'purchase_recorded',
-        subjectEntityType: 'buyer',
-        subjectEntityId: buyerId,
-        subjectEntityName: buyerNameForHistory,
-        title: `Property Purchased: ${property.title || 'Property'}`,
-        description: `Purchased property for INR ${Number(soldPrice).toLocaleString()}. Brokerage: INR ${Number(brokerageAmount || 0).toLocaleString()}.`,
-        performedBy: 'System',
-        payload: { propertyId, propertyTitle: property.title, soldPrice, brokerageAmount },
-      });
-    } catch (logErr) {
-      console.error('Error logging purchase_recorded contact activity:', logErr);
-    }
-  }
-
-  // Log contact activity for property owner (seller)
-  if (property.ownerId) {
-    try {
-      const { logContactActivity } = await import('./crmDynamodbService.js');
-      await logContactActivity(tenantId, {
-        activityType: 'property_sold',
-        subjectEntityType: 'owner',
-        subjectEntityId: property.ownerId,
-        subjectEntityName: previousOwner ? previousOwner.name : 'Owner',
-        title: `Property Sold: ${property.title || 'Property'}`,
-        description: `Property sold for INR ${Number(soldPrice).toLocaleString()}. Brokerage: INR ${Number(brokerageAmount || 0).toLocaleString()}.`,
-        performedBy: 'System',
-        payload: { propertyId, propertyTitle: property.title, soldPrice, brokerageAmount, saleType },
-      });
-    } catch (logErr) {
-      console.error('Error logging property_sold contact activity:', logErr);
-    }
-  }
-
-  return { success: true, ownerId: newOwnerId };
 }
 
 /**
- * Mark a property as rented
+ * Mark a property as rented — syncs property, tenant, contact history, and clears marketing prices.
  */
-export async function markPropertyRented(tenantId, propertyId, customerId, rentalDetails, sourceRef = null) {
+export async function markPropertyRented(tenantId, propertyId, customerId, rentalDetails, sourceRef = null, performedBy = null) {
   if (!tenantId || !propertyId || !customerId) {
     throw new Error('Tenant ID, Property ID, and Customer ID are required');
   }
 
-  // Fetch customer name for rental history entry
+  const actor = performedBy || SERVICE_ACCOUNT_USER;
+  const now = new Date().toISOString();
+
+  const { getProperty, logContactActivity } = await import('./crmDynamodbService.js');
+
+  const propertyResult = await docClient.send(new GetCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
+      SK: 'PROFILE',
+    },
+  }));
+  const property = propertyResult.Item;
+  if (!property) throw new Error('Property not found');
+
   const customerResult = await docClient.send(new GetCommand({
     TableName: CRM_TABLE_NAME,
     Key: {
@@ -441,16 +283,59 @@ export async function markPropertyRented(tenantId, propertyId, customerId, renta
     },
   }));
   const customer = customerResult.Item;
-  const tenantName = customer?.name || 'Unknown Tenant';
+  if (!customer) throw new Error('Customer not found');
 
-  const newRentalEntry = {
+  const tenantName = customer.name || 'Unknown Tenant';
+  const leaseStart = rentalDetails.leaseStartDate || now;
+  const leaseEnd = rentalDetails.leaseEndDate || null;
+  const monthlyRent = Number(rentalDetails.monthlyRent) || 0;
+  const securityDeposit = Number(rentalDetails.securityDeposit) || 0;
+  const brokeragePaid = Number(rentalDetails.brokeragePaid) || 0;
+
+  const propertyRentalEntry = {
     tenantId: customerId,
     tenantName,
-    leaseStartDate: rentalDetails.leaseStartDate || new Date().toISOString(),
-    leaseEndDate: rentalDetails.leaseEndDate || null,
-    monthlyRent: rentalDetails.monthlyRent || 0,
-    securityDeposit: rentalDetails.securityDeposit || 0,
-    brokeragePaid: rentalDetails.brokeragePaid || 0,
+    leaseStartDate: leaseStart,
+    leaseEndDate: leaseEnd,
+    monthlyRent,
+    securityDeposit,
+    brokeragePaid,
+  };
+
+  const tenantCurrentRental = {
+    propertyId,
+    propertyName: property.title || null,
+    area: property.area || null,
+    leaseStartDate: leaseStart,
+    leaseEndDate: leaseEnd,
+    monthlyRent,
+    securityDeposit,
+    brokeragePaid,
+    notes: rentalDetails.notes || '',
+  };
+
+  const tenantRentalHistory = Array.isArray(customer.rentalHistory)
+    ? [...customer.rentalHistory]
+    : [];
+  const historyHasActive = tenantRentalHistory.some(
+    (entry) => entry.propertyId === propertyId && !entry.leaseEndDate,
+  );
+  if (!historyHasActive) {
+    tenantRentalHistory.push(tenantCurrentRental);
+  }
+
+  const updatedRentalInfo = {
+    ...(property.rentalInfo || {}),
+    currentRent: monthlyRent,
+    currentTenantId: customerId,
+    leaseStartDate: leaseStart,
+    leaseEndDate: leaseEnd,
+    securityDeposit,
+    expectedRent: null,
+  };
+  const updatedSaleInfo = {
+    ...(property.saleInfo || {}),
+    listedPrice: null,
   };
 
   await docClient.send(new UpdateCommand({
@@ -459,83 +344,163 @@ export async function markPropertyRented(tenantId, propertyId, customerId, renta
       PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
       SK: 'PROFILE',
     },
-    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, tenantCustomerId = :tenantId, rentalInfo.currentRent = :currentRent, rentalInfo.currentTenantId = :tenantId, rentalInfo.leaseStartDate = :leaseStart, rentalInfo.leaseEndDate = :leaseEnd, rentalHistory = list_append(if_not_exists(rentalHistory, :emptyList), :newRentalEntry), updatedAt = :updatedAt, GSI2PK = :gsi2pk',
+    UpdateExpression: [
+      'SET #status = :status',
+      'listingStatus = :listingStatus',
+      'tenantCustomerId = :tenantId',
+      'rentAmount = :nullVal',
+      'rentalInfo = :rentalInfo',
+      'saleInfo = :saleInfo',
+      'rentalHistory = list_append(if_not_exists(rentalHistory, :emptyList), :newRentalEntry)',
+      'updatedAt = :updatedAt',
+      'GSI2PK = :gsi2pk',
+    ].join(', '),
     ExpressionAttributeNames: {
       '#status': 'status',
     },
     ExpressionAttributeValues: {
       ':status': 'rented',
       ':listingStatus': 'inactive',
-      ':currentRent': rentalDetails.monthlyRent || 0,
       ':tenantId': customerId,
-      ':leaseStart': rentalDetails.leaseStartDate || new Date().toISOString(),
-      ':leaseEnd': rentalDetails.leaseEndDate || null,
+      ':nullVal': null,
+      ':rentalInfo': updatedRentalInfo,
+      ':saleInfo': updatedSaleInfo,
       ':emptyList': [],
-      ':newRentalEntry': [newRentalEntry],
-      ':updatedAt': new Date().toISOString(),
+      ':newRentalEntry': [propertyRentalEntry],
+      ':updatedAt': now,
       ':gsi2pk': `TENANT#${tenantId}#PROPERTY_STATUS#rented`,
     },
   }));
 
+  await docClient.send(new UpdateCommand({
+    TableName: CRM_TABLE_NAME,
+    Key: {
+      PK: `TENANT#${tenantId}#CUSTOMER#${customerId}`,
+      SK: 'PROFILE',
+    },
+    UpdateExpression: 'SET currentRental = :currentRental, rentalHistory = :rentalHistory, #status = :status, updatedAt = :updatedAt',
+    ExpressionAttributeNames: {
+      '#status': 'status',
+    },
+    ExpressionAttributeValues: {
+      ':currentRental': tenantCurrentRental,
+      ':rentalHistory': tenantRentalHistory,
+      ':status': 'active',
+      ':updatedAt': now,
+    },
+  }));
+
+  try {
+    const { closeActiveRentListingsForProperty } = await import('./services/listingService.js');
+    await closeActiveRentListingsForProperty(tenantId, propertyId);
+  } catch (err) {
+    console.error('markPropertyRented.closeListings.error', err.message);
+  }
+
   // Auto-create Khata Book entry for rental brokerage
-  if (rentalDetails.brokeragePaid > 0) {
+  if (brokeragePaid > 0) {
     try {
-      const { getProperty } = await import('./crmDynamodbService.js');
-      const property = await getProperty(tenantId, propertyId);
-      if (property) {
-        await createBrokerageKhataEntry(tenantId, {
-          propertyId,
-          partyId: property.ownerId || 'UNASSIGNED',
-          partyType: 'OWNER',
-          partyName: property.ownerSnapshot?.name || property.ownerName || 'Owner',
-          amount: Number(rentalDetails.brokeragePaid),
-          transactionType: 'TO_TAKE',
-          sourceRef: sourceRef || `property-rental-mark-rented:${propertyId}:${Date.now()}`,
-          description: `Brokerage for renting property: ${property.title || ''}`,
-        });
-      }
+      await createBrokerageKhataEntry(tenantId, {
+        propertyId,
+        partyId: property.ownerId || 'UNASSIGNED',
+        partyType: 'OWNER',
+        partyName: property.ownerSnapshot?.name || property.ownerName || 'Owner',
+        amount: brokeragePaid,
+        transactionType: 'TO_TAKE',
+        sourceRef: sourceRef || `property-rental-mark-rented:${propertyId}:${Date.now()}`,
+        description: `Brokerage for renting property: ${property.title || ''}`,
+      });
     } catch (err) {
       console.error('Error creating rental brokerage khata entry in helper:', err);
     }
   }
 
-  // Log contact activity for customer (tenant)
+  const rentLabel = monthlyRent > 0
+    ? `INR ${monthlyRent.toLocaleString()}/month`
+    : 'terms recorded';
+
+  // Tenant contact timeline
   try {
-    const { logContactActivity, getProperty } = await import('./crmDynamodbService.js');
-    const property = await getProperty(tenantId, propertyId);
     await logContactActivity(tenantId, {
       activityType: 'rental_started',
       subjectEntityType: 'customer',
       subjectEntityId: customerId,
       subjectEntityName: tenantName,
-      title: `Rented Property: ${property?.title || 'Property'}`,
-      description: `Started lease on property for INR ${Number(rentalDetails.monthlyRent).toLocaleString()}/month.`,
-      performedBy: 'System',
-      payload: { propertyId, propertyTitle: property?.title, rent: rentalDetails.monthlyRent, deposit: rentalDetails.securityDeposit, leaseStartDate: rentalDetails.leaseStartDate },
+      title: `Rented Property: ${property.title || 'Property'}`,
+      description: `Lease started at ${rentLabel}.`,
+      performedBy: actor,
+      payload: {
+        propertyId,
+        propertyTitle: property.title,
+        rent: monthlyRent,
+        deposit: securityDeposit,
+        leaseStartDate: leaseStart,
+        leaseEndDate: leaseEnd,
+      },
+      relatedEntityType: 'property',
+      relatedEntityId: propertyId,
+      relatedEntityName: property.title || null,
     });
   } catch (logErr) {
     console.error('Error logging rental_started contact activity:', logErr);
   }
 
-  // Log contact activity for property owner (landlord)
+  // Owner / landlord contact timeline
   try {
-    const { logContactActivity, getProperty, getOwner } = await import('./crmDynamodbService.js');
-    const property = await getProperty(tenantId, propertyId);
-    if (property?.ownerId) {
+    if (property.ownerId) {
+      const { getOwner } = await import('./crmDynamodbService.js');
       const owner = await getOwner(tenantId, property.ownerId);
       await logContactActivity(tenantId, {
         activityType: 'property_rented',
         subjectEntityType: 'owner',
         subjectEntityId: property.ownerId,
-        subjectEntityName: owner ? owner.name : 'Owner',
+        subjectEntityName: owner?.name || property.ownerName || 'Owner',
         title: `Property Rented Out: ${property.title || 'Property'}`,
-        description: `Rented to ${tenantName} for INR ${Number(rentalDetails.monthlyRent).toLocaleString()}/month. Brokerage: INR ${Number(rentalDetails.brokeragePaid || 0).toLocaleString()}.`,
-        performedBy: 'System',
-        payload: { propertyId, propertyTitle: property.title, rent: rentalDetails.monthlyRent, tenantId: customerId, tenantName, brokeragePaid: rentalDetails.brokeragePaid },
+        description: `Rented to ${tenantName} at ${rentLabel}.`,
+        performedBy: actor,
+        payload: {
+          propertyId,
+          propertyTitle: property.title,
+          rent: monthlyRent,
+          tenantId: customerId,
+          tenantName,
+          brokeragePaid,
+        },
+        relatedEntityType: 'property',
+        relatedEntityId: propertyId,
+        relatedEntityName: property.title || null,
       });
     }
   } catch (logErr) {
     console.error('Error logging property_rented contact activity:', logErr);
+  }
+
+  // Property owner contact via currentOwnerContactId when available
+  try {
+    const ownerContactId = property.currentOwnerContactId || property.ownerContactId;
+    if (ownerContactId) {
+      const { createContactActivity } = await import('./crmDynamodbService.js');
+      await createContactActivity(tenantId, ownerContactId, {
+        activityType: 'property_rented',
+        subjectEntityType: 'contact',
+        subjectEntityId: ownerContactId,
+        title: `Property Now Occupied: ${property.title || 'Property'}`,
+        description: `Tenant ${tenantName} moved in. Listing price cleared; status is Occupied.`,
+        performedBy: actor,
+        payload: {
+          propertyId,
+          propertyTitle: property.title,
+          tenantId: customerId,
+          tenantName,
+          monthlyRent,
+        },
+        relatedEntityType: 'property',
+        relatedEntityId: propertyId,
+        relatedEntityName: property.title || null,
+      });
+    }
+  } catch (logErr) {
+    console.error('Error logging owner contact property_rented activity:', logErr);
   }
 
   return { success: true };
@@ -588,7 +553,7 @@ export async function vacateProperty(tenantId, propertyId) {
       PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
       SK: 'PROFILE',
     },
-    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, rentalInfo.currentRent = :null, rentalInfo.currentTenantId = :null, rentalInfo.leaseStartDate = :null, rentalInfo.leaseEndDate = :null, rentalHistory = :rentalHistory, updatedAt = :updatedAt, GSI2PK = :gsi2pk',
+    UpdateExpression: 'SET #status = :status, listingStatus = :listingStatus, tenantCustomerId = :null, rentalInfo.currentRent = :null, rentalInfo.currentTenantId = :null, rentalInfo.leaseStartDate = :null, rentalInfo.leaseEndDate = :null, rentalHistory = :rentalHistory, updatedAt = :updatedAt, GSI2PK = :gsi2pk',
     ExpressionAttributeNames: {
       '#status': 'status',
     },
@@ -674,7 +639,7 @@ export async function createBrokerageKhataEntry(tenantId, {
     settlementStatus: 'PENDING',
     sourceRef: sourceRef || null,
     createdAt: now,
-    createdBy: 'system',
+    createdBy: SERVICE_ACCOUNT_USER,
     updatedAt: now,
   };
 
@@ -698,7 +663,7 @@ export async function createBrokerageKhataEntry(tenantId, {
       subjectEntityName: partyName,
       title: `Financial Ledger Entry: ${transactionType === 'TO_TAKE' ? 'Brokerage Receivable' : 'Brokerage Payable'}`,
       description: `${description || 'Brokerage ledger entry recorded.'} Amount: INR ${Number(amount).toLocaleString()}.`,
-      performedBy: 'System',
+      performedBy: SERVICE_ACCOUNT_USER,
       payload: { entryId, propertyId, partyType, partyName, amount, transactionType, sourceRef },
     });
   } catch (logErr) {
@@ -712,7 +677,7 @@ export async function createBrokerageKhataEntry(tenantId, {
  * Create a new Owner + Property listing from a buyer's previous purchase.
  * This is the explicit action a buyer takes when they decide to rent out or resell.
  */
-export async function createListingFromPurchase(tenantId, buyerId, propertyId, listingType, createdBy = 'System') {
+export async function createListingFromPurchase(tenantId, buyerId, propertyId, listingType, createdBy = SERVICE_ACCOUNT_USER) {
   if (!tenantId || !buyerId || !propertyId) {
     throw new Error('Tenant ID, Buyer ID, and Property ID are required');
   }
@@ -784,6 +749,8 @@ export async function createListingFromPurchase(tenantId, buyerId, propertyId, l
     ownerName: owner.name,
     ownerPhone: owner.phone,
     ownerSnapshot: { name: owner.name, phone: owner.phone },
+    currentOwnerContactId: buyer.contactId || null,
+    ownerContactId: buyer.contactId || null,
     acquiredFromPurchaseId: propertyId,
     title: listingTitle,
     description: originalProperty?.description || buyer.notes || '',
@@ -823,7 +790,25 @@ export async function createListingFromPurchase(tenantId, buyerId, propertyId, l
     createdBy,
   });
 
-  return { property: newProperty, owner };
+  // Phase 3: create Listing entity (property already set for-sale/for-rent)
+  let listing = null;
+  try {
+    const { createListing } = await import('./services/listingService.js');
+    listing = await createListing(tenantId, {
+      propertyId: newProperty.propertyId,
+      listingType: isRentOut ? 'rent' : 'sale',
+      listedPrice: purchase.saleAmount || null,
+      expectedRent: isRentOut ? (originalProperty?.rentAmount || 0) : null,
+      securityDeposit: isRentOut ? (originalProperty?.depositAmount || 0) : 0,
+      source: 'buyer_relist',
+      performedBy: createdBy,
+      skipPropertySync: true,
+    });
+  } catch (err) {
+    console.error('createListingFromPurchase.listing.error', err.message);
+  }
+
+  return { property: newProperty, owner, listing };
 }
 
 export default {

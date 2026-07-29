@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test';
 import { API_URL } from '../helpers/config';
+import { jsonAuthHeaders, resolveApiAuth } from '../helpers/apiAuth';
 
-const TEST_TOKEN = process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
-const jsonHeaders = (token: string) => ({
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${token}`,
-});
+const jsonHeaders = (token: string) => jsonAuthHeaders({ token });
 
 test.describe('Data Integrity & Consistency Tests', () => {
+  let TEST_TOKEN = '';
+
   test.beforeAll(() => {
-    test.skip(!TEST_TOKEN, 'TEST_TOKEN not set — skipping data integrity tests');
+    TEST_TOKEN = resolveApiAuth().token || process.env.TEST_TOKEN || process.env.TENANT_A_TOKEN || '';
+    test.skip(!TEST_TOKEN, 'TEST_TOKEN / auth cache not set — skipping data integrity tests');
   });
 
   // ============================================================
@@ -341,6 +341,7 @@ test.describe('Data Integrity & Consistency Tests', () => {
       }
       const ownerId = convertBody.entity?.ownerId;
       expect(ownerId).toBeTruthy();
+      expect(convertBody.contactId || convertBody.contact?.contactId).toBeTruthy();
 
       // Verify owner created
       const ownerRes = await request.get(`${API_URL}/crm/owners/${ownerId}`, {
@@ -349,6 +350,18 @@ test.describe('Data Integrity & Consistency Tests', () => {
       expect(ownerRes.status()).toBe(200);
       const ownerBody = await ownerRes.json();
       expect(ownerBody.name).toBe('Seller Integrity Test');
+
+      // Verify contact seller profile when present
+      const contactId = convertBody.contactId || convertBody.contact?.contactId;
+      if (contactId) {
+        const contactRes = await request.get(`${API_URL}/crm/contacts/${contactId}`, {
+          headers: jsonHeaders(TEST_TOKEN),
+        });
+        if (contactRes.status() === 200) {
+          const contactBody = await contactRes.json();
+          expect(contactBody.roles?.seller).toBe(true);
+        }
+      }
 
       // Verify property was created (GSI may have lag; verify via all-properties query as fallback)
       let createdProp: any;
@@ -473,10 +486,11 @@ test.describe('Data Integrity & Consistency Tests', () => {
     });
 
     test('Buyer lead conversion: purchase details recorded on buyer entity', async ({ request }) => {
+      const stamp = Date.now().toString().slice(-6);
       // Create owner + property first
       const ownerRes = await request.post(`${API_URL}/crm/owners`, {
         headers: jsonHeaders(TEST_TOKEN),
-        data: { name: 'Test Owner', phone: '9876543212' },
+        data: { name: `Test Owner ${stamp}`, phone: `98333${stamp}`.slice(0, 10) },
       });
       if (ownerRes.status() === 401) {
         console.log('Skipping buyer conversion test - token expired (401)');
@@ -488,7 +502,7 @@ test.describe('Data Integrity & Consistency Tests', () => {
       const propRes = await request.post(`${API_URL}/crm/properties`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          title: 'Test Property',
+          title: `Test Property ${stamp}`,
           ownerId,
           propertyType: 'apartment',
           bhk: 2,
@@ -506,8 +520,8 @@ test.describe('Data Integrity & Consistency Tests', () => {
       const buyerLeadRes = await request.post(`${API_URL}/crm/leads`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          name: 'Buyer Integrity Test',
-          phone: '9876543213',
+          name: `Buyer Integrity Test ${stamp}`,
+          phone: `98444${stamp}`.slice(0, 10),
           leadType: 'buyer',
           status: 'negotiating',
           buyerRequirement: {
@@ -553,7 +567,7 @@ test.describe('Data Integrity & Consistency Tests', () => {
       });
       expect(buyerGetRes.status()).toBe(200);
       const buyerGetBody = await buyerGetRes.json();
-      expect(buyerGetBody.name).toBe('Buyer Integrity Test');
+      expect(buyerGetBody.name).toBe(`Buyer Integrity Test ${stamp}`);
       expect(buyerGetBody.status).toBe('active');
 
       // Verify property marked sold
@@ -563,14 +577,17 @@ test.describe('Data Integrity & Consistency Tests', () => {
       const propGetBody = await propGetRes.json();
       expect(propGetBody.status).toBe('sold');
       expect(propGetBody.saleInfo?.soldPrice).toBe(4000000);
-      expect(propGetBody.saleInfo?.soldToBuyerId).toBe(buyerId);
+      // transferOwnership stores buyer Contact id as soldToBuyerId when available
+      const soldTo = propGetBody.saleInfo?.soldToBuyerId || propGetBody.saleInfo?.soldToBuyerContactId;
+      expect([buyerId, convertBody.contactId, convertBody.contact?.contactId].filter(Boolean)).toContain(soldTo);
     });
 
     test('Tenant lead conversion: lease details recorded on tenant and property', async ({ request }) => {
+      const stamp = Date.now().toString().slice(-6);
       // Create owner + property
       const ownerRes = await request.post(`${API_URL}/crm/owners`, {
         headers: jsonHeaders(TEST_TOKEN),
-        data: { name: 'Rental Owner', phone: '9876543214' },
+        data: { name: `Rental Owner ${stamp}`, phone: `98111${stamp}`.slice(0, 10) },
       });
       if (ownerRes.status() === 401) {
         console.log('Skipping tenant conversion test - token expired (401)');
@@ -582,7 +599,7 @@ test.describe('Data Integrity & Consistency Tests', () => {
       const propRes = await request.post(`${API_URL}/crm/properties`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          title: 'Rental Property',
+          title: `Rental Property ${stamp}`,
           ownerId,
           propertyType: 'apartment',
           bhk: 2,
@@ -601,8 +618,8 @@ test.describe('Data Integrity & Consistency Tests', () => {
       const tenantLeadRes = await request.post(`${API_URL}/crm/leads`, {
         headers: jsonHeaders(TEST_TOKEN),
         data: {
-          name: 'Tenant Integrity Test',
-          phone: '9876543215',
+          name: `Tenant Integrity Test ${stamp}`,
+          phone: `98222${stamp}`.slice(0, 10),
           leadType: 'tenant',
           status: 'negotiating',
           tenantRequirement: {
@@ -651,7 +668,7 @@ test.describe('Data Integrity & Consistency Tests', () => {
       });
       expect(tenantGetRes.status()).toBe(200);
       const tenantGetBody = await tenantGetRes.json();
-      expect(tenantGetBody.name).toBe('Tenant Integrity Test');
+      expect(tenantGetBody.name).toBe(`Tenant Integrity Test ${stamp}`);
       expect(tenantGetBody.status).toBe('active');
 
       // Verify property marked rented

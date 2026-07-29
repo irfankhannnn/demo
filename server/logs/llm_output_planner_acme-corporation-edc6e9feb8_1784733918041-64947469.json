@@ -1,0 +1,25 @@
+{
+  "loggedAt": "2026-07-22T15:25:22.291Z",
+  "sessionId": "1784733918041-64947469",
+  "tenantId": "acme-corporation-edc6e9feb8",
+  "agentId": "planner",
+  "kind": "planner",
+  "type": "generate_content_response",
+  "model": "gemini-2.5-pro",
+  "text": "",
+  "functionCalls": [
+    {
+      "name": "search_leads",
+      "args": {
+        "query": "pratya"
+      }
+    }
+  ],
+  "plan": {
+    "kind": "tool",
+    "toolName": "search_leads",
+    "input": {
+      "query": "pratya"
+    }
+  }
+}

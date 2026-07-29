@@ -1,10 +1,5 @@
 import { logger } from './logger.js';
-
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type,Authorization,X-Requested-With',
-  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS,PATCH',
-};
+import { applyExpressCorsHeaders } from './utils/corsOrigins.js';
 
 export function errorHandler(err, req, res, next) {
   const log = req?.log || logger.child({
@@ -22,7 +17,7 @@ export function errorHandler(err, req, res, next) {
     ...(isProd ? {} : { stack: err?.stack }),
   });
 
-  res.set(CORS_HEADERS);
+  applyExpressCorsHeaders(req, res);
   res.status(err?.status || 500).json({
     error: err?.message || 'Internal server error',
   });

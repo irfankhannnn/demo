@@ -7,6 +7,13 @@ import { API_TIMEOUT_MS } from '../config/constants.js';
 const CRM_API_URL = process.env.CRM_INTERNAL_API_URL;
 const CRM_API_KEY = process.env.CRM_INTERNAL_API_KEY;
 
+if (!CRM_API_URL) {
+  throw new Error('Missing required environment variable CRM_INTERNAL_API_URL');
+}
+if (!CRM_API_KEY) {
+  throw new Error('Missing required environment variable CRM_INTERNAL_API_KEY');
+}
+
 const crmClient = axios.create({
   baseURL: CRM_API_URL,
   timeout: API_TIMEOUT_MS,

@@ -3,4 +3,5 @@ export default {
   testMatch: ['**/*.test.js'],
   transform: {},
   verbose: true,
+  setupFiles: ['<rootDir>/jest.setup.js'],
 };

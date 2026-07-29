@@ -1,6 +1,7 @@
 import { test } from '@playwright/test';
 import { TEST_TIMEOUT_MS } from '../../helpers/config';
 import { setupEvidence, createLogger, setupDialogHandler } from '../../helpers/evidence';
+import { createTestRun } from '../../helpers/seedData';
 import { buildKhataTestData } from '../../flows/khata/khataData';
 import { createKhataOwnerAndProperty } from '../../flows/khata/khataSetupFlow';
 import { runKhataBookFlow } from '../../flows/khata/khataBookFlow';
@@ -14,15 +15,14 @@ test('Khata Book: full workflow — setup, entries, settlement, analytics', asyn
   setupDialogHandler(page, log);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-  const phoneBase = 7_000_000_000 + (Date.now() % 1_000_000);
-  const data = buildKhataTestData(runStamp, phoneBase);
+  const run = createTestRun();
+  const data = buildKhataTestData(run);
 
-  log('Khata', 'INFO', `runStamp=${runStamp}, owner="${data.owner.name}", property="${data.property.title}"`);
+  log('Khata', 'INFO', `runId=${run.runId}, owner="${data.owner.name}", property="${data.property.title}"`);
 
   try {
     await test.step('Phase 1: Setup — create owner and property', async () => {
-      const { ownerId, propertyId } = await createKhataOwnerAndProperty(page, ctx, data.owner, data.property, runStamp);
+      const { ownerId, propertyId } = await createKhataOwnerAndProperty(page, ctx, data.owner, data.property, run.runStamp);
       log('Setup', 'INFO', `ownerId=${ownerId}, propertyId=${propertyId}`);
     });
   } catch (err: any) {

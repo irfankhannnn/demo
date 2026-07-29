@@ -78,6 +78,7 @@ export function detectErrorType(error) {
   if (message.includes('invalid prekey id')) return ERROR_TYPES.PREKEY_INVALID;
   if (message.includes('bad mac') || message.includes('mac verification')) return ERROR_TYPES.BAD_MAC;
   if (message.includes('no matching session')) return ERROR_TYPES.NO_MATCHING_SESSION;
+  if (message.includes('retry receipt loop')) return ERROR_TYPES.BAD_MAC;
   if (message.includes('decrypt') && message.includes('fail')) return ERROR_TYPES.DECRYPTION_FAILED;
   if (message.includes('signature') && message.includes('mismatch')) return ERROR_TYPES.SIGNATURE_MISMATCH;
 

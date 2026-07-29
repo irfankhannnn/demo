@@ -1,31 +1,29 @@
 import express from 'express';
 import validateToken from '../middleware/validateToken.js';
-import { extractTenantId } from '../tenantMiddleware.js';
-import { requireAdmin } from '../middleware/requireRole.js';
+import { requirePlatformOperator } from '../middleware/requirePlatformOperator.js';
 import { getFullConfig, updateConfig, clearConfigCache, DEFAULTS } from '../creditConfig.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
 
-router.use(validateToken, extractTenantId, requireAdmin);
+// Global credit config is platform-wide — tenant admins must not mutate it.
+router.use(validateToken, requirePlatformOperator);
 
 const VALID_COST_KEYS = Object.keys(DEFAULTS.COSTS);
-const MAX_COST_VALUE = 1000; // No single action should cost more than 1000 credits
+const MAX_COST_VALUE = parseInt(process.env.MAX_ACTION_COST_CREDITS || '1000', 10);
 const MIN_COST_VALUE = 0;
-const CRITICAL_COST_KEYS = ['lead_add', 'contact_add', 'property_add', 'owner_add', 'tenant_add']; // These must be > 0
+const CRITICAL_COST_KEYS = ['lead_add', 'contact_add', 'property_add', 'owner_add', 'tenant_add'];
 
-// GET /api/credit-config — current config
 router.get('/', async (req, res) => {
   try {
     const config = await getFullConfig();
     res.json(config);
   } catch (err) {
     logger.error('creditAdmin.get.error', { error: err.message });
-    res.status(500).json({ error: 'internal_error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PUT /api/credit-config/costs
 router.put('/costs', async (req, res) => {
   try {
     const costs = req.body;
@@ -55,7 +53,6 @@ router.put('/costs', async (req, res) => {
       }
     }
 
-    // Log the config change for audit trail
     logger.info('creditConfig.costs.updated', {
       updatedBy: req.user?.userId || 'unknown',
       changes: costs,
@@ -67,11 +64,10 @@ router.put('/costs', async (req, res) => {
     res.json({ success: true, costs });
   } catch (err) {
     logger.error('creditAdmin.costs.error', { error: err.message });
-    res.status(500).json({ error: 'internal_error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PUT /api/credit-config/packs
 router.put('/packs', async (req, res) => {
   try {
     const packs = req.body;
@@ -79,7 +75,6 @@ router.put('/packs', async (req, res) => {
       return res.status(400).json({ error: 'Invalid packs object' });
     }
 
-    // Log the config change for audit trail
     logger.info('creditConfig.packs.updated', {
       updatedBy: req.user?.userId || 'unknown',
       changes: Object.keys(packs),
@@ -91,11 +86,10 @@ router.put('/packs', async (req, res) => {
     res.json({ success: true, packs });
   } catch (err) {
     logger.error('creditAdmin.packs.error', { error: err.message });
-    res.status(500).json({ error: 'internal_error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// PUT /api/credit-config/free-tier
 router.put('/free-tier', async (req, res) => {
   try {
     const { monthlyFreeCredits } = req.body;
@@ -103,7 +97,6 @@ router.put('/free-tier', async (req, res) => {
       return res.status(400).json({ error: 'monthlyFreeCredits must be >= 0' });
     }
 
-    // Log the config change for audit trail
     logger.info('creditConfig.freeTier.updated', {
       updatedBy: req.user?.userId || 'unknown',
       monthlyFreeCredits,
@@ -115,7 +108,7 @@ router.put('/free-tier', async (req, res) => {
     res.json({ success: true, freeTier: { monthlyFreeCredits } });
   } catch (err) {
     logger.error('creditAdmin.freeTier.error', { error: err.message });
-    res.status(500).json({ error: 'internal_error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

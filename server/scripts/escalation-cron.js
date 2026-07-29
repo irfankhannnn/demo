@@ -16,7 +16,7 @@ dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
 
 async function sendEscalationEmail(templateId, to, params) {
-  if (!to) return;
+  if (!to || !templateId) return;
   try {
     await sendEmail({
       to,
@@ -45,18 +45,23 @@ async function runEscalation() {
       await updateProvisioning(row.tenantId, { status: 'escalated' });
 
       // Email founder with escalation notice (use founder-specific template)
-      await sendEscalationEmail(
-        process.env.BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID,
-        process.env.FOUNDER_EMAIL || 'info@realestateflow.in',
-        {
-          tenantId: row.tenantId,
-          agencyName: row.agencyName,
-          contactPhone: row.contactPhone,
-          contactEmail: row.contactEmail,
-          paidAt: row.paidAt,
-          expectedSLAEnd: row.expectedSLAEnd,
-        }
-      );
+      const founderEmail = process.env.FOUNDER_EMAIL;
+      if (founderEmail) {
+        await sendEscalationEmail(
+          process.env.BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID,
+          founderEmail,
+          {
+            tenantId: row.tenantId,
+            agencyName: row.agencyName,
+            contactPhone: row.contactPhone,
+            contactEmail: row.contactEmail,
+            paidAt: row.paidAt,
+            expectedSLAEnd: row.expectedSLAEnd,
+          }
+        );
+      } else {
+        console.warn('[escalation-cron] FOUNDER_EMAIL not configured; skipping founder escalation email');
+      }
 
       // Customer apology email (use customer-specific template)
       if (row.contactEmail) {

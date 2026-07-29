@@ -10,8 +10,13 @@ import {
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import validateToken from '../middleware/validateToken.js';
-import { extractTenantId } from '../tenantMiddleware.js';
+import { extractTenantId, extractTenantIdOptional } from '../tenantMiddleware.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
+import apiKeyAuth from '../middleware/apiKeyAuth.js';
+import { strictRateLimit } from '../middleware/rateLimiter.js';
 import { wrapAwsClient } from '../awsClientWrapper.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
+import { collectAllPages } from '../utils/dynamoPagination.js';
 
 const router = express.Router();
 
@@ -41,7 +46,6 @@ const isValidEmail = (email) => {
 const isValidMobile = (mobile) => {
   if (!mobile) return false;
   const value = String(mobile).trim();
-  // Basic sanity check: digits/space/+/- and reasonable length
   return /^[0-9+\-\s]{7,20}$/.test(value);
 };
 
@@ -59,22 +63,12 @@ const isValidTime = (time) => {
   return /^\d{2}:\d{2}$/.test(value);
 };
 
-// Submit B2B lead (Public endpoint)
-router.post('/b2b-leads', async (req, res) => {
+// Submit B2B lead (public — tenant from API key only)
+router.post('/b2b-leads', strictRateLimit, apiKeyAuth, extractTenantIdOptional, async (req, res) => {
   try {
-    // Prefer server-derived tenantId if user is authenticated
-    let tenantId = req.tenantId || null;
-    if (!tenantId) {
-      const rawTenantId = req.headers['x-tenant-id'];
-      tenantId = sanitizeString(rawTenantId, 100);
-    }
-
+    const tenantId = req.tenantId;
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
-    }
-    // Basic validation: tenantId should be a reasonable identifier
-    if (!/^[a-zA-Z0-9_-]+$/.test(tenantId)) {
-      return res.status(400).json({ error: 'Invalid tenant ID format' });
     }
 
     const {
@@ -118,7 +112,6 @@ router.post('/b2b-leads', async (req, res) => {
       errors.push('availableTime must be in HH:MM format');
     }
 
-    // Ensure pagePath looks like an internal path and not arbitrary data
     if (pagePath && (!pagePath.startsWith('/') || pagePath.length > 200)) {
       errors.push('pagePath must be a valid internal path');
     }
@@ -150,22 +143,20 @@ router.post('/b2b-leads', async (req, res) => {
           timestamp,
           action: 'Lead Submitted',
           details: `New lead submitted from ${pagePath}`,
-          updatedBy: 'System'
+          updatedBy: SERVICE_ACCOUNT_USER
         }
       ]
     };
 
-    const command = new PutCommand({
+    await docClient.send(new PutCommand({
       TableName: B2B_LEADS_TABLE,
       Item: lead
-    });
+    }));
 
-    await docClient.send(command);
-
-    res.status(201).json({ 
-      success: true, 
+    res.status(201).json({
+      success: true,
       leadId,
-      message: 'Lead submitted successfully' 
+      message: 'Lead submitted successfully'
     });
   } catch (error) {
     console.error('Error creating B2B lead:', error);
@@ -177,12 +168,12 @@ router.post('/b2b-leads', async (req, res) => {
 router.get('/b2b-leads', validateToken, extractTenantId, async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    
+
     if (!tenantId) {
       return res.status(400).json({ error: 'Tenant ID is required' });
     }
 
-    const command = new ScanCommand({
+    const items = await collectAllPages(docClient, ScanCommand, {
       TableName: B2B_LEADS_TABLE,
       FilterExpression: 'tenantId = :tenantId',
       ExpressionAttributeValues: {
@@ -190,9 +181,7 @@ router.get('/b2b-leads', validateToken, extractTenantId, async (req, res) => {
       }
     });
 
-    const result = await docClient.send(command);
-    
-    res.json(result.Items || []);
+    res.json(items);
   } catch (error) {
     console.error('Error fetching B2B leads:', error);
     res.status(500).json({ error: 'Failed to fetch leads' });
@@ -232,7 +221,7 @@ router.get('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res
 });
 
 // Update B2B lead (CRM - requires auth)
-router.put('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res) => {
+router.put('/b2b-leads/:leadId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { leadId } = req.params;
@@ -288,7 +277,7 @@ router.put('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res
       timestamp,
       action: 'Lead Updated',
       details: `Status: ${status || existingLead.Item.status}, Priority: ${priority || existingLead.Item.priority}`,
-      updatedBy: req.user?.username || 'Admin'
+      updatedBy: req.user?.username || SERVICE_ACCOUNT_USER
     };
 
     const history = existingLead.Item.history || [];
@@ -318,7 +307,7 @@ router.put('/b2b-leads/:leadId', validateToken, extractTenantId, async (req, res
 });
 
 // Add note to B2B lead (CRM - requires auth)
-router.post('/b2b-leads/:leadId/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/b2b-leads/:leadId/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { leadId } = req.params;
@@ -351,7 +340,7 @@ router.post('/b2b-leads/:leadId/notes', validateToken, extractTenantId, async (r
       timestamp,
       action: 'Note Added',
       details: note,
-      updatedBy: req.user?.username || 'Admin'
+      updatedBy: req.user?.username || SERVICE_ACCOUNT_USER
     };
 
     const history = existingLead.Item.history || [];

@@ -1,114 +1,41 @@
 /**
- * Response formatter for WhatsApp agent replies.
+ * Response formatter orchestrator for WhatsApp SyncBot.
  *
- * ARCHITECTURE NOTE (2026-06-26):
- * This formatter now works with AI DTOs from the view builders (LeadAIViewBuilder, OwnerAIViewBuilder, TenantAIViewBuilder, etc.).
- * Results come pre-formatted with { metadata, data } structure.
- * The formatter can be simplified over time as the LLM learns to work with clean DTOs directly.
- *
- * Takes CRM tool results (either raw or AI DTOs) and produces a structured, scannable WhatsApp message.
- * Each entity type has a deterministic format so users can glance at the message instead of reading long paragraphs.
- *
- * Formatting principles (inspired by OpenClaw skill response modes):
- * - Single entity: bold header + bullet fields
- * - Multiple entities: numbered list with key fields
- * - Empty results: concise guidance
- * - Money: human readable (80L, 1.5Cr, 45k)
- * - Dates: short DD MMM YYYY
- * - WhatsApp markdown: *bold*, bullets, numbered lists
+ * Templates and helpers live in ./formatting/ (Interaction Design v1).
+ * Spec: docs/interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md
  */
 
-import { logger } from '../logger.js';
+import {
+  emptyStateMessage,
+  formatCompactConfirmation,
+} from './formatting/confirmations.js';
+import {
+  formatMetricsCard,
+  formatSingleCard,
+} from './formatting/entityCards.js';
+import { formatList } from './formatting/listItems.js';
+import { formatLeadsSummary } from './formatting/summaries.js';
+import {
+  isValidWhatsAppReply,
+  preferLlmReply,
+  LIST_TOOLS,
+  DETAIL_ENTITY_TOOLS,
+  FORMATTED_SUMMARY_TOOLS,
+} from './formatting/routing.js';
+import { capitalize, pluralize } from './formatting/utils.js';
 
-const MAX_LIST_ITEMS = 10;
-const MAX_LIST_ITEMS_WITH_MORE = 5;
+const MAX_LIST_ITEMS = parseInt(process.env.RESPONSE_MAX_LIST_ITEMS || '10', 10);
+const MAX_LIST_ITEMS_WITH_MORE = parseInt(process.env.RESPONSE_MAX_LIST_ITEMS_WITH_MORE || '5', 10);
 
-/**
- * Format a number as compact Indian currency.
- * @param {number|string|null} value
- * @returns {string|null}
- */
-function formatMoney(value) {
-  if (value === undefined || value === null || value === '') return null;
-  const num = Number(value);
-  if (Number.isNaN(num)) return null;
+const ENTITY_ID_KEYS = [
+  'leadId', 'propertyId', 'contactId', 'buyerId', 'ownerId',
+  'customerId', 'tenantRecordId', 'meetingId',
+];
 
-  const crore = 10000000;
-  const lakh = 100000;
-  const thousand = 1000;
-
-  function trimDecimal(n) {
-    // Remove trailing zeros and optional decimal point (e.g., 1.50 -> 1.5, 1.00 -> 1)
-    return String(n).replace(/\.?0+$/, '');
-  }
-
-  if (Math.abs(num) >= crore) {
-    return `₹${trimDecimal((num / crore).toFixed(2))}Cr`;
-  }
-  if (Math.abs(num) >= lakh) {
-    return `₹${trimDecimal((num / lakh).toFixed(2))}L`;
-  }
-  if (Math.abs(num) >= thousand) {
-    return `₹${trimDecimal((num / thousand).toFixed(1))}k`;
-  }
-  return `₹${num.toLocaleString('en-IN')}`;
-}
-
-/**
- * Format a date string to a short readable form.
- * @param {string|null} value
- * @returns {string|null}
- */
-function formatDate(value) {
-  if (!value) return null;
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-function pick(obj, ...keys) {
-  for (const key of keys) {
-    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== '') {
-      return obj[key];
-    }
-  }
-  return null;
-}
-
-function present(value) {
-  return value !== undefined && value !== null && value !== '';
-}
-
-function cleanPhone(phone) {
-  if (!phone) return null;
-  const s = String(phone).replace(/\D/g, '');
-  return s.length > 0 ? s : null;
-}
-
-function joinNonEmpty(parts, sep = ' | ') {
-  return parts.filter(Boolean).join(sep);
-}
-
-function bulletLine(label, value) {
-  return value !== undefined && value !== null && value !== '' ? `• ${label}: ${value}` : null;
-}
-
-function boldHeader(text) {
-  return text ? `*${text}*` : '';
-}
-
-function isArrayLike(data) {
-  return Array.isArray(data) || (data && typeof data === 'object' && 'items' in data);
-}
-
-/**
- * Detect the AI DTO envelope shape from the view builders:
- * { metadata: {...}, data: <payload> }
- */
 function isAiDtoEnvelope(data) {
-  return data && typeof data === 'object' &&
-    data.metadata && typeof data.metadata === 'object' &&
-    'data' in data;
+  return data && typeof data === 'object'
+    && data.metadata && typeof data.metadata === 'object'
+    && 'data' in data;
 }
 
 function unwrapAiDto(data) {
@@ -116,11 +43,16 @@ function unwrapAiDto(data) {
   return isAiDtoEnvelope(data) ? data.data : data;
 }
 
+function isSingleEntity(payload) {
+  return payload && typeof payload === 'object' && !Array.isArray(payload)
+    && ENTITY_ID_KEYS.some(k => payload[k] !== undefined && payload[k] !== null);
+}
+
 function normalizeList(data) {
   const payload = unwrapAiDto(data);
   if (Array.isArray(payload)) return payload;
+  if (isSingleEntity(payload)) return null;
   if (payload && typeof payload === 'object') {
-    // Common wrapped list shapes from CRM service
     if (Array.isArray(payload.leads)) return payload.leads;
     if (Array.isArray(payload.buyers)) return payload.buyers;
     if (Array.isArray(payload.owners)) return payload.owners;
@@ -130,6 +62,7 @@ function normalizeList(data) {
     if (Array.isArray(payload.meetings)) return payload.meetings;
     if (Array.isArray(payload.notes)) return payload.notes;
     if (Array.isArray(payload.documents)) return payload.documents;
+    if (Array.isArray(payload.items)) return payload.items;
   }
   return null;
 }
@@ -137,12 +70,12 @@ function normalizeList(data) {
 function detectEntityType(item) {
   if (!item || typeof item !== 'object') return 'generic';
   if (item.leadId) return 'lead';
+  if (item.leadType) return 'lead';
   if (item.propertyId) return 'property';
   if (item.contactId) return 'contact';
   if (item.buyerId) return 'buyer';
   if (item.ownerId) return 'owner';
-  if (item.customerId) return 'tenant';
-  if (item.tenantRecordId) return 'tenant';
+  if (item.customerId || item.tenantRecordId) return 'tenant';
   if (item.meetingId) return 'meeting';
   if (item.noteId || item.noteID) return 'note';
   if (item.documentId || item.docId) return 'document';
@@ -164,331 +97,13 @@ function entityTypeFromToolName(toolName) {
   return 'generic';
 }
 
-function detectEntityTypeFromList(list, toolName) {
-  if (!Array.isArray(list) || list.length === 0) return entityTypeFromToolName(toolName);
-  return detectEntityType(list[0]);
-}
-
-// ─── Single entity card formatters ─────────────────────────────────────────────
-
-function formatLeadCard(lead) {
-  const type = lead.leadType || 'lead';
-  const typeField = {
-    buyer: lead.buyerRequirement,
-    seller: lead.sellerProperty,
-    tenant: lead.tenantRequirement,
-    owner: lead.ownerProperty,
-  }[type];
-
-  const money = formatMoney(pick(typeField, 'budget', 'expectedPrice', 'rentExpected'));
-  const area = pick(typeField, 'preferredArea', 'area', 'city');
-  const bhk = pick(typeField, 'bhk');
-
-  const lines = [
-    boldHeader(`${lead.name} (${capitalize(type)} Lead)`),
-    bulletLine('Status', lead.status && capitalize(lead.status)),
-    bulletLine('Priority', lead.priority && capitalize(lead.priority)),
-    bulletLine('Phone', cleanPhone(lead.phone)),
-    bulletLine('Assigned to', lead.assignedTo),
-    bulletLine('Source', lead.source),
-    bulletLine('Budget/Price', money),
-    bulletLine('Area', area),
-    bhk ? `• BHK: ${bhk}BHK` : null,
-    bulletLine('Notes', lead.notes),
-    bulletLine('Lead ID', lead.leadId),
-  ].filter(Boolean);
-
-  return lines.join('\n');
-}
-
-function formatBuyerCard(buyer) {
-  const lines = [
-    boldHeader(buyer.name),
-    bulletLine('Phone', cleanPhone(buyer.phone)),
-    bulletLine('Email', buyer.email),
-    bulletLine('Budget', formatMoney(buyer.budget)),
-    bulletLine('Preferred Area', buyer.preferredArea),
-    bulletLine('Property Type', buyer.propertyType),
-    bulletLine('BHK', buyer.bhk),
-    bulletLine('Status', buyer.status && capitalize(buyer.status)),
-    bulletLine('Buyer ID', buyer.buyerId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatOwnerCard(owner) {
-  const lines = [
-    boldHeader(owner.name),
-    bulletLine('Phone', cleanPhone(owner.phone)),
-    bulletLine('Email', owner.email),
-    bulletLine('Status', owner.status && capitalize(owner.status)),
-    bulletLine('Owner ID', owner.ownerId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatTenantCard(tenant) {
-  const lines = [
-    boldHeader(tenant.name),
-    bulletLine('Phone', cleanPhone(tenant.phone)),
-    bulletLine('Email', tenant.email),
-    bulletLine('Budget', formatMoney(tenant.budget)),
-    bulletLine('Preferred Area', tenant.preferredArea),
-    bulletLine('Status', tenant.status && capitalize(tenant.status)),
-    bulletLine('Tenant ID', tenant.customerId || tenant.tenantRecordId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatPropertyCard(property) {
-  const lines = [
-    boldHeader(property.title || `${property.propertyType || 'Property'} in ${property.area || property.city || 'Unknown'}`),
-    bulletLine('Type', property.propertyType),
-    bulletLine('Status', property.status && capitalize(property.status)),
-    bulletLine('Area', property.area),
-    bulletLine('City', property.city),
-    property.bhk ? `• BHK: ${property.bhk}BHK` : null,
-    bulletLine('Furnishing', property.furnishing),
-    bulletLine('Rent', formatMoney(property.monthlyRent)),
-    bulletLine('Sale Price', formatMoney(property.salePrice)),
-    bulletLine('Owner', property.ownerName || property.ownerId),
-    bulletLine('Property ID', property.propertyId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatContactCard(contact) {
-  const lines = [
-    boldHeader(contact.name),
-    bulletLine('Phone', cleanPhone(contact.phone)),
-    bulletLine('Email', contact.email),
-    bulletLine('Role', contact.role && capitalize(contact.role)),
-    bulletLine('Status', contact.status && capitalize(contact.status)),
-    bulletLine('Contact ID', contact.contactId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatMeetingCard(meeting) {
-  const lines = [
-    boldHeader(meeting.title),
-    bulletLine('Date', formatDate(meeting.scheduledDate)),
-    bulletLine('Status', meeting.status && capitalize(meeting.status)),
-    bulletLine('Location', meeting.location),
-    bulletLine('Related to', `${meeting.relatedEntityType} ${meeting.relatedEntityId || ''}`),
-    bulletLine('Meeting ID', meeting.meetingId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatNoteCard(note) {
-  const lines = [
-    boldHeader(note.title || 'Note'),
-    bulletLine('Date', formatDate(note.createdAt || note.date)),
-    bulletLine('By', note.createdBy || note.author),
-    bulletLine('Content', note.content || note.text),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatDocumentCard(doc) {
-  const lines = [
-    boldHeader(doc.title || 'Document'),
-    bulletLine('Type', capitalize(doc.documentType || doc.type)),
-    bulletLine('URL', doc.url || doc.documentUrl),
-    bulletLine('Document ID', doc.documentId),
-  ].filter(Boolean);
-  return lines.join('\n');
-}
-
-function formatMetricsCard(metrics) {
-  const lines = [boldHeader('CRM Metrics')];
-  for (const [k, v] of Object.entries(metrics)) {
-    if (v !== undefined && v !== null && typeof v !== 'object') {
-      lines.push(bulletLine(humanize(k), v));
-    }
-  }
-  return lines.filter(Boolean).join('\n') || boldHeader('Metrics updated');
-}
-
-function formatGenericCard(item) {
-  const lines = [
-    boldHeader(item.name || item.title || 'Result'),
-    ...Object.entries(item)
-      .filter(([k]) => !k.startsWith('PK') && !k.startsWith('SK') && !k.startsWith('GSI') && k !== 'history' && k !== 'tenantId')
-      .slice(0, 8)
-      .map(([k, v]) => bulletLine(capitalize(k), typeof v === 'object' ? null : v))
-      .filter(Boolean),
-  ].filter(Boolean);
-  return lines.join('\n') || boldHeader('Result received');
-}
-
-function formatSingleCard(item) {
-  const type = detectEntityType(item);
-  switch (type) {
-    case 'lead': return formatLeadCard(item);
-    case 'buyer': return formatBuyerCard(item);
-    case 'owner': return formatOwnerCard(item);
-    case 'tenant': return formatTenantCard(item);
-    case 'property': return formatPropertyCard(item);
-    case 'contact': return formatContactCard(item);
-    case 'meeting': return formatMeetingCard(item);
-    case 'note': return formatNoteCard(item);
-    case 'document': return formatDocumentCard(item);
-    case 'metrics': return formatMetricsCard(item);
-    default: return formatGenericCard(item);
-  }
-}
-
-// ─── List item formatters ──────────────────────────────────────────────────────
-
-function formatLeadListItem(lead, index) {
-  const type = lead.leadType || 'lead';
-  const typeField = {
-    buyer: lead.buyerRequirement,
-    seller: lead.sellerProperty,
-    tenant: lead.tenantRequirement,
-    owner: lead.ownerProperty,
-  }[type];
-
-  const money = formatMoney(pick(typeField, 'budget', 'expectedPrice', 'rentExpected'));
-  const area = pick(typeField, 'preferredArea', 'area', 'city');
-  const bhk = pick(typeField, 'bhk');
-
-  const tags = [
-    capitalize(type),
-    lead.status && capitalize(lead.status),
-    lead.priority && capitalize(lead.priority),
-  ].filter(Boolean);
-
-  const body = joinNonEmpty([
-    money,
-    area,
-    bhk ? `${bhk}BHK` : null,
-  ]);
-
-  return `${index}. *${lead.name}* ${tags.length ? `(${tags.join(', ')})` : ''}${body ? `\n   ${body}` : ''}`;
-}
-
-function formatBuyerListItem(buyer, index) {
-  return `${index}. *${buyer.name}* ${buyer.status ? `(${capitalize(buyer.status)})` : ''}\n   ${joinNonEmpty([formatMoney(buyer.budget), buyer.preferredArea, buyer.bhk ? `${buyer.bhk}BHK` : null])}`;
-}
-
-function formatOwnerListItem(owner, index) {
-  return `${index}. *${owner.name}* ${owner.status ? `(${capitalize(owner.status)})` : ''}\n   ${joinNonEmpty([cleanPhone(owner.phone), owner.email])}`;
-}
-
-function formatTenantListItem(tenant, index) {
-  return `${index}. *${tenant.name}* ${tenant.status ? `(${capitalize(tenant.status)})` : ''}\n   ${joinNonEmpty([formatMoney(tenant.budget), tenant.preferredArea])}`;
-}
-
-function formatPropertyListItem(property, index) {
-  const title = property.title || `${property.propertyType || 'Property'} in ${property.area || property.city || 'Unknown'}`;
-  return `${index}. *${title}* ${property.status ? `(${capitalize(property.status)})` : ''}\n   ${joinNonEmpty([formatMoney(property.monthlyRent || property.salePrice), property.area, property.bhk ? `${property.bhk}BHK` : null])}`;
-}
-
-function formatContactListItem(contact, index) {
-  return `${index}. *${contact.name}* ${contact.role ? `(${capitalize(contact.role)})` : ''}\n   ${joinNonEmpty([cleanPhone(contact.phone), contact.email])}`;
-}
-
-function formatMeetingListItem(meeting, index) {
-  return `${index}. *${meeting.title}* ${meeting.status ? `(${capitalize(meeting.status)})` : ''}\n   ${joinNonEmpty([formatDate(meeting.scheduledDate), meeting.location])}`;
-}
-
-function formatNoteListItem(note, index) {
-  const text = (note.content || note.text || '').slice(0, 60);
-  return `${index}. *${note.title || 'Note'}* ${note.createdAt ? `(${formatDate(note.createdAt)})` : ''}\n   ${text}${text.length >= 60 ? '...' : ''}`;
-}
-
-function formatDocumentListItem(doc, index) {
-  return `${index}. *${doc.title || 'Document'}* ${doc.documentType ? `(${capitalize(doc.documentType)})` : ''}`;
-}
-
-function formatGenericListItem(item, index) {
-  const name = item.name || item.title || `Result ${index}`;
-  const detail = Object.entries(item)
-    .filter(([k, v]) => !k.startsWith('PK') && !k.startsWith('SK') && !k.startsWith('GSI') && k !== 'history' && k !== 'tenantId' && k !== 'name' && k !== 'title' && v !== undefined && v !== null && typeof v !== 'object')
-    .slice(0, 3)
-    .map(([k, v]) => `${capitalize(k)}: ${v}`)
-    .join(' | ');
-  return `${index}. *${name}*${detail ? `\n   ${detail}` : ''}`;
-}
-
-function formatListItem(type, item, index) {
-  switch (type) {
-    case 'lead': return formatLeadListItem(item, index);
-    case 'buyer': return formatBuyerListItem(item, index);
-    case 'owner': return formatOwnerListItem(item, index);
-    case 'tenant': return formatTenantListItem(item, index);
-    case 'property': return formatPropertyListItem(item, index);
-    case 'contact': return formatContactListItem(item, index);
-    case 'meeting': return formatMeetingListItem(item, index);
-    case 'note': return formatNoteListItem(item, index);
-    case 'document': return formatDocumentListItem(item, index);
-    default: return formatGenericListItem(item, index);
-  }
-}
-
-// ─── Main list formatter ─────────────────────────────────────────────────────
-
-function formatList(list, total, entityType, toolName) {
-  const type = entityType || detectEntityTypeFromList(list, toolName);
-  const items = list.slice(0, MAX_LIST_ITEMS_WITH_MORE);
-  const lines = items.map((item, idx) => formatListItem(type, item, idx + 1));
-
-  const totalCount = total !== undefined ? total : list.length;
-  const intro = totalCount === 1
-    ? `Here is the 1 ${type}:`
-    : `Here are the ${totalCount} ${pluralize(type)}:`;
-  let result = `${intro}\n\n${lines.join('\n\n')}`;
-
-  if (totalCount > items.length) {
-    const remaining = totalCount - items.length;
-    result += `\n\n+${remaining} more. Reply *show more* or refine your query.`;
-  }
-
-  return result;
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function capitalize(text) {
-  if (!text || typeof text !== 'string') return text;
-  return text
-    .split(/[-_\s]+/)
-    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .join(' ');
-}
-
-function humanize(key) {
-  if (!key || typeof key !== 'string') return key;
-  // Split camelCase and snake_case, then capitalize each word
-  return key
-    .replace(/([A-Z])/g, ' $1')
-    .replace(/_/g, ' ')
-    .trim()
-    .split(/\s+/)
-    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
-    .join(' ');
-}
-
-function pluralize(type) {
-  const map = {
-    lead: 'leads',
-    buyer: 'buyers',
-    seller: 'sellers',
-    owner: 'owners',
-    tenant: 'tenants',
-    property: 'properties',
-    contact: 'contacts',
-    meeting: 'meetings',
-    note: 'notes',
-    document: 'documents',
-  };
-  return map[type] || `${type}s`;
-}
-
 function detectAction(toolName) {
+  if (toolName.includes('_note')) {
+    if (toolName.startsWith('create_')) return 'note added';
+    if (toolName.startsWith('update_')) return 'note updated';
+    if (toolName.startsWith('delete_')) return 'note deleted';
+    return 'note updated';
+  }
   if (toolName.includes('create')) return 'created';
   if (toolName.includes('update')) return 'updated';
   if (toolName.includes('delete')) return 'deleted';
@@ -499,128 +114,312 @@ function detectAction(toolName) {
   return 'processed';
 }
 
-function buildConfirmationLine(toolName, data, entityType) {
-  const action = detectAction(toolName);
-  const name = data?.name || data?.title || '';
-  const type = entityType === 'lead' && data?.leadType ? `${data.leadType} lead` : pluralize(entityType);
-  return `✅ ${capitalize(type)} ${name ? `*${name}* ` : ''}${action}.`;
+function resolveDisplayName(data) {
+  return data?.name || data?.leadName || data?.ownerName || data?.buyerName
+    || data?.contactName || data?.title || '';
 }
 
-// ─── Public API ───────────────────────────────────────────────────────────────
+function formatNoteActionResult(data, action) {
+  const name = resolveDisplayName(data);
+  const verb = action === 'note_added' ? 'added' : action === 'note_updated' ? 'updated' : 'deleted';
+  const target = name ? `*${name}*` : 'record';
+  const lines = [`✅ Note ${verb} on ${target}.`];
+  if (data?.content && action !== 'note_deleted') {
+    const preview = String(data.content).slice(0, 300);
+    lines.push('', `_"${preview}${data.content.length > 300 ? '...' : ''}"_`);
+  }
+  return lines.join('\n');
+}
+
+function buildConfirmationLine(toolName, data, entityType, metadata = {}) {
+  const name = resolveDisplayName(data);
+  if (toolName.includes('_note')) {
+    const action = detectAction(toolName);
+    return `✅ Note ${action.replace('note ', '')} on ${name ? `*${name}*` : entityType}.`;
+  }
+  if (metadata.action === 'updated' && Array.isArray(metadata.updatedFields) && metadata.updatedFields.length) {
+    return `✅ Updated ${name ? `*${name}*` : capitalize(entityType)} — ${metadata.updatedFields.slice(0, 4).join(', ')}`;
+  }
+  const action = detectAction(toolName);
+  const typeLabel = entityType === 'lead' && data?.leadType
+    ? `${data.leadType} lead`
+    : entityType;
+  return `✅ ${capitalize(typeLabel)} ${name ? `*${name}* ` : ''}${action}.`;
+}
+
+function formatErrorEnvelope(metadata, data) {
+  const err = String(metadata.error || '');
+  if (err.includes('not_found')) {
+    return `Couldn't find that ${entityHint(err)}. Try searching by name or phone.`;
+  }
+  if (err === 'duplicate_phone') {
+    return `A record with that phone already exists${data?.name ? ` (*${data.name}*)` : ''}.`;
+  }
+  if (err === 'already_converted') {
+    return `Already converted${data?.name ? ` (*${data.name}*)` : ''}. Open the buyer/owner/tenant record instead.`;
+  }
+  if (err === 'cannot_delete_converted') {
+    return `Can't delete a converted lead${data?.name ? ` (*${data.name}*)` : ''}.`;
+  }
+  if (err === 'phone_required') {
+    return 'Phone number is required for this action.';
+  }
+  return metadata.message || 'Something went wrong. Try again.';
+}
+
+function entityHint(error) {
+  const e = String(error);
+  if (e.includes('lead')) return 'lead';
+  if (e.includes('buyer')) return 'buyer';
+  if (e.includes('owner')) return 'owner';
+  if (e.includes('tenant')) return 'tenant';
+  if (e.includes('property')) return 'property';
+  if (e.includes('contact')) return 'contact';
+  if (e.includes('meeting')) return 'meeting';
+  return 'record';
+}
 
 /**
  * Format a single CRM tool result into a structured WhatsApp message.
- * @param {string} toolName
- * @param {any} toolResult
- * @returns {string|null}
  */
-export function formatToolResult(toolName, toolResult) {
+export function formatToolResult(toolName, toolResult, input = {}) {
   if (!toolResult || typeof toolResult !== 'object') return null;
-  if (toolResult.ok === false || toolResult.error) {
-    // Let the agent handle errors with conversational context
-    return null;
+  if (toolResult.ok === false || toolResult.error) return null;
+
+  const envelope = toolResult.data;
+  const data = unwrapAiDto(envelope);
+  const metadata = isAiDtoEnvelope(envelope) ? envelope.metadata : {};
+
+  if (metadata.error) {
+    return formatErrorEnvelope(metadata, data);
   }
 
-  const data = unwrapAiDto(toolResult.data);
-  const metadata = isAiDtoEnvelope(toolResult.data) ? toolResult.data.metadata : {};
-
-  // Handle delete / boolean success results
   if (data === true || data === false) {
     if (data === true) {
       const type = entityTypeFromToolName(toolName);
-      return `✅ ${capitalize(pluralize(type).replace(/s$/, ''))} ${detectAction(toolName)} successfully.`;
+      return `✅ ${capitalize(type)} ${detectAction(toolName)} successfully.`;
     }
     return null;
   }
 
-  if (data === null || data === undefined) {
-    return null;
+  if (data === null || data === undefined) return null;
+
+  if (metadata.action === 'note_added' || metadata.action === 'note_updated' || metadata.action === 'note_deleted') {
+    return formatNoteActionResult(data, metadata.action);
+  }
+  if (toolName.includes('_note') && (toolName.startsWith('create_') || toolName.startsWith('update_'))) {
+    return formatNoteActionResult(data, toolName.startsWith('create_') ? 'note_added' : 'note_updated');
   }
 
-  // Determine if the result is a list or single entity
+  if (toolName === 'get_leads_summary' && data && typeof data === 'object' && !Array.isArray(data)) {
+    return formatLeadsSummary(data);
+  }
+
   const list = normalizeList(data);
   const entityType = list && list.length > 0
     ? detectEntityType(list[0])
     : entityTypeFromToolName(toolName);
 
   if (list && list.length === 0) {
-    return `No ${pluralize(entityType)} found. Try a different filter or check the phone/ID.`;
+    return emptyStateMessage(entityType);
   }
 
   if (list && list.length > 0) {
     const total = metadata.total || data.total || list.length;
-    return formatList(list, total, entityType, toolName);
+    const hasMore = metadata.hasMore || total > list.length;
+    const maxItems = hasMore ? MAX_LIST_ITEMS_WITH_MORE : Math.min(MAX_LIST_ITEMS, MAX_LIST_ITEMS_WITH_MORE);
+    return formatList(list, total, entityType, maxItems, { toolName, input });
   }
 
-  // Metrics object
   if (entityType === 'metrics') {
     return formatMetricsCard(data);
   }
 
-  // Single entity action result (create/update/get)
-  return `${buildConfirmationLine(toolName, data, entityType)}\n\n${formatSingleCard(data)}`;
+  const isReadTool = /^(get|search|find|lookup)_/.test(toolName);
+  if (isReadTool) {
+    return formatSingleCard(data, metadata);
+  }
+
+  // Mutations: confirmation line + compact key fields (not a full mini-profile dump).
+  // Documents keep a small dedicated card (title/type/url).
+  const header = buildConfirmationLine(toolName, data, entityType, metadata);
+  if (entityType === 'document') {
+    return `${header}\n\n${formatSingleCard(data, metadata)}`;
+  }
+  const compact = formatCompactConfirmation(entityType, data);
+  return compact ? `${header}\n\n${compact}` : header;
 }
 
 /**
- * Format the final agent reply.  If the agent made CRM tool calls, prefer the
- * deterministic formatter for the tool results; otherwise return the original
- * conversational reply.
- *
- * @param {string} replyText
- * @param {Array<{tool:string, result:any}>|undefined} toolResults
- * @returns {string}
+ * Format the final agent reply.
  */
 export function formatAgentReply(replyText, toolResults) {
   if (!toolResults || toolResults.length === 0) {
     return replyText || '';
   }
 
-  // Find the most recent tool result that contains data
   const relevant = toolResults
     .slice()
     .reverse()
-    .find(t => t && t.result && t.result.ok === true && t.result.data);
+    .find(t => t && t.result && t.result.ok === true && t.result.data != null);
 
   if (!relevant) {
     return replyText || '';
   }
 
-  const formatted = formatToolResult(relevant.tool, relevant.result);
+  const envelope = relevant.result.data;
+  const meta = envelope?.metadata;
+  if (meta?.error) {
+    const errFmt = formatToolResult(relevant.tool, relevant.result, relevant.input);
+    if (errFmt) return errFmt;
+  }
+
+  const formatted = formatToolResult(relevant.tool, relevant.result, relevant.input);
+
+  // Lists, detail cards, and formatted summaries win over LLM prose.
+  if (formatted && (
+    LIST_TOOLS.has(relevant.tool)
+    || DETAIL_ENTITY_TOOLS.has(relevant.tool)
+    || FORMATTED_SUMMARY_TOOLS.has(relevant.tool)
+  )) {
+    if (
+      replyText
+      && isValidWhatsAppReply(replyText)
+      && replyText.trim().length > 0
+      && replyText.trim().length <= 200
+      && LIST_TOOLS.has(relevant.tool)
+      && /^(search_|get_owners|get_upcoming_meetings|get_.*_notes|get_property_documents)/.test(relevant.tool)
+    ) {
+      const intro = replyText.trim();
+      if (!intro.includes('*') && !intro.startsWith('1.')) {
+        return `${intro}\n\n${formatted}`;
+      }
+    }
+    return formatted;
+  }
+
+  if (preferLlmReply(relevant.tool, replyText)) {
+    return replyText.trim();
+  }
+
   if (!formatted) {
     return replyText || '';
   }
 
-  // Trust the deterministic formatter for tool results. The formatter generates
-  // a clear intro + structured data, so we do not prepend the LLM's reply here.
-  // This prevents awkward closing remarks (e.g., "Aur koi details chahiye?")
-  // from appearing before the actual data.
+  // Optional short intro prepend for search/list tools only
+  if (
+    replyText
+    && isValidWhatsAppReply(replyText)
+    && replyText.trim().length > 0
+    && replyText.trim().length <= 200
+    && /^(search_|get_owners|get_upcoming_meetings|get_.*_notes|get_property_documents)/.test(relevant.tool)
+  ) {
+    const intro = replyText.trim();
+    if (!intro.includes('*') && !intro.startsWith('1.')) {
+      return `${intro}\n\n${formatted}`;
+    }
+  }
+
   return formatted;
 }
 
+export { isValidWhatsAppReply };
+
 /**
- * Validate that a reply is reasonably structured (not a raw JSON dump).
- * @param {string} reply
- * @returns {boolean}
+ * Pure renderer for the V2 pipeline (Fix #5).
+ *
+ * Turns an InteractionDecision (from decideInteraction) + the tool result +
+ * optional LLM text into the final WhatsApp string. It contains NO routing or
+ * business logic — the decision already carries mode, replyOwner and intro
+ * policy. This is the single place WhatsApp formatting happens for V2.
+ *
+ * @param {object} decision - InteractionDecision
+ * @param {object} [result] - invokeSkill envelope { ok, data }
+ * @param {string} [llmText] - optional LLM-authored prose
+ * @returns {string}
  */
-export function isValidWhatsAppReply(reply) {
-  if (!reply || typeof reply !== 'string') return false;
-  const trimmed = reply.trim();
-  if (trimmed.length === 0) return false;
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) return false;
-  if (trimmed.startsWith('[') && trimmed.endsWith(']')) return false;
-  if (trimmed.includes('"data":') && trimmed.includes('"ok":')) return false;
-  return true;
+export function renderDecision(decision, result, llmText) {
+  if (!decision || typeof decision !== 'object') {
+    return 'Done. Let me know if you need anything else.';
+  }
+
+  const { mode, replyOwner, toolName, input = {}, introPolicy } = decision;
+
+  // Non-tool turns: decision.text is authoritative.
+  if (mode === 'chat' || mode === 'clarify' || mode === 'confirm' || mode === 'cancelled') {
+    return decision.text || 'Okay.';
+  }
+
+  if (mode === 'error') {
+    const errFmt = toolName ? formatToolResult(toolName, result, input) : null;
+    if (errFmt && isValidWhatsAppReply(errFmt)) return errFmt;
+    return 'Sorry, something went wrong while processing that. Please try again.';
+  }
+
+  if (mode === 'empty') {
+    const emptyFmt = toolName ? formatToolResult(toolName, result, input) : null;
+    if (emptyFmt && isValidWhatsAppReply(emptyFmt)) return emptyFmt;
+    return 'No matching records found.';
+  }
+
+  // Summary: LLM owns prose unless a formatter card exists (e.g. leads summary).
+  if (mode === 'summary') {
+    if (replyOwner === 'llm') {
+      if (llmText && isValidWhatsAppReply(llmText) && llmText.trim().length > 0) {
+        return llmText.trim();
+      }
+    }
+    const card = toolName ? formatToolResult(toolName, result, input) : null;
+    if (card && isValidWhatsAppReply(card)) return card;
+    if (llmText && isValidWhatsAppReply(llmText)) return llmText.trim();
+    return 'Done.';
+  }
+
+  // list / detail / mutation
+  if (replyOwner === 'llm') {
+    if (llmText && isValidWhatsAppReply(llmText) && llmText.trim().length > 0) {
+      return llmText.trim();
+    }
+  }
+
+  const formatted = toolName ? formatToolResult(toolName, result, input) : null;
+  if (formatted && isValidWhatsAppReply(formatted)) {
+    if (
+      introPolicy === 'allow-short'
+      && llmText
+      && isValidWhatsAppReply(llmText)
+      && llmText.trim().length > 0
+      && llmText.trim().length <= 200
+    ) {
+      const intro = llmText.trim();
+      if (!intro.includes('*') && !intro.startsWith('1.')) {
+        return `${intro}\n\n${formatted}`;
+      }
+    }
+    return formatted;
+  }
+
+  if (llmText && isValidWhatsAppReply(llmText)) return llmText.trim();
+  return 'Done. Let me know if you need anything else.';
 }
 
 /**
- * Sanitize and validate a final reply.  Falls back to a safe formatter if the
- * reply is invalid and tool results are available.
- *
- * @param {string} replyText
- * @param {Array<{tool:string, result:any}>|undefined} toolResults
- * @returns {string}
+ * Sanitize and validate a final reply.
  */
 export function sanitizeAndFormatReply(replyText, toolResults) {
+  if (toolResults && toolResults.length > 0) {
+    const summaryTool = toolResults
+      .slice()
+      .reverse()
+      .find((t) => t?.result?.ok && FORMATTED_SUMMARY_TOOLS.has(t.tool));
+    if (summaryTool) {
+      const card = formatToolResult(summaryTool.tool, summaryTool.result);
+      if (card && isValidWhatsAppReply(card)) {
+        return card;
+      }
+    }
+  }
+
   const formatted = formatAgentReply(replyText, toolResults);
   if (isValidWhatsAppReply(formatted)) {
     return formatted;
@@ -629,6 +428,7 @@ export function sanitizeAndFormatReply(replyText, toolResults) {
     const fallback = formatToolResult(
       toolResults[toolResults.length - 1].tool,
       toolResults[toolResults.length - 1].result,
+      toolResults[toolResults.length - 1].input,
     );
     if (fallback) return fallback;
   }

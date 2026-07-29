@@ -24,6 +24,14 @@ export const CATEGORIES = {
   UNKNOWN: 'unknown',
 };
 
+function isMissingDynamoTableError(err) {
+  const msg = err?.message || '';
+  const name = err?.name || '';
+  return name === 'ResourceNotFoundException' || msg.includes('Requested resource not found');
+}
+
+let userCategoriesTableMissing = false;
+
 /**
  * Get a WhatsApp user's category by phone number and tenant.
  * Looks up the UserCategories table; falls back to UNKNOWN if not found.
@@ -34,6 +42,9 @@ export const CATEGORIES = {
 export async function getCategory(phone, tenantId) {
   if (!USER_CATEGORIES_TABLE) {
     logger.warn('userCategoryService.getCategory.tableNotConfigured', { phone, tenantId });
+    return CATEGORIES.UNKNOWN;
+  }
+  if (userCategoriesTableMissing) {
     return CATEGORIES.UNKNOWN;
   }
 
@@ -52,6 +63,15 @@ export async function getCategory(phone, tenantId) {
 
     return result.Item.category || CATEGORIES.UNKNOWN;
   } catch (err) {
+    if (isMissingDynamoTableError(err)) {
+      userCategoriesTableMissing = true;
+      logger.warn('userCategoryService.getCategory.tableMissing', {
+        phone,
+        tenantId,
+        table: USER_CATEGORIES_TABLE,
+      });
+      return CATEGORIES.UNKNOWN;
+    }
     logger.error('userCategoryService.getCategory.failed', { phone, tenantId, error: err.message });
     return CATEGORIES.UNKNOWN;
   }
@@ -75,7 +95,7 @@ export async function resolveCategory(phone, tenantId, context = {}) {
 
   // Auto-categorize as LEAD for new/unknown users
   // (In production, more sophisticated logic could use context.messageCount, etc.)
-  if (USER_CATEGORIES_TABLE) {
+  if (USER_CATEGORIES_TABLE && !userCategoriesTableMissing) {
     try {
       const now = new Date().toISOString();
       await docClient.send(new PutCommand({
@@ -92,9 +112,14 @@ export async function resolveCategory(phone, tenantId, context = {}) {
       }));
       logger.info('userCategoryService.resolveCategory.auto_categorized', { phone, tenantId, category: CATEGORIES.LEAD });
     } catch (err) {
-      logger.error('userCategoryService.resolveCategory.auto_categorize_failed', { phone, tenantId, error: err.message });
+      if (isMissingDynamoTableError(err)) {
+        userCategoriesTableMissing = true;
+        logger.warn('userCategoryService.resolveCategory.tableMissing', { phone, tenantId, table: USER_CATEGORIES_TABLE });
+      } else {
+        logger.error('userCategoryService.resolveCategory.auto_categorize_failed', { phone, tenantId, error: err.message });
+      }
     }
-  } else {
+  } else if (!USER_CATEGORIES_TABLE) {
     logger.warn('userCategoryService.resolveCategory.tableNotConfigured', { phone, tenantId });
   }
 

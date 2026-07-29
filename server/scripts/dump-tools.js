@@ -39,7 +39,7 @@ try {
 
   const { buildSystemPrompt } = await import("../agents/prompts.js");
 
-  const { ALLOWED_TOOLS } = await import("../skillInvoker.js");
+  const { ALLOWED_TOOL_NAMES: ALLOWED_TOOLS } = await import("../shared/toolDefinitions.js");
 
   const tenantId = "acme-corporation-edc6e9feb8";
 

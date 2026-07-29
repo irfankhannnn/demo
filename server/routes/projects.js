@@ -22,6 +22,7 @@ import {
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { uploadToS3, deleteFromS3, getSignedUrl } from '../s3Service.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 
 const router = express.Router();
 
@@ -278,7 +279,7 @@ router.post('/', async (req, res) => {
 
     const data = {
       ...req.body,
-      createdBy: req.user?.userId || 'system',
+      createdBy: req.user?.userId || SERVICE_ACCOUNT_USER,
     };
 
     const project = await createProject(tenantId, data);
@@ -309,7 +310,7 @@ router.put('/:projectId', async (req, res) => {
 
     const data = {
       ...req.body,
-      updatedBy: req.user?.userId || 'system',
+      updatedBy: req.user?.userId || SERVICE_ACCOUNT_USER,
     };
 
     const project = await updateProject(tenantId, req.params.projectId, data);
@@ -344,7 +345,7 @@ router.patch('/:projectId/status', async (req, res) => {
     }
 
     const project = await updateProjectLifecycleStatus(tenantId, req.params.projectId, status, {
-      updatedBy: req.user?.userId || 'system',
+      updatedBy: req.user?.userId || SERVICE_ACCOUNT_USER,
       notes,
       completionPercentage,
     });

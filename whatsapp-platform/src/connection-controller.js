@@ -12,16 +12,15 @@
  * Provides unified interface for connection lifecycle management
  */
 
-import PreKeyRecoveryManager from './prekey-recovery.js';
+import PreKeyRecoveryManager, { MAX_PREKEY_ATTEMPTS } from './prekey-recovery.js';
 import AuthStore from './auth-store.js';
 import CryptoErrorDetector from './crypto-error-detector.js';
 import ConnectionWatchdog from './watchdog.js';
 import ReconnectPolicy from './reconnect-policy.js';
 import ConnectionStateMachine, { STATES } from './connection-state.js';
 import PendingDeliveriesQueue from './pending-deliveries.js';
-import { softResetSession } from './auth-state-utils.js';
 import { logger } from './logger.js';
-import { SOFT_RESET_MAX_RETRIES, PREKEY_ROTATION_INTERVAL_MS } from './config.js';
+import { PREKEY_ROTATION_INTERVAL_MS } from './config.js';
 
 /**
  * Unified connection controller
@@ -40,7 +39,6 @@ export class ConnectionController {
     this.stateMachine = new ConnectionStateMachine(phone);
     this.pendingDeliveries = new PendingDeliveriesQueue(phone, options.pendingDeliveries);
 
-    this.softResetRetries = 0;
     this.preKeyRotationTimer = null;
     this.isInitialized = false;
   }
@@ -74,7 +72,6 @@ export class ConnectionController {
     this.stateMachine.onTransition('*', STATES.CONNECTED, async () => {
       this.preKeyRecovery.reset();
       this.cryptoErrorDetector.reset();
-      this.softResetRetries = 0;
       this.reconnectPolicy.recordAttempt(true);
       this.watchdog.recordActivity();
       // Backup credentials on successful connection
@@ -188,50 +185,24 @@ export class ConnectionController {
     // Attempt recovery based on error type
     const recovered = await this.preKeyRecovery.attemptRecovery(error);
     if (recovered) {
-      this.softResetRetries = 0;
       return true;
     }
 
-    if (analysis.severity === 'high') {
+    const preKeyExhausted = this.preKeyRecovery.attemptCount >= MAX_PREKEY_ATTEMPTS;
+    if (analysis.severity === 'high' || preKeyExhausted) {
       // Check if exhaustion was detected during recovery
       if (this.preKeyRecovery.needsFreshLink()) {
         this.stateMachine.transition(STATES.FRESH_LINK_REQUIRED, { error: analysis });
         return false;
       }
 
-      // Try a soft session reset before giving up.  This preserves the
-      // WhatsApp device pairing and only rebuilds the Signal session state.
-      if (this.softResetRetries < SOFT_RESET_MAX_RETRIES) {
-        this.softResetRetries++;
-        logger.warn(
-          { phone: this.phone, attempt: this.softResetRetries, errorType: analysis.errorType },
-          'connection_controller.soft_reset.attempt'
-        );
-        const resetResult = await softResetSession(this.phone);
-        if (resetResult.error) {
-          logger.error(
-            { phone: this.phone, error: resetResult.error },
-            'connection_controller.soft_reset.failed'
-          );
-        } else {
-          logger.info(
-            { phone: this.phone, deleted: resetResult.deleted.length },
-            'connection_controller.soft_reset.success'
-          );
-        }
-        // Force a reconnect so the next session picks up the clean state.
-        this.stateMachine.transition(STATES.RECONNECTING, { reason: 'soft_reset_after_crypto_error', error: analysis });
-        if (this.socket && typeof this.socket.end === 'function') {
-          try {
-            this.socket.end();
-          } catch (endErr) {
-            logger.warn({ phone: this.phone, error: endErr.message }, 'connection_controller.soft_reset.end_failed');
-          }
-        }
-        return false;
-      }
-
-      this.stateMachine.transition(STATES.RECONNECTING, { error: analysis });
+      // Do not destructively remove the Signal store automatically. A noisy
+      // historic/status envelope must never invalidate a working current
+      // message session. Explicit relinking is the only destructive recovery.
+      logger.warn(
+        { phone: this.phone, errorType: analysis.errorType },
+        'connection_controller.crypto_recovery_deferred'
+      );
     }
 
     return recovered;

@@ -74,6 +74,8 @@ import BuyerDetails from './pages/crm/BuyerDetails';
 import LeadList from './pages/crm/LeadList';
 import LeadDetails from './pages/crm/LeadDetails';
 import BillingSettings from './pages/crm/BillingSettings';
+import ContactList from './pages/crm/ContactList';
+import ContactDetails from './pages/crm/ContactDetails';
 
 // PR-F
 import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
@@ -249,8 +251,12 @@ function App() {
     const CHECK_INTERVAL_MS = 5 * 60 * 1000;      // 5 minutes
 
     let lastRefresh = Date.now();
+    let isRefreshing = false;
 
     const doRefresh = async (reason: string) => {
+      // Prevent concurrent refresh attempts from multiple intervals/timeouts.
+      if (isRefreshing) return;
+      isRefreshing = true;
       try {
         const newTokens = await refreshTokens();
         setTokens(newTokens);
@@ -258,6 +264,8 @@ function App() {
       } catch (err) {
         console.error(`Token refresh failed (${reason}):`, err);
         window.dispatchEvent(new Event('auth-changed'));
+      } finally {
+        isRefreshing = false;
       }
     };
 
@@ -377,6 +385,10 @@ function App() {
             <Route path="/crm/buyers" element={<ProtectedRoute authState={authState}><BuyerList /></ProtectedRoute>} />
             <Route path="/crm/buyers/new" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
             <Route path="/crm/buyers/:id" element={<ProtectedRoute authState={authState}><BuyerDetails /></ProtectedRoute>} />
+
+            <Route path="/crm/contacts" element={<ProtectedRoute authState={authState}><ContactList /></ProtectedRoute>} />
+            <Route path="/crm/contacts/new" element={<ProtectedRoute authState={authState}><ContactDetails /></ProtectedRoute>} />
+            <Route path="/crm/contacts/:id" element={<ProtectedRoute authState={authState}><ContactDetails /></ProtectedRoute>} />
 
             {/* Lead Routes */}
             <Route path="/crm/settings/billing" element={<ProtectedRoute authState={authState}><BillingSettings /></ProtectedRoute>} />

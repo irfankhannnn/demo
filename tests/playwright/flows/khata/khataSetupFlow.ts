@@ -1,6 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 import { BASE_URL } from '../../helpers/config';
 import { EvidenceCtx, createLogger, snap } from '../../helpers/evidence';
+import { paceBetweenEntitySteps, saveAndWaitForApi } from '../../helpers/saveHelpers';
 
 export async function createKhataOwnerAndProperty(
   page: Page,
@@ -16,49 +17,8 @@ export async function createKhataOwnerAndProperty(
     await expect(header).toBeVisible({ timeout: 10_000 });
   };
 
-  const saveAndWait = async (apiPathPattern: RegExp) => {
-    const saveBtn = page.locator('button').filter({ hasText: /(Save|Create|Submit)/i }).first();
-    await expect(saveBtn).toBeVisible({ timeout: 10_000 });
-
-    const responsePromise = page.waitForResponse(
-      (r) => apiPathPattern.test(r.url()) && (r.request().method() === 'POST' || r.request().method() === 'PUT'),
-      { timeout: 30_000 },
-    );
-
-    await saveBtn.click();
-
-    let body: any = null;
-    try {
-      const response = await responsePromise;
-      body = await response.json().catch(() => null);
-      if (!response.ok()) {
-        // Retry once on 502/503 (likely auth service or gateway transient failure)
-        if (response.status() === 502 || response.status() === 503) {
-          console.warn(`[Khata] Got ${response.status()} — retrying once after 2s`);
-          await page.waitForTimeout(2_000);
-          const retryPromise = page.waitForResponse(
-            (r) => apiPathPattern.test(r.url()) && (r.request().method() === 'POST' || r.request().method() === 'PUT'),
-            { timeout: 30_000 },
-          );
-          await saveBtn.click();
-          const retryResponse = await retryPromise;
-          body = await retryResponse.json().catch(() => null);
-          if (!retryResponse.ok()) {
-            throw new Error(`Save failed (retry): ${retryResponse.status()} — ${JSON.stringify(body)}`);
-          }
-        } else {
-          throw new Error(`Save failed: ${response.status()} — ${JSON.stringify(body)}`);
-        }
-      }
-    } catch (err) {
-      throw err;
-    }
-
-    await expect(saveBtn).toBeVisible({ timeout: 5_000 });
-    await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(1_000);
-    return body;
-  };
+  const saveAndWait = (apiPathPattern: RegExp) =>
+    saveAndWaitForApi(page, apiPathPattern, { log });
 
   let ownerId = '';
   await test.step('Khata Setup: create owner', async () => {
@@ -93,6 +53,7 @@ export async function createKhataOwnerAndProperty(
     if (!ownerId) throw new Error(`Owner creation failed: no ownerId — response: ${JSON.stringify(ownerBody)}`);
     await snap(page, ctx, '01-khata-owner-created');
     log('Setup', 'PASS', `${owner.name} created (id=${ownerId})`);
+    await paceBetweenEntitySteps(page);
   });
 
   let propertyId = '';
@@ -112,6 +73,13 @@ export async function createKhataOwnerAndProperty(
     const ownerOption = page.locator('button').filter({ hasText: owner.name }).last();
     await expect(ownerOption).toBeVisible({ timeout: 10_000 });
     await ownerOption.click();
+    await page.keyboard.press('Escape').catch(() => null);
+    await page.waitForTimeout(300);
+    const addOwnerModal = page.getByRole('heading', { name: /Add New Owner/i });
+    if (await addOwnerModal.isVisible({ timeout: 500 }).catch(() => false)) {
+      await page.getByRole('button', { name: 'Cancel' }).click();
+      await expect(addOwnerModal).not.toBeVisible({ timeout: 5_000 });
+    }
 
     await page.getByPlaceholder('Spacious 2BHK Apartment in Andheri').fill(property.title);
     const description = page.getByPlaceholder('Describe the property...');

@@ -62,7 +62,8 @@ router.post('/tool', verifyMcpToken, async (req, res) => {
   }
 
   try {
-    const result = await invokeSkill(tenantId, toolName, input || {}, { userId: 'mcp-agent', source: 'mcp' });
+    const userId = req.headers['x-user-id'] || 'mcp-agent';
+    const result = await invokeSkill(tenantId, toolName, input || {}, { userId, source: 'mcp' });
     return res.json(result);
   } catch (err) {
     logger.error('agentTools.invoke.failed', { tenantId, toolName, error: err.message });

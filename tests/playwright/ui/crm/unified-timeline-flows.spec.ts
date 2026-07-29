@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { TEST_TIMEOUT_MS, BASE_URL } from '../../helpers/config';
 import { setupEvidence, createLogger, setupDialogHandler, snap } from '../../helpers/evidence';
-import { generateUniqueName, generateTestPhone } from '../../helpers/seedData';
+import { createTestRun, generateUniqueName, phoneForRun } from '../../helpers/seedData';
 
 test('Unified Activity Timeline: lead lifecycle events appear in timeline', async ({ page }) => {
   test.setTimeout(TEST_TIMEOUT_MS);
@@ -10,10 +10,10 @@ test('Unified Activity Timeline: lead lifecycle events appear in timeline', asyn
   setupDialogHandler(page, log);
   await page.setViewportSize({ width: 1280, height: 720 });
 
-  const runStamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1000).toString(36)}`;
-  const nameObj = generateUniqueName(runStamp, 0);
+  const run = createTestRun();
+  const nameObj = generateUniqueName(run.runStamp, 0);
   const testName = `TimelineTest ${nameObj.fullName}`;
-  const testPhone = generateTestPhone(1, 7_000_000_000 + (Date.now() % 1_000_000_00));
+  const testPhone = phoneForRun(run, 1);
   let leadId = '';
 
   await test.step('Create lead and verify timeline link', async () => {

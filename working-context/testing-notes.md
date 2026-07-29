@@ -4,7 +4,7 @@
 
 ```bash
 # Baileys service
-cd "D:\reality_flow_crm\nabi-app-git-bkp\baileys-service"
+cd "D:\reality_flow_crm\nabi-app-git-bkp\whatsapp-platform"
 npm test
 npm run dev
 
@@ -22,7 +22,7 @@ npm run dev
 
 ## Test results
 
-- `baileys-service`: **61 passed, 4 suites passed** (`apiKeyAuth.test.js`, `baileysClient.test.js`, `connection-controller.test.js`, `robustness.test.js`)
+- `whatsapp-platform`: run `npm test` in that directory.
 - `server`: all suites passed
 
 ## Manual testing scenarios

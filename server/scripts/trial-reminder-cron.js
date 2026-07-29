@@ -24,7 +24,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions';
 
 const BREVO_API_KEY = process.env.BREVO_API_KEY;
-const BREVO_SENDER = { name: 'RealEstateFlow', email: process.env.BREVO_SENDER_EMAIL || 'noreply@realestateflow.in' };
+const APP_URL = process.env.APP_URL;
 
 const EMAIL_TEMPLATES = {
   'trial-day-10': {
@@ -48,11 +48,12 @@ const EMAIL_TEMPLATES = {
 
 async function sendTrialEmail(to, emailType, params) {
   const template = EMAIL_TEMPLATES[emailType];
+  const upgradeUrl = APP_URL ? `${APP_URL}/crm/settings/billing?upgrade=true` : null;
   try {
     await sendEmail({
       to,
       subject: template.subject,
-      html: `<p>Hi,</p><p>${template.subject}.</p><p><a href="https://app.realestateflow.in/crm/settings/billing?upgrade=true">Upgrade now →</a></p>`,
+      html: `<p>Hi,</p><p>${template.subject}.</p>${upgradeUrl ? `<p><a href="${upgradeUrl}">Upgrade now →</a></p>` : ''}`,
       brevoTemplateId: template.templateId,
       params,
     });

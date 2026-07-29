@@ -5,6 +5,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   Browsers,
+  getHistoryMsg,
 } from '@whiskeysockets/baileys';
 import QRCode from 'qrcode';
 import { Boom } from '@hapi/boom';
@@ -20,19 +21,32 @@ import {
   HEALTH_PROBE_TIMEOUT_MS,
   DEFAULT_QUERY_TIMEOUT_MS,
   LOCAL_STORAGE,
+  PROCESS_EXTERNAL_MESSAGES,
 } from './config.js';
 import { ConnectionController } from './connection-controller.js';
+import { STATES } from './connection-state.js';
 import { isRetryableError } from './reconnect-policy.js';
 import { LRUCache } from 'lru-cache';
 import { getAuthState, deleteAuthState as deletePersistedAuthState, listPersistedPhones } from './storage/authState.js';
 import { upsertSession, deleteSession } from './storage/sessionRepository.js';
 import { events } from './events/index.js';
+import {
+  acknowledgeInbound,
+  drainInbound,
+  enqueueInbound,
+  failInbound,
+} from './inbound-deliveries.js';
+import { drainOutbound, enqueueOutbound } from './outbound-deliveries.js';
 
 /** @type {Map<string, import('./types').Session>} */
 const sessions = new Map();
 
 /** @type {Map<string, ConnectionController>} */
 const connectionControllers = new Map();
+
+// One initializer per phone prevents startup restoration, API pairing, and a
+// reconnect timer from constructing multiple sockets for the same account.
+const sessionInitializers = new Map();
 
 /** @type {Map<string, NodeJS.Timeout>} */
 const sessionHeartbeats = new Map();
@@ -49,6 +63,10 @@ const processedMessageIds = new LRUCache({ max: 50000, ttl: 24 * 60 * 60 * 1000 
 // Per-sender debounce buffers
 const debounceBuffers = new Map();
 const MAX_DEBOUNCE_BUFFER_SIZE = 100;
+
+async function deliverInbound(payload) {
+  await events.messageReceived({ ...payload, phone: payload.to });
+}
 
 // ─── JID utilities ────────────────────────────────────────────────────────────
 function jidToPhone(jid) {
@@ -79,6 +97,20 @@ function normalizePhone(phone) {
   const normalized = String(phone).replace(/\D/g, '');
   if (!normalized) throw new Error('Phone number cannot be empty after normalization');
   return normalized;
+}
+
+async function ensureLocalPreKeysAfterConnect(phone, controller) {
+  if (!LOCAL_STORAGE || !controller?.preKeyRecovery) return;
+  try {
+    const authDir = path.join(AUTH_STATE_DIR, normalizePhone(phone));
+    const files = await fs.readdir(authDir);
+    const preKeyCount = files.filter((f) => f.startsWith('pre-key-')).length;
+    if (preKeyCount > 0) return;
+    logger.warn({ phone: normalizePhone(phone) }, 'prekey.missing_local.regenerating');
+    await controller.preKeyRecovery.rotatePreKeys();
+  } catch (err) {
+    logger.warn({ phone: normalizePhone(phone), error: err.message }, 'prekey.missing_local.regenerate_failed');
+  }
 }
 
 function phoneToJid(phone) {
@@ -212,6 +244,22 @@ function stopHealthProbe(phone) {
 // ─── Socket logger proxy ──────────────────────────────────────────────────────
 function createSocketLogger(session, baseLogger) {
   const child = baseLogger.child({ module: 'baileys-socket' });
+
+  function noteRetryReceipt(args) {
+    const meta = args.find((a) => a && typeof a === 'object' && a.msgAttrs);
+    const from = meta?.msgAttrs?.from;
+    if (from === 'status@broadcast' || String(from || '').endsWith('@broadcast')) {
+      return;
+    }
+    // A retry receipt is scoped to one envelope. Treating three receipts as a
+    // whole-account crypto failure erased valid session state and created an
+    // endless restart loop.
+    logger.debug(
+      { phone: session.phone, from, messageId: meta?.msgAttrs?.id },
+      'incoming.retry_receipt.sent'
+    );
+  }
+
   function detectInitQueryTimeout(args) {
     for (const arg of args) {
       if (arg && typeof arg === 'object') {
@@ -227,13 +275,29 @@ function createSocketLogger(session, baseLogger) {
     }
     return null;
   }
+
+  function isIgnoredBroadcastDecryptError(args) {
+    const details = args.find((arg) => arg && typeof arg === 'object' && arg.key);
+    return isSkippableJid(details?.key?.remoteJid);
+  }
+
   return new Proxy(child, {
     get(target, prop, receiver) {
       const original = Reflect.get(target, prop, receiver);
       if ((prop === 'error' || prop === 'fatal') && typeof original === 'function') {
         return (...args) => {
+          if (isIgnoredBroadcastDecryptError(args)) {
+            return undefined;
+          }
           const timeoutError = detectInitQueryTimeout(args);
           if (timeoutError) logger.warn({ phone: session.phone, error: timeoutError.message }, 'init_queries.timeout');
+          return original.apply(target, args);
+        };
+      }
+      if (prop === 'info' && typeof original === 'function') {
+        return (...args) => {
+          const logMsg = args.find((a) => typeof a === 'string');
+          if (logMsg === 'sent retry receipt') noteRetryReceipt(args);
           return original.apply(target, args);
         };
       }
@@ -265,6 +329,22 @@ async function saveConnectionState(phone, session) {
   }
 }
 
+function isSkippableJid(jid) {
+  if (!jid) return true;
+  const normalized = String(jid);
+  return (
+    normalized === 'status@broadcast' ||
+    normalized.endsWith('@newsletter') ||
+    normalized.endsWith('@broadcast')
+  );
+}
+
+/** True when Baileys delivered a stub with no decryptable payload. */
+function isUndecryptableMessage(message) {
+  if (!message?.message) return true;
+  return Object.keys(message.message).length === 0;
+}
+
 // ─── Message helpers ──────────────────────────────────────────────────────────
 function getMessageText(message) {
   return (
@@ -276,8 +356,21 @@ function getMessageText(message) {
   );
 }
 
+/**
+ * Current-message-only delivery contract.
+ *
+ * `append` is Baileys' offline/history catch-up channel. It is deliberately
+ * ignored: old messages cannot be reliably decrypted or replayed after a
+ * restart. A message received while this socket is online arrives as `notify`.
+ */
+function shouldIngestUpsert(upsert, message) {
+  return upsert.type === 'notify' &&
+    !getHistoryMsg(message?.message) &&
+    !isSkippableJid(message?.key?.remoteJid);
+}
+
 // ─── Incoming message handler ─────────────────────────────────────────────────
-async function handleIncomingMessage(session, message) {
+async function handleIncomingMessage(session, message, upsertType = 'notify') {
   const senderJid = message.key?.participant || message.key?.remoteJid;
   const to = session.phone;
   const text = getMessageText(message);
@@ -285,7 +378,7 @@ async function handleIncomingMessage(session, message) {
   const fromMe = message.key?.fromMe === true;
 
   const ownJid = session.socket?.user?.id;
-  const ownLid = session.socket?.user?.lid;
+  const ownLid = session.socket?.user?.lid || session.ownLid;
   const remoteJid = message.key?.remoteJid;
   const remotePhone = jidToPhone(remoteJid);
   const ownPhone = jidToPhone(ownJid);
@@ -300,14 +393,23 @@ async function handleIncomingMessage(session, message) {
   const controller = connectionControllers.get(to);
   if (controller) controller.handleIncomingMessage();
 
-  if (!markMessageProcessed(messageId)) {
-    logger.info({ phone: session.phone, messageId }, 'incoming.duplicate_skip');
+  if (!text || !text.trim()) {
+    const undecryptable = isUndecryptableMessage(message);
+    const logLevel = undecryptable && upsertType === 'notify' ? 'warn' : 'debug';
+    logger[logLevel]({
+      phone: session.phone,
+      messageId,
+      fromMe,
+      remoteJid,
+      upsertType,
+      undecryptable,
+      reason: undecryptable ? 'undecryptable' : 'non_text_message',
+    }, 'incoming.empty_text_skip');
     return;
   }
 
-  if (!text || !text.trim()) {
-    logger.warn({ phone: session.phone, messageId, fromMe, remoteJid, reason: 'undecryptable_or_empty_text' }, 'incoming.empty_text_skip');
-    if (controller) await controller.handleCryptoError(new Error('undecryptable_or_empty_text'));
+  if (!markMessageProcessed(messageId)) {
+    logger.info({ phone: session.phone, messageId }, 'incoming.duplicate_skip');
     return;
   }
 
@@ -317,9 +419,15 @@ async function handleIncomingMessage(session, message) {
     fromJid: senderJid, timestamp: new Date().toISOString(),
   };
 
-  // Publish via event layer (EventBridge or direct webhook to CRM).
-  // The events layer handles both modes — no extra forwardWebhook call needed here.
-  await events.messageReceived({ ...payload, phone: to });
+  // Persist before delivery. A successful CRM acknowledgement removes the item;
+  // a restart or transient CRM failure leaves it available for retry.
+  await enqueueInbound(payload);
+  try {
+    await deliverInbound(payload);
+    await acknowledgeInbound(messageId);
+  } catch (error) {
+    await failInbound(messageId, error);
+  }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
@@ -344,7 +452,17 @@ export function listSessions() {
   }));
 }
 
-export async function createSession(phone, options = {}) {
+export function createSession(phone, options = {}) {
+  const normalized = normalizePhone(phone);
+  const existing = sessionInitializers.get(normalized);
+  if (existing) return existing;
+  const initializer = createSessionInternal(phone, options)
+    .finally(() => sessionInitializers.delete(normalized));
+  sessionInitializers.set(normalized, initializer);
+  return initializer;
+}
+
+async function createSessionInternal(phone, options = {}) {
   const normalized = normalizePhone(phone);
   const existing = sessions.get(normalized);
 
@@ -399,6 +517,14 @@ export async function createSession(phone, options = {}) {
 
   session.socket = sock;
 
+  // Stop any prior controller before replacing it. Reconnect/createSession paths
+  // previously left orphaned watchdog timers running (same phone, stale lastActivityTime).
+  const priorController = connectionControllers.get(normalized);
+  if (priorController) {
+    priorController.shutdown();
+    connectionControllers.delete(normalized);
+  }
+
   const controller = new ConnectionController(normalized, sock, {
     watchdog: { inactivityTimeout: 10 * 60 * 1000, heartbeatInterval: 60 * 1000 },
     reconnect: { baseDelay: 2000, maxDelay: 30000, multiplier: 1.8, jitterFactor: 0.25 },
@@ -425,17 +551,36 @@ export async function createSession(phone, options = {}) {
     if (connection) {
       session.connectionState = connection;
       logger.info({ phone: normalized, connection }, 'connection.update');
+      const wasReconnecting = connection === 'close' && controller.getState() === STATES.RECONNECTING;
       controller.handleConnectionUpdate(connection);
       saveConnectionState(phone, session).catch(() => {});
 
       if (connection === 'open') {
         session.qrCode = null;
+        // Capture own LID from connection update (WhatsApp's new LID format)
+        const ownLid =
+          update.me?.lid ||
+          sock.user?.lid ||
+          state?.creds?.me?.lid;
+        if (ownLid) {
+          session.ownLid = ownLid;
+          logger.info({ phone: normalized, ownLid: session.ownLid }, 'connection.own_lid.captured');
+        }
+        await ensureLocalPreKeysAfterConnect(normalized, controller);
         startHeartbeat(session);
         startHealthProbe(session);
         resolveOpen(session);
         upsertSession(normalized, { status: 'CONNECTED', connectedAt: new Date().toISOString() })
           .catch(err => logger.warn({ phone: normalized, error: err.message }, 'session.repo.connected_failed'));
         events.sessionConnected({ phone: normalized }).catch(() => {});
+        drainInbound(deliverInbound).catch((err) =>
+          logger.error({ phone: normalized, error: err.message }, 'inbound_delivery.drain_failed')
+        );
+        drainOutbound(normalized, (delivery) =>
+          sendMessage(delivery.from, delivery.to, delivery.text, delivery.media, delivery.id, true)
+        ).catch((err) =>
+          logger.error({ phone: normalized, error: err.message }, 'outbound_delivery.drain_failed')
+        );
 
         if (controller?.hasPendingDeliveries()) {
           controller.drainPendingDeliveries(async (p, to, text, media) => sendMessage(p, to, text, media))
@@ -446,10 +591,14 @@ export async function createSession(phone, options = {}) {
       if (connection === 'close') {
         stopHeartbeat(normalized);
         stopHealthProbe(normalized);
+        const isIntentionalReconnect = wasReconnecting;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         const error = lastDisconnect?.error;
-        const shouldReconnect = error instanceof Boom && !isLoggedOut && isRetryableError(error);
+        const shouldReconnect = !isLoggedOut && (
+          isIntentionalReconnect ||
+          (error instanceof Boom && isRetryableError(error))
+        );
 
         upsertSession(normalized, { status: isLoggedOut ? 'LOGGED_OUT' : 'DISCONNECTED', disconnectedAt: new Date().toISOString() })
           .catch(() => {});
@@ -483,21 +632,34 @@ export async function createSession(phone, options = {}) {
   });
 
   sock.ev.on('messages.upsert', async (upsert) => {
-    if (upsert.type !== 'notify') return;
     for (const message of upsert.messages) {
-      const ownJid = session.socket?.user?.id;
-      const ownLid = session.socket?.user?.lid;
+      if (!shouldIngestUpsert(upsert, message)) continue;
       const remoteJid = message.key?.remoteJid;
+      if (isSkippableJid(remoteJid)) continue;
+      const ownJid = session.socket?.user?.id;
+      const ownLid = session.socket?.user?.lid || session.ownLid;
       const remotePhone = jidToPhone(remoteJid);
       const ownPhone = jidToPhone(ownJid);
       const text = getMessageText(message);
       const fromMe = message.key?.fromMe;
       const isSelfChatResult = isSelfChat(remoteJid, remotePhone, session.phone, ownJid, ownLid, ownPhone);
-      const shouldProcessFromMe = isSelfChatResult || hasAiTrigger(text);
+
+      // Messages from yourself (fromMe=true) are ALWAYS processed.
+      // Messages from other people (fromMe=false) are only processed if PROCESS_EXTERNAL_MESSAGES is enabled.
+      const shouldProcess = fromMe
+        ? true
+        : PROCESS_EXTERNAL_MESSAGES;
+
+      // Capture own LID from first self-message if not already known
+      if (fromMe && remoteJid?.endsWith('@lid') && !session.ownLid && !remoteJid.includes('@g.us')) {
+        session.ownLid = remoteJid;
+        logger.info({ phone: normalized, ownLid: session.ownLid }, 'connection.own_lid.captured_from_message');
+      }
 
       logger.info({
         phone: normalized, fromMe, remoteJid, isSelfChat: isSelfChatResult,
-        shouldProcessFromMe, messageId: message.key?.id, text: text?.slice(0, 100),
+        shouldProcess, processExternal: PROCESS_EXTERNAL_MESSAGES,
+        messageId: message.key?.id, text: text?.slice(0, 100),
       }, 'messages.upsert');
 
       if (hasOutboundMessageId(normalized, remoteJid, message.key?.id)) {
@@ -505,13 +667,16 @@ export async function createSession(phone, options = {}) {
         logger.info({ phone: normalized, messageId: message.key?.id }, 'messages.upsert.echo_skip');
         continue;
       }
-      if (fromMe && !shouldProcessFromMe) continue;
+      if (!shouldProcess) {
+        logger.info({ phone: normalized, fromMe, reason: fromMe ? 'self_chat_filter' : 'external_messages_disabled' }, 'messages.upsert.skip');
+        continue;
+      }
 
       try {
         if (MESSAGE_DEBOUNCE_MS > 0 && !shouldSkipDebounce(message)) {
           debounceIncomingMessage(session, message);
         } else {
-          await handleIncomingMessage(session, message);
+          await handleIncomingMessage(session, message, upsert.type);
         }
       } catch (err) {
         const isCounterError = err?.name === 'MessageCounterError' || /MessageCounterError/i.test(err?.message || '');
@@ -588,24 +753,26 @@ function waitForQrOrConnect(session, options = {}) {
   });
 }
 
-export async function sendMessage(phone, to, text, media = null) {
+export async function sendMessage(phone, to, text, media = null, deliveryId = null, skipQueue = false) {
   const sessionPhone = phone ? normalizePhone(phone) : normalizePhone(DEFAULT_SESSION_PHONE);
   if (!sessionPhone) throw new Error('No session phone provided and DEFAULT_SESSION_PHONE not configured');
 
   const session = sessions.get(sessionPhone);
   const controller = connectionControllers.get(sessionPhone);
+  const queueDelivery = async () => {
+    const id = deliveryId || `outbound_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    await enqueueOutbound({ id, from: sessionPhone, to, text, media });
+    logger.info({ phone: sessionPhone, to, messageId: id }, 'message.queued');
+    return { queued: true, messageId: id };
+  };
 
-  if (controller && !controller.canAcceptMessages()) {
+  if (!skipQueue && controller && !controller.canAcceptMessages()) {
     const messageId = `pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const enqueued = controller.enqueuePendingDelivery(messageId, to, text, media);
-    if (enqueued) {
-      logger.info({ phone: sessionPhone, messageId }, 'message.queued');
-      return { queued: true, messageId };
-    }
-    throw new Error(`WhatsApp session ${sessionPhone} queue is full (state: ${controller.getState()})`);
+    return queueDelivery(messageId);
   }
 
   if (!session || !session.socket || session.connectionState !== 'open') {
+    if (!skipQueue) return queueDelivery();
     throw new Error(`WhatsApp session ${sessionPhone} is not connected`);
   }
 
@@ -711,6 +878,10 @@ export async function restoreSessions() {
   return { total: phones.length, restored, failed: failed.length };
 }
 
+export async function drainPendingInbound() {
+  return drainInbound(deliverInbound);
+}
+
 export async function shutdownAllSessions(timeoutMs = 10000) {
   logger.info({ count: sessions.size, timeoutMs }, 'shutdown.start');
 
@@ -766,4 +937,12 @@ export async function shutdownAllSessions(timeoutMs = 10000) {
 }
 
 // Test-only exports
-export { isHealthProbeFailure, createSocketLogger, startHealthProbe, stopHealthProbe, healthProbeTimers };
+export {
+  isHealthProbeFailure,
+  isSkippableJid,
+  shouldIngestUpsert,
+  createSocketLogger,
+  startHealthProbe,
+  stopHealthProbe,
+  healthProbeTimers,
+};

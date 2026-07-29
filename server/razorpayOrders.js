@@ -25,7 +25,7 @@ export async function createOrder({ amount, receipt, notes }) {
     {
       auth: { username: RAZORPAY_KEY_ID, password: RAZORPAY_KEY_SECRET },
       headers: { 'Content-Type': 'application/json' },
-      timeout: 10000,
+      timeout: parseInt(process.env.RAZORPAY_API_TIMEOUT_MS || '10000', 10),
     }
   );
 

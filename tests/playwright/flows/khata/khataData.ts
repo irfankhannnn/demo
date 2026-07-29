@@ -1,11 +1,12 @@
-import { generateTestPhone, generateTestEmail, generateUniqueName, generateUniquePropertyTitle, generateUniqueLocation } from '../../helpers/seedData';
+import { generateTestPhone, generateTestEmail, generateUniqueName, generateUniquePropertyTitle, generateUniqueLocation, TestRunContext } from '../../helpers/seedData';
 
-export function buildKhataTestData(runStamp: string, phoneBase: number) {
+export function buildKhataTestData(run: TestRunContext) {
+  const { runStamp, phoneBase } = run;
   const ownerNameObj = generateUniqueName(runStamp, 0);
   const ownerName = ownerNameObj.fullName;
   const ownerPhone = generateTestPhone(1, phoneBase);
-  const ownerEmail = generateTestEmail(ownerNameObj.firstName.toLowerCase(), 1, 'test.com');
-  const propertyTitle = `${generateUniquePropertyTitle(runStamp, 1)} (Khata ${runStamp})`;
+  const ownerEmail = generateTestEmail(ownerNameObj.firstName.toLowerCase(), 1, 'test.com', runStamp);
+  const propertyTitle = generateUniquePropertyTitle(runStamp, 1);
   const propertyLoc = generateUniqueLocation(runStamp, 2);
 
   return {
