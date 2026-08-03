@@ -1,0 +1,2592 @@
+{
+  ".mcp.json": {
+    "mtime": 1782634369.852857,
+    "ast_hash": "617e98f0c5c326c17005a9b9057e3746",
+    "semantic_hash": "617e98f0c5c326c17005a9b9057e3746"
+  },
+  "patch_mcp_remote.py": {
+    "mtime": 1782768634.6184223,
+    "ast_hash": "848e92da8c714ac15b29495bead7e501",
+    "semantic_hash": "848e92da8c714ac15b29495bead7e501"
+  },
+  "real-estate-crm-app/capacitor.config.ts": {
+    "mtime": 1770818180.462428,
+    "ast_hash": "d27fe3c7fbfe809525daa2acbf3cb062",
+    "semantic_hash": "d27fe3c7fbfe809525daa2acbf3cb062"
+  },
+  "real-estate-crm-app/package.json": {
+    "mtime": 1781374231.2387674,
+    "ast_hash": "c31337ac0570491ed99bd8844a6f1361",
+    "semantic_hash": "c31337ac0570491ed99bd8844a6f1361"
+  },
+  "real-estate-crm-app/postcss.config.js": {
+    "mtime": 1770818180.4726794,
+    "ast_hash": "5b84f4567208c7c747079c0477373231",
+    "semantic_hash": "5b84f4567208c7c747079c0477373231"
+  },
+  "real-estate-crm-app/src/App.tsx": {
+    "mtime": 1785430010.891093,
+    "ast_hash": "90206cb3c0537da54e11c53460ba1c50",
+    "semantic_hash": "90206cb3c0537da54e11c53460ba1c50"
+  },
+  "real-estate-crm-app/src/components/AddPropertyModal.tsx": {
+    "mtime": 1780935974.7422812,
+    "ast_hash": "6e9dc9ab021bb71e9374873236ac1ce3",
+    "semantic_hash": "6e9dc9ab021bb71e9374873236ac1ce3"
+  },
+  "real-estate-crm-app/src/components/AgentActivityLog.tsx": {
+    "mtime": 1782633987.2595088,
+    "ast_hash": "51bc757d6a309637f2ef5cbbcb8fe855",
+    "semantic_hash": "51bc757d6a309637f2ef5cbbcb8fe855"
+  },
+  "real-estate-crm-app/src/components/AiEmployeeSettings.tsx": {
+    "mtime": 1782633987.261534,
+    "ast_hash": "8b7b142b1ec7767955c605157cb58ab8",
+    "semantic_hash": "8b7b142b1ec7767955c605157cb58ab8"
+  },
+  "real-estate-crm-app/src/components/AiEmployeeTrialBanner.tsx": {
+    "mtime": 1782633987.2635455,
+    "ast_hash": "eb0dab0f21edbdb42624621894b8b6f7",
+    "semantic_hash": "eb0dab0f21edbdb42624621894b8b6f7"
+  },
+  "real-estate-crm-app/src/components/BuyCreditsModal.tsx": {
+    "mtime": 1782633987.2635455,
+    "ast_hash": "9cfb4668f27afaf4c0d15db9cd981225",
+    "semantic_hash": "9cfb4668f27afaf4c0d15db9cd981225"
+  },
+  "real-estate-crm-app/src/components/BuyerRequirementFields.tsx": {
+    "mtime": 1785430010.8571079,
+    "ast_hash": "03ce44d11eed0ea0b8a38422390bdbb9",
+    "semantic_hash": "03ce44d11eed0ea0b8a38422390bdbb9"
+  },
+  "real-estate-crm-app/src/components/ConfirmDialog.tsx": {
+    "mtime": 1781413809.3992496,
+    "ast_hash": "8ca474dacb24aed6d1c37f99d3cc43bd",
+    "semantic_hash": "8ca474dacb24aed6d1c37f99d3cc43bd"
+  },
+  "real-estate-crm-app/src/components/ContactActivityTimeline.tsx": {
+    "mtime": 1785430010.6640017,
+    "ast_hash": "e25ccecd65f64a7e881e2babc910b6b1",
+    "semantic_hash": "e25ccecd65f64a7e881e2babc910b6b1"
+  },
+  "real-estate-crm-app/src/components/CookieConsentBanner.tsx": {
+    "mtime": 1781122774.7987745,
+    "ast_hash": "8ab5a24fc7cc2fa29cba7f8469c2aca4",
+    "semantic_hash": "8ab5a24fc7cc2fa29cba7f8469c2aca4"
+  },
+  "real-estate-crm-app/src/components/CreateOwnerModal.tsx": {
+    "mtime": 1778596293.9583502,
+    "ast_hash": "97c633cee9436c25c2ee1c5f31dbd2bd",
+    "semantic_hash": "97c633cee9436c25c2ee1c5f31dbd2bd"
+  },
+  "real-estate-crm-app/src/components/CreateTenantModal.tsx": {
+    "mtime": 1778596293.9583502,
+    "ast_hash": "2d69c64d5e267440b4108b4e5a084f4e",
+    "semantic_hash": "2d69c64d5e267440b4108b4e5a084f4e"
+  },
+  "real-estate-crm-app/src/components/CreditBalanceCard.tsx": {
+    "mtime": 1782633987.2655509,
+    "ast_hash": "8df91030fdc778adc415d2a75cfbd41a",
+    "semantic_hash": "8df91030fdc778adc415d2a75cfbd41a"
+  },
+  "real-estate-crm-app/src/components/DemoBanner.tsx": {
+    "mtime": 1781122188.7703946,
+    "ast_hash": "88aa21343e712a1c3c676b125d42d92a",
+    "semantic_hash": "88aa21343e712a1c3c676b125d42d92a"
+  },
+  "real-estate-crm-app/src/components/DocumentUploadSection.tsx": {
+    "mtime": 1778596293.9593494,
+    "ast_hash": "69240806ec7ae08a62e64c56654372f1",
+    "semantic_hash": "69240806ec7ae08a62e64c56654372f1"
+  },
+  "real-estate-crm-app/src/components/FullscreenMediaViewer.tsx": {
+    "mtime": 1781413809.402866,
+    "ast_hash": "91d6ed74bd3eaabc15902cbbc58ebe75",
+    "semantic_hash": "91d6ed74bd3eaabc15902cbbc58ebe75"
+  },
+  "real-estate-crm-app/src/components/GlassDataTable.tsx": {
+    "mtime": 1785430010.6445403,
+    "ast_hash": "1de4e4b84cf49e1edb30bea909ab3111",
+    "semantic_hash": "1de4e4b84cf49e1edb30bea909ab3111"
+  },
+  "real-estate-crm-app/src/components/GoogleMapPicker.tsx": {
+    "mtime": 1781413809.4083993,
+    "ast_hash": "0cf33064caaeae7e61ce69d27e43672a",
+    "semantic_hash": "0cf33064caaeae7e61ce69d27e43672a"
+  },
+  "real-estate-crm-app/src/components/KhataDrawer.tsx": {
+    "mtime": 1781413809.4083993,
+    "ast_hash": "372d23ea825f25bb5c7e41628f9f456d",
+    "semantic_hash": "372d23ea825f25bb5c7e41628f9f456d"
+  },
+  "real-estate-crm-app/src/components/LeadActivityHistory.tsx": {
+    "mtime": 1785430010.9556856,
+    "ast_hash": "6e156bec05daa7b0372b70a02da30323",
+    "semantic_hash": "6e156bec05daa7b0372b70a02da30323"
+  },
+  "real-estate-crm-app/src/components/LeadAssignmentDropdown.tsx": {
+    "mtime": 1785430010.8004408,
+    "ast_hash": "70d35213d87b6daf5da584752be7241d",
+    "semantic_hash": "70d35213d87b6daf5da584752be7241d"
+  },
+  "real-estate-crm-app/src/components/LeadPropertyFields.tsx": {
+    "mtime": 1785430010.8411117,
+    "ast_hash": "cbeb9633c06df17160b04ae0fb7d3fbc",
+    "semantic_hash": "cbeb9633c06df17160b04ae0fb7d3fbc"
+  },
+  "real-estate-crm-app/src/components/LoadingSpinner.tsx": {
+    "mtime": 1781413809.4120378,
+    "ast_hash": "43dfed65df703372f0b64bc563ff0ed7",
+    "semantic_hash": "43dfed65df703372f0b64bc563ff0ed7"
+  },
+  "real-estate-crm-app/src/components/LocationPicker.tsx": {
+    "mtime": 1781413809.4125426,
+    "ast_hash": "19c313aee4b7f435f6334a5eb8eed8da",
+    "semantic_hash": "19c313aee4b7f435f6334a5eb8eed8da"
+  },
+  "real-estate-crm-app/src/components/LogoutConfirmModal.tsx": {
+    "mtime": 1778596293.9631865,
+    "ast_hash": "41904b2205ec6fbad5fc41ee3e8ad1f5",
+    "semantic_hash": "41904b2205ec6fbad5fc41ee3e8ad1f5"
+  },
+  "real-estate-crm-app/src/components/MediaUploadSection.tsx": {
+    "mtime": 1781413809.4125426,
+    "ast_hash": "85548548a8f95a602ca714fb1b89df6a",
+    "semantic_hash": "85548548a8f95a602ca714fb1b89df6a"
+  },
+  "real-estate-crm-app/src/components/MeetingHistoryModal.tsx": {
+    "mtime": 1778596293.964187,
+    "ast_hash": "3bb75abe52b1d1c9f21b4bce2f00315c",
+    "semantic_hash": "3bb75abe52b1d1c9f21b4bce2f00315c"
+  },
+  "real-estate-crm-app/src/components/MeetingRescheduleModal.tsx": {
+    "mtime": 1781413809.4125426,
+    "ast_hash": "644a346903090caf86b540152e29e918",
+    "semantic_hash": "644a346903090caf86b540152e29e918"
+  },
+  "real-estate-crm-app/src/components/NotificationCenter.tsx": {
+    "mtime": 1781614380.6029656,
+    "ast_hash": "1daeec79b81a0c09ae182e3352c1c423",
+    "semantic_hash": "1daeec79b81a0c09ae182e3352c1c423"
+  },
+  "real-estate-crm-app/src/components/NpsModal.tsx": {
+    "mtime": 1781614380.6029656,
+    "ast_hash": "3590768474c62be15033a7bba10f8d42",
+    "semantic_hash": "3590768474c62be15033a7bba10f8d42"
+  },
+  "real-estate-crm-app/src/components/NumericInput.tsx": {
+    "mtime": 1770818180.5451834,
+    "ast_hash": "54f138575a96f3b3311bcdedc252479f",
+    "semantic_hash": "54f138575a96f3b3311bcdedc252479f"
+  },
+  "real-estate-crm-app/src/components/OTPInput.tsx": {
+    "mtime": 1781413809.4166322,
+    "ast_hash": "b05f7cee822e3cffbfe97555fd164090",
+    "semantic_hash": "b05f7cee822e3cffbfe97555fd164090"
+  },
+  "real-estate-crm-app/src/components/PDFUploadSection.tsx": {
+    "mtime": 1778596293.967186,
+    "ast_hash": "b371d77e15c8ce294c9c2937044541d5",
+    "semantic_hash": "b371d77e15c8ce294c9c2937044541d5"
+  },
+  "real-estate-crm-app/src/components/PartySearchSelector.tsx": {
+    "mtime": 1781413809.4176085,
+    "ast_hash": "606e6e96422267f37ced52dfa618759b",
+    "semantic_hash": "606e6e96422267f37ced52dfa618759b"
+  },
+  "real-estate-crm-app/src/components/PaywallModal.tsx": {
+    "mtime": 1782633987.2670045,
+    "ast_hash": "13c0728bd7f442d783ea6e8f695e8b44",
+    "semantic_hash": "13c0728bd7f442d783ea6e8f695e8b44"
+  },
+  "real-estate-crm-app/src/components/PermissionGuard.tsx": {
+    "mtime": 1778596293.9681861,
+    "ast_hash": "3af95fa81a9a0e7315cc0512eaf5be08",
+    "semantic_hash": "3af95fa81a9a0e7315cc0512eaf5be08"
+  },
+  "real-estate-crm-app/src/components/PhoneInput.tsx": {
+    "mtime": 1781413809.4186263,
+    "ast_hash": "de7e82b681ee20c7005de1a3f14d3ac6",
+    "semantic_hash": "de7e82b681ee20c7005de1a3f14d3ac6"
+  },
+  "real-estate-crm-app/src/components/PropertiesMapView.tsx": {
+    "mtime": 1781413809.4192603,
+    "ast_hash": "604c09207941adc9e2a0e6fe36ee1d2e",
+    "semantic_hash": "604c09207941adc9e2a0e6fe36ee1d2e"
+  },
+  "real-estate-crm-app/src/components/ScheduleMeetingModal.tsx": {
+    "mtime": 1781413809.4202404,
+    "ast_hash": "df410074b392d1a288234a7dc36b54dd",
+    "semantic_hash": "df410074b392d1a288234a7dc36b54dd"
+  },
+  "real-estate-crm-app/src/components/SearchableSelect.tsx": {
+    "mtime": 1781413809.4238875,
+    "ast_hash": "61d9bb6b504229e35e6020e3cc409725",
+    "semantic_hash": "61d9bb6b504229e35e6020e3cc409725"
+  },
+  "real-estate-crm-app/src/components/SeatCounter.tsx": {
+    "mtime": 1782633987.2720265,
+    "ast_hash": "8beb7f37812b4d8bf9d1960696139ea1",
+    "semantic_hash": "8beb7f37812b4d8bf9d1960696139ea1"
+  },
+  "real-estate-crm-app/src/components/SeatUpgradeModal.tsx": {
+    "mtime": 1781124247.0608013,
+    "ast_hash": "0c309e1b3fc91d861a0fc5de0517272d",
+    "semantic_hash": "0c309e1b3fc91d861a0fc5de0517272d"
+  },
+  "real-estate-crm-app/src/components/SettlementModal.tsx": {
+    "mtime": 1778596293.9701862,
+    "ast_hash": "345739b9c87613e3f08aeff6d105f5ff",
+    "semantic_hash": "345739b9c87613e3f08aeff6d105f5ff"
+  },
+  "real-estate-crm-app/src/components/SpeechToTextButton.tsx": {
+    "mtime": 1770818180.5533519,
+    "ast_hash": "bf137ef03bdf5e4f11438d6d2a396926",
+    "semantic_hash": "bf137ef03bdf5e4f11438d6d2a396926"
+  },
+  "real-estate-crm-app/src/components/Toast.tsx": {
+    "mtime": 1780935974.7525434,
+    "ast_hash": "d3edf46fd76a05809fe0b4a3bdbaf085",
+    "semantic_hash": "d3edf46fd76a05809fe0b4a3bdbaf085"
+  },
+  "real-estate-crm-app/src/components/TrialCountdownBanner.tsx": {
+    "mtime": 1785430010.9235494,
+    "ast_hash": "fc938639e9044e9845f92190ca851aca",
+    "semantic_hash": "fc938639e9044e9845f92190ca851aca"
+  },
+  "real-estate-crm-app/src/components/WhatsAppChatThread.tsx": {
+    "mtime": 1782633987.2889366,
+    "ast_hash": "c1f56c2a48c41cab1bbb5a6c0356336a",
+    "semantic_hash": "c1f56c2a48c41cab1bbb5a6c0356336a"
+  },
+  "real-estate-crm-app/src/components/WhatsAppConversationList.tsx": {
+    "mtime": 1782633987.291892,
+    "ast_hash": "593274d36175c4f55ade58ae56ac2dd7",
+    "semantic_hash": "593274d36175c4f55ade58ae56ac2dd7"
+  },
+  "real-estate-crm-app/src/components/flat/AgreementTab.tsx": {
+    "mtime": 1770818180.56109,
+    "ast_hash": "f48e7abe8fb82659477faea94ef1347d",
+    "semantic_hash": "f48e7abe8fb82659477faea94ef1347d"
+  },
+  "real-estate-crm-app/src/components/flat/DocumentsTab.tsx": {
+    "mtime": 1778596293.9701862,
+    "ast_hash": "d3bb2a8b0530e7036e288b7bbbb143cf",
+    "semantic_hash": "d3bb2a8b0530e7036e288b7bbbb143cf"
+  },
+  "real-estate-crm-app/src/components/flat/OwnerTab.tsx": {
+    "mtime": 1778596293.9711852,
+    "ast_hash": "ee6688c093e61e43d4c8b4870d11bb4b",
+    "semantic_hash": "ee6688c093e61e43d4c8b4870d11bb4b"
+  },
+  "real-estate-crm-app/src/components/flat/TenantTab.tsx": {
+    "mtime": 1778596293.9711852,
+    "ast_hash": "6b88affbb4b5db71c709a759bb194fe4",
+    "semantic_hash": "6b88affbb4b5db71c709a759bb194fe4"
+  },
+  "real-estate-crm-app/src/components/flat/VerificationTab.tsx": {
+    "mtime": 1770818180.6122143,
+    "ast_hash": "b68018844f905c4cfb7829bd576b06e6",
+    "semantic_hash": "b68018844f905c4cfb7829bd576b06e6"
+  },
+  "real-estate-crm-app/src/config/tenant.ts": {
+    "mtime": 1778596293.9721859,
+    "ast_hash": "c241c1da3154310a40cd6d911451d608",
+    "semantic_hash": "c241c1da3154310a40cd6d911451d608"
+  },
+  "real-estate-crm-app/src/contexts/CreditsContext.tsx": {
+    "mtime": 1782633987.2927408,
+    "ast_hash": "b104ba1a14d56e29f3ffa037101293b4",
+    "semantic_hash": "b104ba1a14d56e29f3ffa037101293b4"
+  },
+  "real-estate-crm-app/src/contexts/GoogleMapsContext.tsx": {
+    "mtime": 1770818180.6167395,
+    "ast_hash": "cd228f90adef09ba2d27d42fdefb6d71",
+    "semantic_hash": "cd228f90adef09ba2d27d42fdefb6d71"
+  },
+  "real-estate-crm-app/src/contexts/SubscriptionContext.tsx": {
+    "mtime": 1782633987.2952838,
+    "ast_hash": "528834504674f71e0bdfc4240b3b86d1",
+    "semantic_hash": "528834504674f71e0bdfc4240b3b86d1"
+  },
+  "real-estate-crm-app/src/hooks/useCredits.ts": {
+    "mtime": 1781967096.308012,
+    "ast_hash": "0ebfeb3c694b520ee33d1fa9623370d1",
+    "semantic_hash": "0ebfeb3c694b520ee33d1fa9623370d1"
+  },
+  "real-estate-crm-app/src/hooks/useSubscription.ts": {
+    "mtime": 1782633987.2952838,
+    "ast_hash": "33918d7187953db90e10f585a31621ef",
+    "semantic_hash": "33918d7187953db90e10f585a31621ef"
+  },
+  "real-estate-crm-app/src/lib/analytics.ts": {
+    "mtime": 1781614380.6047304,
+    "ast_hash": "5910b694fd6fc62b9587774f2fc97d52",
+    "semantic_hash": "5910b694fd6fc62b9587774f2fc97d52"
+  },
+  "real-estate-crm-app/src/lib/razorpay.ts": {
+    "mtime": 1785430010.884874,
+    "ast_hash": "d9e4bb150c26e356b1b94bbc5e140031",
+    "semantic_hash": "d9e4bb150c26e356b1b94bbc5e140031"
+  },
+  "real-estate-crm-app/src/main.tsx": {
+    "mtime": 1781123558.6626065,
+    "ast_hash": "7cb01adb9e3f78d14c95fb4f8092809a",
+    "semantic_hash": "7cb01adb9e3f78d14c95fb4f8092809a"
+  },
+  "real-estate-crm-app/src/pages/AcceptInvite.tsx": {
+    "mtime": 1781413809.4271724,
+    "ast_hash": "4718cfbd89199eb59d568a8ff23c31d6",
+    "semantic_hash": "4718cfbd89199eb59d568a8ff23c31d6"
+  },
+  "real-estate-crm-app/src/pages/AdminLogin.tsx": {
+    "mtime": 1781413809.4282634,
+    "ast_hash": "2604fa342b34b934831957884d995920",
+    "semantic_hash": "2604fa342b34b934831957884d995920"
+  },
+  "real-estate-crm-app/src/pages/AuthCallback.tsx": {
+    "mtime": 1781413809.4290237,
+    "ast_hash": "86b3e35b06a89bc010dd6409c6c9cfc1",
+    "semantic_hash": "86b3e35b06a89bc010dd6409c6c9cfc1"
+  },
+  "real-estate-crm-app/src/pages/BuildingDetail.tsx": {
+    "mtime": 1782633987.2973168,
+    "ast_hash": "0bd1dc212b9059652bdf854fedf7c183",
+    "semantic_hash": "0bd1dc212b9059652bdf854fedf7c183"
+  },
+  "real-estate-crm-app/src/pages/Dashboard.tsx": {
+    "mtime": 1781413809.4308743,
+    "ast_hash": "c2c1c291d6d8ab2494a0a94351bb1429",
+    "semantic_hash": "c2c1c291d6d8ab2494a0a94351bb1429"
+  },
+  "real-estate-crm-app/src/pages/ForgotPassword.tsx": {
+    "mtime": 1781413809.4315422,
+    "ast_hash": "a8a516eaaedc31280b37af71305eb70a",
+    "semantic_hash": "a8a516eaaedc31280b37af71305eb70a"
+  },
+  "real-estate-crm-app/src/pages/PhoneLogin.tsx": {
+    "mtime": 1781694405.17287,
+    "ast_hash": "885ea76654672c30b3d2a6fb95bc8d1f",
+    "semantic_hash": "885ea76654672c30b3d2a6fb95bc8d1f"
+  },
+  "real-estate-crm-app/src/pages/Profile.tsx": {
+    "mtime": 1781413809.433425,
+    "ast_hash": "ab2ecbce460482d9ce5e3a6f1fad864b",
+    "semantic_hash": "ab2ecbce460482d9ce5e3a6f1fad864b"
+  },
+  "real-estate-crm-app/src/pages/RegisterAdmin.tsx": {
+    "mtime": 1781413809.4350295,
+    "ast_hash": "389c3c116cc3c41611a5bd7ffb36dc1a",
+    "semantic_hash": "389c3c116cc3c41611a5bd7ffb36dc1a"
+  },
+  "real-estate-crm-app/src/pages/RentalList.tsx": {
+    "mtime": 1781413809.4377155,
+    "ast_hash": "ae0ed55b100c05848db0ec77dfdcd5bc",
+    "semantic_hash": "ae0ed55b100c05848db0ec77dfdcd5bc"
+  },
+  "real-estate-crm-app/src/pages/RoleSelection.tsx": {
+    "mtime": 1781413809.4399543,
+    "ast_hash": "d4bd2148d5870c8316e7ea0085866036",
+    "semantic_hash": "d4bd2148d5870c8316e7ea0085866036"
+  },
+  "real-estate-crm-app/src/pages/admin/GrievanceList.tsx": {
+    "mtime": 1781124247.061376,
+    "ast_hash": "af27e03c57f4ff17dcc7606a0add13f3",
+    "semantic_hash": "af27e03c57f4ff17dcc7606a0add13f3"
+  },
+  "real-estate-crm-app/src/pages/admin/InviteManagement.tsx": {
+    "mtime": 1781614380.6057298,
+    "ast_hash": "069ef4991ed3300be83f55ce7de1336a",
+    "semantic_hash": "069ef4991ed3300be83f55ce7de1336a"
+  },
+  "real-estate-crm-app/src/pages/admin/MemberManagement.tsx": {
+    "mtime": 1781413809.4437037,
+    "ast_hash": "ce54d84118570d4de13cdc8e2b159f66",
+    "semantic_hash": "ce54d84118570d4de13cdc8e2b159f66"
+  },
+  "real-estate-crm-app/src/pages/admin/TeamAnalytics.tsx": {
+    "mtime": 1782633987.2993271,
+    "ast_hash": "1a0c4eab898c6c03c1f22c8e7a857dbb",
+    "semantic_hash": "1a0c4eab898c6c03c1f22c8e7a857dbb"
+  },
+  "real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx": {
+    "mtime": 1782633987.3010466,
+    "ast_hash": "bd61226064b3206165bbab0fc140af10",
+    "semantic_hash": "bd61226064b3206165bbab0fc140af10"
+  },
+  "real-estate-crm-app/src/pages/crm/AiEmployee.tsx": {
+    "mtime": 1782633987.3010466,
+    "ast_hash": "8adeaf523a60db9b35fc5bd8dc175e0a",
+    "semantic_hash": "8adeaf523a60db9b35fc5bd8dc175e0a"
+  },
+  "real-estate-crm-app/src/pages/crm/AiIntegrations.tsx": {
+    "mtime": 1783158819.502212,
+    "ast_hash": "2bcea167b45fb9f6e33034c1a7cb0aa4",
+    "semantic_hash": "2bcea167b45fb9f6e33034c1a7cb0aa4"
+  },
+  "real-estate-crm-app/src/pages/crm/B2BLeadsList.tsx": {
+    "mtime": 1781413809.4449394,
+    "ast_hash": "a1752b00013a2fe31d5a84a6ccdf138f",
+    "semantic_hash": "a1752b00013a2fe31d5a84a6ccdf138f"
+  },
+  "real-estate-crm-app/src/pages/crm/BillingSettings.tsx": {
+    "mtime": 1782633987.303053,
+    "ast_hash": "6ed6bc21cf188428c7cd250e69f3db9b",
+    "semantic_hash": "6ed6bc21cf188428c7cd250e69f3db9b"
+  },
+  "real-estate-crm-app/src/pages/crm/BusinessAnalytics.tsx": {
+    "mtime": 1781413809.4449394,
+    "ast_hash": "b30db415deb51929e95746a802867574",
+    "semantic_hash": "b30db415deb51929e95746a802867574"
+  },
+  "real-estate-crm-app/src/pages/crm/BuyerDetails.tsx": {
+    "mtime": 1785430010.8900914,
+    "ast_hash": "9de5a33c99105ea106a8dff986bf14a9",
+    "semantic_hash": "9de5a33c99105ea106a8dff986bf14a9"
+  },
+  "real-estate-crm-app/src/pages/crm/BuyerList.tsx": {
+    "mtime": 1785430010.929551,
+    "ast_hash": "737a12811d731bbec48d7f9ceaeea400",
+    "semantic_hash": "737a12811d731bbec48d7f9ceaeea400"
+  },
+  "real-estate-crm-app/src/pages/crm/CRMDashboard.tsx": {
+    "mtime": 1785430010.8227003,
+    "ast_hash": "d32f97b22c7108aec7dda829289ca05a",
+    "semantic_hash": "d32f97b22c7108aec7dda829289ca05a"
+  },
+  "real-estate-crm-app/src/pages/crm/Calendar.tsx": {
+    "mtime": 1781413809.4526486,
+    "ast_hash": "dd9cd06b6ffe972f05fd4bd4c416032d",
+    "semantic_hash": "dd9cd06b6ffe972f05fd4bd4c416032d"
+  },
+  "real-estate-crm-app/src/pages/crm/ContactDetails.tsx": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "a5dc72989f7d5ba7ed2bfb337e54dee6",
+    "semantic_hash": "a5dc72989f7d5ba7ed2bfb337e54dee6"
+  },
+  "real-estate-crm-app/src/pages/crm/ContactList.tsx": {
+    "mtime": 1785430010.674469,
+    "ast_hash": "08985845fb16fbca86144b2ee52e09f1",
+    "semantic_hash": "08985845fb16fbca86144b2ee52e09f1"
+  },
+  "real-estate-crm-app/src/pages/crm/CustomerDetails.tsx": {
+    "mtime": 1780935974.7811275,
+    "ast_hash": "987826e6f4932693761fb34bbc0078a0",
+    "semantic_hash": "987826e6f4932693761fb34bbc0078a0"
+  },
+  "real-estate-crm-app/src/pages/crm/CustomerList.tsx": {
+    "mtime": 1782633987.307271,
+    "ast_hash": "dab8b631d28d9f124f65e23ac936cbcd",
+    "semantic_hash": "dab8b631d28d9f124f65e23ac936cbcd"
+  },
+  "real-estate-crm-app/src/pages/crm/DeveloperDetails.tsx": {
+    "mtime": 1782633987.311342,
+    "ast_hash": "48d3c847bf46ac0f07c45089fa74d029",
+    "semantic_hash": "48d3c847bf46ac0f07c45089fa74d029"
+  },
+  "real-estate-crm-app/src/pages/crm/DeveloperList.tsx": {
+    "mtime": 1781413809.4601202,
+    "ast_hash": "d616998e373d7abba24490dc77ab208a",
+    "semantic_hash": "d616998e373d7abba24490dc77ab208a"
+  },
+  "real-estate-crm-app/src/pages/crm/EnquiryList.tsx": {
+    "mtime": 1781413809.4601202,
+    "ast_hash": "20eb8f988c9d8f740fd0c66a11ea5016",
+    "semantic_hash": "20eb8f988c9d8f740fd0c66a11ea5016"
+  },
+  "real-estate-crm-app/src/pages/crm/Hierarchy.tsx": {
+    "mtime": 1781413809.4631748,
+    "ast_hash": "1c438a5a7da7df16f0117276e8993338",
+    "semantic_hash": "1c438a5a7da7df16f0117276e8993338"
+  },
+  "real-estate-crm-app/src/pages/crm/KhataBook.tsx": {
+    "mtime": 1781413809.4642365,
+    "ast_hash": "cc0d2ae5bb5eaaa23db914f80ab4b2e2",
+    "semantic_hash": "cc0d2ae5bb5eaaa23db914f80ab4b2e2"
+  },
+  "real-estate-crm-app/src/pages/crm/KhataEntryForm.tsx": {
+    "mtime": 1781413809.4642365,
+    "ast_hash": "603451f82c6cf558298cfa7ca03f063a",
+    "semantic_hash": "603451f82c6cf558298cfa7ca03f063a"
+  },
+  "real-estate-crm-app/src/pages/crm/KhataSettlement.tsx": {
+    "mtime": 1781413809.46636,
+    "ast_hash": "babf1822c6b68dac9a5020617cd945b2",
+    "semantic_hash": "babf1822c6b68dac9a5020617cd945b2"
+  },
+  "real-estate-crm-app/src/pages/crm/LeadDetails.tsx": {
+    "mtime": 1785430010.6794686,
+    "ast_hash": "a73a2bc032d4766f3b49d658fba00bf3",
+    "semantic_hash": "a73a2bc032d4766f3b49d658fba00bf3"
+  },
+  "real-estate-crm-app/src/pages/crm/LeadDrawer.tsx": {
+    "mtime": 1785258485.9972453,
+    "ast_hash": "3c49589a96fc3dd4fcbbc9937562bd24",
+    "semantic_hash": "3c49589a96fc3dd4fcbbc9937562bd24"
+  },
+  "real-estate-crm-app/src/pages/crm/LeadList.tsx": {
+    "mtime": 1785430010.6640017,
+    "ast_hash": "07e63c6a44a501a12df2782cbd5d6dfa",
+    "semantic_hash": "07e63c6a44a501a12df2782cbd5d6dfa"
+  },
+  "real-estate-crm-app/src/pages/crm/OwnerDetails.tsx": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "5a42f3bd14fc8d7f9853dfaafdfb76fd",
+    "semantic_hash": "5a42f3bd14fc8d7f9853dfaafdfb76fd"
+  },
+  "real-estate-crm-app/src/pages/crm/OwnerList.tsx": {
+    "mtime": 1785430010.6680026,
+    "ast_hash": "1b8412adf0e58e6603a1ec76d80890d1",
+    "semantic_hash": "1b8412adf0e58e6603a1ec76d80890d1"
+  },
+  "real-estate-crm-app/src/pages/crm/ProjectDetails.tsx": {
+    "mtime": 1781413809.4779449,
+    "ast_hash": "727aabdf7583816fe1b4ca4438ce0a8d",
+    "semantic_hash": "727aabdf7583816fe1b4ca4438ce0a8d"
+  },
+  "real-estate-crm-app/src/pages/crm/ProjectList.tsx": {
+    "mtime": 1781413809.4794526,
+    "ast_hash": "45267a074a6734196f80d9a53166aae5",
+    "semantic_hash": "45267a074a6734196f80d9a53166aae5"
+  },
+  "real-estate-crm-app/src/pages/crm/PropertyDetails.tsx": {
+    "mtime": 1785430010.72464,
+    "ast_hash": "05e3b069b33c9344b01b63fff5c9d18d",
+    "semantic_hash": "05e3b069b33c9344b01b63fff5c9d18d"
+  },
+  "real-estate-crm-app/src/pages/crm/PropertyList.tsx": {
+    "mtime": 1785430010.7994428,
+    "ast_hash": "e7b3e15437a834af705ddd6f70c1a6e3",
+    "semantic_hash": "e7b3e15437a834af705ddd6f70c1a6e3"
+  },
+  "real-estate-crm-app/src/pages/crm/RealEstateAreaDetails.tsx": {
+    "mtime": 1780935974.8061182,
+    "ast_hash": "7793f4b6165089a422033b82342e85e8",
+    "semantic_hash": "7793f4b6165089a422033b82342e85e8"
+  },
+  "real-estate-crm-app/src/pages/crm/RealEstateAreaList.tsx": {
+    "mtime": 1781413809.4842403,
+    "ast_hash": "557c729e5704a65eeda1e0d843770512",
+    "semantic_hash": "557c729e5704a65eeda1e0d843770512"
+  },
+  "real-estate-crm-app/src/pages/crm/RentedProperties.tsx": {
+    "mtime": 1781614380.6105063,
+    "ast_hash": "f09f8859630f0019d7857baddc9c9d6b",
+    "semantic_hash": "f09f8859630f0019d7857baddc9c9d6b"
+  },
+  "real-estate-crm-app/src/pages/crm/TenantDetails.tsx": {
+    "mtime": 1785430010.9190052,
+    "ast_hash": "111fc44473f78cf9c0905d28b8e5b6db",
+    "semantic_hash": "111fc44473f78cf9c0905d28b8e5b6db"
+  },
+  "real-estate-crm-app/src/pages/crm/TenantList.tsx": {
+    "mtime": 1781413809.4949896,
+    "ast_hash": "a3f2c82b2e8e68af6ef21d5d2b9db9d3",
+    "semantic_hash": "a3f2c82b2e8e68af6ef21d5d2b9db9d3"
+  },
+  "real-estate-crm-app/src/pages/crm/WhatsAppInbox.tsx": {
+    "mtime": 1782633987.3158844,
+    "ast_hash": "dd9647f27fdf905c3bc6792b5b8229fb",
+    "semantic_hash": "dd9647f27fdf905c3bc6792b5b8229fb"
+  },
+  "real-estate-crm-app/src/pages/member/Invites.tsx": {
+    "mtime": 1781413809.4976737,
+    "ast_hash": "46209283b032707d1fd0eed823debecc",
+    "semantic_hash": "46209283b032707d1fd0eed823debecc"
+  },
+  "real-estate-crm-app/src/pages/member/NoAccess.tsx": {
+    "mtime": 1781413809.499941,
+    "ast_hash": "0720e6906cdd87762f9b27f317b45c29",
+    "semantic_hash": "0720e6906cdd87762f9b27f317b45c29"
+  },
+  "real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx": {
+    "mtime": 1782838961.881258,
+    "ast_hash": "5e8cf7a5cb9497e88d5cb2e798f73bdc",
+    "semantic_hash": "5e8cf7a5cb9497e88d5cb2e798f73bdc"
+  },
+  "real-estate-crm-app/src/pages/public/Grievance.tsx": {
+    "mtime": 1781124247.063505,
+    "ast_hash": "e485274695dec59925e625258eee6023",
+    "semantic_hash": "e485274695dec59925e625258eee6023"
+  },
+  "real-estate-crm-app/src/pages/public/NpsEmailLanding.tsx": {
+    "mtime": 1781374231.2478576,
+    "ast_hash": "dac0dd465094b15e40b58f4c96bb97d6",
+    "semantic_hash": "dac0dd465094b15e40b58f4c96bb97d6"
+  },
+  "real-estate-crm-app/src/services/api.ts": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "64be01fba27f5f77a59ba3e4ba0b780c",
+    "semantic_hash": "64be01fba27f5f77a59ba3e4ba0b780c"
+  },
+  "real-estate-crm-app/src/services/contactLinkApi.ts": {
+    "mtime": 1778596294.1492796,
+    "ast_hash": "34e42a3efafdad169221e86402da0fbe",
+    "semantic_hash": "34e42a3efafdad169221e86402da0fbe"
+  },
+  "real-estate-crm-app/src/types/admin.ts": {
+    "mtime": 1770818180.8990674,
+    "ast_hash": "de24767edbb938c49f25df8617a6451f",
+    "semantic_hash": "de24767edbb938c49f25df8617a6451f"
+  },
+  "real-estate-crm-app/src/types/aiCalling.ts": {
+    "mtime": 1770818180.8996482,
+    "ast_hash": "43d178a378a0c945a7d996468f7b42f9",
+    "semantic_hash": "43d178a378a0c945a7d996468f7b42f9"
+  },
+  "real-estate-crm-app/src/types/analytics.ts": {
+    "mtime": 1781123558.6668694,
+    "ast_hash": "5cd855e8fca153704dd9e5fccb8ff987",
+    "semantic_hash": "5cd855e8fca153704dd9e5fccb8ff987"
+  },
+  "real-estate-crm-app/src/types/crm.ts": {
+    "mtime": 1785430010.9423318,
+    "ast_hash": "a46e2956b052a1cb958c96473735cb0a",
+    "semantic_hash": "a46e2956b052a1cb958c96473735cb0a"
+  },
+  "real-estate-crm-app/src/types/khata.ts": {
+    "mtime": 1780935974.8159964,
+    "ast_hash": "008c6a4ec7621c7cebd2691ca08610b2",
+    "semantic_hash": "008c6a4ec7621c7cebd2691ca08610b2"
+  },
+  "real-estate-crm-app/src/types/notification.ts": {
+    "mtime": 1770818180.9112883,
+    "ast_hash": "a0cb32e0b02cf7769263fd156cac3c4a",
+    "semantic_hash": "a0cb32e0b02cf7769263fd156cac3c4a"
+  },
+  "real-estate-crm-app/src/types/property.ts": {
+    "mtime": 1770818180.9122944,
+    "ast_hash": "1c657a1563104be0d464acbc4fb9d238",
+    "semantic_hash": "1c657a1563104be0d464acbc4fb9d238"
+  },
+  "real-estate-crm-app/src/types/realEstate.ts": {
+    "mtime": 1782633987.3225863,
+    "ast_hash": "440d31514fb50730d4c8efbdf8cd1474",
+    "semantic_hash": "440d31514fb50730d4c8efbdf8cd1474"
+  },
+  "real-estate-crm-app/src/types/whatsapp.ts": {
+    "mtime": 1782633987.3225863,
+    "ast_hash": "e14865c991287de476d734a93316b47b",
+    "semantic_hash": "e14865c991287de476d734a93316b47b"
+  },
+  "real-estate-crm-app/src/utils/activityHistory.ts": {
+    "mtime": 1785430010.9453347,
+    "ast_hash": "8524c52be089c8f0ad0af2322c3450f5",
+    "semantic_hash": "8524c52be089c8f0ad0af2322c3450f5"
+  },
+  "real-estate-crm-app/src/utils/activityTimelineMeta.ts": {
+    "mtime": 1785430010.9315505,
+    "ast_hash": "4f7a3f21a0b8d6a84f1f93c312d760f9",
+    "semantic_hash": "4f7a3f21a0b8d6a84f1f93c312d760f9"
+  },
+  "real-estate-crm-app/src/utils/authStorage.ts": {
+    "mtime": 1782633987.3251755,
+    "ast_hash": "c9dd0f1b5417a65a4f02db1a0b4b184d",
+    "semantic_hash": "c9dd0f1b5417a65a4f02db1a0b4b184d"
+  },
+  "real-estate-crm-app/src/utils/buyerRequirementSchema.test.ts": {
+    "mtime": 1785430010.9371514,
+    "ast_hash": "5b753117fbf819e8c8b2e92896993668",
+    "semantic_hash": "5b753117fbf819e8c8b2e92896993668"
+  },
+  "real-estate-crm-app/src/utils/buyerRequirementSchema.ts": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "9d4d5e59ab203878613176ba05df6e82",
+    "semantic_hash": "9d4d5e59ab203878613176ba05df6e82"
+  },
+  "real-estate-crm-app/src/utils/cognitoAuth.ts": {
+    "mtime": 1781694540.0584297,
+    "ast_hash": "f5ecc2c005f0777cc2d6d067d4046660",
+    "semantic_hash": "f5ecc2c005f0777cc2d6d067d4046660"
+  },
+  "real-estate-crm-app/src/utils/dateFormat.ts": {
+    "mtime": 1770818180.9147882,
+    "ast_hash": "3ea91bc2086e16289d25f5d5be74cc19",
+    "semantic_hash": "3ea91bc2086e16289d25f5d5be74cc19"
+  },
+  "real-estate-crm-app/src/utils/flashToast.ts": {
+    "mtime": 1785430010.8088663,
+    "ast_hash": "0966cfe688dc45d314ce4adc03ec4fb6",
+    "semantic_hash": "0966cfe688dc45d314ce4adc03ec4fb6"
+  },
+  "real-estate-crm-app/src/utils/leadConstants.ts": {
+    "mtime": 1785430010.9523323,
+    "ast_hash": "b5c32de3efc90ce11a6b5c40fa374691",
+    "semantic_hash": "b5c32de3efc90ce11a6b5c40fa374691"
+  },
+  "real-estate-crm-app/src/utils/leadConversion.ts": {
+    "mtime": 1785430010.812868,
+    "ast_hash": "e3bcab3f4fb67b29872fa2e2d8673c88",
+    "semantic_hash": "e3bcab3f4fb67b29872fa2e2d8673c88"
+  },
+  "real-estate-crm-app/src/utils/leadPropertySchema.test.ts": {
+    "mtime": 1785430010.6953566,
+    "ast_hash": "a3e4bd80c2e52ee1d6e9abaa6ecb65b1",
+    "semantic_hash": "a3e4bd80c2e52ee1d6e9abaa6ecb65b1"
+  },
+  "real-estate-crm-app/src/utils/leadPropertySchema.ts": {
+    "mtime": 1785430010.8581066,
+    "ast_hash": "586c0877b269d7570691c91af6fc1943",
+    "semantic_hash": "586c0877b269d7570691c91af6fc1943"
+  },
+  "real-estate-crm-app/src/utils/leadSavePayload.ts": {
+    "mtime": 1785430010.92455,
+    "ast_hash": "ce92af8c9987b16826c9b110635e3f07",
+    "semantic_hash": "ce92af8c9987b16826c9b110635e3f07"
+  },
+  "real-estate-crm-app/src/utils/pkce.ts": {
+    "mtime": 1778596294.1532972,
+    "ast_hash": "ff0be13e49258f4d92bc5a350e2314e9",
+    "semantic_hash": "ff0be13e49258f4d92bc5a350e2314e9"
+  },
+  "real-estate-crm-app/src/utils/propertyPricing.ts": {
+    "mtime": 1785430010.7745166,
+    "ast_hash": "50053f5647c52a22e42ed6f0aaa581cd",
+    "semantic_hash": "50053f5647c52a22e42ed6f0aaa581cd"
+  },
+  "real-estate-crm-app/src/utils/rbac.ts": {
+    "mtime": 1785258488.8120816,
+    "ast_hash": "6c058a255f115e80b1fd935da4ddf1d1",
+    "semantic_hash": "6c058a255f115e80b1fd935da4ddf1d1"
+  },
+  "real-estate-crm-app/src/utils/validation.ts": {
+    "mtime": 1770818180.9219856,
+    "ast_hash": "44c99bf15c3a9a88808155f34ff1d34c",
+    "semantic_hash": "44c99bf15c3a9a88808155f34ff1d34c"
+  },
+  "real-estate-crm-app/src/utils/whatsappConnection.ts": {
+    "mtime": 1782839627.4034324,
+    "ast_hash": "183ecd5d0f7898ae934248108b6a7a58",
+    "semantic_hash": "183ecd5d0f7898ae934248108b6a7a58"
+  },
+  "real-estate-crm-app/src/vite-env.d.ts": {
+    "mtime": 1781374231.2513652,
+    "ast_hash": "f0b61053e3ef9c8666bc33b3549014ab",
+    "semantic_hash": "f0b61053e3ef9c8666bc33b3549014ab"
+  },
+  "real-estate-crm-app/tailwind.config.js": {
+    "mtime": 1781413809.5034387,
+    "ast_hash": "9afb21cebd97d1d0507d3a6067926a05",
+    "semantic_hash": "9afb21cebd97d1d0507d3a6067926a05"
+  },
+  "real-estate-crm-app/tsconfig.json": {
+    "mtime": 1770818180.9297647,
+    "ast_hash": "ff3e7b6750bd66840790b1d1707c5772",
+    "semantic_hash": "ff3e7b6750bd66840790b1d1707c5772"
+  },
+  "real-estate-crm-app/tsconfig.node.json": {
+    "mtime": 1770818180.930271,
+    "ast_hash": "ff324cc08470bef4fa12970022895158",
+    "semantic_hash": "ff324cc08470bef4fa12970022895158"
+  },
+  "real-estate-crm-app/vite.config.ts": {
+    "mtime": 1778596294.1728573,
+    "ast_hash": "b662970a6c13e3112bb13be5e5212a84",
+    "semantic_hash": "b662970a6c13e3112bb13be5e5212a84"
+  },
+  "reality-flow-authentication/infra/cfn-params.sample.json": {
+    "mtime": 1782633987.329635,
+    "ast_hash": "2daed73a6a8e8b32c77a42aed77cc2b2",
+    "semantic_hash": "2daed73a6a8e8b32c77a42aed77cc2b2"
+  },
+  "reality-flow-authentication/infra/deploy.sh": {
+    "mtime": 1782633987.3391385,
+    "ast_hash": "5d8029ed282beeb649468b8e2c42c4c7",
+    "semantic_hash": "5d8029ed282beeb649468b8e2c42c4c7"
+  },
+  "reality-flow-authentication/package.json": {
+    "mtime": 1781686980.5122938,
+    "ast_hash": "7af37ea32e271a36d29eaa316124ce85",
+    "semantic_hash": "7af37ea32e271a36d29eaa316124ce85"
+  },
+  "reality-flow-authentication/src/app.ts": {
+    "mtime": 1781694495.1275055,
+    "ast_hash": "d3b2497b8b3e371ecff5b7f3cc34f4d3",
+    "semantic_hash": "d3b2497b8b3e371ecff5b7f3cc34f4d3"
+  },
+  "reality-flow-authentication/src/config/config.ts": {
+    "mtime": 1781374231.257218,
+    "ast_hash": "bb35c0fe60a6db4949976dd996d623f1",
+    "semantic_hash": "bb35c0fe60a6db4949976dd996d623f1"
+  },
+  "reality-flow-authentication/src/controllers/authController.ts": {
+    "mtime": 1781374254.0669923,
+    "ast_hash": "5d5d78481bf837d0de5abb2099112744",
+    "semantic_hash": "5d5d78481bf837d0de5abb2099112744"
+  },
+  "reality-flow-authentication/src/controllers/contactLinkController.ts": {
+    "mtime": 1781374231.257218,
+    "ast_hash": "c04f81beea0a30632f05e24552d6bd0b",
+    "semantic_hash": "c04f81beea0a30632f05e24552d6bd0b"
+  },
+  "reality-flow-authentication/src/controllers/googleAuthController.ts": {
+    "mtime": 1781374231.257218,
+    "ast_hash": "5ea5238b0b109b92fbf7fe9e6bf97d87",
+    "semantic_hash": "5ea5238b0b109b92fbf7fe9e6bf97d87"
+  },
+  "reality-flow-authentication/src/controllers/inviteController.ts": {
+    "mtime": 1781374231.257218,
+    "ast_hash": "23d2a6c0dd497e7e3920c78dcc59cc74",
+    "semantic_hash": "23d2a6c0dd497e7e3920c78dcc59cc74"
+  },
+  "reality-flow-authentication/src/controllers/phoneAuthCustomController.ts": {
+    "mtime": 1781683210.4882164,
+    "ast_hash": "6e620794fc07a16dd38b309234ead5b9",
+    "semantic_hash": "6e620794fc07a16dd38b309234ead5b9"
+  },
+  "reality-flow-authentication/src/controllers/tokenController.ts": {
+    "mtime": 1781697624.827374,
+    "ast_hash": "d7ca1d483e0046dc1b6d22cd229f45d5",
+    "semantic_hash": "d7ca1d483e0046dc1b6d22cd229f45d5"
+  },
+  "reality-flow-authentication/src/controllers/usersController.ts": {
+    "mtime": 1781374231.262016,
+    "ast_hash": "cccfc0cc5b3e4c43b46aacef839146ab",
+    "semantic_hash": "cccfc0cc5b3e4c43b46aacef839146ab"
+  },
+  "reality-flow-authentication/src/index.ts": {
+    "mtime": 1778596294.2164874,
+    "ast_hash": "000b1b6b6b921b591fc50bfb434e0e2b",
+    "semantic_hash": "000b1b6b6b921b591fc50bfb434e0e2b"
+  },
+  "reality-flow-authentication/src/local-server.ts": {
+    "mtime": 1778596294.2164874,
+    "ast_hash": "e0c69df8c6135c3b08150ef30f7c538e",
+    "semantic_hash": "e0c69df8c6135c3b08150ef30f7c538e"
+  },
+  "reality-flow-authentication/src/middleware/authMiddleware.ts": {
+    "mtime": 1781374231.262016,
+    "ast_hash": "8eb8edf3a59132961df8ddb61f3edf33",
+    "semantic_hash": "8eb8edf3a59132961df8ddb61f3edf33"
+  },
+  "reality-flow-authentication/src/middleware/requireAuth.ts": {
+    "mtime": 1781374231.262016,
+    "ast_hash": "8d4940538c3340f13df93870c1d497d2",
+    "semantic_hash": "8d4940538c3340f13df93870c1d497d2"
+  },
+  "reality-flow-authentication/src/models/agencyConfigModel.ts": {
+    "mtime": 1778596294.2184944,
+    "ast_hash": "ffaae73817700e79f79e8ac2335cec48",
+    "semantic_hash": "ffaae73817700e79f79e8ac2335cec48"
+  },
+  "reality-flow-authentication/src/models/authIdentitiesModel.ts": {
+    "mtime": 1778596294.2184944,
+    "ast_hash": "ff6ab33f64cb43663d0a35af675712b7",
+    "semantic_hash": "ff6ab33f64cb43663d0a35af675712b7"
+  },
+  "reality-flow-authentication/src/models/invitesModel.ts": {
+    "mtime": 1778596294.2202432,
+    "ast_hash": "d8ab2271c5b46fbe0b0c84fcf35563ac",
+    "semantic_hash": "d8ab2271c5b46fbe0b0c84fcf35563ac"
+  },
+  "reality-flow-authentication/src/models/phoneLinkOtpModel.ts": {
+    "mtime": 1778596294.2202432,
+    "ast_hash": "724e67bacb3402250f23c5f61c6bf3a9",
+    "semantic_hash": "724e67bacb3402250f23c5f61c6bf3a9"
+  },
+  "reality-flow-authentication/src/models/subscriptionsModel.ts": {
+    "mtime": 1781374231.2649896,
+    "ast_hash": "fdb64ce08d15154b4a1edc558e68b696",
+    "semantic_hash": "fdb64ce08d15154b4a1edc558e68b696"
+  },
+  "reality-flow-authentication/src/models/usersModel.ts": {
+    "mtime": 1785434224.1573832,
+    "ast_hash": "7a6467a87b04645f101f831d35008eab",
+    "semantic_hash": "7a6467a87b04645f101f831d35008eab"
+  },
+  "reality-flow-authentication/src/routes/auth.ts": {
+    "mtime": 1781374231.267171,
+    "ast_hash": "926eaebc485fcb102da3f5c4971e1d60",
+    "semantic_hash": "926eaebc485fcb102da3f5c4971e1d60"
+  },
+  "reality-flow-authentication/src/routes/googleAuth.ts": {
+    "mtime": 1778596294.2222497,
+    "ast_hash": "6e4aea582099f91936b9829d1e8f3594",
+    "semantic_hash": "6e4aea582099f91936b9829d1e8f3594"
+  },
+  "reality-flow-authentication/src/routes/internal.ts": {
+    "mtime": 1782633987.3624866,
+    "ast_hash": "12713767cdb35881f356900ccdba2da8",
+    "semantic_hash": "12713767cdb35881f356900ccdba2da8"
+  },
+  "reality-flow-authentication/src/routes/invites.ts": {
+    "mtime": 1778596294.2222497,
+    "ast_hash": "91862dc944344d484b21de34e79ab223",
+    "semantic_hash": "91862dc944344d484b21de34e79ab223"
+  },
+  "reality-flow-authentication/src/routes/phoneAuth.ts": {
+    "mtime": 1781374231.267171,
+    "ast_hash": "fbbf6ed5e1fabcd85a87c488ce24b2a7",
+    "semantic_hash": "fbbf6ed5e1fabcd85a87c488ce24b2a7"
+  },
+  "reality-flow-authentication/src/routes/users.ts": {
+    "mtime": 1778596294.2242565,
+    "ast_hash": "ffcde328d5cb611056f6c9ba1e9821b5",
+    "semantic_hash": "ffcde328d5cb611056f6c9ba1e9821b5"
+  },
+  "reality-flow-authentication/src/types/errors.ts": {
+    "mtime": 1778596294.2242565,
+    "ast_hash": "ca69da4775e409a9584b885a9a16d70c",
+    "semantic_hash": "ca69da4775e409a9584b885a9a16d70c"
+  },
+  "reality-flow-authentication/src/utils/cognito.ts": {
+    "mtime": 1781374231.2711105,
+    "ast_hash": "139201ef54b6036451c13d9a4092da16",
+    "semantic_hash": "139201ef54b6036451c13d9a4092da16"
+  },
+  "reality-flow-authentication/src/utils/cookies.ts": {
+    "mtime": 1781697580.3032646,
+    "ast_hash": "79e54f33e9e857fa35b7b78e4657bb24",
+    "semantic_hash": "79e54f33e9e857fa35b7b78e4657bb24"
+  },
+  "reality-flow-authentication/src/utils/http.ts": {
+    "mtime": 1778596294.2262638,
+    "ast_hash": "8ee7b5553e2c519cc2b95a5b961a8abb",
+    "semantic_hash": "8ee7b5553e2c519cc2b95a5b961a8abb"
+  },
+  "reality-flow-authentication/src/utils/logger.ts": {
+    "mtime": 1781374231.2718184,
+    "ast_hash": "5f5b7096732315bc23e1616b23906638",
+    "semantic_hash": "5f5b7096732315bc23e1616b23906638"
+  },
+  "reality-flow-authentication/src/utils/phoneValidation.ts": {
+    "mtime": 1778596294.2262638,
+    "ast_hash": "562693b61246e03a5200dfd21aff2a14",
+    "semantic_hash": "562693b61246e03a5200dfd21aff2a14"
+  },
+  "reality-flow-authentication/src/utils/pkce.ts": {
+    "mtime": 1778596294.2262638,
+    "ast_hash": "5d90d934175e72ab9cdf090c42a82532",
+    "semantic_hash": "5d90d934175e72ab9cdf090c42a82532"
+  },
+  "reality-flow-authentication/src/utils/resolveMemberUser.ts": {
+    "mtime": 1781374231.2718184,
+    "ast_hash": "134d76e6c76667a3e5186d65cbd880d5",
+    "semantic_hash": "134d76e6c76667a3e5186d65cbd880d5"
+  },
+  "reality-flow-authentication/src/utils/resolveUser.ts": {
+    "mtime": 1785434227.573259,
+    "ast_hash": "812196ec270f6ebf5440c245cef24cbd",
+    "semantic_hash": "812196ec270f6ebf5440c245cef24cbd"
+  },
+  "reality-flow-authentication/tsconfig.json": {
+    "mtime": 1778596294.2282722,
+    "ast_hash": "49858e0b5734ab73cec747a8f40e47db",
+    "semantic_hash": "49858e0b5734ab73cec747a8f40e47db"
+  },
+  "reality-flow-mcp/infra/cfn-params.sample.json": {
+    "mtime": 1782658512.6621623,
+    "ast_hash": "f48c2eeace2ab1e651b5329fde3bc38e",
+    "semantic_hash": "f48c2eeace2ab1e651b5329fde3bc38e"
+  },
+  "reality-flow-mcp/infra/deploy.sh": {
+    "mtime": 1782839379.2498653,
+    "ast_hash": "dd0464f6e4410cc4bad9cd3cd6062848",
+    "semantic_hash": "dd0464f6e4410cc4bad9cd3cd6062848"
+  },
+  "reality-flow-mcp/package.json": {
+    "mtime": 1782625985.2653778,
+    "ast_hash": "388cc35866f10742b8a43da8dfc6466b",
+    "semantic_hash": "388cc35866f10742b8a43da8dfc6466b"
+  },
+  "reality-flow-mcp/src/app.ts": {
+    "mtime": 1782648074.9652958,
+    "ast_hash": "a67fc8c28b2ee0f65dd9b131ef819a11",
+    "semantic_hash": "a67fc8c28b2ee0f65dd9b131ef819a11"
+  },
+  "reality-flow-mcp/src/authorizers/jwtAuthorizer.ts": {
+    "mtime": 1782625852.108877,
+    "ast_hash": "17f27c1c6be686e0c1ad9cd4c49b744c",
+    "semantic_hash": "17f27c1c6be686e0c1ad9cd4c49b744c"
+  },
+  "reality-flow-mcp/src/config/config.ts": {
+    "mtime": 1782658426.780286,
+    "ast_hash": "1b7951d1dd52abb9cb62f1a44a60a966",
+    "semantic_hash": "1b7951d1dd52abb9cb62f1a44a60a966"
+  },
+  "reality-flow-mcp/src/controllers/mcpController.ts": {
+    "mtime": 1782801506.8423834,
+    "ast_hash": "edf4ec319b925de2288bb09bec07aa84",
+    "semantic_hash": "edf4ec319b925de2288bb09bec07aa84"
+  },
+  "reality-flow-mcp/src/controllers/oauthController.ts": {
+    "mtime": 1782809412.8952954,
+    "ast_hash": "3387d78922efdf4e036b46b1ba184667",
+    "semantic_hash": "3387d78922efdf4e036b46b1ba184667"
+  },
+  "reality-flow-mcp/src/index.ts": {
+    "mtime": 1782752190.683733,
+    "ast_hash": "13d073ff1f89e132bc5229e39ebabdd9",
+    "semantic_hash": "13d073ff1f89e132bc5229e39ebabdd9"
+  },
+  "reality-flow-mcp/src/local-server.ts": {
+    "mtime": 1782625976.861408,
+    "ast_hash": "1a6c397294eaa42d08c8ab2418185c29",
+    "semantic_hash": "1a6c397294eaa42d08c8ab2418185c29"
+  },
+  "reality-flow-mcp/src/middleware/errorHandler.ts": {
+    "mtime": 1782624242.4971228,
+    "ast_hash": "111ba62ed6a18568629bb310f7dc536d",
+    "semantic_hash": "111ba62ed6a18568629bb310f7dc536d"
+  },
+  "reality-flow-mcp/src/middleware/jwtAuth.ts": {
+    "mtime": 1782766832.2826462,
+    "ast_hash": "d49627ee3730fa2c8e429aa9ee109aac",
+    "semantic_hash": "d49627ee3730fa2c8e429aa9ee109aac"
+  },
+  "reality-flow-mcp/src/middleware/rateLimiter.ts": {
+    "mtime": 1785430010.850111,
+    "ast_hash": "d59061213c224986f517da21a8e7e8e7",
+    "semantic_hash": "d59061213c224986f517da21a8e7e8e7"
+  },
+  "reality-flow-mcp/src/middleware/validateToken.ts": {
+    "mtime": 1782809512.9581883,
+    "ast_hash": "5f68848b7fc22099313e657714a27d76",
+    "semantic_hash": "5f68848b7fc22099313e657714a27d76"
+  },
+  "reality-flow-mcp/src/routes/health.ts": {
+    "mtime": 1782624338.2354462,
+    "ast_hash": "22f6830eb8330c3a4524655fb3210082",
+    "semantic_hash": "22f6830eb8330c3a4524655fb3210082"
+  },
+  "reality-flow-mcp/src/routes/mcp.ts": {
+    "mtime": 1782764010.6904273,
+    "ast_hash": "392aa32325cacf31161745eeaa2f4ad5",
+    "semantic_hash": "392aa32325cacf31161745eeaa2f4ad5"
+  },
+  "reality-flow-mcp/src/routes/oauth.ts": {
+    "mtime": 1785430010.8068666,
+    "ast_hash": "d5f935a04828aef2fe5e63bc255a6063",
+    "semantic_hash": "d5f935a04828aef2fe5e63bc255a6063"
+  },
+  "reality-flow-mcp/src/routes/wellKnown.ts": {
+    "mtime": 1782752864.336271,
+    "ast_hash": "e4ede1c2408fea486d0b677841527424",
+    "semantic_hash": "e4ede1c2408fea486d0b677841527424"
+  },
+  "reality-flow-mcp/src/services/clientRegistry.ts": {
+    "mtime": 1782806999.4596076,
+    "ast_hash": "9f25f02ef8e818c2b3caf0fbab9bcbef",
+    "semantic_hash": "9f25f02ef8e818c2b3caf0fbab9bcbef"
+  },
+  "reality-flow-mcp/src/services/crmClient.ts": {
+    "mtime": 1782801520.9100351,
+    "ast_hash": "ec4ef5bbe94b0980becd45ceae8c7241",
+    "semantic_hash": "ec4ef5bbe94b0980becd45ceae8c7241"
+  },
+  "reality-flow-mcp/src/services/oauthProviders.ts": {
+    "mtime": 1782658317.8915317,
+    "ast_hash": "991ba4ef368c820ee85ccf2ab7b29c4c",
+    "semantic_hash": "991ba4ef368c820ee85ccf2ab7b29c4c"
+  },
+  "reality-flow-mcp/src/services/promptService.ts": {
+    "mtime": 1782625758.9100697,
+    "ast_hash": "c0ba340ff9e67aad1603d2185fba4cb3",
+    "semantic_hash": "c0ba340ff9e67aad1603d2185fba4cb3"
+  },
+  "reality-flow-mcp/src/services/resourceService.ts": {
+    "mtime": 1782624163.3506896,
+    "ast_hash": "4a7aa45efbe25cec3ccf6658798d478c",
+    "semantic_hash": "4a7aa45efbe25cec3ccf6658798d478c"
+  },
+  "reality-flow-mcp/src/services/tokenService.ts": {
+    "mtime": 1782642603.6747618,
+    "ast_hash": "5c1e20b2e1b8d21cd1dbd111355eba12",
+    "semantic_hash": "5c1e20b2e1b8d21cd1dbd111355eba12"
+  },
+  "reality-flow-mcp/src/services/toolDefinitions.ts": {
+    "mtime": 1785430010.9543333,
+    "ast_hash": "024c95af7067b4fb63fbf9a191b0a6c6",
+    "semantic_hash": "024c95af7067b4fb63fbf9a191b0a6c6"
+  },
+  "reality-flow-mcp/src/utils/logger.ts": {
+    "mtime": 1782625960.2919056,
+    "ast_hash": "d853e607da5979797744ece1f2d4deea",
+    "semantic_hash": "d853e607da5979797744ece1f2d4deea"
+  },
+  "reality-flow-mcp/src/views/oauth-authorize.ejs": {
+    "mtime": 1782807056.7079096,
+    "ast_hash": "c8fd11fea4d94dc2f4531a759c76524c",
+    "semantic_hash": "c8fd11fea4d94dc2f4531a759c76524c"
+  },
+  "reality-flow-mcp/tsconfig.json": {
+    "mtime": 1782625997.0544822,
+    "ast_hash": "a3591475294c38a862dbea64bcc43e9d",
+    "semantic_hash": "a3591475294c38a862dbea64bcc43e9d"
+  },
+  "server/agencyConfigService.js": {
+    "mtime": 1784452398.0548284,
+    "ast_hash": "bfbaa2a8fcfa7447ee2bf45c60e268b2",
+    "semantic_hash": "bfbaa2a8fcfa7447ee2bf45c60e268b2"
+  },
+  "server/agents/agentAuditService.js": {
+    "mtime": 1782634369.8624444,
+    "ast_hash": "b9f6d5f7760d3b980592e98176f7dada",
+    "semantic_hash": "b9f6d5f7760d3b980592e98176f7dada"
+  },
+  "server/agents/agentRuntime.js": {
+    "mtime": 1785430010.8878722,
+    "ast_hash": "2abfffaa43746f7f0516c8dbaad3741b",
+    "semantic_hash": "2abfffaa43746f7f0516c8dbaad3741b"
+  },
+  "server/agents/agentRuntime.test.js": {
+    "mtime": 1785430010.7521284,
+    "ast_hash": "fca80976eca9025e41a5d5f2b115def6",
+    "semantic_hash": "fca80976eca9025e41a5d5f2b115def6"
+  },
+  "server/agents/domainRouter.js": {
+    "mtime": 1785430010.7984421,
+    "ast_hash": "898b474ede9eb5059a5d1ca7ab6264d8",
+    "semantic_hash": "898b474ede9eb5059a5d1ca7ab6264d8"
+  },
+  "server/agents/followUpResolver.js": {
+    "mtime": 1785430010.8168678,
+    "ast_hash": "4e3edd77127ffed4bd693a440a6afa18",
+    "semantic_hash": "4e3edd77127ffed4bd693a440a6afa18"
+  },
+  "server/agents/followUpResolver.test.js": {
+    "mtime": 1785430010.7590787,
+    "ast_hash": "e0effe047e9cd147e26466af7efee241",
+    "semantic_hash": "e0effe047e9cd147e26466af7efee241"
+  },
+  "server/agents/formatting/confirmations.js": {
+    "mtime": 1785430010.6512654,
+    "ast_hash": "8a9acbc779577b78b9db5174dd81796d",
+    "semantic_hash": "8a9acbc779577b78b9db5174dd81796d"
+  },
+  "server/agents/formatting/entityCards.js": {
+    "mtime": 1785430010.845111,
+    "ast_hash": "8a6a445369fea03fb5b7d6edabe37939",
+    "semantic_hash": "8a6a445369fea03fb5b7d6edabe37939"
+  },
+  "server/agents/formatting/insight.js": {
+    "mtime": 1785430010.689148,
+    "ast_hash": "3ce92dd953a97298f18b42a89c75e3dc",
+    "semantic_hash": "3ce92dd953a97298f18b42a89c75e3dc"
+  },
+  "server/agents/formatting/listItems.js": {
+    "mtime": 1785430010.8932476,
+    "ast_hash": "4ae7cca12754304aad31178b4ec71a59",
+    "semantic_hash": "4ae7cca12754304aad31178b4ec71a59"
+  },
+  "server/agents/formatting/listPresentation.js": {
+    "mtime": 1785430010.6600027,
+    "ast_hash": "0767bff2efb3c7dff6267342269d27bf",
+    "semantic_hash": "0767bff2efb3c7dff6267342269d27bf"
+  },
+  "server/agents/formatting/listPresentation.test.js": {
+    "mtime": 1785430010.700354,
+    "ast_hash": "d33c15ce268a72f45fdc61945f2c324e",
+    "semantic_hash": "d33c15ce268a72f45fdc61945f2c324e"
+  },
+  "server/agents/formatting/routing.js": {
+    "mtime": 1784577245.0879035,
+    "ast_hash": "c21909575a8a01684c1c2fe8a2f72730",
+    "semantic_hash": "c21909575a8a01684c1c2fe8a2f72730"
+  },
+  "server/agents/formatting/sections.js": {
+    "mtime": 1785430010.7013555,
+    "ast_hash": "e2d47c15d81699241b0c6686b717d864",
+    "semantic_hash": "e2d47c15d81699241b0c6686b717d864"
+  },
+  "server/agents/formatting/summaries.js": {
+    "mtime": 1785430010.6923563,
+    "ast_hash": "d2c6014b4991e39063e547088a896db5",
+    "semantic_hash": "d2c6014b4991e39063e547088a896db5"
+  },
+  "server/agents/formatting/utils.js": {
+    "mtime": 1785430010.8227003,
+    "ast_hash": "d55da0988c1d1c6d8eb220093bee525b",
+    "semantic_hash": "d55da0988c1d1c6d8eb220093bee525b"
+  },
+  "server/agents/geminiFileLogger.js": {
+    "mtime": 1785430010.7521284,
+    "ast_hash": "19bc5c5ef25a4a112ce99ca0b3c29cf9",
+    "semantic_hash": "19bc5c5ef25a4a112ce99ca0b3c29cf9"
+  },
+  "server/agents/geminiToolDeclarations.js": {
+    "mtime": 1785430010.7491286,
+    "ast_hash": "0abdddf84f39d1b693dc1a139fe2c267",
+    "semantic_hash": "0abdddf84f39d1b693dc1a139fe2c267"
+  },
+  "server/agents/goldenConversations.test.js": {
+    "mtime": 1785430010.68347,
+    "ast_hash": "5b47a6ae8c03912f3a066d304d6fb327",
+    "semantic_hash": "5b47a6ae8c03912f3a066d304d6fb327"
+  },
+  "server/agents/inputNormalizer.js": {
+    "mtime": 1785430010.6864717,
+    "ast_hash": "4ae34b72f8a9b31b31edd7424277e39d",
+    "semantic_hash": "4ae34b72f8a9b31b31edd7424277e39d"
+  },
+  "server/agents/inputNormalizer.search.test.js": {
+    "mtime": 1785430010.9433334,
+    "ast_hash": "fb5c97e63a4af63759ed0f26f300adb6",
+    "semantic_hash": "fb5c97e63a4af63759ed0f26f300adb6"
+  },
+  "server/agents/inputNormalizer.test.js": {
+    "mtime": 1785430010.6953566,
+    "ast_hash": "29b20d7680e77b10cef5e35530d12984",
+    "semantic_hash": "29b20d7680e77b10cef5e35530d12984"
+  },
+  "server/agents/interaction/decideInteraction.js": {
+    "mtime": 1785430010.825842,
+    "ast_hash": "2c1dbd10654171f0b75927b559db22d8",
+    "semantic_hash": "2c1dbd10654171f0b75927b559db22d8"
+  },
+  "server/agents/interaction/decideInteraction.test.js": {
+    "mtime": 1785430010.8148663,
+    "ast_hash": "93c40c022c4495f112771d71ce5127b4",
+    "semantic_hash": "93c40c022c4495f112771d71ce5127b4"
+  },
+  "server/agents/llm/composeReply.js": {
+    "mtime": 1785430010.8044415,
+    "ast_hash": "49aa1566929f8d5fde0a191fb48c3615",
+    "semantic_hash": "49aa1566929f8d5fde0a191fb48c3615"
+  },
+  "server/agents/llm/composerPrompt.js": {
+    "mtime": 1785430010.8198662,
+    "ast_hash": "d82a0a8a3227b2c040e49cb163111024",
+    "semantic_hash": "d82a0a8a3227b2c040e49cb163111024"
+  },
+  "server/agents/llm/planTurn.js": {
+    "mtime": 1785430010.8521125,
+    "ast_hash": "f3b7aa9a76c11ff716fb61aeb65a33c3",
+    "semantic_hash": "f3b7aa9a76c11ff716fb61aeb65a33c3"
+  },
+  "server/agents/llm/planTurn.test.js": {
+    "mtime": 1785430010.8778749,
+    "ast_hash": "c4a30498e64725eb234b0b98d31bffcd",
+    "semantic_hash": "c4a30498e64725eb234b0b98d31bffcd"
+  },
+  "server/agents/llm/plannerPrompt.js": {
+    "mtime": 1785430010.7113557,
+    "ast_hash": "cd0bc563d51ff059ded7ca2726317b98",
+    "semantic_hash": "cd0bc563d51ff059ded7ca2726317b98"
+  },
+  "server/agents/prompts.js": {
+    "mtime": 1785430010.8491125,
+    "ast_hash": "9538bdb07a12d223c682245197742ccb",
+    "semantic_hash": "9538bdb07a12d223c682245197742ccb"
+  },
+  "server/agents/responseFormatter.js": {
+    "mtime": 1784579285.7436035,
+    "ast_hash": "921f966f77a01854c2f1f20e675091bf",
+    "semantic_hash": "921f966f77a01854c2f1f20e675091bf"
+  },
+  "server/agents/responseFormatter.test.js": {
+    "mtime": 1785430010.8401103,
+    "ast_hash": "4f96d1b39fdd95345db3cd3c92b4bbcf",
+    "semantic_hash": "4f96d1b39fdd95345db3cd3c92b4bbcf"
+  },
+  "server/agents/run-golden-check.mjs": {
+    "mtime": 1785430010.9150052,
+    "ast_hash": "c5e2c654c263691649ba7dccd28c0791",
+    "semantic_hash": "c5e2c654c263691649ba7dccd28c0791"
+  },
+  "server/agents/toolContextBuilder.js": {
+    "mtime": 1782633987.395837,
+    "ast_hash": "0611085803f682dc54a34f24eaf7b5d0",
+    "semantic_hash": "0611085803f682dc54a34f24eaf7b5d0"
+  },
+  "server/aiDtoMiddleware.js": {
+    "mtime": 1784818836.2569454,
+    "ast_hash": "f3165504f5913189f0f6a233f6d61b33",
+    "semantic_hash": "f3165504f5913189f0f6a233f6d61b33"
+  },
+  "server/aiDtoMiddleware.test.js": {
+    "mtime": 1785430010.9255495,
+    "ast_hash": "41da208d883f25b6cc465667c72d0782",
+    "semantic_hash": "41da208d883f25b6cc465667c72d0782"
+  },
+  "server/aiEmployeeProvisioningService.js": {
+    "mtime": 1782633987.399857,
+    "ast_hash": "42a3ab8da06f3fa676ffe79d3b4f7bc9",
+    "semantic_hash": "42a3ab8da06f3fa676ffe79d3b4f7bc9"
+  },
+  "server/aiImplementation.test.js": {
+    "mtime": 1782633987.4018636,
+    "ast_hash": "16ab8e0c3e7683fbfae52f202763e1db",
+    "semantic_hash": "16ab8e0c3e7683fbfae52f202763e1db"
+  },
+  "server/aiViewBuilders/buyerAIViewBuilder.js": {
+    "mtime": 1785430010.8651063,
+    "ast_hash": "d06ef50c4a41374a276bf308a7c57fe2",
+    "semantic_hash": "d06ef50c4a41374a276bf308a7c57fe2"
+  },
+  "server/aiViewBuilders/contactAIViewBuilder.js": {
+    "mtime": 1785430010.9453347,
+    "ast_hash": "9432108a9db6a2ee5184a74aea08c30b",
+    "semantic_hash": "9432108a9db6a2ee5184a74aea08c30b"
+  },
+  "server/aiViewBuilders/leadAIViewBuilder.js": {
+    "mtime": 1784818849.7245834,
+    "ast_hash": "8dd6685c4436eba7220ec21db8857906",
+    "semantic_hash": "8dd6685c4436eba7220ec21db8857906"
+  },
+  "server/aiViewBuilders/meetingAIViewBuilder.js": {
+    "mtime": 1785430010.8601058,
+    "ast_hash": "f94a3727fe5d9a8407da1d8112db866c",
+    "semantic_hash": "f94a3727fe5d9a8407da1d8112db866c"
+  },
+  "server/aiViewBuilders/ownerAIViewBuilder.js": {
+    "mtime": 1785430010.7845125,
+    "ast_hash": "5b13ca595a72c0ba988c90aa0c847cfa",
+    "semantic_hash": "5b13ca595a72c0ba988c90aa0c847cfa"
+  },
+  "server/aiViewBuilders/propertyAIViewBuilder.js": {
+    "mtime": 1785430010.687473,
+    "ast_hash": "2460f5b2a6c77daed20edb545abd01de",
+    "semantic_hash": "2460f5b2a6c77daed20edb545abd01de"
+  },
+  "server/aiViewBuilders/recommendations.js": {
+    "mtime": 1785430010.8922474,
+    "ast_hash": "9423da897f0d8724154537ad401cfa6f",
+    "semantic_hash": "9423da897f0d8724154537ad401cfa6f"
+  },
+  "server/aiViewBuilders/tenantAIViewBuilder.js": {
+    "mtime": 1785430010.920005,
+    "ast_hash": "5b910308674872740480e153cb1de17c",
+    "semantic_hash": "5b910308674872740480e153cb1de17c"
+  },
+  "server/aiViewBuilders/utils.js": {
+    "mtime": 1782633987.4090743,
+    "ast_hash": "99ed112eb2a77d83c44b5e04c30160d2",
+    "semantic_hash": "99ed112eb2a77d83c44b5e04c30160d2"
+  },
+  "server/areasDynamodbService.js": {
+    "mtime": 1770818180.9486883,
+    "ast_hash": "249b02efa58b7c9d494dd15138a53e53",
+    "semantic_hash": "249b02efa58b7c9d494dd15138a53e53"
+  },
+  "server/awsClientWrapper.js": {
+    "mtime": 1770818180.9486883,
+    "ast_hash": "a4dce330fef1d4d6598de15d4fd79d2b",
+    "semantic_hash": "a4dce330fef1d4d6598de15d4fd79d2b"
+  },
+  "server/bailey.js": {
+    "mtime": 1784452947.448254,
+    "ast_hash": "b91529919506c399eb25dbe63270954c",
+    "semantic_hash": "b91529919506c399eb25dbe63270954c"
+  },
+  "server/conversationStateService.js": {
+    "mtime": 1785430010.7521284,
+    "ast_hash": "4a372edda39d05ba66b1610173af782c",
+    "semantic_hash": "4a372edda39d05ba66b1610173af782c"
+  },
+  "server/conversationStateService.test.js": {
+    "mtime": 1782633987.4389453,
+    "ast_hash": "94f3167d49106c21363a19ca5b5e6dc2",
+    "semantic_hash": "94f3167d49106c21363a19ca5b5e6dc2"
+  },
+  "server/creditConfig.js": {
+    "mtime": 1782634369.8813133,
+    "ast_hash": "d2555bf08aa9c236eb4ec3c604e2caed",
+    "semantic_hash": "d2555bf08aa9c236eb4ec3c604e2caed"
+  },
+  "server/creditService.js": {
+    "mtime": 1782633987.442915,
+    "ast_hash": "ec630bea7fcb929e5d990b41818668c4",
+    "semantic_hash": "ec630bea7fcb929e5d990b41818668c4"
+  },
+  "server/crmDynamodbService.js": {
+    "mtime": 1785430010.9950738,
+    "ast_hash": "cc0cf003cab4440218359d2a22e384db",
+    "semantic_hash": "cc0cf003cab4440218359d2a22e384db"
+  },
+  "server/crmDynamodbService.requirement.test.js": {
+    "mtime": 1785430010.674469,
+    "ast_hash": "e4e1e5a4796a61564ad4d796c559f299",
+    "semantic_hash": "e4e1e5a4796a61564ad4d796c559f299"
+  },
+  "server/crmHelpers.js": {
+    "mtime": 1785430010.7013555,
+    "ast_hash": "285f85b3412226a2c0f7c9ec3c2878e3",
+    "semantic_hash": "285f85b3412226a2c0f7c9ec3c2878e3"
+  },
+  "server/crmLeadBudget.test.js": {
+    "mtime": 1785430010.9403331,
+    "ast_hash": "4b6cf43da1980bd79f56351a7c7c23e1",
+    "semantic_hash": "4b6cf43da1980bd79f56351a7c7c23e1"
+  },
+  "server/dataQualityService.js": {
+    "mtime": 1781967096.320643,
+    "ast_hash": "c189e0bbe0a0456b9280b2d954bc96dd",
+    "semantic_hash": "c189e0bbe0a0456b9280b2d954bc96dd"
+  },
+  "server/developersDynamodbService.js": {
+    "mtime": 1782634369.8868108,
+    "ast_hash": "36ba5254e61efb51cdd2cbbc6c6dd15a",
+    "semantic_hash": "36ba5254e61efb51cdd2cbbc6c6dd15a"
+  },
+  "server/domain/crmDomainModel.js": {
+    "mtime": 1785430010.913006,
+    "ast_hash": "d2534d3a3461fe757b644dd68ef27af4",
+    "semantic_hash": "d2534d3a3461fe757b644dd68ef27af4"
+  },
+  "server/domain/crmDomainModel.test.js": {
+    "mtime": 1785430010.726641,
+    "ast_hash": "78436b348e425d9ee9149aacf5f80c5e",
+    "semantic_hash": "78436b348e425d9ee9149aacf5f80c5e"
+  },
+  "server/dynamodbService.js": {
+    "mtime": 1781374231.278609,
+    "ast_hash": "8e4d8687cf03cabeffa5a9bc848f2d10",
+    "semantic_hash": "8e4d8687cf03cabeffa5a9bc848f2d10"
+  },
+  "server/emailService.js": {
+    "mtime": 1782634369.8878179,
+    "ast_hash": "ad90d0a5411ba2005a75cf3393ce705c",
+    "semantic_hash": "ad90d0a5411ba2005a75cf3393ce705c"
+  },
+  "server/enquiryDynamodbService.js": {
+    "mtime": 1785430010.7521284,
+    "ast_hash": "2a15f8b91618ec5d00c4d29c540d4b47",
+    "semantic_hash": "2a15f8b91618ec5d00c4d29c540d4b47"
+  },
+  "server/expressError.js": {
+    "mtime": 1785430010.7013555,
+    "ast_hash": "f9176ea9c373ee25bc85624ef533ebd6",
+    "semantic_hash": "f9176ea9c373ee25bc85624ef533ebd6"
+  },
+  "server/featureToggleService.js": {
+    "mtime": 1782633987.4529922,
+    "ast_hash": "d8388552ca6f9cd432f5423a46d581c4",
+    "semantic_hash": "d8388552ca6f9cd432f5423a46d581c4"
+  },
+  "server/fix-rate-limit.js": {
+    "mtime": 1781374231.2796793,
+    "ast_hash": "7e3d7f3ec196d7a866bd5d7195b2eed4",
+    "semantic_hash": "7e3d7f3ec196d7a866bd5d7195b2eed4"
+  },
+  "server/fix-validateToken.js": {
+    "mtime": 1781374231.2796793,
+    "ast_hash": "1d057433ec06f649ede954d230f2ac97",
+    "semantic_hash": "1d057433ec06f649ede954d230f2ac97"
+  },
+  "server/fix2.py": {
+    "mtime": 1781374231.2812316,
+    "ast_hash": "561b3fb8a8676c8b3edf8993707d9856",
+    "semantic_hash": "561b3fb8a8676c8b3edf8993707d9856"
+  },
+  "server/grievanceDynamodbService.js": {
+    "mtime": 1781124247.0647967,
+    "ast_hash": "4240a2ba69b533b672bf63d6202c455d",
+    "semantic_hash": "4240a2ba69b533b672bf63d6202c455d"
+  },
+  "server/healthcheck.js": {
+    "mtime": 1781374231.2812316,
+    "ast_hash": "d464a0690cf4c3dd8ab36f4ae11bf91f",
+    "semantic_hash": "d464a0690cf4c3dd8ab36f4ae11bf91f"
+  },
+  "server/infra/cfn-params.sample.json": {
+    "mtime": 1785430010.6901722,
+    "ast_hash": "a019cb2500c8e5d8bdf15f1b551f6047",
+    "semantic_hash": "a019cb2500c8e5d8bdf15f1b551f6047"
+  },
+  "server/infra/deploy.sh": {
+    "mtime": 1782849509.001632,
+    "ast_hash": "9d1cb95344cb617889ee69b55340e54b",
+    "semantic_hash": "9d1cb95344cb617889ee69b55340e54b"
+  },
+  "server/jest.config.js": {
+    "mtime": 1782634369.8951795,
+    "ast_hash": "379b8b243aec582efc9b5f021ebbfda7",
+    "semantic_hash": "379b8b243aec582efc9b5f021ebbfda7"
+  },
+  "server/jest.setup.js": {
+    "mtime": 1782628342.988963,
+    "ast_hash": "a14b7b1b18506af182cf538dc035c0d7",
+    "semantic_hash": "a14b7b1b18506af182cf538dc035c0d7"
+  },
+  "server/lambda-handler.js": {
+    "mtime": 1785430010.885874,
+    "ast_hash": "f7b032f16b81c672a57e9ec8916bac8c",
+    "semantic_hash": "f7b032f16b81c672a57e9ec8916bac8c"
+  },
+  "server/leadConversion.test.js": {
+    "mtime": 1784818921.392894,
+    "ast_hash": "73ec74bfe8039524e0197cfad4f278cf",
+    "semantic_hash": "73ec74bfe8039524e0197cfad4f278cf"
+  },
+  "server/lib/posthog.js": {
+    "mtime": 1782633987.5858135,
+    "ast_hash": "bab6dc75299ac663e2255f80d57c4154",
+    "semantic_hash": "bab6dc75299ac663e2255f80d57c4154"
+  },
+  "server/lib/sentry.js": {
+    "mtime": 1781614380.6210847,
+    "ast_hash": "6629d4a4b6eb07b26ac35438def25222",
+    "semantic_hash": "6629d4a4b6eb07b26ac35438def25222"
+  },
+  "server/logger.js": {
+    "mtime": 1782633987.5858135,
+    "ast_hash": "5db47ab9d5c397ceb9bf5d15ac1351fc",
+    "semantic_hash": "5db47ab9d5c397ceb9bf5d15ac1351fc"
+  },
+  "server/logs/llm_input_planner_acme-corporation-edc6e9feb8_1785515633755-d24f65cf.json": {
+    "mtime": 1785515633.755589,
+    "ast_hash": "a0abdb369760631a32e8b24d12a6a273",
+    "semantic_hash": "a0abdb369760631a32e8b24d12a6a273"
+  },
+  "server/logs/llm_input_planner_acme-corporation-edc6e9feb8_1785515739055-272ad69d.json": {
+    "mtime": 1785515739.0612035,
+    "ast_hash": "fe78b16830eb6ce23594ae7e4f60cd67",
+    "semantic_hash": "fe78b16830eb6ce23594ae7e4f60cd67"
+  },
+  "server/logs/llm_input_planner_acme-corporation-edc6e9feb8_1785515861712-68deaf5f.json": {
+    "mtime": 1785515861.7132478,
+    "ast_hash": "4a961e23def0e7c2f295cac9c57c5cde",
+    "semantic_hash": "4a961e23def0e7c2f295cac9c57c5cde"
+  },
+  "server/logs/llm_input_planner_acme-corporation-edc6e9feb8_1785515911823-98c954f5.json": {
+    "mtime": 1785515911.8241386,
+    "ast_hash": "be84d740713421dee6fd195f1ad00bf4",
+    "semantic_hash": "be84d740713421dee6fd195f1ad00bf4"
+  },
+  "server/logs/llm_output_planner_acme-corporation-edc6e9feb8_1785515633755-d24f65cf.json": {
+    "mtime": 1785515636.4951954,
+    "ast_hash": "ad6b33456d9df89ac0f17d2c6c46b9a4",
+    "semantic_hash": "ad6b33456d9df89ac0f17d2c6c46b9a4"
+  },
+  "server/logs/llm_output_planner_acme-corporation-edc6e9feb8_1785515739055-272ad69d.json": {
+    "mtime": 1785515742.6908922,
+    "ast_hash": "05e990e331b82ca5d18df0b608722735",
+    "semantic_hash": "05e990e331b82ca5d18df0b608722735"
+  },
+  "server/logs/llm_output_planner_acme-corporation-edc6e9feb8_1785515861712-68deaf5f.json": {
+    "mtime": 1785515865.9846566,
+    "ast_hash": "183fbaa16f663e3485efad76840aed11",
+    "semantic_hash": "183fbaa16f663e3485efad76840aed11"
+  },
+  "server/logs/llm_output_planner_acme-corporation-edc6e9feb8_1785515911823-98c954f5.json": {
+    "mtime": 1785515914.6935217,
+    "ast_hash": "4096c1390829d9394fd5d9c2ce7619bf",
+    "semantic_hash": "4096c1390829d9394fd5d9c2ce7619bf"
+  },
+  "server/middleware/apiKeyAuth.js": {
+    "mtime": 1785430010.7710793,
+    "ast_hash": "2d84341f3cae2d1677bb6802d1f7520f",
+    "semantic_hash": "2d84341f3cae2d1677bb6802d1f7520f"
+  },
+  "server/middleware/csp.js": {
+    "mtime": 1781374231.2893498,
+    "ast_hash": "0f5b69f46c1e35b194231a4a48fe535b",
+    "semantic_hash": "0f5b69f46c1e35b194231a4a48fe535b"
+  },
+  "server/middleware/meterCredits.js": {
+    "mtime": 1781967096.3252048,
+    "ast_hash": "28a79b8bd0fcc1e8856e4a72970e8bd2",
+    "semantic_hash": "28a79b8bd0fcc1e8856e4a72970e8bd2"
+  },
+  "server/middleware/rateLimiter.js": {
+    "mtime": 1785430010.6901722,
+    "ast_hash": "fbc903b13cf589488b156f6628209240",
+    "semantic_hash": "fbc903b13cf589488b156f6628209240"
+  },
+  "server/middleware/requestLogger.js": {
+    "mtime": 1770818182.2279737,
+    "ast_hash": "d83cb431dfe56dd74df48d0d445805e7",
+    "semantic_hash": "d83cb431dfe56dd74df48d0d445805e7"
+  },
+  "server/middleware/requirePlatformOperator.js": {
+    "mtime": 1785430010.6923563,
+    "ast_hash": "d12321ae4acb3a503e0caa40a54edd2d",
+    "semantic_hash": "d12321ae4acb3a503e0caa40a54edd2d"
+  },
+  "server/middleware/requireRole.js": {
+    "mtime": 1785430010.9210043,
+    "ast_hash": "6535fd07b05f3f5d16b47de997d9d803",
+    "semantic_hash": "6535fd07b05f3f5d16b47de997d9d803"
+  },
+  "server/middleware/requireRole.test.js": {
+    "mtime": 1785430010.6854713,
+    "ast_hash": "9b53dee43ea94a5e11fbc21045522be6",
+    "semantic_hash": "9b53dee43ea94a5e11fbc21045522be6"
+  },
+  "server/middleware/validateBody.js": {
+    "mtime": 1781614380.6210847,
+    "ast_hash": "be38e8aa65373919e515d6e9f76f0a14",
+    "semantic_hash": "be38e8aa65373919e515d6e9f76f0a14"
+  },
+  "server/middleware/validateToken.js": {
+    "mtime": 1785430010.7481277,
+    "ast_hash": "b7f7f97c614fbd97cc75a90a5e99ef48",
+    "semantic_hash": "b7f7f97c614fbd97cc75a90a5e99ef48"
+  },
+  "server/normalizers/buyerNormalizer.js": {
+    "mtime": 1785430010.9285502,
+    "ast_hash": "f5a776706b6cace51c74b8063bb49ee0",
+    "semantic_hash": "f5a776706b6cace51c74b8063bb49ee0"
+  },
+  "server/normalizers/contactNormalizer.js": {
+    "mtime": 1785430010.8098657,
+    "ast_hash": "f426d040cfe5a895b8a27fba1ee49a8f",
+    "semantic_hash": "f426d040cfe5a895b8a27fba1ee49a8f"
+  },
+  "server/normalizers/leadNormalizer.js": {
+    "mtime": 1782633987.62012,
+    "ast_hash": "d28e684f10020342d3199bcd707b9343",
+    "semantic_hash": "d28e684f10020342d3199bcd707b9343"
+  },
+  "server/normalizers/leadPropertyNormalizer.js": {
+    "mtime": 1785430010.837649,
+    "ast_hash": "1087e18657a8d957a80761db084e44ac",
+    "semantic_hash": "1087e18657a8d957a80761db084e44ac"
+  },
+  "server/normalizers/leadPropertyNormalizer.test.js": {
+    "mtime": 1785430010.7735138,
+    "ast_hash": "8a48ea47f69de59c0e3fa27ef8c57b05",
+    "semantic_hash": "8a48ea47f69de59c0e3fa27ef8c57b05"
+  },
+  "server/normalizers/noteNormalizer.js": {
+    "mtime": 1782633987.62012,
+    "ast_hash": "99dedd252c02eafa7ccf365b75229d82",
+    "semantic_hash": "99dedd252c02eafa7ccf365b75229d82"
+  },
+  "server/normalizers/ownerNormalizer.js": {
+    "mtime": 1782633987.622129,
+    "ast_hash": "42a29a08c677e8619747a0d14338ba2c",
+    "semantic_hash": "42a29a08c677e8619747a0d14338ba2c"
+  },
+  "server/normalizers/propertyNormalizer.js": {
+    "mtime": 1785430010.7984421,
+    "ast_hash": "2c6aabf2d339207643742f18347bfa9a",
+    "semantic_hash": "2c6aabf2d339207643742f18347bfa9a"
+  },
+  "server/normalizers/tenantNormalizer.js": {
+    "mtime": 1782633987.6241393,
+    "ast_hash": "ced4d560f1cbb0533abee6fd50515a66",
+    "semantic_hash": "ced4d560f1cbb0533abee6fd50515a66"
+  },
+  "server/notificationDynamodbService.js": {
+    "mtime": 1770818182.2296233,
+    "ast_hash": "5c09c25d6fc79fbcbf5173219238bb1c",
+    "semantic_hash": "5c09c25d6fc79fbcbf5173219238bb1c"
+  },
+  "server/oauth/oauthProviders.js": {
+    "mtime": 1782807096.5642095,
+    "ast_hash": "8d2efa2e54fc558600ae66cbe22d9935",
+    "semantic_hash": "8d2efa2e54fc558600ae66cbe22d9935"
+  },
+  "server/observability/cloudwatch.js": {
+    "mtime": 1781967096.3257163,
+    "ast_hash": "c9484378b485e483d3cb888837885cef",
+    "semantic_hash": "c9484378b485e483d3cb888837885cef"
+  },
+  "server/observability/phase2Metrics.js": {
+    "mtime": 1782633987.6316218,
+    "ast_hash": "1fbebeb0f3fdabb85e59e5d2c8db2f05",
+    "semantic_hash": "1fbebeb0f3fdabb85e59e5d2c8db2f05"
+  },
+  "server/onboard-agency.js": {
+    "mtime": 1770818182.2321463,
+    "ast_hash": "72c5952c36155a3a627ad639ecb90009",
+    "semantic_hash": "72c5952c36155a3a627ad639ecb90009"
+  },
+  "server/package.json": {
+    "mtime": 1784818999.5444472,
+    "ast_hash": "2b94b70117de48bc096d3e590ef89fd6",
+    "semantic_hash": "2b94b70117de48bc096d3e590ef89fd6"
+  },
+  "server/projectsDynamodbService.js": {
+    "mtime": 1782634369.9006774,
+    "ast_hash": "47532b72c8fa621ca292fc34ccbe1fbf",
+    "semantic_hash": "47532b72c8fa621ca292fc34ccbe1fbf"
+  },
+  "server/razorpayOrders.js": {
+    "mtime": 1782634369.901814,
+    "ast_hash": "a3c2ec071d0c7ad739ba58088f10bc2b",
+    "semantic_hash": "a3c2ec071d0c7ad739ba58088f10bc2b"
+  },
+  "server/realEstateAreasDynamodbService.js": {
+    "mtime": 1782634369.9028122,
+    "ast_hash": "87727ce750f6b7ebb2195af051005fc7",
+    "semantic_hash": "87727ce750f6b7ebb2195af051005fc7"
+  },
+  "server/requestId.js": {
+    "mtime": 1770818182.2464676,
+    "ast_hash": "fc92115c8a3a6f196075179b8c571ae6",
+    "semantic_hash": "fc92115c8a3a6f196075179b8c571ae6"
+  },
+  "server/routes/admin.js": {
+    "mtime": 1782634369.9048126,
+    "ast_hash": "6e4b46c893027d7400c17c9e3ff208fa",
+    "semantic_hash": "6e4b46c893027d7400c17c9e3ff208fa"
+  },
+  "server/routes/agentActivity.js": {
+    "mtime": 1782634369.9058132,
+    "ast_hash": "3d52ad0f3a397013870bfbffe38436d5",
+    "semantic_hash": "3d52ad0f3a397013870bfbffe38436d5"
+  },
+  "server/routes/agentTools.js": {
+    "mtime": 1782793348.3075304,
+    "ast_hash": "d6139072dca2e64100ae3ebcbab8bf75",
+    "semantic_hash": "d6139072dca2e64100ae3ebcbab8bf75"
+  },
+  "server/routes/aiCallingInternal.js": {
+    "mtime": 1781007699.3485415,
+    "ast_hash": "2a78b4549aa1dcb6b30b11ec4088b156",
+    "semantic_hash": "2a78b4549aa1dcb6b30b11ec4088b156"
+  },
+  "server/routes/aiEmployeeConfig.js": {
+    "mtime": 1782633987.6799526,
+    "ast_hash": "74b89346db96908c10c3d2249b411b03",
+    "semantic_hash": "74b89346db96908c10c3d2249b411b03"
+  },
+  "server/routes/aiEmployeeConfig.test.js": {
+    "mtime": 1782633987.6804793,
+    "ast_hash": "a36d3759b8990c0803c1d246fafa4730",
+    "semantic_hash": "a36d3759b8990c0803c1d246fafa4730"
+  },
+  "server/routes/aiEmployeeStatus.js": {
+    "mtime": 1782633987.6804793,
+    "ast_hash": "81a76e2d18263bddc3c6648ff3e1d569",
+    "semantic_hash": "81a76e2d18263bddc3c6648ff3e1d569"
+  },
+  "server/routes/aiIntegrations.js": {
+    "mtime": 1782821298.768716,
+    "ast_hash": "83fed3be47df15ac9003e630e1819542",
+    "semantic_hash": "83fed3be47df15ac9003e630e1819542"
+  },
+  "server/routes/aiIntegrationsPublic.js": {
+    "mtime": 1782809782.0635588,
+    "ast_hash": "32bb88a44da0f9209163136c7758a2f2",
+    "semantic_hash": "32bb88a44da0f9209163136c7758a2f2"
+  },
+  "server/routes/areas.js": {
+    "mtime": 1778596294.2596507,
+    "ast_hash": "524cd2e1701242b77894569a7e402c93",
+    "semantic_hash": "524cd2e1701242b77894569a7e402c93"
+  },
+  "server/routes/areasBuildings.js": {
+    "mtime": 1778596294.2616568,
+    "ast_hash": "f58576379aa3e45d9e4d21122273ed0c",
+    "semantic_hash": "f58576379aa3e45d9e4d21122273ed0c"
+  },
+  "server/routes/auth.js": {
+    "mtime": 1782840207.2429304,
+    "ast_hash": "b2680a908a9853bcb38a6a91bac11312",
+    "semantic_hash": "b2680a908a9853bcb38a6a91bac11312"
+  },
+  "server/routes/b2bLeads.js": {
+    "mtime": 1785258428.9930942,
+    "ast_hash": "272dae08522fbe852c2b8c01460441a2",
+    "semantic_hash": "272dae08522fbe852c2b8c01460441a2"
+  },
+  "server/routes/billing.js": {
+    "mtime": 1782848666.7941816,
+    "ast_hash": "cf80eb3c087bda0b4eb59d398aff9a80",
+    "semantic_hash": "cf80eb3c087bda0b4eb59d398aff9a80"
+  },
+  "server/routes/buildings.js": {
+    "mtime": 1781374231.2965312,
+    "ast_hash": "97f7e37a73515bb746d0aa6efd26b412",
+    "semantic_hash": "97f7e37a73515bb746d0aa6efd26b412"
+  },
+  "server/routes/buyers.js": {
+    "mtime": 1785430010.8932476,
+    "ast_hash": "7ed75782697ec1094a434a9d4a239d3f",
+    "semantic_hash": "7ed75782697ec1094a434a9d4a239d3f"
+  },
+  "server/routes/contacts.js": {
+    "mtime": 1785430010.9792707,
+    "ast_hash": "fbca5f212d31e7ad87aaaa00df5dbce9",
+    "semantic_hash": "fbca5f212d31e7ad87aaaa00df5dbce9"
+  },
+  "server/routes/creditAdmin.js": {
+    "mtime": 1785430010.7491286,
+    "ast_hash": "eb8c775cedfed53f40e13134fc46e3e1",
+    "semantic_hash": "eb8c775cedfed53f40e13134fc46e3e1"
+  },
+  "server/routes/crm.js": {
+    "mtime": 1785430010.6953566,
+    "ast_hash": "c06217291ee793fe76a0bce2092890f9",
+    "semantic_hash": "c06217291ee793fe76a0bce2092890f9"
+  },
+  "server/routes/developers.js": {
+    "mtime": 1782634369.91597,
+    "ast_hash": "2a0e24fa582db0a4ca9e4edd02c8c630",
+    "semantic_hash": "2a0e24fa582db0a4ca9e4edd02c8c630"
+  },
+  "server/routes/enquiries.js": {
+    "mtime": 1785258438.378355,
+    "ast_hash": "4b2fdb13929a95a1bcbda0eb155f551b",
+    "semantic_hash": "4b2fdb13929a95a1bcbda0eb155f551b"
+  },
+  "server/routes/feedback.js": {
+    "mtime": 1782848814.7774062,
+    "ast_hash": "b02f0635e20b877a072d22c32f5b1807",
+    "semantic_hash": "b02f0635e20b877a072d22c32f5b1807"
+  },
+  "server/routes/flats.js": {
+    "mtime": 1778596294.26943,
+    "ast_hash": "ea5c10d9758dee9fa62bcef4d4b94c9f",
+    "semantic_hash": "ea5c10d9758dee9fa62bcef4d4b94c9f"
+  },
+  "server/routes/grievance.js": {
+    "mtime": 1785430010.908007,
+    "ast_hash": "9e39934dd03170372ccecfcf69c6c994",
+    "semantic_hash": "9e39934dd03170372ccecfcf69c6c994"
+  },
+  "server/routes/khata.js": {
+    "mtime": 1785430010.8798728,
+    "ast_hash": "303ca0fff621edc49bbe33a793bcf18c",
+    "semantic_hash": "303ca0fff621edc49bbe33a793bcf18c"
+  },
+  "server/routes/leads.js": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "778637f182755697cdfc57a65f0278c8",
+    "semantic_hash": "778637f182755697cdfc57a65f0278c8"
+  },
+  "server/routes/notifications.js": {
+    "mtime": 1785430010.7339795,
+    "ast_hash": "69aabca35b25b67accf8e242dddb7f54",
+    "semantic_hash": "69aabca35b25b67accf8e242dddb7f54"
+  },
+  "server/routes/projects.js": {
+    "mtime": 1782634370.0182137,
+    "ast_hash": "d45fe06e676897edd4a2962d66cfc47d",
+    "semantic_hash": "d45fe06e676897edd4a2962d66cfc47d"
+  },
+  "server/routes/publicAreas.js": {
+    "mtime": 1778596294.273448,
+    "ast_hash": "c0b9bcd2d941cdc02e0e68b3710e4152",
+    "semantic_hash": "c0b9bcd2d941cdc02e0e68b3710e4152"
+  },
+  "server/routes/realEstateAreas.js": {
+    "mtime": 1782634370.019626,
+    "ast_hash": "62b244e2dd0f0377f6772c5e829dd1c5",
+    "semantic_hash": "62b244e2dd0f0377f6772c5e829dd1c5"
+  },
+  "server/routes/subscriptions.js": {
+    "mtime": 1782634370.0206356,
+    "ast_hash": "65a01a6219fca8b5aa811e3a1defe52c",
+    "semantic_hash": "65a01a6219fca8b5aa811e3a1defe52c"
+  },
+  "server/routes/webhooks.js": {
+    "mtime": 1785430010.7765133,
+    "ast_hash": "478be8112f64be50f88bc20588334c80",
+    "semantic_hash": "478be8112f64be50f88bc20588334c80"
+  },
+  "server/routes/whatsappConversations.js": {
+    "mtime": 1782634370.0216353,
+    "ast_hash": "f0140d29ad397c05900dd318e7f0e093",
+    "semantic_hash": "f0140d29ad397c05900dd318e7f0e093"
+  },
+  "server/routes/whatsappConversations.test.js": {
+    "mtime": 1782633987.698246,
+    "ast_hash": "6d45da49266bfd2501e427dd6d282c60",
+    "semantic_hash": "6d45da49266bfd2501e427dd6d282c60"
+  },
+  "server/s3Service.js": {
+    "mtime": 1770818182.2938416,
+    "ast_hash": "e63f04aee74a75f086691a054d154f26",
+    "semantic_hash": "e63f04aee74a75f086691a054d154f26"
+  },
+  "server/server.js": {
+    "mtime": 1785430010.79344,
+    "ast_hash": "6c7be92745bb9de51bbafc24df105378",
+    "semantic_hash": "6c7be92745bb9de51bbafc24df105378"
+  },
+  "server/services/leadConversionService.js": {
+    "mtime": 1785430010.8818724,
+    "ast_hash": "0b81fbe504a73e0504f700cffe0ce7f6",
+    "semantic_hash": "0b81fbe504a73e0504f700cffe0ce7f6"
+  },
+  "server/services/leadService.js": {
+    "mtime": 1785430010.8178668,
+    "ast_hash": "d887b78b39aefe801e90e6ae61b56f92",
+    "semantic_hash": "d887b78b39aefe801e90e6ae61b56f92"
+  },
+  "server/services/listingService.js": {
+    "mtime": 1785430010.6640017,
+    "ast_hash": "59cef767e8956e3a23f5609247f462d0",
+    "semantic_hash": "59cef767e8956e3a23f5609247f462d0"
+  },
+  "server/services/listingService.test.js": {
+    "mtime": 1785430010.7359886,
+    "ast_hash": "7add02eff8bee9024e2f2548282b0f4e",
+    "semantic_hash": "7add02eff8bee9024e2f2548282b0f4e"
+  },
+  "server/services/mcpMetrics.js": {
+    "mtime": 1782633987.7536864,
+    "ast_hash": "82f5d454557270343ef42db680344b8b",
+    "semantic_hash": "82f5d454557270343ef42db680344b8b"
+  },
+  "server/services/ownerService.js": {
+    "mtime": 1782633987.7548108,
+    "ast_hash": "3111d3ff3b55bb16ebd59de9e78e12a6",
+    "semantic_hash": "3111d3ff3b55bb16ebd59de9e78e12a6"
+  },
+  "server/services/responseFormatter.js": {
+    "mtime": 1782633987.7554424,
+    "ast_hash": "5635ac45c5d37bc596222c7872089222",
+    "semantic_hash": "5635ac45c5d37bc596222c7872089222"
+  },
+  "server/services/tenantService.js": {
+    "mtime": 1782633987.7564502,
+    "ast_hash": "fea7394b9a382b3f4110b0d09d20b9cf",
+    "semantic_hash": "fea7394b9a382b3f4110b0d09d20b9cf"
+  },
+  "server/services/transferOwnership.js": {
+    "mtime": 1785430010.7501285,
+    "ast_hash": "05e710b2f930cee41d150d3028d79068",
+    "semantic_hash": "05e710b2f930cee41d150d3028d79068"
+  },
+  "server/services/transferOwnership.test.js": {
+    "mtime": 1785430010.905909,
+    "ast_hash": "0b7e2363e778706461c12126eb4e54a5",
+    "semantic_hash": "0b7e2363e778706461c12126eb4e54a5"
+  },
+  "server/shared/networkErrors.js": {
+    "mtime": 1782840155.7325983,
+    "ast_hash": "fc27b1638d633eb1c34146cef3d401a2",
+    "semantic_hash": "fc27b1638d633eb1c34146cef3d401a2"
+  },
+  "server/shared/toolDefinitions.js": {
+    "mtime": 1785430010.8878722,
+    "ast_hash": "d745704d5be3052d16ddf613af5da7cc",
+    "semantic_hash": "d745704d5be3052d16ddf613af5da7cc"
+  },
+  "server/skillInvoker.js": {
+    "mtime": 1785430010.739073,
+    "ast_hash": "75785ff8d1beacd6830fe5895c688e2b",
+    "semantic_hash": "75785ff8d1beacd6830fe5895c688e2b"
+  },
+  "server/skillInvoker.test.js": {
+    "mtime": 1784819143.3905334,
+    "ast_hash": "1ee7d3f33d80c9fc6c79db53d8a9d886",
+    "semantic_hash": "1ee7d3f33d80c9fc6c79db53d8a9d886"
+  },
+  "server/subscriptionService.js": {
+    "mtime": 1782633987.7651606,
+    "ast_hash": "bb74890fe8807ab8a2e30c94487e26af",
+    "semantic_hash": "bb74890fe8807ab8a2e30c94487e26af"
+  },
+  "server/teamAnalyticsService.js": {
+    "mtime": 1782634370.031246,
+    "ast_hash": "500e28142deba6f392049f40f1cb14a8",
+    "semantic_hash": "500e28142deba6f392049f40f1cb14a8"
+  },
+  "server/tenantMiddleware.js": {
+    "mtime": 1785430010.9697342,
+    "ast_hash": "72df6b3dbc0c7f418b6df088f4baa344",
+    "semantic_hash": "72df6b3dbc0c7f418b6df088f4baa344"
+  },
+  "server/test-ai-integration.js": {
+    "mtime": 1782634370.031246,
+    "ast_hash": "96e3425c8229bf5986b1567749aae0af",
+    "semantic_hash": "96e3425c8229bf5986b1567749aae0af"
+  },
+  "server/userCategoryService.js": {
+    "mtime": 1785430010.8828726,
+    "ast_hash": "5c8f838f1be3f5c0edf9f18ccb0a3439",
+    "semantic_hash": "5c8f838f1be3f5c0edf9f18ccb0a3439"
+  },
+  "server/userCategoryService.test.js": {
+    "mtime": 1782633987.7691758,
+    "ast_hash": "afe2fc71e1a528f49bf77b174c0ad0f0",
+    "semantic_hash": "afe2fc71e1a528f49bf77b174c0ad0f0"
+  },
+  "server/utils/corsOrigins.js": {
+    "mtime": 1785430010.951337,
+    "ast_hash": "b888667ff9165251c4cf52eca82edef1",
+    "semantic_hash": "b888667ff9165251c4cf52eca82edef1"
+  },
+  "server/utils/dynamoPagination.js": {
+    "mtime": 1785430010.8034408,
+    "ast_hash": "43bea3b944a97cf1e155a80a0136790f",
+    "semantic_hash": "43bea3b944a97cf1e155a80a0136790f"
+  },
+  "server/utils/excel.js": {
+    "mtime": 1781996220.5896976,
+    "ast_hash": "c5c731acffddae92221c57d858cc1cc6",
+    "semantic_hash": "c5c731acffddae92221c57d858cc1cc6"
+  },
+  "server/utils/requestActor.js": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "cf604588797ba3e8caafca6574f0a0ce",
+    "semantic_hash": "cf604588797ba3e8caafca6574f0a0ce"
+  },
+  "server/utils/response.js": {
+    "mtime": 1785430010.9285502,
+    "ast_hash": "de5f7b9666d95072c052f427dd9107bd",
+    "semantic_hash": "de5f7b9666d95072c052f427dd9107bd"
+  },
+  "server/utils/serviceAccount.js": {
+    "mtime": 1782626954.486232,
+    "ast_hash": "ecc09abaa4fd3a651382d06864aa6ae6",
+    "semantic_hash": "ecc09abaa4fd3a651382d06864aa6ae6"
+  },
+  "server/utils/whatsapp.js": {
+    "mtime": 1782633987.7691758,
+    "ast_hash": "e93f4bfa77ce1f42d9a975fe420cac1a",
+    "semantic_hash": "e93f4bfa77ce1f42d9a975fe420cac1a"
+  },
+  "server/utils/whatsapp.test.js": {
+    "mtime": 1782633987.7714517,
+    "ast_hash": "ff88160cd81d4e312838f06146fd7bbc",
+    "semantic_hash": "ff88160cd81d4e312838f06146fd7bbc"
+  },
+  "server/validation/crmSchemas.js": {
+    "mtime": 1785430010.9970841,
+    "ast_hash": "b4a16481f794306e03b78aaf0b1ee8b1",
+    "semantic_hash": "b4a16481f794306e03b78aaf0b1ee8b1"
+  },
+  "server/validation/otherSchemas.js": {
+    "mtime": 1781614380.63575,
+    "ast_hash": "df1eec6245fdea69b8600dabba6b0430",
+    "semantic_hash": "df1eec6245fdea69b8600dabba6b0430"
+  },
+  "server/webhookLogService.js": {
+    "mtime": 1782633987.77536,
+    "ast_hash": "4dda1baf2722e41a328996e31dd6bbc1",
+    "semantic_hash": "4dda1baf2722e41a328996e31dd6bbc1"
+  },
+  "server/whatsapp-env.json": {
+    "mtime": 1782830482.5720708,
+    "ast_hash": "5e347f62a30d4e327f3cf4563e14ba16",
+    "semantic_hash": "5e347f62a30d4e327f3cf4563e14ba16"
+  },
+  "server/whatsappAccessControl.js": {
+    "mtime": 1782633987.7773716,
+    "ast_hash": "4bab8522ba0535ddfacf057c47836944",
+    "semantic_hash": "4bab8522ba0535ddfacf057c47836944"
+  },
+  "server/whatsappAuditService.js": {
+    "mtime": 1781967096.3459651,
+    "ast_hash": "5dd209529fd39afe7482c47189f151fd",
+    "semantic_hash": "5dd209529fd39afe7482c47189f151fd"
+  },
+  "server/whatsappConversationService.js": {
+    "mtime": 1782634370.033838,
+    "ast_hash": "5e76e2bebbe89636b4c004e7ea6cacb9",
+    "semantic_hash": "5e76e2bebbe89636b4c004e7ea6cacb9"
+  },
+  "skills-lock.json": {
+    "mtime": 1779625087.410717,
+    "ast_hash": "ddfaf2c0dffef52862f0bdec6b1e3978",
+    "semantic_hash": "ddfaf2c0dffef52862f0bdec6b1e3978"
+  },
+  "test_mcp_401.py": {
+    "mtime": 1782755777.1020243,
+    "ast_hash": "5eb114e779e5a49dc8a64998d1339637",
+    "semantic_hash": "5eb114e779e5a49dc8a64998d1339637"
+  },
+  "test_mcp_bridge_like.py": {
+    "mtime": 1782762529.671793,
+    "ast_hash": "193b16dd6ef8722983a326c297f3b3d4",
+    "semantic_hash": "193b16dd6ef8722983a326c297f3b3d4"
+  },
+  "test_mcp_initialize.py": {
+    "mtime": 1782762667.375122,
+    "ast_hash": "a69973fc31c83c69b318880f5f7d94c7",
+    "semantic_hash": "a69973fc31c83c69b318880f5f7d94c7"
+  },
+  "test_mcp_remote_dcr.py": {
+    "mtime": 1782763740.730694,
+    "ast_hash": "856be6e48ee9ea6d51ef9173282502e7",
+    "semantic_hash": "856be6e48ee9ea6d51ef9173282502e7"
+  },
+  "test_oauth_flow.py": {
+    "mtime": 1782767390.711747,
+    "ast_hash": "92c1add2878d43d58889919627485026",
+    "semantic_hash": "92c1add2878d43d58889919627485026"
+  },
+  "tests/playwright/api/concurrent-race.spec.ts": {
+    "mtime": 1781614380.639274,
+    "ast_hash": "f2857b90dbb21ab92861caa2f4265709",
+    "semantic_hash": "f2857b90dbb21ab92861caa2f4265709"
+  },
+  "tests/playwright/api/cors-public-endpoints.spec.ts": {
+    "mtime": 1781614380.6398275,
+    "ast_hash": "c67a9e679ad4b763bc4184888464cd68",
+    "semantic_hash": "c67a9e679ad4b763bc4184888464cd68"
+  },
+  "tests/playwright/api/cross-tenant-pentest.spec.ts": {
+    "mtime": 1781614380.6403909,
+    "ast_hash": "ac01c2363aae3d6601ab280d568c60dc",
+    "semantic_hash": "ac01c2363aae3d6601ab280d568c60dc"
+  },
+  "tests/playwright/api/data-integrity.spec.ts": {
+    "mtime": 1785430010.951337,
+    "ast_hash": "cf0995a29ccdd32d53001b241d77b8fc",
+    "semantic_hash": "cf0995a29ccdd32d53001b241d77b8fc"
+  },
+  "tests/playwright/api/edge-cases-boundary.spec.ts": {
+    "mtime": 1781614380.6422453,
+    "ast_hash": "00b6dc0f619e440242043938dd1cf7fc",
+    "semantic_hash": "00b6dc0f619e440242043938dd1cf7fc"
+  },
+  "tests/playwright/api/ownership-transfer.spec.ts": {
+    "mtime": 1785430010.9371514,
+    "ast_hash": "32f1a3cce0875e14aa229bcd00a69687",
+    "semantic_hash": "32f1a3cce0875e14aa229bcd00a69687"
+  },
+  "tests/playwright/api/penetration-security.spec.ts": {
+    "mtime": 1781614380.6426141,
+    "ast_hash": "122a8d5ba2db62e70031a6c2c2d33e9d",
+    "semantic_hash": "122a8d5ba2db62e70031a6c2c2d33e9d"
+  },
+  "tests/playwright/api/seat-cap.spec.ts": {
+    "mtime": 1781374231.3177495,
+    "ast_hash": "30eb7fa7b3995d29bddd2b0c524f60d8",
+    "semantic_hash": "30eb7fa7b3995d29bddd2b0c524f60d8"
+  },
+  "tests/playwright/api/state-transitions.spec.ts": {
+    "mtime": 1785430010.884874,
+    "ast_hash": "3a25024306aa87dcec8c2900de30f0c1",
+    "semantic_hash": "3a25024306aa87dcec8c2900de30f0c1"
+  },
+  "tests/playwright/api/validation-security.spec.ts": {
+    "mtime": 1781614380.6444058,
+    "ast_hash": "b5f8053d96c6b7834180b53e73229ba9",
+    "semantic_hash": "b5f8053d96c6b7834180b53e73229ba9"
+  },
+  "tests/playwright/check-env.js": {
+    "mtime": 1781614380.6455784,
+    "ast_hash": "45e3e8d26071ab5118f36e2621bc5871",
+    "semantic_hash": "45e3e8d26071ab5118f36e2621bc5871"
+  },
+  "tests/playwright/check-env.mjs": {
+    "mtime": 1781614380.6461408,
+    "ast_hash": "8f17d3ecabd7d8fdbda052b685555aad",
+    "semantic_hash": "8f17d3ecabd7d8fdbda052b685555aad"
+  },
+  "tests/playwright/flows/adminUiFlow.ts": {
+    "mtime": 1781614380.6466546,
+    "ast_hash": "52d463a3ce12fb46ae3bf3bc6ea3fc21",
+    "semantic_hash": "52d463a3ce12fb46ae3bf3bc6ea3fc21"
+  },
+  "tests/playwright/flows/crmOperationsFlow.ts": {
+    "mtime": 1781374231.4076016,
+    "ast_hash": "8c31d6665c2a287ecf801c1c2c12d751",
+    "semantic_hash": "8c31d6665c2a287ecf801c1c2c12d751"
+  },
+  "tests/playwright/flows/dashboardCoreFlow.ts": {
+    "mtime": 1785430010.787512,
+    "ast_hash": "12f1b01bc25267d88a02d98fc296762b",
+    "semantic_hash": "12f1b01bc25267d88a02d98fc296762b"
+  },
+  "tests/playwright/flows/khata/khataBookFlow.ts": {
+    "mtime": 1781374231.4076016,
+    "ast_hash": "e86660f51c7bab220be2ef01e0f348ad",
+    "semantic_hash": "e86660f51c7bab220be2ef01e0f348ad"
+  },
+  "tests/playwright/flows/khata/khataData.ts": {
+    "mtime": 1785430010.6640017,
+    "ast_hash": "535252a8543b7bfd5ac227b795fa21df",
+    "semantic_hash": "535252a8543b7bfd5ac227b795fa21df"
+  },
+  "tests/playwright/flows/khata/khataEntryFlow.ts": {
+    "mtime": 1781614380.6476622,
+    "ast_hash": "3251b12c8a2485ec5f439fcf493c11c8",
+    "semantic_hash": "3251b12c8a2485ec5f439fcf493c11c8"
+  },
+  "tests/playwright/flows/khata/khataSettlementFlow.ts": {
+    "mtime": 1781374231.412536,
+    "ast_hash": "09fa5804feaffc5e3fcf464eb8cb048c",
+    "semantic_hash": "09fa5804feaffc5e3fcf464eb8cb048c"
+  },
+  "tests/playwright/flows/khata/khataSetupFlow.ts": {
+    "mtime": 1785430010.950333,
+    "ast_hash": "2320b14da7389f489ab952b52113291b",
+    "semantic_hash": "2320b14da7389f489ab952b52113291b"
+  },
+  "tests/playwright/flows/leadFlow.ts": {
+    "mtime": 1785430010.8972485,
+    "ast_hash": "ccc24db9e0ba9cfd716eeb1ed572fe80",
+    "semantic_hash": "ccc24db9e0ba9cfd716eeb1ed572fe80"
+  },
+  "tests/playwright/flows/propertyFlow.ts": {
+    "mtime": 1785253670.5028975,
+    "ast_hash": "1c7eeb3980ed8fe78c16f6f559dddb4d",
+    "semantic_hash": "1c7eeb3980ed8fe78c16f6f559dddb4d"
+  },
+  "tests/playwright/helpers/apiAuth.ts": {
+    "mtime": 1785430010.8571079,
+    "ast_hash": "7d254d63860c49604dba30178e556282",
+    "semantic_hash": "7d254d63860c49604dba30178e556282"
+  },
+  "tests/playwright/helpers/auth.ts": {
+    "mtime": 1781374231.415741,
+    "ast_hash": "609924d074a66099f977cf925c88966a",
+    "semantic_hash": "609924d074a66099f977cf925c88966a"
+  },
+  "tests/playwright/helpers/config.ts": {
+    "mtime": 1781374231.415741,
+    "ast_hash": "ef7a7f500f589662b4aeff424dce4128",
+    "semantic_hash": "ef7a7f500f589662b4aeff424dce4128"
+  },
+  "tests/playwright/helpers/crmApi.ts": {
+    "mtime": 1785253077.462302,
+    "ast_hash": "b6bbc56ab830a3ac9c0ea97a28ae9a83",
+    "semantic_hash": "b6bbc56ab830a3ac9c0ea97a28ae9a83"
+  },
+  "tests/playwright/helpers/evidence.ts": {
+    "mtime": 1781374231.417649,
+    "ast_hash": "7719360755c32016575caba539e60712",
+    "semantic_hash": "7719360755c32016575caba539e60712"
+  },
+  "tests/playwright/helpers/leadFieldCatalog.ts": {
+    "mtime": 1785430010.9255495,
+    "ast_hash": "9317ae5914450e22ca7b68327a962c86",
+    "semantic_hash": "9317ae5914450e22ca7b68327a962c86"
+  },
+  "tests/playwright/helpers/leadFixtures.ts": {
+    "mtime": 1785430010.797443,
+    "ast_hash": "aeeb19fa20596211faef6c2641b51bbd",
+    "semantic_hash": "aeeb19fa20596211faef6c2641b51bbd"
+  },
+  "tests/playwright/helpers/leadFormHelpers.ts": {
+    "mtime": 1785430010.8288417,
+    "ast_hash": "debe5e42e8103ee033e88d1642cb37e0",
+    "semantic_hash": "debe5e42e8103ee033e88d1642cb37e0"
+  },
+  "tests/playwright/helpers/leadPropertyVisibility.ts": {
+    "mtime": 1785430010.8972485,
+    "ast_hash": "a19672a88687019997d3294311a8ace2",
+    "semantic_hash": "a19672a88687019997d3294311a8ace2"
+  },
+  "tests/playwright/helpers/saveHelpers.ts": {
+    "mtime": 1785255049.553267,
+    "ast_hash": "1759464bcff6f4d6410565c1340c666c",
+    "semantic_hash": "1759464bcff6f4d6410565c1340c666c"
+  },
+  "tests/playwright/helpers/seedData.ts": {
+    "mtime": 1785430010.867106,
+    "ast_hash": "2611309efe19619a7e75d3edc720eab0",
+    "semantic_hash": "2611309efe19619a7e75d3edc720eab0"
+  },
+  "tests/playwright/helpers/uploadHelpers.ts": {
+    "mtime": 1781374231.417649,
+    "ast_hash": "423ea71159677006c2aaf6fc8997dc3c",
+    "semantic_hash": "423ea71159677006c2aaf6fc8997dc3c"
+  },
+  "tests/playwright/package.json": {
+    "mtime": 1785253100.8578537,
+    "ast_hash": "d10630d2eb0513175ad8a0032ea846c4",
+    "semantic_hash": "d10630d2eb0513175ad8a0032ea846c4"
+  },
+  "tests/playwright/playwright.config.ts": {
+    "mtime": 1785430010.7724838,
+    "ast_hash": "18cfd3ff6453fa58ce87647c4bdb2631",
+    "semantic_hash": "18cfd3ff6453fa58ce87647c4bdb2631"
+  },
+  "tests/playwright/reporters/apiReporter.ts": {
+    "mtime": 1781614380.6537879,
+    "ast_hash": "868109bb6ac6a3e2a1ab556f3889301d",
+    "semantic_hash": "868109bb6ac6a3e2a1ab556f3889301d"
+  },
+  "tests/playwright/setup/auth.setup.ts": {
+    "mtime": 1785430010.8471112,
+    "ast_hash": "72110523cab579bb1fc72fee74ac850e",
+    "semantic_hash": "72110523cab579bb1fc72fee74ac850e"
+  },
+  "tests/playwright/ui/crm/admin-ui-flows.spec.ts": {
+    "mtime": 1781374231.4226549,
+    "ast_hash": "c29c470a7a7e136178911a85a77826db",
+    "semantic_hash": "c29c470a7a7e136178911a85a77826db"
+  },
+  "tests/playwright/ui/crm/ai-employee.spec.ts": {
+    "mtime": 1781374231.4236598,
+    "ast_hash": "828f5d9ba4360d7d21ef3afedc063a58",
+    "semantic_hash": "828f5d9ba4360d7d21ef3afedc063a58"
+  },
+  "tests/playwright/ui/crm/buyer-flows.spec.ts": {
+    "mtime": 1785430010.6640017,
+    "ast_hash": "1637d6893179cd95010809cb87dc8c84",
+    "semantic_hash": "1637d6893179cd95010809cb87dc8c84"
+  },
+  "tests/playwright/ui/crm/crm-operations-flows.spec.ts": {
+    "mtime": 1781374231.4257796,
+    "ast_hash": "2a32cc012f8632911bc849c29ed691b0",
+    "semantic_hash": "2a32cc012f8632911bc849c29ed691b0"
+  },
+  "tests/playwright/ui/crm/dashboard-core-flows.spec.ts": {
+    "mtime": 1781374231.4263809,
+    "ast_hash": "90dd492f76c8c1488e2c58b44f61fcae",
+    "semantic_hash": "90dd492f76c8c1488e2c58b44f61fcae"
+  },
+  "tests/playwright/ui/crm/khata-flows.spec.ts": {
+    "mtime": 1785430010.8346486,
+    "ast_hash": "213bccffb685471ea508b9f39942e653",
+    "semantic_hash": "213bccffb685471ea508b9f39942e653"
+  },
+  "tests/playwright/ui/crm/lead-conversion-flows.spec.ts": {
+    "mtime": 1785253507.142239,
+    "ast_hash": "f841b35ccd86b64d6800a75d9d3ea1d9",
+    "semantic_hash": "f841b35ccd86b64d6800a75d9d3ea1d9"
+  },
+  "tests/playwright/ui/crm/lead-flows.spec.ts": {
+    "mtime": 1785430010.801442,
+    "ast_hash": "bf32b143ac89b763690087ffbad8c1b0",
+    "semantic_hash": "bf32b143ac89b763690087ffbad8c1b0"
+  },
+  "tests/playwright/ui/crm/nps.spec.ts": {
+    "mtime": 1781374231.4289484,
+    "ast_hash": "f35c650d88ab21eae3888acd44377c8e",
+    "semantic_hash": "f35c650d88ab21eae3888acd44377c8e"
+  },
+  "tests/playwright/ui/crm/paywall.spec.ts": {
+    "mtime": 1785430010.92455,
+    "ast_hash": "9f2ec785ceb81a087af32f1ef156714a",
+    "semantic_hash": "9f2ec785ceb81a087af32f1ef156714a"
+  },
+  "tests/playwright/ui/crm/profile.spec.ts": {
+    "mtime": 1781374231.4299617,
+    "ast_hash": "272abba20ea232550ff9738929b547ac",
+    "semantic_hash": "272abba20ea232550ff9738929b547ac"
+  },
+  "tests/playwright/ui/crm/property-flows.spec.ts": {
+    "mtime": 1785253753.9371717,
+    "ast_hash": "05d077b222aea8e4ebd52be48afda46a",
+    "semantic_hash": "05d077b222aea8e4ebd52be48afda46a"
+  },
+  "tests/playwright/ui/crm/tenant-flows.spec.ts": {
+    "mtime": 1785430010.905909,
+    "ast_hash": "9cec750a4e97bde65a2cc40bdc2cd586",
+    "semantic_hash": "9cec750a4e97bde65a2cc40bdc2cd586"
+  },
+  "tests/playwright/ui/crm/unified-timeline-flows.spec.ts": {
+    "mtime": 1785430010.8288417,
+    "ast_hash": "e0669771c0ce3d1fadfda731684de63c",
+    "semantic_hash": "e0669771c0ce3d1fadfda731684de63c"
+  },
+  "tests/playwright/ui/onboarding-register-admin.spec.ts": {
+    "mtime": 1781967096.3459651,
+    "ast_hash": "e3bd970c698eba30b4289e8a4499a2c2",
+    "semantic_hash": "e3bd970c698eba30b4289e8a4499a2c2"
+  },
+  "tests/playwright/ui/public/auth.spec.ts": {
+    "mtime": 1781374231.4331393,
+    "ast_hash": "52e68b5c4bf2b9f342097c8aff77132f",
+    "semantic_hash": "52e68b5c4bf2b9f342097c8aff77132f"
+  },
+  "tests/playwright/ui/public/cookie-consent.spec.ts": {
+    "mtime": 1781374231.4331393,
+    "ast_hash": "822dabac0535d50e30500955d1dc2b32",
+    "semantic_hash": "822dabac0535d50e30500955d1dc2b32"
+  },
+  "tests/playwright/ui/public/grievance.spec.ts": {
+    "mtime": 1781614380.65629,
+    "ast_hash": "cecd0321d820271d8ba444e74b905658",
+    "semantic_hash": "cecd0321d820271d8ba444e74b905658"
+  },
+  "tests/playwright/ui/public/public-endpoints-security.spec.ts": {
+    "mtime": 1781614380.657886,
+    "ast_hash": "701292fee57c64a93444747b5b546ca5",
+    "semantic_hash": "701292fee57c64a93444747b5b546ca5"
+  },
+  "whatsapp-platform/infra/.dryrun-test.sh": {
+    "mtime": 1783508943.412265,
+    "ast_hash": "121cf15a61424ff2bf687d0c6e870f56",
+    "semantic_hash": "121cf15a61424ff2bf687d0c6e870f56"
+  },
+  "whatsapp-platform/infra/cfn-params.example.json": {
+    "mtime": 1783508947.6663892,
+    "ast_hash": "3b7e1299664dc6c4f6a8d92223714dae",
+    "semantic_hash": "3b7e1299664dc6c4f6a8d92223714dae"
+  },
+  "whatsapp-platform/infra/deploy.sh": {
+    "mtime": 1783508947.2284124,
+    "ast_hash": "aab8aa0a0b4c3912734382d3de6cf3fc",
+    "semantic_hash": "aab8aa0a0b4c3912734382d3de6cf3fc"
+  },
+  "whatsapp-platform/infra/start-service.sh": {
+    "mtime": 1783508943.412265,
+    "ast_hash": "92b9662ec8273b5cb932c25d8d545b06",
+    "semantic_hash": "92b9662ec8273b5cb932c25d8d545b06"
+  },
+  "whatsapp-platform/infra/stop-service.sh": {
+    "mtime": 1783508943.412265,
+    "ast_hash": "3da7648bb4f217a9e6286c0eabd7efdb",
+    "semantic_hash": "3da7648bb4f217a9e6286c0eabd7efdb"
+  },
+  "whatsapp-platform/package.json": {
+    "mtime": 1782653759.7967563,
+    "ast_hash": "ac863acc4c87675373b44c239cdcf050",
+    "semantic_hash": "ac863acc4c87675373b44c239cdcf050"
+  },
+  "whatsapp-platform/src/auth-state-utils.js": {
+    "mtime": 1782633986.99607,
+    "ast_hash": "38e4f199e877e2403c3ab2bec33e9b53",
+    "semantic_hash": "38e4f199e877e2403c3ab2bec33e9b53"
+  },
+  "whatsapp-platform/src/auth-store.js": {
+    "mtime": 1782633986.996577,
+    "ast_hash": "fb61666d94442c761b20098da3f57115",
+    "semantic_hash": "fb61666d94442c761b20098da3f57115"
+  },
+  "whatsapp-platform/src/baileysClient.js": {
+    "mtime": 1785430010.9657197,
+    "ast_hash": "f1f2df1374f3e87aec0f606bdcf1b4a2",
+    "semantic_hash": "f1f2df1374f3e87aec0f606bdcf1b4a2"
+  },
+  "whatsapp-platform/src/baileysClient.test.js": {
+    "mtime": 1785430010.6532662,
+    "ast_hash": "5435257734cf65539bc7425782329375",
+    "semantic_hash": "5435257734cf65539bc7425782329375"
+  },
+  "whatsapp-platform/src/config.js": {
+    "mtime": 1782813575.2241755,
+    "ast_hash": "c52353bb1bed7ee83745697928972e34",
+    "semantic_hash": "c52353bb1bed7ee83745697928972e34"
+  },
+  "whatsapp-platform/src/connection-controller.js": {
+    "mtime": 1785430010.92455,
+    "ast_hash": "2d37da5af548ce8a2b8580160b85f3f4",
+    "semantic_hash": "2d37da5af548ce8a2b8580160b85f3f4"
+  },
+  "whatsapp-platform/src/connection-controller.test.js": {
+    "mtime": 1785430010.7113557,
+    "ast_hash": "d41494480f8e0a41b374e2fbf05e444a",
+    "semantic_hash": "d41494480f8e0a41b374e2fbf05e444a"
+  },
+  "whatsapp-platform/src/connection-state.js": {
+    "mtime": 1782633987.0018513,
+    "ast_hash": "1c34400742e762131d37d60640d2712c",
+    "semantic_hash": "1c34400742e762131d37d60640d2712c"
+  },
+  "whatsapp-platform/src/crypto-error-detector.js": {
+    "mtime": 1785430010.8198662,
+    "ast_hash": "36362b374444ad9f12a406aa28371ea1",
+    "semantic_hash": "36362b374444ad9f12a406aa28371ea1"
+  },
+  "whatsapp-platform/src/events/index.js": {
+    "mtime": 1785430010.8441103,
+    "ast_hash": "b9ce135471bdb4b25c8ae0601c60647d",
+    "semantic_hash": "b9ce135471bdb4b25c8ae0601c60647d"
+  },
+  "whatsapp-platform/src/inbound-deliveries.js": {
+    "mtime": 1785430010.7891922,
+    "ast_hash": "f187a6f1d57308daa20c62116331cd9e",
+    "semantic_hash": "f187a6f1d57308daa20c62116331cd9e"
+  },
+  "whatsapp-platform/src/index.js": {
+    "mtime": 1785430010.9483316,
+    "ast_hash": "a4eeb93accd741cf25cae10be4aef839",
+    "semantic_hash": "a4eeb93accd741cf25cae10be4aef839"
+  },
+  "whatsapp-platform/src/logger.js": {
+    "mtime": 1782634589.9936938,
+    "ast_hash": "ab2f38b79e668cae76b251e983b20aa3",
+    "semantic_hash": "ab2f38b79e668cae76b251e983b20aa3"
+  },
+  "whatsapp-platform/src/middleware/apiKeyAuth.js": {
+    "mtime": 1782634678.1575103,
+    "ast_hash": "d91b36569d34e752764f89e9cff1f6e7",
+    "semantic_hash": "d91b36569d34e752764f89e9cff1f6e7"
+  },
+  "whatsapp-platform/src/middleware/pairingRateLimit.js": {
+    "mtime": 1782634687.6390965,
+    "ast_hash": "bb121d6726c20728c147d22f2006f93d",
+    "semantic_hash": "bb121d6726c20728c147d22f2006f93d"
+  },
+  "whatsapp-platform/src/observability/metrics.js": {
+    "mtime": 1782634665.7523777,
+    "ast_hash": "2889bff7b648b9e92bc2979b9a8f0ae8",
+    "semantic_hash": "2889bff7b648b9e92bc2979b9a8f0ae8"
+  },
+  "whatsapp-platform/src/outbound-deliveries.js": {
+    "mtime": 1785430010.6445403,
+    "ast_hash": "1dc48cbada86e7d232b97ca81f36cc55",
+    "semantic_hash": "1dc48cbada86e7d232b97ca81f36cc55"
+  },
+  "whatsapp-platform/src/pending-deliveries.js": {
+    "mtime": 1782633987.0119207,
+    "ast_hash": "bc087cb3d438b46238b95bd5a9db67d8",
+    "semantic_hash": "bc087cb3d438b46238b95bd5a9db67d8"
+  },
+  "whatsapp-platform/src/prekey-recovery.js": {
+    "mtime": 1785430010.8972485,
+    "ast_hash": "9a808bae694c2fa11d19b55c07299dbd",
+    "semantic_hash": "9a808bae694c2fa11d19b55c07299dbd"
+  },
+  "whatsapp-platform/src/reconnect-policy.js": {
+    "mtime": 1782633987.019495,
+    "ast_hash": "ae540ba57c41500c87749c1055c287d4",
+    "semantic_hash": "ae540ba57c41500c87749c1055c287d4"
+  },
+  "whatsapp-platform/src/routes/health.js": {
+    "mtime": 1785430010.8758729,
+    "ast_hash": "179c20ededea43fe7d24ea1089846bb1",
+    "semantic_hash": "179c20ededea43fe7d24ea1089846bb1"
+  },
+  "whatsapp-platform/src/routes/messages.js": {
+    "mtime": 1785430010.785514,
+    "ast_hash": "39aa2e0e755c2c8b66e0daa33e975f16",
+    "semantic_hash": "39aa2e0e755c2c8b66e0daa33e975f16"
+  },
+  "whatsapp-platform/src/routes/pairing.js": {
+    "mtime": 1785430010.9160056,
+    "ast_hash": "9f6a0ad0595a081edb36eaba41f582e5",
+    "semantic_hash": "9f6a0ad0595a081edb36eaba41f582e5"
+  },
+  "whatsapp-platform/src/routes/utils.js": {
+    "mtime": 1782634692.8605866,
+    "ast_hash": "b95e3a84b39f56706fa91488b022f61d",
+    "semantic_hash": "b95e3a84b39f56706fa91488b022f61d"
+  },
+  "whatsapp-platform/src/storage/authState.js": {
+    "mtime": 1782750702.2918253,
+    "ast_hash": "1219af55683f6e91d166b64c1b806a5e",
+    "semantic_hash": "1219af55683f6e91d166b64c1b806a5e"
+  },
+  "whatsapp-platform/src/storage/sessionRepository.js": {
+    "mtime": 1782637753.7815456,
+    "ast_hash": "d3972e4fed2fc4fca189a968334a0582",
+    "semantic_hash": "d3972e4fed2fc4fca189a968334a0582"
+  },
+  "whatsapp-platform/src/types.js": {
+    "mtime": 1782634602.4118054,
+    "ast_hash": "43bfdc279f6d70401af519240e9c84a4",
+    "semantic_hash": "43bfdc279f6d70401af519240e9c84a4"
+  },
+  "whatsapp-platform/src/watchdog.js": {
+    "mtime": 1782633987.0234952,
+    "ast_hash": "9c97fb3ee349bc2f5d4178ce9c161831",
+    "semantic_hash": "9c97fb3ee349bc2f5d4178ce9c161831"
+  },
+  "whatsapp-platform/src/webhookForwarder.js": {
+    "mtime": 1785430010.7501285,
+    "ast_hash": "7d1067ac3de1598c4a0cc1d7c9ba33a2",
+    "semantic_hash": "7d1067ac3de1598c4a0cc1d7c9ba33a2"
+  },
+  "AGENTS.md": {
+    "mtime": 1782809864.8564343,
+    "ast_hash": "84ccea7fb4970406e418cd18b6b3b8b1",
+    "semantic_hash": "84ccea7fb4970406e418cd18b6b3b8b1"
+  },
+  "CLAUDE.md": {
+    "mtime": 1779625086.659974,
+    "ast_hash": "e21aae0d1a303f67c1866f3cf857041d",
+    "semantic_hash": "e21aae0d1a303f67c1866f3cf857041d"
+  },
+  "reality-flow-authentication/infra/cfn-backend.yaml": {
+    "mtime": 1782633987.328082,
+    "ast_hash": "5ba86009efad49a42e8b066c5af0598d",
+    "semantic_hash": "5ba86009efad49a42e8b066c5af0598d"
+  },
+  "reality-flow-mcp/infra/cfn-backend.yaml": {
+    "mtime": 1782823484.733075,
+    "ast_hash": "1626078aaa50b5236da9ca6434eb89b4",
+    "semantic_hash": "1626078aaa50b5236da9ca6434eb89b4"
+  },
+  "server/infra/cfn-backend.yaml": {
+    "mtime": 1784818745.0795121,
+    "ast_hash": "b26b709541aec1b70e3eda016f43ae15",
+    "semantic_hash": "b26b709541aec1b70e3eda016f43ae15"
+  },
+  "whatsapp-platform/infra/cfn-platform.yaml": {
+    "mtime": 1783508947.3425057,
+    "ast_hash": "bbe7d9fbe1b985ad7a1bd576035639b4",
+    "semantic_hash": "bbe7d9fbe1b985ad7a1bd576035639b4"
+  },
+  "whatsapp-platform/qr-code-relink.png": {
+    "mtime": 1784719952.1732402,
+    "ast_hash": "62067c1173f17a7640e8de748aeb9ca6",
+    "semantic_hash": "62067c1173f17a7640e8de748aeb9ca6"
+  }
+}

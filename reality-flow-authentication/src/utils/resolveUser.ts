@@ -8,6 +8,7 @@ import {
   enrichUserProfile,
   updateLastLogin,
   promotePendingEmail,
+  reconcilePhoneGsiIfNeeded,
   assertEmailAvailable,
   UserItem,
 } from '../models/usersModel';
@@ -88,6 +89,10 @@ export async function resolveUser(
         email: normalizedEmail,
         phoneNumber: phone,
       }).catch((e) => logger.error('[resolveUser] enrichUserProfile error', { error: e }));
+
+      await reconcilePhoneGsiIfNeeded(user).catch((e) =>
+        logger.error('[resolveUser] reconcilePhoneGsiIfNeeded error', { error: e })
+      );
 
       // Re-fetch user to capture any promotions
       const refreshed = await findUserByUserId(user.userId);

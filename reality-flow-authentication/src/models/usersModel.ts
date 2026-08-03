@@ -704,6 +704,33 @@ export async function updateWhatsAppConnection(
 }
 
 /**
+ * Fix stale PhoneIndex keys when phoneNumber and GSI_PhonePK are out of sync.
+ */
+export async function reconcilePhoneGsiIfNeeded(user: UserItem): Promise<void> {
+  if (!user.phoneNumber) return;
+
+  const expectedPk = `PHONE#${user.phoneNumber}`;
+  if (user.GSI_PhonePK === expectedPk) return;
+
+  const { USERS_TABLE } = getConfig();
+  const now = new Date().toISOString();
+
+  await dynamodb
+    .update({
+      TableName: USERS_TABLE,
+      Key: { TenantId: user.TenantId, SK: `USER#${user.userId}` },
+      UpdateExpression: 'SET GSI_PhonePK = :pk, GSI_PhoneSK = :sk, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':pk': expectedPk,
+        ':sk': `USER#${user.userId}`,
+        ':now': now,
+      },
+      ConditionExpression: 'attribute_exists(TenantId) AND attribute_exists(SK)',
+    })
+    .promise();
+}
+
+/**
  * Promote pending phone to canonical phone.
  * Sets phoneNumber + GSI fields, marks phoneVerified = true, clears pending fields.
  * Guarded: only succeeds if pendingPhoneNumber matches the expected value.
