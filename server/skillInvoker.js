@@ -265,7 +265,7 @@ const _TOOL_SCHEMAS_REMOVED = {
   },
   update_contact: {
     required: ['contactId'],
-    types: { contactId: 'string', name: 'string', phone: 'string', email: 'string', status: 'string' },
+    types: { contactId: 'string', name: 'string', phone: 'string', email: 'string' },
   },
   delete_contact: {
     required: ['contactId'],

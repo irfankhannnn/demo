@@ -293,7 +293,7 @@ export const toolDefinitions = [
     category: 'contact',
     readOnly: false,
     descriptions: {
-      internal: 'Update a contact\'s name, phone, email, or status. Use this when the user asks to edit or change contact info. Triggers: "update contact", "change contact phone", "edit contact", "contact ka phone update karo", "mark contact inactive". Required: contactId. Provide only the fields to update.',
+      internal: 'Update a contact\'s name, phone, or email. Use this when the user asks to edit or change contact info. Triggers: "update contact", "change contact phone", "edit contact", "contact ka phone update karo". Required: contactId. Provide only the fields to update.',
       mcp: 'Update a contact. Requires contactId.',
     },
     handler: 'updateContact',
@@ -302,7 +302,6 @@ export const toolDefinitions = [
       { name: 'name', type: 'string', required: false, description: 'New name.' },
       { name: 'phone', type: 'string', required: false, description: 'New phone.' },
       { name: 'email', type: 'string', required: false, description: 'New email.' },
-      { name: 'status', type: 'string', required: false, enum: ['active', 'inactive'], description: 'New status.' },
     ],
   },
   {

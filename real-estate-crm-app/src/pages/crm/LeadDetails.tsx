@@ -222,8 +222,8 @@ export default function LeadDetails() {
   useEffect(() => {
     if (!showConvertModal) return;
 
-    // Load correct properties for this lead type when modal opens
-    loadProperties(lead.leadType);
+    // Load all sale and rental listings when the conversion modal opens
+    loadProperties();
 
     if (lead.leadType !== 'tenant') return;
 
@@ -290,23 +290,10 @@ export default function LeadDetails() {
     });
   }, [lead.leadType, selectedPropertyId, properties]);
 
-  const loadProperties = async (type?: string) => {
+  const loadProperties = async () => {
     try {
-      const isTenant = type === 'tenant';
-      const [setA, setB] = await Promise.all([
-        api.getCRMProperties('available'),
-        api.getCRMProperties(isTenant ? 'for-rent' : 'for-sale'),
-      ]);
-
-      const mergedMap = new Map<string, any>();
-      (setA || []).forEach((p: any) => {
-        if (p.propertyId) mergedMap.set(p.propertyId, p);
-      });
-      (setB || []).forEach((p: any) => {
-        if (p.propertyId) mergedMap.set(p.propertyId, p);
-      });
-
-      setProperties(Array.from(mergedMap.values()));
+      const availableProperties = await api.getCRMProperties('available');
+      setProperties(availableProperties || []);
     } catch (error) {
       console.error('Error loading properties:', error);
     }
@@ -654,6 +641,7 @@ export default function LeadDetails() {
         showToast('Lead converted successfully.', 'success');
       }
 
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 1200));
       navigateFromConversion(entityType, entity, result?.contactId || null);
       setShowConvertModal(false);
     } catch (error: unknown) {

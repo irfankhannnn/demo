@@ -39,7 +39,7 @@ Triggers: update contact details
 Command: `npx tsx {baseDir}/scripts/update-contact.ts '<json>'` — include `contactId`.
 
 ```json
-{"contactId":"c1","address":"Bandra, Mumbai","status":"inactive"}
+{"contactId":"c1","address":"Bandra, Mumbai"}
 ```
 
 ---

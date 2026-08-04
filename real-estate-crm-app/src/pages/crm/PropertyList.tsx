@@ -103,19 +103,6 @@ export default function PropertyList() {
       sortable: true,
       render: (property) => (
         <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-xl overflow-hidden bg-gradient-to-br from-purple-100 to-indigo-100 flex-shrink-0 shadow-md">
-            {property.images && property.images.length > 0 ? (
-              <img
-                src={property.images[0].url || ''}
-                alt={property.title}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center">
-                <Home className="h-6 w-6 text-purple-400" />
-              </div>
-            )}
-          </div>
           <div>
             <p className="font-medium text-gray-900 line-clamp-1">{property.title}</p>
             <p className="text-xs text-gray-500 flex items-center gap-1">
@@ -261,7 +248,6 @@ export default function PropertyList() {
           <option value="sold">Sold</option>
           <option value="archived">Archived</option>
           <option value="inactive">Not Listed (legacy)</option>
-          <option value="available">Not Listed (legacy)</option>
         </select>
       </div>
       <div>

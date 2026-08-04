@@ -44,7 +44,6 @@ export default function ContactDetails() {
     email: '',
     address: '',
     roles: { owner: false, seller: false, buyer: false, tenant: false },
-    status: 'active',
     notes: '',
     panNumber: '',
     aadharNumber: '',
@@ -107,7 +106,6 @@ export default function ContactDetails() {
           email: contact.email,
           address: contact.address,
           roles: contact.roles,
-          status: contact.status as 'active' | 'inactive',
           notes: contact.notes,
           panNumber: contact.panNumber,
           aadharNumber: contact.aadharNumber,
@@ -336,14 +334,9 @@ export default function ContactDetails() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                  <select
-                    value={contact.status || 'active'}
-                    onChange={(e) => setContact({ ...contact, status: e.target.value as 'active' | 'inactive' })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
+                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+                    {isNew ? 'Calculated after saving' : contact.status}
+                  </div>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>

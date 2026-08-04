@@ -820,6 +820,54 @@ export default function PropertyDetails() {
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h2>
 
                 <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as PropertyStatus;
+                        if (newStatus === 'sold') {
+                          if (!id) {
+                            alert('Please save the property details first before marking it as sold.');
+                            return;
+                          }
+                          setSaleForm({
+                            saleType: 'direct',
+                            soldPrice: formData.salePrice || property?.saleInfo?.listedPrice || property?.rentAmount || 0,
+                            buyerId: '',
+                            brokerageAmount: 0,
+                            brokerageLost: 0,
+                            reasonLost: '',
+                            customReasonLost: '',
+                            notes: ''
+                          });
+                          setShowSaleModal(true);
+                        } else {
+                          setFormData({
+                            ...formData,
+                            status: newStatus,
+                          });
+                        }
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    >
+                      <option value="not-listed">Not Listed</option>
+                      <option value="for-sale">Available for Sale</option>
+                      <option value="for-rent">Available for Rent</option>
+                      <option value="rented">Occupied</option>
+                      {(formData.status === 'sold' || formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold' || formData.status === 'out-of-stock' || formData.status === 'archived') && (
+                        <option value={formData.status}>
+                          {formData.status === 'sold' ? 'Sold (legacy)'
+                            : formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold'
+                              ? 'Not Listed (legacy)'
+                              : formData.status}
+                        </option>
+                      )}
+                    </select>
+                  </div>
+
                   {/* Owner — read-only; ownership changes via Mark as Sold only */}
                   <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1180,54 +1228,6 @@ export default function PropertyDetails() {
                       onChange={(e) => setFormData({ ...formData, availableFrom: e.target.value })}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Status
-                    </label>
-                    <select
-                      value={formData.status}
-                      onChange={(e) => {
-                        const newStatus = e.target.value as PropertyStatus;
-                        if (newStatus === 'sold') {
-                          if (!id) {
-                            alert('Please save the property details first before marking it as sold.');
-                            return;
-                          }
-                          setSaleForm({
-                            saleType: 'direct',
-                            soldPrice: formData.salePrice || property?.saleInfo?.listedPrice || property?.rentAmount || 0,
-                            buyerId: '',
-                            brokerageAmount: 0,
-                            brokerageLost: 0,
-                            reasonLost: '',
-                            customReasonLost: '',
-                            notes: ''
-                          });
-                          setShowSaleModal(true);
-                        } else {
-                          setFormData({
-                            ...formData,
-                            status: newStatus,
-                          });
-                        }
-                      }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                    >
-                      <option value="not-listed">Not Listed</option>
-                      <option value="for-sale">Available for Sale</option>
-                      <option value="for-rent">Available for Rent</option>
-                      <option value="rented">Occupied</option>
-                      {(formData.status === 'sold' || formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold' || formData.status === 'out-of-stock' || formData.status === 'archived') && (
-                        <option value={formData.status}>
-                          {formData.status === 'sold' ? 'Sold (legacy)'
-                            : formData.status === 'inactive' || formData.status === 'available' || formData.status === 'on-hold'
-                              ? 'Not Listed (legacy)'
-                              : formData.status}
-                        </option>
-                      )}
-                    </select>
                   </div>
 
                   {/* Tenant Selection */}

@@ -1285,7 +1285,11 @@ export async function getProperties(tenantId, filters = {}) {
   let properties = items;
 
   if (filters.status) {
-    if (filters.status === 'not-listed') {
+    if (filters.status === 'available') {
+      properties = properties.filter(p =>
+        ['for-sale', 'for-rent'].includes(p.status),
+      );
+    } else if (filters.status === 'not-listed') {
       properties = properties.filter(p =>
         ['not-listed', 'inactive', 'available', 'on-hold'].includes(p.status),
       );
@@ -2859,6 +2863,83 @@ function normalizePhoneE164(phone) {
   return digits;
 }
 
+function hasCurrentLease(rental) {
+  if (!rental) return false;
+  if (!rental.leaseEndDate) return true;
+  const leaseEnd = new Date(rental.leaseEndDate);
+  return !Number.isNaN(leaseEnd.getTime()) && leaseEnd >= new Date();
+}
+
+/**
+ * Contact activity is derived from live CRM relationships, never supplied by a user.
+ */
+export function deriveContactStatus(contact, {
+  properties = [],
+  listings = [],
+  buyers = [],
+  customers = [],
+} = {}) {
+  if (!contact) return 'inactive';
+
+  const ownsProperty = properties.some((property) =>
+    propertyIsCurrentlyOwnedBy(property, {
+      contactId: contact.contactId,
+      ownerId: contact.linkedOwnerId,
+    }),
+  );
+  if (ownsProperty) return 'active';
+
+  const hasActiveListing = listings.some((listing) =>
+    listing.status === 'active'
+    && (
+      listing.listedByContactId === contact.contactId
+      || (contact.linkedOwnerId && listing.listedByOwnerId === contact.linkedOwnerId)
+    ),
+  );
+  if (hasActiveListing) return 'active';
+
+  const contactPhone = normalizePhone(contact.phone);
+  const activeBuyer = contact.roles?.buyer === true && (
+    contact.buyerProfile?.status !== 'inactive'
+    && !buyers.some((buyer) =>
+      normalizePhone(buyer.phone) === contactPhone && buyer.status === 'inactive',
+    )
+  );
+  if (activeBuyer) return 'active';
+
+  const activeTenant = customers.some((customer) =>
+    (customer.customerId === contact.linkedCustomerId || normalizePhone(customer.phone) === contactPhone)
+    && customer.status === 'active'
+    && hasCurrentLease(customer.currentRental),
+  ) || (contact.roles?.tenant === true && hasCurrentLease(contact.tenantProfile?.currentRental));
+  return activeTenant ? 'active' : 'inactive';
+}
+
+async function getContactActivityEntities(tenantId) {
+  const scanByType = (type) => collectAllPages(docClient, ScanCommand, {
+    TableName: CRM_TABLE_NAME,
+    FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+    ExpressionAttributeValues: { ':type': type, ':tenantId': tenantId },
+  }, { maxPages: 100 });
+
+  const [properties, listings, buyers, customers] = await Promise.all([
+    scanByType('PROPERTY'),
+    scanByType('LISTING'),
+    scanByType('BUYER'),
+    scanByType('CUSTOMER'),
+  ]);
+  return { properties, listings, buyers, customers };
+}
+
+async function withDerivedContactStatuses(tenantId, contacts) {
+  if (!contacts.length) return contacts;
+  const activityEntities = await getContactActivityEntities(tenantId);
+  return contacts.map((contact) => ({
+    ...contact,
+    status: deriveContactStatus(contact, activityEntities),
+  }));
+}
+
 /**
  * Create a new Contact
  */
@@ -2943,7 +3024,7 @@ export async function createContact(tenantId, data) {
     source: data.source || '',
     tags: data.tags || [],
     notes: data.notes || '',
-    status: data.status || 'active',
+    status: 'inactive',
     assignedTo: data.assignedTo || null,
     // Migration references (link to old Owner/Customer if migrated)
     linkedOwnerId: data.linkedOwnerId || null,
@@ -2954,6 +3035,8 @@ export async function createContact(tenantId, data) {
     GSI3PK: `TENANT#${tenantId}#SEARCH`,
     GSI3SK: `CONTACT#${(data.name || '').toLowerCase()}#${normalizedPhone}`,
   };
+
+  contact.status = deriveContactStatus(contact);
 
   await docClient.send(new PutCommand({
     TableName: CRM_TABLE_NAME,
@@ -2981,7 +3064,7 @@ export async function getContacts(tenantId, filters = {}) {
     },
   }, { maxPages: 100 });
 
-  let contacts = items;
+  let contacts = await withDerivedContactStatuses(tenantId, items);
 
   // Apply role filters if provided
   if (filters.role) {
@@ -3034,7 +3117,9 @@ export async function getContact(tenantId, contactId) {
       SK: 'PROFILE',
     },
   }));
-  return result.Item || null;
+  if (!result.Item) return null;
+  const [contact] = await withDerivedContactStatuses(tenantId, [result.Item]);
+  return contact;
 }
 
 /**
@@ -3099,7 +3184,6 @@ export async function createOrUpdateContactByPhone(tenantId, data) {
       email: existingContact.email || data.email,
       address: existingContact.address || data.address,
       notes: existingContact.notes || data.notes,
-      status: existingContact.status || data.status,
       assignedTo: existingContact.assignedTo || data.assignedTo || null,
       roles: mergedRoles,
       ownerProfile: mergeProfile(existingContact.ownerProfile, data.ownerProfile),
@@ -3129,6 +3213,8 @@ export async function updateContact(tenantId, contactId, data) {
     throw new Error('Tenant ID is required');
   }
 
+  data = { ...data };
+  delete data.status;
   data.updatedAt = new Date().toISOString();
 
   // Update normalizedPhone if phone changes
@@ -4535,7 +4621,6 @@ export async function convertLead(tenantId, leadId, options = {}) {
         bhk: entityItem.bhk ?? lead.buyerRequirement?.bhk ?? null,
         requirement: entityItem.requirement || lead.buyerRequirement?.requirement || null,
       };
-      contactPayload.status = 'active';
     } else if (role === 'tenant') {
       contactPayload.tenantProfile = {
         requirement: entityItem.tenantRequirement || lead.tenantRequirement || null,
@@ -4940,7 +5025,6 @@ export async function migrateOwnerToContact(tenantId, ownerId) {
     notes: owner.notes,
     tags: owner.tags,
     source: owner.source || 'migrated:owner',
-    status: owner.status,
     linkedOwnerId: ownerId,
     roles: {
       owner: true,
@@ -4988,7 +5072,6 @@ export async function migrateCustomerToContact(tenantId, customerId) {
     notes: customer.notes,
     tags: customer.tags,
     source: customer.source || 'migrated:customer',
-    status: customer.status === 'closed' ? 'inactive' : 'active',
     linkedCustomerId: customerId,
     roles: {
       owner: false,
@@ -6727,9 +6810,9 @@ export async function getLeadsSummary(tenantId, filters = {}) {
  */
 export async function getPropertiesSummary(tenantId, filters = {}) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  const properties = await getProperties(tenantId, filters || {});
+  const { properties } = await getProperties(tenantId, filters || {});
 
-  const isAvailable = (p) => ['available', 'for-sale', 'for-rent', 'active'].includes((p.status || '').toLowerCase());
+  const isAvailable = (p) => ['for-sale', 'for-rent'].includes((p.status || '').toLowerCase());
 
   return {
     total: properties.length,

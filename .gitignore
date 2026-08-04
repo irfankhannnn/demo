@@ -4,6 +4,8 @@ test-results/
 # Root-level node_modules (should never exist; tests/playwright has its own)
 node_modules/
 
+graphify-out/
+
 # OS / editor
 .DS_Store
 Thumbs.db

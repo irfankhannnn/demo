@@ -150,6 +150,32 @@ test.describe('State Transition Validation Tests', () => {
       }
     });
 
+    test('Available property filter includes sale and rental listings', async ({ request }) => {
+      const rentalRes = await request.post(`${API_URL}/crm/properties`, {
+        headers: jsonHeaders(TEST_TOKEN),
+        data: {
+          title: 'Available Rental Property',
+          ownerId: createdOwnerId,
+          status: 'for-rent',
+        },
+      });
+      expect([200, 201]).toContain(rentalRes.status());
+      const rentalBody = await rentalRes.json();
+      const rentalPropertyId = rentalBody.propertyId || rentalBody.id;
+
+      const res = await request.get(`${API_URL}/crm/properties?status=available`, {
+        headers: jsonHeaders(TEST_TOKEN),
+      });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      const properties = body.properties || [];
+      const propertyIds = properties.map((property: { propertyId?: string; id?: string }) => property.propertyId || property.id);
+
+      expect(propertyIds).toContain(createdPropertyId);
+      expect(propertyIds).toContain(rentalPropertyId);
+      expect(properties.every((property: { status?: string }) => ['for-sale', 'for-rent'].includes(property.status || ''))).toBe(true);
+    });
+
     test('Invalid: sold -> for-rent -> 400', async ({ request }) => {
       await request.put(`${API_URL}/crm/properties/${createdPropertyId}`, {
         headers: jsonHeaders(TEST_TOKEN),

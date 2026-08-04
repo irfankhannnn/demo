@@ -62,8 +62,8 @@ export async function saveAndWaitForApi(
       const body = await response.json().catch(() => null) as Record<string, unknown> | null;
 
       if (response.ok()) {
-        await expect(saveBtn).toBeVisible({ timeout: 5_000 });
-        await page.waitForLoadState('networkidle');
+        // Form closes after save — wait for navigation/list refresh, not the Save button
+        await page.waitForLoadState('networkidle').catch(() => null);
         await page.waitForTimeout(1_000);
         return body ?? {};
       }

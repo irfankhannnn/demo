@@ -331,7 +331,6 @@ async function updateBuyerAsOwner(tenantId, buyerContact, propertyId, buyerEntit
   const existingBuyer = buyerContact.buyerProfile || buildBuyerProfile();
 
   await updateContact(tenantId, buyerContact.contactId, {
-    status: 'active',
     roles: {
       ...(buyerContact.roles || {}),
       buyer: true,

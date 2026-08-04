@@ -1673,7 +1673,6 @@ class ApiService {
     source?: string;
     tags?: string[];
     notes?: string;
-    status?: string;
   }) {
     const init = {
       method: 'POST',
@@ -1708,10 +1707,11 @@ class ApiService {
 
   // Update contact
   async updateContact(contactId: string, data: Record<string, unknown>) {
+    const { status: _derivedStatus, ...updateData } = this.stripDynamoFields(data);
     const init = {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify(this.stripDynamoFields(data)),
+      body: JSON.stringify(updateData),
     };
     const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, init);
     return this.handleResponse(response, init);

@@ -203,7 +203,24 @@ export async function loginWithPhoneOtp(
       }
       await page.waitForTimeout(1_000);
     } else {
-      await page.waitForURL(/\/crm/, { timeout: 30_000 });
+      // New self-serve users land on role selection, not /crm
+      const roleSelection = page.getByText(/choose your role|role selection/i);
+      if (await roleSelection.isVisible({ timeout: 3_000 }).catch(() => false)) {
+        throw new Error(
+          `TEST_PHONE (${phoneNumber}) is not onboarded. Use an existing CRM user ` +
+          '(see TEST_GUIDE.md, e.g. 8291537522) or complete onboarding manually first.',
+        );
+      }
+
+      const uninvited = page.getByText('Not Onboarded');
+      if (await uninvited.isVisible({ timeout: 2_000 }).catch(() => false)) {
+        throw new Error(
+          `Phone ${phoneNumber} is not registered. Update TEST_PHONE in tests/playwright/.env ` +
+          'to a pre-onboarded test user (see TEST_GUIDE.md).',
+        );
+      }
+
+      await page.waitForURL(/\/crm/, { timeout: 60_000 });
       await page.waitForLoadState('networkidle');
 
       // Handle transient "Failed to fetch" error states

@@ -713,7 +713,6 @@ export interface CreateContactData {
   source?: string;
   tags?: string[];
   notes?: string;
-  status?: 'active' | 'inactive';
 }
 
 export interface UpdateContactData {
@@ -734,7 +733,6 @@ export interface UpdateContactData {
   source?: string;
   tags?: string[];
   notes?: string;
-  status?: 'active' | 'inactive';
 }
 
 // ============== Lead Types ==============

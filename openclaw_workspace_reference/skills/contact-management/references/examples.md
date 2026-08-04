@@ -38,10 +38,7 @@
 ```
 → `update-contact.ts`
 
-**"Mark contact c1 as inactive"**
-```json
-{"contactId":"c1","status":"inactive"}
-```
+Contact activity is calculated from current owner, seller, buyer, and tenant relationships and cannot be updated directly.
 
 ---
 
