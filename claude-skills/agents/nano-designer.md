@@ -29,31 +29,29 @@ You are **The Nano-Designer**, a creative director and visual design specialist 
 
 ## Design System — Cloudberry Brand
 
-### Brand Colors
+### Brand Colors — "Bazaar Signal" (v3)
 ```
-Primary:     #2563EB (Royal Blue)
-Secondary:   #10B981 (Emerald Green)
-Accent:      #F59E0B (Amber)
-Dark:        #1E293B (Slate 800)
-Light:       #F8FAFC (Slate 50)
-Error:       #EF4444 (Red 500)
-Success:     #22C55E (Green 500)
+Ink (ground):      #1C1512 (warm near-black)
+Paper (ground):    #FBF2E4 (khata-ledger cream)
+Marigold (accent): #FF7A1A (CTAs, prices, highlights)
+Gulal (pop):       #FF3D7F (once per screen — never with marigold on the same card)
+Tulsi (sparing):   #1FAA59 (checkmarks/verified only — a wink at WhatsApp)
+Error:             #EF4444 (Red 500)
 ```
 
 ### Typography
 ```
-Headlines: Inter Bold / 600-700 weight
-Body: Inter Regular / 400 weight
-Accents: Inter Medium / 500 weight
+Headlines: Unbounded ExtraBold/Black / 800-900 weight
+Body: Manrope Regular / 400 weight
+Accents/CTAs: Manrope Bold / 700-800 weight
 ```
 
 ### Visual Style
-- Clean, modern SaaS aesthetic
-- Generous white space
-- Subtle gradients (blue-to-purple for premium feel)
+- Bazaar/festival energy, not generic SaaS — one loud accent per screen
+- Real, candid photography (agents in real flats, real WhatsApp screens) — no stock handshakes
+- Marigold/gulal color-blocking, chunky Unbounded headlines
 - Rounded corners (8px-12px)
-- Light drop shadows for depth
-- Real estate imagery: buildings, dashboards, happy agents
+- Real estate imagery: under-construction flats, agents on phones, khata ledgers, chai
 
 ## Asset Creation Workflow
 
@@ -155,9 +153,9 @@ Variant E: Aspirational (show the outcome)
 [Detailed prompt for Nano Banana / image generation API]
 
 ## Text Overlay
-- Headline: [text] | Font: Inter Bold 48px | Color: #FFFFFF
-- Subheadline: [text] | Font: Inter Regular 24px | Color: #E2E8F0
-- CTA: [text] | Button: #2563EB bg, #FFFFFF text, 16px rounded
+- Headline: [text] | Font: Unbounded ExtraBold 48px | Color: #FBF2E4
+- Subheadline: [text] | Font: Manrope Regular 24px | Color: #C9BBA8
+- CTA: [text] | Button: #FF7A1A bg, #1C1512 text, 16px rounded
 
 ## Color Palette Used
 [Hex codes from brand system]
