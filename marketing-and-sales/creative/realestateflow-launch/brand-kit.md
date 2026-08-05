@@ -1,4 +1,12 @@
-# RealEstateFlow — Brand Kit (v2 — APPROVED & ACTIVE)
+# RealEstateFlow — Brand Kit (v3 — Visual System ACTIVE)
+
+> **v3 changelog:** Replaces the v2 navy/`#22C55E`-green enterprise-SaaS look with **"Bazaar Signal"** —
+> a bolder, chat-marketing-inspired system (researched from Manychat's 2022 COLLINS rebrand) rebuilt on
+> Indian bazaar/festival color instead of corporate navy. Positioning, offer terms, and messaging below
+> are **unchanged from v2** — only the Visual Identity section (colors, type, components, photography,
+> plus a new Instagram Content System) has been revised. A full positioning pass is scheduled separately.
+> See [`brand-lookbook-v3-bazaar-signal.html`](./brand-lookbook-v3-bazaar-signal.html) for the palette,
+> type specimen, and Instagram post/carousel mockups in visual form.
 
 ## Positioning
 - **Product category:** Real Estate OS (not "just a CRM")
@@ -35,109 +43,142 @@
 
 ---
 
-## Visual Identity
+## Visual Identity — "Bazaar Signal" (v3)
+
+**Direction rationale:** The v2 navy/green look reads as generic enterprise SaaS. Chat-marketing
+platforms that actually win attention in this space (Manychat's 2022 COLLINS rebrand and its live
+site/Instagram) use one loud accent, spoken-language headlines, and real-not-stock photography —
+a creator's-tool feel, not a corporate one. Bazaar Signal borrows those moves but grounds the color
+in Indian bazaar/festival signal — marigold and gulal — instead of borrowing a creator-app palette
+outright.
 
 ### Logo
-- **Icon:** House outline with 4 wave lines inside (representing data flows/real estate)
-- **Green accent:** Third wave line is green (`#22C55E`), others are white at varying opacity
-- **Wordmark:** "RealEstateFlow" — Poppins ExtraBold, white on dark backgrounds
-- **Dark-bg SVG (inline):** Use SVG with white strokes + green accent wave (see landing pages)
-- **Light-bg use:** Use the `.png` logo from `/assets/logos/final/logo.png`
+- **Icon:** House outline with 4 wave lines inside (unchanged shape — representing data flows/real estate)
+- **Accent wave:** Third wave line is now **marigold** (`#FF7A1A`), others are paper-cream at varying opacity
+- **Wordmark:** "RealEstateFlow" — **Unbounded** ExtraBold/Black, on ink or paper backgrounds
+- **Dark-bg SVG (inline):** Use SVG with paper-cream strokes + marigold accent wave (see below)
+- **Light-bg use:** Use the `.png` logo from `/assets/logos/final/logo.png` (recolor accent wave to marigold)
 
 ### Logo SVG (inline, for dark backgrounds)
 ```svg
 <svg width="36" height="36" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M30 4L56 25V56H4V25L30 4Z" stroke="white" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
-  <path d="M10 33Q18 30 26 33Q34 36 42 33Q46 31 50 33" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-  <path d="M10 39Q18 36 26 39Q34 42 42 39Q46 37 50 39" stroke="rgba(255,255,255,0.65)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
-  <path d="M10 45Q18 42 26 45Q34 48 42 45Q46 43 50 45" stroke="#22C55E" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-  <path d="M10 51Q18 48 26 51Q34 54 42 51Q46 49 50 51" stroke="rgba(255,255,255,0.35)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M30 4L56 25V56H4V25L30 4Z" stroke="#FBF2E4" stroke-width="2.5" fill="none" stroke-linejoin="round"/>
+  <path d="M10 33Q18 30 26 33Q34 36 42 33Q46 31 50 33" stroke="rgba(251,242,228,0.35)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M10 39Q18 36 26 39Q34 42 42 39Q46 37 50 39" stroke="rgba(251,242,228,0.65)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M10 45Q18 42 26 45Q34 48 42 45Q46 43 50 45" stroke="#FF7A1A" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+  <path d="M10 51Q18 48 26 51Q34 54 42 51Q46 49 50 51" stroke="rgba(251,242,228,0.35)" stroke-width="1.5" fill="none" stroke-linecap="round"/>
 </svg>
 ```
 
 ---
 
-### Colors (APPROVED — replace all old sky-blue/saffron references)
+### Colors (v3 — supersedes all v2 navy/`#22C55E` references)
 
 | Token | Hex | Usage |
 |-------|-----|-------|
-| Navy (Primary) | `#0F3A66` | CTAs, step circles, hero accents |
-| Navy hover | `#0A2E54` | Button hover state |
-| Green (Accent) | `#22C55E` | CTAs on dark, checkmarks, highlights, green wave |
-| Green hover | `#16A34A` | Green button hover |
-| Dark BG | `#07111E` | Page background |
-| Card BG | `#0C1E3A` | Cards, containers |
-| Alt Card | `#0F2745` | Testimonials, alternate cards |
-| Emerald label | `#34D399` | Badge labels, trust signals |
-| Error/Pain | `#EF4444` | Pain points, loss metrics |
-| Amber/Warning | `#F59E0B` | "No free trial" warnings, enterprise badges |
-| Text | `#F8FAFC` | Primary text on dark |
-| Muted text | `#94A3B8` | Secondary text |
-| Border | `#1E3A5F` | Card borders (or `border-slate-700` in Tailwind) |
+| Ink (Primary ground) | `#1C1512` | Page background — warm near-black, not cold navy |
+| Ink 2 (Card ground) | `#251C16` | Cards, containers |
+| Ink 3 (Alt card) | `#2E241D` | Testimonials, alternate cards |
+| Paper (Light ground) | `#FBF2E4` | Light-mode background — khata-ledger cream, not stark white |
+| Paper 2 | `#F3E6D2` | Light-mode alt surface |
+| Marigold (Primary accent) | `#FF7A1A` | CTAs, prices, headline highlights, logo accent wave |
+| Marigold hover | `#E8620A` | Button hover state |
+| Gulal (Secondary pop) | `#FF3D7F` | Quote marks, alerts — **once per screen**, never paired with marigold on the same card |
+| Gulal hover | `#E01F63` | Hover/pressed state |
+| Tulsi (Tertiary — sparing) | `#1FAA59` | Checkmarks, "verified" only — a deliberate wink at WhatsApp; never used as a primary accent |
+| Dust (Muted, on dark) | `#C9BBA8` | Secondary text, borders on ink |
+| Dust dim (Muted, on light) | `#948575` | Secondary text on paper |
+| Error/Pain | `#EF4444` | Pain points, loss metrics (unchanged from v2) |
+
+**Usage ratio per screen:** ~42% ink, ~18% paper, ~22% marigold, ~14% gulal, ~4% tulsi. Gulal and
+marigold should not both anchor the same card — pick one per component so the accent reads as
+confident, not chaotic.
 
 ### Gradient (hero headlines)
-- **Dark-bg gradient text:** `linear-gradient(135deg, #ffffff, #22C55E)` — White to Green
+- **Dark-bg gradient text:** `linear-gradient(100deg, #FF7A1A 15%, #FF3D7F 85%)` — Marigold to Gulal
 - **CSS class (.gt):**
   ```css
   .gt {
-    background: linear-gradient(135deg, #ffffff, #22C55E);
+    background: linear-gradient(100deg, #FF7A1A 15%, #FF3D7F 85%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
   ```
-- **Hero radial (page bg):** `radial-gradient(ellipse at top, rgba(15,58,102,.25) 0%, rgba(34,197,94,.06) 50%, transparent 70%)`
-
-### Page-level gradient context
-| Page | Gradient |
-|------|----------|
-| Homepage | `rgba(15,58,102,.25)` navy tint + `rgba(34,197,94,.06)` green hint |
-| Agency Owners | `rgba(15,58,102,.20)` + `rgba(34,197,94,.05)` |
-| Agents | Same as Agency Owners |
-| AI Employee | `rgba(34,197,94,.10)` green-first + `rgba(15,58,102,.08)` |
-| Enterprise | `rgba(15,58,102,.20)` navy-dominant (premium) |
-| Demo | `rgba(15,58,102,.15)` subtle navy |
 
 ---
 
 ### Typography
-- **Headline font:** Poppins (Google Fonts) — Black (900) / ExtraBold (800) / Bold (700)
-- **Body font:** Inter (Google Fonts) — Regular (400) / Medium (500) / SemiBold (600)
-- **Import:** `Poppins:wght@400;500;600;700;800;900` + `Inter:wght@400;500;600;700;800;900`
+- **Display font:** Unbounded (Google Fonts) — Weight 800/900 **only**. Headlines, hooks, big
+  numbers/prices. Never set body copy or a full paragraph in it — one line, maybe two.
+- **Body/UI font:** Manrope (Google Fonts) — Regular (400) through ExtraBold (800). Everything
+  Unbounded doesn't shout: captions, paragraphs, button labels, stat callouts.
+- **Import:** `Unbounded:wght@700;800;900` + `Manrope:wght@400;500;600;700;800`
 - **CSS rule:**
   ```css
-  * { font-family: 'Inter', sans-serif; }
-  h1, h2, h3, .font-poppins { font-family: 'Poppins', sans-serif; }
+  * { font-family: 'Manrope', sans-serif; }
+  h1, h2, h3, .font-display { font-family: 'Unbounded', sans-serif; font-weight: 800; }
   ```
-- **Badge labels:** Inter SemiBold (600), uppercase, letter-spacing: wide
+- **CTA button labels:** Manrope 800 (not Unbounded) — punch without shouting
+- **Numerals/stats:** Manrope with `font-variant-numeric: tabular-nums`
 
 ---
 
 ### Components (UI tokens)
-- **Primary CTA:** `bg-[#22C55E] hover:bg-[#16A34A] text-white font-bold rounded-lg`
-- **Navy CTA (enterprise):** `bg-[#0F3A66] hover:bg-[#0A2E54] text-white font-bold rounded-lg`
-- **Outline CTA:** `border border-[#22C55E] text-emerald-400 hover:bg-emerald-950/30`
-- **Badge:** `bg-emerald-950/40 border border-emerald-800/40 text-emerald-400 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full`
-- **Card:** `bg-[#0C1E3A] border border-slate-700 rounded-xl`
-- **Alt Card:** `bg-[#0F2745] border border-slate-700 rounded-xl`
-- **Most Popular badge:** `bg-[#22C55E] text-white` (solid, no gradient)
-- **Step circle (1–N):** `bg-[#0F3A66]` for standard, `bg-[#22C55E]` for final/highlight
+- **Primary CTA:** `bg-[#FF7A1A] hover:bg-[#E8620A] text-[#1C1512] font-extrabold rounded-lg`
+- **Secondary/alert CTA:** `bg-[#FF3D7F] hover:bg-[#E01F63] text-[#FBF2E4] font-extrabold rounded-lg`
+- **Outline CTA:** `border border-[#FF7A1A] text-[#FF7A1A] hover:bg-orange-950/20`
+- **Badge:** `bg-black/30 border border-[#3A2E25] text-[#FF7A1A] text-xs font-extrabold uppercase tracking-widest px-3 py-1.5 rounded-full`
+- **Card:** `bg-[#251C16] border border-[#3A2E25] rounded-xl`
+- **Alt Card:** `bg-[#2E241D] border border-[#3A2E25] rounded-xl`
+- **Verified/checkmark:** `text-[#1FAA59]` — the only routine use of tulsi green
 
 ---
 
 ## Iconography Style
-- Use simple emoji icons for v1 (fast production)
-- Replace with minimal line icons (stroke, not fill) in v2
-- Consistent stroke weight: 1.5–2px
-- Green (`#22C55E`) for success/positive icons
+- Minimal line icons (stroke, not fill), 1.5–2px stroke weight
+- Marigold (`#FF7A1A`) for primary highlights/CTAs
+- Tulsi (`#1FAA59`) reserved for success/verified only — do not use as a general accent
 - Red (`#EF4444`) for pain/problem icons
-- Amber (`#F59E0B`) for warnings/pricing disclosures
 
 ## Photography/Illustration Guidance
-- Prefer: Clean product screenshots, WhatsApp UI mockups, simple flow diagrams
-- Avoid: Generic stock photos of people unless real customer photos
-- Lighting: Warm Indian city light (golden hour) for lifestyle shots
-- Overlay: Navy/dark glass panels with green-accented UI cards
+**Shoot or generate:**
+- Real agents in real under-construction flats — dust, exposed wiring, genuine site-visit energy
+- Phone screens showing actual WhatsApp/CRM UI, held naturally mid-conversation
+- Golden-hour light, handheld candid framing, slight grain — not a studio setup
+- Marigold garlands, chai tumblers, khata ledgers as incidental props
+- Agents aged 20s–40s, Mumbai/Pune/Thane settings, ordinary office chaos
+
+**Never:**
+- Generic handshake-over-a-table stock photography
+- Glass-tower corporate offices with no Indian specificity
+- Posed, symmetrical "everyone smiling at camera" group shots
+- Perfectly staged property interiors with no signs of life
+- Stock chat-bubble UI screenshots that don't match the real product
+
+*(No reference photography has been generated yet for v3 — this section is written direction for
+the next shoot or AI-generation pass.)*
+
+---
+
+## Instagram Content System (new in v3)
+
+### Post types (pick one ground + one accent per post — never mix marigold and gulal in one card)
+| Type | Ground | Use for |
+|------|--------|---------|
+| Hook / quote | Ink | Scroll-stopping one-liners, WhatsApp-pain hooks, gulal quote mark |
+| Stat / proof | Marigold | Big number + one-line proof point |
+| Product / chat | Gulal | AI Employee screenshots, chat-bubble mockups |
+| Testimonial | Paper | Customer quotes, star rating in marigold-deep |
+
+### Carousel rhythm (fixed 5-slide structure)
+1. **Hook slide** — gulal ground, the scroll-stopping question/claim
+2. **Slides 2–4** — quiet ink ground, one point per slide, marigold bullet dot
+3. **Final slide** — marigold ground, the CTA
+
+### Feed consistency rule
+When laying out 9 grid tiles, no more than 3 of 9 should share a ground color at once — alternate
+ink/marigold/paper/gulal in a loose checkerboard so the feed reads as a set even at arm's length.
 
 ## Copy Blocks (reusable)
 ### Trust bar
