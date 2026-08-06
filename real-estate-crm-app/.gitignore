@@ -30,6 +30,8 @@ dist-ssr
 .env
 .env.local
 .env.production
+.env.nonprod
+.env.prod
 
 # Capacitor
 android/
