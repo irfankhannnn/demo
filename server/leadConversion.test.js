@@ -10,6 +10,11 @@ import {
   assertTransactSizeOk,
   validateConvertLeadOptions,
   phonesMatch,
+  parsePropertyBhk,
+  coerceFiniteNumber,
+  coerceOptionalNumber,
+  buildForSalePropertyItem,
+  buildForRentPropertyItem,
   DYNAMO_TRANSACT_MAX_ITEMS,
   CONVERSION_SYSTEM_KEYS,
 } from './services/leadConversionService.js';
@@ -169,6 +174,62 @@ describe('leadConversionService contracts', () => {
   test('phonesMatch normalizes indian mobiles', () => {
     expect(phonesMatch('9876543210', '+91 98765 43210')).toBe(true);
     expect(phonesMatch('9876543210', '9123456789')).toBe(false);
+  });
+
+  test('parsePropertyBhk maps lead labels to numeric property bhk', () => {
+    expect(parsePropertyBhk('3 BHK')).toBe(3);
+    expect(parsePropertyBhk('2.5 BHK')).toBe(2.5);
+    expect(parsePropertyBhk('Studio')).toBe(0);
+    expect(parsePropertyBhk('5+ BHK')).toBe(5);
+    expect(parsePropertyBhk(4)).toBe(4);
+    expect(parsePropertyBhk('invalid')).toBe(1);
+    expect(parsePropertyBhk(null)).toBe(1);
+  });
+
+  test('buildForSalePropertyItem never writes NaN for bhk or carpetArea', () => {
+    const lead = {
+      leadId: 'lead-seller',
+      name: 'Seller',
+      phone: '9876543210',
+      sellerProperty: {
+        propertyType: 'apartment',
+        bhk: '3 BHK',
+        carpetArea: '2200',
+        expectedPrice: '12500000',
+        area: 'Bandra',
+      },
+    };
+    const owner = { ownerId: 'owner-1', name: 'Seller', phone: '9876543210' };
+    const { item } = buildForSalePropertyItem('tenant-1', lead, owner, { convertedBy: 'agent' });
+    expect(item.bhk).toBe(3);
+    expect(item.carpetArea).toBe(2200);
+    expect(item.saleInfo.listedPrice).toBe(12500000);
+    expect(Number.isFinite(item.bhk)).toBe(true);
+    expect(Number.isFinite(item.carpetArea)).toBe(true);
+  });
+
+  test('buildForRentPropertyItem never writes NaN for bhk or rent fields', () => {
+    const lead = {
+      leadId: 'lead-owner',
+      name: 'Owner',
+      phone: '9876543210',
+      ownerProperty: {
+        propertyType: 'villa',
+        bhk: '2.5 BHK',
+        carpetArea: '1800',
+        rentExpected: '85000',
+        securityDeposit: '255000',
+        area: 'Powai',
+      },
+    };
+    const owner = { ownerId: 'owner-2', name: 'Owner', phone: '9876543210' };
+    const { item } = buildForRentPropertyItem('tenant-1', lead, owner, { convertedBy: 'agent' });
+    expect(item.bhk).toBe(2.5);
+    expect(item.carpetArea).toBe(1800);
+    expect(item.rentAmount).toBe(85000);
+    expect(item.depositAmount).toBe(255000);
+    expect(Number.isFinite(item.bhk)).toBe(true);
+    expect(Number.isFinite(item.rentAmount)).toBe(true);
   });
 });
 

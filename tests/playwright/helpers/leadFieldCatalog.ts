@@ -39,7 +39,20 @@ export const LEAD_UI_LOST_REASONS = [
 export const BUYER_PROPERTY_TYPES = ['apartment', 'house', 'villa', 'office'] as const;
 export const SELLER_PROPERTY_TYPES = ['apartment', 'house', 'villa', 'office', 'land'] as const;
 export const OWNER_PROPERTY_TYPES = ['apartment', 'house', 'villa', 'office'] as const;
-export const BHK_VALUES = [1, 2, 3, 4, 5] as const;
+export const BHK_VALUES = [
+  'Studio',
+  '1 RK',
+  '1 BHK',
+  '1.5 BHK',
+  '2 BHK',
+  '2.5 BHK',
+  '3 BHK',
+  '3.5 BHK',
+  '4 BHK',
+  '4.5 BHK',
+  '5 BHK',
+  '5+ BHK',
+] as const;
 export const FURNISHING_VALUES = ['furnished', 'semi-furnished', 'unfurnished'] as const;
 
 export type LeadType = 'buyer' | 'seller' | 'tenant' | 'owner';
@@ -64,8 +77,9 @@ export const BUYER_REQUIREMENT_FIELDS = [
   { key: 'requirement', label: 'Requirement', ui: 'textarea What are they looking for?' },
   { key: 'budget', label: 'Budget', ui: 'placeholder Budget amount' },
   { key: 'preferredArea', label: 'Preferred Area', ui: 'placeholder Preferred location' },
+  { key: 'city', label: 'City', ui: 'select Mumbai|Pune|Thane|Navi Mumbai' },
   { key: 'propertyType', label: 'Property Type', ui: 'select apartment|house|villa|office' },
-  { key: 'bhk', label: 'BHK', ui: 'select 1-5+ BHK' },
+  { key: 'bhk', label: 'BHK', ui: 'select Studio|1 RK|1 BHK|1.5 BHK|2 BHK|2.5 BHK|3 BHK|3.5 BHK|4 BHK|4.5 BHK|5 BHK|5+ BHK' },
   { key: 'propertySubType', label: 'Property Sub Type', ui: 'NOT on LeadDetails (drawer/AI only)' },
   { key: 'timeline', label: 'Timeline', ui: 'NOT on LeadDetails (types/AI only)' },
 ] as const;
@@ -80,7 +94,7 @@ export const SELLER_PROPERTY_FIELDS = [
   { key: 'furnishing', label: 'Furnishing', ui: 'hidden for land' },
   { key: 'carpetArea', label: 'Carpet/Built-up/Plot Area', ui: 'label varies by propertyType' },
   { key: 'area', label: 'Area/Location', ui: 'always shown' },
-  { key: 'city', label: 'City', ui: 'always shown' },
+  { key: 'city', label: 'City', ui: 'select Mumbai|Pune|Thane|Navi Mumbai' },
   { key: 'expectedPrice', label: 'Expected Price', ui: 'seller only' },
   { key: 'timeline', label: 'Timeline', ui: 'create: placeholder e.g., Within 3 months' },
   { key: 'address', label: 'Detailed Address', ui: 'textarea always shown' },
@@ -92,6 +106,7 @@ export const TENANT_REQUIREMENT_FIELDS = [
   { key: 'requirement', label: 'Requirement', ui: 'textarea What type of rental are they looking for?' },
   { key: 'budget', label: 'Budget (Monthly)', ui: 'placeholder Monthly budget' },
   { key: 'preferredArea', label: 'Preferred Area', ui: 'placeholder Preferred location' },
+  { key: 'city', label: 'City', ui: 'select Mumbai|Pune|Thane|Navi Mumbai' },
   { key: 'moveInDate', label: 'Move-in Date', ui: 'input[type=date]' },
 ] as const;
 
@@ -105,7 +120,7 @@ export const OWNER_PROPERTY_FIELDS = [
   { key: 'furnishing', label: 'Furnishing', ui: 'hidden for land (owner has no land type)' },
   { key: 'carpetArea', label: 'Carpet/Built-up Area', ui: 'label varies by propertyType' },
   { key: 'area', label: 'Area/Location', ui: 'always shown' },
-  { key: 'city', label: 'City', ui: 'always shown' },
+  { key: 'city', label: 'City', ui: 'select Mumbai|Pune|Thane|Navi Mumbai' },
   { key: 'rentExpected', label: 'Expected Rent', ui: 'placeholder Expected monthly rent' },
   { key: 'securityDeposit', label: 'Security Deposit', ui: 'placeholder Security deposit' },
   { key: 'address', label: 'Detailed Address', ui: 'textarea always shown' },

@@ -5,6 +5,7 @@
 
 import { docClient, CRM_TABLE_NAME } from './crmDynamodbService.js';
 import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
+import { parsePropertyBhk, coerceFiniteNumber } from './services/leadConversionService.js';
 import { GetCommand, UpdateCommand, ScanCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -755,12 +756,12 @@ export async function createListingFromPurchase(tenantId, buyerId, propertyId, l
     title: listingTitle,
     description: originalProperty?.description || buyer.notes || '',
     propertyType: originalProperty?.propertyType || 'apartment',
-    bhk: originalProperty?.bhk ? Number(originalProperty.bhk) : 1,
+    bhk: parsePropertyBhk(originalProperty?.bhk),
     buildingName: originalProperty?.buildingName || '',
     flatNumber: originalProperty?.flatNumber || '',
     floor: originalProperty?.floor || '',
     furnishing: originalProperty?.furnishing || 'unfurnished',
-    carpetArea: originalProperty?.carpetArea ? Number(originalProperty.carpetArea) : 0,
+    carpetArea: coerceFiniteNumber(originalProperty?.carpetArea, 0),
     area: originalProperty?.area || '',
     city: originalProperty?.city || buyer.city || 'Mumbai',
     address: originalProperty?.address || buyer.address || '',

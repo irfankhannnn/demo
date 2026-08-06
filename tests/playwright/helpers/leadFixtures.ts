@@ -13,13 +13,14 @@ export interface BuyerRequirementFixture {
   requirement: string;
   budget: number;
   preferredArea: string;
+  city: string;
   propertyType: string;
-  bhk: number;
+  bhk: string;
 }
 
 export interface SellerPropertyFixture {
   propertyType: string;
-  bhk: number;
+  bhk: string;
   buildingName: string;
   flatNumber: string;
   floor: string;
@@ -36,12 +37,13 @@ export interface TenantRequirementFixture {
   requirement: string;
   budget: number;
   preferredArea: string;
+  city: string;
   moveInDate: string;
 }
 
 export interface OwnerPropertyFixture {
   propertyType: string;
-  bhk: number;
+  bhk: string;
   buildingName: string;
   flatNumber: string;
   floor: string;
@@ -106,7 +108,7 @@ function buildShared(run: TestRunContext, offset: number, leadType: LeadType) {
 
 export function buildBuyerLeadFixture(run: TestRunContext, offset = 0): CompleteLeadFixture {
   const shared = buildShared(run, offset, 'buyer');
-  const bhk = getItemByIndex([2, 3, 4] as const, offset);
+  const bhk = getItemByIndex(['2 BHK', '3 BHK', '4 BHK'] as const, offset);
   const propertyType = getItemByIndex(['apartment', 'villa', 'house'] as const, offset);
   const budget = (25 + offset) * 100_000;
 
@@ -121,9 +123,10 @@ export function buildBuyerLeadFixture(run: TestRunContext, offset = 0): Complete
     notes: shared.notes,
     activityNote: shared.activityNote,
     buyerRequirement: {
-      requirement: `Seeking ${bhk} BHK ${propertyType} in ${shared.area}. ${shared.snippet}. Must have parking and lift.`,
+      requirement: `Seeking ${bhk} ${propertyType} in ${shared.area}. ${shared.snippet}. Must have parking and lift.`,
       budget,
       preferredArea: shared.area,
+      city: shared.city,
       propertyType,
       bhk,
     },
@@ -132,7 +135,7 @@ export function buildBuyerLeadFixture(run: TestRunContext, offset = 0): Complete
 
 export function buildSellerLeadFixture(run: TestRunContext, offset = 10): CompleteLeadFixture {
   const shared = buildShared(run, offset, 'seller');
-  const bhk = 3;
+  const bhk = '3 BHK';
   const propertyType = 'apartment';
   const expectedPrice = 2_85_00_000;
   const flatNumber = `${120 + offset}A`;
@@ -185,6 +188,7 @@ export function buildTenantLeadFixture(run: TestRunContext, offset = 20): Comple
       requirement: `Family of four needs furnished ${shared.area} rental near schools. ${shared.snippet}.`,
       budget,
       preferredArea: shared.area,
+      city: shared.city,
       moveInDate: moveInDate(45 + offset),
     },
   };
@@ -192,7 +196,7 @@ export function buildTenantLeadFixture(run: TestRunContext, offset = 20): Comple
 
 export function buildOwnerLeadFixture(run: TestRunContext, offset = 30): CompleteLeadFixture {
   const shared = buildShared(run, offset, 'owner');
-  const bhk = 2;
+  const bhk = '2 BHK';
   const propertyType = 'apartment';
   const rentExpected = 55_000 + offset * 100;
   const securityDeposit = rentExpected * 3;

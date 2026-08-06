@@ -745,7 +745,8 @@ export interface BuyerRequirement {
   requirement?: string;
   budget?: number;
   preferredArea?: string;
-  bhk?: number;
+  city?: string;
+  bhk?: string;
   propertyType?: string;
   propertySubType?: string;
   timeline?: string;
@@ -760,7 +761,7 @@ export interface SellerProperty {
   timelineValue?: number;
   timelineUnit?: 'days' | 'months';
   notes?: string;
-  bhk?: number;
+  bhk?: string;
   buildingName?: string;
   flatNumber?: string;
   floor?: string;
@@ -774,6 +775,7 @@ export interface TenantRequirement {
   requirement?: string;
   budget?: number;
   preferredArea?: string;
+  city?: string;
   moveInDate?: string;
 }
 
@@ -782,7 +784,7 @@ export interface OwnerProperty {
   area?: string;
   rentExpected?: number;
   notes?: string;
-  bhk?: number;
+  bhk?: string;
   buildingName?: string;
   flatNumber?: string;
   floor?: string;

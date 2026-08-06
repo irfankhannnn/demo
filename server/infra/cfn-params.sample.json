@@ -61,5 +61,6 @@
   { "ParameterKey": "AiEmployeeRolloutPercentage", "ParameterValue": "__AI_EMPLOYEE_ROLLOUT_PERCENTAGE__" },
   { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "__AI_EMPLOYEE_PROVISIONING_TABLE__" },
   { "ParameterKey": "JwtSecret", "ParameterValue": "__JWT_SECRET__" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "__TEMPLATE_URL__" }
+  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "__TEMPLATE_URL_PART1__" },
+  { "ParameterKey": "ApiGatewayRoutesTemplateUrlPart2", "ParameterValue": "__TEMPLATE_URL_PART2__" }
 ]

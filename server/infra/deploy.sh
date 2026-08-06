@@ -23,9 +23,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-DEPLOY_LAMBDA=false
-DEPLOY_INSTALL=false
-DEPLOY_ZIP=false
+DEPLOY_LAMBDA=true
+DEPLOY_INSTALL=true
+DEPLOY_ZIP=true
 DEPLOY_CFN=true
 
 
@@ -145,7 +145,7 @@ if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   cd "$PROJECT_DIR"
   # Use compression level 1 for fast packaging. Level 0 (store) is even faster but larger.
   # Excluding node_modules TypeScript sources, source maps, docs, and metadata saves ~60+ MB and thousands of files.
-  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ aiViewBuilders/ oauth/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
+  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "node_modules/**/*.ts" "node_modules/**/*.map" "node_modules/**/*.d.ts" \
        "node_modules/**/*.md" "node_modules/**/*.markdown" "node_modules/**/*.yml" "node_modules/**/*.yaml" \
@@ -172,12 +172,15 @@ elif [ "$DEPLOY_LAMBDA" = false ]; then
   echo "[1/7] Skipping Lambda deployment (DEPLOY_LAMBDA=false)."
 fi
 
-# Upload nested template
-NESTED_TEMPLATE_KEY="${ARTIFACT_PREFIX}/apigw-explicit-routes.yaml"
-echo "[4/7] Uploading nested template to s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}..."
-"$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
+# Upload nested route templates (split to stay under CloudFormation 500-resource limit)
+NESTED_TEMPLATE_KEY="${ARTIFACT_PREFIX}/apigw-explicit-routes-part1.yaml"
+NESTED_TEMPLATE_KEY_PART2="${ARTIFACT_PREFIX}/apigw-explicit-routes-part2.yaml"
+echo "[4/7] Uploading nested route templates to s3://${ARTIFACT_BUCKET}/..."
+"$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part1.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
+"$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part2.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY_PART2}" --region "$AWS_REGION" --no-cli-pager
 
 TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}"
+TEMPLATE_URL_PART2="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY_PART2}"
 
 # Upload main template (required if >51.2KB)
 MAIN_TEMPLATE_KEY="${ARTIFACT_PREFIX}/cfn-backend.yaml"
@@ -262,6 +265,8 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "CloudwatchMetricsEnabled", "ParameterValue": "${CLOUDWATCH_METRICS_ENABLED:-true}" },
   { "ParameterKey": "AiAdminWhatsAppNumbers", "ParameterValue": "${AI_ADMIN_WHATSAPP_NUMBERS:-}" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
+  { "ParameterKey": "ApiGatewayRoutesTemplateUrlPart2", "ParameterValue": "${TEMPLATE_URL_PART2}" },
+  { "ParameterKey": "DeployApiRoutePart2", "ParameterValue": "true" },
   { "ParameterKey": "ServiceAccountUser", "ParameterValue": "${SERVICE_ACCOUNT_USER:-system}" },
   { "ParameterKey": "DefaultCountryCode", "ParameterValue": "${DEFAULT_COUNTRY_CODE:-+91}" },
   { "ParameterKey": "AppUrl", "ParameterValue": "${APP_URL:-https://app.realestateflow.in}" },
@@ -386,6 +391,45 @@ cfn_deploy_with_retry() {
   done
 }
 
+set_route_part2_parameter() {
+  local enabled="$1"
+
+  python - "$SCRIPT_DIR/cfn-params.json" "$enabled" <<'PY'
+import json
+import sys
+
+params_path, enabled = sys.argv[1:]
+with open(params_path, encoding="utf-8") as params_file:
+    params = json.load(params_file)
+
+for parameter in params:
+    if parameter["ParameterKey"] == "DeployApiRoutePart2":
+        parameter["ParameterValue"] = enabled
+        break
+else:
+    params.append({
+        "ParameterKey": "DeployApiRoutePart2",
+        "ParameterValue": enabled,
+    })
+
+with open(params_path, "w", encoding="utf-8") as params_file:
+    json.dump(params, params_file, indent=2)
+    params_file.write("\n")
+PY
+}
+
+route_split_migration_required() {
+  local part2_stacks
+  part2_stacks=$("$AWS_BIN" cloudformation list-stack-resources \
+    --stack-name "$STACK_NAME" \
+    --region "$AWS_REGION" \
+    --query "StackResourceSummaries[?LogicalResourceId=='PublicApiResourcesStackPart2' || LogicalResourceId=='CrmApiResourcesStackPart2'].LogicalResourceId" \
+    --output text \
+    --no-cli-pager)
+
+  [ -z "$part2_stacks" ] || [ "$part2_stacks" = "None" ]
+}
+
 if [ "$DEPLOY_CFN" = true ]; then
   echo "[7/7] Deploying CloudFormation stack: $STACK_NAME..."
 
@@ -396,7 +440,18 @@ if [ "$DEPLOY_CFN" = true ]; then
     exit 1
   fi
 
-  cfn_deploy_with_retry
+  if route_split_migration_required; then
+    echo "  Migrating explicit API routes: updating existing Part 1 stacks first..."
+    echo "  The /api proxy remains available while the old route resources are moved."
+    set_route_part2_parameter false
+    cfn_deploy_with_retry
+
+    echo "  Creating explicit API route Part 2 stacks..."
+    set_route_part2_parameter true
+    cfn_deploy_with_retry
+  else
+    cfn_deploy_with_retry
+  fi
 elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
   echo "[7/7] Updating Lambda function directly..."

@@ -36,6 +36,8 @@ import {
   deepClone,
 } from './services/leadConversionService.js';
 import { normalizeOwnerProperty, normalizeSellerProperty } from './normalizers/leadPropertyNormalizer.js';
+import { normalizeLeadTextFields } from './normalizers/leadTextNormalizer.js';
+import { ALLOWED_LEAD_BHK } from './constants/leadBhkOptions.js';
 import {
   propertyIsCurrentlyOwnedBy,
   isValidPropertyStatusTransition,
@@ -3435,6 +3437,76 @@ export async function deleteContactNote(tenantId, contactId, noteId) {
 // ============== CRM LEAD Operations ==============
 // Leads are pipeline items that can be converted to Contacts with specific roles
 
+const ALLOWED_LEAD_CITIES = new Set(['Mumbai', 'Pune', 'Thane', 'Navi Mumbai']);
+
+function validateLeadCity(city) {
+  if (city !== undefined && !ALLOWED_LEAD_CITIES.has(city)) {
+    throw new Error('City must be Mumbai, Pune, Thane, or Navi Mumbai');
+  }
+}
+
+function applyLeadCityDefault(data) {
+  const fieldByLeadType = {
+    buyer: 'buyerRequirement',
+    seller: 'sellerProperty',
+    tenant: 'tenantRequirement',
+    owner: 'ownerProperty',
+  };
+  const field = fieldByLeadType[data.leadType];
+  const value = data[field] || {};
+  validateLeadCity(value.city);
+  data[field] = { ...value, city: value.city || 'Mumbai' };
+}
+
+function validateLeadCityUpdate(data, existingLead) {
+  const fieldByLeadType = {
+    buyer: 'buyerRequirement',
+    seller: 'sellerProperty',
+    tenant: 'tenantRequirement',
+    owner: 'ownerProperty',
+  };
+  const field = fieldByLeadType[existingLead.leadType];
+  const value = data[field];
+  const existingCity = existingLead[field]?.city;
+  if (value && Object.prototype.hasOwnProperty.call(value, 'city') && value.city !== existingCity) {
+    validateLeadCity(value.city);
+  }
+}
+
+function validateLeadBhk(bhk) {
+  if (bhk !== undefined && bhk !== null && bhk !== '' && !ALLOWED_LEAD_BHK.has(bhk)) {
+    throw new Error('BHK must be Studio, 1 RK, 1 BHK, 1.5 BHK, 2 BHK, 2.5 BHK, 3 BHK, 3.5 BHK, 4 BHK, 4.5 BHK, 5 BHK, or 5+ BHK');
+  }
+}
+
+function validateLeadBhkInBlob(blob) {
+  if (!blob || typeof blob !== 'object') return;
+  if (Object.prototype.hasOwnProperty.call(blob, 'bhk')) {
+    validateLeadBhk(blob.bhk);
+  }
+}
+
+function validateLeadBhkForCreate(data) {
+  if (data.leadType === 'buyer') validateLeadBhkInBlob(data.buyerRequirement);
+  if (data.leadType === 'seller') validateLeadBhkInBlob(data.sellerProperty);
+  if (data.leadType === 'owner') validateLeadBhkInBlob(data.ownerProperty);
+}
+
+function validateLeadBhkUpdate(data, existingLead) {
+  const fieldByLeadType = {
+    buyer: 'buyerRequirement',
+    seller: 'sellerProperty',
+    owner: 'ownerProperty',
+  };
+  const field = fieldByLeadType[existingLead.leadType];
+  if (!field) return;
+  const value = data[field];
+  const existingBhk = existingLead[field]?.bhk;
+  if (value && Object.prototype.hasOwnProperty.call(value, 'bhk') && value.bhk !== existingBhk) {
+    validateLeadBhk(value.bhk);
+  }
+}
+
 /**
  * Create a new Lead
  */
@@ -3445,6 +3517,10 @@ export async function createLead(tenantId, data) {
   if (!data.leadType || !['buyer', 'seller', 'tenant', 'owner'].includes(data.leadType)) {
     throw new Error('Lead type must be buyer, seller, tenant, or owner');
   }
+
+  applyLeadCityDefault(data);
+  validateLeadBhkForCreate(data);
+  normalizeLeadTextFields(data);
 
   const leadId = uuidv4();
   const normalizedPhone = data.phone ? normalizePhone(data.phone) : '';
@@ -4006,6 +4082,10 @@ export async function updateLead(tenantId, leadId, data, options = {}) {
     throw new Error('Cannot update a converted lead');
   }
 
+  validateLeadCityUpdate(data, existingLead);
+  validateLeadBhkUpdate(data, existingLead);
+  normalizeLeadTextFields(data);
+
   // Normalize seller property timeline data for consistent UI rendering
   if (existingLead.leadType === 'seller' && data.sellerProperty) {
     data.sellerProperty = normalizeSellerProperty(data.sellerProperty) || data.sellerProperty;
@@ -4360,6 +4440,8 @@ export async function convertLead(tenantId, leadId, options = {}) {
     const lease = validated.leaseDetails;
     const rentalEntry = {
       propertyId: lease.propertyId,
+      propertyName: prop.title || null,
+      area: prop.area || null,
       leaseStartDate: lease.leaseStartDate,
       leaseEndDate: lease.leaseEndDate || null,
       monthlyRent: lease.monthlyRent || 0,
@@ -4734,6 +4816,47 @@ export async function convertLead(tenantId, leadId, options = {}) {
         propertyId: validated.purchaseDetails.propertyId,
         error: err.message,
       });
+    }
+  }
+
+  // Close active rent listings + Khata brokerage after tenant lease conversion (mirrors markPropertyRented).
+  if (role === 'tenant' && validated.leaseDetails?.propertyId) {
+    const leasePropertyId = validated.leaseDetails.propertyId;
+    try {
+      const { closeActiveRentListingsForProperty } = await import('./services/listingService.js');
+      await closeActiveRentListingsForProperty(tenantId, leasePropertyId);
+    } catch (err) {
+      logger.error('convertLead.closeRentListings.failed', {
+        tenantId,
+        leadId,
+        propertyId: leasePropertyId,
+        error: err.message,
+      });
+    }
+
+    const brokeragePaid = Number(validated.leaseDetails.brokeragePaid) || 0;
+    if (brokeragePaid > 0) {
+      try {
+        const { createBrokerageKhataEntry } = await import('./crmHelpers.js');
+        const rentalProperty = propertyUpdatePut || await getProperty(tenantId, leasePropertyId);
+        await createBrokerageKhataEntry(tenantId, {
+          propertyId: leasePropertyId,
+          partyId: rentalProperty?.ownerId || 'UNASSIGNED',
+          partyType: 'OWNER',
+          partyName: rentalProperty?.ownerSnapshot?.name || rentalProperty?.ownerName || 'Owner',
+          amount: brokeragePaid,
+          transactionType: 'TO_TAKE',
+          sourceRef: `lead_conversion:${leadId}:rental`,
+          description: `Brokerage for renting property: ${rentalProperty?.title || ''}`,
+        });
+      } catch (err) {
+        logger.error('convertLead.brokerageKhata.failed', {
+          tenantId,
+          leadId,
+          propertyId: leasePropertyId,
+          error: err.message,
+        });
+      }
     }
   }
 

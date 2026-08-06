@@ -10,6 +10,7 @@ const STRING_FIELDS = [
   'propertySubType',
   'area',
   'city',
+  'bhk',
   'buildingName',
   'flatNumber',
   'floor',
@@ -22,7 +23,6 @@ const STRING_FIELDS = [
 ];
 
 const NUMBER_FIELDS = [
-  'bhk',
   'carpetArea',
   'rentExpected',
   'securityDeposit',

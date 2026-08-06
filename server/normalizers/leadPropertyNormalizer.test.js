@@ -9,7 +9,7 @@ describe('leadPropertyNormalizer', () => {
   test('normalizes owner property numeric and string fields', () => {
     const result = normalizeOwnerProperty({
       propertyType: 'Villa',
-      bhk: '3',
+      bhk: '3 BHK',
       carpetArea: '2200',
       rentExpected: '85000',
       securityDeposit: '255000',
@@ -21,7 +21,7 @@ describe('leadPropertyNormalizer', () => {
 
     expect(result).toEqual({
       propertyType: 'villa',
-      bhk: 3,
+      bhk: '3 BHK',
       carpetArea: 2200,
       rentExpected: 85000,
       securityDeposit: 255000,

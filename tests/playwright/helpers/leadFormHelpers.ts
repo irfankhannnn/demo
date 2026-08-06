@@ -93,6 +93,7 @@ export async function fillBuyerRequirementFields(page: Page, req: NonNullable<Co
   await section.locator('label').filter({ hasText: /^Requirement$/ }).first().locator('xpath=..').locator('textarea').fill(req.requirement);
   await fillInputInSection(section, 'Budget amount', String(req.budget));
   await fillInputInSection(section, 'Preferred location', req.preferredArea);
+  if (req.city) await selectInSection(section, /^City$/, req.city);
   await selectInSection(section, /^Property Type$/, req.propertyType);
   await selectInSection(section, /^BHK$/, String(req.bhk));
 }
@@ -151,7 +152,7 @@ async function fillSellerOrOwnerPropertySection(
     await fillLabeledInputInSection(section, new RegExp(`^${labels.carpetArea.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), String(prop.carpetArea));
   }
   if (prop.area) await fillInputInSection(section, 'Property location', prop.area);
-  if (prop.city) await fillInputInSection(section, 'e.g. Mumbai', prop.city);
+  if (prop.city) await selectInSection(section, /^City$/, prop.city);
 
   if (variant === 'seller' && prop.expectedPrice != null) {
     await fillInputInSection(section, 'Expected price', String(prop.expectedPrice));
@@ -180,6 +181,7 @@ export async function fillTenantRequirementFields(page: Page, req: NonNullable<C
   await section.locator('label').filter({ hasText: /^Requirement$/ }).first().locator('xpath=..').locator('textarea').fill(req.requirement);
   await fillInputInSection(section, 'Monthly budget', String(req.budget));
   await fillInputInSection(section, 'Preferred location', req.preferredArea);
+  if (req.city) await selectInSection(section, /^City$/, req.city);
   await section.locator('label').filter({ hasText: /^Move-in Date$/ }).first().locator('xpath=..').locator('input[type="date"]').fill(req.moveInDate);
 }
 
@@ -241,15 +243,16 @@ export async function assertLeadPersisted(page: Page, leadId: string, expected: 
     expect(req.requirement).toBe(exp.requirement);
     expect(Number(req.budget)).toBe(exp.budget);
     expect(req.preferredArea).toBe(exp.preferredArea);
+    expect(req.city).toBe(exp.city);
     expect(req.propertyType).toBe(exp.propertyType);
-    expect(Number(req.bhk)).toBe(exp.bhk);
+    expect(req.bhk).toBe(exp.bhk);
   }
 
   if (expected.leadType === 'seller' && expected.sellerProperty) {
     const prop = saved.sellerProperty || {};
     const exp = expected.sellerProperty;
     expect(prop.propertyType).toBe(exp.propertyType);
-    expect(Number(prop.bhk)).toBe(exp.bhk);
+    expect(prop.bhk).toBe(exp.bhk);
     expect(prop.buildingName).toBe(exp.buildingName);
     expect(prop.flatNumber).toBe(exp.flatNumber);
     expect(prop.floor).toBe(exp.floor);
@@ -268,6 +271,7 @@ export async function assertLeadPersisted(page: Page, leadId: string, expected: 
     expect(req.requirement).toBe(exp.requirement);
     expect(Number(req.budget)).toBe(exp.budget);
     expect(req.preferredArea).toBe(exp.preferredArea);
+    expect(req.city).toBe(exp.city);
     expect(String(req.moveInDate || '').slice(0, 10)).toBe(exp.moveInDate);
   }
 
@@ -275,7 +279,7 @@ export async function assertLeadPersisted(page: Page, leadId: string, expected: 
     const prop = saved.ownerProperty || {};
     const exp = expected.ownerProperty;
     expect(prop.propertyType).toBe(exp.propertyType);
-    expect(Number(prop.bhk)).toBe(exp.bhk);
+    expect(prop.bhk).toBe(exp.bhk);
     expect(prop.buildingName).toBe(exp.buildingName);
     expect(prop.flatNumber).toBe(exp.flatNumber);
     expect(prop.floor).toBe(exp.floor);

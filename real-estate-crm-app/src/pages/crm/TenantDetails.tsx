@@ -24,6 +24,7 @@ import {
 import { api } from '../../services/api';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
+import { useFlashToast } from '../../hooks/useFlashToast';
 import { CRMCustomer, CRMCustomerNote, CRMMeeting } from '../../types/crm';
 
 export default function TenantDetails() {
@@ -60,6 +61,10 @@ export default function TenantDetails() {
     notes: '',
   });
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
+  useFlashToast(showToast);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
     title: string;

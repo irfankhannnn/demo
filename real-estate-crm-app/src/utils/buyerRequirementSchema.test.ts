@@ -7,9 +7,9 @@ import {
 
 describe('buyerRequirementSchema', () => {
   it('keeps flat property types unchanged', () => {
-    expect(normalizeBuyerRequirement({ propertyType: 'apartment', bhk: 2 })).toEqual({
+    expect(normalizeBuyerRequirement({ propertyType: 'apartment', bhk: '2 BHK' })).toEqual({
       propertyType: 'apartment',
-      bhk: 2,
+      bhk: '2 BHK',
     });
   });
 
@@ -18,12 +18,12 @@ describe('buyerRequirementSchema', () => {
       normalizeBuyerRequirement({
         propertyType: 'residential',
         propertySubType: 'villa',
-        bhk: 4,
+        bhk: '4 BHK',
       }),
     ).toEqual({
       propertyType: 'villa',
       propertySubType: undefined,
-      bhk: 4,
+      bhk: '4 BHK',
     });
   });
 

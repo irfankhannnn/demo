@@ -34,7 +34,8 @@ import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } 
 import { LEAD_SOURCE_OPTIONS, isKnownLeadSource } from '../../utils/leadConstants';
 import { buildLeadSavePayload } from '../../utils/leadSavePayload';
 import { canManageLeads } from '../../utils/rbac';
-import { isLeadConverted, getConvertedEntityPath } from '../../utils/leadConversion';
+import { getConvertResultPath, isLeadConverted, getConvertedEntityPath } from '../../utils/leadConversion';
+import type { FlashToast } from '../../utils/flashToast';
 import LeadPropertyFields from '../../components/LeadPropertyFields';
 import BuyerRequirementFields from '../../components/BuyerRequirementFields';
 
@@ -56,10 +57,10 @@ export default function LeadDetails() {
     status: 'new',
     priority: 'medium',
     notes: initialData?.notes || '',
-    buyerRequirement: {},
-    sellerProperty: {},
-    tenantRequirement: {},
-    ownerProperty: {},
+    buyerRequirement: { city: 'Mumbai' },
+    sellerProperty: { city: 'Mumbai' },
+    tenantRequirement: { city: 'Mumbai' },
+    ownerProperty: { city: 'Mumbai' },
   });
   const [notes, setNotes] = useState<CRMLeadNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,6 +138,18 @@ export default function LeadDetails() {
     panNumber: '',
     aadharNumber: '',
   });
+
+  const resolveSelectedProperty = () => {
+    if (!selectedPropertyId) return null;
+    const pools = selectedOwner
+      ? [ownerProperties, properties]
+      : [properties, ownerProperties];
+    for (const pool of pools) {
+      const match = pool.find((p) => p.propertyId === selectedPropertyId);
+      if (match) return match;
+    }
+    return null;
+  };
   useEffect(() => {
     if (isNew) {
       setLoading(false);
@@ -265,17 +278,18 @@ export default function LeadDetails() {
     // If an owner is selected, property must belong to that owner's properties
     if (!selectedOwner) return;
     if (!selectedPropertyId) return;
+    if (ownerPropertiesLoading || ownerProperties.length === 0) return;
     const stillValid = ownerProperties.some((p) => p.propertyId === selectedPropertyId);
     if (!stillValid) {
       setSelectedPropertyId('');
     }
-  }, [lead.leadType, selectedOwner, ownerProperties, selectedPropertyId]);
+  }, [lead.leadType, selectedOwner, ownerProperties, selectedPropertyId, ownerPropertiesLoading]);
 
   useEffect(() => {
     if (lead.leadType !== 'tenant') return;
     if (!selectedPropertyId) return;
 
-    const selected = (selectedOwner ? ownerProperties : properties).find((p) => p.propertyId === selectedPropertyId);
+    const selected = resolveSelectedProperty();
     if (!selected) return;
 
     setLeaseDetails((prev) => {
@@ -283,12 +297,16 @@ export default function LeadDetails() {
       if (!next.leaseStartDate) {
         next.leaseStartDate = new Date().toISOString().split('T')[0];
       }
-      if (!next.monthlyRent && selected.rentAmount) {
-        next.monthlyRent = String(selected.rentAmount);
+      const rent = selected.rentAmount ?? selected.rentalInfo?.expectedRent;
+      if (!next.monthlyRent && rent) {
+        next.monthlyRent = String(rent);
+      }
+      if (!next.securityDeposit && selected.depositAmount) {
+        next.securityDeposit = String(selected.depositAmount);
       }
       return next;
     });
-  }, [lead.leadType, selectedPropertyId, properties]);
+  }, [lead.leadType, selectedPropertyId, properties, ownerProperties, selectedOwner]);
 
   const loadProperties = async () => {
     try {
@@ -534,38 +552,6 @@ export default function LeadDetails() {
     if (!id) return;
     if (converting) return;
 
-    const navigateFromConversion = (
-      entityType?: string,
-      entity?: { buyerId?: string; customerId?: string; ownerId?: string },
-      contactId?: string | null,
-    ) => {
-      if (contactId) {
-        navigate(`/crm/contacts/${contactId}`);
-        return;
-      }
-      if (entityType === 'buyer' && entity?.buyerId) {
-        navigate(`/crm/buyers/${entity.buyerId}`);
-      } else if (entityType === 'tenant' && entity?.customerId) {
-        navigate(`/crm/tenants/${entity.customerId}`);
-      } else if ((entityType === 'owner' || entityType === 'seller') && entity?.ownerId) {
-        navigate(`/crm/owners/${entity.ownerId}`);
-      } else {
-        navigate('/crm/leads');
-      }
-    };
-
-    const navigateFromConvertedTo = (convertedTo?: { entityType?: string; entityId?: string } | null) => {
-      if (!convertedTo?.entityId) {
-        navigate('/crm/leads');
-        return;
-      }
-      if (convertedTo.entityType === 'buyer') navigate(`/crm/buyers/${convertedTo.entityId}`);
-      else if (convertedTo.entityType === 'tenant') navigate(`/crm/tenants/${convertedTo.entityId}`);
-      else if (convertedTo.entityType === 'owner' || convertedTo.entityType === 'seller') {
-        navigate(`/crm/owners/${convertedTo.entityId}`);
-      } else navigate('/crm/leads');
-    };
-
     try {
       setConverting(true);
       const payload: Record<string, unknown> = {};
@@ -596,12 +582,18 @@ export default function LeadDetails() {
       }
       // Tenant conversion — lease details optional; required only when linking a property
       else if (lead.leadType === 'tenant') {
+        const hasLeaseInfo = !!(leaseDetails.monthlyRent && leaseDetails.leaseStartDate);
+        if (hasLeaseInfo && !selectedPropertyId) {
+          showToast('Please select a property to link this lease', 'error');
+          return;
+        }
         if (selectedPropertyId) {
           if (!leaseDetails.monthlyRent || !leaseDetails.leaseStartDate) {
             showToast('Rent and lease start date are required when linking a property', 'error');
             return;
           }
-          if (selectedOwner && !ownerProperties.some((p) => p.propertyId === selectedPropertyId)) {
+          if (selectedOwner && ownerProperties.length > 0
+            && !ownerProperties.some((p) => p.propertyId === selectedPropertyId)) {
             showToast('Please select a property that belongs to the selected owner', 'error');
             return;
           }
@@ -629,28 +621,24 @@ export default function LeadDetails() {
 
       const result = await api.convertLead(id, payload);
 
-      const entityType = result?.entityType;
-      const entity = result?.entity;
-
-      // Notify user about Khata Book brokerage entry
+      let toastMessage = 'Lead converted successfully.';
       if (lead.leadType === 'buyer' && purchaseDetails.brokeragePaid) {
-        showToast(`Lead converted! Brokerage of ₹${Number(purchaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`, 'success');
+        toastMessage = `Lead converted! Brokerage of ₹${Number(purchaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`;
       } else if (lead.leadType === 'tenant' && leaseDetails.brokeragePaid) {
-        showToast(`Lead converted! Brokerage of ₹${Number(leaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`, 'success');
-      } else {
-        showToast('Lead converted successfully.', 'success');
+        toastMessage = `Lead converted! Brokerage of ₹${Number(leaseDetails.brokeragePaid).toLocaleString()} will be added to Khata Book.`;
       }
 
-      await new Promise<void>((resolve) => window.setTimeout(resolve, 1200));
-      navigateFromConversion(entityType, entity, result?.contactId || null);
+      const flashToast: FlashToast = { message: toastMessage, type: 'success' };
       setShowConvertModal(false);
+      navigate(getConvertResultPath(result), { state: { toast: flashToast } });
     } catch (error: unknown) {
       console.error('Error converting lead:', error);
       const err = error as Error & { code?: string; convertedTo?: { entityType?: string; entityId?: string } };
       if (err.code === 'ALREADY_CONVERTED' || err.message?.toLowerCase().includes('already converted')) {
-        showToast('This lead is already converted.', 'info');
         setShowConvertModal(false);
-        navigateFromConvertedTo(err.convertedTo);
+        navigate(getConvertResultPath({ convertedTo: err.convertedTo }), {
+          state: { toast: { message: 'This lead is already converted.', type: 'success' } },
+        });
         return;
       }
       showToast(err.message || 'Failed to convert lead', 'error');
@@ -1142,6 +1130,23 @@ export default function LeadDetails() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
                   placeholder="Preferred location"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <select
+                  value={lead.tenantRequirement?.city || 'Mumbai'}
+                  onChange={(e) => setLead({
+                    ...lead,
+                    tenantRequirement: { ...lead.tenantRequirement, city: e.target.value }
+                  })}
+                  disabled={isConverted}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                >
+                  <option value="Mumbai">Mumbai</option>
+                  <option value="Pune">Pune</option>
+                  <option value="Thane">Thane</option>
+                  <option value="Navi Mumbai">Navi Mumbai</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Move-in Date</label>
@@ -1907,7 +1912,7 @@ export default function LeadDetails() {
                                   <button
                                     key={prop.propertyId}
                                     type="button"
-                                    onClick={() => setSelectedPropertyId(prop.propertyId)}
+                                    onClick={() => handleSelectPropertyDirectly(prop.propertyId)}
                                     className={`w-full text-left p-3 rounded-xl border-2 transition-all duration-150 flex items-start gap-3 ${
                                       selectedPropertyId === prop.propertyId
                                         ? 'border-green-500 bg-green-50'
@@ -1948,15 +1953,17 @@ export default function LeadDetails() {
                   )}
 
                   {/* Selected Property Summary */}
-                  {selectedPropertyId && (
+                  {selectedPropertyId && (() => {
+                    const selectedProp = resolveSelectedProperty();
+                    return (
                     <div className="p-3 bg-green-50 rounded-xl border border-green-100 flex items-center gap-2.5">
                       <CheckCircle className="h-5 w-5 text-green-600 shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-green-800 truncate">
-                          {properties.find((p) => p.propertyId === selectedPropertyId)?.title}
+                          {selectedProp?.title || 'Selected property'}
                         </p>
                         <p className="text-xs text-green-600">
-                          {properties.find((p) => p.propertyId === selectedPropertyId)?.area}, {properties.find((p) => p.propertyId === selectedPropertyId)?.city}
+                          {[selectedProp?.area, selectedProp?.city].filter(Boolean).join(', ') || selectedPropertyId}
                         </p>
                       </div>
                       <button
@@ -1967,9 +1974,11 @@ export default function LeadDetails() {
                         Change
                       </button>
                     </div>
-                  )}
+                    );
+                  })()}
 
-                  {/* Lease Details */}
+                  {/* Lease Details — only when a property is selected */}
+                  {selectedPropertyId && (
                   <div className="bg-gray-50 rounded-2xl p-5 space-y-4">
                     <div className="flex items-center gap-2">
                       <IndianRupee className="h-4 w-4 text-gray-700" />
@@ -2039,6 +2048,7 @@ export default function LeadDetails() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* KYC Details */}
                   <div className="bg-gray-50 rounded-2xl p-5 space-y-4">

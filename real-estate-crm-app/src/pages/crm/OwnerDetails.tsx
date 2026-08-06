@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { useFlashToast } from '../../hooks/useFlashToast';
 import {
   Building2,
   ArrowLeft,
@@ -63,6 +64,7 @@ export default function OwnerDetails() {
   const showToast = (message: string, type: 'success' | 'error' = 'error') => {
     setToast({ message, type });
   };
+  useFlashToast(showToast);
   const [lookingUp, setLookingUp] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;

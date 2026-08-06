@@ -22,6 +22,7 @@ import LoadingSpinner from '../../components/LoadingSpinner';
 import Toast from '../../components/Toast';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
+import { useFlashToast } from '../../hooks/useFlashToast';
 import { CRMContact, CRMContactNote } from '../../types/crm';
 
 export default function BuyerDetails() {
@@ -48,6 +49,7 @@ export default function BuyerDetails() {
   const showToast = (message: string, type: 'success' | 'error' = 'error') => {
     setToast({ message, type });
   };
+  useFlashToast(showToast);
 
   useEffect(() => {
     if (isNew) {

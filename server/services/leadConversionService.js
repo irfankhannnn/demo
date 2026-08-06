@@ -146,6 +146,38 @@ export function buildKycFields(kycDetails = {}) {
   return out;
 }
 
+/** Coerce to a finite number; DynamoDB rejects NaN/Infinity. */
+export function coerceFiniteNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+/** Coerce optional numeric field — returns null when missing or invalid. */
+export function coerceOptionalNumber(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+/**
+ * Map lead BHK labels ("3 BHK", "2.5 BHK", "Studio") to property numeric bhk.
+ * Lead forms store human-readable labels; property records use numbers.
+ */
+export function parsePropertyBhk(bhk, fallback = 1) {
+  if (bhk === null || bhk === undefined || bhk === '') return fallback;
+  if (typeof bhk === 'number' && Number.isFinite(bhk)) return bhk;
+  const str = String(bhk).trim();
+  if (!str) return fallback;
+  if (/^studio$/i.test(str)) return 0;
+  const match = str.match(/(\d+(?:\.\d+)?)/);
+  if (match) {
+    const num = Number(match[1]);
+    return Number.isFinite(num) ? num : fallback;
+  }
+  return fallback;
+}
+
 /**
  * Map leadType → canonical module entity type returned to clients.
  * Storage may use OWNER/CUSTOMER for seller/tenant compatibility.
@@ -374,7 +406,7 @@ export function buildForSalePropertyItem(tenantId, lead, owner, options) {
   const propertyType = sp.propertyType || 'apartment';
   const area = sp.area || '';
   const city = sp.city || lead.city || 'Mumbai';
-  const listedPrice = typeof sp.expectedPrice === 'number' ? sp.expectedPrice : null;
+  const listedPrice = coerceOptionalNumber(sp.expectedPrice);
   const now = new Date().toISOString();
 
   return {
@@ -393,12 +425,12 @@ export function buildForSalePropertyItem(tenantId, lead, owner, options) {
       title: sp.title || `${propertyType} for Sale${area ? ` - ${area}` : ''}`,
       description: sp.description || lead.notes || '',
       propertyType,
-      bhk: sp.bhk ? Number(sp.bhk) : 1,
+      bhk: parsePropertyBhk(sp.bhk),
       buildingName: sp.buildingName || '',
       flatNumber: sp.flatNumber || '',
       floor: sp.floor || '',
       furnishing: sp.furnishing || 'unfurnished',
-      carpetArea: sp.carpetArea ? Number(sp.carpetArea) : 0,
+      carpetArea: coerceFiniteNumber(sp.carpetArea, 0),
       area,
       city,
       address: sp.address || lead.address || '',
@@ -431,8 +463,8 @@ export function buildForRentPropertyItem(tenantId, lead, owner, options) {
   const propertyType = op.propertyType || 'apartment';
   const area = op.area || '';
   const city = op.city || lead.city || 'Mumbai';
-  const expectedRent = typeof op.rentExpected === 'number' ? op.rentExpected : 0;
-  const securityDeposit = typeof op.securityDeposit === 'number' ? op.securityDeposit : 0;
+  const expectedRent = coerceFiniteNumber(op.rentExpected, 0);
+  const securityDeposit = coerceFiniteNumber(op.securityDeposit, 0);
   const now = new Date().toISOString();
 
   return {
@@ -451,12 +483,12 @@ export function buildForRentPropertyItem(tenantId, lead, owner, options) {
       title: op.title || `${propertyType} for Rent${area ? ` - ${area}` : ''}`,
       description: op.description || lead.notes || '',
       propertyType,
-      bhk: op.bhk ? Number(op.bhk) : 1,
+      bhk: parsePropertyBhk(op.bhk),
       buildingName: op.buildingName || '',
       flatNumber: op.flatNumber || '',
       floor: op.floor || '',
       furnishing: op.furnishing || 'unfurnished',
-      carpetArea: op.carpetArea ? Number(op.carpetArea) : 0,
+      carpetArea: coerceFiniteNumber(op.carpetArea, 0),
       area,
       city,
       address: op.address || lead.address || '',

@@ -3,6 +3,11 @@ import { logger } from '../logger.js';
 import multer from 'multer';
 import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
+  getDaysUntilLeaseExpiry,
+  resolveLeaseEndDate,
+  resolvePropertyMonthlyRent,
+} from '../businessAnalyticsHelpers.js';
+import {
   createCustomer,
   getCustomers,
   getCustomer,
@@ -1539,7 +1544,7 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     const ownerMap = new Map(owners.map(o => [o.ownerId, o]));
     const customerMap = new Map(customers.map(c => [c.customerId, c]));
     
-    // Fetch all agreements and verifications in parallel (avoid N+1 queries)
+    // Fetch all agreements and verifications in parallel (fallback when property fields are unset)
     const [allAgreements, allVerifications] = await Promise.all([
       Promise.all(properties.map(p => getPropertyAgreements(req.tenantId, p.propertyId))),
       Promise.all(properties.map(p => getPropertyVerifications(req.tenantId, p.propertyId))),
@@ -1551,9 +1556,6 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
       agreementsByProperty.set(p.propertyId, allAgreements[i]);
       verificationsByProperty.set(p.propertyId, allVerifications[i]);
     });
-    
-    // Calculate business metrics
-    const now = new Date();
     
     let totalRevenue = 0;
     let activeProperties = 0;
@@ -1568,89 +1570,85 @@ router.get('/analytics/business', validateToken, extractTenantId, async (req, re
     const agreementExpiries = [];
     const verificationStatus = [];
     
-    // Process each property using pre-fetched agreements and verifications
     for (const property of properties) {
-      // Calculate revenue for occupied properties (status=rented, for-rent with tenant, or has tenant linked)
-      const isOccupied = property.status === 'rented' || property.status === 'for-rent' || !!property.tenantCustomerId;
-      const monthlyRent = property.rentAmount || property.monthlyRent || 0;
-      if (isOccupied && monthlyRent > 0) {
-        totalRevenue += monthlyRent;
+      const tenantId = property.tenantCustomerId || property.rentalInfo?.currentTenantId;
+      const isOccupied = property.status === 'rented' || !!tenantId;
+      const monthlyRent = resolvePropertyMonthlyRent(property);
+
+      if (isOccupied) {
         activeProperties++;
+        if (monthlyRent > 0) {
+          totalRevenue += monthlyRent;
+        }
       }
       
-      // Use pre-fetched agreements and verifications
       const agreements = agreementsByProperty.get(property.propertyId) || [];
       const verifications = verificationsByProperty.get(property.propertyId) || [];
+      const latestAgreement = agreements.length > 0 ? agreements[agreements.length - 1] : null;
+      const latestVerification = verifications.length > 0 ? verifications[verifications.length - 1] : null;
       
-      // Get owner and tenant names
       const owner = ownerMap.get(property.ownerId);
-      const tenant = property.tenantCustomerId ? customerMap.get(property.tenantCustomerId) : null;
+      const tenant = tenantId ? customerMap.get(tenantId) : null;
       
       const ownerName = owner ? owner.name : 'N/A';
       const tenantName = tenant ? tenant.name : 'N/A';
       const propertyAddress = `${property.title || ''}, ${property.area || ''}, ${property.city || ''}`.trim().replace(/^,\s*|,\s*$/g, '') || 'N/A';
       
-      // Process agreements
-      let agreementStatus = 'not_started';
-      let agreementDate = null;
+      const agreementStatus = property.agreementStatus
+        || latestAgreement?.status
+        || 'not_started';
+      const agreementDate = property.rentalInfo?.leaseStartDate
+        || property.tenantMoveInDate
+        || latestAgreement?.startDate
+        || latestAgreement?.createdAt
+        || null;
       
-      if (agreements && agreements.length > 0) {
-        const latestAgreement = agreements[agreements.length - 1];
-        agreementStatus = latestAgreement.status || 'not_started';
-        agreementDate = latestAgreement.createdAt;
-        
-        if (latestAgreement.status === 'done') {
-          completedAgreements++;
-          
-          // Check for expiry
-          if (latestAgreement.endDate) {
-            const endDate = new Date(latestAgreement.endDate);
-            const daysUntilExpiry = Math.ceil((endDate - now) / (1000 * 60 * 60 * 24));
-            
-            let expiryStatus = 'active';
-            if (daysUntilExpiry < 0) {
-              expiredAgreements++;
-              expiryStatus = 'expired';
-            } else if (daysUntilExpiry <= 30) {
-              expiringThisMonth++;
-              expiryStatus = 'expiring_soon';
-            } else if (daysUntilExpiry <= 60) {
-              expiringNextMonth++;
-            }
-            
-            agreementExpiries.push({
-              propertyId: property.propertyId,
-              propertyAddress,
-              tenantName,
-              ownerName,
-              agreementEndDate: latestAgreement.endDate,
-              daysUntilExpiry,
-              monthlyRent: monthlyRent,
-              status: expiryStatus,
-            });
-          }
-        } else if (latestAgreement.status === 'pending') {
-          pendingAgreements++;
+      if (agreementStatus === 'done') {
+        completedAgreements++;
+      } else if (agreementStatus === 'pending') {
+        pendingAgreements++;
+      }
+
+      const verificationStatusValue = property.verificationStatus
+        || latestVerification?.status
+        || 'not_started';
+      const verificationDate = latestVerification?.verificationDate
+        || latestVerification?.createdAt
+        || null;
+
+      if (verificationStatusValue === 'done') {
+        completedVerifications++;
+      } else if (verificationStatusValue === 'pending') {
+        pendingVerifications++;
+      }
+
+      const leaseEndDate = resolveLeaseEndDate(property, latestAgreement);
+      const daysUntilExpiry = getDaysUntilLeaseExpiry(leaseEndDate);
+
+      if (isOccupied && leaseEndDate && daysUntilExpiry !== null) {
+        let expiryStatus = 'active';
+        if (daysUntilExpiry < 0) {
+          expiredAgreements++;
+          expiryStatus = 'expired';
+        } else if (daysUntilExpiry <= 30) {
+          expiringThisMonth++;
+          expiryStatus = 'expiring_soon';
+        } else if (daysUntilExpiry <= 60) {
+          expiringNextMonth++;
         }
+
+        agreementExpiries.push({
+          propertyId: property.propertyId,
+          propertyAddress,
+          tenantName,
+          ownerName,
+          agreementEndDate: leaseEndDate,
+          daysUntilExpiry,
+          monthlyRent,
+          status: expiryStatus,
+        });
       }
       
-      // Process verifications
-      let verificationStatusValue = 'not_started';
-      let verificationDate = null;
-      
-      if (verifications && verifications.length > 0) {
-        const latestVerification = verifications[verifications.length - 1];
-        verificationStatusValue = latestVerification.status || 'not_started';
-        verificationDate = latestVerification.createdAt;
-        
-        if (latestVerification.status === 'done') {
-          completedVerifications++;
-        } else if (latestVerification.status === 'pending') {
-          pendingVerifications++;
-        }
-      }
-      
-      // Add to verification status tracking
       verificationStatus.push({
         propertyId: property.propertyId,
         propertyAddress,

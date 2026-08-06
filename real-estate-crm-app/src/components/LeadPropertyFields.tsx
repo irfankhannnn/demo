@@ -1,4 +1,5 @@
 import { IndianRupee } from 'lucide-react';
+import { LEAD_BHK_OPTIONS } from '../constants/leadBhkOptions';
 import type { OwnerProperty, SellerProperty } from '../types/crm';
 import {
   applyPropertyTypeChange,
@@ -73,16 +74,16 @@ export default function LeadPropertyFields({
           <label className="block text-sm font-medium text-gray-700 mb-1">{labels.bhk}</label>
           <select
             value={property.bhk || ''}
-            onChange={(e) => patch({ bhk: e.target.value ? Number(e.target.value) : undefined })}
+            onChange={(e) => patch({ bhk: e.target.value || undefined })}
             disabled={disabled}
             className={inputClass}
           >
             <option value="">Select BHK</option>
-            <option value="1">1 BHK</option>
-            <option value="2">2 BHK</option>
-            <option value="3">3 BHK</option>
-            <option value="4">4 BHK</option>
-            <option value="5">5+ BHK</option>
+            {LEAD_BHK_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </div>
       )}
@@ -179,14 +180,17 @@ export default function LeadPropertyFields({
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-        <input
-          type="text"
-          value={property.city || ''}
+        <select
+          value={property.city || 'Mumbai'}
           onChange={(e) => patch({ city: e.target.value })}
           disabled={disabled}
           className={inputClass}
-          placeholder="e.g. Mumbai"
-        />
+        >
+          <option value="Mumbai">Mumbai</option>
+          <option value="Pune">Pune</option>
+          <option value="Thane">Thane</option>
+          <option value="Navi Mumbai">Navi Mumbai</option>
+        </select>
       </div>
 
       {variant === 'owner' && (

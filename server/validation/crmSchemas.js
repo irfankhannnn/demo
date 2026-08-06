@@ -61,7 +61,7 @@ export const createPropertySchema = z.object({
   rentAmount: z.number().min(0).optional(),
   depositAmount: z.number().min(0).optional(),
   rentalInfo: z.object({
-    expectedRent: z.number().min(0).optional(),
+    expectedRent: z.number().min(0).nullish(),
     securityDeposit: z.number().min(0).optional(),
     currentRent: z.number().optional().nullable(),
     currentTenantId: z.string().optional().nullable(),

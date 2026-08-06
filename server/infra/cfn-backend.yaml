@@ -238,7 +238,17 @@ Parameters:
 
   ApiGatewayRoutesTemplateUrl:
     Type: String
-    Description: S3 URL for nested template that creates explicit API Gateway routes without ANY/proxy+ methods
+    Description: S3 URL for nested template part 1 (explicit API Gateway routes)
+
+  ApiGatewayRoutesTemplateUrlPart2:
+    Type: String
+    Description: S3 URL for nested template part 2 (remaining explicit API Gateway routes)
+
+  DeployApiRoutePart2:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Set to false only while migrating the existing explicit routes into split nested stacks.
 
   NpsHmacSecret:
     Type: String
@@ -471,6 +481,9 @@ Parameters:
     NoEcho: true
     Default: ''
     Description: Bailey admin API key for destructive operations
+
+Conditions:
+  ShouldDeployApiRoutePart2: !Equals [!Ref DeployApiRoutePart2, 'true']
 
 Resources:
   PropertiesTable:
@@ -1435,6 +1448,24 @@ Resources:
         AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
         AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
 
+  PublicApiResourcesStackPart2:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldDeployApiRoutePart2
+    DependsOn:
+      - PublicApiResourcesStack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrlPart2
+      Parameters:
+        RestApiId: !Ref RealEstatePublicRestApi
+        RootResourceId: !GetAtt RealEstatePublicRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        ApiResourceId: !GetAtt PublicApiResourcesStack.Outputs.ApiResourceId
+        CrmContactResourceId: !GetAtt PublicApiResourcesStack.Outputs.CrmContactResourceId
+        CrmResourceId: !GetAtt PublicApiResourcesStack.Outputs.CrmResourceId
+
   PublicApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -1512,6 +1543,24 @@ Resources:
         AllowOrigin: "*"
         AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
         AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+
+  CrmApiResourcesStackPart2:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldDeployApiRoutePart2
+    DependsOn:
+      - CrmApiResourcesStackV2
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrlPart2
+      Parameters:
+        RestApiId: !Ref RealEstateCrmRestApi
+        RootResourceId: !GetAtt RealEstateCrmRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        ApiResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.ApiResourceId
+        CrmContactResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.CrmContactResourceId
+        CrmResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.CrmResourceId
 
   CrmApiDeployment:
     Type: AWS::ApiGateway::Deployment

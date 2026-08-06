@@ -1,4 +1,5 @@
 import { IndianRupee, MapPin } from 'lucide-react';
+import { LEAD_BHK_OPTIONS } from '../constants/leadBhkOptions';
 import type { BuyerRequirement } from '../types/crm';
 import {
   BUYER_PROPERTY_TYPES,
@@ -87,6 +88,21 @@ export default function BuyerRequirementFields({
       </div>
 
       <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+        <select
+          value={req.city || 'Mumbai'}
+          onChange={(e) => patch({ city: e.target.value })}
+          disabled={disabled}
+          className={fieldClass}
+        >
+          <option value="Mumbai">Mumbai</option>
+          <option value="Pune">Pune</option>
+          <option value="Thane">Thane</option>
+          <option value="Navi Mumbai">Navi Mumbai</option>
+        </select>
+      </div>
+
+      <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">Property Type</label>
         <select
           value={req.propertyType || ''}
@@ -108,16 +124,16 @@ export default function BuyerRequirementFields({
           <label className="block text-sm font-medium text-gray-700 mb-1">BHK</label>
           <select
             value={req.bhk || ''}
-            onChange={(e) => patch({ bhk: e.target.value ? Number(e.target.value) : undefined })}
+            onChange={(e) => patch({ bhk: e.target.value || undefined })}
             disabled={disabled}
             className={fieldClass}
           >
             <option value="">Any</option>
-            <option value="1">1 BHK</option>
-            <option value="2">2 BHK</option>
-            <option value="3">3 BHK</option>
-            <option value="4">4 BHK</option>
-            <option value="5">5+ BHK</option>
+            {LEAD_BHK_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </select>
         </div>
       )}

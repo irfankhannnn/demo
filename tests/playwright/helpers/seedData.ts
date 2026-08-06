@@ -109,7 +109,20 @@ const SOURCES = [
 const STATUSES = ['new','contacted','qualified','negotiating','lost'] as const;
 const PRIORITIES = ['low','medium','high'] as const;
 const PROP_TYPES = ['apartment','villa','house','office'] as const;
-const BHK_OPTS = [1,2,3,4,5] as const;
+const BHK_OPTS = [
+  'Studio',
+  '1 RK',
+  '1 BHK',
+  '1.5 BHK',
+  '2 BHK',
+  '2.5 BHK',
+  '3 BHK',
+  '3.5 BHK',
+  '4 BHK',
+  '4.5 BHK',
+  '5 BHK',
+  '5+ BHK',
+] as const;
 const FURNISHING_OPTS = ['furnished','semi-furnished','unfurnished'] as const;
 const AMENITIES_POOL = [
   'Gym','Swimming Pool','Parking','Lift','Power Backup','Water Purifier','Security','CCTV',
@@ -296,7 +309,7 @@ export function generateLeadRequirement(runStamp: string, leadType: string, offs
 
   if (leadType === 'buyer') {
     return {
-      requirement: `Looking for a ${bhk}BHK ${propType} ${snippet}`,
+      requirement: `Looking for a ${bhk} ${propType} ${snippet}`,
       budget,
       preferredArea: area,
       propertyType: propType,

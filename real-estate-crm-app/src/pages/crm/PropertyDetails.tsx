@@ -33,6 +33,23 @@ type PropertyStatus = 'inactive' | 'not-listed' | 'available' | 'for-sale' | 'fo
 type AgreementStatus = 'pending' | 'done';
 type VerificationStatus = 'pending' | 'done' | 'not_done';
 
+function toDateInputValue(value?: string | null): string {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().split('T')[0];
+}
+
+function getActiveRentalEntry(property?: Pick<CRMProperty, 'rentalHistory'> | null) {
+  const history = property?.rentalHistory;
+  if (!Array.isArray(history) || history.length === 0) return null;
+  return history.find((entry) => !entry.leaseEndDate) || history[history.length - 1];
+}
+
+function isRentalListingStatus(status: PropertyStatus): boolean {
+  return status === 'for-rent' || status === 'available' || status === 'not-listed';
+}
+
 export default function PropertyDetails() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -74,6 +91,8 @@ export default function PropertyDetails() {
   const [buyers, setBuyers] = useState<any[]>([]);
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [savingSale, setSavingSale] = useState(false);
+  const [showRentalModal, setShowRentalModal] = useState(false);
+  const [savingRental, setSavingRental] = useState(false);
   const [saleForm, setSaleForm] = useState<{
     saleType: 'direct' | 'third_party';
     soldPrice: number;
@@ -92,6 +111,15 @@ export default function PropertyDetails() {
     reasonLost: '',
     customReasonLost: '',
     notes: ''
+  });
+  const [rentalForm, setRentalForm] = useState({
+    customerId: '',
+    monthlyRent: 0,
+    securityDeposit: 0,
+    brokeragePaid: 0,
+    leaseStartDate: new Date().toISOString().split('T')[0],
+    leaseEndDate: '',
+    notes: '',
   });
   
   // Track original status to detect changes for auto-brokerage
@@ -131,6 +159,7 @@ export default function PropertyDetails() {
     featured: boolean;
     verified: boolean;
     tenantMoveInDate: string;
+    leaseEndDate: string;
     tenureMonths: number;
   }>({
     ownerId: preselectedOwnerId || '',
@@ -162,6 +191,7 @@ export default function PropertyDetails() {
     featured: false,
     verified: false,
     tenantMoveInDate: '',
+    leaseEndDate: '',
     tenureMonths: 11,
   });
   
@@ -284,7 +314,7 @@ export default function PropertyDetails() {
   const loadBuyers = async () => {
     try {
       const data = await api.getBuyers();
-      setBuyers(data || []);
+      setBuyers(Array.isArray(data) ? data : (data.buyers || []));
     } catch (error) {
       console.error('Error loading buyers:', error);
     }
@@ -320,6 +350,19 @@ export default function PropertyDetails() {
         }
       }
 
+      const activeRental = getActiveRentalEntry(data);
+      const isRented = data.status === 'rented';
+      const rentAmount = isRented
+        ? (data.rentalInfo?.currentRent ?? activeRental?.monthlyRent ?? data.rentAmount ?? 0)
+        : (data.rentalInfo?.expectedRent ?? data.rentAmount ?? 0);
+      const depositAmount = data.rentalInfo?.securityDeposit ?? activeRental?.securityDeposit ?? data.depositAmount ?? 0;
+      const leaseStartDate = toDateInputValue(
+        data.tenantMoveInDate || data.rentalInfo?.leaseStartDate || activeRental?.leaseStartDate,
+      );
+      const leaseEndDate = toDateInputValue(
+        data.rentalInfo?.leaseEndDate || activeRental?.leaseEndDate,
+      );
+
       setFormData({
         ownerId: currentOwnerId,
         title: data.title,
@@ -335,21 +378,26 @@ export default function PropertyDetails() {
         latitude: data.latitude ? String(data.latitude) : '',
         longitude: data.longitude ? String(data.longitude) : '',
         carpetArea: data.carpetArea,
-        rentAmount: data.rentalInfo?.expectedRent ?? data.rentAmount ?? 0,
-        depositAmount: data.rentalInfo?.securityDeposit ?? data.depositAmount ?? 0,
+        rentAmount,
+        depositAmount,
         salePrice: data.saleInfo?.listedPrice ?? 0,
         furnishing: data.furnishing,
         amenities: data.amenities || [],
-        availableFrom: data.availableFrom ? new Date(data.availableFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        availableFrom: isRentalListingStatus(normalizedStatus as PropertyStatus)
+          ? toDateInputValue(data.availableFrom) || new Date().toISOString().split('T')[0]
+          : '',
         status: normalizedStatus,
-        tenantCustomerId: data.tenantCustomerId || '',
-        brokerageAmount: data.brokerageAmount || 0,
-        expectedBrokerage: data.expectedBrokerage || 0,
+        tenantCustomerId: data.tenantCustomerId || data.rentalInfo?.currentTenantId || '',
+        brokerageAmount: isRented
+          ? (data.brokerageAmount || activeRental?.brokeragePaid || 0)
+          : (data.brokerageAmount || 0),
+        expectedBrokerage: isRented ? 0 : (data.expectedBrokerage || 0),
         agreementStatus: data.agreementStatus || 'pending',
         verificationStatus: data.verificationStatus || 'pending',
         featured: data.featured || false,
         verified: data.verified || false,
-        tenantMoveInDate: data.tenantMoveInDate || '',
+        tenantMoveInDate: leaseStartDate,
+        leaseEndDate,
         tenureMonths: data.tenureMonths || 11,
       });
       await ensureOwnerInDropdown({ ...data, ownerId: currentOwnerId, status: normalizedStatus });
@@ -379,6 +427,11 @@ export default function PropertyDetails() {
   const handleMarkAsSoldConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+
+    if (!saleForm.soldPrice) {
+      alert('Please enter the sold price.');
+      return;
+    }
 
     if (saleForm.saleType === 'direct' && !saleForm.buyerId) {
       alert('Please select a buyer.');
@@ -428,12 +481,67 @@ export default function PropertyDetails() {
     }
   };
 
+  const openRentalModal = () => {
+    const activeRental = getActiveRentalEntry(property);
+    setRentalForm({
+      customerId: '',
+      monthlyRent: formData.rentAmount
+        || property?.rentalInfo?.currentRent
+        || property?.rentalInfo?.expectedRent
+        || activeRental?.monthlyRent
+        || 0,
+      securityDeposit: formData.depositAmount
+        || property?.rentalInfo?.securityDeposit
+        || activeRental?.securityDeposit
+        || 0,
+      brokeragePaid: 0,
+      leaseStartDate: new Date().toISOString().split('T')[0],
+      leaseEndDate: '',
+      notes: '',
+    });
+    setShowRentalModal(true);
+  };
+
+  const handleMarkAsRentedConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+
+    if (!rentalForm.customerId || !rentalForm.monthlyRent || !rentalForm.leaseStartDate) {
+      alert('Please select a tenant and enter the monthly rent and lease start date.');
+      return;
+    }
+
+    try {
+      setSavingRental(true);
+      await api.markPropertyRented(id, {
+        customerId: rentalForm.customerId,
+        rentalDetails: {
+          monthlyRent: Number(rentalForm.monthlyRent),
+          leaseStartDate: rentalForm.leaseStartDate,
+          leaseEndDate: rentalForm.leaseEndDate || undefined,
+          securityDeposit: Number(rentalForm.securityDeposit) || 0,
+          brokeragePaid: Number(rentalForm.brokeragePaid) || 0,
+          notes: rentalForm.notes || undefined,
+        },
+      });
+      await loadProperty();
+      setShowRentalModal(false);
+      setToast({ message: 'Tenant assigned and property marked as occupied.', type: 'success' });
+    } catch (err) {
+      console.error('Error assigning tenant:', err);
+      setToast({ message: 'Failed to assign tenant to this property.', type: 'error' });
+    } finally {
+      setSavingRental(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     // Owner is now optional - can create properties without owner (unassigned)
 
     // Convert form data to API format (string lat/lng to numbers)
     const isSaleStatus = formData.status === 'for-sale' || formData.status === 'sold';
+    const isRentedStatus = formData.status === 'rented';
     const apiData: any = {
       ...formData,
       latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
@@ -441,9 +549,11 @@ export default function PropertyDetails() {
       tenantCustomerId: formData.tenantCustomerId || undefined,
       tenantMoveInDate: formData.tenantMoveInDate || undefined,
       tenureMonths: formData.tenureMonths || undefined,
-      availableFrom: formData.availableFrom ? new Date(formData.availableFrom).toISOString() : undefined,
+      availableFrom: !isRentedStatus && formData.availableFrom
+        ? new Date(formData.availableFrom).toISOString()
+        : undefined,
       brokerageAmount: formData.brokerageAmount || undefined,
-      expectedBrokerage: formData.expectedBrokerage || undefined,
+      expectedBrokerage: isRentalListingStatus(formData.status) ? (formData.expectedBrokerage || undefined) : undefined,
     };
 
     // Ownership is set at creation or via Mark as Sold — never changed on edit
@@ -460,6 +570,16 @@ export default function PropertyDetails() {
         soldDate: formData.status === 'sold' ? (property?.saleInfo?.soldDate || null) : null,
         soldToBuyerId: formData.status === 'sold' ? (property?.saleInfo?.soldToBuyerId || null) : null,
       };
+    } else if (isRentedStatus) {
+      apiData.rentalInfo = {
+        ...(property?.rentalInfo || {}),
+        currentRent: formData.rentAmount || property?.rentalInfo?.currentRent || 0,
+        securityDeposit: formData.depositAmount || property?.rentalInfo?.securityDeposit || 0,
+        currentTenantId: formData.tenantCustomerId || property?.rentalInfo?.currentTenantId || null,
+        leaseStartDate: formData.tenantMoveInDate || property?.rentalInfo?.leaseStartDate || null,
+        leaseEndDate: formData.leaseEndDate || property?.rentalInfo?.leaseEndDate || null,
+      };
+      delete apiData.rentalInfo.expectedRent;
     } else {
       apiData.rentalInfo = {
         expectedRent: formData.rentAmount || 0,
@@ -751,6 +871,9 @@ export default function PropertyDetails() {
         : undefined))
     : undefined;
   const selectedCustomer = customers.find(c => c.customerId === formData.tenantCustomerId);
+  const availableTenants = customers.filter((customer) => !customer.currentRental?.propertyId);
+  const canTransferOwnership = isEditing && (formData.status === 'for-sale' || formData.status === 'available');
+  const canAssignTenant = isEditing && (formData.status === 'for-rent' || formData.status === 'available');
 
   const toggleAmenity = (amenity: string) => {
     const current = formData.amenities;
@@ -866,6 +989,40 @@ export default function PropertyDetails() {
                         </option>
                       )}
                     </select>
+                    {isEditing && (canTransferOwnership || canAssignTenant) && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {canTransferOwnership && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSaleForm({
+                                saleType: 'direct',
+                                soldPrice: formData.salePrice || property?.saleInfo?.listedPrice || 0,
+                                buyerId: '',
+                                brokerageAmount: 0,
+                                brokerageLost: 0,
+                                reasonLost: '',
+                                customReasonLost: '',
+                                notes: '',
+                              });
+                              setShowSaleModal(true);
+                            }}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-semibold"
+                          >
+                            Transfer Ownership / Sell
+                          </button>
+                        )}
+                        {canAssignTenant && (
+                          <button
+                            type="button"
+                            onClick={openRentalModal}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold"
+                          >
+                            Assign Tenant
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   {/* Owner — read-only; ownership changes via Mark as Sold only */}
@@ -907,11 +1064,6 @@ export default function PropertyDetails() {
                           : preselectedOwnerId
                             ? 'Owner will be linked from the owner profile you started from.'
                             : 'Unassigned — create this property from an Owner/Seller profile to link ownership.'}
-                      </p>
-                    )}
-                    {isEditing && (
-                      <p className="mt-2 text-xs text-gray-500">
-                        Ownership cannot be changed here. Use <strong>Mark as Sold</strong> to transfer to a buyer.
                       </p>
                     )}
                     {property?.previousOwnerContactId && formData.status !== 'sold' && (
@@ -1154,7 +1306,8 @@ export default function PropertyDetails() {
                   ) : (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Monthly Rent (₹) <span className="text-red-500">*</span>
+                        {formData.status === 'rented' ? 'Current Monthly Rent (₹)' : 'Monthly Rent (₹)'}
+                        <span className="text-red-500"> *</span>
                       </label>
                       <NumericInput
                         required
@@ -1182,6 +1335,7 @@ export default function PropertyDetails() {
                     </div>
                   )}
 
+                  {isRentalListingStatus(formData.status) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Expected Brokerage (₹)
@@ -1194,6 +1348,7 @@ export default function PropertyDetails() {
                       placeholder="Enter expected brokerage"
                     />
                   </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1218,6 +1373,7 @@ export default function PropertyDetails() {
                     </select>
                   </div>
 
+                  {isRentalListingStatus(formData.status) && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Available From
@@ -1229,6 +1385,7 @@ export default function PropertyDetails() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     />
                   </div>
+                  )}
 
                   {/* Tenant Selection */}
                   {(formData.status === 'rented' || formData.status === 'on-hold') && (
@@ -1317,7 +1474,7 @@ export default function PropertyDetails() {
                       {formData.status === 'rented' && (
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Brokerage (&#x20B9;) <span className="text-xs text-gray-400 font-normal">— leave 0 for auto 1 month rent</span>
+                            Brokerage Paid (&#x20B9;)
                           </label>
                           <NumericInput
                             value={formData.brokerageAmount}
@@ -1369,11 +1526,11 @@ export default function PropertyDetails() {
                         </select>
                       </div>
 
-                      {/* Tenant Move-in Date */}
+                      {/* Tenant Move-in / Lease Start */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
                           <Calendar className="inline h-4 w-4 mr-1" />
-                          Tenant Move-in Date
+                          {formData.status === 'rented' ? 'Lease Start Date' : 'Tenant Move-in Date'}
                         </label>
                         <input
                           type="date"
@@ -1382,6 +1539,21 @@ export default function PropertyDetails() {
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         />
                       </div>
+
+                      {formData.status === 'rented' && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            <Calendar className="inline h-4 w-4 mr-1" />
+                            Lease End Date
+                          </label>
+                          <input
+                            type="date"
+                            value={formData.leaseEndDate}
+                            onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          />
+                        </div>
+                      )}
 
                       {/* Agreement Tenure */}
                       <div>
@@ -2145,13 +2317,140 @@ export default function PropertyDetails() {
         />
       )}
 
+      {/* Rental Assignment Modal */}
+      {showRentalModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Assign Tenant</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowRentalModal(false)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleMarkAsRentedConfirm} className="space-y-5">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Tenant <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={rentalForm.customerId}
+                    onChange={(e) => setRentalForm({ ...rentalForm, customerId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    required
+                  >
+                    <option value="">Choose a tenant...</option>
+                    {availableTenants.map((customer) => (
+                      <option key={customer.customerId} value={customer.customerId}>
+                        {customer.name} {customer.phone ? `(${customer.phone})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {availableTenants.length === 0 && (
+                    <p className="text-xs text-red-500 mt-1">No tenants without an active rental are available.</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Monthly Rent (₹) <span className="text-red-500">*</span>
+                  </label>
+                  <NumericInput
+                    value={rentalForm.monthlyRent}
+                    onChange={(value) => setRentalForm({ ...rentalForm, monthlyRent: value })}
+                    placeholder="Enter monthly rent"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Security Deposit (₹)</label>
+                  <NumericInput
+                    value={rentalForm.securityDeposit}
+                    onChange={(value) => setRentalForm({ ...rentalForm, securityDeposit: value })}
+                    placeholder="0"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Brokerage Paid (₹)</label>
+                  <NumericInput
+                    value={rentalForm.brokeragePaid}
+                    onChange={(value) => setRentalForm({ ...rentalForm, brokeragePaid: value })}
+                    placeholder="0"
+                    className="w-full"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lease Start Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={rentalForm.leaseStartDate}
+                    onChange={(e) => setRentalForm({ ...rentalForm, leaseStartDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Lease End Date</label>
+                  <input
+                    type="date"
+                    value={rentalForm.leaseEndDate}
+                    onChange={(e) => setRentalForm({ ...rentalForm, leaseEndDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={rentalForm.notes}
+                    onChange={(e) => setRentalForm({ ...rentalForm, notes: e.target.value })}
+                    placeholder="Any additional notes about this rental..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowRentalModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingRental || !rentalForm.customerId}
+                    className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium"
+                  >
+                    {savingRental ? 'Assigning...' : 'Assign Tenant'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sale Modal */}
       {showSaleModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Mark Property as Sold</h2>
+                <h2 className="text-xl font-bold text-gray-900">Transfer Ownership / Sell Property</h2>
                 <button
                   type="button"
                   onClick={() => setShowSaleModal(false)}

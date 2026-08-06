@@ -1,5 +1,6 @@
 import type { CRMLead, LeadType, BuyerRequirement } from '../types/crm';
 import { normalizeBuyerRequirement } from './buyerRequirementSchema';
+import { normalizeLeadTextFields } from './leadTextNormalizer';
 
 const LEAD_REQUIREMENT_FIELD: Record<LeadType, keyof CRMLead> = {
   buyer: 'buyerRequirement',
@@ -16,6 +17,8 @@ function hasRequirementData(value: unknown): boolean {
 
 /** Build a lead create/update payload with only the requirement object for the active lead type. */
 export function buildLeadSavePayload(lead: Partial<CRMLead>) {
+  normalizeLeadTextFields(lead);
+
   const payload: Record<string, unknown> = {
     leadType: lead.leadType,
     name: lead.name,

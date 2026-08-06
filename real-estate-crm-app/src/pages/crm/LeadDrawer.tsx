@@ -58,7 +58,8 @@ import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } 
 import { LEAD_SOURCE_OPTIONS, isKnownLeadSource } from '../../utils/leadConstants';
 import { buildLeadSavePayload } from '../../utils/leadSavePayload';
 import { canManageLeads } from '../../utils/rbac';
-import { isLeadConverted } from '../../utils/leadConversion';
+import { getConvertResultPath, isLeadConverted } from '../../utils/leadConversion';
+import type { FlashToast } from '../../utils/flashToast';
 import LeadPropertyFields from '../../components/LeadPropertyFields';
 import BuyerRequirementFields from '../../components/BuyerRequirementFields';
 
@@ -98,13 +99,13 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
     notes: '',
 
-    buyerRequirement: {},
+    buyerRequirement: { city: 'Mumbai' },
 
-    sellerProperty: { timelineUnit: 'months' },
+    sellerProperty: { city: 'Mumbai', timelineUnit: 'months' },
 
-    tenantRequirement: {},
+    tenantRequirement: { city: 'Mumbai' },
 
-    ownerProperty: {},
+    ownerProperty: { city: 'Mumbai' },
 
   });
 
@@ -537,26 +538,22 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
       setConverting(true);
       const payload = lead.leadType === 'seller' ? { createPropertyListing: true } : {};
       const result = await api.convertLead(leadId, payload);
-      showToast('Lead converted successfully.', 'success');
+      const path = getConvertResultPath(result);
+      const flashToast: FlashToast = { message: 'Lead converted successfully.', type: 'success' };
       onUpdate();
       onClose();
-      if (result?.contactId) {
-        navigate(`/crm/contacts/${result.contactId}`);
-      } else if (result?.entityType === 'owner' && result?.entity?.ownerId) {
-        navigate(`/crm/owners/${result.entity.ownerId}`);
-      } else {
-        navigate('/crm/leads');
-      }
+      navigate(path, { state: { toast: flashToast } });
     } catch (error: unknown) {
       console.error('Error converting lead:', error);
       const err = error as Error & { code?: string; convertedTo?: { entityType?: string; entityId?: string } };
       if (err.code === 'ALREADY_CONVERTED' || err.message?.toLowerCase().includes('already converted')) {
-        onClose();
+        const path = getConvertResultPath({ convertedTo: err.convertedTo });
         onUpdate();
-        if (err.convertedTo?.entityType === 'owner' && err.convertedTo.entityId) {
-          navigate(`/crm/owners/${err.convertedTo.entityId}`);
-        } else if (err.convertedTo?.entityType === 'seller' && err.convertedTo.entityId) {
-          navigate(`/crm/owners/${err.convertedTo.entityId}`);
+        onClose();
+        if (path !== '/crm/leads') {
+          navigate(path, {
+            state: { toast: { message: 'This lead is already converted.', type: 'success' } },
+          });
         } else {
           loadLead();
         }
@@ -1209,6 +1206,40 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
                         placeholder="Preferred location"
 
                       />
+
+                    </div>
+
+                    <div>
+
+                      <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+
+                      <select
+
+                        value={lead.tenantRequirement?.city || 'Mumbai'}
+
+                        onChange={(e) => setLead({
+
+                          ...lead,
+
+                          tenantRequirement: { ...lead.tenantRequirement, city: e.target.value }
+
+                        })}
+
+                        disabled={isConverted}
+
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+
+                      >
+
+                        <option value="Mumbai">Mumbai</option>
+
+                        <option value="Pune">Pune</option>
+
+                        <option value="Thane">Thane</option>
+
+                        <option value="Navi Mumbai">Navi Mumbai</option>
+
+                      </select>
 
                     </div>
 
