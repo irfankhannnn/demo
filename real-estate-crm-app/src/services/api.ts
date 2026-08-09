@@ -12,6 +12,7 @@ import type {
   OwnerProperty,
 } from '../types/crm';
 import type { ConversationSummary } from '../types/whatsapp';
+import type { UploadUrlResponse } from '../types/callIntelligence';
 import { setTokens, type AuthTokens } from '../utils/authStorage';
 import { refreshTokens } from '../utils/cognitoAuth';
 
@@ -2486,6 +2487,151 @@ class ApiService {
     }
     const result = await this.handleResponse(response);
     return result.data || result;
+  }
+
+  // ============== Call Intelligence (call recordings) ==============
+
+  /** Step 1 of the upload: reserve a recording and get a pre-signed S3 URL. */
+  async createCallRecordingUploadUrl(data: {
+    filename: string;
+    contentType: string;
+    sizeBytes?: number;
+    phone?: string;
+    callDate?: string;
+  }): Promise<UploadUrlResponse> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/upload-url`, init);
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * Step 2: PUT the file straight to S3.
+   * Deliberately bypasses `getHeaders()` — sending an Authorization header to a
+   * pre-signed URL makes S3 reject the request.
+   */
+  async uploadCallRecordingToS3(
+    uploadUrl: string,
+    file: File,
+    onProgress?: (percent: number) => void,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl, true);
+      xhr.setRequestHeader('Content-Type', file.type);
+
+      xhr.upload.onprogress = (event) => {
+        if (onProgress && event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Upload failed with status ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+      xhr.onabort = () => reject(new Error('Upload cancelled'));
+      xhr.send(file);
+    });
+  }
+
+  /** Step 3: confirm the upload so the transcription pipeline starts. */
+  async confirmCallRecordingUpload(recordingId: string, data: { callDate?: string } = {}) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/confirm`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordings(params: { limit?: number; cursor?: string; status?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.cursor) query.set('cursor', params.cursor);
+    if (params.status) query.set('status', params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings${suffix}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecording(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordingTranscript(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/transcript`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordingAudioUrl(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/audio-url`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async linkCallRecordingEntity(
+    recordingId: string,
+    data: { entityType: string; entityId: string; reanalyze?: boolean },
+  ) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/link`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async reanalyzeCallRecording(recordingId: string) {
+    const init = { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({}) };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/reanalyze`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async approveCallRecordingAction(
+    recordingId: string,
+    actionId: string,
+    args?: Record<string, unknown>,
+  ) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(args ? { arguments: args } : {}),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/call-recordings/${recordingId}/actions/${actionId}/approve`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async rejectCallRecordingAction(recordingId: string, actionId: string, reason?: string) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(reason ? { reason } : {}),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/call-recordings/${recordingId}/actions/${actionId}/reject`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async deleteCallRecording(recordingId: string) {
+    const init = { method: 'DELETE', headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}`, init);
+    return this.handleResponse(response, init);
   }
 }
 
