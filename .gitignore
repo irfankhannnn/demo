@@ -4,6 +4,7 @@ test-results/
 # Root-level node_modules (should never exist; tests/playwright has its own)
 node_modules/
 
+# Graphify generated output (local cache; regenerate with `graphify update .`)
 graphify-out/
 
 # OS / editor
@@ -24,8 +25,9 @@ server/infra/cfn-params.json
 .env.production
 server/.env
 server/.env.production
-server/logs/*.jsonl
-server/logs/gemini-*.jsonl
+# Server runtime logs (LLM traces, jsonl, etc.)
+server/logs/*
+!server/logs/.gitkeep
 real-estate-crm-app/.env
 real-estate-crm-app/.env.production
 whatsapp-platform/.env

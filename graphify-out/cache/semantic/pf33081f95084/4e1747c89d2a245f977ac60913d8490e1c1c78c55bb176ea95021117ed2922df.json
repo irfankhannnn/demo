@@ -1,1 +1,0 @@
-{"nodes": [{"id": "server_infra_cfn_backend", "label": "Core CRM CloudFormation", "file_type": "code", "source_file": "server/infra/cfn-backend.yaml"}], "edges": [], "hyperedges": []}
