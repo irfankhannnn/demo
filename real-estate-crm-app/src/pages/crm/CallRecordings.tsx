@@ -21,26 +21,36 @@ interface UploadItem {
   error?: string;
 }
 
+/** Must stay in sync with ALLOWED_AUDIO_MIME_TYPES on the server. */
+const ALLOWED_CONTENT_TYPES = [
+  'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac',
+  'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/webm', 'audio/ogg', 'audio/opus',
+  'audio/flac', 'audio/amr', 'video/mp4',
+];
+
+const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  mp4: 'audio/mp4',
+  wav: 'audio/wav',
+  aac: 'audio/aac',
+  ogg: 'audio/ogg',
+  opus: 'audio/opus',
+  amr: 'audio/amr',
+  webm: 'audio/webm',
+  flac: 'audio/flac',
+};
+
 /**
- * Browsers do not set a MIME type for every recorder format (.amr and .opus in
- * particular), so fall back to a supported type based on the extension.
+ * Browsers report no MIME type for some recorder formats (.amr, .opus) and an
+ * unsupported one for others (.amr as audio/3gpp), so the extension decides
+ * whenever the reported type is not one the API accepts.
  */
 function resolveContentType(file: File): string {
-  if (file.type) return file.type;
+  const reported = (file.type || '').toLowerCase();
+  if (ALLOWED_CONTENT_TYPES.includes(reported)) return reported;
   const extension = file.name.toLowerCase().split('.').pop() || '';
-  const byExtension: Record<string, string> = {
-    mp3: 'audio/mpeg',
-    m4a: 'audio/mp4',
-    mp4: 'audio/mp4',
-    wav: 'audio/wav',
-    aac: 'audio/aac',
-    ogg: 'audio/ogg',
-    opus: 'audio/opus',
-    amr: 'audio/amr',
-    webm: 'audio/webm',
-    flac: 'audio/flac',
-  };
-  return byExtension[extension] || 'audio/mpeg';
+  return CONTENT_TYPE_BY_EXTENSION[extension] || 'audio/mpeg';
 }
 
 function statusStyle(status: CallRecordingStatus): string {
@@ -122,15 +132,16 @@ export default function CallRecordings() {
     }
 
     try {
+      const contentType = resolveContentType(file);
       const created = await api.createCallRecordingUploadUrl({
         filename: file.name,
-        contentType: resolveContentType(file),
+        contentType,
         sizeBytes: file.size,
       });
 
       await api.uploadCallRecordingToS3(created.uploadUrl, file, (percent) => {
         upsertUpload(uploadId, { progress: percent });
-      });
+      }, contentType);
 
       upsertUpload(uploadId, { status: 'processing', progress: 100 });
       await api.confirmCallRecordingUpload(created.recordingId);

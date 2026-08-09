@@ -2512,16 +2512,20 @@ class ApiService {
    * Step 2: PUT the file straight to S3.
    * Deliberately bypasses `getHeaders()` — sending an Authorization header to a
    * pre-signed URL makes S3 reject the request.
+   *
+   * `contentType` must be the exact value the URL was signed with, otherwise S3
+   * answers 403 SignatureDoesNotMatch.
    */
   async uploadCallRecordingToS3(
     uploadUrl: string,
     file: File,
     onProgress?: (percent: number) => void,
+    contentType?: string,
   ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('PUT', uploadUrl, true);
-      xhr.setRequestHeader('Content-Type', file.type);
+      xhr.setRequestHeader('Content-Type', contentType || file.type);
 
       xhr.upload.onprogress = (event) => {
         if (onProgress && event.lengthComputable) {

@@ -9,7 +9,7 @@
 
 import { logger } from '../../logger.js';
 import { ENTITY_TYPE } from './constants.js';
-import { phonesEqual, normalizePhoneForMatch } from './phoneExtractor.js';
+import { phonesEqual, normalizePhoneForMatch, toE164 } from './phoneExtractor.js';
 
 /**
  * Priority when a person exists in several roles. A live sales conversation is
@@ -66,8 +66,15 @@ export async function resolveEntityByPhone(tenantId, phone, deps = {}) {
   }
 
   // Buyer / owner / tenant cross-role lookup.
+  // findPersonByPhone compares the full digit string, so a record saved as
+  // "+91 98765 43210" is only found when the country code is included. Try the
+  // national form first, then the country-code form.
   try {
-    const person = await crm.findPersonByPhone(tenantId, normalized);
+    let person = await crm.findPersonByPhone(tenantId, normalized);
+    const withCountryCode = toE164(normalized).replace(/\D/g, '');
+    if (!person?.roles?.length && withCountryCode !== normalized) {
+      person = await crm.findPersonByPhone(tenantId, withCountryCode);
+    }
     for (const role of person?.roles || []) {
       candidates.push({
         entityType: role.role,

@@ -90,6 +90,41 @@ describe('resolveEntityByPhone', () => {
     const result = await resolveEntityByPhone('t1', '', { crmService: crmStub() });
     expect(result.matched).toBeNull();
   });
+
+  it('retries the role lookup with the country code for records saved as +91...', async () => {
+    const seen = [];
+    const crmService = {
+      getLeads: async () => ({ leads: [] }),
+      findContactByPhone: async () => null,
+      findPersonByPhone: async (_tenantId, phone) => {
+        seen.push(phone);
+        return phone === '919876543210'
+          ? { found: true, roles: [{ role: 'owner', id: 'O1', data: { name: 'Anil', phone: '+919876543210' } }] }
+          : { found: false, roles: [] };
+      },
+    };
+
+    const result = await resolveEntityByPhone('t1', '9876543210', { crmService });
+
+    expect(seen).toEqual(['9876543210', '919876543210']);
+    expect(result.matched).toMatchObject({ entityType: ENTITY_TYPE.OWNER, entityId: 'O1' });
+  });
+
+  it('does not repeat the role lookup when the national form already matched', async () => {
+    const seen = [];
+    const crmService = {
+      getLeads: async () => ({ leads: [] }),
+      findContactByPhone: async () => null,
+      findPersonByPhone: async (_tenantId, phone) => {
+        seen.push(phone);
+        return { found: true, roles: [{ role: 'tenant', id: 'T1', data: { name: 'Priya' } }] };
+      },
+    };
+
+    await resolveEntityByPhone('t1', '9876543210', { crmService });
+
+    expect(seen).toEqual(['9876543210']);
+  });
 });
 
 describe('summarizeEntityForPrompt', () => {
