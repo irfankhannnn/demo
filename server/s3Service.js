@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -139,6 +139,90 @@ export async function deleteFromS3(key) {
     });
     throw new Error('Failed to delete file from S3');
   }
+}
+
+/**
+ * Generate a pre-signed PUT URL so a browser can upload directly to S3
+ * without streaming the file through the API Lambda.
+ * @param {string} key
+ * @param {string} contentType must match the Content-Type the client sends
+ * @param {number} expiresIn seconds (default 900)
+ * @returns {Promise<string>}
+ */
+export async function getPresignedUploadUrl(key, contentType, expiresIn = 900) {
+  ensureBucketConfigured();
+  try {
+    const cmd = new PutObjectCommand({ Bucket: BUCKET_NAME, Key: key, ContentType: contentType });
+    return await logger.span('s3.presignUpload', { bucket: BUCKET_NAME, key, contentType, expiresIn }, async () => {
+      return await getSignedUrl(s3, cmd, { expiresIn });
+    });
+  } catch (error) {
+    logger.error('s3.presignUpload.error', {
+      bucket: BUCKET_NAME,
+      key,
+      contentType,
+      errorMessage: error?.message,
+      errorName: error?.name,
+    });
+    throw new Error('Failed to generate pre-signed upload URL');
+  }
+}
+
+/**
+ * Fetch object metadata. Returns null when the object does not exist.
+ * @param {string} key
+ * @returns {Promise<{contentLength: number, contentType: string, lastModified: Date}|null>}
+ */
+export async function headObject(key) {
+  ensureBucketConfigured();
+  try {
+    const result = await s3.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+    return {
+      contentLength: result.ContentLength,
+      contentType: result.ContentType,
+      lastModified: result.LastModified,
+    };
+  } catch (error) {
+    if (error?.name === 'NotFound' || error?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    logger.error('s3.head.error', { bucket: BUCKET_NAME, key, errorMessage: error?.message, errorName: error?.name });
+    throw new Error('Failed to read object metadata from S3');
+  }
+}
+
+/**
+ * Read an object as UTF-8 text (used for transcript/analysis JSON).
+ * @param {string} key
+ * @returns {Promise<string>}
+ */
+export async function getObjectText(key) {
+  ensureBucketConfigured();
+  const result = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+  return await result.Body.transformToString('utf-8');
+}
+
+/**
+ * Write a UTF-8 text/JSON object.
+ * @param {string} key
+ * @param {string} body
+ * @param {string} contentType
+ */
+export async function putObjectText(key, body, contentType = 'application/json') {
+  ensureBucketConfigured();
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }));
+  return key;
+}
+
+/** Bucket name currently configured (needed by Amazon Transcribe job input/output). */
+export function getBucketName() {
+  ensureBucketConfigured();
+  return BUCKET_NAME;
 }
 
 // Alias for CRM compatibility
