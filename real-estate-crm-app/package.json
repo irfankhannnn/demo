@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:nonprod": "vite build --mode nonprod",
+    "build:prod": "vite build --mode prod",
     "preview": "vite preview",
     "lint": "eslint .",
     "setup": "node scripts/create-env.js",
+    "deploy:nonprod": "powershell -ExecutionPolicy Bypass -File infra/deploy.ps1 -Environment nonprod",
+    "deploy:prod": "powershell -ExecutionPolicy Bypass -File infra/deploy.ps1 -Environment prod",
     "android": "cap open android",
     "ios": "cap open ios",
     "sync": "cap sync",
