@@ -1,6 +1,11 @@
 # API Gateway Deployment Guide
 
 > **Security / tenant isolation:** see [`BACKEND_HARDENING.md`](./BACKEND_HARDENING.md).
+>
+> **Call recording pipeline (SQS queue + worker Lambda):** see
+> [`docs/CALL_INTELLIGENCE.md`](../docs/CALL_INTELLIGENCE.md). The worker ships
+> in the same deployment package as the API Lambda, so a code-only deploy must
+> update both — `deploy.sh` already does.
 
 ## Current Status
 
