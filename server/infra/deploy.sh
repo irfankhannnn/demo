@@ -145,7 +145,7 @@ if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   cd "$PROJECT_DIR"
   # Use compression level 1 for fast packaging. Level 0 (store) is even faster but larger.
   # Excluding node_modules TypeScript sources, source maps, docs, and metadata saves ~60+ MB and thousands of files.
-  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
+  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ workers/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "node_modules/**/*.ts" "node_modules/**/*.map" "node_modules/**/*.d.ts" \
        "node_modules/**/*.md" "node_modules/**/*.markdown" "node_modules/**/*.yml" "node_modules/**/*.yaml" \
@@ -285,7 +285,23 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "BrevoAiEmployeePaidTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID:-}" },
   { "ParameterKey": "BrevoAiEmployeeEscalatedFounderTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID:-}" },
   { "ParameterKey": "BrevoAiEmployeeEscalatedCustomerTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID:-}" },
-  { "ParameterKey": "BaileyAdminApiKey", "ParameterValue": "${BAILEY_ADMIN_API_KEY:-}" }
+  { "ParameterKey": "BaileyAdminApiKey", "ParameterValue": "${BAILEY_ADMIN_API_KEY:-}" },
+  { "ParameterKey": "AsrProvider", "ParameterValue": "${ASR_PROVIDER:-amazon-transcribe}" },
+  { "ParameterKey": "TranscribeLanguageOptions", "ParameterValue": "${TRANSCRIBE_LANGUAGE_OPTIONS:-en-IN,hi-IN,mr-IN,gu-IN,ta-IN,te-IN,kn-IN,ml-IN,pa-IN,bn-IN}" },
+  { "ParameterKey": "TranscribeLanguageCode", "ParameterValue": "${TRANSCRIBE_LANGUAGE_CODE:-}" },
+  { "ParameterKey": "TranscribeVocabularyName", "ParameterValue": "${TRANSCRIBE_VOCABULARY_NAME:-}" },
+  { "ParameterKey": "CallIntelAutoApplyNotes", "ParameterValue": "${CALL_INTEL_AUTO_APPLY_NOTES:-true}" },
+  { "ParameterKey": "CallIntelWorkerMemorySize", "ParameterValue": "${CALL_INTEL_WORKER_MEMORY_SIZE:-1024}" },
+  { "ParameterKey": "CallIntelWorkerTimeout", "ParameterValue": "${CALL_INTEL_WORKER_TIMEOUT:-300}" },
+  { "ParameterKey": "CallIntelPollDelaySeconds", "ParameterValue": "${CALL_INTEL_POLL_DELAY_SECONDS:-45}" },
+  { "ParameterKey": "CallIntelMaxPollAttempts", "ParameterValue": "${CALL_INTEL_MAX_POLL_ATTEMPTS:-60}" },
+  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "${CALL_RECORDING_QUEUE_RETENTION_SECONDS:-345600}" },
+  { "ParameterKey": "CallIntelMaxStageAttempts", "ParameterValue": "${CALL_INTEL_MAX_STAGE_ATTEMPTS:-4}" },
+  { "ParameterKey": "CallIntelMaxTranscriptChars", "ParameterValue": "${CALL_INTEL_MAX_TRANSCRIPT_CHARS:-60000}" },
+  { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "${CALL_INTEL_DEFAULT_MEETING_TIME:-11:00}" },
+  { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "${CALL_INTEL_MAX_UPLOAD_BYTES:-209715200}" },
+  { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_UPLOAD_URL_TTL_SECONDS:-900}" },
+  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_PLAYBACK_URL_TTL_SECONDS:-3600}" }
 ]
 EOF
 
@@ -463,6 +479,21 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
     --s3-key "${S3_KEY}" \
     --region "$AWS_REGION" \
     --no-cli-pager
+
+  # The call recording worker ships the same zip with a different handler, so a
+  # code-only deploy has to refresh it too or the two drift apart.
+  CALL_RECORDING_WORKER_NAME="${ENVIRONMENT_NAME:-dev}-real-estate-call-recording-worker"
+  if "$AWS_BIN" lambda get-function --function-name "$CALL_RECORDING_WORKER_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
+    echo "[7/7] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
+    "$AWS_BIN" lambda update-function-code \
+      --function-name "$CALL_RECORDING_WORKER_NAME" \
+      --s3-bucket "${ARTIFACT_BUCKET}" \
+      --s3-key "${S3_KEY}" \
+      --region "$AWS_REGION" \
+      --no-cli-pager
+  else
+    echo "[7/7] Call recording worker Lambda not found ($CALL_RECORDING_WORKER_NAME); run a CloudFormation deploy to create it."
+  fi
 elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
   echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
   echo "[7/7] Skipping Lambda update (DEPLOY_ZIP=false)."

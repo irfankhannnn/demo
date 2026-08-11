@@ -493,6 +493,95 @@ Parameters:
     Default: ''
     Description: Bailey admin API key for destructive operations
 
+  # ============== Call Intelligence (call recording analysis) ==============
+  AsrProvider:
+    Type: String
+    Default: amazon-transcribe
+    AllowedValues:
+      - amazon-transcribe
+      - whisper
+    Description: Speech-to-text provider used by the call recording pipeline
+
+  TranscribeLanguageOptions:
+    Type: String
+    Default: en-IN,hi-IN,mr-IN,gu-IN,ta-IN,te-IN,kn-IN,ml-IN,pa-IN,bn-IN
+    Description: Languages offered to Amazon Transcribe automatic language identification
+
+  TranscribeLanguageCode:
+    Type: String
+    Default: ''
+    Description: >
+      Fixed Amazon Transcribe language code (e.g. en-IN). Leave empty to use
+      automatic multi-language identification. Required when using a custom vocabulary.
+
+  TranscribeVocabularyName:
+    Type: String
+    Default: ''
+    Description: >
+      Optional Amazon Transcribe custom vocabulary name for Indian real-estate terms.
+      Create it out-of-band; an unknown name makes every transcription job fail.
+
+  CallIntelAutoApplyNotes:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Apply the AI call-summary note automatically (every other action always needs approval)
+
+  CallIntelWorkerMemorySize:
+    Type: Number
+    Default: 1024
+    Description: Memory (MB) for the call recording worker Lambda
+
+  CallIntelWorkerTimeout:
+    Type: Number
+    Default: 300
+    Description: Timeout (seconds) for the call recording worker Lambda
+
+  CallIntelPollDelaySeconds:
+    Type: Number
+    Default: 45
+    Description: Delay between Amazon Transcribe job status polls
+
+  CallIntelMaxPollAttempts:
+    Type: Number
+    Default: 60
+    Description: Maximum transcription status polls before a recording is marked failed
+
+  CallRecordingQueueRetentionSeconds:
+    Type: Number
+    Default: 345600
+    Description: SQS message retention for the call recording queue (default 4 days)
+
+  CallIntelMaxStageAttempts:
+    Type: Number
+    Default: 4
+    Description: Maximum retries for a single pipeline stage (transcription or analysis) before the recording is marked failed
+
+  CallIntelMaxTranscriptChars:
+    Type: Number
+    Default: 60000
+    Description: Transcript characters sent to the analysis model before truncation
+
+  CallIntelDefaultMeetingTime:
+    Type: String
+    Default: '11:00'
+    Description: Fallback time (HH:mm) used for a proposed meeting when the call did not state one
+
+  CallIntelMaxUploadBytes:
+    Type: Number
+    Default: 209715200
+    Description: Maximum accepted call recording size in bytes (default 200 MB)
+
+  CallIntelUploadUrlTtlSeconds:
+    Type: Number
+    Default: 900
+    Description: Expiry (seconds) for the pre-signed S3 upload URL
+
+  CallIntelPlaybackUrlTtlSeconds:
+    Type: Number
+    Default: 3600
+    Description: Expiry (seconds) for the pre-signed S3 playback URL
+
 Conditions:
   ShouldDeployApiRoutePart2: !Equals [!Ref DeployApiRoutePart2, 'true']
 
@@ -1201,10 +1290,47 @@ Resources:
             AllowedHeaders:
               - "*"
             MaxAge: 3600
+          # Browsers upload call recordings straight to S3 with a pre-signed
+          # PUT, which requires PUT to be allowed and ETag to be readable.
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - PUT
+              - POST
+            AllowedHeaders:
+              - "*"
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3600
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
 
+  # ============== Call Intelligence pipeline ==============
+
+  CallRecordingDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-real-estate-call-recordings-dlq"
+      MessageRetentionPeriod: 1209600 # 14 days
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  CallRecordingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-real-estate-call-recordings"
+      # Must be >= the worker timeout, otherwise SQS redelivers a message that
+      # is still being processed.
+      VisibilityTimeout: !Ref CallIntelWorkerTimeout
+      MessageRetentionPeriod: !Ref CallRecordingQueueRetentionSeconds
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CallRecordingDlq.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
 
   ApiLambdaExecutionRole:
     Type: AWS::IAM::Role
@@ -1324,6 +1450,25 @@ Resources:
                 Action:
                   - sts:GetCallerIdentity
                 Resource: "*"
+              # Call Intelligence: queue jobs and consume them in the worker.
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt CallRecordingQueue.Arn
+                  - !GetAtt CallRecordingDlq.Arn
+              # Amazon Transcribe batch jobs read the audio from, and write the
+              # transcript back to, the documents bucket.
+              - Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                  - transcribe:GetTranscriptionJob
+                  - transcribe:ListTranscriptionJobs
+                Resource: "*"
 
   ApiLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1418,6 +1563,88 @@ Resources:
           BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedCustomerTemplateId
           BAILEY_ADMIN_API_KEY: !Ref BaileyAdminApiKey
           RAZORPAY_PLAN_AI_EMPLOYEE: !Ref RazorpayPlanAiEmployee
+          CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
+          ASR_PROVIDER: !Ref AsrProvider
+          TRANSCRIBE_LANGUAGE_OPTIONS: !Ref TranscribeLanguageOptions
+          TRANSCRIBE_LANGUAGE_CODE: !Ref TranscribeLanguageCode
+          TRANSCRIBE_VOCABULARY_NAME: !Ref TranscribeVocabularyName
+          CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
+          CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
+          CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
+          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
+          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
+          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
+          CALL_INTEL_MAX_UPLOAD_BYTES: !Ref CallIntelMaxUploadBytes
+          CALL_INTEL_UPLOAD_URL_TTL_SECONDS: !Ref CallIntelUploadUrlTtlSeconds
+          CALL_INTEL_PLAYBACK_URL_TTL_SECONDS: !Ref CallIntelPlaybackUrlTtlSeconds
+
+  # ============== Call Intelligence worker ==============
+  # Same deployment package as the API Lambda, different handler. It reuses
+  # ApiLambdaExecutionRole so every CRM table/S3 permission the shared services
+  # need is already granted.
+  CallRecordingWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-real-estate-call-recording-worker"
+      Runtime: !Ref LambdaRuntime
+      Handler: workers/callRecordingWorker.handler
+      Role: !GetAtt ApiLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: !Ref CallIntelWorkerMemorySize
+      Timeout: !Ref CallIntelWorkerTimeout
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          AREAS_DYNAMODB_TABLE_NAME: !Ref AreasTableName
+          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
+          DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
+          REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
+          PROJECTS_TABLE_NAME: !Ref ProjectsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
+          S3_BUCKET_NAME: !Ref S3BucketName
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          GEMINI_CLASSIFIER_MODEL: !Ref GeminiClassifierModel
+          SERVICE_ACCOUNT_USER: !Ref ServiceAccountUser
+          DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
+          LOG_LEVEL: !Ref LogLevel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
+          ASR_PROVIDER: !Ref AsrProvider
+          TRANSCRIBE_LANGUAGE_OPTIONS: !Ref TranscribeLanguageOptions
+          TRANSCRIBE_LANGUAGE_CODE: !Ref TranscribeLanguageCode
+          TRANSCRIBE_VOCABULARY_NAME: !Ref TranscribeVocabularyName
+          CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
+          CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
+          CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
+          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
+          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
+          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  CallRecordingWorkerEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt CallRecordingQueue.Arn
+      FunctionName: !GetAtt CallRecordingWorkerFunction.Arn
+      BatchSize: 5
+      MaximumBatchingWindowInSeconds: 5
+      # One bad message must not force redelivery of the whole batch.
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
 
   RealEstatePublicRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -2535,6 +2762,24 @@ Resources:
       SourceArn: !GetAtt WhatsAppProcessorRule.Arn
 
 Outputs:
+  CallRecordingQueueUrlOutput:
+    Description: SQS queue URL for the call recording pipeline (CALL_RECORDING_QUEUE_URL)
+    Value: !Ref CallRecordingQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingQueueUrl"
+
+  CallRecordingDlqUrlOutput:
+    Description: Dead-letter queue URL for call recording jobs
+    Value: !Ref CallRecordingDlq
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingDlqUrl"
+
+  CallRecordingWorkerFunctionOutput:
+    Description: Call recording worker Lambda name (redeploy this together with the API Lambda)
+    Value: !Ref CallRecordingWorkerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingWorkerFunction"
+
   DynamoDbTableNameOutput:
     Description: Core DynamoDB table name to use in the backend .env
     Value: !Ref DynamoDbTableName

@@ -82,6 +82,7 @@ import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
 import AiEmployeePage from './pages/crm/AiEmployee';
 import WhatsAppInbox from './pages/crm/WhatsAppInbox';
 import AiIntegrations from './pages/crm/AiIntegrations';
+import CallRecordings from './pages/crm/CallRecordings';
 
 
 
@@ -399,6 +400,9 @@ function App() {
             <Route path="/integrations/ai-employee" element={<ProtectedRoute authState={authState}><AIEmployeeStatus /></ProtectedRoute>} />
             <Route path="/crm/ai-employee" element={<ProtectedRoute authState={authState}><AiEmployeePage /></ProtectedRoute>} />
             <Route path="/crm/whatsapp-inbox" element={<ProtectedRoute authState={authState}><WhatsAppInbox /></ProtectedRoute>} />
+
+            {/* Call Intelligence */}
+            <Route path="/crm/call-recordings" element={<ProtectedRoute authState={authState}><CallRecordings /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />

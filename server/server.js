@@ -16,6 +16,7 @@ import crmRoutes from './routes/crm.js';
 import contactsRoutes from './routes/contacts.js';
 import leadsRoutes from './routes/leads.js';
 import buyersRoutes from './routes/buyers.js';
+import callRecordingsRoutes from './routes/callRecordings.js';
 import enquiriesRoutes from './routes/enquiries.js';
 import b2bLeadsRoutes from './routes/b2bLeads.js';
 import khataRoutes from './routes/khata.js';
@@ -154,6 +155,9 @@ logger.info('routes.mount', { basePath: '/api', router: 'b2bLeadsRoutes' });
 app.use('/api', b2bLeadsRoutes);
 logger.info('routes.mount', { basePath: '/api/enquiries', router: 'enquiriesRoutes' });
 app.use('/api/enquiries', enquiriesRoutes);
+// Mounted before crmRoutes so the sub-path is never swallowed by a param route.
+logger.info('routes.mount', { basePath: '/api/crm/call-recordings', router: 'callRecordingsRoutes' });
+app.use('/api/crm/call-recordings', callRecordingsRoutes);
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });

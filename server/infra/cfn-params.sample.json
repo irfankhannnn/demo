@@ -62,5 +62,21 @@
   { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "__AI_EMPLOYEE_PROVISIONING_TABLE__" },
   { "ParameterKey": "JwtSecret", "ParameterValue": "__JWT_SECRET__" },
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "__TEMPLATE_URL_PART1__" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrlPart2", "ParameterValue": "__TEMPLATE_URL_PART2__" }
+  { "ParameterKey": "ApiGatewayRoutesTemplateUrlPart2", "ParameterValue": "__TEMPLATE_URL_PART2__" },
+  { "ParameterKey": "AsrProvider", "ParameterValue": "amazon-transcribe" },
+  { "ParameterKey": "TranscribeLanguageOptions", "ParameterValue": "en-IN,hi-IN,mr-IN,gu-IN,ta-IN,te-IN,kn-IN,ml-IN,pa-IN,bn-IN" },
+  { "ParameterKey": "TranscribeLanguageCode", "ParameterValue": "" },
+  { "ParameterKey": "TranscribeVocabularyName", "ParameterValue": "" },
+  { "ParameterKey": "CallIntelAutoApplyNotes", "ParameterValue": "true" },
+  { "ParameterKey": "CallIntelWorkerMemorySize", "ParameterValue": "1024" },
+  { "ParameterKey": "CallIntelWorkerTimeout", "ParameterValue": "300" },
+  { "ParameterKey": "CallIntelPollDelaySeconds", "ParameterValue": "45" },
+  { "ParameterKey": "CallIntelMaxPollAttempts", "ParameterValue": "60" },
+  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "345600" },
+  { "ParameterKey": "CallIntelMaxStageAttempts", "ParameterValue": "4" },
+  { "ParameterKey": "CallIntelMaxTranscriptChars", "ParameterValue": "60000" },
+  { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "11:00" },
+  { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "209715200" },
+  { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "900" },
+  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "3600" }
 ]
