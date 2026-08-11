@@ -26,6 +26,8 @@ import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge
 import { logger } from '../logger.js';
 import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 import { resolveRequestActor } from '../utils/requestActor.js';
+import { notifyNewLead, notifyLeadAssigned, notifyHotLead } from '../leadNotifications.js';
+import { getAgencyConfig } from '../agencyConfigService.js';
 
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
@@ -64,11 +66,11 @@ async function fetchTeamMemberMap(req) {
 // Get all leads with optional filters + pagination
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { leadType, status, priority, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, city, search, assignedTo, unassigned, source, propertyType, propertySubType, createdBy, updatedBy, converted } = req.query;
+    const { leadType, status, temperature, excludeConverted, limit, offset, sortBy, sortOrder, fromDate, toDate, minBudget, maxBudget, area, city, search, assignedTo, unassigned, source, propertyType, propertySubType, createdBy, updatedBy, converted } = req.query;
     const filters = {};
     if (leadType) filters.leadType = leadType;
     if (status) filters.status = status;
-    if (priority) filters.priority = priority;
+    if (temperature) filters.temperature = temperature; // hot | warm | cold | unscored
     if (excludeConverted === 'true') filters.excludeConverted = true;
     if (limit) filters.limit = limit;
     if (offset) filters.offset = offset;
@@ -247,10 +249,11 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
         converted: conversions.length,
         lost: 0,
       },
-      byPriority: {
-        low: 0,
-        medium: 0,
-        high: 0,
+      byTemperature: {
+        hot: 0,
+        warm: 0,
+        cold: 0,
+        unscored: 0,
       },
       conversionRate: 0,
     };
@@ -263,8 +266,9 @@ router.get('/metrics', validateToken, extractTenantId, async (req, res) => {
       if (metrics.byStatus[statusKey] !== undefined) {
         metrics.byStatus[statusKey]++;
       }
-      if (metrics.byPriority[lead.priority] !== undefined) {
-        metrics.byPriority[lead.priority]++;
+      const temperatureKey = lead.score ? String(lead.score).toLowerCase() : 'unscored';
+      if (metrics.byTemperature[temperatureKey] !== undefined) {
+        metrics.byTemperature[temperatureKey]++;
       }
     });
 
@@ -356,6 +360,12 @@ router.post('/', validateToken, extractTenantId, requireCrmMemberOrAbove, credit
     // Charge credits immediately after successful create
     creditCharge = await chargeCreditsForAction(req.tenantId, 'lead_add', { recordId: lead.leadId });
 
+    // Notify the tenant a new lead came in — independent of AI qualification,
+    // always fires so a human knows to follow up.
+    notifyNewLead(req.tenantId, lead).catch((err) =>
+      logger.warn('leads.create.notify_failed', { tenantId: req.tenantId, leadId: lead.leadId, error: err.message })
+    );
+
     // Publish lead.created event for AI qualification (non-blocking)
     if (process.env.AGENTS_ENABLED !== 'true') {
       res.status(201).json({ ...lead, creditsRemaining: creditCharge.balance });
@@ -427,13 +437,36 @@ router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, asyn
   try {
     const assigneeLabelMap = await fetchTeamMemberMap(req);
     const { actorName, actorUserId } = resolveRequestActor(req.user, assigneeLabelMap);
-    const updateData = {
-      ...req.body,
-      updatedBy: actorName,
-      updatedByUserId: actorUserId,
-    };
+    const before = await getLead(req.tenantId, req.params.id);
+
+    const updateData = { ...req.body };
+    // `priority` is retired on the Lead entity — accept it for backward
+    // compatibility with any not-yet-updated client, but never persist it.
+    delete updateData.priority;
+    // A client-set `score` is always a human override — scoreSource/scoredAt
+    // are stamped server-side, not accepted from the request body, so the
+    // "who set this" trail can't be spoofed.
+    delete updateData.scoreSource;
+    if (updateData.score !== undefined) {
+      updateData.scoreSource = 'manual';
+      updateData.scoredAt = new Date().toISOString();
+    }
+    updateData.updatedBy = actorName;
+    updateData.updatedByUserId = actorUserId;
+
     const lead = await updateLead(req.tenantId, req.params.id, updateData, { assigneeLabelMap });
     res.json(lead);
+
+    if (before && lead.assignedTo && lead.assignedTo !== before.assignedTo) {
+      notifyLeadAssigned(req.tenantId, lead, lead.assignedTo).catch((err) =>
+        logger.warn('leads.update.notify_assigned_failed', { tenantId: req.tenantId, leadId: lead.leadId, error: err.message })
+      );
+    }
+    if (before && lead.score === 'HOT' && before.score !== 'HOT') {
+      notifyHotLead(req.tenantId, lead).catch((err) =>
+        logger.warn('leads.update.notify_hot_failed', { tenantId: req.tenantId, leadId: lead.leadId, error: err.message })
+      );
+    }
   } catch (error) {
     logger.error('leads.update.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
     if (error.message === 'Cannot update a converted lead') {
@@ -441,6 +474,54 @@ router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, asyn
     }
     if (error.message?.includes("' to update its ")) {
       return res.status(400).json({ error: error.message });
+    }
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Trigger an on-demand AI qualification call — "Call now to qualify" in the
+// Lead Drawer. Proxies to ai-calling-service; the actual score gets written
+// back later via ai-calling-service -> POST /api/internal/leads/:id/call-outcome.
+router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const lead = await getLead(req.tenantId, req.params.id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    if (!lead.phone) {
+      return res.status(400).json({ error: 'Lead has no phone number to call' });
+    }
+
+    const agencyConfig = await getAgencyConfig(req.tenantId).catch(() => null);
+    if (!agencyConfig?.aiEmployeeEnabled) {
+      return res.status(409).json({ error: 'AI calling not enabled for this tenant' });
+    }
+
+    const aiCallingServiceUrl = process.env.AI_CALLING_SERVICE_URL;
+    if (!aiCallingServiceUrl) {
+      logger.warn('leads.qualifyCall.not_configured', { tenantId: req.tenantId });
+      return res.status(503).json({ error: 'AI calling service not configured' });
+    }
+
+    const response = await axios.post(
+      `${aiCallingServiceUrl}/calls/start`,
+      {
+        leadId: lead.leadId,
+        leadName: lead.name,
+        leadPhone: lead.phone,
+        callPurpose: 'lead_qualification',
+      },
+      {
+        headers: { 'x-tenant-id': req.tenantId },
+        timeout: parseInt(process.env.AI_CALLING_SERVICE_TIMEOUT_MS || '10000', 10),
+      }
+    );
+
+    res.status(202).json({ callSessionId: response.data.callSessionId, status: response.data.status });
+  } catch (error) {
+    logger.error('leads.qualifyCall.error', { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
+    if (error.response) {
+      return res.status(error.response.status || 502).json({ error: error.response.data?.error || 'AI calling service error' });
     }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }

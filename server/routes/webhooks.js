@@ -6,6 +6,9 @@ import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { logger } from '../logger.js';
 import { webhookRateLimit } from '../middleware/rateLimiter.js';
 import { normalizeWhatsAppPhone } from '../utils/whatsapp.js';
+import { createLead } from '../crmDynamodbService.js';
+import { getTenantIdByInstagramWebhookToken } from '../agencyConfigService.js';
+import { notifyNewLead } from '../leadNotifications.js';
 
 const router = express.Router();
 
@@ -216,5 +219,151 @@ router.post('/whatsapp', webhookRateLimit, async (req, res) => {
     return res.status(200).json({ ok: true, error: 'processing_failed' });
   }
 });
+
+// POST /instagram/:webhookToken — ManyChat "External Request" outbound webhook.
+// Each tenant that turns on the Instagram lead pipeline gets a unique token
+// (AgencyConfig.instagramWebhookToken) embedded in the ManyChat flow's request
+// URL — that token both identifies the tenant and authenticates the request,
+// since ManyChat doesn't support HMAC signature verification like Meta does.
+//
+// Expected ManyChat payload shape (configured on the flow's External Request
+// action — field names are whatever you map them to in ManyChat, this route
+// accepts either the exact names below or ManyChat's default {{...}} variables
+// mapped to these keys):
+// {
+//   "subscriberId": "12345",           // ManyChat subscriber id — used for idempotency
+//   "name": "Rahul Sharma",
+//   "phone": "+919812345678",
+//   "requirement": "buy",              // "buy" | "rent" | "heavy_deposit_ok"
+//   "budgetBracket": "80L-1Cr",
+//   "preferredArea": "Andheri West",
+//   "postId": "17912345678901234",     // triggering reel/post id
+//   "permalink": "https://instagram.com/p/..."
+// }
+router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
+  try {
+    const { webhookToken } = req.params;
+    const body = req.body || {};
+
+    logger.info('webhooks.instagram.received', { hasBody: !!body });
+
+    const tenantId = await getTenantIdByInstagramWebhookToken(webhookToken);
+    if (!tenantId) {
+      logger.warn('webhooks.instagram.unknown_token');
+      // 200, not 401/404 — ManyChat retries aggressively on non-2xx and a bad
+      // token is a config problem, not something a retry will fix.
+      return res.status(200).json({ ok: true, skipped: true, reason: 'unknown_webhook_token' });
+    }
+
+    const subscriberId = body.subscriberId || body.subscriber_id || body.contactId;
+    const idempotencyKey = subscriberId
+      ? `manychat:${tenantId}:${subscriberId}:${body.postId || 'no-post'}`
+      : `manychat:${tenantId}:${crypto.randomUUID()}`;
+    const idempotency = await logEventIfNotProcessed(idempotencyKey, 'instagram.incoming', null);
+    if (idempotency.isDuplicate) {
+      return res.status(200).json({ ok: true, duplicate: true });
+    }
+
+    const name = (body.name || '').trim();
+    const phone = (body.phone || '').trim();
+    if (!name || !phone) {
+      logger.warn('webhooks.instagram.missing_fields', { tenantId, hasName: !!name, hasPhone: !!phone });
+      return res.status(200).json({ ok: true, skipped: true, reason: 'missing_name_or_phone' });
+    }
+
+    const requirementRaw = String(body.requirement || '').toLowerCase();
+    const requirementLabel = requirementRaw === 'rent'
+      ? 'rent'
+      : requirementRaw === 'heavy_deposit_ok'
+        ? 'heavy_deposit_ok'
+        : 'buy';
+
+    const budget = parseBudgetBracket(body.budgetBracket || body.budget);
+
+    const leadData = {
+      name,
+      phone,
+      leadType: 'buyer',
+      source: 'Instagram',
+      buyerRequirement: {
+        requirement: requirementLabel,
+        budget: budget ?? undefined,
+        preferredArea: body.preferredArea || body.area || undefined,
+      },
+      reelRef: (body.postId || body.permalink)
+        ? { postId: body.postId || null, permalink: body.permalink || null }
+        : null,
+      createdBy: 'ManyChat (Instagram)',
+    };
+
+    const lead = await createLead(tenantId, leadData);
+    logger.info('webhooks.instagram.lead_created', { tenantId, leadId: lead.leadId });
+
+    await notifyNewLead(tenantId, lead);
+
+    if (process.env.AGENTS_ENABLED === 'true') {
+      try {
+        await eventBridge.send(new PutEventsCommand({
+          Entries: [{
+            Source: 'crm.leads',
+            DetailType: 'lead.created',
+            Detail: JSON.stringify({
+              tenantId,
+              leadId: lead.leadId,
+              leadType: lead.leadType,
+              name: lead.name,
+              phone: lead.phone,
+              createdAt: lead.createdAt,
+            }),
+          }],
+        }));
+        logger.info('lead.created.event.published', { tenantId, leadId: lead.leadId, source: 'instagram' });
+      } catch (ebErr) {
+        logger.warn('lead.created.event.publish.failed', { tenantId, leadId: lead.leadId, error: ebErr.message });
+      }
+    }
+
+    return res.status(200).json({ ok: true, leadId: lead.leadId });
+  } catch (err) {
+    logger.error('webhooks.instagram.error', { error: err.message, stack: err.stack });
+    // 200 even on failure — same policy as the WhatsApp webhook — so ManyChat
+    // doesn't hammer retries; failures are visible in logs instead.
+    return res.status(200).json({ ok: true, error: 'processing_failed' });
+  }
+});
+
+// Maps a bucketed budget reply (e.g. "80L-1Cr", "<50L", "1Cr+") to a
+// representative numeric value in rupees, since buyerRequirement.budget is a
+// single number. Uses the bracket's lower bound — conservative, and stable
+// regardless of how wide a bracket the ManyChat flow offers.
+function parseBudgetBracket(raw) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw === 'number') return raw;
+
+  const s = String(raw).trim().toLowerCase();
+  const lakh = 100000;
+  const crore = 10000000;
+
+  if (s.startsWith('<')) {
+    const n = parseFloat(s.slice(1));
+    return isNaN(n) ? null : Math.max(0, n * lakh - lakh);
+  }
+  if (s.endsWith('+')) {
+    const n = parseFloat(s);
+    if (!isNaN(n)) return s.includes('cr') ? n * crore : n * lakh;
+  }
+
+  const rangeMatch = s.match(/([\d.]+)\s*(l|cr)?\s*-\s*([\d.]+)\s*(l|cr)?/);
+  if (rangeMatch) {
+    const lowValue = parseFloat(rangeMatch[1]);
+    const lowUnit = rangeMatch[2] || rangeMatch[4] || 'l';
+    if (!isNaN(lowValue)) {
+      return lowUnit === 'cr' ? lowValue * crore : lowValue * lakh;
+    }
+  }
+
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
 
 export default router;

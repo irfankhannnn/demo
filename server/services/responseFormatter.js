@@ -104,7 +104,7 @@ function formatCompact(item, entityType) {
     case 'lead':
       return {
         ...compactFields,
-        priority: item.priority,
+        temperature: item.score,
         source: item.source,
         budget: item.budget,
       };

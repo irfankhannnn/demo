@@ -57,6 +57,7 @@ export const NotificationCategory = {
   TENANTS: 'TENANTS',
   PROPERTIES: 'PROPERTIES',
   KHATABOOK: 'KHATABOOK',
+  LEADS: 'LEADS',
 };
 
 export const NotificationType = {
@@ -64,6 +65,9 @@ export const NotificationType = {
   MEETING_REMINDER_15M: 'MEETING_REMINDER_15M',
   KHATA_REMINDER: 'KHATA_REMINDER',
   NEW_ENQUIRY: 'NEW_ENQUIRY',
+  NEW_LEAD: 'NEW_LEAD',
+  LEAD_ASSIGNED: 'LEAD_ASSIGNED',
+  LEAD_HOT: 'LEAD_HOT',
 };
 
 // ============== Inbox Notification Operations ==============

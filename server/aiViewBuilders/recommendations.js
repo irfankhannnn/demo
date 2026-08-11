@@ -18,15 +18,15 @@ function displayDate(value) {
 
 export function buildLeadRecommendation(lead, requirement = {}) {
   const status = String(lead.status || '').toLowerCase();
-  const priority = String(lead.priority || '').toLowerCase();
-  const score = Number(lead.score) || 0;
+  const temperature = String(lead.score || '').toLowerCase();
+  const scoreValue = typeof lead.scoreValue === 'number' ? lead.scoreValue : 0;
   if (status === 'lost' || status === 'converted') return null;
 
   const reasons = [];
   const budget = requirement.budget || requirement.expectedPrice || requirement.rentExpected;
   if (budget) reasons.push(`Budget ${budget}`);
-  if (score >= 80) reasons.push(`Lead score: ${score}`);
-  if (priority === 'high') reasons.push('High priority');
+  if (scoreValue >= 80) reasons.push(`Lead score: ${scoreValue}`);
+  if (temperature === 'hot') reasons.push('Qualified HOT');
   if (requirement.preferredArea || requirement.area) {
     reasons.push(`Area: ${requirement.preferredArea || requirement.area}`);
   }

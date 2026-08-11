@@ -119,7 +119,8 @@ export function normalizeLead(lead) {
     status: normalizeStatus(cleaned.status),
     leadType: normalizeLeadType(cleaned.leadType),
     source: cleaned.source || null,
-    score: cleaned.score || 0,
+    score: cleaned.score || null, // HOT|WARM|COLD|null — see scoreValue for the 0-100 number
+    scoreValue: typeof cleaned.scoreValue === 'number' ? cleaned.scoreValue : null,
     createdAt: normalizeTimestamp(cleaned.createdAt),
     updatedAt: normalizeTimestamp(cleaned.updatedAt),
     lastInteractionAt: normalizeTimestamp(cleaned.lastInteractionAt),
