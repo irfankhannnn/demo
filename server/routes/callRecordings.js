@@ -28,6 +28,7 @@ import {
   linkEntitySchema,
   approveActionSchema,
   rejectActionSchema,
+  MAX_UPLOAD_BYTES_VALUE,
 } from '../validation/callRecordingSchemas.js';
 import {
   ACTION_STATUS,
@@ -45,6 +46,7 @@ import {
   updateActionStatus,
   refreshCompletionStatus,
   deleteRecording,
+  markFailed,
 } from '../services/callIntelligence/callRecordingRepository.js';
 import { extractPhoneFromFilename, normalizePhoneForMatch, toE164 } from '../services/callIntelligence/phoneExtractor.js';
 import { resolveEntityByPhone, loadEntitySnapshot } from '../services/callIntelligence/entityResolver.js';
@@ -252,6 +254,25 @@ router.post('/:recordingId/confirm', validateBody(confirmUploadSchema), async (r
       return res.status(409).json({
         error: 'Upload not found in storage',
         details: 'The file was not uploaded, or the pre-signed URL expired. Please retry the upload.',
+      });
+    }
+
+    // The client declares its intended size before upload, but a presigned PUT
+    // does not itself cap the bytes transferred — enforce the limit here against
+    // what actually landed in S3, not the client's claim.
+    if (head.contentLength != null && head.contentLength > MAX_UPLOAD_BYTES_VALUE) {
+      await deleteFromS3(recording.s3Key).catch((err) => logger.warn('callIntelligence.confirm.oversize_cleanup_failed', {
+        tenantId, recordingId, error: err.message,
+      }));
+      await markFailed(
+        tenantId,
+        recordingId,
+        'UPLOAD',
+        `Uploaded file (${head.contentLength} bytes) exceeds the ${Math.round(MAX_UPLOAD_BYTES_VALUE / (1024 * 1024))} MB limit`,
+      );
+      return res.status(413).json({
+        error: 'Upload exceeds the maximum allowed size',
+        details: `Limit is ${Math.round(MAX_UPLOAD_BYTES_VALUE / (1024 * 1024))} MB`,
       });
     }
 

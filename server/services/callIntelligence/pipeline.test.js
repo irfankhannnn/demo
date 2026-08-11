@@ -429,4 +429,49 @@ describe('startProcessing', () => {
     await expect(startProcessing({ tenantId: 't1', recordingId: 'r1' }))
       .resolves.toEqual({ ok: true, mode: 'inline' });
   });
+
+  describe('inside a Lambda execution environment', () => {
+    const originalLambdaEnv = process.env.AWS_LAMBDA_FUNCTION_NAME;
+
+    afterEach(() => {
+      if (originalLambdaEnv === undefined) delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+      else process.env.AWS_LAMBDA_FUNCTION_NAME = originalLambdaEnv;
+    });
+
+    it('awaits the inline job before resolving, so the container cannot freeze mid-work', async () => {
+      process.env.AWS_LAMBDA_FUNCTION_NAME = 'test-function';
+      queue.isQueueEnabled.mockReturnValue(false);
+
+      let releaseInlineWork;
+      const gate = new Promise((resolve) => { releaseInlineWork = resolve; });
+      repo.getRecording.mockImplementation(async () => {
+        await gate;
+        return null; // recording_not_found short-circuits processJob cleanly
+      });
+
+      const started = startProcessing({ tenantId: 't1', recordingId: 'r1' });
+
+      const stillPending = Symbol('pending');
+      const raceResult = await Promise.race([
+        started,
+        new Promise((resolve) => setImmediate(() => resolve(stillPending))),
+      ]);
+      expect(raceResult).toBe(stillPending);
+
+      releaseInlineWork();
+      await expect(started).resolves.toEqual({ ok: true, mode: 'inline' });
+    });
+
+    it('stays fire-and-forget outside Lambda so the response is not delayed', async () => {
+      delete process.env.AWS_LAMBDA_FUNCTION_NAME;
+      queue.isQueueEnabled.mockReturnValue(false);
+
+      // Never resolves during the test — if startProcessing awaited it, this
+      // assertion would time out instead of resolving immediately.
+      repo.getRecording.mockImplementation(() => new Promise(() => {}));
+
+      await expect(startProcessing({ tenantId: 't1', recordingId: 'r1' }))
+        .resolves.toEqual({ ok: true, mode: 'inline' });
+    });
+  });
 });

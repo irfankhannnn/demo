@@ -541,6 +541,36 @@ Parameters:
     Default: 345600
     Description: SQS message retention for the call recording queue (default 4 days)
 
+  CallIntelMaxStageAttempts:
+    Type: Number
+    Default: 4
+    Description: Maximum retries for a single pipeline stage (transcription or analysis) before the recording is marked failed
+
+  CallIntelMaxTranscriptChars:
+    Type: Number
+    Default: 60000
+    Description: Transcript characters sent to the analysis model before truncation
+
+  CallIntelDefaultMeetingTime:
+    Type: String
+    Default: '11:00'
+    Description: Fallback time (HH:mm) used for a proposed meeting when the call did not state one
+
+  CallIntelMaxUploadBytes:
+    Type: Number
+    Default: 209715200
+    Description: Maximum accepted call recording size in bytes (default 200 MB)
+
+  CallIntelUploadUrlTtlSeconds:
+    Type: Number
+    Default: 900
+    Description: Expiry (seconds) for the pre-signed S3 upload URL
+
+  CallIntelPlaybackUrlTtlSeconds:
+    Type: Number
+    Default: 3600
+    Description: Expiry (seconds) for the pre-signed S3 playback URL
+
 Conditions:
   ShouldDeployApiRoutePart2: !Equals [!Ref DeployApiRoutePart2, 'true']
 
@@ -1528,6 +1558,12 @@ Resources:
           CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
           CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
           CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
+          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
+          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
+          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
+          CALL_INTEL_MAX_UPLOAD_BYTES: !Ref CallIntelMaxUploadBytes
+          CALL_INTEL_UPLOAD_URL_TTL_SECONDS: !Ref CallIntelUploadUrlTtlSeconds
+          CALL_INTEL_PLAYBACK_URL_TTL_SECONDS: !Ref CallIntelPlaybackUrlTtlSeconds
 
   # ============== Call Intelligence worker ==============
   # Same deployment package as the API Lambda, different handler. It reuses
@@ -1579,6 +1615,9 @@ Resources:
           CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
           CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
           CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
+          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
+          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
+          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName

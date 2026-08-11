@@ -373,10 +373,17 @@ export async function startProcessing({ tenantId, recordingId, userId = null }) 
     logger.warn('callIntelligence.startProcessing.queue_unavailable', { tenantId, recordingId });
   }
 
-  processJob({ tenantId, recordingId, stage: PIPELINE_STAGE.TRANSCRIPTION, userId })
+  const inlineRun = processJob({ tenantId, recordingId, stage: PIPELINE_STAGE.TRANSCRIPTION, userId })
     .catch((err) => logger.error('callIntelligence.inline.failed', {
       tenantId, recordingId, error: err.message,
     }));
+
+  // In a Lambda execution environment the container can freeze as soon as the
+  // HTTP response is sent, which would silently kill an unawaited promise.
+  // Outside Lambda (local dev) this stays fire-and-forget for a snappy response.
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    await inlineRun;
+  }
 
   return { ok: true, mode: 'inline' };
 }

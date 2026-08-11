@@ -72,5 +72,11 @@
   { "ParameterKey": "CallIntelWorkerTimeout", "ParameterValue": "300" },
   { "ParameterKey": "CallIntelPollDelaySeconds", "ParameterValue": "45" },
   { "ParameterKey": "CallIntelMaxPollAttempts", "ParameterValue": "60" },
-  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "345600" }
+  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "345600" },
+  { "ParameterKey": "CallIntelMaxStageAttempts", "ParameterValue": "4" },
+  { "ParameterKey": "CallIntelMaxTranscriptChars", "ParameterValue": "60000" },
+  { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "11:00" },
+  { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "209715200" },
+  { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "900" },
+  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "3600" }
 ]

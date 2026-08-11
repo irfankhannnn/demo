@@ -293,7 +293,13 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "CallIntelWorkerTimeout", "ParameterValue": "${CALL_INTEL_WORKER_TIMEOUT:-300}" },
   { "ParameterKey": "CallIntelPollDelaySeconds", "ParameterValue": "${CALL_INTEL_POLL_DELAY_SECONDS:-45}" },
   { "ParameterKey": "CallIntelMaxPollAttempts", "ParameterValue": "${CALL_INTEL_MAX_POLL_ATTEMPTS:-60}" },
-  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "${CALL_RECORDING_QUEUE_RETENTION_SECONDS:-345600}" }
+  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "${CALL_RECORDING_QUEUE_RETENTION_SECONDS:-345600}" },
+  { "ParameterKey": "CallIntelMaxStageAttempts", "ParameterValue": "${CALL_INTEL_MAX_STAGE_ATTEMPTS:-4}" },
+  { "ParameterKey": "CallIntelMaxTranscriptChars", "ParameterValue": "${CALL_INTEL_MAX_TRANSCRIPT_CHARS:-60000}" },
+  { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "${CALL_INTEL_DEFAULT_MEETING_TIME:-11:00}" },
+  { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "${CALL_INTEL_MAX_UPLOAD_BYTES:-209715200}" },
+  { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_UPLOAD_URL_TTL_SECONDS:-900}" },
+  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_PLAYBACK_URL_TTL_SECONDS:-3600}" }
 ]
 EOF
 
