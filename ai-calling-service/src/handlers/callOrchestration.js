@@ -53,7 +53,12 @@ export async function startAICall(request) {
     if (leadId) {
       leadContext = await crmApi.getLeadContext(tenantId, leadId);
     }
-    
+
+    const isQualificationCall = callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION;
+    const defaultGreeting = isQualificationCall
+      ? `Hi${leadName ? ` ${leadName}` : ''}, this is ${config.agencyName} — thanks for your interest! I just have a couple of quick questions so we can help you faster.`
+      : `Hello${leadName ? ` ${leadName}` : ''}, this is ${config.agencyName}. How can I help you with your property search today?`;
+
     // 4. Initialize ElevenLabs conversation session
     const elevenLabsSession = await elevenlabs.initializeConversation(callSessionId, {
       tenantId,
@@ -61,10 +66,11 @@ export async function startAICall(request) {
       leadName,
       agentId: config.agentId,
       agencyName: config.agencyName,
-      greeting: config.greeting || `Hello${leadName ? ` ${leadName}` : ''}, this is ${config.agencyName}. How can I help you with your property search today?`,
+      greeting: config.greeting || defaultGreeting,
       callPurpose,
       leadContext: leadContext?.summary,
-      maxDuration: config.maxCallDuration,
+      rubricContext: leadContext?.rubricContext,
+      maxDuration: isQualificationCall ? Math.min(config.maxCallDuration || 600, 180) : config.maxCallDuration,
     });
     
     // 5. Initiate Exotel call
@@ -150,10 +156,20 @@ export async function handleExotelWebhook(webhookData) {
     }
     
     // End ElevenLabs session
+    let qualificationResult = null;
     if (session.elevenLabsSessionId) {
+      if (session.callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION && newStatus === CALL_STATUS.COMPLETED) {
+        // Fetch the full transcript before ending the session, so we can pull
+        // the agent's [QUALIFICATION_RESULT: ...] marker out of it.
+        const transcript = await elevenlabs.getTranscript(session.elevenLabsSessionId);
+        qualificationResult = elevenlabs.extractQualificationResult(transcript);
+        if (!qualificationResult) {
+          logger.warn('Qualification call ended without a parseable result', { callSessionId, tenantId });
+        }
+      }
       await elevenlabs.endConversation(session.elevenLabsSessionId);
     }
-    
+
     // Update lead status in CRM
     if (session.leadId) {
       await crmApi.updateLeadCallOutcome(tenantId, session.leadId, {
@@ -162,6 +178,11 @@ export async function handleExotelWebhook(webhookData) {
         duration: duration || 0,
         outcome: session.outcome,
         transcriptSummary: session.transcriptSummary,
+        callPurpose: session.callPurpose,
+        ...(qualificationResult ? {
+          temperature: qualificationResult.temperature,
+          scoreReasons: qualificationResult.reasons,
+        } : {}),
       });
     }
     

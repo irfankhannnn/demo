@@ -60,12 +60,27 @@ export async function initializeConversation(callSessionId, config) {
   }
 }
 
+// Hot/Warm/Cold rubric — kept in sync by hand with server/utils/leadRubric.js
+// in the main CRM repo (LEAD_TEMPERATURE_RUBRIC). Duplicated rather than
+// imported because ai-calling-service deploys as its own package/stack and
+// can't rely on a relative path into server/ surviving packaging.
+const LEAD_TEMPERATURE_RUBRIC = `HOT: the customer wants a property immediately AND has already named
+a specific area or building (not just "somewhere nice").
+WARM: the customer wants to visit a property and decide in person,
+but hasn't fixed on one area/building yet.
+COLD: the customer's timeline is roughly a couple of months out —
+early research, not ready to commit or visit yet.`;
+
 /**
  * Build system prompt for the AI agent
  */
 function buildSystemPrompt(config) {
   const agencyName = config.agencyName || 'our real estate agency';
-  
+
+  if (config.callPurpose === 'lead_qualification') {
+    return buildQualificationSystemPrompt(config, agencyName);
+  }
+
   return `You are a helpful real estate assistant for ${agencyName}. Your role is to:
 
 1. Help customers find properties that match their requirements
@@ -95,6 +110,32 @@ Where INTENT_TYPE is one of:
 - SCHEDULE_SITE_VISIT
 - FAQ_POLICY
 - HANDOFF_HUMAN`;
+}
+
+/**
+ * System prompt for a Hot/Warm/Cold qualification call — a short, focused
+ * conversation, not a general property Q&A session.
+ */
+function buildQualificationSystemPrompt(config, agencyName) {
+  const rubricContext = config.rubricContext || {};
+  return `You are calling on behalf of ${agencyName} to quickly qualify a real estate
+lead who recently reached out. This is a short call with one goal: determine
+whether the customer is HOT, WARM, or COLD.
+
+${LEAD_TEMPERATURE_RUBRIC}
+
+What we already know about them:
+- Name: ${config.leadName || 'the customer'}
+${config.leadContext ? `- ${config.leadContext}` : ''}
+- Have they already named a specific area/building? ${rubricContext.hasNamedAreaOrBuilding ? 'Yes' : 'Not yet — ask them directly.'}
+
+Ask at most 2-3 short questions to confirm timeline and whether they've picked
+an area/building, thank them, and end the call politely. Do not try to sell
+a specific property or schedule a site visit on this call — that's a
+follow-up. Keep the whole call under 90 seconds.
+
+When you have enough to decide, respond with:
+[QUALIFICATION_RESULT: {"temperature":"HOT|WARM|COLD","reasons":["..."]}]`;
 }
 
 /**
@@ -143,6 +184,39 @@ export async function getTranscript(sessionId) {
     logger.error('Failed to get transcript', error, { sessionId });
     return [];
   }
+}
+
+const QUALIFICATION_RESULT_PATTERN = /\[QUALIFICATION_RESULT:\s*(\{[^}]*\})\s*\]/i;
+
+/**
+ * Scan a fetched conversation transcript (array of {speaker, text} turns, as
+ * returned by getTranscript()) for the agent's `[QUALIFICATION_RESULT: {...}]`
+ * marker (see buildQualificationSystemPrompt) and parse it.
+ * Returns { temperature, reasons } or null if the agent never emitted it —
+ * e.g. the call was too short, or ended before qualification completed.
+ */
+export function extractQualificationResult(transcript) {
+  if (!Array.isArray(transcript)) return null;
+
+  for (let i = transcript.length - 1; i >= 0; i--) {
+    const text = transcript[i]?.text;
+    if (!text) continue;
+    const match = String(text).match(QUALIFICATION_RESULT_PATTERN);
+    if (!match) continue;
+    try {
+      const parsed = JSON.parse(match[1]);
+      const temperature = String(parsed.temperature || '').toUpperCase();
+      if (!['HOT', 'WARM', 'COLD'].includes(temperature)) continue;
+      return {
+        temperature,
+        reasons: Array.isArray(parsed.reasons) ? parsed.reasons.join('; ') : String(parsed.reasons || ''),
+      };
+    } catch {
+      // Malformed marker — keep scanning earlier turns rather than failing the call.
+      continue;
+    }
+  }
+  return null;
 }
 
 /**
