@@ -32,7 +32,7 @@ describe('leadConversionService contracts', () => {
     phone: '9876543210',
     email: 'ada@test.com',
     notes: 'wants 2bhk',
-    priority: 'high',
+    score: 'HOT',
     status: 'qualified',
     buyerRequirement: {
       budget: 5000000,

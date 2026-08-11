@@ -25,7 +25,7 @@ const baseLead = {
   name: 'Ada Buyer',
   phone: '9876543210',
   notes: 'wants 2bhk',
-  priority: 'high',
+  score: 'HOT',
   status: 'qualified',
   buyerRequirement: {
     budget: 5000000,

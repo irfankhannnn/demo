@@ -25,9 +25,9 @@ describe('coerceSearchLeadsFilters', () => {
     expect(coerceSearchLeadsFilters({ query: 'qulaified leads' })).toEqual({ status: 'qualified' });
   });
 
-  it('promotes priority from query', () => {
-    expect(coerceSearchLeadsFilters({ query: 'high priority buyer leads' })).toEqual({
-      priority: 'high',
+  it('promotes temperature from query', () => {
+    expect(coerceSearchLeadsFilters({ query: 'hot buyer leads' })).toEqual({
+      temperature: 'hot',
       leadType: 'buyer',
     });
   });
