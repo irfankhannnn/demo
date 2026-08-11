@@ -1,42 +1,49 @@
 // Internal API Routes for AI Calling Service
-// These endpoints are called by the AI Calling Lambda to fetch CRM data
+// These endpoints are called by the AI Calling Lambda (ai-calling-service/) to
+// fetch CRM data and report call outcomes. Authenticated via a shared internal
+// API key (x-api-key) + explicit tenant header (x-tenant-id) — never a user JWT,
+// since these calls originate from another service, not a logged-in user.
+//
+// History: this router was fully built and working, then intentionally
+// disabled before launch to reduce surface area (see ../DISABLED_FEATURES.md).
+// It is re-enabled here as part of the Lead Temperature migration, which
+// reuses this calling infrastructure for Hot/Warm/Cold qualification calls
+// instead of building a new integration.
 
 import express from 'express';
 import {
-  getLeads,
   getLead,
   updateLead,
-  getBuyers,
   getBuyer,
   getProperties,
   getProperty,
   getPropertiesByStatus,
   createMeeting,
-  getCustomer,
   getOwner,
   getOwners,
 } from '../crmDynamodbService.js';
+import { notifyHotLead } from '../leadNotifications.js';
+import { logger } from '../logger.js';
+import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { buildRubricContext } from '../utils/leadRubric.js';
 
 const router = express.Router();
-
-/*
-// ============== COMMENTED OUT: AI Calling Internal API disabled ==============
-// All routes below are commented out as part of removing AI calling functionality
+const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
 // Internal API key validation middleware
 const validateInternalApiKey = (req, res, next) => {
   const apiKey = req.headers['x-api-key'];
   const expectedKey = process.env.AI_CALLING_INTERNAL_API_KEY;
-  
+
   if (!expectedKey) {
-    console.warn('AI_CALLING_INTERNAL_API_KEY not configured');
+    logger.error('aiCallingInternal.not_configured', {});
     return res.status(500).json({ error: 'Internal API not configured' });
   }
-  
+
   if (apiKey !== expectedKey) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  
+
   next();
 };
 
@@ -56,16 +63,31 @@ router.use(extractTenantId);
 
 // ============== Lead Context ==============
 
-// Get comprehensive lead context for AI call
+function buildLeadSummary(lead) {
+  const parts = [];
+
+  if (lead.name) parts.push(`Customer name is ${lead.name}`);
+  const requirement = lead.buyerRequirement?.requirement;
+  if (lead.leadType) parts.push(`looking to ${requirement === 'rent' ? 'rent' : requirement === 'heavy_deposit_ok' ? 'rent with a heavy deposit' : 'buy'}`);
+  const budget = lead.buyerRequirement?.budget;
+  if (budget) parts.push(`with budget around ${budget}`);
+  const area = lead.buyerRequirement?.preferredArea;
+  if (area) parts.push(`in ${area}`);
+  if (lead.buyerRequirement?.propertyType) parts.push(`a ${lead.buyerRequirement.propertyType}`);
+  if (lead.notes) parts.push(`Notes: ${lead.notes}`);
+
+  return parts.join('. ');
+}
+
+// Get comprehensive lead context for AI call (qualification or otherwise)
 router.get('/leads/:leadId/context', async (req, res) => {
   try {
     const lead = await getLead(req.tenantId, req.params.leadId);
-    
+
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
     }
-    
-    // Build context summary
+
     const context = {
       lead: {
         id: lead.leadId,
@@ -73,59 +95,46 @@ router.get('/leads/:leadId/context', async (req, res) => {
         phone: lead.phone,
         email: lead.email,
         status: lead.status,
-        priority: lead.priority,
         leadType: lead.leadType,
         source: lead.source,
-        requirements: lead.requirements,
-        budget: lead.budget,
-        preferredLocations: lead.preferredLocations,
-        propertyType: lead.propertyType,
+        requirement: lead.buyerRequirement?.requirement || null,
+        budget: lead.buyerRequirement?.budget || null,
+        preferredArea: lead.buyerRequirement?.preferredArea || null,
+        propertyType: lead.buyerRequirement?.propertyType || null,
       },
       summary: buildLeadSummary(lead),
       preferences: {
-        budget: lead.budget,
-        locations: lead.preferredLocations,
-        propertyType: lead.propertyType,
-        bedrooms: lead.bedrooms,
+        budget: lead.buyerRequirement?.budget || null,
+        area: lead.buyerRequirement?.preferredArea || null,
+        propertyType: lead.buyerRequirement?.propertyType || null,
+        bhk: lead.buyerRequirement?.bhk || null,
       },
+      // Pre-computed signal the Hot/Warm/Cold rubric leans on hardest, so the
+      // call script and the LLM fallback don't have to re-derive it from free
+      // text and risk disagreeing with each other.
+      rubricContext: buildRubricContext(lead),
     };
-    
+
     res.json(context);
   } catch (error) {
-    console.error('Get lead context error:', error);
+    logger.error('aiCallingInternal.getLeadContext.error', { error: error.message, tenantId: req.tenantId, leadId: req.params.leadId });
     res.status(500).json({ error: error.message || 'Failed to get lead context' });
   }
 });
 
-function buildLeadSummary(lead) {
-  const parts = [];
-  
-  if (lead.name) parts.push(`Customer name is ${lead.name}`);
-  if (lead.leadType) parts.push(`looking to ${lead.leadType === 'buyer' ? 'buy' : 'rent'}`);
-  if (lead.budget) parts.push(`with budget around ${lead.budget}`);
-  if (lead.preferredLocations?.length) parts.push(`in ${lead.preferredLocations.join(' or ')}`);
-  if (lead.propertyType) parts.push(`a ${lead.propertyType}`);
-  if (lead.requirements) parts.push(`Requirements: ${lead.requirements}`);
-  
-  return parts.join('. ');
-}
-
 // ============== Properties ==============
 
-// Get available properties with filters
 router.get('/properties/available', async (req, res) => {
   try {
     const { type, location, minPrice, maxPrice, bedrooms } = req.query;
-    
+
     let properties = await getPropertiesByStatus(req.tenantId, 'available');
-    
-    // Apply filters
+
     if (type) {
-      properties = properties.filter(p => 
+      properties = properties.filter(p =>
         p.propertyType?.toLowerCase().includes(type.toLowerCase())
       );
     }
-    
     if (location) {
       properties = properties.filter(p =>
         p.area?.toLowerCase().includes(location.toLowerCase()) ||
@@ -133,23 +142,19 @@ router.get('/properties/available', async (req, res) => {
         p.address?.toLowerCase().includes(location.toLowerCase())
       );
     }
-    
     if (minPrice) {
       const min = parseInt(minPrice, 10);
       properties = properties.filter(p => (p.rent || p.price || 0) >= min);
     }
-    
     if (maxPrice) {
       const max = parseInt(maxPrice, 10);
       properties = properties.filter(p => (p.rent || p.price || 0) <= max);
     }
-    
     if (bedrooms) {
       const beds = parseInt(bedrooms, 10);
       properties = properties.filter(p => p.bedrooms === beds);
     }
-    
-    // Return simplified property data for AI
+
     const simplified = properties.map(p => ({
       propertyId: p.propertyId,
       propertyType: p.propertyType,
@@ -165,30 +170,28 @@ router.get('/properties/available', async (req, res) => {
       amenities: p.amenities?.slice(0, 5),
       availableFrom: p.availableFrom,
     }));
-    
+
     res.json(simplified);
   } catch (error) {
-    console.error('Get available properties error:', error);
+    logger.error('aiCallingInternal.getAvailableProperties.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to get properties' });
   }
 });
 
-// Get property details
 router.get('/properties/:propertyId/details', async (req, res) => {
   try {
     const property = await getProperty(req.tenantId, req.params.propertyId);
-    
+
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }
-    
-    // Get owner info (without sensitive data)
+
     let ownerName = null;
     if (property.ownerId) {
       const owner = await getOwner(req.tenantId, property.ownerId);
       ownerName = owner?.name;
     }
-    
+
     res.json({
       propertyId: property.propertyId,
       propertyType: property.propertyType,
@@ -214,68 +217,62 @@ router.get('/properties/:propertyId/details', async (req, res) => {
       status: property.status,
     });
   } catch (error) {
-    console.error('Get property details error:', error);
+    logger.error('aiCallingInternal.getPropertyDetails.error', { error: error.message, tenantId: req.tenantId, propertyId: req.params.propertyId });
     res.status(500).json({ error: error.message || 'Failed to get property details' });
   }
 });
 
-// Search properties by text
 router.get('/properties/search', async (req, res) => {
   try {
     const { q } = req.query;
-    
+
     if (!q) {
       return res.status(400).json({ error: 'Search query required' });
     }
-    
+
     const { properties } = await getProperties(req.tenantId);
     const searchTerm = q.toLowerCase();
-    
-    const matches = properties.filter(p => 
+
+    const matches = properties.filter(p =>
       p.propertyType?.toLowerCase().includes(searchTerm) ||
       p.area?.toLowerCase().includes(searchTerm) ||
       p.city?.toLowerCase().includes(searchTerm) ||
       p.address?.toLowerCase().includes(searchTerm) ||
       p.description?.toLowerCase().includes(searchTerm)
     );
-    
+
     res.json(matches.slice(0, 10));
   } catch (error) {
-    console.error('Search properties error:', error);
+    logger.error('aiCallingInternal.searchProperties.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to search properties' });
   }
 });
 
 // ============== Site Visits ==============
 
-// Schedule a site visit
 router.post('/site-visits', async (req, res) => {
   try {
     const { leadId, propertyId, preferredDate, preferredTime, source } = req.body;
-    
+
     if (!leadId || !propertyId) {
       return res.status(400).json({ error: 'leadId and propertyId are required' });
     }
-    
-    // Get lead and property info
+
     const [lead, property] = await Promise.all([
       getLead(req.tenantId, leadId),
       getProperty(req.tenantId, propertyId),
     ]);
-    
+
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
     }
-    
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }
-    
-    // Parse date/time
+
     let meetingDate = preferredDate;
     let meetingTime = preferredTime || '10:00';
-    
-    // Handle relative dates
+
     if (preferredDate?.toLowerCase() === 'today') {
       meetingDate = new Date().toISOString().split('T')[0];
     } else if (preferredDate?.toLowerCase() === 'tomorrow') {
@@ -283,8 +280,7 @@ router.post('/site-visits', async (req, res) => {
       tomorrow.setDate(tomorrow.getDate() + 1);
       meetingDate = tomorrow.toISOString().split('T')[0];
     }
-    
-    // Create meeting
+
     const meeting = await createMeeting(req.tenantId, {
       title: `Site Visit - ${property.propertyType} in ${property.area}`,
       description: `Site visit scheduled via AI call for ${lead.name}`,
@@ -301,14 +297,13 @@ router.post('/site-visits', async (req, res) => {
       source: source || 'ai_call',
       createdBy: 'AI Calling Agent',
     });
-    
-    // Update lead status
+
     await updateLead(req.tenantId, leadId, {
       status: 'qualified',
       lastContactDate: new Date().toISOString(),
       notes: `${lead.notes || ''}\n[AI Call] Site visit scheduled for ${meetingDate} at ${meetingTime}`,
     });
-    
+
     res.status(201).json({
       visitId: meeting.meetingId,
       date: meetingDate,
@@ -318,34 +313,38 @@ router.post('/site-visits', async (req, res) => {
       status: 'scheduled',
     });
   } catch (error) {
-    console.error('Schedule site visit error:', error);
+    logger.error('aiCallingInternal.scheduleSiteVisit.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to schedule site visit' });
   }
 });
 
 // ============== Lead Outcome Update ==============
 
-// Update lead after call
+const VALID_TEMPERATURES = new Set(['HOT', 'WARM', 'COLD']);
+
+// Update lead after any call — qualification or otherwise. Only qualification
+// calls (callPurpose === 'lead_qualification', or any call that includes a
+// `temperature`) write score/scoreValue/scoreReasons and fire lead.qualified,
+// so a follow-up/reminder call doesn't silently overwrite an existing score.
 router.patch('/leads/:leadId/call-outcome', async (req, res) => {
   try {
-    const { callSessionId, status, duration, outcome, transcriptSummary } = req.body;
-    
+    const { callSessionId, status, duration, outcome, callPurpose, temperature, scoreValue, scoreReasons } = req.body;
+
     const lead = await getLead(req.tenantId, req.params.leadId);
-    
+
     if (!lead) {
       return res.status(404).json({ error: 'Lead not found' });
     }
-    
+
     const notes = lead.notes || '';
-    const callNote = `\n[AI Call ${new Date().toISOString()}] Duration: ${duration}s, Status: ${status}, Outcome: ${outcome || 'N/A'}`;
-    
+    const callNote = `\n[AI Call ${new Date().toISOString()}] Purpose: ${callPurpose || 'n/a'}, Duration: ${duration}s, Status: ${status}, Outcome: ${outcome || 'N/A'}`;
+
     const updateData = {
       lastContactDate: new Date().toISOString(),
       lastContactMethod: 'ai_call',
       notes: notes + callNote,
     };
-    
-    // Update status based on outcome
+
     if (outcome === 'site_visit_scheduled') {
       updateData.status = 'qualified';
     } else if (outcome === 'interested') {
@@ -353,27 +352,63 @@ router.patch('/leads/:leadId/call-outcome', async (req, res) => {
     } else if (outcome === 'not_interested') {
       updateData.status = 'lost';
     }
-    
-    await updateLead(req.tenantId, req.params.leadId, updateData);
-    
-    res.json({ success: true });
+
+    let willFireQualified = false;
+    if (temperature && VALID_TEMPERATURES.has(String(temperature).toUpperCase())) {
+      updateData.score = String(temperature).toUpperCase();
+      updateData.scoreValue = typeof scoreValue === 'number' ? Math.min(100, Math.max(0, scoreValue)) : null;
+      updateData.scoreReasons = scoreReasons ? String(scoreReasons).slice(0, 300) : null;
+      updateData.scoredAt = new Date().toISOString();
+      updateData.scoreSource = 'ai_call';
+      willFireQualified = true;
+    }
+
+    const updatedLead = await updateLead(req.tenantId, req.params.leadId, updateData);
+
+    if (willFireQualified) {
+      try {
+        await eventBridge.send(new PutEventsCommand({
+          Entries: [{
+            Source: 'crm.leads',
+            DetailType: 'lead.qualified',
+            Detail: JSON.stringify({
+              tenantId: req.tenantId,
+              leadId: req.params.leadId,
+              score: updateData.score,
+              scoreValue: updateData.scoreValue,
+              qualifiedAt: updateData.scoredAt,
+            }),
+          }],
+        }));
+        logger.info('aiCallingInternal.callOutcome.lead_qualified_event_published', { tenantId: req.tenantId, leadId: req.params.leadId, score: updateData.score });
+      } catch (ebErr) {
+        logger.warn('aiCallingInternal.callOutcome.lead_qualified_event_failed', { tenantId: req.tenantId, leadId: req.params.leadId, error: ebErr.message });
+      }
+
+      if (updateData.score === 'HOT') {
+        notifyHotLead(req.tenantId, updatedLead).catch((err) =>
+          logger.warn('aiCallingInternal.callOutcome.notify_hot_failed', { tenantId: req.tenantId, leadId: req.params.leadId, error: err.message })
+        );
+      }
+    }
+
+    res.json({ success: true, score: updatedLead.score || null, assignedTo: updatedLead.assignedTo || null });
   } catch (error) {
-    console.error('Update lead call outcome error:', error);
+    logger.error('aiCallingInternal.callOutcome.error', { error: error.message, tenantId: req.tenantId, leadId: req.params.leadId });
     res.status(500).json({ error: error.message || 'Failed to update lead' });
   }
 });
 
 // ============== Buyers & Owners ==============
 
-// Get buyer details
 router.get('/buyers/:buyerId', async (req, res) => {
   try {
     const buyer = await getBuyer(req.tenantId, req.params.buyerId);
-    
+
     if (!buyer) {
       return res.status(404).json({ error: 'Buyer not found' });
     }
-    
+
     res.json({
       buyerId: buyer.buyerId,
       name: buyer.name,
@@ -387,20 +422,19 @@ router.get('/buyers/:buyerId', async (req, res) => {
       requirements: buyer.requirements,
     });
   } catch (error) {
-    console.error('Get buyer details error:', error);
+    logger.error('aiCallingInternal.getBuyerDetails.error', { error: error.message, tenantId: req.tenantId, buyerId: req.params.buyerId });
     res.status(500).json({ error: error.message || 'Failed to get buyer' });
   }
 });
 
-// Get owner details (replaces deprecated seller)
 router.get('/owners/:ownerId', async (req, res) => {
   try {
     const owner = await getOwner(req.tenantId, req.params.ownerId);
-    
+
     if (!owner) {
       return res.status(404).json({ error: 'Owner not found' });
     }
-    
+
     res.json({
       ownerId: owner.ownerId,
       name: owner.name,
@@ -411,12 +445,11 @@ router.get('/owners/:ownerId', async (req, res) => {
       tags: owner.tags,
     });
   } catch (error) {
-    console.error('Get owner details error:', error);
+    logger.error('aiCallingInternal.getOwnerDetails.error', { error: error.message, tenantId: req.tenantId, ownerId: req.params.ownerId });
     res.status(500).json({ error: error.message || 'Failed to get owner' });
   }
 });
 
-// List owners (replaces deprecated sellers list)
 router.get('/owners', async (req, res) => {
   try {
     const ownersResult = await getOwners(req.tenantId);
@@ -432,8 +465,7 @@ router.get('/owners', async (req, res) => {
       })),
     });
   } catch (error) {
-*/
-    console.error('List owners error:', error);
+    logger.error('aiCallingInternal.listOwners.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to list owners' });
   }
 });

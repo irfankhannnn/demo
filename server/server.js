@@ -38,6 +38,7 @@ import agentToolsRouter from './routes/agentTools.js';
 import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
+import aiCallingInternalRoutes from './routes/aiCallingInternal.js';
 import validateToken from './middleware/validateToken.js';
 // AI Integrations dashboard API (frontend uses this to list/disconnect OAuth clients)
 import aiIntegrationsRoutes from './routes/aiIntegrations.js';
@@ -136,6 +137,12 @@ app.use('/api/whatsapp', whatsappConversationsRoutes);
 // PR-F — AI Employee status (after auth)
 logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
+
+// Internal, service-to-service only (x-api-key + x-tenant-id, no user JWT) —
+// called by ai-calling-service, never by the frontend. Re-enabled as part of
+// the Lead Temperature migration; see DISABLED_FEATURES.md for history.
+logger.info('routes.mount', { basePath: '/api/internal', router: 'aiCallingInternalRoutes' });
+app.use('/api/internal', aiCallingInternalRoutes);
 // AI Integrations — public OAuth callback (no auth required, browser redirect from MCP)
 logger.info('routes.mount', { basePath: '/api/ai-integrations/callback', router: 'aiIntegrationsPublicRoutes' });
 app.use('/api/ai-integrations', aiIntegrationsPublicRoutes);
