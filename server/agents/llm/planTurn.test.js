@@ -29,14 +29,14 @@ describe('planTurn (mocked)', () => {
     mockGenerateContent.mockResolvedValue({
       response: {
         text: () => '',
-        functionCalls: () => [{ name: 'search_leads', args: { priority: 'low' } }],
+        functionCalls: () => [{ name: 'search_leads', args: { temperature: 'cold' } }],
       },
     });
 
-    const plan = await planTurn('list low priority leads', { tenantId: 't1' });
+    const plan = await planTurn('list cold leads', { tenantId: 't1' });
     expect(plan.kind).toBe('tool');
     expect(plan.toolName).toBe('search_leads');
-    expect(plan.input.priority).toBe('low');
+    expect(plan.input.temperature).toBe('cold');
   });
 
   test('returns chat when model replies with text only', async () => {

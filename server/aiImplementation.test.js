@@ -30,7 +30,8 @@ const mockLeadFromDb = {
   email: 'raj@example.com',
   status: 'new',
   leadType: 'buyer',
-  score: 75,
+  score: 'HOT',
+  scoreValue: 75,
   source: 'website',
   createdAt: '2026-01-15T10:30:00Z',
   updatedAt: '2026-01-15T10:30:00Z',
@@ -99,7 +100,6 @@ const mockTenantFromDb = {
 const mockBuyerLeadFromDb = {
   ...mockLeadFromDb,
   leadType: 'buyer',
-  priority: 'high',
   assignedTo: 'agent-001',
   buyerRequirement: {
     budget: 5000000,
@@ -286,7 +286,8 @@ describe('LeadAIViewBuilder', () => {
     expect(result.data.requirement.budget).toBe('₹50L');
     expect(result.data.requirement.preferredArea).toBe('Andheri');
     expect(result.data.requirement.bhk).toBe('2');
-    expect(result.data.priority).toBe('high');
+    expect(result.data.temperature).toBe('HOT');
+    expect(result.data.scoreValue).toBe(75);
     expect(result.data.assignedTo).toBe('agent-001');
   });
 

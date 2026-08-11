@@ -187,7 +187,8 @@ export function normalizePhone(value) {
 
 const LEAD_STATUS_VALUES = new Set(['new', 'contacted', 'qualified', 'negotiating', 'lost', 'converted']);
 const LEAD_TYPE_VALUES = new Set(['buyer', 'seller', 'tenant', 'owner']);
-const LEAD_PRIORITY_VALUES = new Set(['low', 'medium', 'high']);
+const LEAD_PRIORITY_VALUES = new Set(['low', 'medium', 'high']); // Buyer entity only — Lead uses LEAD_TEMPERATURE_VALUES
+const LEAD_TEMPERATURE_VALUES = new Set(['hot', 'warm', 'cold']);
 const ENTITY_STATUS_VALUES = new Set(['active', 'inactive']);
 const BUYER_STATUS_VALUES = new Set(['active', 'inactive', 'purchased']);
 const PROPERTY_STATUS_VALUES = new Set([
@@ -235,7 +236,7 @@ function tokenizeQueryText(query) {
 /**
  * Promote filter tokens from natural-language query text into structured fields.
  * @param {object} input
- * @param {{ statusValues?: Set<string>, typeValues?: Set<string>, priorityValues?: Set<string>, roleValues?: Set<string>, statusTypos?: object }} spec
+ * @param {{ statusValues?: Set<string>, typeValues?: Set<string>, priorityValues?: Set<string>, priorityField?: string, roleValues?: Set<string>, statusTypos?: object }} spec
  * @returns {object}
  */
 function coerceQueryToFilters(input, spec = {}) {
@@ -255,6 +256,7 @@ function coerceQueryToFilters(input, spec = {}) {
   const statusTypos = spec.statusTypos || {};
   const typeValues = spec.typeValues || new Set();
   const priorityValues = spec.priorityValues || new Set();
+  const priorityField = spec.priorityField || 'priority';
   const roleValues = spec.roleValues || new Set();
   const furnishingValues = spec.furnishingValues || new Set();
   const typeField = spec.typeField || null;
@@ -283,10 +285,10 @@ function coerceQueryToFilters(input, spec = {}) {
     }
   }
 
-  if (!out.priority && priorityValues.size > 0) {
+  if (!out[priorityField] && priorityValues.size > 0) {
     for (const token of tokens) {
       if (priorityValues.has(token)) {
-        out.priority = token;
+        out[priorityField] = token;
         break;
       }
     }
@@ -342,7 +344,8 @@ export function coerceSearchLeadsFilters(input) {
     statusTypos: LEAD_STATUS_TYPOS,
     typeValues: LEAD_TYPE_VALUES,
     typeField: 'leadType',
-    priorityValues: LEAD_PRIORITY_VALUES,
+    priorityValues: LEAD_TEMPERATURE_VALUES,
+    priorityField: 'temperature',
   });
 }
 

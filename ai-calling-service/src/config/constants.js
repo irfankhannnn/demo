@@ -19,6 +19,10 @@ export const CALL_PURPOSE = {
   SITE_VISIT_SCHEDULING: 'site_visit_scheduling',
   GENERAL_FAQ: 'general_faq',
   PAYMENT_REMINDER: 'payment_reminder',
+  // Part of the Lead Temperature migration — the agent asks a few calibrated
+  // questions and reports back HOT/WARM/COLD via call-outcome's `temperature`
+  // field. See CRM's server/utils/leadRubric.js for the shared rubric text.
+  LEAD_QUALIFICATION: 'lead_qualification',
 };
 
 export const INTENT_TYPES = {

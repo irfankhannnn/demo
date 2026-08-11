@@ -49,11 +49,11 @@ export function formatLeadCard(lead, metadata = {}) {
   const statusBits = [
     `${capitalize(type)} Lead`,
     lead.status && capitalize(lead.status),
-    lead.priority && `${capitalize(lead.priority)} Priority`,
+    lead.score && `${capitalize(String(lead.score).toLowerCase())} Lead`,
   ].filter(Boolean);
 
   const stats = [];
-  if (lead.score) stats.push(`• Lead Score: ${lead.score}/100`);
+  if (typeof lead.scoreValue === 'number') stats.push(`• Lead Score: ${lead.scoreValue}/100`);
   if (lead.source) stats.push(`• Source: ${capitalize(lead.source)}`);
   const interactions = Array.isArray(lead.history)
     ? lead.history.length

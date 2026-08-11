@@ -3573,7 +3573,17 @@ export async function createLead(tenantId, data) {
     // Lead details
     source: data.source || '', // referral, website, walk-in, etc.
     status: data.status || 'new', // new, contacted, qualified, negotiating, converted, lost
-    priority: data.priority || 'medium', // low, medium, high
+    // Temperature (Hot/Warm/Cold) replaces the old manual `priority` field.
+    // Set by an AI qualification call, the LLM fallback, or a human override —
+    // never by createLead() itself. null until the lead is actually qualified.
+    score: null,
+    scoreValue: null,
+    scoreReasons: null,
+    scoredAt: null,
+    scoreSource: null,
+    // Instagram-sourced leads carry a reference to the triggering post so a
+    // human can see which reel/listing prompted the DM.
+    reelRef: data.reelRef || null,
     assignedTo: data.assignedTo || null,
     lostReason: data.status === 'lost' ? (data.lostReason || null) : null,
     lostAt: data.status === 'lost' ? (data.lostAt || new Date().toISOString()) : null,
@@ -3712,8 +3722,12 @@ export async function getLeads(tenantId, filters = {}) {
     leads = leads.filter((l) => matchesFilterEnum(l.status, filters.status));
   }
   leads = applyLeadAssignmentFilter(leads, filters);
-  if (filters.priority) {
-    leads = leads.filter((l) => matchesFilterEnum(l.priority, filters.priority));
+  if (filters.temperature && filters.temperature !== 'all') {
+    if (filters.temperature === 'unscored') {
+      leads = leads.filter((l) => !l.score);
+    } else {
+      leads = leads.filter((l) => matchesFilterEnum(l.score, filters.temperature));
+    }
   }
   if (filters.excludeConverted) {
     leads = leads.filter((l) => !isLeadConverted(l));
@@ -3793,16 +3807,16 @@ export async function getLeads(tenantId, filters = {}) {
   }
 
   // Sort
-  const PRIORITY_WEIGHT = { high: 3, medium: 2, low: 1 };
   const sortBy = filters.sortBy || 'createdAt';
   const sortMult = filters.sortOrder === 'asc' ? 1 : -1;
 
   leads.sort((a, b) => {
     let aVal, bVal;
     switch (sortBy) {
-      case 'priority':
-        aVal = PRIORITY_WEIGHT[a.priority] || 0;
-        bVal = PRIORITY_WEIGHT[b.priority] || 0;
+      case 'temperature':
+        // scoreValue (0-100) already ranks Hot > Warm > Cold; unscored leads sort last.
+        aVal = typeof a.scoreValue === 'number' ? a.scoreValue : -1;
+        bVal = typeof b.scoreValue === 'number' ? b.scoreValue : -1;
         break;
       case 'budget':
         aVal = a.buyerRequirement?.budget || a.tenantRequirement?.budget || a.sellerProperty?.expectedPrice || a.ownerProperty?.rentExpected || 0;
@@ -3957,7 +3971,7 @@ const LEAD_SCALAR_HISTORY_FIELDS = [
   { key: 'phone', label: 'Phone', action: 'Phone Changed' },
   { key: 'source', label: 'Source', action: 'Source Changed' },
   { key: 'status', label: 'Status', action: 'Status Changed' },
-  { key: 'priority', label: 'Priority', action: 'Priority Changed' },
+  { key: 'score', label: 'Temperature', action: 'Temperature Changed' },
   { key: 'notes', label: 'Notes', action: 'Notes Updated' },
   { key: 'lostReason', label: 'Lost reason', action: 'Lost Reason Changed' },
 ];
@@ -5883,9 +5897,13 @@ export async function searchLeads(tenantId, query, filters = {}) {
     const assignedTo = String(filters.assignedTo);
     filtered = filtered.filter((l) => l.assignedTo === assignedTo);
   }
-  if (filters.priority && filters.priority !== 'all') {
-    const priority = String(filters.priority).toLowerCase();
-    filtered = filtered.filter((l) => String(l.priority || '').toLowerCase() === priority);
+  if (filters.temperature && filters.temperature !== 'all') {
+    if (filters.temperature === 'unscored') {
+      filtered = filtered.filter((l) => !l.score);
+    } else {
+      const temperature = String(filters.temperature).toLowerCase();
+      filtered = filtered.filter((l) => String(l.score || '').toLowerCase() === temperature);
+    }
   }
 
   filtered = applyLeadBudgetRangeFilter(filtered, filters);
@@ -6893,7 +6911,7 @@ function _countBy(items, keyFn) {
 }
 
 /**
- * Layer 2 — Lead counts by type/status/priority. Answers "how many leads",
+ * Layer 2 — Lead counts by type/status/temperature. Answers "how many leads",
  * "leads breakdown", "kitni leads hain".
  */
 export async function getLeadsSummary(tenantId, filters = {}) {
@@ -6902,7 +6920,7 @@ export async function getLeadsSummary(tenantId, filters = {}) {
 
   const byType = { buyer: 0, seller: 0, tenant: 0, owner: 0 };
   const byStatus = { new: 0, contacted: 0, qualified: 0, negotiating: 0, converted: 0, lost: 0 };
-  const byPriority = { high: 0, medium: 0, low: 0 };
+  const byTemperature = { hot: 0, warm: 0, cold: 0, unscored: 0 };
   let unassigned = 0;
 
   for (const l of leads) {
@@ -6910,8 +6928,8 @@ export async function getLeadsSummary(tenantId, filters = {}) {
     if (byType[type] !== undefined) byType[type] += 1;
     const status = (l.status || 'new').toLowerCase();
     if (byStatus[status] !== undefined) byStatus[status] += 1;
-    const priority = (l.priority || 'medium').toLowerCase();
-    if (byPriority[priority] !== undefined) byPriority[priority] += 1;
+    const temperature = l.score ? String(l.score).toLowerCase() : 'unscored';
+    if (byTemperature[temperature] !== undefined) byTemperature[temperature] += 1;
     if (!l.assignedTo) unassigned += 1;
   }
 
@@ -6922,7 +6940,7 @@ export async function getLeadsSummary(tenantId, filters = {}) {
     active,
     byType,
     byStatus,
-    byPriority,
+    byTemperature,
     unassigned,
   };
 }
@@ -7051,18 +7069,18 @@ export async function getPriorityLeads(tenantId, opts = {}) {
   const scored = leads.map(l => {
     const budget = _leadBudget(l);
     const days = _daysSince(_leadLastTouch(l));
-    const priority = (l.priority || 'medium').toLowerCase();
+    const temperature = (l.score || '').toLowerCase(); // 'hot' | 'warm' | 'cold' | '' (unscored)
     const status = (l.status || 'new').toLowerCase();
 
-    let score = 0;
-    if (budget >= 20000000) score += 40; else if (budget >= 10000000) score += 30; else if (budget >= 5000000) score += 20; else if (budget > 0) score += 10;
-    if (priority === 'high') score += 25; else if (priority === 'medium') score += 10;
-    if (status === 'negotiating') score += 20; else if (status === 'qualified') score += 15; else if (status === 'contacted') score += 5;
-    if (days >= 7) score += 20; else if (days >= 5) score += 12; else if (days >= 3) score += 6;
+    let rankScore = 0;
+    if (budget >= 20000000) rankScore += 40; else if (budget >= 10000000) rankScore += 30; else if (budget >= 5000000) rankScore += 20; else if (budget > 0) rankScore += 10;
+    if (temperature === 'hot') rankScore += 30; else if (temperature === 'warm') rankScore += 12;
+    if (status === 'negotiating') rankScore += 20; else if (status === 'qualified') rankScore += 15; else if (status === 'contacted') rankScore += 5;
+    if (days >= 7) rankScore += 20; else if (days >= 5) rankScore += 12; else if (days >= 3) rankScore += 6;
 
     const reasonParts = [];
     if (budget >= 10000000) reasonParts.push('high budget');
-    if (priority === 'high') reasonParts.push('high priority');
+    if (temperature === 'hot') reasonParts.push('qualified HOT');
     if (status === 'negotiating' || status === 'qualified') reasonParts.push(`in ${status}`);
     if (days >= 5) reasonParts.push(`no contact in ${days === Infinity ? '15+' : days} days`);
     const reason = reasonParts.length ? reasonParts.join(', ') : 'needs first touch';
@@ -7073,11 +7091,12 @@ export async function getPriorityLeads(tenantId, opts = {}) {
       phone: l.phone,
       leadType: l.leadType,
       status: l.status,
-      priority: l.priority || 'medium',
+      temperature: l.score || null,
+      scoreValue: typeof l.scoreValue === 'number' ? l.scoreValue : null,
       budget: budget || null,
       area: _leadArea(l),
       daysSinceContact: days === Infinity ? null : days,
-      score,
+      score: rankScore,
       reason,
     };
   });

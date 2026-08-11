@@ -95,8 +95,8 @@ function buildLeadSummary(lead) {
     phone: lead.phone,
     status: lead.status,
     leadType: lead.leadType,
-    priority: lead.priority || 'medium',
-    score: lead.score || 0,
+    temperature: lead.score || null,
+    scoreValue: typeof lead.scoreValue === 'number' ? lead.scoreValue : null,
     assignedTo: lead.assignedTo || null,
     area: requirement?.area || requirement?.preferredArea || null,
     budget: requirement?.budget || requirement?.expectedPrice || requirement?.rentExpected || null,
@@ -123,8 +123,8 @@ export function buildSearchResults(leads, pagination = {}, options = {}) {
         phone: lead.phone,
         status: lead.status,
         leadType: lead.leadType,
-        priority: lead.priority || 'medium',
-        score: lead.score || 0,
+        temperature: lead.score || null,
+        scoreValue: typeof lead.scoreValue === 'number' ? lead.scoreValue : null,
         source: lead.source,
         assignedTo: lead.assignedTo || null,
         area: requirement?.area || requirement?.preferredArea || null,
@@ -157,8 +157,8 @@ export function buildLeadDetails(lead, options = {}) {
       email: lead.email,
       status: lead.status,
       leadType: lead.leadType,
-      priority: lead.priority || 'medium',
-      score: lead.score || 0,
+      temperature: lead.score || null,
+      scoreValue: typeof lead.scoreValue === 'number' ? lead.scoreValue : null,
       source: lead.source,
       assignedTo: lead.assignedTo || null,
       createdAt: formatDate(lead.createdAt),
@@ -246,8 +246,8 @@ export function buildFullLead(lead) {
       email: lead.email,
       status: lead.status,
       leadType: lead.leadType,
-      priority: lead.priority || 'medium',
-      score: lead.score || 0,
+      temperature: lead.score || null,
+      scoreValue: typeof lead.scoreValue === 'number' ? lead.scoreValue : null,
       source: lead.source,
       assignedTo: lead.assignedTo || null,
       createdAt: formatDate(lead.createdAt),
@@ -419,7 +419,9 @@ export function buildStaleLeads(leads, pagination = {}) {
 }
 
 /**
- * Build priority ranking view
+ * Build priority ranking view — despite the name (kept for API stability),
+ * this now ranks by Hot/Warm/Cold `score` + `scoreValue`, not the retired
+ * `priority` field. See getPriorityLeads() in crmDynamodbService.js.
  */
 export function buildPriorityRanking(leads, pagination = {}) {
   const { total = leads.length, shown = leads.length, hasMore = false } = pagination;
@@ -429,8 +431,8 @@ export function buildPriorityRanking(leads, pagination = {}) {
       leadId: lead.leadId,
       name: lead.name,
       phone: lead.phone,
-      priority: lead.priority || 'medium',
-      score: lead.score || 0,
+      temperature: lead.score || null,
+      scoreValue: typeof lead.scoreValue === 'number' ? lead.scoreValue : null,
       status: lead.status,
     })),
     buildPaginationMetadata(total, shown, hasMore)

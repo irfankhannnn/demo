@@ -251,6 +251,8 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "PostHogKeyServer", "ParameterValue": "${POSTHOG_KEY_SERVER:-}" },
   { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "AiCallingInternalApiKey", "ParameterValue": "${AI_CALLING_INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "AiCallingServiceUrl", "ParameterValue": "${AI_CALLING_SERVICE_URL:-}" },
   { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },
   { "ParameterKey": "AgentAuditTableName", "ParameterValue": "${AGENT_AUDIT_TABLE_NAME:-cloudberry-real-estate-agent-audit}" },
   { "ParameterKey": "JwtSecret", "ParameterValue": "${JWT_SECRET:-}" },

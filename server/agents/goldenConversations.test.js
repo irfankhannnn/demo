@@ -37,8 +37,8 @@ describe('Golden conversations — detail cards', () => {
       phone: '9876512345',
       email: 'sakina@email.com',
       status: 'qualified',
-      priority: 'high',
-      score: 91,
+      score: 'HOT',
+      scoreValue: 91,
       source: 'magicbricks',
       assignedTo: 'Imran Khan',
       createdAt: '2026-07-12',
@@ -188,7 +188,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
     const reply = formatAgentReply('intro', [
       {
         tool: 'search_leads',
-        input: { priority: 'high' },
+        input: { temperature: 'hot' },
         result: {
           ok: true,
           data: {
@@ -201,7 +201,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
         },
       },
     ]);
-    expect(reply).toContain('🔴 *High Priority Leads (2)*');
+    expect(reply).toContain('🔥 *Hot Leads (2)*');
     expect(reply).toContain('1. *Danish Shaikh*');
     expect(reply).toContain('🛒 Buyer • New');
     expect(reply).toContain('📍 Andheri');
@@ -213,7 +213,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
     const reply = formatAgentReply('', [
       {
         tool: 'search_leads',
-        input: { priority: 'high', leadType: 'buyer', area: 'Pune' },
+        input: { temperature: 'hot', leadType: 'buyer', area: 'Pune' },
         result: {
           ok: true,
           data: {
@@ -223,7 +223,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
         },
       },
     ]);
-    expect(reply).toContain('*High Priority Buyer Leads in Pune (1)*');
+    expect(reply).toContain('*Hot Buyer Leads in Pune (1)*');
   });
 
   test('empty search warm message', () => {
@@ -274,7 +274,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
             active: 14,
             unassigned: 13,
             byType: { buyer: 8, seller: 2, tenant: 4, owner: 2 },
-            byPriority: { high: 5, medium: 9, low: 2 },
+            byTemperature: { hot: 5, warm: 9, cold: 2, unscored: 0 },
           },
         },
       },
@@ -283,7 +283,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
     expect(reply).toContain('Total Leads: 16');
     expect(reply).toContain('Active: 14');
     expect(reply).toContain('• Buyer: 8');
-    expect(reply).toContain('🔴 High: 5');
+    expect(reply).toContain('🔥 Hot: 5');
     expect(reply).toContain('⚠️ Unassigned: 13');
     expect(reply).not.toContain('|');
     expect(reply).not.toBe(llm);
@@ -298,7 +298,7 @@ describe('Golden conversations — lists / empty / create / routing', () => {
 });
 
 describe('LLM pipeline presentation contract', () => {
-  test('search_leads with priority filter uses formatter list (not total-only card)', async () => {
+  test('search_leads with temperature filter uses formatter list (not total-only card)', async () => {
     const { decideInteraction } = await import('./interaction/decideInteraction.js');
     const { renderDecision } = await import('./responseFormatter.js');
     const result = {
@@ -306,13 +306,13 @@ describe('LLM pipeline presentation contract', () => {
       data: {
         metadata: { total: 2 },
         data: [
-          { leadId: 'l1', name: 'Low One', leadType: 'buyer', status: 'new', priority: 'low' },
-          { leadId: 'l2', name: 'Low Two', leadType: 'seller', status: 'contacted', priority: 'low' },
+          { leadId: 'l1', name: 'Low One', leadType: 'buyer', status: 'new', score: 'COLD' },
+          { leadId: 'l2', name: 'Low Two', leadType: 'seller', status: 'contacted', score: 'COLD' },
         ],
       },
     };
     const decision = decideInteraction(
-      { kind: 'tool', toolName: 'search_leads', input: { priority: 'low' } },
+      { kind: 'tool', toolName: 'search_leads', input: { temperature: 'cold' } },
       result,
     );
     expect(decision.mode).toBe('list');

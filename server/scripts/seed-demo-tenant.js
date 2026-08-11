@@ -345,7 +345,15 @@ function buildLeads() {
         source: 'demo',
         status: p.status,
         pipelineStage: p.stage,
-        priority: idx < 3 ? 'high' : idx < 6 ? 'medium' : 'low',
+        score: idx < 3 ? 'HOT' : idx < 6 ? 'WARM' : 'COLD',
+        scoreValue: idx < 3 ? 85 : idx < 6 ? 55 : 25,
+        scoreReasons: idx < 3
+          ? 'Demo data — named a specific building, wants to move immediately.'
+          : idx < 6
+            ? 'Demo data — open to a site visit, area not finalized.'
+            : 'Demo data — early research, timeline a couple of months out.',
+        scoredAt: BASE_TS,
+        scoreSource: 'manual',
         buyerRequirement: {
           budget: 8000000 + idx * 2500000,
           preferredArea: locality,

@@ -314,6 +314,17 @@ Parameters:
     Description: Internal API key for auth service access (team member lookup)
     NoEcho: true
 
+  AiCallingInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret ai-calling-service must present (x-api-key) to call /api/internal/* routes (Lead Temperature qualification calls)
+    NoEcho: true
+
+  AiCallingServiceUrl:
+    Type: String
+    Default: ''
+    Description: Base URL of the ai-calling-service stack, used by POST /leads/:id/qualify-call to trigger on-demand qualification calls
+
   FounderWhatsApp:
     Type: String
     Default: ''
@@ -1379,6 +1390,8 @@ Resources:
           POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
           POSTHOG_HOST: !Ref PostHogHost
           INTERNAL_API_KEY: !Ref InternalApiKey
+          AI_CALLING_INTERNAL_API_KEY: !Ref AiCallingInternalApiKey
+          AI_CALLING_SERVICE_URL: !Ref AiCallingServiceUrl
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId
           GEMINI_API_KEY: !Ref GeminiApiKey

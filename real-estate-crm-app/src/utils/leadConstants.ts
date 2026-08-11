@@ -4,10 +4,14 @@ export const LEAD_SOURCE_OPTIONS = [
   'Walk-in',
   'Google Ads',
   'Social Media',
+  'Instagram',
   'Property Portal',
   'Broker Network',
   'Other',
 ] as const;
+
+export const LEAD_TEMPERATURE_OPTIONS = ['HOT', 'WARM', 'COLD'] as const;
+export type LeadTemperature = (typeof LEAD_TEMPERATURE_OPTIONS)[number];
 
 export type LeadSourceOption = (typeof LEAD_SOURCE_OPTIONS)[number];
 

@@ -1,7 +1,11 @@
 /**
  * Lead Qualifier Handler — triggered by EventBridge 'lead.created'.
- * Invokes the agent runtime to score + qualify the lead.
- * Updates the lead with a score extracted from agent output.
+ * Text-only LLM fallback for the Hot/Warm/Cold rubric: gives every new lead a
+ * fast initial temperature within seconds, using whatever was captured on
+ * intake (no phone call). If an AI qualification call later runs on the same
+ * lead (routes/aiCallingInternal.js call-outcome), its result is more
+ * authoritative and overwrites this one — that's why scoreSource distinguishes
+ * 'llm_text' from 'ai_call'.
  * Emits 'lead.qualified' EventBridge event for Lead Router.
  * Idempotent: skips leads already qualified within the last 24 hours.
  */
@@ -11,6 +15,7 @@ import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { logger } from '../logger.js';
+import { buildQualifierPrompt } from '../utils/leadRubric.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -105,11 +110,11 @@ export async function handler(event) {
         continue;
       }
 
-      // Invoke qualifier agent
+      // Invoke qualifier agent against the shared Hot/Warm/Cold rubric
       const agentResult = await invokeAgent(
         tenantId,
         'qualifier',
-        `Qualify this lead. Return JSON: {"score":"HOT|WARM|COLD","scoreValue":0-100,"reasons":["..."]}. Lead data: ${JSON.stringify(lead)}`,
+        buildQualifierPrompt(lead),
         { leadId }
       );
 
@@ -129,13 +134,16 @@ export async function handler(event) {
         if (Array.isArray(parsed.reasons)) scoreReasons = parsed.reasons.join('; ').slice(0, 300);
       } catch (_) {}
 
-      // Update lead with score
+      // Update lead with score — 'llm_text' source so a later AI call
+      // (scoreSource: 'ai_call') is understood as more authoritative and
+      // free to overwrite this initial guess.
       await invokeSkill(tenantId, 'update_lead', {
         leadId,
         score: scoreLabel,
         scoreValue,
         scoreReasons,
         scoredAt: new Date().toISOString(),
+        scoreSource: 'llm_text',
       });
 
       // Emit lead.qualified event for Lead Router

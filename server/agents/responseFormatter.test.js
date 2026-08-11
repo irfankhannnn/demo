@@ -16,7 +16,7 @@ describe('Response Formatter', () => {
     leadType: 'buyer',
     phone: '9876543210',
     status: 'new',
-    priority: 'high',
+    score: 'HOT',
     source: 'Referral',
     assignedTo: 'Aman',
     buyerRequirement: { budget: 8000000, preferredArea: 'Andheri West', bhk: 2, propertyType: 'apartment' },
@@ -28,7 +28,7 @@ describe('Response Formatter', () => {
     leadType: 'seller',
     phone: '9123456780',
     status: 'contacted',
-    priority: 'medium',
+    score: 'WARM',
     sellerProperty: { expectedPrice: 15000000, area: 'Bandra', bhk: 3, propertyType: 'apartment' },
   };
 
@@ -319,13 +319,13 @@ describe('Response Formatter', () => {
           active: 14,
           unassigned: 13,
           byType: { buyer: 8, seller: 2, tenant: 4, owner: 2 },
-          byPriority: { high: 5, medium: 9, low: 2 },
+          byTemperature: { hot: 5, warm: 9, cold: 2, unscored: 0 },
         },
       });
       expect(result).toContain('📊 Lead Summary');
       expect(result).toContain('Total Leads: 16');
       expect(result).toContain('• Buyer: 8');
-      expect(result).toContain('🔴 High: 5');
+      expect(result).toContain('🔥 Hot: 5');
       expect(result).toContain('⚠️ Unassigned: 13');
       expect(result).not.toContain('|');
     });

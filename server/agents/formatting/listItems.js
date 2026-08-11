@@ -100,10 +100,10 @@ const ENTITY_LIST_EMOJI = {
   document: '📄',
 };
 
-const PRIORITY_TITLE = {
-  high: ['🔴', 'High Priority'],
-  medium: ['🟡', 'Medium Priority'],
-  low: ['🟢', 'Low Priority'],
+const TEMPERATURE_TITLE = {
+  hot: ['🔥', 'Hot'],
+  warm: ['🌤️', 'Warm'],
+  cold: ['❄️', 'Cold'],
 };
 
 const STATUS_TITLE = {
@@ -128,7 +128,7 @@ const LEAD_TYPE_TITLE = {
  */
 export function buildLeadListTitle(input = {}, total = 0, items = []) {
   const src = input && typeof input === 'object' ? input : {};
-  const priority = String(src.priority || '').toLowerCase();
+  const temperature = String(src.temperature || '').toLowerCase();
   const status = String(src.status || '').toLowerCase();
   const type = String(src.leadType || src.type || '').toLowerCase();
   const propertyType = src.propertyType ? capitalize(src.propertyType) : null;
@@ -144,7 +144,7 @@ export function buildLeadListTitle(input = {}, total = 0, items = []) {
   const setEmoji = (e) => { if (!emojiSet && e) { emoji = e; emojiSet = true; } };
 
   const words = [];
-  if (PRIORITY_TITLE[priority]) { setEmoji(PRIORITY_TITLE[priority][0]); words.push(PRIORITY_TITLE[priority][1]); }
+  if (TEMPERATURE_TITLE[temperature]) { setEmoji(TEMPERATURE_TITLE[temperature][0]); words.push(TEMPERATURE_TITLE[temperature][1]); }
   if (STATUS_TITLE[status]) { setEmoji(STATUS_TITLE[status][0]); words.push(STATUS_TITLE[status][1]); }
   if (bhk) { setEmoji('🛏️'); words.push(`${bhk} BHK`); }
   if (propertyType) { setEmoji('🏢'); words.push(propertyType); }

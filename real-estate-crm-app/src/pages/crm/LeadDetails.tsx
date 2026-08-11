@@ -30,7 +30,7 @@ import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import LeadActivityHistory from '../../components/LeadActivityHistory';
-import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadPriority, CRMMeeting } from '../../types/crm';
+import { CRMLead, CRMLeadNote, LeadType, LeadStatus, LeadTemperature, CRMMeeting } from '../../types/crm';
 import { LEAD_SOURCE_OPTIONS, isKnownLeadSource } from '../../utils/leadConstants';
 import { buildLeadSavePayload } from '../../utils/leadSavePayload';
 import { canManageLeads } from '../../utils/rbac';
@@ -38,6 +38,7 @@ import { getConvertResultPath, isLeadConverted, getConvertedEntityPath } from '.
 import type { FlashToast } from '../../utils/flashToast';
 import LeadPropertyFields from '../../components/LeadPropertyFields';
 import BuyerRequirementFields from '../../components/BuyerRequirementFields';
+import LeadTemperatureBadge from '../../components/LeadTemperatureBadge';
 
 export default function LeadDetails() {
   const navigate = useNavigate();
@@ -55,7 +56,6 @@ export default function LeadDetails() {
     email: initialData?.email || '',
     source: initialData?.source || '',
     status: 'new',
-    priority: 'medium',
     notes: initialData?.notes || '',
     buyerRequirement: { city: 'Mumbai' },
     sellerProperty: { city: 'Mumbai' },
@@ -65,6 +65,10 @@ export default function LeadDetails() {
   const [notes, setNotes] = useState<CRMLeadNote[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showTemperatureOverride, setShowTemperatureOverride] = useState(false);
+  const [overrideTemperature, setOverrideTemperature] = useState<LeadTemperature>('WARM');
+  const [savingTemperature, setSavingTemperature] = useState(false);
+  const [qualifyingCall, setQualifyingCall] = useState(false);
   const [newNote, setNewNote] = useState('');
   const [draftActivityNote, setDraftActivityNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -491,6 +495,39 @@ export default function LeadDetails() {
       showToast('Failed to save lead', 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Temperature is edited separately from the rest of the form — an override
+  // is a distinct, auditable action (server stamps scoreSource: 'manual'),
+  // not just another field bundled into the general Save button.
+  const handleSaveTemperatureOverride = async () => {
+    if (isNew || !id) return;
+    try {
+      setSavingTemperature(true);
+      const updated = await api.updateLead(id, { score: overrideTemperature });
+      setLead((prev) => ({ ...prev, ...(updated as Partial<CRMLead>) }));
+      setShowTemperatureOverride(false);
+      showToast('Temperature updated', 'success');
+    } catch (error) {
+      console.error('Error updating temperature:', error);
+      showToast('Failed to update temperature', 'error');
+    } finally {
+      setSavingTemperature(false);
+    }
+  };
+
+  const handleQualifyCall = async () => {
+    if (isNew || !id) return;
+    try {
+      setQualifyingCall(true);
+      await api.triggerQualifyCall(id);
+      showToast('Qualification call started', 'success');
+    } catch (error) {
+      console.error('Error starting qualification call:', error);
+      showToast(error instanceof Error ? error.message : 'Failed to start qualification call', 'error');
+    } finally {
+      setQualifyingCall(false);
     }
   };
 
@@ -1033,17 +1070,63 @@ export default function LeadDetails() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-              <select
-                value={lead.priority || 'medium'}
-                onChange={(e) => setLead({ ...lead, priority: e.target.value as LeadPriority })}
-                disabled={isConverted}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <LeadTemperatureBadge temperature={lead.score} />
+                {!isNew && !isConverted && !showTemperatureOverride && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOverrideTemperature((lead.score as LeadTemperature) || 'WARM');
+                      setShowTemperatureOverride(true);
+                    }}
+                    className="text-xs font-medium text-amber-700 hover:text-amber-800 underline"
+                  >
+                    Change
+                  </button>
+                )}
+                {!isNew && !isConverted && (
+                  <button
+                    type="button"
+                    onClick={handleQualifyCall}
+                    disabled={qualifyingCall}
+                    className="text-xs font-medium text-blue-700 hover:text-blue-800 underline disabled:opacity-50"
+                  >
+                    {qualifyingCall ? 'Calling…' : 'Call now to qualify'}
+                  </button>
+                )}
+              </div>
+              {lead.scoreReasons && (
+                <p className="text-xs text-gray-500 mt-1">{lead.scoreReasons}</p>
+              )}
+              {showTemperatureOverride && (
+                <div className="flex items-center gap-2 mt-2">
+                  <select
+                    value={overrideTemperature}
+                    onChange={(e) => setOverrideTemperature(e.target.value as LeadTemperature)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 text-sm"
+                  >
+                    <option value="HOT">Hot</option>
+                    <option value="WARM">Warm</option>
+                    <option value="COLD">Cold</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleSaveTemperatureOverride}
+                    disabled={savingTemperature}
+                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-medium rounded-lg hover:bg-amber-600 disabled:opacity-50"
+                  >
+                    {savingTemperature ? 'Saving…' : 'Save'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowTemperatureOverride(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

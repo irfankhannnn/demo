@@ -94,7 +94,7 @@ export const toolDefinitions = [
     readOnly: false,
     descriptions: {
       internal: 'Use this when the user asks to create a new lead. Triggers: "create lead", "add lead", "new buyer lead", "seller lead Raj", "tenant lead Sarah", "owner lead Imran". Required: name, leadType (buyer|seller|tenant|owner). Optional: phone, email, and type-specific nested objects (buyerRequirement, sellerProperty, ownerProperty, tenantRequirement).',
-      mcp: 'Create a new CRM lead. Requires name and leadType (buyer|seller|tenant|owner). Optional: phone, email, priority, buyerRequirement, sellerProperty, ownerProperty, tenantRequirement.',
+      mcp: 'Create a new CRM lead. Requires name and leadType (buyer|seller|tenant|owner). Optional: phone, email, buyerRequirement, sellerProperty, ownerProperty, tenantRequirement.',
     },
     handler: 'createLead',
     parameters: [
@@ -126,7 +126,7 @@ export const toolDefinitions = [
     category: 'lead',
     readOnly: true,
     descriptions: {
-      internal: 'Use this when the user asks to list, search, show, or find leads. Triggers: "leads dikhao", "show leads", "Kurla ke leads", "buyer leads", "hot leads", "new leads", "leads assigned to Aman", "high priority leads above 1 crore", "sari leads", "all leads". Pass filters only in parameters — layout is NOT your job. For default business rows omit listTemplate. When user asks for specific columns (e.g. name+phone+type only) set listTemplate "contact" OR responseFields "phone,leadType". System renders the list; reply empty or one short intro line. One search_leads call per request.',
+      internal: 'Use this when the user asks to list, search, show, or find leads. Triggers: "leads dikhao", "show leads", "Kurla ke leads", "buyer leads", "hot leads", "new leads", "leads assigned to Aman", "hot leads above 1 crore", "sari leads", "all leads". Pass filters only in parameters — layout is NOT your job. For default business rows omit listTemplate. When user asks for specific columns (e.g. name+phone+type only) set listTemplate "contact" OR responseFields "phone,leadType". System renders the list; reply empty or one short intro line. One search_leads call per request.',
       mcp: 'Search leads by query, status, leadType, or filters. Supports listTemplate for deterministic list layout.',
     },
     handler: 'searchLeads',
@@ -134,7 +134,7 @@ export const toolDefinitions = [
       { name: 'query', type: 'string', required: false, description: 'Search by lead name, phone number, or area (e.g., "Kurla", "Faizan", "9876543210"). Leave empty to list all leads.' },
       { name: 'status', type: 'string', required: false, enum: ['new', 'contacted', 'qualified', 'negotiating', 'lost', 'converted'], description: 'Filter by lead status (lowercase). Use "converted" for already-converted leads; default lists exclude converted.' },
       { name: 'leadType', type: 'string', required: false, enum: ['buyer', 'seller', 'tenant', 'owner'], description: 'Filter by lead type. MUST be lowercase: "buyer", "seller", "tenant", or "owner". Leave empty for all types.' },
-      { name: 'priority', type: 'string', required: false, enum: ['low', 'medium', 'high'], description: 'Filter by priority. MUST be lowercase: "low", "medium", or "high". Leave empty for all priorities.' },
+      { name: 'temperature', type: 'string', required: false, enum: ['hot', 'warm', 'cold', 'unscored'], description: 'Filter by lead temperature. MUST be lowercase: "hot", "warm", "cold", or "unscored". Leave empty for all.' },
       { name: 'assignedTo', type: 'string', required: false, description: 'Filter by agent name (e.g., "Aman"). Leave empty for all agents.' },
       { name: 'minBudget', type: 'number', required: false, description: 'Minimum budget in rupees (e.g., 8000000 for 80L). Leave empty for no minimum.' },
       { name: 'maxBudget', type: 'number', required: false, description: 'Maximum budget in rupees (e.g., 10000000 for 1Cr). Leave empty for no maximum.' },
@@ -151,7 +151,7 @@ export const toolDefinitions = [
         name: 'responseFields',
         type: 'string',
         required: false,
-        description: 'Optional comma-separated field ids for custom columns: phone, leadType, status, area, requirement, budget, assignedTo, lastActivityAt, source, priority, email. Prefer listTemplate when a preset fits.',
+        description: 'Optional comma-separated field ids for custom columns: phone, leadType, status, area, requirement, budget, assignedTo, lastActivityAt, source, temperature, email. Prefer listTemplate when a preset fits.',
       },
       { name: 'responseMode', type: 'string', required: false, enum: ['summary', 'compact', 'details', 'full'], description: 'Legacy: summary → names only. Prefer listTemplate. Default list uses lead_card.' },
     ],
@@ -168,8 +168,7 @@ export const toolDefinitions = [
     parameters: [
       { name: 'leadId', type: 'string', required: true, description: 'The unique ID of the lead to update (e.g., "lead-abc123").' },
       { name: 'status', type: 'string', required: false, enum: ['new', 'contacted', 'qualified', 'negotiating', 'lost'], description: 'New status.' },
-      { name: 'priority', type: 'string', required: false, enum: ['low', 'medium', 'high'], description: 'New priority.' },
-      { name: 'score', type: 'string', required: false, description: 'Lead score (e.g., "85", "high").' },
+      { name: 'score', type: 'string', required: false, enum: ['HOT', 'WARM', 'COLD'], description: 'Manually set the lead temperature. Setting this is recorded as a human override (scoreSource becomes "manual").' },
       { name: 'assignedTo', type: 'string', required: false, description: 'Agent name to assign the lead to (e.g., "Aman").' },
       { name: 'notes', type: 'string', required: false, description: 'Free-text notes to add to the lead. Use for unstructured updates only.' },
       { name: 'buyerRequirement', type: 'object', required: false, description: LEAD_UPDATE_NESTED_FIELDS.buyerRequirement.description, properties: LEAD_UPDATE_NESTED_FIELDS.buyerRequirement.properties },
@@ -967,8 +966,8 @@ export const toolDefinitions = [
     category: 'metrics',
     readOnly: true,
     descriptions: {
-      internal: 'Use this when the user asks HOW MANY leads or wants a leads breakdown (not a full list). Triggers: "how many leads", "kitni leads hain", "leads breakdown", "leads by type", "leads summary", "total leads". Returns counts by type (buyer/seller/tenant/owner), by status, by priority, and unassigned. Prefer this over search_leads when the user only wants numbers. Prefer this over get_crm_metrics when the question is specifically about leads.',
-      mcp: 'Get a focused lead summary: totals and breakdown by type, status, and priority.',
+      internal: 'Use this when the user asks HOW MANY leads or wants a leads breakdown (not a full list). Triggers: "how many leads", "kitni leads hain", "leads breakdown", "leads by type", "leads summary", "total leads". Returns counts by type (buyer/seller/tenant/owner), by status, by temperature (hot/warm/cold/unscored), and unassigned. Prefer this over search_leads when the user only wants numbers. Prefer this over get_crm_metrics when the question is specifically about leads.',
+      mcp: 'Get a focused lead summary: totals and breakdown by type, status, and temperature.',
     },
     handler: 'getLeadsSummary',
     parameters: [
@@ -1026,8 +1025,8 @@ export const toolDefinitions = [
     category: 'metrics',
     readOnly: true,
     descriptions: {
-      internal: 'Use this when the user asks who to contact first or for hot/priority leads. Triggers: "who should I call", "aaj kise call karu", "priority leads", "hot leads", "most important leads". Returns a ranked list of leads, each with a human-readable reason (e.g. "high budget, no contact in 6 days").',
-      mcp: 'Get ranked priority leads with a reason for each.',
+      internal: 'Use this when the user asks who to contact first or for hot leads. Triggers: "who should I call", "aaj kise call karu", "priority leads", "hot leads", "most important leads". Returns a ranked list of leads (ranked by budget, temperature, status, and days since contact), each with a human-readable reason (e.g. "high budget, qualified HOT, no contact in 6 days").',
+      mcp: 'Get ranked priority leads (by budget, temperature, status, days since contact) with a reason for each.',
     },
     handler: 'getPriorityLeads',
     parameters: [
@@ -1400,7 +1399,7 @@ export const DOMAIN_CATALOG = [
     id: 'leads',
     label: 'Leads (pipeline / prospects)',
     description:
-      'Prospects still in the pipeline who have NOT been converted yet — of ANY type (buyer lead, seller lead, owner lead, tenant lead). Create/search/update/convert leads, lead notes, lead status/priority/assignment. Default home for "leads", "sari leads", "seller leads", "tenant leads", "hot leads", "convert lead".',
+      'Prospects still in the pipeline who have NOT been converted yet — of ANY type (buyer lead, seller lead, owner lead, tenant lead). Create/search/update/convert leads, lead notes, lead status/temperature/assignment. Default home for "leads", "sari leads", "seller leads", "tenant leads", "hot leads", "convert lead".',
     aliases: ['lead', 'leads', 'prospect', 'pipeline', 'convert', 'seller lead', 'buyer lead', 'tenant lead', 'owner lead'],
   },
   {
@@ -1449,8 +1448,8 @@ export const DOMAIN_CATALOG = [
     id: 'analytics',
     label: 'Analytics (counts, summaries, insights)',
     description:
-      'Aggregate numbers and insights — NOT row lists. Counts ("how many"), lead/property/buyer summaries, pipeline & conversion, pending follow-ups, priority/hot leads, recent activity, daily brief, next actions, business health, dashboard snapshot.',
-    aliases: ['how many', 'kitne', 'kitni', 'summary', 'metrics', 'dashboard', 'overview', 'pipeline', 'funnel', 'follow-up', 'followup', 'priority', 'hot leads', 'daily brief', 'business health', 'next action', 'stats'],
+      'Aggregate numbers and insights — NOT row lists. Counts ("how many"), lead/property/buyer summaries, pipeline & conversion, pending follow-ups, hot/warm/cold leads, recent activity, daily brief, next actions, business health, dashboard snapshot.',
+    aliases: ['how many', 'kitne', 'kitni', 'summary', 'metrics', 'dashboard', 'overview', 'pipeline', 'funnel', 'follow-up', 'followup', 'priority', 'temperature', 'hot leads', 'daily brief', 'business health', 'next action', 'stats'],
   },
 ];
 

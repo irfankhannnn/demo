@@ -48,7 +48,8 @@ export const LEAD_LIST_FIELD_IDS = new Set([
   'assignedTo',
   'lastActivityAt',
   'source',
-  'priority',
+  'priority', // deprecated alias for 'temperature' — kept so older prompts/configs referencing it still resolve
+  'temperature',
   'email',
 ]);
 
@@ -222,7 +223,8 @@ function renderLeadFieldLine(fieldId, lead, f) {
     case 'source':
       return lead.source ? `   🌐 ${capitalize(lead.source)}` : null;
     case 'priority':
-      return lead.priority ? `   ${capitalize(lead.priority)} priority` : null;
+    case 'temperature':
+      return lead.score ? `   ${capitalize(String(lead.score).toLowerCase())} lead` : null;
     case 'email':
       return lead.email ? `   📧 ${lead.email}` : null;
     default:

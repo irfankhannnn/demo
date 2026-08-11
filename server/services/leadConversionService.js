@@ -18,6 +18,10 @@ import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 export const DYNAMO_TRANSACT_MAX_ITEMS = 100;
 export const LEAD_CONVERSION_ENTITY = 'LEAD_CONVERSION';
 
+// Buyer.priority is a separate, untouched field — this is the one place a
+// Lead's Hot/Warm/Cold score legitimately feeds it, at the moment of conversion.
+const LEAD_TEMPERATURE_TO_BUYER_PRIORITY = { HOT: 'high', WARM: 'medium', COLD: 'low' };
+
 /**
  * Reconstruct a read-only lead view from an immutable conversion snapshot
  * (active LEAD PROFILE is deleted after successful conversion).
@@ -240,7 +244,10 @@ export function buildBuyerEntity(lead, options, existingBuyer = null) {
     requirement: req.requirement ?? existingBuyer?.requirement ?? null,
     bhk: req.bhk ?? existingBuyer?.bhk ?? null,
     furnishing: req.furnishing ?? existingBuyer?.furnishing ?? null,
-    priority: lead.priority || existingBuyer?.priority || 'medium',
+    // Buyer keeps its own `priority` field (untouched by the Lead Temperature
+    // migration) — bridge it from the lead's Hot/Warm/Cold score at the
+    // moment of conversion, since that's now the more meaningful signal.
+    priority: LEAD_TEMPERATURE_TO_BUYER_PRIORITY[lead.score] || existingBuyer?.priority || 'medium',
     purchases: existingBuyer?.purchases || [],
     tags: existingBuyer?.tags || [],
   };

@@ -7,16 +7,16 @@ import { formatDate, formatMoney } from './utils.js';
 
 export function buildLeadInsight(lead, req) {
   const status = String(lead.status || '').toLowerCase();
-  const priority = String(lead.priority || '').toLowerCase();
-  const score = Number(lead.score) || 0;
+  const temperature = String(lead.score || '').toLowerCase();
+  const scoreValue = typeof lead.scoreValue === 'number' ? lead.scoreValue : 0;
 
   if (status === 'lost') return '💡 Marked lost — re-engage only if something has changed.';
   if (status === 'converted') return '💡 Already converted — keep warm for referrals.';
 
-  const highValue = priority === 'high' || score >= 80;
+  const highValue = temperature === 'hot' || scoreValue >= 80;
   const signals = [];
   if (req.budget) signals.push(`budget ${req.budget}`);
-  if (score) signals.push(`score ${score}`);
+  if (temperature) signals.push(`${temperature} lead`);
 
   const next = formatDate(lead.nextFollowUpDate);
   let action;

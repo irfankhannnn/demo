@@ -71,6 +71,30 @@ export async function getTenantIdByConnectedWhatsAppPhone(phone) {
 }
 
 /**
+ * Resolve tenantId from a connected Instagram/ManyChat webhook token
+ * (AgencyConfig.instagramWebhookToken). Each tenant that turns on the
+ * Instagram lead pipeline gets a unique token embedded in the ManyChat
+ * "External Request" URL, e.g. POST /api/webhooks/instagram/:webhookToken.
+ * Set/rotate the token via updateAgencyConfig(tenantId, { instagramWebhookToken }).
+ */
+export async function getTenantIdByInstagramWebhookToken(token) {
+  if (!token) return null;
+
+  const result = await logger.span(
+    'ddb.getTenantByInstagramWebhookToken',
+    { tableName: AGENCY_CONFIG_TABLE_NAME },
+    async () => docClient.send(new ScanCommand({
+      TableName: AGENCY_CONFIG_TABLE_NAME,
+      ProjectionExpression: 'TenantId, instagramWebhookToken',
+      FilterExpression: 'instagramWebhookToken = :token',
+      ExpressionAttributeValues: { ':token': token },
+    }))
+  );
+
+  return result.Items?.[0]?.TenantId || null;
+}
+
+/**
  * Set or update admin username and password for a given tenant.
  * This will create or overwrite the credentials for that tenant.
  */

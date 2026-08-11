@@ -739,7 +739,16 @@ export interface UpdateContactData {
 
 export type LeadType = 'buyer' | 'seller' | 'tenant' | 'owner';
 export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
-export type LeadPriority = 'low' | 'medium' | 'high';
+// LeadPriority (low/medium/high) is retired on the Lead entity — see
+// LeadTemperature. Buyer/Customer/Tenant/B2B-Lead entities keep their own
+// separate `priority` field, untouched by this migration.
+export type LeadTemperature = 'HOT' | 'WARM' | 'COLD';
+export type LeadScoreSource = 'ai_call' | 'llm_text' | 'manual' | 'migrated';
+
+export interface LeadReelRef {
+  postId?: string | null;
+  permalink?: string | null;
+}
 
 export interface BuyerRequirement {
   requirement?: string;
@@ -819,8 +828,16 @@ export interface CRMLead {
   normalizedPhone?: string;
   source?: string;
   status: LeadStatus;
-  priority: LeadPriority;
+  // Hot/Warm/Cold, set by an AI qualification call, the LLM fallback, or a
+  // human override — null until the lead is actually qualified.
+  score?: LeadTemperature | null;
+  scoreValue?: number | null;
+  scoreReasons?: string | null;
+  scoredAt?: string | null;
+  scoreSource?: LeadScoreSource | null;
   assignedTo?: string;
+  // Instagram-sourced leads carry a reference to the triggering post.
+  reelRef?: LeadReelRef | null;
   // Type-specific data
   buyerRequirement?: BuyerRequirement | null;
   sellerProperty?: SellerProperty | null;
@@ -860,8 +877,8 @@ export interface CreateLeadData {
   phone?: string;
   source?: string;
   status?: LeadStatus;
-  priority?: LeadPriority;
   assignedTo?: string;
+  reelRef?: LeadReelRef;
   buyerRequirement?: BuyerRequirement;
   sellerProperty?: SellerProperty;
   tenantRequirement?: TenantRequirement;
@@ -875,7 +892,10 @@ export interface UpdateLeadData {
   phone?: string;
   source?: string;
   status?: LeadStatus;
-  priority?: LeadPriority;
+  // Setting this is always treated as a human override server-side
+  // (scoreSource/scoredAt are stamped by the API, not sent by the client).
+  score?: LeadTemperature;
+  scoreReasons?: string;
   assignedTo?: string;
   buyerRequirement?: BuyerRequirement;
   sellerProperty?: SellerProperty;
@@ -899,10 +919,11 @@ export interface LeadMetrics {
     converted: number;
     lost: number;
   };
-  byPriority: {
-    low: number;
-    medium: number;
-    high: number;
+  byTemperature: {
+    hot: number;
+    warm: number;
+    cold: number;
+    unscored: number;
   };
   conversionRate: number;
 }
