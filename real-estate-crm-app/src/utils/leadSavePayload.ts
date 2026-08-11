@@ -26,7 +26,6 @@ export function buildLeadSavePayload(lead: Partial<CRMLead>) {
     email: lead.email,
     source: lead.source,
     status: lead.status,
-    priority: lead.priority,
     lostReason: lead.status === 'lost' ? lead.lostReason : null,
     lostAt: lead.status === 'lost' ? (lead.lostAt || new Date().toISOString()) : null,
     notes: lead.notes,

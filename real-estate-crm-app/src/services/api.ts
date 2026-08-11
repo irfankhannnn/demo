@@ -1851,7 +1851,7 @@ class ApiService {
   async getLeads(filters?: {
     leadType?: string;
     status?: string;
-    priority?: string;
+    temperature?: 'hot' | 'warm' | 'cold' | 'unscored' | 'all';
     excludeConverted?: boolean;
     converted?: boolean;
     assignedTo?: string;
@@ -1865,7 +1865,7 @@ class ApiService {
     const queryParams = new URLSearchParams();
     if (filters?.leadType) queryParams.append('leadType', filters.leadType);
     if (filters?.status) queryParams.append('status', filters.status);
-    if (filters?.priority) queryParams.append('priority', filters.priority);
+    if (filters?.temperature && filters.temperature !== 'all') queryParams.append('temperature', filters.temperature);
     if (filters?.excludeConverted) queryParams.append('excludeConverted', 'true');
     if (filters?.converted) queryParams.append('converted', 'true');
     if (filters?.assignedTo) queryParams.append('assignedTo', filters.assignedTo);
@@ -1963,7 +1963,6 @@ class ApiService {
     phone?: string;
     source?: string;
     status?: string;
-    priority?: string;
     assignedTo?: string;
     buyerRequirement?: BuyerRequirement;
     sellerProperty?: SellerProperty;
@@ -1988,6 +1987,16 @@ class ApiService {
       body: JSON.stringify(this.stripDynamoFields(data)),
     };
     const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  // Trigger an on-demand AI qualification call for a lead ("Call now to qualify")
+  async triggerQualifyCall(leadId: string): Promise<{ callSessionId: string; status: string }> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/qualify-call`, init);
     return this.handleResponse(response, init);
   }
 

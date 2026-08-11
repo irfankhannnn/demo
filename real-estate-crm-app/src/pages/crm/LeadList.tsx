@@ -23,12 +23,14 @@ import { isLeadConverted } from '../../utils/leadConversion';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import LeadDrawer from './LeadDrawer';
 import LeadAssignmentDropdown, { TeamMember } from '../../components/LeadAssignmentDropdown';
+import LeadTemperatureBadge from '../../components/LeadTemperatureBadge';
 import Toast from '../../components/Toast';
 import { readFlashToast } from '../../utils/flashToast';
 
 type LeadTypeFilter = 'all' | 'buyer' | 'seller' | 'tenant' | 'owner';
 type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
 type AssignmentFilter = 'all' | 'my' | 'unassigned' | `agent:${string}`;
+type TemperatureFilter = 'all' | 'hot' | 'warm' | 'cold' | 'unscored';
 type ViewMode = 'active' | 'converted' | 'all';
 
 const LEADS_PAGE_SIZE = 50;
@@ -43,6 +45,7 @@ export default function LeadList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<LeadTypeFilter>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [temperatureFilter, setTemperatureFilter] = useState<TemperatureFilter>('all');
   const [assignmentFilter, setAssignmentFilter] = useState<AssignmentFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('active');
   const [showFilters, setShowFilters] = useState(false);
@@ -76,7 +79,7 @@ export default function LeadList() {
     }, delay);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [typeFilter, statusFilter, assignmentFilter, viewMode, searchQuery]);
+  }, [typeFilter, statusFilter, temperatureFilter, assignmentFilter, viewMode, searchQuery]);
 
   const buildLeadFilters = (offset: number) => {
     const profile = getUserProfile();
@@ -89,6 +92,7 @@ export default function LeadList() {
 
     if (typeFilter !== 'all') filters.leadType = typeFilter;
     if (statusFilter !== 'all') filters.status = statusFilter;
+    if (temperatureFilter !== 'all') filters.temperature = temperatureFilter;
     if (viewMode === 'active') filters.excludeConverted = true;
     if (viewMode === 'converted') filters.converted = true;
     if (searchQuery.trim().length >= 2) filters.search = searchQuery.trim();
@@ -190,6 +194,7 @@ export default function LeadList() {
     setSearchQuery('');
     setTypeFilter('all');
     setStatusFilter('all');
+    setTemperatureFilter('all');
     setAssignmentFilter('all');
     setShowFilters(false);
     setPageOffset(0);
@@ -338,22 +343,11 @@ export default function LeadList() {
       },
     },
     {
-      key: 'priority',
-      header: 'Priority',
+      key: 'temperature',
+      header: 'Temperature',
       sortable: true,
-      width: '10%',
-      render: (lead) => {
-        const priorityStyles: Record<string, string> = {
-          high: 'bg-rose-50/80 text-rose-700 ring-1 ring-rose-200',
-          medium: 'bg-amber-50/80 text-amber-700 ring-1 ring-amber-200',
-          low: 'bg-blue-50/80 text-blue-700 ring-1 ring-blue-200',
-        };
-        return (
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${priorityStyles[lead.priority] || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
-            {lead.priority}
-          </span>
-        );
-      },
+      width: '11%',
+      render: (lead) => <LeadTemperatureBadge temperature={lead.score} />,
     },
     {
       key: 'assignedTo',
@@ -426,6 +420,20 @@ export default function LeadList() {
           <option value="negotiating">Negotiating</option>
           <option value="converted">Converted</option>
           <option value="lost">Lost</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-bold text-slate-600 mb-1.5">Temperature</label>
+        <select
+          value={temperatureFilter}
+          onChange={(e) => setTemperatureFilter(e.target.value as TemperatureFilter)}
+          className="w-full px-3 py-2.5 glass-premium border border-white/40 rounded-xl focus:shadow-[0_0_0_4px_rgba(245,158,11,0.10)] focus:border-amber-400 focus:outline-none transition-all duration-200 text-slate-700 font-medium"
+        >
+          <option value="all">All Temperatures</option>
+          <option value="hot">🔥 Hot</option>
+          <option value="warm">🌤️ Warm</option>
+          <option value="cold">❄️ Cold</option>
+          <option value="unscored">Unscored</option>
         </select>
       </div>
       <div>
