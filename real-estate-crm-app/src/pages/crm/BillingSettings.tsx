@@ -9,6 +9,7 @@ import PaywallModal from '../../components/PaywallModal';
 import CreditBalanceCard from '../../components/CreditBalanceCard';
 import BuyCreditsModal from '../../components/BuyCreditsModal';
 import AgentActivityLog from '../../components/AgentActivityLog';
+import { isNativeApp } from '../../lib/platform';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -33,6 +34,7 @@ export default function BillingSettings() {
   const [error, setError] = useState('');
   const [showPaywall, setShowPaywall] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
+  const isNative = isNativeApp();
   const [aiStatus, setAiStatus] = useState<{ status: string; monthlyCost?: number } | null>(null);
   const [creditUsageData, setCreditUsageData] = useState<{ date: string; credits: number }[]>([]);
 
@@ -138,7 +140,12 @@ export default function BillingSettings() {
 
         {subscription && !loading && (
           <div className="space-y-6">
-            <CreditBalanceCard onBuyCredits={() => setShowBuyCredits(true)} />
+            {/* No top-up entry point on mobile — credit packs are consumable
+                digital goods under App Store guideline 3.1.1. The card still
+                shows the balance, which is account status rather than commerce. */}
+            <CreditBalanceCard
+              onBuyCredits={isNative ? undefined : () => setShowBuyCredits(true)}
+            />
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -178,13 +185,22 @@ export default function BillingSettings() {
                 </div>
               </dl>
 
-              {isAdmin && (
+              {isAdmin && !isNative && (
                 <button
                   onClick={() => setShowPaywall(true)}
-                  className="mt-6 w-full sm:w-auto bg-[#2563EB] text-white font-medium px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="mt-6 w-full sm:w-auto min-h-[44px] bg-[#2563EB] text-white font-medium px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   {isPaying ? 'Change plan' : 'Upgrade plan'}
                 </button>
+              )}
+
+              {/* Plain text, no link and no button. Apple's anti-steering rules
+                  apply on the India storefront, so pointing at the web checkout
+                  is itself a risk under guideline 3.1.3. */}
+              {isAdmin && isNative && (
+                <p className="mt-6 text-sm text-slate-500">
+                  Plans are managed from your account on a web browser.
+                </p>
               )}
 
               {!isAdmin && (

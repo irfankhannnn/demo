@@ -4,6 +4,7 @@ import { getIdToken, getUserProfile } from '../utils/authStorage';
 import { getTenantHeaders } from '../config/tenant';
 import { openCheckout } from '../lib/razorpay';
 import { useCredits } from '../hooks/useCredits';
+import { isNativeApp } from '../lib/platform';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -83,6 +84,38 @@ export default function BuyCreditsModal({ forceOpen, onClose }: BuyCreditsModalP
   };
 
   if (!isOpen) return null;
+
+  // Mobile builds sell nothing. Credit packs are consumable digital goods, the
+  // clearest possible case of App Store guideline 3.1.1 requiring IAP, so the
+  // native path states the balance problem and names no packs and no prices.
+  if (isNativeApp()) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold text-slate-900">Out of credits</h2>
+            <button
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-11 w-11 items-center justify-center text-slate-400 hover:text-slate-600"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <p className="text-sm text-slate-600 mb-6">
+            You have no credits left, so new records and AI features are paused.
+            Credits are topped up from your account on a web browser.
+          </p>
+          <button
+            onClick={handleClose}
+            className="w-full min-h-[44px] rounded-lg bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-200 transition-colors"
+          >
+            Got it
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

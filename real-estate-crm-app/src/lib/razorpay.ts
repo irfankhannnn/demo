@@ -1,10 +1,33 @@
+import { isNativeApp } from './platform';
+
 declare global {
   interface Window {
     Razorpay: any;
   }
 }
 
+/**
+ * Thrown if anything tries to start a payment inside the mobile app.
+ *
+ * Selling digital subscriptions or credit packs through a third-party
+ * processor violates App Store guideline 3.1.1 and Google Play's Payments
+ * policy. Mobile builds hide every purchase entry point; this is the backstop
+ * that makes a missed one fail loudly in development rather than silently
+ * shipping a rejectable build.
+ */
+export class NativePurchaseBlockedError extends Error {
+  constructor() {
+    super(
+      'Payments are not available in the mobile app. Purchasing is web-only ' +
+        'to comply with App Store guideline 3.1.1 and Google Play Billing.'
+    );
+    this.name = 'NativePurchaseBlockedError';
+  }
+}
+
 export async function loadRazorpay(): Promise<void> {
+  // Never inject the remote checkout script into the native WebView.
+  if (isNativeApp()) throw new NativePurchaseBlockedError();
   if (window.Razorpay) return;
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
@@ -28,6 +51,10 @@ interface CheckoutOptions {
 }
 
 export async function openCheckout(opts: CheckoutOptions): Promise<void> {
+  // Checked before anything else, including the key lookup, so this holds even
+  // if a mobile build is ever given a Razorpay key by mistake.
+  if (isNativeApp()) throw new NativePurchaseBlockedError();
+
   const key = import.meta.env.VITE_RAZORPAY_KEY_ID
     || (import.meta.env.DEV ? 'rzp_test_playwright' : '');
   if (!key) {

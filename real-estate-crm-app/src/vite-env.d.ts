@@ -14,6 +14,9 @@ interface ImportMetaEnv {
   readonly VITE_HCAPTCHA_SITE_KEY?: string;
   readonly VITE_GRIEVANCE_OFFICER_NAME?: string;
   readonly VITE_IS_DEMO?: string;
+  // Support WhatsApp number, digits only with country code (e.g. 919876543210).
+  // Support links are hidden when this is unset rather than rendering a dead link.
+  readonly VITE_SUPPORT_WHATSAPP?: string;
 
   // Auth configuration
   readonly VITE_AUTH_API_URL: string;

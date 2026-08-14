@@ -3,6 +3,15 @@ import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useSubscription } from '../hooks/useSubscription';
 import { openCheckout } from '../lib/razorpay';
 import { trackEvent } from '../lib/analytics';
+import { isNativeApp } from '../lib/platform';
+import { clearAuth } from '../utils/authStorage';
+
+/** Support contact. The link is hidden entirely when this is not configured. */
+const SUPPORT_WHATSAPP = import.meta.env.VITE_SUPPORT_WHATSAPP || '';
+
+const DATA_SAFETY_COPY =
+  'Your data is safe. After trial expiry, you have a 7-day grace period. After that, ' +
+  'your account is read-only for 30 days. Data is never deleted without explicit request.';
 
 const PAYWALL_WHITELIST = ['/profile', '/crm/settings/billing', '/legal', '/grievance', '/integrations/ai-employee'];
 
@@ -38,6 +47,48 @@ interface PaywallModalProps {
   onClose?: () => void;
 }
 
+/**
+ * Trial-expired notice for the mobile builds.
+ *
+ * Presents no commerce whatsoever: no prices, no plan cards, no checkout, and
+ * deliberately no link or button pointing at the web checkout. App Store
+ * guideline 3.1.1 treats an in-app purchase path as requiring IAP, and the
+ * 3.1.3(b) multiplatform exception this app relies on holds only while no
+ * commerce is presented in the app at all. Apple's anti-steering rules still
+ * apply on the India storefront, so even a plain URL is a risk.
+ *
+ * Includes a sign-out because the paywall is otherwise inescapable on mobile:
+ * `shouldShow` is derived from trial state rather than local state, so
+ * dismissing it simply re-opens it. An app the reviewer cannot get out of
+ * reads as broken, which is its own rejection under guideline 2.1.
+ */
+function NativeTrialEndedNotice({ onClose }: { onClose?: () => void }) {
+  const handleSignOut = () => {
+    clearAuth();
+    onClose?.();
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm overflow-y-auto p-4">
+      <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 my-8">
+        <h2 className="text-xl font-bold text-gray-900 mb-3">Your trial has ended</h2>
+        <p className="text-gray-600 mb-4">
+          RealEstateFlow is read-only until your account has an active plan. Plans are
+          managed from your account on a web browser.
+        </p>
+        <p className="text-sm text-gray-500 mb-6">{DATA_SAFETY_COPY}</p>
+
+        <button
+          onClick={handleSignOut}
+          className="w-full py-3 min-h-[44px] rounded-xl text-sm font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) {
   const { isTrialExpired, isPaying, subscription, refetch } = useSubscription();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>('monthly');
@@ -58,6 +109,8 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
   }, [shouldShow, forceOpen, subscription?.plan]);
 
   if (!shouldShow) return null;
+
+  if (isNativeApp()) return <NativeTrialEndedNotice onClose={onClose} />;
 
   const getPrice = (monthly: number) => {
     if (billingCycle === 'annual') return Math.round(monthly * 0.8);
@@ -198,9 +251,19 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
           </button>
           {faqOpen && (
             <p className="mt-2 text-sm text-gray-600">
-              Your data is safe. After trial expiry, you have a 7-day grace period. After that, your account is
-              read-only for 30 days. Data is never deleted without explicit request.
-              Need help? <a href="https://wa.me/91XXXXXXXXXX" className="text-blue-600 hover:underline">WhatsApp us</a>.
+              {DATA_SAFETY_COPY}
+              {SUPPORT_WHATSAPP && (
+                <>
+                  {' '}Need help?{' '}
+                  <a
+                    href={`https://wa.me/${SUPPORT_WHATSAPP}`}
+                    className="text-blue-600 hover:underline"
+                  >
+                    WhatsApp us
+                  </a>
+                  .
+                </>
+              )}
             </p>
           )}
         </div>
