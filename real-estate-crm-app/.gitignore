@@ -34,9 +34,36 @@ dist-ssr
 .env.prod
 
 # Capacitor
-android/
-ios/
+# The android/ and ios/ projects ARE tracked. They hold AndroidManifest.xml,
+# Info.plist, PrivacyInfo.xcprivacy, gradle config and signing setup — all of
+# which must be reviewable and reproducible for a store build.
+# Only generated and machine-local output is ignored below.
 .capacitor/
+
+# Capacitor — generated web assets (rebuilt by `cap sync`)
+android/app/src/main/assets/public/
+android/app/src/main/res/xml/config.xml
+ios/App/App/public/
+ios/App/App/config.xml
+
+# Android — machine-local and build output
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.idea/
+*.keystore
+*.jks
+android/key.properties
+
+# iOS — dependency and build output
+ios/App/Pods/
+ios/App/build/
+ios/App/output/
+ios/App/App.xcworkspace/xcuserdata/
+ios/App/App.xcodeproj/xcuserdata/
+ios/DerivedData/
 
 # Playwright
 e2e/.env.e2e
