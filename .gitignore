@@ -41,6 +41,6 @@ tests/playwright/.env
 # Local AWS/Lambda env dumps (use .env / .env.production instead)
 env-update.json
 **/crm-env*.json
-**/whatsapp-*-env.json
+**/whatsapp-*env.json
 **/env-compact.json
 
