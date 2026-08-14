@@ -9,6 +9,7 @@ import { fileURLToPath } from 'url';
 import { ensureRequestId } from './requestId.js';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './expressError.js';
+import { getAllowedOrigins } from './utils/corsOrigins.js';
 import { logger } from './logger.js';
 import { deepHealthCheck } from './healthcheck.js';
 import authRoutes from './routes/auth.js';
@@ -65,12 +66,14 @@ if (process.env.NODE_ENV === 'production' && process.env.BAILEY_ENABLED === 'tru
   throw new Error('BAILEY_WEBHOOK_SECRET is required in production when BAILEY_ENABLED=true');
 }
 
-// Middleware - Configure CORS with allowlist
-const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(Boolean);
+// Middleware - Configure CORS with allowlist.
+// Resolved per-request via the shared helper (which also permits the Capacitor
+// WebView origins) so Express, the Lambda handler and the error responder
+// cannot drift apart on what counts as an allowed origin.
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
+    if (getAllowedOrigins().includes(origin)) {
       callback(null, true);
     } else {
       callback(null, false);

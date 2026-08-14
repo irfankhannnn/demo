@@ -6,11 +6,33 @@
 const DEFAULT_ALLOWED_HEADERS = 'Content-Type,Authorization,X-Requested-With,x-tenant-id';
 const DEFAULT_ALLOWED_METHODS = 'GET,POST,PUT,DELETE,OPTIONS,PATCH';
 
+/**
+ * Origins the Capacitor WebView sends. These are platform constants, not
+ * deployment config:
+ *   - iOS WKWebView serves the bundle from capacitor://localhost
+ *   - Android serves from https://localhost, per `server.androidScheme: 'https'`
+ *     in real-estate-crm-app/capacitor.config.ts
+ *
+ * They are always allowed rather than left to ALLOWED_ORIGINS because the
+ * failure mode is total: a missed env update in one environment means every
+ * API call from the mobile app is blocked, including the preflight, with no
+ * partial degradation to hint at the cause.
+ *
+ * Keep this list minimal. Do not add ionic://localhost or http://localhost —
+ * the app does not produce those origins.
+ */
+export const NATIVE_APP_ORIGINS = Object.freeze([
+  'capacitor://localhost',
+  'https://localhost',
+]);
+
 export function getAllowedOrigins() {
-  return (process.env.ALLOWED_ORIGINS || '')
+  const configured = (process.env.ALLOWED_ORIGINS || '')
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+
+  return [...new Set([...configured, ...NATIVE_APP_ORIGINS])];
 }
 
 /**
