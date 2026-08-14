@@ -25,6 +25,10 @@ interface ImportMetaEnv {
   // AI Calling (optional)
   readonly VITE_AI_CALLING_ENABLED?: string;
   readonly VITE_AI_CALLING_API_URL?: string;
+
+  // Mobile build. Set to 'true' by `npm run build:mobile`.
+  // Read only via src/lib/platform.ts — do not branch on it directly.
+  readonly VITE_IS_NATIVE_BUILD?: string;
 }
 
 interface ImportMeta {
