@@ -115,7 +115,7 @@ export default function TeamAnalytics() {
 
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <Users className="h-6 w-6 text-[#2563EB]" />
+            <Users className="h-6 w-6 text-brand" />
             <h1 className="text-2xl font-bold text-slate-900">Team Analytics</h1>
           </div>
           <div className="flex items-center gap-3">
@@ -130,7 +130,7 @@ export default function TeamAnalytics() {
             </select>
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 bg-[#2563EB] text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
+              className="flex items-center gap-2 bg-brand text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700"
             >
               <Download className="h-4 w-4" /> Download Excel
             </button>

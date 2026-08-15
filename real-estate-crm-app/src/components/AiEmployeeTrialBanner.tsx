@@ -15,7 +15,7 @@ export const AiEmployeeTrialBanner: React.FC<AiEmployeeTrialBannerProps> = ({
   if (isPurchased || dismissed) return null;
 
   return (
-    <div className="bg-gradient-to-r from-[#2563EB] to-purple-600 text-white rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
+    <div className="bg-gradient-to-r from-brand to-purple-600 text-white rounded-xl p-4 mb-6 flex items-center justify-between gap-4">
       <div className="flex items-center gap-3 min-w-0">
         <Bot className="h-6 w-6 flex-shrink-0" />
         <div className="min-w-0">
@@ -28,7 +28,7 @@ export const AiEmployeeTrialBanner: React.FC<AiEmployeeTrialBannerProps> = ({
       <div className="flex items-center gap-2 flex-shrink-0">
         <button
           onClick={onUpgradeClick}
-          className="bg-white text-[#2563EB] px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors whitespace-nowrap"
+          className="bg-white text-brand px-4 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-50 transition-colors whitespace-nowrap"
         >
           Upgrade Now
         </button>

@@ -185,7 +185,7 @@ export default function WhatsAppInbox() {
             </Link>
             <div className="h-4 w-px bg-slate-200" />
             <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-[#2563EB]" />
+              <MessageSquare className="h-5 w-5 text-brand" />
               <h1 className="text-xl font-bold text-slate-900">WhatsApp Inbox</h1>
             </div>
           </div>
@@ -246,7 +246,7 @@ export default function WhatsAppInbox() {
                 >
                   <ChevronLeft className="h-5 w-5" />
                 </button>
-                <div className="h-9 w-9 rounded-full bg-[#2563EB] text-white flex items-center justify-center text-sm font-semibold">
+                <div className="h-9 w-9 rounded-full bg-brand text-white flex items-center justify-center text-sm font-semibold">
                   {avatarInitials(selectedPhone)}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -283,7 +283,7 @@ export default function WhatsAppInbox() {
       {loadingConversations && conversations.length === 0 && (
         <div className="fixed inset-0 bg-white/60 flex items-center justify-center z-10 pointer-events-none">
           <div className="text-center">
-            <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-[#2563EB] rounded-full mx-auto mb-3" />
+            <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-brand rounded-full mx-auto mb-3" />
             <p className="text-sm text-slate-500">Loading conversations...</p>
           </div>
         </div>

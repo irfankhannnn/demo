@@ -65,7 +65,7 @@ export default function TrialCountdownBanner({ onUpgradeClick }: TrialCountdownB
             className={`text-sm font-medium px-4 py-1.5 rounded-lg transition-colors ${
               isUrgent
                 ? 'bg-red-600 text-white hover:bg-red-700'
-                : 'bg-[#2563EB] text-white hover:bg-blue-700'
+                : 'bg-brand text-white hover:bg-blue-700'
             }`}
           >
             Upgrade now →

@@ -186,7 +186,7 @@ export const AiEmployeeSettings: React.FC = () => {
             setConfig((prev) => ({ ...prev, aiEmployeeEnabled: !prev.aiEmployeeEnabled }))
           }
           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-            config.aiEmployeeEnabled ? 'bg-[#2563EB]' : 'bg-slate-200'
+            config.aiEmployeeEnabled ? 'bg-brand' : 'bg-slate-200'
           }`}
           role="switch"
           aria-checked={config.aiEmployeeEnabled}
@@ -209,7 +209,7 @@ export const AiEmployeeSettings: React.FC = () => {
               onClick={() => setConfig((prev) => ({ ...prev, aiPersonality: p.id }))}
               className={`text-left p-3 rounded-lg border text-sm transition-colors ${
                 config.aiPersonality === p.id
-                  ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                  ? 'bg-brand text-white border-brand'
                   : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400'
               }`}
             >
@@ -233,7 +233,7 @@ export const AiEmployeeSettings: React.FC = () => {
         <button
           onClick={() => setConfig((prev) => ({ ...prev, autoReply: !prev.autoReply }))}
           className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-            config.autoReply ? 'bg-[#2563EB]' : 'bg-slate-200'
+            config.autoReply ? 'bg-brand' : 'bg-slate-200'
           }`}
           role="switch"
           aria-checked={config.autoReply}
@@ -258,7 +258,7 @@ export const AiEmployeeSettings: React.FC = () => {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, businessHoursStart: e.target.value }))
               }
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
             />
           </div>
           <div>
@@ -269,7 +269,7 @@ export const AiEmployeeSettings: React.FC = () => {
               onChange={(e) =>
                 setConfig((prev) => ({ ...prev, businessHoursEnd: e.target.value }))
               }
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
             />
           </div>
         </div>
@@ -278,7 +278,7 @@ export const AiEmployeeSettings: React.FC = () => {
           <select
             value={config.timezone}
             onChange={(e) => setConfig((prev) => ({ ...prev, timezone: e.target.value }))}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none bg-white"
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none bg-white"
           >
             <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
             <option value="Asia/Dubai">Asia/Dubai (GST)</option>
@@ -300,7 +300,7 @@ export const AiEmployeeSettings: React.FC = () => {
               onClick={() => setConfig((prev) => ({ ...prev, followupAgentMode: mode }))}
               className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                 config.followupAgentMode === mode
-                  ? 'bg-[#2563EB] text-white border-[#2563EB]'
+                  ? 'bg-brand text-white border-brand'
                   : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400'
               }`}
             >
@@ -350,7 +350,7 @@ export const AiEmployeeSettings: React.FC = () => {
               setPhoneError(null);
             }}
             placeholder="+91 98765 43210"
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
           />
           <button
             onClick={addWhitelistedPhone}
@@ -388,7 +388,7 @@ export const AiEmployeeSettings: React.FC = () => {
               setPhoneError(null);
             }}
             placeholder="+91 98765 43210"
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-[#2563EB] focus:outline-none"
+            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
           />
           <button
             onClick={addBlacklistedPhone}
@@ -415,7 +415,7 @@ export const AiEmployeeSettings: React.FC = () => {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full py-2.5 px-4 bg-[#2563EB] text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        className="w-full py-2.5 px-4 bg-brand text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
       >
         {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Settings'}
       </button>

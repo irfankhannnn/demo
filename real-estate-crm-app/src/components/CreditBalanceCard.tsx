@@ -65,7 +65,7 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
   const dailyUsageRate = thisMonthUsage > 0 ? thisMonthUsage / Math.max(1, new Date().getDate()) : 0;
   const estimatedDaysLeft = dailyUsageRate > 0 ? Math.ceil(balance / dailyUsageRate) : null;
 
-  const progressColor = isEmpty ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-[#2563EB]';
+  const progressColor = isEmpty ? 'bg-red-500' : isLow ? 'bg-amber-500' : 'bg-brand';
   const borderColor = isEmpty ? 'border-red-200' : isLow ? 'border-amber-200' : 'border-slate-200';
   const bgColor = isEmpty ? 'bg-red-50' : isLow ? 'bg-amber-50' : 'bg-white';
 
@@ -79,7 +79,7 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
           {isEmpty || isLow ? (
             <AlertTriangle className={`h-5 w-5 ${isEmpty ? 'text-red-500' : 'text-amber-500'}`} />
           ) : (
-            <Coins className="h-5 w-5 text-[#2563EB]" />
+            <Coins className="h-5 w-5 text-brand" />
           )}
           <div>
             <p className="text-sm text-slate-500">Credits remaining</p>
@@ -89,7 +89,7 @@ export default function CreditBalanceCard({ onBuyCredits, lastMonthUsage }: Cred
         {onBuyCredits && (
           <button
             onClick={onBuyCredits}
-            className="text-sm font-medium bg-[#2563EB] text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="text-sm font-medium bg-brand text-white px-4 py-2 rounded-lg hover:bg-blue-700"
           >
             Buy more
           </button>

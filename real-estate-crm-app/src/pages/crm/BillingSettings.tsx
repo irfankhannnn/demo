@@ -188,7 +188,7 @@ export default function BillingSettings() {
               {isAdmin && !isNative && (
                 <button
                   onClick={() => setShowPaywall(true)}
-                  className="mt-6 w-full sm:w-auto min-h-[44px] bg-[#2563EB] text-white font-medium px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="mt-6 w-full sm:w-auto min-h-[44px] bg-brand text-white font-medium px-6 py-2.5 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   {isPaying ? 'Change plan' : 'Upgrade plan'}
                 </button>
@@ -214,7 +214,7 @@ export default function BillingSettings() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
-                    aiStatus?.status === 'live' ? 'bg-[#2563EB]' : 'bg-slate-100'
+                    aiStatus?.status === 'live' ? 'bg-brand' : 'bg-slate-100'
                   }`}>
                     <Bot className={`h-6 w-6 ${aiStatus?.status === 'live' ? 'text-white' : 'text-slate-500'}`} />
                   </div>
@@ -287,7 +287,7 @@ export default function BillingSettings() {
                 const height = (day.credits / maxCredits) * 100;
                 return (
                   <div key={idx} className="flex-1 flex flex-col items-center gap-2">
-                    <div className="w-full bg-[#2563EB] rounded-t" style={{ height: `${height}%`, minHeight: '4px' }} title={`${day.credits} credits`} />
+                    <div className="w-full bg-brand rounded-t" style={{ height: `${height}%`, minHeight: '4px' }} title={`${day.credits} credits`} />
                     <span className="text-xs text-slate-500 text-center">{day.date}</span>
                   </div>
                 );

@@ -119,7 +119,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={() => persist(true)}
-              className="rounded-md bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#07111E] hover:bg-[#16A34A]"
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#07111E] hover:bg-[#16A34A]"
             >
               Accept all
             </button>
@@ -155,7 +155,7 @@ export default function CookieConsentBanner() {
                 aria-label="Analytics"
                 checked={analytics}
                 onChange={(e) => setAnalytics(e.target.checked)}
-                className="mt-1 h-5 w-5 shrink-0 accent-[#22C55E]"
+                className="mt-1 h-5 w-5 shrink-0 accent-accent"
               />
             </label>
           </div>
@@ -171,7 +171,7 @@ export default function CookieConsentBanner() {
             <button
               type="button"
               onClick={() => persist(analytics)}
-              className="rounded-md bg-[#22C55E] px-4 py-2 text-sm font-semibold text-[#07111E] hover:bg-[#16A34A]"
+              className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-[#07111E] hover:bg-[#16A34A]"
             >
               Save preferences
             </button>

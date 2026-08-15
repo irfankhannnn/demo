@@ -140,14 +140,14 @@ export default function AiEmployeePage() {
           <div className="flex items-center gap-4">
             <div
               className={`h-14 w-14 rounded-xl flex items-center justify-center ${
-                aiEnabled ? 'bg-[#2563EB]' : 'bg-slate-200'
+                aiEnabled ? 'bg-brand' : 'bg-slate-200'
               }`}
             >
               <Bot className={`h-7 w-7 ${aiEnabled ? 'text-white' : 'text-slate-500'}`} />
             </div>
             <div>
               <p className="text-sm text-slate-500">AI Employee</p>
-              <p className={`text-xl font-bold ${aiEnabled ? 'text-[#2563EB]' : 'text-slate-700'}`}>
+              <p className={`text-xl font-bold ${aiEnabled ? 'text-brand' : 'text-slate-700'}`}>
                 {aiEnabled ? 'Enabled' : 'Disabled'}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -159,7 +159,7 @@ export default function AiEmployeePage() {
             onClick={handleToggleAi}
             disabled={toggling || !isPurchased}
             className={`relative inline-flex h-7 w-12 flex-shrink-0 items-center rounded-full transition-colors ${
-              aiEnabled ? 'bg-[#2563EB]' : 'bg-slate-300'
+              aiEnabled ? 'bg-brand' : 'bg-slate-300'
             } disabled:opacity-50`}
             role="switch"
             aria-checked={aiEnabled}
@@ -204,7 +204,7 @@ export default function AiEmployeePage() {
           </div>
           <button
             onClick={() => navigate('/crm/whatsapp-inbox')}
-            className="flex items-center gap-1.5 text-sm font-medium text-[#2563EB] hover:text-blue-700"
+            className="flex items-center gap-1.5 text-sm font-medium text-brand hover:text-blue-700"
           >
             Inbox
             <ChevronRight className="h-4 w-4" />
@@ -231,7 +231,7 @@ export default function AiEmployeePage() {
         </Link>
 
         <div className="flex items-center gap-3 mb-2">
-          <Bot className="h-6 w-6 text-[#2563EB]" />
+          <Bot className="h-6 w-6 text-brand" />
           <h1 className="text-2xl font-bold text-slate-900">AI Employee</h1>
         </div>
         <p className="text-slate-500 mb-6">Manage your AI-powered CRM automation</p>
@@ -251,7 +251,7 @@ export default function AiEmployeePage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
                   activeTab === tab.id
-                    ? 'border-[#2563EB] text-[#2563EB]'
+                    ? 'border-brand text-brand'
                     : 'border-transparent text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -276,7 +276,7 @@ export default function AiEmployeePage() {
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <Zap className="h-5 w-5 text-[#2563EB]" />
+                      <Zap className="h-5 w-5 text-brand" />
                       <h3 className="font-semibold text-slate-900">Today's Stats</h3>
                     </div>
                     <span className="text-xs text-slate-400">{new Date().toDateString()}</span>
@@ -299,7 +299,7 @@ export default function AiEmployeePage() {
 
                 <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
                   <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                    <Power className="h-5 w-5 text-[#2563EB]" />
+                    <Power className="h-5 w-5 text-brand" />
                     Quick Actions
                   </h3>
                   <div className="flex flex-wrap gap-3">
@@ -309,7 +309,7 @@ export default function AiEmployeePage() {
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-colors ${
                         aiEnabled
                           ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
-                          : 'bg-[#2563EB] text-white hover:bg-blue-700'
+                          : 'bg-brand text-white hover:bg-blue-700'
                       } disabled:opacity-50`}
                     >
                       <Power className="h-4 w-4" />
@@ -354,7 +354,7 @@ export default function AiEmployeePage() {
 
             <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
               <h3 className="font-semibold text-slate-900 mb-4 flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-[#2563EB]" />
+                <CreditCard className="h-5 w-5 text-brand" />
                 Billing & Credits
               </h3>
               <p className="text-sm text-slate-500 mb-3">
@@ -363,7 +363,7 @@ export default function AiEmployeePage() {
               </p>
               <button
                 onClick={() => navigate('/crm/settings/billing')}
-                className="text-sm font-medium text-[#2563EB] hover:text-blue-700"
+                className="text-sm font-medium text-brand hover:text-blue-700"
               >
                 Go to Billing →
               </button>

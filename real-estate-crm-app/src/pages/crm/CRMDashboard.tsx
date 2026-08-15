@@ -816,7 +816,7 @@ export default function CRMDashboard() {
                 className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-blue-200/70 hover:border-blue-400/70 bg-blue-50/30 font-semibold"
               >
                 <span className="flex items-center gap-2">
-                  <Bot className="w-4 h-4 text-[#2563EB] group-hover:text-blue-600 transition-colors" />
+                  <Bot className="w-4 h-4 text-brand group-hover:text-blue-600 transition-colors" />
                   AI Employee
                 </span>
                 <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />

@@ -152,7 +152,7 @@ export function AgentActivityLog({
 
   if (loading) return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 mt-4 flex items-center justify-center h-24">
-      <div className="animate-spin h-6 w-6 border-2 border-[#2563EB] rounded-full border-t-transparent" />
+      <div className="animate-spin h-6 w-6 border-2 border-brand rounded-full border-t-transparent" />
     </div>
   );
 
@@ -182,7 +182,7 @@ export function AgentActivityLog({
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
-            <Bot className="h-5 w-5 text-[#2563EB]" />
+            <Bot className="h-5 w-5 text-brand" />
             <h3 className="font-semibold text-slate-900">Recent Agent Activity</h3>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -228,7 +228,7 @@ export function AgentActivityLog({
             </select>
             <button
               onClick={load}
-              className="text-slate-400 hover:text-[#2563EB] transition-colors"
+              className="text-slate-400 hover:text-brand transition-colors"
               title="Refresh"
             >
               <RefreshCw className="h-4 w-4" />
@@ -236,7 +236,7 @@ export function AgentActivityLog({
             {filteredItems.length > 0 && (
               <button
                 onClick={exportToCSV}
-                className="text-slate-400 hover:text-[#2563EB] transition-colors"
+                className="text-slate-400 hover:text-brand transition-colors"
                 title="Export to CSV"
               >
                 <Download className="h-4 w-4" />
@@ -289,7 +289,7 @@ export function AgentActivityLog({
                     {showConversationLinks && item.phone && onJumpToInbox && (
                       <button
                         onClick={() => onJumpToInbox(item.phone!)}
-                        className="inline-flex items-center gap-1 text-xs text-[#2563EB] hover:text-blue-700 font-medium"
+                        className="inline-flex items-center gap-1 text-xs text-brand hover:text-blue-700 font-medium"
                       >
                         <ExternalLink className="h-3 w-3" />
                         View conversation

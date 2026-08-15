@@ -90,7 +90,7 @@ export default function WhatsAppConversationList({
             placeholder="Search conversations..."
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent"
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
           />
         </div>
       </div>
@@ -115,7 +115,7 @@ export default function WhatsAppConversationList({
                   >
                     <div className="flex-shrink-0">
                       <div className={`h-10 w-10 rounded-full flex items-center justify-center text-sm font-semibold ${
-                        isSelected ? 'bg-[#2563EB] text-white' : 'bg-slate-200 text-slate-600'
+                        isSelected ? 'bg-brand text-white' : 'bg-slate-200 text-slate-600'
                       }`}>
                         {avatarInitials(conversation.contactPhone)}
                       </div>
@@ -124,7 +124,7 @@ export default function WhatsAppConversationList({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-0.5">
                         <span className={`font-medium truncate text-sm ${
-                          isSelected ? 'text-[#2563EB]' : 'text-slate-900'
+                          isSelected ? 'text-brand' : 'text-slate-900'
                         }`}>
                           {formatPhone(conversation.contactPhone)}
                         </span>
@@ -141,7 +141,7 @@ export default function WhatsAppConversationList({
                           {conversation.lastMessage && conversation.lastMessage.length > 60 ? '...' : ''}
                         </p>
                         {conversation.unreadCount > 0 && (
-                          <span className="flex-shrink-0 inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1.5 rounded-full bg-[#2563EB] text-white text-xs font-medium">
+                          <span className="flex-shrink-0 inline-flex items-center justify-center h-5 min-w-[1.25rem] px-1.5 rounded-full bg-brand text-white text-xs font-medium">
                             {conversation.unreadCount}
                           </span>
                         )}

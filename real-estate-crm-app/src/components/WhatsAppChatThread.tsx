@@ -119,7 +119,7 @@ export default function WhatsAppChatThread({ messages, contactPhone, isLoading, 
     return (
       <div className="flex-1 flex items-center justify-center bg-slate-50">
         <div className="text-center">
-          <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-[#2563EB] rounded-full mx-auto mb-3" />
+          <div className="animate-spin h-8 w-8 border-2 border-slate-300 border-t-brand rounded-full mx-auto mb-3" />
           <p className="text-sm text-slate-500">Loading messages...</p>
         </div>
       </div>
@@ -136,12 +136,12 @@ export default function WhatsAppChatThread({ messages, contactPhone, isLoading, 
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Type a message..."
           disabled={sending || !onSendMessage}
-          className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-transparent disabled:opacity-50"
+          className="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-full text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent disabled:opacity-50"
         />
         <button
           type="submit"
           disabled={sending || !draft.trim() || !onSendMessage}
-          className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-[#2563EB] text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-brand text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           aria-label="Send message"
         >
           {sending ? (
@@ -191,7 +191,7 @@ export default function WhatsAppChatThread({ messages, contactPhone, isLoading, 
               <div className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[75%] min-w-[120px] rounded-2xl px-4 py-2.5 shadow-sm ${
                   isOutbound
-                    ? 'bg-[#2563EB] text-white rounded-br-none'
+                    ? 'bg-brand text-white rounded-br-none'
                     : 'bg-white text-slate-900 rounded-bl-none border border-slate-200'
                 }`}>
                   {isAi && isOutbound && (

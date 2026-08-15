@@ -143,10 +143,10 @@ export default function BuyCreditsModal({ forceOpen, onClose }: BuyCreditsModalP
               key={pack.id}
               onClick={() => handlePurchase(pack.id)}
               disabled={!!loading}
-              className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-4 py-3 hover:border-[#2563EB] hover:bg-blue-50 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-between border border-slate-200 rounded-lg px-4 py-3 hover:border-brand hover:bg-blue-50 transition-colors disabled:opacity-50"
             >
               <span className="font-medium text-slate-900">{pack.label}</span>
-              <span className="text-[#2563EB] font-semibold">
+              <span className="text-brand font-semibold">
                 {loading === pack.id ? 'Loading...' : pack.price}
               </span>
             </button>

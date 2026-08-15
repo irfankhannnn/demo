@@ -355,7 +355,7 @@ export default function ConnectWhatsApp() {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => navigate('/crm')}
-                  className="bg-[#2563EB] text-white px-8 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
+                  className="bg-brand text-white px-8 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
                 >
                   Go to CRM
                 </button>
@@ -380,7 +380,7 @@ export default function ConnectWhatsApp() {
                     onClick={() => setProvider('bailey')}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all ${
                       provider === 'bailey'
-                        ? 'border-[#2563EB] bg-blue-50'
+                        ? 'border-brand bg-blue-50'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
@@ -395,7 +395,7 @@ export default function ConnectWhatsApp() {
                       Instant QR scan. Connect your WhatsApp Business number in 60 seconds.
                     </p>
                     {provider === 'bailey' && (
-                      <CheckCircle className="absolute top-3 right-3 h-4 w-4 text-[#2563EB]" />
+                      <CheckCircle className="absolute top-3 right-3 h-4 w-4 text-brand" />
                     )}
                   </button>
 
@@ -478,7 +478,7 @@ export default function ConnectWhatsApp() {
                   <button
                     onClick={handleGetQr}
                     disabled={loading || !phone.trim()}
-                    className="w-full bg-[#2563EB] text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3 transition-colors"
+                    className="w-full bg-brand text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3 transition-colors"
                   >
                     {loading ? 'Connecting...' : qrCode ? 'Refresh QR Code' : 'Get QR Code'}
                   </button>

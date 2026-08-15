@@ -82,7 +82,7 @@ export default function BottomTabBar() {
                 /* min-h-[56px] clears the 44pt Apple HIG and 48dp Material
                    minimums with room for the label. */
                 className={`flex min-h-[56px] flex-col items-center justify-center gap-0.5 px-1 py-1.5 text-[11px] font-medium transition-colors ${
-                  active ? 'text-[#2563EB]' : 'text-slate-500'
+                  active ? 'text-brand' : 'text-slate-500'
                 }`}
               >
                 <tab.Icon className="h-5 w-5" strokeWidth={active ? 2.4 : 1.8} />
