@@ -157,6 +157,31 @@ Everything else can be compressed by working harder. These cannot.
 > No CloudFormation parameter change needed — I put the native origins in code, so a
 > redeploy is all it takes.
 
+### 🔴 11a. Add the privacy manifest to the Xcode target
+
+**Why you:** needs Xcode; Capacitor does not do this automatically.
+**Time:** 30 seconds, but the upload fails without it.
+
+- [ ] Open `ios/App/App.xcworkspace` in Xcode
+- [ ] Select **App** target → **Build Phases** → **Copy Bundle Resources**
+- [ ] Add `App/PrivacyInfo.xcprivacy` if it is not already listed
+
+> I wrote the file (`ios/App/App/PrivacyInfo.xcprivacy`) with all 13 data types
+> and 4 required-reason APIs declared. It just has to be a member of the target,
+> or App Store Connect rejects the upload.
+
+### 🟢 11b. Review the app icon
+
+**Why you:** a brand decision, and I am not a designer.
+
+- [ ] Look at `real-estate-crm-app/assets/icon.png`
+
+> I generated the whole icon and splash set (156 files) from the house mark in
+> `marketing-and-sales/realestateflow/assets/logos/final/logo.png`, dropping the
+> wordmark because it is illegible at 48px. It is clean and on-brand, but if you
+> want a designed icon, replace the five files in `assets/` and re-run
+> `npm run mobile:assets`.
+
 ### 🟢 11. Host the deep-link verification files
 
 **Why you:** DNS / web hosting access.
