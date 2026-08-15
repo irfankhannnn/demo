@@ -339,7 +339,20 @@ export default function Calendar() {
   
   // View state
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'list'>('month');
+  /**
+   * Agenda ("list") is the default on phones.
+   *
+   * The week grid is min-w-[1100px] and the day grid min-w-[900px]; on a 390px
+   * screen those are horizontal-scroll strips where most of the day is off
+   * screen. The list view is already a proper responsive agenda, so mobile
+   * simply starts there. All four modes stay selectable — this changes the
+   * starting point, not the capability.
+   */
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'list'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 'list'
+      : 'month'
+  );
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
   // Popup state

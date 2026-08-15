@@ -31,6 +31,22 @@ interface GlassDataTableProps<T> {
   stickyHeader?: boolean;
   tableFixed?: boolean;
   compact?: boolean;
+  /**
+   * Render stacked cards instead of a table below the `sm` breakpoint.
+   *
+   * On by default. A table on a 390px screen is a horizontal-scroll strip
+   * where most columns are off-screen, and this component had no mobile
+   * fallback at all, so all 10 screens using it were unusable on a phone.
+   *
+   * Opt out only where the grid itself is the point (a settlement matrix,
+   * say) and horizontal scrolling is genuinely the better answer.
+   */
+  mobileCards?: boolean;
+  /**
+   * Which column headlines each card. Defaults to the first column.
+   * The rest render as label/value rows beneath it.
+   */
+  primaryColumnKey?: string;
 }
 
 export default function GlassDataTable<T>({
@@ -53,9 +69,16 @@ export default function GlassDataTable<T>({
   stickyHeader = true,
   tableFixed = false,
   compact = false,
+  mobileCards = true,
+  primaryColumnKey,
 }: GlassDataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+  /** Headline column for the mobile card view. */
+  const primaryColumn = primaryColumnKey
+    ? columns.find((c) => c.key === primaryColumnKey) ?? columns[0]
+    : columns[0];
 
   const handleSort = (key: string) => {
     if (sortKey === key) {
@@ -138,8 +161,76 @@ export default function GlassDataTable<T>({
         </div>
       )}
 
+      {/*
+        Card list, phones only. Rendered as a sibling of the table rather than
+        swapped in via a JS media query so there is no layout flash on first
+        paint and no window-size state to keep in sync.
+      */}
+      {mobileCards && (
+        <div className="sm:hidden space-y-3">
+          {loading ? (
+            <div className="rounded-2xl glass-premium border border-white/40 px-4 py-12 text-center">
+              <LoadingSpinner message="Loading..." size="md" />
+            </div>
+          ) : sortedData.length === 0 ? (
+            <div className="rounded-2xl glass-premium border border-white/40 px-4 py-12 text-center">
+              <div className="flex flex-col items-center">
+                {emptyIcon || (
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center shadow-sm">
+                    <Search className="h-8 w-8 text-slate-400" />
+                  </div>
+                )}
+                <p className="mt-4 text-slate-500 font-medium">{emptyMessage}</p>
+              </div>
+            </div>
+          ) : (
+            sortedData.map((item, index) => {
+              const primary = primaryColumn;
+              const rest = columns.filter((c) => c.key !== primary?.key);
+              const Wrapper = onRowClick ? 'button' : 'div';
+
+              return (
+                <Wrapper
+                  key={keyExtractor(item)}
+                  {...(onRowClick
+                    ? { type: 'button' as const, onClick: () => onRowClick(item) }
+                    : {})}
+                  className={`w-full text-left rounded-2xl glass-premium border border-white/40 shadow-sm p-4 ${
+                    onRowClick ? 'active:scale-[0.99] transition-transform' : ''
+                  } ${rowClassName?.(item) || ''}`}
+                >
+                  {primary && (
+                    <div className="text-base font-semibold text-slate-900 mb-2 break-words">
+                      {primary.render
+                        ? primary.render(item, index)
+                        : String((item as Record<string, unknown>)[primary.key] ?? '—')}
+                    </div>
+                  )}
+                  <dl className="space-y-1.5">
+                    {rest.map((column) => (
+                      <div key={column.key} className="flex justify-between gap-3 text-sm">
+                        <dt className="text-slate-500 shrink-0">{column.header}</dt>
+                        <dd className="text-slate-800 font-medium text-right break-words min-w-0">
+                          {column.render
+                            ? column.render(item, index)
+                            : String((item as Record<string, unknown>)[column.key] ?? '—')}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </Wrapper>
+              );
+            })
+          )}
+        </div>
+      )}
+
       {/* Table Container */}
-      <div className="relative overflow-hidden rounded-2xl glass-premium border border-white/40 shadow-xl shadow-black/5">
+      <div
+        className={`relative overflow-hidden rounded-2xl glass-premium border border-white/40 shadow-xl shadow-black/5 ${
+          mobileCards ? 'hidden sm:block' : ''
+        }`}
+      >
         <div className={tableFixed ? 'overflow-x-hidden' : 'overflow-x-auto'}>
           <table className={`w-full ${tableFixed ? 'table-fixed' : ''}`}>
             <thead className={`${stickyHeader ? 'sticky top-0 z-10' : ''} ${headerClassName}`}>

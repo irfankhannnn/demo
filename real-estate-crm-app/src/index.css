@@ -48,6 +48,29 @@ body {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/*
+ * Modal panels on phones.
+ *
+ * The 34 overlays in the app all follow the same desktop shape —
+ * `fixed inset-0 flex items-center justify-center p-4` wrapping a
+ * `max-w-* w-full` panel. That centres fine but has no height cap, so a long
+ * form (AddPropertyModal, ScheduleMeetingModal, KhataEntryForm) overflows the
+ * viewport with nothing to scroll, and the on-screen keyboard then covers the
+ * focused field.
+ *
+ * Capping the height and making the panel scroll fixes both without touching
+ * 34 files. A per-modal bottom-sheet treatment is still worth doing, but it
+ * needs visual checking on a device.
+ */
+@media (max-width: 639px) {
+  .native-app .fixed.inset-0 > div {
+    max-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 2rem);
+    overflow-y: auto;
+    /* Keep momentum scrolling inside the panel rather than dragging the page. */
+    overscroll-behavior: contain;
+  }
+}
+
 /* Clear the fixed bottom tab bar (min-h-56px + its own bottom inset). */
 .native-app main,
 .native-app [data-scroll-region] {
