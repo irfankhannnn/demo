@@ -5,6 +5,10 @@ import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfil
 import { callMe, refreshTokens } from './utils/cognitoAuth';
 import { identifyUser } from './lib/analytics';
 import { registerDeepLinkHandler, registerResumeHandler } from './lib/nativeAuth';
+import { useAndroidBackButton } from './hooks/useAndroidBackButton';
+import { initNativeShell, hideSplash } from './lib/nativeInit';
+import { isNativeApp } from './lib/platform';
+import BottomTabBar from './components/BottomTabBar';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
@@ -29,19 +33,22 @@ function SignupRedirect() {
 }
 
 /**
- * Routes native deep links into the app.
+ * Native behaviour that needs the router: deep links and the hardware back
+ * button. Renders nothing and is inert on web.
  *
- * On native, OAuth completes in a separate system browser and the OS hands the
- * result back as `in.realestateflow.app://auth/callback?code=...`. This turns
- * that into an in-app navigation so AuthCallback — the same component the web
- * flow uses — does the code exchange. Renders nothing, and is inert on web.
+ * Deep links matter because on native OAuth completes in a separate system
+ * browser and the OS hands the result back as
+ * `in.realestateflow.app://auth/callback?code=...`. This turns that into an
+ * in-app navigation so AuthCallback — the same component the web flow uses —
+ * performs the code exchange.
  *
- * Must live inside <Router> because it needs useNavigate.
+ * Must live inside <Router> because both need useNavigate.
  */
-function NativeDeepLinks() {
+function NativeShell() {
   const navigate = useNavigate();
 
   useEffect(() => registerDeepLinkHandler((path) => navigate(path, { replace: true })), [navigate]);
+  useAndroidBackButton();
 
   return null;
 }
@@ -126,6 +133,26 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
 
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
+
+  // Configure the native chrome once at startup.
+  useEffect(() => {
+    initNativeShell().catch((err) => console.warn('Native shell init failed:', err));
+  }, []);
+
+  // Hold the splash screen until auth resolves, then dismiss it. capacitor.config.ts
+  // sets launchAutoHide: false precisely so the user is never shown a flash of
+  // the login screen before being restored into their existing session.
+  useEffect(() => {
+    if (authState === 'loading') return;
+    hideSplash().catch(() => {});
+  }, [authState]);
+
+  // Reserve room for the fixed tab bar so page content is not hidden behind it.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    document.body.classList.add('native-app');
+    return () => document.body.classList.remove('native-app');
+  }, []);
   const [showPaywall, setShowPaywall] = useState(false);
   const [showBuyCredits, setShowBuyCredits] = useState(false);
 
@@ -334,7 +361,7 @@ function App() {
 
   return (
     <Router>
-      <NativeDeepLinks />
+      <NativeShell />
       <GoogleMapsProvider>
         <SubscriptionProvider>
           <CreditsProvider>
@@ -445,6 +472,7 @@ function App() {
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />
           </Routes>
+          <BottomTabBar />
           </CreditsProvider>
         </SubscriptionProvider>
       </GoogleMapsProvider>

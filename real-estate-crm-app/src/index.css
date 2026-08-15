@@ -27,6 +27,95 @@ body {
 }
 
 /* ============================================= */
+/* NATIVE APP SHELL                              */
+/* Everything below is scoped to .native-app,    */
+/* set on <body> only in the Capacitor builds,   */
+/* so the web app is completely unaffected.      */
+/* ============================================= */
+
+/*
+ * Body padding handles normal document flow, but `position: fixed` and
+ * `position: sticky` elements resolve against the viewport, not the padded
+ * body — so 40 sticky headers and 34 fixed overlays would sit under the iOS
+ * Dynamic Island and the Android status bar. These give them back the inset.
+ */
+.native-app .sticky.top-0 {
+  padding-top: env(safe-area-inset-top);
+}
+
+.native-app .fixed.inset-0 {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Clear the fixed bottom tab bar (min-h-56px + its own bottom inset). */
+.native-app main,
+.native-app [data-scroll-region] {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom));
+}
+
+/* Explicit opt-in utilities for components that need finer control. */
+.safe-top { padding-top: env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+
+/*
+ * Touch behaviours a WebView does not get for free. Without these the app
+ * reads as a web page rendered in a frame rather than a native app.
+ */
+.native-app {
+  /* Kill the blue flash Android paints over every tap target. */
+  -webkit-tap-highlight-color: transparent;
+  /* Stop the whole page rubber-banding / pull-to-refresh behind the content. */
+  overscroll-behavior-y: none;
+}
+
+.native-app body,
+.native-app button,
+.native-app a,
+.native-app [role='button'],
+.native-app label {
+  /* Long-press on a card or label should not select text or raise the
+     copy/define callout, which is the clearest "this is a web page" tell. */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Text the user genuinely may want to copy stays selectable. */
+.native-app input,
+.native-app textarea,
+.native-app [data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Remove the 300ms tap delay and stop double-tap zoom on controls. */
+.native-app button,
+.native-app a,
+.native-app [role='button'],
+.native-app input,
+.native-app select {
+  touch-action: manipulation;
+}
+
+/*
+ * Minimum touch target. Apple HIG asks for 44pt and Material for 48dp; the
+ * app's prevailing `px-2 sm:px-4 py-1.5 sm:py-2` convention produces roughly
+ * 30px on a phone. This raises the floor everywhere without touching each
+ * call site, and there was previously no enforcement anywhere in the codebase.
+ */
+.native-app button,
+.native-app a[role='button'],
+.native-app [role='button'] {
+  min-height: 44px;
+}
+
+/* Icon-only controls need width too, not just height. */
+.native-app button:has(> svg:only-child) {
+  min-width: 44px;
+}
+
+/* ============================================= */
 /* PREMIUM ANIMATION CURVES & KEYFRAMES          */
 /* ============================================= */
 

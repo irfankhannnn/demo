@@ -187,7 +187,13 @@ class ApiService {
           console.error('[ApiService] Token refresh failed:', refreshError);
           this.isRefreshing = false;
           this.clearToken();
-          window.location.href = '/login';
+          // Signal the auth state machine in App.tsx rather than hard-navigating.
+          // A location assignment triggers a full document load, which the web
+          // app only survives because CloudFront rewrites unknown paths to
+          // index.html. Capacitor's local server has no such rule, so on mobile
+          // this was a white screen. clearToken() does not dispatch this itself,
+          // unlike clearAuth() in authStorage.
+          window.dispatchEvent(new Event('auth-changed'));
           throw new Error('Session expired. Please log in again.');
         }
       }
