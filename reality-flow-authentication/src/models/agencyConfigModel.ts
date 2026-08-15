@@ -20,6 +20,57 @@ export interface AgencyConfigItem {
   };
   createdAt: string;
   updatedAt: string;
+  /** Set when an admin deletes their account and the whole agency goes with it. */
+  deletionRequestedAt?: string;
+  /** When the CRM data purge job should hard-delete this tenant's records. */
+  deletionScheduledFor?: string;
+  /** userId that initiated the deletion, kept for the audit trail. */
+  deletionRequestedBy?: string;
+}
+
+/** Days between an account deletion request and the hard purge of tenant data. */
+export const DELETION_GRACE_PERIOD_DAYS = 30;
+
+/**
+ * Flag a tenant for data purge after an admin deletes their account.
+ *
+ * Identity is destroyed immediately by the caller (Cognito user, auth
+ * identities, user records) so nobody can sign in. This marker drives the
+ * separate purge job that removes the CRM records themselves.
+ *
+ * The grace period reconciles two obligations that pull in opposite directions:
+ * DPDP erasure rights, and the statutory retention of financial records such as
+ * the khata ledger and GST invoices. The window must match what the privacy
+ * policy tells users.
+ */
+export async function markAgencyForDeletion(
+  tenantId: string,
+  requestedByUserId: string
+): Promise<{ deletionScheduledFor: string }> {
+  const { AGENCY_CONFIG_TABLE } = getConfig();
+  const now = new Date();
+  const scheduledFor = new Date(
+    now.getTime() + DELETION_GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString();
+
+  await dynamodb
+    .update({
+      TableName: AGENCY_CONFIG_TABLE,
+      Key: { TenantId: tenantId },
+      UpdateExpression:
+        'SET #status = :status, updatedAt = :now, deletionRequestedAt = :now, ' +
+        'deletionScheduledFor = :scheduled, deletionRequestedBy = :by',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: {
+        ':status': 'INACTIVE',
+        ':now': now.toISOString(),
+        ':scheduled': scheduledFor,
+        ':by': requestedByUserId,
+      },
+    })
+    .promise();
+
+  return { deletionScheduledFor: scheduledFor };
 }
 
 /**

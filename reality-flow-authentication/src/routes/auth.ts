@@ -16,6 +16,10 @@ import {
   selfPhoneStart,
   selfPhoneVerify,
 } from '../controllers/contactLinkController';
+import {
+  deleteMyAccountHandler,
+  deletionPreviewHandler,
+} from '../controllers/accountController';
 
 const router = Router();
 
@@ -41,6 +45,11 @@ router.post('/accept-invite', requireAuth, acceptInvite);
 router.get('/me', requireAuth, me);
 router.patch('/profile', requireAuth, patchProfile);
 router.patch('/agency', requireAuth, patchAgency);
+
+// Self-service account deletion — App Store guideline 5.1.1(v) and Google
+// Play's data deletion policy both require this to be reachable in-app.
+router.get('/me/deletion-preview', requireAuth, deletionPreviewHandler);
+router.delete('/me', requireAuth, deleteMyAccountHandler);
 
 // Self-service contact linking
 router.post('/profile/contact/email/start', requireAuth, selfEmailStart);
