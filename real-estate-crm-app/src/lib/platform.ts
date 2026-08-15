@@ -26,13 +26,25 @@ import { Capacitor } from '@capacitor/core';
 const FORCED_NATIVE = import.meta.env.VITE_IS_NATIVE_BUILD === 'true';
 
 /**
+ * Test-only escape hatch so Playwright can exercise the mobile-only UI against
+ * an ordinary dev server, rather than needing a separate mobile build per run.
+ *
+ * Honoured only in dev builds. A production bundle ignores it entirely, so it
+ * cannot be used to flip a real user's app into native mode.
+ */
+function forcedByTestHarness(): boolean {
+  if (!import.meta.env.DEV) return false;
+  return (window as unknown as Record<string, unknown>).__FORCE_NATIVE_APP__ === true;
+}
+
+/**
  * True when the app should present as the native mobile app.
  *
  * Use for UI/UX branching. Do NOT use this to guard plugin calls — a
  * Playwright run with the build flag set satisfies this but has no bridge.
  */
 export function isNativeApp(): boolean {
-  return FORCED_NATIVE || Capacitor.isNativePlatform();
+  return FORCED_NATIVE || Capacitor.isNativePlatform() || forcedByTestHarness();
 }
 
 /**

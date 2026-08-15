@@ -15,6 +15,9 @@
     "test:api:simple": "playwright test --project=chromium-api --reporter=./reporters/apiReporter.ts",
     "test:api:html": "playwright test --project=chromium-api --reporter=html && npx playwright show-report reports/html",
     "test:crm": "playwright test --project=chromium-crm",
+    "test:mobile": "playwright test --project=mobile-android --project=mobile-ios",
+    "test:mobile:android": "playwright test --project=mobile-android",
+    "test:mobile:ios": "playwright test --project=mobile-ios",
 
     "test:leads": "playwright test ui/crm/lead-flows.spec.ts",
     "test:khata": "playwright test ui/crm/khata-flows.spec.ts",

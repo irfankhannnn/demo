@@ -76,6 +76,49 @@ export default defineConfig({
       dependencies: ['setup'],
       testMatch: [/ui\/crm\/.*\.spec\.ts/],
     }] : []),
+
+    /*
+     * Mobile projects. Every project above pins viewport 1280x720, so the
+     * entire suite only ever exercised desktop layouts — the app shipped 32+
+     * pages its own tracker flagged as not mobile-ready without a single test
+     * that would have noticed.
+     *
+     * These deliberately do NOT spread sharedUse: it would override the device
+     * descriptor's viewport, deviceScaleFactor, isMobile and hasTouch and turn
+     * them straight back into desktop runs.
+     */
+    {
+      name: 'mobile-android',
+      use: {
+        ...devices['Pixel 7'],
+        baseURL: BASE_URL,
+        headless: !process.env.PW_HEADED,
+        trace: IS_CI ? 'retain-on-failure' : 'on-first-retry',
+        screenshot: 'only-on-failure',
+        actionTimeout: 15_000,
+        navigationTimeout: 20_000,
+        ignoreHTTPSErrors: true,
+        storageState: path.join(__dirname, '.auth', 'user.json'),
+      },
+      dependencies: ['setup'],
+      testMatch: [/ui\/mobile\/.*\.spec\.ts/],
+    },
+    {
+      name: 'mobile-ios',
+      use: {
+        ...devices['iPhone 14 Pro'],
+        baseURL: BASE_URL,
+        headless: !process.env.PW_HEADED,
+        trace: IS_CI ? 'retain-on-failure' : 'on-first-retry',
+        screenshot: 'only-on-failure',
+        actionTimeout: 15_000,
+        navigationTimeout: 20_000,
+        ignoreHTTPSErrors: true,
+        storageState: path.join(__dirname, '.auth', 'user.json'),
+      },
+      dependencies: ['setup'],
+      testMatch: [/ui\/mobile\/.*\.spec\.ts/],
+    },
   ],
 
   webServer: {
