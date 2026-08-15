@@ -103,7 +103,16 @@ export default function Profile() {
     setSaving(true);
 
     try {
-      const authApiUrl = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3002';
+      // No localhost fallback. Inside the app that resolves to the device
+      // itself, so the request fails, and Android blocks cleartext HTTP by
+      // default anyway. Fail with a clear message instead of a confusing
+      // network error.
+      const authApiUrl = import.meta.env.VITE_AUTH_API_URL;
+      if (!authApiUrl) {
+        setError('Authentication service is not configured. Please contact support.');
+        return;
+      }
+
       const idToken = localStorage.getItem('auth_id_token');
       
       if (!idToken) {

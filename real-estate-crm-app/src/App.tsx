@@ -1,9 +1,10 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { GoogleMapsProvider } from './contexts/GoogleMapsContext';
 import { isAuthenticated as checkAuth, getIdToken, setUserProfile, getUserProfile, isProfileFresh, clearAuth, hasOnboardingSession, setTokens } from './utils/authStorage';
 import { callMe, refreshTokens } from './utils/cognitoAuth';
 import { identifyUser } from './lib/analytics';
+import { registerDeepLinkHandler, registerResumeHandler } from './lib/nativeAuth';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
@@ -24,6 +25,24 @@ import NpsEmailLanding from './pages/public/NpsEmailLanding';
 function SignupRedirect() {
   const location = useLocation();
   return <Navigate to={`/phone-login${location.search}`} replace />;
+}
+
+/**
+ * Routes native deep links into the app.
+ *
+ * On native, OAuth completes in a separate system browser and the OS hands the
+ * result back as `in.realestateflow.app://auth/callback?code=...`. This turns
+ * that into an in-app navigation so AuthCallback — the same component the web
+ * flow uses — does the code exchange. Renders nothing, and is inert on web.
+ *
+ * Must live inside <Router> because it needs useNavigate.
+ */
+function NativeDeepLinks() {
+  const navigate = useNavigate();
+
+  useEffect(() => registerDeepLinkHandler((path) => navigate(path, { replace: true })), [navigate]);
+
+  return null;
 }
 
 // Pages
@@ -297,14 +316,24 @@ function App() {
       checkAndRefresh().catch(err => console.error('Initial token refresh failed:', err));
     }, 1000);
 
+    // The interval above is a JS timer, and mobile operating systems suspend
+    // timers for backgrounded apps. An app resumed after more than an hour would
+    // otherwise hold an expired token and fail its first API call before this
+    // ever ticked. Re-check the moment we come back to the foreground.
+    const unregisterResume = registerResumeHandler(() => {
+      checkAndRefresh().catch(err => console.error('Resume token refresh failed:', err));
+    });
+
     return () => {
       clearInterval(intervalId);
       clearTimeout(timeoutId);
+      unregisterResume();
     };
   }, [authState]);
 
   return (
     <Router>
+      <NativeDeepLinks />
       <GoogleMapsProvider>
         <SubscriptionProvider>
           <CreditsProvider>

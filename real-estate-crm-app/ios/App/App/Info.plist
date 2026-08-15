@@ -22,6 +22,26 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<!--
+		Custom scheme for the OAuth return leg. Sign-in runs in
+		SFSafariViewController (Google rejects OAuth in embedded WebViews) and
+		Cognito redirects to in.realestateflow.app://auth/callback to hand back
+		the authorization code. Delivered to the app as the appUrlOpen event and
+		handled in lib/nativeAuth.ts.
+	-->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>in.realestateflow.app</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>in.realestateflow.app</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

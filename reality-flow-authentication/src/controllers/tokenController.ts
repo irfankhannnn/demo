@@ -7,6 +7,32 @@ import { setRefreshTokenCookie, getRefreshTokenFromCookie, clearRefreshTokenCook
 import { logger } from '../utils/logger';
 
 /**
+ * Origins the Capacitor WebView reports: capacitor://localhost on iOS,
+ * https://localhost on Android.
+ */
+const NATIVE_ORIGINS = new Set(['capacitor://localhost', 'https://localhost']);
+
+/**
+ * Whether to return the refresh token in the response body.
+ *
+ * Native apps cannot use the httpOnly cookie: capacitor://localhost is not a
+ * trustworthy origin for a Secure cookie, and WKWebView blocks it as a
+ * third-party cookie against this domain. Public native clients are expected to
+ * hold a refresh token in device secure storage (RFC 8252); the app keeps it in
+ * the iOS Keychain / Android Keystore.
+ *
+ * Keyed on the Origin header, NOT on the X-Client-Platform hint. A browser
+ * cannot forge Origin, so an XSS on the web app cannot ask for the refresh
+ * token in a readable body and escalate a session-scoped compromise into 30 days
+ * of stolen access. The header is accepted as an explicit signal but is never
+ * sufficient on its own.
+ */
+function wantsRefreshTokenInBody(req: Request): boolean {
+  const origin = String(req.headers.origin || '').trim();
+  return NATIVE_ORIGINS.has(origin);
+}
+
+/**
  * POST /auth/token
  * Exchanges authorization code for tokens (server-side)
  * This keeps the client secret secure on the server
@@ -52,12 +78,16 @@ export async function exchangeToken(req: Request, res: Response): Promise<void> 
       setRefreshTokenCookie(res, response.data.refresh_token);
     }
 
-    // Return tokens to frontend (refresh_token intentionally omitted)
+    // Return tokens to frontend. refresh_token is omitted for web clients, which
+    // get it as an httpOnly cookie above, and included only for native clients.
     ok(res, {
       id_token: response.data.id_token,
       access_token: response.data.access_token,
       expires_in: response.data.expires_in,
       token_type: response.data.token_type,
+      ...(wantsRefreshTokenInBody(req) && response.data.refresh_token
+        ? { refresh_token: response.data.refresh_token }
+        : {}),
     });
   } catch (error: any) {
     logger.error('token.exchange_failed', { error: error.response?.data || error.message });
@@ -155,6 +185,11 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
       access_token: response.data.access_token,
       expires_in: response.data.expires_in,
       token_type: response.data.token_type,
+      // Cognito rotates refresh tokens. A native client that never receives the
+      // rotated value would fail its next refresh and be signed out silently.
+      ...(wantsRefreshTokenInBody(req) && response.data.refresh_token
+        ? { refresh_token: response.data.refresh_token }
+        : {}),
     });
   } catch (error: any) {
     logger.error('token.refresh_failed', { error: error.response?.data || error.message });

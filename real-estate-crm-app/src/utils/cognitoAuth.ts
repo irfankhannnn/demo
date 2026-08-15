@@ -10,6 +10,25 @@ import {
   clearCodeVerifier,
 } from './pkce';
 import { type AuthTokens } from './authStorage';
+import { isNativeApp, hasNativeRuntime } from '../lib/platform';
+import {
+  setSecret,
+  getSecret,
+  removeSecret,
+  SECURE_KEY_REFRESH_TOKEN,
+} from '../lib/secureStore';
+import { openAuthBrowser, closeAuthBrowser } from '../lib/nativeAuth';
+
+/**
+ * Marks a request as coming from the native app.
+ *
+ * The auth service only honours this when the request Origin is also a native
+ * origin, which a browser cannot forge — so an XSS on the web app cannot set
+ * this header to have a refresh token returned in the response body.
+ */
+function nativeClientHeaders(): Record<string, string> {
+  return isNativeApp() ? { 'X-Client-Platform': 'native' } : {};
+}
 
 // --- Env-driven config ---
 
@@ -22,11 +41,19 @@ const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 // --- Public helpers ---
 
 /**
- * Redirect the browser to the Cognito Hosted UI authorize endpoint (Authorization Code + PKCE).
+ * Start the Cognito Hosted UI authorize flow (Authorization Code + PKCE).
+ *
+ * Web navigates the page. Native opens a real system browser instead —
+ * SFSafariViewController on iOS, Chrome Custom Tabs on Android — because Google
+ * has refused OAuth inside embedded WebViews since July 2023, returning
+ * `disallowed_useragent` (403). Navigating the Capacitor WebView here would make
+ * sign-in impossible. Both of those are browsers rather than embedded WebViews,
+ * which is exactly what Google's policy requires, and the flow returns to the app
+ * through the custom-scheme redirect handled in lib/nativeAuth.ts.
  */
 export async function redirectToLogin(): Promise<void> {
   const verifier = generateCodeVerifier();
-  storeCodeVerifier(verifier);
+  await storeCodeVerifier(verifier);
   const challenge = await generateCodeChallenge(verifier);
 
   const params = new URLSearchParams({
@@ -40,6 +67,12 @@ export async function redirectToLogin(): Promise<void> {
   });
 
   const authorizeUrl = `${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;
+
+  if (hasNativeRuntime()) {
+    await openAuthBrowser(authorizeUrl);
+    return;
+  }
+
   window.location.href = authorizeUrl;
 }
 
@@ -48,7 +81,7 @@ export async function redirectToLogin(): Promise<void> {
  * This keeps the client secret secure on the backend.
  */
 export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
-  const codeVerifier = getStoredCodeVerifier();
+  const codeVerifier = await getStoredCodeVerifier();
   if (!codeVerifier) {
     throw new Error('PKCE code verifier not found. Please try logging in again.');
   }
@@ -63,7 +96,7 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
   try {
     const response = await fetch(tokenUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...nativeClientHeaders() },
       credentials: 'include',  // Required to store httpOnly refresh_token cookie
       body: JSON.stringify(body),
     });
@@ -74,7 +107,17 @@ export async function exchangeCodeForTokens(code: string): Promise<AuthTokens> {
     }
 
     const data = await response.json();
-    clearCodeVerifier();
+    await clearCodeVerifier();
+
+    // Native clients receive the refresh token in the body and keep it in the
+    // keystore. The httpOnly cookie the web app relies on cannot work here: the
+    // WebView origin (capacitor://localhost) is not a trustworthy origin for a
+    // Secure cookie, and WKWebView's tracking prevention blocks it as a
+    // third-party cookie against the auth domain regardless. Without this the
+    // 1-hour tokens simply expire and every mobile user is logged out hourly.
+    if (isNativeApp() && data.refresh_token) {
+      await setSecret(SECURE_KEY_REFRESH_TOKEN, data.refresh_token);
+    }
 
     const tokens: AuthTokens = {
       idToken: data.id_token,
@@ -338,11 +381,24 @@ export async function refreshTokens(): Promise<AuthTokens> {
   const tokenUrl = `${AUTH_API_URL}/auth/refresh`;
 
   try {
-    // The refresh token is sent automatically as an httpOnly cookie
+    // Web relies on the httpOnly cookie being sent automatically. Native sends
+    // the token from the keystore explicitly, because that cookie never arrives
+    // in a WebView (see exchangeCodeForTokens for why).
+    const storedRefreshToken = isNativeApp()
+      ? await getSecret(SECURE_KEY_REFRESH_TOKEN)
+      : null;
+
+    if (isNativeApp() && !storedRefreshToken) {
+      throw new Error('No stored refresh token. Please sign in again.');
+    }
+
     const response = await fetch(tokenUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...nativeClientHeaders() },
       credentials: 'include',
+      body: storedRefreshToken
+        ? JSON.stringify({ refresh_token: storedRefreshToken })
+        : undefined,
     });
 
     if (!response.ok) {
@@ -351,6 +407,12 @@ export async function refreshTokens(): Promise<AuthTokens> {
     }
 
     const data = await response.json();
+
+    // Cognito rotates refresh tokens. Persist the new one or the next refresh
+    // after rotation fails and the user is silently signed out.
+    if (isNativeApp() && data.refresh_token) {
+      await setSecret(SECURE_KEY_REFRESH_TOKEN, data.refresh_token);
+    }
 
     const tokens: AuthTokens = {
       idToken: data.id_token,
@@ -380,13 +442,27 @@ export async function refreshTokens(): Promise<AuthTokens> {
 }
 
 /**
- * Redirect the browser to the Cognito Hosted UI logout endpoint, then back to login page.
+ * Sign out of the Cognito Hosted UI session, then return to the login page.
+ *
+ * On native the stored refresh token is destroyed first. It is the long-lived
+ * credential (30 days) and it lives on the device, so leaving it behind would
+ * mean "logout" did not actually end the session — the next launch could refresh
+ * straight back in. The keystore wipe happens before the browser call so that a
+ * failure to open the browser still leaves the user signed out locally.
  */
-export function redirectToLogout(): void {
+export async function redirectToLogout(): Promise<void> {
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
   });
 
   const logoutUrl = `${COGNITO_DOMAIN}/logout?${params.toString()}&logout_uri=${encodeURIComponent(LOGOUT_URI)}`;
+
+  if (hasNativeRuntime()) {
+    await removeSecret(SECURE_KEY_REFRESH_TOKEN);
+    await closeAuthBrowser();
+    await openAuthBrowser(logoutUrl);
+    return;
+  }
+
   window.location.href = logoutUrl;
 }

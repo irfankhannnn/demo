@@ -22,6 +22,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!--
+                Custom scheme for the OAuth return leg. Sign-in runs in Chrome
+                Custom Tabs (Google rejects OAuth in embedded WebViews), and
+                Cognito redirects here to hand the authorization code back.
+                Handled by lib/nativeAuth.ts via the appUrlOpen event.
+                MainActivity is already launchMode="singleTask", so this
+                delivers onNewIntent to the running app rather than starting a
+                second copy on top of the user's session.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="in.realestateflow.app" />
+            </intent-filter>
+
         </activity>
 
         <provider
