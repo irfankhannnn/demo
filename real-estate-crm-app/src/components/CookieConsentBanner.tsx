@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 /**
  * CRM Cookie Consent Banner (DPDP-compliant).
@@ -95,9 +96,9 @@ export default function CookieConsentBanner() {
           <p className="text-sm leading-relaxed text-slate-200">
             We use essential cookies to run the app. With your consent we also measure product
             usage via PostHog to improve RealtyFlow. No ads, no retargeting. See our{' '}
-            <a href="/legal/privacy" className="underline hover:text-white">
+            <Link to="/legal/privacy" className="underline hover:text-white">
               Privacy Policy
-            </a>
+            </Link>
             .
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

@@ -7,6 +7,7 @@
 import posthog from 'posthog-js';
 import * as Sentry from '@sentry/react';
 import type { AnalyticsEvent, UserTraits } from '../types/analytics';
+import { isNativeApp } from './platform';
 
 /** Call from main.tsx once on app load. */
 export function initAnalytics(): void {
@@ -27,7 +28,12 @@ export function initAnalytics(): void {
     posthog.init(posthogKey, {
       api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
       capture_pageview: false,
-      disable_session_recording: false,
+      // Session replay is off in the mobile builds. In a CRM it captures lead
+      // names, phone numbers, khata financials, Aadhaar and PAN fields and
+      // uploaded documents, and every category recorded has to be declared on
+      // both the Apple privacy manifest and the Play Data Safety form. Not worth
+      // the disclosure surface for the mobile release.
+      disable_session_recording: isNativeApp(),
       persistence: 'memory',
     });
   } catch (err) {

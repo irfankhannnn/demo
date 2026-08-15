@@ -17,6 +17,9 @@ interface ImportMetaEnv {
   // Support WhatsApp number, digits only with country code (e.g. 919876543210).
   // Support links are hidden when this is unset rather than rendering a dead link.
   readonly VITE_SUPPORT_WHATSAPP?: string;
+  // Base URL of the hosted legal documents (privacy, terms, cookies, refund).
+  // Defaults to https://realestateflow.in/legal.
+  readonly VITE_LEGAL_BASE_URL?: string;
 
   // Auth configuration
   readonly VITE_AUTH_API_URL: string;

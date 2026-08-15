@@ -20,6 +20,7 @@ import CookieConsentBanner from './components/CookieConsentBanner';
 // PR-K
 import NpsModal from './components/NpsModal';
 import NpsEmailLanding from './pages/public/NpsEmailLanding';
+import LegalDocument from './pages/public/LegalDocument';
 // === [/LAUNCH COMPONENT IMPORTS] ===
 
 function SignupRedirect() {
@@ -352,6 +353,14 @@ function App() {
             {/* Public routes */}
             <Route path="/grievance" element={<Grievance />} />
             <Route path="/nps" element={<NpsEmailLanding />} />
+            {/* Public legal routes. CookieConsentBanner and Grievance already
+                linked here, but the routes did not exist, so both links fell
+                through the catch-all. An unreachable privacy policy is a
+                straightforward store rejection. */}
+            <Route path="/legal/privacy" element={<LegalDocument kind="privacy" />} />
+            <Route path="/legal/terms" element={<LegalDocument kind="terms" />} />
+            <Route path="/legal/cookies" element={<LegalDocument kind="cookies" />} />
+            <Route path="/legal/refund" element={<LegalDocument kind="refund" />} />
             {/* === [/LAUNCH PUBLIC ROUTES] === */}
             <Route path="/login" element={<AdminLogin />} />
             <Route path="/signup" element={<SignupRedirect />} />
