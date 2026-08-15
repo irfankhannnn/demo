@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
-import { Upload, X, Image as ImageIcon, Video, Loader2 } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Video, Loader2, Camera as CameraIcon } from 'lucide-react';
+import { canUseNativeCamera, capturePhoto, pickPhotos } from '../lib/nativeCamera';
 
 interface MediaItem {
   url?: string;
@@ -58,6 +59,20 @@ export default function MediaUploadSection({
       const files = Array.from(e.target.files);
       await handleFiles(files);
     }
+  };
+
+  // Camera capture only makes sense for images; video capture would need a
+  // different plugin, so video uploads keep the file picker on native too.
+  const showCameraActions = canUseNativeCamera() && type === 'images';
+
+  const handleTakePhoto = async () => {
+    const photo = await capturePhoto('camera');
+    if (photo) await handleFiles([photo]);
+  };
+
+  const handlePickFromGallery = async () => {
+    const photos = await pickPhotos(maxFiles);
+    if (photos.length > 0) await handleFiles(photos);
   };
 
   const handleFiles = async (files: File[]) => {
@@ -122,18 +137,50 @@ export default function MediaUploadSection({
         />
         
         <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-        <p className="text-gray-600 mb-2">
-          Drag & drop {type} here, or{' '}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="text-blue-600 hover:text-blue-700 font-semibold"
-            disabled={uploading}
-          >
-            browse
-          </button>
-        </p>
-        <p className="text-sm text-gray-500">
+
+        {/*
+          On a phone, a broker standing in front of a property should be able to
+          photograph it without leaving the app. None of the 21 file inputs in
+          the codebase carries a `capture` attribute, so the only route was the
+          OS file picker. Drag & drop is meaningless on touch, so native gets a
+          camera/gallery pair instead.
+        */}
+        {showCameraActions ? (
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button
+              type="button"
+              onClick={handleTakePhoto}
+              disabled={uploading}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-lg bg-brand px-5 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              <CameraIcon className="h-4 w-4" />
+              Take photo
+            </button>
+            <button
+              type="button"
+              onClick={handlePickFromGallery}
+              disabled={uploading}
+              className="inline-flex items-center justify-center gap-2 min-h-[44px] rounded-lg bg-slate-100 px-5 py-3 text-sm font-medium text-slate-700 hover:bg-slate-200 disabled:opacity-50"
+            >
+              <ImageIcon className="h-4 w-4" />
+              Choose from gallery
+            </button>
+          </div>
+        ) : (
+          <p className="text-gray-600 mb-2">
+            Drag &amp; drop {type} here, or{' '}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-blue-600 hover:text-blue-700 font-semibold"
+              disabled={uploading}
+            >
+              browse
+            </button>
+          </p>
+        )}
+
+        <p className="text-sm text-gray-500 mt-2">
           Max {maxFiles} files, {type === 'images' ? 'JPG, PNG, GIF' : 'MP4, MOV, AVI'} (up to 100MB each)
         </p>
 
