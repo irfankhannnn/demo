@@ -54,4 +54,36 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Location, for the property location picker. Coarse is declared too so
+         the app still works when the user grants approximate location only. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Camera, for capturing property photos and identity documents. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+        Android 11+ package visibility. Without these <queries>, resolving an
+        implicit intent for tel:, mailto:, or a WhatsApp link silently fails
+        with ActivityNotFoundException even when a handler is installed — the
+        app simply cannot see it. The CRM opens all three from lead and
+        contact records.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.DIAL" />
+            <data android:scheme="tel" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
 </manifest>

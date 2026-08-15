@@ -4,6 +4,7 @@ import { ArrowLeft, Download, Users } from 'lucide-react';
 import { getIdToken, getUserProfile } from '../../utils/authStorage';
 import { getTenantHeaders } from '../../config/tenant';
 import GlassDataTable from '../../components/GlassDataTable';
+import { exportBlobFile } from '../../lib/fileExport';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -86,12 +87,11 @@ export default function TeamAnalytics() {
     });
     if (!res.ok) return;
     const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `team-analytics-${new Date().toISOString().slice(0, 10)}.xlsx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await exportBlobFile({
+      filename: `team-analytics-${new Date().toISOString().slice(0, 10)}.xlsx`,
+      blob,
+      shareTitle: 'Team analytics export',
+    }).catch((err) => console.error('Export failed:', err));
   };
 
   const columns = [

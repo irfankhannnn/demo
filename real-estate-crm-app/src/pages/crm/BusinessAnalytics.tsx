@@ -21,6 +21,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { exportTextFile } from '../../lib/fileExport';
 
 interface AgreementExpiry {
   propertyId: string;
@@ -127,12 +128,12 @@ export default function BusinessAnalytics() {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `business-analytics-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    exportTextFile({
+      filename: `business-analytics-${new Date().toISOString().split('T')[0]}.csv`,
+      data: csv,
+      mimeType: 'text/csv',
+      shareTitle: 'Business analytics export',
+    }).catch((err) => console.error('Export failed:', err));
   };
 
   const filteredExpiries = data?.agreementExpiries

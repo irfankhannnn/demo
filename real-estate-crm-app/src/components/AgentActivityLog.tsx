@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Bot, RefreshCw, ChevronDown, ChevronUp, ExternalLink, Calendar, Download } from 'lucide-react';
 import { getIdToken } from '../utils/authStorage';
 import { getTenantHeaders } from '../config/tenant';
+import { exportTextFile } from '../lib/fileExport';
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -139,15 +140,12 @@ export function AgentActivityLog({
       ),
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `agent-activity-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    exportTextFile({
+      filename: `agent-activity-${new Date().toISOString().split('T')[0]}.csv`,
+      data: csvContent,
+      mimeType: 'text/csv',
+      shareTitle: 'Agent activity export',
+    }).catch((err) => console.error('Export failed:', err));
   };
 
   if (loading) return (

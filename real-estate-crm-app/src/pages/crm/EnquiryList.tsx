@@ -37,6 +37,7 @@ import { CRMEnquiryNote, CRMMeeting } from '../../types/crm';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
+import { hasNativeRuntime } from '../../lib/platform';
 
 interface Enquiry {
   enquiryId: string;
@@ -470,6 +471,12 @@ export default function EnquiryList() {
 
   // Voice recording functions
   const startVoiceRecording = () => {
+    // Neither WKWebView nor the Android System WebView implements the Web
+    // Speech API, so this can never work inside the app.
+    if (hasNativeRuntime()) {
+      showToast('Voice input is not available in the mobile app yet.', 'error');
+      return;
+    }
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       showToast('Voice recording is not supported in this browser. Please use Chrome or Edge.', 'error');
       return;

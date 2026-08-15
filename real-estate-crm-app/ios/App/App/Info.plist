@@ -42,6 +42,32 @@
 			</array>
 		</dict>
 	</array>
+	<!--
+		Apple rejects any build that touches these APIs without a usage string,
+		and the string is shown verbatim in the permission prompt — so each one
+		states the concrete reason rather than a generic "for app functionality",
+		which reviewers push back on.
+	-->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RealEstateFlow uses your location to set the map position of a property you are adding, so you do not have to type coordinates.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>RealEstateFlow uses the camera to photograph properties and capture identity or agreement documents for your records.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RealEstateFlow needs access to your photos so you can attach property images and documents to a record.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>RealEstateFlow saves exported reports and property images to your photo library when you choose to.</string>
+	<!--
+		Android 11+ has <queries>; the iOS equivalent is this allowlist. Without
+		it canOpenURL returns false for WhatsApp and the contact actions on lead
+		and contact records silently do nothing.
+	-->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+		<string>tel</string>
+		<string>telprompt</string>
+		<string>mailto</string>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

@@ -33,6 +33,23 @@ export async function openAuthBrowser(url: string): Promise<void> {
   await Browser.open({ url, presentationStyle: 'popover' });
 }
 
+/**
+ * Open an arbitrary external URL for the user.
+ *
+ * Prefer this over window.open and target="_blank". In a WebView those open a
+ * blank in-app frame with no address bar, no share action and no reliable way
+ * back to the app. The system browser gives the user all three.
+ *
+ * Fire-and-forget: opening a link should never reject into a click handler.
+ */
+export function openExternal(url: string): void {
+  if (!hasNativeRuntime()) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  Browser.open({ url }).catch((err) => console.warn('Failed to open URL:', err));
+}
+
 /** Dismiss the auth browser. Safe to call when nothing is open. */
 export async function closeAuthBrowser(): Promise<void> {
   if (!hasNativeRuntime()) return;

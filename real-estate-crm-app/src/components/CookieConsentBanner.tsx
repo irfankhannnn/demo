@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { isNativeApp } from '../lib/platform';
 
 /**
  * CRM Cookie Consent Banner (DPDP-compliant).
@@ -89,13 +90,23 @@ export default function CookieConsentBanner() {
       role="dialog"
       aria-label="Cookie consent"
       aria-modal={showCustomize}
-      className="fixed inset-x-0 bottom-0 z-[9999] border-t border-slate-700 bg-[#07111E] text-white shadow-2xl"
+      className="fixed inset-x-0 bottom-0 z-[9999] border-t border-slate-700 bg-[#07111E] text-white shadow-2xl pb-[env(safe-area-inset-bottom)]"
     >
       {!showCustomize ? (
         <div className="mx-auto flex max-w-5xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          {/*
+            Reworded rather than hidden on native. The banner cannot simply be
+            removed there: analytics.ts gates PostHog on this stored consent, so
+            suppressing the prompt would silently disable product analytics
+            entirely, and DPDP still requires consent for non-essential
+            processing. What changes is the framing — "cookies" is the wrong
+            word in an app, and is a conspicuous "this is a website" tell.
+          */}
           <p className="text-sm leading-relaxed text-slate-200">
-            We use essential cookies to run the app. With your consent we also measure product
-            usage via PostHog to improve RealtyFlow. No ads, no retargeting. See our{' '}
+            {isNativeApp()
+              ? 'With your consent we measure how the app is used, via PostHog, to improve RealEstateFlow. No ads, no retargeting, no session recording.'
+              : 'We use essential cookies to run the app. With your consent we also measure product usage via PostHog to improve RealtyFlow. No ads, no retargeting.'}{' '}
+            See our{' '}
             <Link to="/legal/privacy" className="underline hover:text-white">
               Privacy Policy
             </Link>
@@ -127,16 +138,18 @@ export default function CookieConsentBanner() {
         </div>
       ) : (
         <div className="mx-auto max-w-5xl px-5 py-5">
-          <h2 className="text-base font-semibold text-white">Cookie preferences</h2>
+          <h2 className="text-base font-semibold text-white">{isNativeApp() ? 'Privacy preferences' : 'Cookie preferences'}</h2>
           <p className="mt-1 text-sm text-slate-300">
-            Manage how RealtyFlow uses cookies in the app.
+            {isNativeApp()
+              ? 'Manage how RealEstateFlow measures app usage.'
+              : 'Manage how RealtyFlow uses cookies in the app.'}
           </p>
 
           <div className="mt-4 space-y-3">
             <div className="flex items-start justify-between gap-4 rounded-md border border-slate-700 bg-slate-900/40 p-3">
               <div>
                 <p className="text-sm font-medium text-white">Essential</p>
-                <p className="text-xs text-slate-400">Required for the site to work.</p>
+                <p className="text-xs text-slate-400">{isNativeApp() ? 'Required for the app to work.' : 'Required for the site to work.'}</p>
               </div>
               <span className="select-none rounded bg-slate-700 px-2 py-1 text-xs font-medium text-slate-200">
                 Always on

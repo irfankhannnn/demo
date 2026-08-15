@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Mic, MicOff } from 'lucide-react';
+import { hasNativeRuntime } from '../lib/platform';
 
 type SpeechRecognitionType = typeof window extends any
   ? any
@@ -25,6 +26,11 @@ export default function SpeechToTextButton({
 }) {
   const RecognitionCtor = useMemo(() => {
     if (typeof window === 'undefined') return null;
+    // The Web Speech API is not implemented in either WKWebView or the Android
+    // System WebView. The constructor is sometimes present but never produces
+    // results, so the button would sit there looking functional and do nothing.
+    // Hiding it is honest; a real implementation needs a native speech plugin.
+    if (hasNativeRuntime()) return null;
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }, []);
 
