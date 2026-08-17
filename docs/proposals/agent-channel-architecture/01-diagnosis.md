@@ -98,10 +98,43 @@ So roughly 13+ tools available to the WhatsApp/web agent are simply unreachable 
 
 **Architecturally, this path bypasses the entire agent core.** MCP calls hit `invokeSkill()` directly — same permission check (`canUserAccessTool`), same DynamoDB handlers — but no domain routing, no conversation memory, no Hinglish tone, no deterministic list/card formatting. The external MCP client does its own planning and tool sequencing; this is why an MCP client with a strong model already gets a working multi-step loop "for free," while the homegrown WhatsApp planner does not.
 
+## 4. Search and retrieval (cross-cutting gap)
+
+Not a fourth agent surface, but a shared weakness underneath all of them.
+
+`searchLeads` (`server/crmDynamodbService.js:5823`) and `searchProperties` (`:5934`) both load every record for the tenant and then substring-match in Lambda:
+
+```js
+const leads = unwrapLeadsList(await getLeads(tenantId));
+filtered = filtered.filter(lead =>
+  lead.buyerRequirement?.requirement?.toLowerCase().includes(normalizedQuery) || /* …15 more… */);
+```
+
+And `getLeads` (`:3701`) underneath is a **full `ScanCommand`** on the shared multi-tenant `CrmTable` with a `FilterExpression`, capped at `maxPages: 100`.
+
+Four consequences:
+
+1. **Meaning is unmatchable.** `"do bedroom flat, station ke paas"` never matches a search for `"2BHK near metro"`. Given the project's 70/30 Hinglish convention, this is the common case.
+2. **Cost grows with total tenant data**, because a filtered Scan consumes read capacity for everything scanned, not everything returned.
+3. **No ranking.** `.includes()` is boolean — there is no "closer fit."
+4. **Silent truncation** past 100 pages, with no error.
+
+Two capabilities are missing outright, not merely slow:
+
+- **Property matching.** No `matchProperties` / `recommendedProperties` exists anywhere (verified: zero matches). *"Which properties fit this lead?"* is not a query at all today.
+- **Call transcript search.** `docs/CALL_INTELLIGENCE.md §12` offers filter-by-status and pagination only.
+
+Addressed in [`05-retrieval-and-vector-search.md`](./05-retrieval-and-vector-search.md).
+
 ## Summary of what this proposal acts on
 
-- **Fix:** WhatsApp agent's single-shot limitation (issue 1–2 above) — this is the actual blocker for "complete flow from WhatsApp."
+- **Fix:** WhatsApp agent's single-shot limitation (issue 1–2 above) — this is the actual blocker for "complete flow from WhatsApp." → [`flows/01`](./flows/01-whatsapp-agent.md)
 - **Add:** a channel-aware compose step so the same core produces a short WhatsApp reply and a long, streamed web reply from the same tool results.
-- **Add:** a second channel (in-CRM web chat) on the same core, once conversation state is channel-agnostic.
-- **Fix (lower priority, independent):** eliminate the MCP tool-definition drift by generating `reality-flow-mcp`'s schema from the canonical registry instead of hand-maintaining a copy.
-- **Not touched:** the Exotel/voice pipeline, model provider choice, delete/billing semantics beyond what channel work requires.
+- **Add:** a second channel (in-CRM web chat) on the same core, once conversation state is channel-agnostic. → [`flows/02`](./flows/02-web-crm-chat.md)
+- **Fix:** unattended flows (qualifier, router, follow-up cron) currently run with full chat-agent autonomy; move them to constrained extraction + deterministic rules, as Call Intelligence already does. → [`flows/04`](./flows/04-background-automation.md)
+- **Add:** semantic retrieval over free-text fields, and the property-matching capability that does not exist today. → [`05-retrieval-and-vector-search.md`](./05-retrieval-and-vector-search.md)
+- **Fix (independent):** eliminate the MCP tool-definition drift by generating `reality-flow-mcp`'s schema from the canonical registry instead of hand-maintaining a copy. → [`flows/06`](./flows/06-mcp-external.md)
+- **Improve (independent):** replace the Exotel voice classifier's English-only regex with a rules-then-LLM fallback, keeping its single-step realtime shape. → [`flows/05`](./flows/05-voice-exotel.md)
+- **Not touched:** model provider choice, and delete/billing semantics beyond what the channel work requires.
+
+Why each flow gets the mode it gets: [`04-orchestration-patterns.md`](./04-orchestration-patterns.md).

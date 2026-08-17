@@ -87,6 +87,34 @@ API Gateway REST added response streaming (`ResponseTransferMode: STREAM`) in No
 
 `reality-flow-mcp/` stays a separate service for **external** AI clients (Claude Desktop, ChatGPT, etc.). The internal agent core does **not** become an MCP client of its own tools — that would add a network hop and serialization cost for zero benefit, since the core already has direct in-process access via `skillInvoker.js`. The only fix needed here is generating `reality-flow-mcp`'s tool schema from the canonical `server/shared/toolDefinitions.js` at build/deploy time instead of hand-maintaining a second copy — see `03-implementation-plan.md` Phase 5.
 
+### 6. Semantic retrieval layer
+
+The tool registry gains a small number of retrieval tools backed by DynamoDB Vector Search — embeddings stored on existing items in existing tables, no separate vector database. Because they live in the same registry, every flow and MCP get them at once.
+
+```
+        BOUNDED TOOL LOOP
+                │
+                ├──▶ skillInvoker  ──▶ crmDynamodbService ──▶ DynamoDB (exact: keys, GSIs)
+                │
+                └──▶ retrieval helper ──▶ Bedrock Titan (embed query)
+                                     └──▶ SearchVectors   ──▶ DynamoDB vector index
+                                              │
+                                    tenantId = :t  ← MANDATORY (API-enforced)
+                                    score threshold ← enforced centrally
+                                    range post-filter (inline filters are `=` only)
+```
+
+Two rules that keep this from becoming a liability:
+
+- **Exact stays exact.** Identity lookups — phone numbers, IDs, keys — never go through ANN search. Vector search is for free-text meaning (`requirement`, `notes`, `summary`, `description`) only.
+- **Tenant scoping is structural, not conventional.** `tenantId` is the vector index partition key, which makes AWS reject any search that omits it.
+
+Full design, constraints and risks: [`05-retrieval-and-vector-search.md`](./05-retrieval-and-vector-search.md).
+
+### 7. Orchestration modes for non-chat flows
+
+The bounded loop above applies to flows where a human reads the output turn by turn. Unattended flows (event-driven, scheduled) use a different mode — the LLM produces structured facts, deterministic code selects tools, and writes beyond a safe default queue for approval. See [`04-orchestration-patterns.md`](./04-orchestration-patterns.md) for the selection rule and [`flows/`](./flows/) for each flow's architecture.
+
 ## Deletes stay out of AI reach
 
 Not specific to channels, but relevant to any multi-step loop: the 8 `delete_*` tools currently in the registry should be removed from what the agent can call, replaced with `archive_*` tools that flip a status field and are fully reversible. Hard deletion becomes an admin-UI-only path. This also removes the `gateDeleteToolPlan()` / `pendingConfirmation` confirmation subsystem from the runtime entirely, which is one less thing the bounded loop has to reason about.

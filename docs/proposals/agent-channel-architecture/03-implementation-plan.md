@@ -62,6 +62,47 @@ Ordered so measurement comes first — later phases need a baseline to be shown 
 
 **Files touched:** `server/infra/cfn-backend.yaml` (new route + Lambda), new web channel adapter under `server/agents/`, new chat panel under `real-estate-crm-app/src/pages/` or equivalent, `docs/interaction-design/` update once shipped.
 
+## Phase 5b — Re-mode the background flows (independent, any time after Phase 1)
+
+**Ships:** unattended automation that can no longer write outside its allowlist.
+
+The lead qualifier, lead router and follow-up cron currently call `invokeAgent()` and inherit full chat-agent autonomy over 87 tools with nobody watching. Move them to Mode B — the shape Call Intelligence already uses successfully.
+
+- Freeze current inputs/outputs as fixtures **before** changing anything.
+- Remove tool declarations from these flows' model calls; require schema-validated structured output.
+- Extract rubric thresholds and assignment rules from prompts into unit-testable code.
+- Add a per-source tool allowlist at the `skillInvoker` boundary (it already takes `{ userId, source }`).
+- Delete `extractScoreLabel()`'s prose-sniffing fallback once output is schema-constrained.
+- Preserve the `scoreSource` precedence rule (`ai_call` beats `llm_text`).
+
+**Files touched:** `server/scripts/lead-qualifier-handler.js`, `server/scripts/lead-router-handler.js`, `server/scripts/lead-followup-cron.js`, `server/skillInvoker.js`, `server/utils/leadRubric.js`. Detail: [`flows/04-background-automation.md`](./flows/04-background-automation.md).
+
+## Phase 5c — Voice classifier (independent)
+
+**Ships:** the Exotel agent understands Hinglish.
+
+Keep Mode C — no tool loop, realtime latency budget stands. Replace only the classifier: Hinglish patterns in the regex fast-path first (cheap, may be sufficient), then a small-model structured-output fallback with a hard timeout falling through to the existing `SMALL_TALK` default. Mirrors the proven `domainRouter.js` shape.
+
+**Files touched:** `ai-calling-service/src/services/intentService.js`, `ai-calling-service/src/config/constants.js`. Detail: [`flows/05-voice-exotel.md`](./flows/05-voice-exotel.md).
+
+## Phase R — Semantic retrieval (independent track, runs alongside)
+
+**Ships:** semantic search, and the property-matching capability that does not exist today.
+
+Full design and constraints in [`05-retrieval-and-vector-search.md`](./05-retrieval-and-vector-search.md). Summary:
+
+| Step | Work | Gate |
+|---|---|---|
+| **R0** | Bump `@aws-sdk/client-dynamodb` + `lib-dynamodb` to `≥3.1103.0` (locked at `3.936.0`, predates the feature by ~9 months) | Test suite green |
+| **R1** | Non-prod spike: throwaway table, `tenantId` as `SearchSchema` HASH, ~200 real call summaries. Measure recall, latency, cost. Confirm `search-dynamodb.{region}.amazonaws.com` is reachable from a Lambda in our networking setup | **Cross-tenant isolation test passes** |
+| **R2** | `server/services/embeddings/` — `buildEmbeddingSource()`, `embedText()`, and a `searchVectors()` helper with mandatory tenant scoping and score thresholding baked in so no caller can bypass them | No caller can omit tenant scope |
+| **R3** | Tier 1: embed call summaries in `analysisService.js`; add `call-recording-vector-index` via `UpdateTable`; backfill existing recordings | `IndexStatus: ACTIVE` **and** `Backfilling: false` |
+| **R4** | `search_calls_semantic` in the canonical registry → reaches every flow and MCP automatically | Eval cases added |
+| **R5** | Tier 2: property + lead-requirement embeddings; `match_properties_for_lead`; range post-filtering (inline filters support `=` only) | Product acceptance on real data |
+| **R6** | Tier 3: fuzzy duplicate detection, conservative threshold, human confirmation only | Precision measured before enabling |
+
+**R0 and R1 are cheap prerequisites. Nothing else in this track starts before R1 reports back.** Also add `dynamodb:SearchVectors` to the relevant Lambda roles in `cfn-backend.yaml` — it is a new IAM action not covered by existing DynamoDB read grants.
+
 ## Phase 6 — Close the MCP drift (independent, any time after Phase 1)
 
 **Ships:** `reality-flow-mcp` tool coverage back to parity with the canonical registry, with no future drift.
@@ -79,3 +120,23 @@ Ordered so measurement comes first — later phases need a baseline to be shown 
 - **Eval set encodes today's assumptions** — label from real inbound messages and what the user evidently wanted (including messages the agent got wrong today), not from what the current system happens to do. Have someone other than the runtime author do the labelling.
 - **Re-keying conversation state loses in-flight context** — dual-read during migration (try principal key, fall back to phone key), let old state expire naturally rather than backfilling.
 - **Archive-instead-of-delete leaves stale records in AI search results** — filter archived status at the query layer in `crmDynamodbService`, not per-tool, so no tool can forget; add an eval case for it.
+- **Cross-tenant leakage via vector search** — a vector index without a `tenantId` partition key searches every tenant's data. Mitigation: `tenantId` as `SearchSchema` HASH makes AWS reject any unscoped search; plus an explicit isolation test as the gate on R1. Non-negotiable.
+- **Stale embeddings return confidently wrong results** — DynamoDB syncs the index to the item but never regenerates embeddings. Mitigation: `embeddingSourceHash` + `embeddedAt` on every embedded item, and a reconciliation job that finds drift.
+- **API Gateway REST streaming may not exist as assumed** — unverified at time of writing, and load-bearing for Phase 5's "no new infrastructure" claim. Mitigation: verify before the phase starts; fall back to a Lambda Function URL with response streaming rather than to a buffered response.
+
+## Dependency order
+
+```
+Phase 1 (eval + hot path + archive_*)
+   │
+   ├──▶ Phase 2 (agent core, principal) ──▶ Phase 3 (tool loop) ──▶ Phase 4 (compose) ──▶ Phase 5 (web chat)
+   │
+   ├──▶ Phase 5b (background flows)      independent
+   ├──▶ Phase 5c (voice classifier)      independent
+   ├──▶ Phase 6  (MCP drift)             independent
+   │
+   └──▶ Phase R  (retrieval)             independent track
+             R0 → R1 → R2 → R3 → R4 → R5 → R6
+```
+
+Only the 1 → 2 → 3 → 4 → 5 spine is strictly ordered. Everything else can run in parallel with it, subject to its own gates.
