@@ -167,7 +167,7 @@ export const toolDefinitions = [
     handler: 'updateLead',
     parameters: [
       { name: 'leadId', type: 'string', required: true, description: 'The unique ID of the lead to update (e.g., "lead-abc123").' },
-      { name: 'status', type: 'string', required: false, enum: ['new', 'contacted', 'qualified', 'negotiating', 'lost'], description: 'New status.' },
+      { name: 'status', type: 'string', required: false, enum: ['new', 'contacted', 'qualified', 'negotiating', 'lost', 'archived'], description: 'New status.' },
       { name: 'score', type: 'string', required: false, enum: ['HOT', 'WARM', 'COLD'], description: 'Manually set the lead temperature. Setting this is recorded as a human override (scoreSource becomes "manual").' },
       { name: 'assignedTo', type: 'string', required: false, description: 'Agent name to assign the lead to (e.g., "Aman").' },
       { name: 'notes', type: 'string', required: false, description: 'Free-text notes to add to the lead. Use for unstructured updates only.' },
@@ -178,16 +178,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_lead',
+    name: 'archive_lead',
     category: 'lead',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete a lead. Triggers: "delete lead", "remove lead", "delete lead L123". IMPORTANT: Always ask for confirmation before calling this tool. Example: User says "delete Faizan" → ask "Are you sure you want to delete Faizan\'s lead? This cannot be undone."',
-      mcp: 'Delete a lead. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a lead (soft-remove, reversible). Sets status to archived; does not delete the record. Triggers: "archive lead", "stop tracking this lead", "hide this lead", "delete lead" (there is no delete tool -- archive is the correct action). Note: cannot archive an already-converted lead (its buyer/seller/tenant/owner record is the live entity at that point).',
+      mcp: 'Archive a lead by setting its status to archived. Reversible via update_lead.',
     },
-    handler: 'deleteLead',
+    handler: 'archiveLead',
     parameters: [
-      { name: 'leadId', type: 'string', required: true, description: 'The unique ID of the lead to delete.' },
+      { name: 'leadId', type: 'string', required: true, description: 'The unique ID of the lead to archive.' },
     ],
   },
   {
@@ -281,7 +281,7 @@ export const toolDefinitions = [
     handler: 'getContacts',
     parameters: [
       { name: 'role', type: 'string', required: false, enum: ['owner', 'buyer', 'seller', 'tenant'], description: 'Filter by role.' },
-      { name: 'status', type: 'string', required: false, enum: ['active', 'inactive'], description: 'Filter by status.' },
+      { name: 'status', type: 'string', required: false, enum: ['active', 'inactive', 'archived'], description: 'Filter by status. Archived contacts are excluded unless explicitly requested.' },
       { name: 'query', type: 'string', required: false, description: 'Search by name or phone.' },
       { name: 'limit', type: 'number', required: false, description: 'Maximum number of results.' },
       { name: 'responseMode', type: 'string', required: false, enum: ['summary', 'compact', 'details', 'full'], description: 'Response detail level.' },
@@ -304,16 +304,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_contact',
+    name: 'archive_contact',
     category: 'contact',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete a contact. Triggers: "delete contact", "remove contact". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete a contact. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a contact (soft-remove, reversible). Marks the contact as archived; does not delete the record. Triggers: "archive contact", "stop tracking this contact", "hide this contact", "delete contact" (there is no delete tool -- archive is the correct action).',
+      mcp: 'Archive a contact. Reversible via update_contact.',
     },
-    handler: 'deleteContact',
+    handler: 'archiveContact',
     parameters: [
-      { name: 'contactId', type: 'string', required: true, description: 'The unique ID of the contact to delete.' },
+      { name: 'contactId', type: 'string', required: true, description: 'The unique ID of the contact to archive.' },
     ],
   },
   {
@@ -358,6 +358,56 @@ export const toolDefinitions = [
     handler: 'getContactNotes',
     parameters: [
       { name: 'contactId', type: 'string', required: true, description: 'The unique ID of the contact.' },
+    ],
+  },
+  // ════════════════════════════════════════════════════════════════════════
+  // KHATA (ledger) — READ ONLY.
+  // No create/update/settle tool is exposed on purpose: money records are
+  // mutated by a human in the CRM. See server/khataDynamodbService.js.
+  // ════════════════════════════════════════════════════════════════════════
+  {
+    name: 'search_khata_entries',
+    category: 'khata',
+    readOnly: true,
+    descriptions: {
+      internal: 'List khata (ledger) entries — paisa lena-dena. Triggers: "khata dikhao", "kitna lena hai", "kitna dena hai", "pending payments", "hisaab dikhao", "ledger entries". Filter by settlementStatus (PENDING/SETTLED), transactionType (RECEIVED/PAID), propertyId, partyId, or a name/description query. Read-only: you cannot add or settle an entry — if the user asks to record or settle money, tell them to do it in the CRM.',
+      mcp: 'List khata ledger entries. Filter by settlement status, transaction type, property, party, or free text. Read-only.',
+    },
+    handler: 'searchKhataEntries',
+    parameters: [
+      { name: 'settlementStatus', type: 'string', required: false, enum: ['PENDING', 'SETTLED'], description: 'Only entries with this settlement status.' },
+      { name: 'transactionType', type: 'string', required: false, enum: ['RECEIVED', 'PAID'], description: 'Money received vs money paid out.' },
+      { name: 'propertyId', type: 'string', required: false, description: 'Restrict to one property.' },
+      { name: 'partyId', type: 'string', required: false, description: 'Restrict to one owner/tenant/buyer.' },
+      { name: 'query', type: 'string', required: false, description: 'Search party name or description.' },
+      { name: 'limit', type: 'number', required: false, description: 'Max entries to return (default 20).' },
+    ],
+  },
+  {
+    name: 'get_khata_summary',
+    category: 'khata',
+    readOnly: true,
+    descriptions: {
+      internal: 'Khata totals: money received, money paid, net, and how much is still pending (with the biggest pending items). Triggers: "kitna paisa pending hai", "khata summary", "total hisaab", "net balance", "kitna baaki hai". Optionally scope to one property or party. Read-only.',
+      mcp: 'Khata ledger summary: total received, total paid, net, pending count/amount and the largest pending entries.',
+    },
+    handler: 'getKhataSummary',
+    parameters: [
+      { name: 'propertyId', type: 'string', required: false, description: 'Restrict the summary to one property.' },
+      { name: 'partyId', type: 'string', required: false, description: 'Restrict the summary to one owner/tenant/buyer.' },
+    ],
+  },
+  {
+    name: 'find_person',
+    category: 'contact',
+    readOnly: true,
+    descriptions: {
+      internal: 'Resolve WHO a person is when you do not know whether they are still a pipeline lead or an already-converted record. Searches leads AND buyers/owners/tenants/contacts at once, by name or phone, and tells you which forms exist with their IDs. Use this FIRST when the user names a person ("Rajesh ka detail dikhao", "open Sakina", "9876543210 kaun hai?") and you are not sure which entity type they mean -- then call the specific get_* tool with the ID this returns. Do not guess between search_leads and search_buyers when a single named person is meant.',
+      mcp: 'Resolve a person by name or phone across leads, buyers, owners, tenants and contacts. Returns every matching record with its type and ID.',
+    },
+    handler: 'findPerson',
+    parameters: [
+      { name: 'query', type: 'string', required: true, description: 'A person name (partial is fine) or a phone number.' },
     ],
   },
   {
@@ -449,16 +499,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_property',
+    name: 'archive_property',
     category: 'property',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete a property. Triggers: "delete property", "remove property". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete a property. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a property (soft-remove, reversible). Sets status to archived; does not delete the record. Triggers: "archive property", "stop showing this property", "hide this property", "delete property" (there is no delete tool -- archive is the correct action for stopping tracking of a listing).',
+      mcp: 'Archive a property by setting its status to archived. Reversible via update_property.',
     },
-    handler: 'deleteProperty',
+    handler: 'archiveProperty',
     parameters: [
-      { name: 'propertyId', type: 'string', required: true, description: 'The unique ID of the property to delete.' },
+      { name: 'propertyId', type: 'string', required: true, description: 'The unique ID of the property to archive.' },
     ],
   },
   {
@@ -491,17 +541,17 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_property_document',
+    name: 'archive_property_document',
     category: 'property',
     readOnly: false,
     descriptions: {
-      internal: 'Delete a property document. Triggers: "delete document", "remove document from property", "document hatao". IMPORTANT: Always ask for confirmation before calling. Required: propertyId, documentId.',
-      mcp: 'Delete a property document. Confirm with user first. Requires propertyId, documentId.',
+      internal: 'Archive a property document (soft-remove, reversible). Does not delete the file/record. Triggers: "archive document", "hide this document", "delete document" (there is no delete tool -- archive is the correct action). Required: propertyId, documentId.',
+      mcp: 'Archive a property document. Requires propertyId, documentId.',
     },
-    handler: 'deletePropertyDocument',
+    handler: 'archivePropertyDocument',
     parameters: [
       { name: 'propertyId', type: 'string', required: true, description: 'The unique ID of the property.' },
-      { name: 'documentId', type: 'string', required: true, description: 'The unique ID of the document to delete.' },
+      { name: 'documentId', type: 'string', required: true, description: 'The unique ID of the document to archive.' },
     ],
   },
 
@@ -572,16 +622,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_tenant',
+    name: 'archive_tenant',
     category: 'tenant',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete a tenant. Triggers: "delete tenant", "remove tenant". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete a tenant. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a tenant (soft-remove, reversible). Sets status to inactive; does not delete the record. Triggers: "archive tenant", "stop tracking this tenant", "delete tenant" (there is no delete tool -- archive is the correct action).',
+      mcp: 'Archive a tenant by setting its status to inactive. Reversible via update_tenant.',
     },
-    handler: 'deleteCustomer',
+    handler: 'archiveCustomer',
     parameters: [
-      { name: 'tenantRecordId', type: 'string', required: true, description: 'The unique ID of the tenant to delete.' },
+      { name: 'tenantRecordId', type: 'string', required: true, description: 'The unique ID of the tenant to archive.' },
     ],
   },
   {
@@ -691,16 +741,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_owner',
+    name: 'archive_owner',
     category: 'owner',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete an owner. Triggers: "delete owner", "remove owner". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete an owner. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive an owner (soft-remove, reversible). Sets status to inactive; does not delete the record. Triggers: "archive owner", "stop tracking this owner", "delete owner" (there is no delete tool -- archive is the correct action).',
+      mcp: 'Archive an owner by setting its status to inactive. Reversible via update_owner.',
     },
-    handler: 'deleteOwner',
+    handler: 'archiveOwner',
     parameters: [
-      { name: 'ownerId', type: 'string', required: true, description: 'The unique ID of the owner to delete.' },
+      { name: 'ownerId', type: 'string', required: true, description: 'The unique ID of the owner to archive.' },
     ],
   },
   {
@@ -816,16 +866,16 @@ export const toolDefinitions = [
     ],
   },
   {
-    name: 'delete_buyer',
+    name: 'archive_buyer',
     category: 'buyer',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete a buyer. Triggers: "delete buyer", "remove buyer". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete a buyer. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a buyer (soft-remove, reversible). Does not delete the record. Triggers: "archive buyer", "stop tracking this buyer", "delete buyer" (there is no delete tool -- archive is the correct action).',
+      mcp: 'Archive a buyer. Reversible via update_buyer or update_contact_role.',
     },
-    handler: 'deleteBuyer',
+    handler: 'archiveBuyer',
     parameters: [
-      { name: 'buyerId', type: 'string', required: true, description: 'The unique ID of the buyer to delete.' },
+      { name: 'buyerId', type: 'string', required: true, description: 'The unique ID of the buyer to archive.' },
     ],
   },
   {
@@ -921,20 +971,20 @@ export const toolDefinitions = [
       { name: 'title', type: 'string', required: false, description: 'New title.' },
       { name: 'scheduledDate', type: 'string', required: false, description: 'New date/time (YYYY-MM-DD or YYYY-MM-DDTHH:mm). Mapped to meetingDate/meetingTime.' },
       { name: 'notes', type: 'string', required: false, description: 'New notes.' },
-      { name: 'status', type: 'string', required: false, enum: ['scheduled', 'completed', 'cancelled'], description: 'New status.' },
+      { name: 'status', type: 'string', required: false, enum: ['scheduled', 'completed', 'cancelled', 'archived'], description: 'New status.' },
     ],
   },
   {
-    name: 'delete_meeting',
+    name: 'archive_meeting',
     category: 'meeting',
     readOnly: false,
     descriptions: {
-      internal: 'Use this when the user asks to delete or cancel a meeting. Triggers: "delete meeting", "cancel meeting", "remove meeting". IMPORTANT: Always ask for confirmation before calling this tool.',
-      mcp: 'Delete a meeting. IMPORTANT: Always ask for confirmation before calling this tool.',
+      internal: 'Archive a meeting (soft-remove, reversible). Sets status to archived; does not delete the record. Triggers: "archive meeting", "hide this meeting", "delete meeting", "cancel meeting" (there is no delete tool -- archive is the correct action; use update_meeting with status: cancelled for an actual cancellation).',
+      mcp: 'Archive a meeting by setting its status to archived. Reversible via update_meeting (status: scheduled).',
     },
-    handler: 'deleteMeeting',
+    handler: 'archiveMeeting',
     parameters: [
-      { name: 'meetingId', type: 'string', required: true, description: 'The unique ID of the meeting to delete.' },
+      { name: 'meetingId', type: 'string', required: true, description: 'The unique ID of the meeting to archive.' },
     ],
   },
 
@@ -1247,12 +1297,17 @@ export const TOOL_COUNT = toolDefinitions.length;
 //
 // meta = {
 //   entity,               // 'lead' | 'buyer' | 'property' | ... | 'metrics'
-//   operationKind,        // 'list' | 'detail' | 'summary' | 'mutate' | 'delete'
+//   operationKind,        // 'list' | 'detail' | 'summary' | 'mutate'
 //   replyOwner,           // 'formatter' | 'llm' | 'hybrid_intro'
 //   presentationTemplate, // e.g. 'list_lead_card', 'detail_lead', 'confirmation'
-//   requiresConfirmation, // true for delete_*
 //   slots,                // accepted parameter names (for slot pass-through)
 // }
+//
+// There is deliberately no 'delete' operationKind. The 8 delete_* tools were
+// removed in favour of archive_* (reversible; classified as ordinary
+// 'mutate'). See docs/proposals/agent-channel-architecture/phase1-imp/
+// 05-slice5-remove-delete-tools.md. Hard delete stays an admin-UI-only path
+// that never reaches this registry.
 // ════════════════════════════════════════════════════════════════════════════════
 
 /** Summary tools whose reply is rendered deterministically (not by the LLM). */
@@ -1270,10 +1325,7 @@ function isNonSearchListTool(name) {
 
 function deriveOperationKind(tool) {
   const { name, category, readOnly } = tool;
-  if (!readOnly) {
-    if (name.startsWith('delete_')) return 'delete';
-    return 'mutate';
-  }
+  if (!readOnly) return 'mutate';
   if (category === 'metrics') return 'summary';
   if (name.startsWith('search_') || isNonSearchListTool(name)) return 'list';
   return 'detail';
@@ -1283,7 +1335,6 @@ function deriveReplyOwner(tool, operationKind) {
   switch (operationKind) {
     case 'list':
     case 'detail':
-    case 'delete':
       return 'formatter';
     case 'summary':
       return FORMATTED_SUMMARY_TOOL_NAMES.has(tool.name) ? 'formatter' : 'llm';
@@ -1304,7 +1355,6 @@ function derivePresentationTemplate(tool, operationKind) {
     case 'detail':
       return `detail_${entity}`;
     case 'mutate':
-    case 'delete':
       return 'confirmation';
     case 'summary':
       if (tool.name === 'get_leads_summary') return 'summary_leads_card';
@@ -1322,7 +1372,6 @@ function deriveToolMeta(tool) {
     operationKind,
     replyOwner: deriveReplyOwner(tool, operationKind),
     presentationTemplate: derivePresentationTemplate(tool, operationKind),
-    requiresConfirmation: operationKind === 'delete',
     slots: tool.parameters.map((p) => p.name),
   };
 }
@@ -1388,6 +1437,7 @@ const DOMAIN_BY_CATEGORY = {
   property: 'properties',
   meeting: 'meetings',
   metrics: 'analytics',
+  khata: 'khata',
 };
 
 /**
@@ -1395,6 +1445,13 @@ const DOMAIN_BY_CATEGORY = {
  * for display. `aliases` are cheap keyword hints for the rules-based fast path.
  */
 export const DOMAIN_CATALOG = [
+  {
+    id: 'khata',
+    label: 'Khata (ledger / paisa lena-dena)',
+    description:
+      'The money ledger: amounts received from or paid to owners/tenants/buyers, what is still pending settlement, and per-property or per-party totals. READ-ONLY for the agent — it can report balances and pending amounts but cannot create, edit or settle an entry (money records are changed by a human in the CRM). Use for "kitna paisa pending hai", "khata dikhao", "kitna lena hai", "kitna dena hai", "ledger", "hisaab".',
+    aliases: ['khata', 'khatabook', 'ledger', 'hisaab', 'paisa', 'lena', 'dena', 'pending amount', 'settlement', 'balance'],
+  },
   {
     id: 'leads',
     label: 'Leads (pipeline / prospects)',

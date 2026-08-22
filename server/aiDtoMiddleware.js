@@ -46,36 +46,36 @@ const USE_AI_DTO_FOR_CONTACTS = process.env.USE_AI_DTO_FOR_CONTACTS === 'true';
 // ─── Tool Registry ───────────────────────────────────────────────────────────
 
 const LEAD_TOOLS = new Set([
-  'create_lead', 'get_lead', 'search_leads', 'update_lead', 'delete_lead', 'convert_lead',
+  'create_lead', 'get_lead', 'search_leads', 'update_lead', 'archive_lead', 'convert_lead',
   'create_lead_note', 'get_lead_notes', 'update_lead_note', 'delete_lead_note',
 ]);
 
 const OWNER_TOOLS = new Set([
-  'create_owner', 'get_owner', 'get_owners', 'search_owners', 'update_owner', 'delete_owner',
+  'create_owner', 'get_owner', 'get_owners', 'search_owners', 'update_owner', 'archive_owner',
   'get_owner_by_phone', 'create_owner_note', 'get_owner_notes', 'update_owner_note', 'delete_owner_note',
 ]);
 
 const TENANT_TOOLS = new Set([
-  'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'delete_tenant',
+  'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'archive_tenant',
   'get_tenant_by_phone', 'create_tenant_note', 'get_tenant_notes', 'update_tenant_note', 'delete_tenant_note',
   'get_tenant_rental_history', 'update_tenant_current_rental', 'archive_tenant_rental',
 ]);
 
 const MEETING_TOOLS = new Set([
-  'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting', 'delete_meeting',
+  'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting', 'archive_meeting',
 ]);
 
 const BUYER_TOOLS = new Set([
-  'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer', 'delete_buyer',
+  'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer', 'archive_buyer',
   'create_buyer_note', 'get_buyer_notes',
 ]);
 
 const PROPERTY_TOOLS = new Set([
-  'create_property', 'get_property', 'search_properties', 'update_property', 'delete_property',
+  'create_property', 'get_property', 'search_properties', 'update_property', 'archive_property',
 ]);
 
 const CONTACT_TOOLS = new Set([
-  'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'delete_contact',
+  'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'archive_contact',
   'update_contact_role', 'create_contact_note', 'get_contact_notes', 'find_contact_by_phone',
 ]);
 
@@ -166,9 +166,8 @@ async function transformLeadResult(toolName, result, tenantId, input) {
     case 'create_lead':
       return LeadAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_lead':
+    case 'archive_lead':
       return LeadAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_lead':
-      return { metadata: { action: 'deleted' }, data: { leadId: input.leadId || input.id } };
     default:
       return normalized;
   }
@@ -225,9 +224,8 @@ async function transformOwnerResult(toolName, result, tenantId, input) {
     case 'create_owner':
       return OwnerAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_owner':
+    case 'archive_owner':
       return OwnerAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_owner':
-      return { metadata: { action: 'deleted' }, data: { ownerId: input.ownerId || input.id } };
     default:
       return normalized;
   }
@@ -284,9 +282,8 @@ async function transformTenantResult(toolName, result, tenantId, input) {
     case 'create_tenant':
       return TenantAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_tenant':
+    case 'archive_tenant':
       return TenantAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_tenant':
-      return { metadata: { action: 'deleted' }, data: { customerId: input.tenantRecordId || input.customerId || input.id } };
     case 'get_tenant_rental_history':
       return TenantAIViewBuilder.buildRentalHistory(normalized);
     case 'update_tenant_current_rental':
@@ -320,12 +317,8 @@ function transformMeetingResult(toolName, result, input) {
         : MeetingAIViewBuilder.buildMeetingsList(meetings, { total: meetings.length, days: input.days || 7, hasMore: false });
     }
     case 'update_meeting':
+    case 'archive_meeting':
       return MeetingAIViewBuilder.buildMeetingUpdateConfirmation(result, {});
-    case 'delete_meeting':
-      return {
-        metadata: { action: 'deleted' },
-        data: { meetingId: input.meetingId || input.id },
-      };
     default:
       return result;
   }
@@ -365,9 +358,8 @@ function transformBuyerResult(toolName, result, input) {
     case 'create_buyer':
       return BuyerAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_buyer':
+    case 'archive_buyer':
       return BuyerAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_buyer':
-      return BuyerAIViewBuilder.buildDeleteConfirmation(normalized);
     default:
       return normalized;
   }
@@ -397,9 +389,8 @@ function transformPropertyResult(toolName, result, input) {
     case 'create_property':
       return PropertyAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_property':
+    case 'archive_property':
       return PropertyAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_property':
-      return PropertyAIViewBuilder.buildDeleteConfirmation(normalized);
     default:
       return normalized;
   }
@@ -444,9 +435,8 @@ function transformContactResult(toolName, result, input) {
       return ContactAIViewBuilder.buildCreateConfirmation(normalized);
     case 'update_contact':
     case 'update_contact_role':
+    case 'archive_contact':
       return ContactAIViewBuilder.buildUpdateConfirmation(normalized, {});
-    case 'delete_contact':
-      return ContactAIViewBuilder.buildDeleteConfirmation(normalized);
     default:
       return normalized;
   }

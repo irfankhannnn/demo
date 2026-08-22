@@ -43,8 +43,18 @@ function mediaFormatFor(filename, s3Key) {
   return MEDIA_FORMAT_BY_EXTENSION[extension] || 'mp3';
 }
 
-function outputKeyFor(tenantId, recordingId) {
+/**
+ * Where Amazon Transcribe writes its own raw output. Deterministic from
+ * (tenantId, recordingId) and NOT stored on the recording item — so deletion
+ * has to reconstruct it. Exported for exactly that reason: without it, a
+ * deleted recording left the full diarized transcript sitting in S3 forever.
+ */
+export function rawTranscriptKeyFor(tenantId, recordingId) {
   return `${tenantId}/call-recordings/${recordingId}/transcript/amazon-transcribe-raw.json`;
+}
+
+function outputKeyFor(tenantId, recordingId) {
+  return rawTranscriptKeyFor(tenantId, recordingId);
 }
 
 /**

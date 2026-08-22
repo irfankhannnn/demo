@@ -325,27 +325,27 @@ export default function ConnectWhatsApp() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center px-3 sm:px-4 py-6 sm:py-8">
       <div className="max-w-lg w-full">
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-8">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 sm:p-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="bg-green-100 p-3 rounded-full">
-              <MessageCircle className="h-6 w-6 text-green-600" />
+            <div className="bg-green-100 p-2.5 sm:p-3 rounded-full flex-shrink-0">
+              <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-slate-900">Connect WhatsApp</h1>
-              <p className="text-sm text-slate-500">Receive and send leads via WhatsApp</p>
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900">Connect WhatsApp</h1>
+              <p className="text-xs sm:text-sm text-slate-500">Receive and send leads via WhatsApp</p>
             </div>
           </div>
 
-          <p className="text-xs text-slate-400 mb-6 pl-1">
+          <p className="text-xs text-slate-400 mb-5 sm:mb-6 pl-1">
             Optional — you can skip and connect later from Settings.
           </p>
 
           {connected ? (
-            <div className="text-center py-8">
-              <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-3" />
-              <p className="text-green-700 font-semibold text-lg mb-1">WhatsApp Connected!</p>
+            <div className="text-center py-6 sm:py-8">
+              <CheckCircle className="h-10 w-10 sm:h-12 sm:w-12 text-green-500 mx-auto mb-3" />
+              <p className="text-green-700 font-semibold text-base sm:text-lg mb-1">WhatsApp Connected!</p>
               <p className="text-slate-500 text-sm mb-2">
                 {phone ? `Connected to ${phone}` : "You'll now receive lead notifications on WhatsApp."}
               </p>
@@ -355,14 +355,14 @@ export default function ConnectWhatsApp() {
               <div className="flex flex-col gap-3">
                 <button
                   onClick={() => navigate('/crm')}
-                  className="bg-brand text-white px-8 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
+                  className="w-full min-h-[44px] touch-manipulation bg-brand text-white px-6 sm:px-8 py-2.5 rounded-lg hover:bg-blue-700 font-medium"
                 >
                   Go to CRM
                 </button>
                 <button
                   onClick={handleDisconnect}
                   disabled={loading}
-                  className="flex items-center justify-center gap-2 text-red-600 hover:text-red-700 py-2 text-sm transition-colors disabled:opacity-50"
+                  className="w-full min-h-[44px] touch-manipulation flex items-center justify-center gap-2 text-red-600 hover:text-red-700 py-2 text-sm transition-colors disabled:opacity-50"
                 >
                   <LogOut className="h-4 w-4" />
                   Disconnect WhatsApp
@@ -372,20 +372,20 @@ export default function ConnectWhatsApp() {
           ) : (
             <>
               {/* Provider Selection */}
-              <div className="mb-6">
+              <div className="mb-5 sm:mb-6">
                 <p className="text-sm font-medium text-slate-700 mb-3">Choose connection method</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {/* Bailey — MVP Primary */}
                   <button
                     onClick={() => setProvider('bailey')}
-                    className={`relative p-4 rounded-xl border-2 text-left transition-all ${
+                    className={`relative min-h-[44px] touch-manipulation p-3 sm:p-4 rounded-xl border-2 text-left transition-all ${
                       provider === 'bailey'
                         ? 'border-brand bg-blue-50'
                         : 'border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <MessageCircle className="h-4 w-4 text-green-600" />
+                    <div className="flex flex-wrap items-center gap-2 mb-1 pr-6">
+                      <MessageCircle className="h-4 w-4 text-green-600 flex-shrink-0" />
                       <span className="font-semibold text-slate-900 text-sm">Bailey</span>
                       <span className="bg-green-100 text-green-700 text-xs font-medium px-1.5 py-0.5 rounded">
                         Recommended
@@ -400,7 +400,7 @@ export default function ConnectWhatsApp() {
                   </button>
 
                   {/* Meta Official — Phase 2 */}
-                  <div className="relative p-4 rounded-xl border-2 border-slate-200 opacity-60 cursor-not-allowed">
+                  <div className="relative p-3 sm:p-4 rounded-xl border-2 border-slate-200 opacity-60 cursor-not-allowed">
                     <div className="flex items-center gap-2 mb-1">
                       <svg className="h-4 w-4" viewBox="0 0 24 24" fill="#1877F2">
                         <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -454,7 +454,7 @@ export default function ConnectWhatsApp() {
                       setPhoneError('');
                     }}
                     placeholder="+91 98765 43210"
-                    className={`w-full border rounded-lg px-3 py-2 mb-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full min-h-[44px] text-base border rounded-lg px-3 py-2 mb-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       phoneError ? 'border-red-300' : 'border-slate-300'
                     }`}
                   />
@@ -463,11 +463,11 @@ export default function ConnectWhatsApp() {
                   )}
 
                   {qrCode && (
-                    <div className="mb-4 p-4 bg-slate-50 rounded-lg text-center">
+                    <div className="mb-4 p-3 sm:p-4 bg-slate-50 rounded-lg text-center">
                       <img
                         src={qrCode}
                         alt="WhatsApp QR Code"
-                        className="mx-auto max-w-[200px] border rounded-lg mb-2"
+                        className="mx-auto w-full max-w-[200px] h-auto border rounded-lg mb-2"
                       />
                       <p className="text-xs text-slate-500">
                         Open WhatsApp Business → Settings → Linked Devices → Scan QR
@@ -478,7 +478,7 @@ export default function ConnectWhatsApp() {
                   <button
                     onClick={handleGetQr}
                     disabled={loading || !phone.trim()}
-                    className="w-full bg-brand text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3 transition-colors"
+                    className="w-full min-h-[44px] touch-manipulation bg-brand text-white font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 mb-3 transition-colors"
                   >
                     {loading ? 'Connecting...' : qrCode ? 'Refresh QR Code' : 'Get QR Code'}
                   </button>
@@ -486,7 +486,7 @@ export default function ConnectWhatsApp() {
                   <button
                     onClick={handleRefreshStatus}
                     disabled={loading || !phone.trim()}
-                    className="w-full flex items-center justify-center gap-2 text-slate-600 hover:text-slate-800 py-2 text-sm transition-colors disabled:opacity-50"
+                    className="w-full min-h-[44px] touch-manipulation flex items-center justify-center gap-2 text-slate-600 hover:text-slate-800 py-2 text-sm transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className="h-4 w-4" />
                     Refresh status
@@ -496,7 +496,7 @@ export default function ConnectWhatsApp() {
 
               <button
                 onClick={() => navigate('/crm')}
-                className="w-full flex items-center justify-center gap-2 text-slate-500 hover:text-slate-700 py-2 text-sm transition-colors"
+                className="w-full min-h-[44px] touch-manipulation flex items-center justify-center gap-2 text-center text-slate-500 hover:text-slate-700 py-2 text-sm transition-colors"
               >
                 <SkipForward className="h-4 w-4" />
                 Skip for now — connect later from Settings

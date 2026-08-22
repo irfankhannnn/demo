@@ -38,6 +38,14 @@ export const createTestNotificationSchema = z.object({
   deepLink: z.string().max(500).optional(),
 }).strict();
 
+// Push device registration. FCM tokens are ~160 chars today but Google has
+// never committed to a length, so the bound is generous rather than exact.
+export const registerPushDeviceSchema = z.object({
+  token: z.string().min(20).max(4096),
+  platform: z.enum(['ios', 'android']),
+  deviceId: z.string().max(200).optional(),
+}).strict();
+
 // ============== Enquiry Schemas ==============
 export const createEnquirySchema = z.object({
   formType: z.enum(['contact', 'consultation', 'callback', 'other']).optional(),

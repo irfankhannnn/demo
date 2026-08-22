@@ -20,7 +20,12 @@ import validateBody from '../middleware/validateBody.js';
 import {
   updateNotificationSettingsSchema,
   createTestNotificationSchema,
+  registerPushDeviceSchema,
 } from '../validation/otherSchemas.js';
+import {
+  registerDeviceToken,
+  unregisterDeviceToken,
+} from '../services/push/deviceTokenRepository.js';
 
 const router = express.Router();
 
@@ -88,6 +93,44 @@ router.delete('/cleanup', validateToken, extractTenantId, requireAdmin, async (r
   } catch (error) {
     console.error('Delete old notifications error:', error);
     res.status(500).json({ error: error.message || 'Failed to delete old notifications' });
+  }
+});
+
+// ============== Push Device Routes ==============
+
+// Register (or refresh) this device's push token. Called on every app launch,
+// because FCM can rotate a token at any time without telling the server.
+router.post('/devices', validateToken, extractTenantId, validateBody(registerPushDeviceSchema), async (req, res) => {
+  try {
+    // Server-derived, never from the body: a client must not be able to
+    // register a push token against somebody else's account.
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required to register a device' });
+    }
+
+    const device = await registerDeviceToken(req.tenantId, userId, req.body);
+    res.status(201).json(device);
+  } catch (error) {
+    console.error('Register push device error:', error);
+    res.status(500).json({ error: error.message || 'Failed to register push device' });
+  }
+});
+
+// Unregister on logout, so the next person to sign in on this handset does not
+// keep receiving the previous user's notifications.
+router.delete('/devices/:token', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required to unregister a device' });
+    }
+
+    const result = await unregisterDeviceToken(req.tenantId, userId, req.params.token);
+    res.json(result);
+  } catch (error) {
+    console.error('Unregister push device error:', error);
+    res.status(500).json({ error: error.message || 'Failed to unregister push device' });
   }
 });
 

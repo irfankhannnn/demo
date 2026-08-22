@@ -33,9 +33,25 @@ export const linkEntitySchema = z.object({
   reanalyze: z.boolean().optional(),
 }).strict();
 
+/**
+ * Approved arguments are merged back into the recording item, so their size is
+ * charged against DynamoDB's 400 KB per-item limit. An unbounded `z.record`
+ * let a few hundred KB of JSON through, which would brick the row: every
+ * subsequent write to that recording — including the one marking the action
+ * failed — would be rejected, leaving it permanently unrecoverable through
+ * the API. 32 KB is far above any legitimate edit (a corrected date, title or
+ * note body) and far below the limit even with the rest of the item.
+ */
+const MAX_APPROVE_ARGUMENTS_BYTES = 32 * 1024;
+
 export const approveActionSchema = z.object({
   // Allows the owner to correct a date/title before approving.
-  arguments: z.record(z.string(), z.unknown()).optional(),
+  arguments: z.record(z.string(), z.unknown())
+    .refine(
+      (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') <= MAX_APPROVE_ARGUMENTS_BYTES,
+      { message: `Edited arguments exceed the ${MAX_APPROVE_ARGUMENTS_BYTES / 1024} KB limit` },
+    )
+    .optional(),
 }).strict();
 
 export const rejectActionSchema = z.object({

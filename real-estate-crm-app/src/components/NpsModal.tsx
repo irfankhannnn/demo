@@ -128,12 +128,17 @@ export default function NpsModal() {
             <p className="text-sm font-medium text-gray-900 mb-4">
               How likely are you to recommend RealEstateFlow to a fellow Mumbai broker?
             </p>
-            <div className="grid grid-cols-11 gap-1 mb-2">
+            {/* 11 scores in one row gives ~24px-wide buttons on a 375px
+                screen — under both the 44pt (Apple) and 48dp (Material)
+                touch minimums, and 11 × 44px cannot fit on one line at any
+                phone width. Six columns wraps to 2 rows and yields ~48px,
+                collapsing back to a single row from sm: up. */}
+            <div className="grid grid-cols-6 sm:grid-cols-11 gap-1.5 sm:gap-1 mb-2">
               {Array.from({ length: 11 }, (_, i) => (
                 <button
                   key={i}
                   onClick={() => handleScoreSelect(i)}
-                  className={`h-10 w-full rounded-lg text-xs font-medium transition-all border ${
+                  className={`h-11 sm:h-10 w-full rounded-lg text-sm sm:text-xs font-medium transition-all border ${
                     score === i
                       ? 'bg-green-500 text-white border-green-600'
                       : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'

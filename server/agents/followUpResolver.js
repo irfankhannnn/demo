@@ -83,6 +83,11 @@ export async function autoOpenSingleSearchDetail(tenantId, searchToolName, searc
 
   const result = await invokeSkill(tenantId, detailTool, { [idField]: id }, {
     userId: context.userId,
+    // Forwarded, not re-derived: this auto-open runs as part of the same turn
+    // as the search that triggered it, so it must resolve to the same identity
+    // and category. Dropping it here would make the follow-up read fail closed
+    // while the search that produced it succeeded.
+    fallbackCategory: context.fallbackCategory,
     source: context.source || 'agent.auto_detail',
   });
   return { tool: detailTool, result };

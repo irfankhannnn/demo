@@ -911,7 +911,7 @@ export default function PropertyDetails() {
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm/properties')}
-                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
                 <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
@@ -940,7 +940,7 @@ export default function PropertyDetails() {
             <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* Basic Info */}
               <div className="glass-premium rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Basic Information</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Basic Information</h2>
 
                 <div className="space-y-4">
                   <div>
@@ -974,7 +974,7 @@ export default function PropertyDetails() {
                           });
                         }
                       }}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
                       <option value="not-listed">Not Listed</option>
                       <option value="for-sale">Available for Sale</option>
@@ -1007,7 +1007,7 @@ export default function PropertyDetails() {
                               });
                               setShowSaleModal(true);
                             }}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-semibold"
+                            className="inline-flex items-center justify-center min-h-[44px] touch-manipulation gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-semibold"
                           >
                             Transfer Ownership / Sell
                           </button>
@@ -1016,7 +1016,7 @@ export default function PropertyDetails() {
                           <button
                             type="button"
                             onClick={openRentalModal}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold"
+                            className="inline-flex items-center justify-center min-h-[44px] touch-manipulation gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 text-sm font-semibold"
                           >
                             Assign Tenant
                           </button>
@@ -1026,7 +1026,7 @@ export default function PropertyDetails() {
                   </div>
 
                   {/* Owner — read-only; ownership changes via Mark as Sold only */}
-                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       {formData.status === 'sold' ? 'Current Owner' : 'Owner'}
                     </label>
@@ -1041,7 +1041,7 @@ export default function PropertyDetails() {
                             <button
                               type="button"
                               onClick={() => navigate(`/crm/owners/${formData.ownerId}`)}
-                              className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
+                              className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
                             >
                               View owner profile
                             </button>
@@ -1050,7 +1050,7 @@ export default function PropertyDetails() {
                             <button
                               type="button"
                               onClick={() => navigate(`/crm/contacts/${property.currentOwnerContactId}`)}
-                              className="text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
+                              className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs font-semibold text-purple-700 hover:text-purple-900 underline"
                             >
                               View contact
                             </button>
@@ -1090,7 +1090,7 @@ export default function PropertyDetails() {
                       required
                       value={formData.title}
                       onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Spacious 2BHK Apartment in Andheri"
                     />
                   </div>
@@ -1104,13 +1104,13 @@ export default function PropertyDetails() {
                       value={formData.description}
                       onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       rows={4}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Describe the property..."
                     />
                   </div>
 
                   {/* Property Type & BHK */}
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Property Type
@@ -1127,7 +1127,7 @@ export default function PropertyDetails() {
                               | 'office',
                           })
                         }
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
                         <option value="apartment">Apartment</option>
                         <option value="house">House</option>
@@ -1145,7 +1145,7 @@ export default function PropertyDetails() {
                         max={10}
                         value={formData.bhk}
                         onChange={(val) => setFormData({ ...formData, bhk: val || 1 })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="2"
                       />
                     </div>
@@ -1154,8 +1154,8 @@ export default function PropertyDetails() {
               </div>
 
               {/* Location */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Location</h2>
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Location</h2>
 
                 {/* Map Location Picker - Now at Top */}
                 <div className="mb-6">
@@ -1194,7 +1194,7 @@ export default function PropertyDetails() {
                       required
                       value={formData.area}
                       onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Andheri West"
                     />
                   </div>
@@ -1208,7 +1208,7 @@ export default function PropertyDetails() {
                       required
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Mumbai"
                     />
                   </div>
@@ -1222,7 +1222,7 @@ export default function PropertyDetails() {
                       type="text"
                       value={formData.buildingName}
                       onChange={(e) => setFormData({ ...formData, buildingName: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Sunshine Towers"
                     />
                   </div>
@@ -1236,7 +1236,7 @@ export default function PropertyDetails() {
                       type="text"
                       value={formData.floor}
                       onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="5th Floor"
                     />
                   </div>
@@ -1250,7 +1250,7 @@ export default function PropertyDetails() {
                       type="text"
                       value={formData.flatNumber}
                       onChange={(e) => setFormData({ ...formData, flatNumber: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="501"
                     />
                   </div>
@@ -1263,7 +1263,7 @@ export default function PropertyDetails() {
                       value={formData.address}
                       onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                       rows={2}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Street, landmark, directions..."
                     />
                   </div>
@@ -1271,8 +1271,8 @@ export default function PropertyDetails() {
               </div>
 
               {/* Pricing & Details */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Pricing & Details</h2>
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Pricing & Details</h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -1284,7 +1284,7 @@ export default function PropertyDetails() {
                       min={0}
                       value={formData.carpetArea}
                       onChange={(val) => setFormData({ ...formData, carpetArea: val })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Enter carpet area"
                     />
                   </div>
@@ -1299,7 +1299,7 @@ export default function PropertyDetails() {
                         min={0}
                         value={formData.salePrice}
                         onChange={(val) => setFormData({ ...formData, salePrice: val })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="Enter selling price"
                       />
                     </div>
@@ -1314,7 +1314,7 @@ export default function PropertyDetails() {
                         min={0}
                         value={formData.rentAmount}
                         onChange={(val) => setFormData({ ...formData, rentAmount: val })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="Enter monthly rent"
                       />
                     </div>
@@ -1329,7 +1329,7 @@ export default function PropertyDetails() {
                         min={0}
                         value={formData.depositAmount}
                         onChange={(val) => setFormData({ ...formData, depositAmount: val })}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="Enter deposit amount"
                       />
                     </div>
@@ -1344,7 +1344,7 @@ export default function PropertyDetails() {
                       min={0}
                       value={formData.expectedBrokerage}
                       onChange={(val) => setFormData({ ...formData, expectedBrokerage: val })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       placeholder="Enter expected brokerage"
                     />
                   </div>
@@ -1365,7 +1365,7 @@ export default function PropertyDetails() {
                             | 'unfurnished',
                         })
                       }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     >
                       <option value="furnished">Furnished</option>
                       <option value="semi-furnished">Semi-Furnished</option>
@@ -1382,7 +1382,7 @@ export default function PropertyDetails() {
                       type="date"
                       value={formData.availableFrom}
                       onChange={(e) => setFormData({ ...formData, availableFrom: e.target.value })}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                     />
                   </div>
                   )}
@@ -1401,7 +1401,7 @@ export default function PropertyDetails() {
                             <button
                               type="button"
                               onClick={() => setIsTenantDropdownOpen(!isTenantDropdownOpen)}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between"
+                              className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between"
                             >
                               <span className={selectedCustomer ? 'text-gray-900' : 'text-gray-500'}>
                                 {selectedCustomer ? `${selectedCustomer.name} - ${selectedCustomer.phone}` : 'No Tenant'}
@@ -1419,7 +1419,7 @@ export default function PropertyDetails() {
                                     placeholder="Search by name or phone..."
                                     value={tenantSearchQuery}
                                     onChange={(e) => setTenantSearchQuery(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                     onClick={(e) => e.stopPropagation()}
                                   />
                                 </div>
@@ -1431,7 +1431,7 @@ export default function PropertyDetails() {
                                       setIsTenantDropdownOpen(false);
                                       setTenantSearchQuery('');
                                     }}
-                                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${!formData.tenantCustomerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
+                                    className={`w-full min-h-[44px] px-4 py-2 text-left text-sm hover:bg-gray-100 ${!formData.tenantCustomerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
                                   >
                                     No Tenant
                                   </button>
@@ -1444,7 +1444,7 @@ export default function PropertyDetails() {
                                         setIsTenantDropdownOpen(false);
                                         setTenantSearchQuery('');
                                       }}
-                                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 ${formData.tenantCustomerId === customer.customerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
+                                      className={`w-full min-h-[44px] px-4 py-2 text-left text-sm hover:bg-gray-100 ${formData.tenantCustomerId === customer.customerId ? 'bg-purple-50 text-purple-700' : 'text-gray-700'}`}
                                     >
                                       {customer.name} - {customer.phone}
                                     </button>
@@ -1461,7 +1461,7 @@ export default function PropertyDetails() {
                           <button
                             type="button"
                             onClick={() => setShowTenantModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shrink-0"
+                            className="flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] touch-manipulation px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shrink-0"
                             title="Add New Tenant"
                           >
                             <Plus className="h-4 w-4" />
@@ -1498,7 +1498,7 @@ export default function PropertyDetails() {
                               agreementStatus: e.target.value as 'pending' | 'done',
                             })
                           }
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         >
                           <option value="pending">Pending</option>
                           <option value="done">Done</option>
@@ -1518,7 +1518,7 @@ export default function PropertyDetails() {
                               verificationStatus: e.target.value as 'pending' | 'done' | 'not_done',
                             })
                           }
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         >
                           <option value="pending">Pending</option>
                           <option value="done">Done</option>
@@ -1536,7 +1536,7 @@ export default function PropertyDetails() {
                           type="date"
                           value={formData.tenantMoveInDate}
                           onChange={(e) => setFormData({ ...formData, tenantMoveInDate: e.target.value })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         />
                       </div>
 
@@ -1550,7 +1550,7 @@ export default function PropertyDetails() {
                             type="date"
                             value={formData.leaseEndDate}
                             onChange={(e) => setFormData({ ...formData, leaseEndDate: e.target.value })}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                            className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           />
                         </div>
                       )}
@@ -1565,7 +1565,7 @@ export default function PropertyDetails() {
                           max={120}
                           value={formData.tenureMonths}
                           onChange={(val) => setFormData({ ...formData, tenureMonths: val || 11 })}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           placeholder="11"
                         />
                         <p className="mt-1 text-xs text-gray-500">
@@ -1578,20 +1578,20 @@ export default function PropertyDetails() {
               </div>
 
               {/* Amenities */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Amenities</h2>
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 sm:mb-6">Amenities</h2>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {amenitiesList.map((amenity) => (
                     <label
                       key={amenity}
-                      className="flex items-center space-x-2 cursor-pointer"
+                      className="flex items-center space-x-2 cursor-pointer min-h-[44px] sm:min-h-0"
                     >
                       <input
                         type="checkbox"
                         checked={formData.amenities.includes(amenity)}
                         onChange={() => toggleAmenity(amenity)}
-                        className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                        className="w-5 h-5 sm:w-4 sm:h-4 flex-shrink-0 text-purple-600 rounded focus:ring-purple-500"
                       />
                       <span className="text-sm text-gray-700">{amenity}</span>
                     </label>
@@ -1601,28 +1601,28 @@ export default function PropertyDetails() {
             </div>
 
             {/* Sidebar */}
-            <div className="lg:col-span-1 space-y-6">
+            <div className="lg:col-span-1 space-y-4 sm:space-y-6">
               {/* Options */}
-              <div className="bg-white rounded-lg shadow p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Options</h2>
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Options</h2>
 
                 <div className="space-y-3">
-                  <label className="flex items-center space-x-2 cursor-pointer">
+                  <label className="flex items-center space-x-2 cursor-pointer min-h-[44px] sm:min-h-0">
                     <input
                       type="checkbox"
                       checked={formData.featured}
                       onChange={(e) => setFormData({ ...formData, featured: e.target.checked })}
-                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                      className="w-5 h-5 sm:w-4 sm:h-4 flex-shrink-0 text-purple-600 rounded focus:ring-purple-500"
                     />
                     <span className="text-sm text-gray-700">Featured Property</span>
                   </label>
 
-                  <label className="flex items-center space-x-2 cursor-pointer">
+                  <label className="flex items-center space-x-2 cursor-pointer min-h-[44px] sm:min-h-0">
                     <input
                       type="checkbox"
                       checked={formData.verified}
                       onChange={(e) => setFormData({ ...formData, verified: e.target.checked })}
-                      className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                      className="w-5 h-5 sm:w-4 sm:h-4 flex-shrink-0 text-purple-600 rounded focus:ring-purple-500"
                     />
                     <span className="text-sm text-gray-700">Verified Property</span>
                   </label>
@@ -1630,9 +1630,9 @@ export default function PropertyDetails() {
               </div>
 
               {/* Images - Available for both new and editing */}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Images</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Images</h2>
                   <label className="cursor-pointer">
                     <input
                       type="file"
@@ -1652,7 +1652,7 @@ export default function PropertyDetails() {
                       className="hidden"
                       disabled={uploadingImages}
                     />
-                    <div className="flex items-center space-x-2 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
+                    <div className="flex items-center justify-center space-x-2 min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
                       <Upload className="h-4 w-4" />
                       <span className="text-sm">
                         {uploadingImages ? 'Uploading...' : 'Add Images'}
@@ -1695,7 +1695,7 @@ export default function PropertyDetails() {
                           <button
                             type="button"
                             onClick={() => setPendingImages(prev => prev.filter((_, i) => i !== index))}
-                            className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 p-2 sm:p-1 bg-red-600 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-manipulation"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -1744,7 +1744,7 @@ export default function PropertyDetails() {
                           <button
                             type="button"
                             onClick={() => handleDeleteImage(img.key)}
-                            className="absolute top-2 right-2 p-1 bg-red-600 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-2 right-2 p-2 sm:p-1 bg-red-600 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity touch-manipulation"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -1761,9 +1761,9 @@ export default function PropertyDetails() {
               </div>
 
               {/* Videos - Available for both new and editing */}
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Videos</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900">Videos</h2>
                   <label className="cursor-pointer">
                     <input
                       type="file"
@@ -1783,7 +1783,7 @@ export default function PropertyDetails() {
                       className="hidden"
                       disabled={uploadingVideos}
                     />
-                    <div className="flex items-center space-x-2 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
+                    <div className="flex items-center justify-center space-x-2 min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
                       <Upload className="h-4 w-4" />
                       <span className="text-sm">
                         {uploadingVideos ? 'Uploading...' : 'Add Videos'}
@@ -1815,7 +1815,7 @@ export default function PropertyDetails() {
                               <button
                                 type="button"
                                 onClick={() => setPendingVideos(prev => prev.filter((_, i) => i !== index))}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                className="flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-2 sm:p-1 text-red-600 hover:bg-red-50 rounded"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -1849,7 +1849,7 @@ export default function PropertyDetails() {
                               <a
                                 href={vid.url}
                                 download={vid.key.split('/').pop() || 'video'}
-                                className="text-xs text-purple-600 hover:text-purple-800"
+                                className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs text-purple-600 hover:text-purple-800"
                               >
                                 Download
                               </a>
@@ -1858,7 +1858,7 @@ export default function PropertyDetails() {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteVideo(vid.key)}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                className="flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-2 sm:p-1 text-red-600 hover:bg-red-50 rounded"
                               >
                                 <X className="h-4 w-4" />
                               </button>
@@ -1877,9 +1877,9 @@ export default function PropertyDetails() {
               </div>
 
               {isEditing && (
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg font-semibold text-gray-900">Documents</h2>
+                    <h2 className="text-base sm:text-lg font-semibold text-gray-900">Documents</h2>
                   </div>
 
                   <div className="space-y-3 mb-4">
@@ -1892,7 +1892,7 @@ export default function PropertyDetails() {
                         onChange={(e) =>
                           setSelectedDocumentType(e.target.value as CRMPropertyDocument['documentType'])
                         }
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
                         <option value="PHOTO">Photo</option>
                         <option value="VIDEO">Video</option>
@@ -1910,12 +1910,12 @@ export default function PropertyDetails() {
                         type="text"
                         value={documentDescription}
                         onChange={(e) => setDocumentDescription(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         placeholder="e.g. Signed agreement, police verification PDF"
                       />
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <label className="cursor-pointer">
                         <input
                           type="file"
@@ -1923,7 +1923,7 @@ export default function PropertyDetails() {
                           className="hidden"
                           onChange={handleDocumentFileChange}
                         />
-                        <div className="flex items-center space-x-2 px-3 py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
+                        <div className="flex items-center justify-center space-x-2 min-h-[44px] sm:min-h-0 px-3 py-2 sm:py-1 bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100">
                           <Upload className="h-4 w-4" />
                           <span className="text-sm">
                             {selectedDocumentFiles.length > 0
@@ -1936,7 +1936,7 @@ export default function PropertyDetails() {
                         type="button"
                         onClick={handleUploadDocument}
                         disabled={selectedDocumentFiles.length === 0 || uploadingDocument}
-                        className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                        className="min-h-[44px] sm:min-h-0 touch-manipulation px-3 py-2 sm:py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:opacity-50"
                       >
                         {uploadingDocument ? 'Uploading...' : 'Upload'}
                       </button>
@@ -2009,7 +2009,7 @@ export default function PropertyDetails() {
                                         <a
                                           href={doc.url}
                                           download={doc.fileName}
-                                          className="text-xs text-purple-600 hover:text-purple-800"
+                                          className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs text-purple-600 hover:text-purple-800"
                                         >
                                           Download
                                         </a>
@@ -2018,7 +2018,7 @@ export default function PropertyDetails() {
                                         <button
                                           type="button"
                                           onClick={() => handleDeleteDocument(doc.documentId)}
-                                          className="p-1 text-red-600 hover:bg-red-50 rounded"
+                                          className="flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-2 sm:p-1 text-red-600 hover:bg-red-50 rounded"
                                         >
                                           <X className="h-4 w-4" />
                                         </button>
@@ -2043,8 +2043,8 @@ export default function PropertyDetails() {
 
               {/* Ownership History */}
               {isEditing && property?.ownershipHistory && property.ownershipHistory.length > 0 && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Users className="h-5 w-5 text-purple-600" />
                     Ownership History
                   </h2>
@@ -2070,7 +2070,7 @@ export default function PropertyDetails() {
                             {(entry.fromContactId || entry.sellerContactId) && (
                               <button
                                 type="button"
-                                className="text-purple-700 underline"
+                                className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-purple-700 underline"
                                 onClick={() => navigate(`/crm/contacts/${entry.fromContactId || entry.sellerContactId}`)}
                               >
                                 Seller contact
@@ -2079,7 +2079,7 @@ export default function PropertyDetails() {
                             {(entry.toContactId || entry.buyerContactId) && (
                               <button
                                 type="button"
-                                className="text-purple-700 underline"
+                                className="inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-purple-700 underline"
                                 onClick={() => navigate(`/crm/contacts/${entry.toContactId || entry.buyerContactId}`)}
                               >
                                 Buyer / new owner
@@ -2110,8 +2110,8 @@ export default function PropertyDetails() {
 
               {/* Rental History */}
               {isEditing && property?.rentalHistory && property.rentalHistory.length > 0 && (
-                <div className="bg-white rounded-lg shadow p-6">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                     <Key className="h-5 w-5 text-teal-600" />
                     Rental History
                   </h2>
@@ -2132,7 +2132,7 @@ export default function PropertyDetails() {
                           <p className="text-sm text-gray-800 font-medium">
                             Tenant: <span className="text-gray-900 font-semibold">{entry.tenantName || 'Unknown Tenant'}</span>
                           </p>
-                          <div className="grid grid-cols-2 gap-4 mt-2 text-sm text-gray-600">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 mt-2 text-sm text-gray-600">
                             {entry.monthlyRent && (
                               <p>
                                 Rent: <span className="font-semibold text-gray-900">&#x20B9;{entry.monthlyRent.toLocaleString()}</span> /mo
@@ -2144,7 +2144,7 @@ export default function PropertyDetails() {
                               </p>
                             )}
                             {entry.brokeragePaid && (
-                              <p className="col-span-2">
+                              <p className="sm:col-span-2">
                                 Brokerage Paid: <span className="font-semibold text-green-700">&#x20B9;{entry.brokeragePaid.toLocaleString()}</span>
                               </p>
                             )}
@@ -2157,12 +2157,12 @@ export default function PropertyDetails() {
               )}
 
               {!isEditing && (
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Agreement Document Upload for New Property */}
-                  <div className="bg-white rounded-lg shadow p-6">
+                  <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <FileText className="h-5 w-5 text-purple-600" />
-                      <h2 className="text-lg font-semibold text-gray-900">Agreement Document</h2>
+                      <h2 className="text-base sm:text-lg font-semibold text-gray-900">Agreement Document</h2>
                     </div>
                     <p className="text-sm text-gray-600 mb-4">
                       Upload rental agreement during property creation
@@ -2197,7 +2197,7 @@ export default function PropertyDetails() {
                         <button
                           type="button"
                           onClick={() => setPendingAgreementDocs([])}
-                          className="mt-2 text-xs text-red-600 hover:text-red-800"
+                          className="mt-2 inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs text-red-600 hover:text-red-800"
                         >
                           Remove
                         </button>
@@ -2206,10 +2206,10 @@ export default function PropertyDetails() {
                   </div>
 
                   {/* Police Verification Document Upload for New Property */}
-                  <div className="bg-white rounded-lg shadow p-6">
+                  <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <ShieldCheck className="h-5 w-5 text-purple-600" />
-                      <h2 className="text-lg font-semibold text-gray-900">Police Verification</h2>
+                      <h2 className="text-base sm:text-lg font-semibold text-gray-900">Police Verification</h2>
                     </div>
                     <p className="text-sm text-gray-600 mb-4">
                       Upload police verification document during property creation
@@ -2244,7 +2244,7 @@ export default function PropertyDetails() {
                         <button
                           type="button"
                           onClick={() => setPendingVerificationDocs([])}
-                          className="mt-2 text-xs text-red-600 hover:text-red-800"
+                          className="mt-2 inline-flex items-center min-h-[44px] sm:min-h-0 touch-manipulation text-xs text-red-600 hover:text-red-800"
                         >
                           Remove
                         </button>
@@ -2289,18 +2289,18 @@ export default function PropertyDetails() {
           />
 
           {/* Submit Actions */}
-          <div className="mt-8 flex justify-end space-x-4">
+          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row sm:justify-end gap-3 sm:gap-4">
             <button
               type="button"
               onClick={() => navigate('/crm/properties')}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center space-x-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              className="w-full sm:w-auto min-h-[44px] touch-manipulation flex items-center justify-center space-x-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
             >
               <Save className="h-5 w-5" />
               <span>{saving ? 'Saving...' : 'Save Property'}</span>
@@ -2319,21 +2319,21 @@ export default function PropertyDetails() {
 
       {/* Rental Assignment Modal */}
       {showRentalModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Assign Tenant</h2>
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-2 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Assign Tenant</h2>
                 <button
                   type="button"
                   onClick={() => setShowRentalModal(false)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                  className="flex-shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-2 sm:p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleMarkAsRentedConfirm} className="space-y-5">
+              <form onSubmit={handleMarkAsRentedConfirm} className="space-y-4 sm:space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Select Tenant <span className="text-red-500">*</span>
@@ -2341,7 +2341,7 @@ export default function PropertyDetails() {
                   <select
                     value={rentalForm.customerId}
                     onChange={(e) => setRentalForm({ ...rentalForm, customerId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     required
                   >
                     <option value="">Choose a tenant...</option>
@@ -2396,7 +2396,7 @@ export default function PropertyDetails() {
                     type="date"
                     value={rentalForm.leaseStartDate}
                     onChange={(e) => setRentalForm({ ...rentalForm, leaseStartDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                     required
                   />
                 </div>
@@ -2407,7 +2407,7 @@ export default function PropertyDetails() {
                     type="date"
                     value={rentalForm.leaseEndDate}
                     onChange={(e) => setRentalForm({ ...rentalForm, leaseEndDate: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                   />
                 </div>
 
@@ -2418,7 +2418,7 @@ export default function PropertyDetails() {
                     onChange={(e) => setRentalForm({ ...rentalForm, notes: e.target.value })}
                     placeholder="Any additional notes about this rental..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent resize-none"
                   />
                 </div>
 
@@ -2426,14 +2426,14 @@ export default function PropertyDetails() {
                   <button
                     type="button"
                     onClick={() => setShowRentalModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                    className="flex-1 min-h-[44px] touch-manipulation px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={savingRental || !rentalForm.customerId}
-                    className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium"
+                    className="flex-1 min-h-[44px] touch-manipulation px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium"
                   >
                     {savingRental ? 'Assigning...' : 'Assign Tenant'}
                   </button>
@@ -2446,29 +2446,29 @@ export default function PropertyDetails() {
 
       {/* Sale Modal */}
       {showSaleModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900">Transfer Ownership / Sell Property</h2>
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-2 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900">Transfer Ownership / Sell Property</h2>
                 <button
                   type="button"
                   onClick={() => setShowSaleModal(false)}
-                  className="p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                  className="flex-shrink-0 flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 touch-manipulation p-2 sm:p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleMarkAsSoldConfirm} className="space-y-5">
+              <form onSubmit={handleMarkAsSoldConfirm} className="space-y-4 sm:space-y-5">
                 {/* Sale Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Sale Type</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => setSaleForm({ ...saleForm, saleType: 'direct' })}
-                      className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                      className={`min-h-[44px] touch-manipulation px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
                         saleForm.saleType === 'direct'
                           ? 'border-purple-600 bg-purple-50 text-purple-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
@@ -2479,7 +2479,7 @@ export default function PropertyDetails() {
                     <button
                       type="button"
                       onClick={() => setSaleForm({ ...saleForm, saleType: 'third_party' })}
-                      className={`px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
+                      className={`min-h-[44px] touch-manipulation px-4 py-3 rounded-lg border-2 text-sm font-medium transition-all ${
                         saleForm.saleType === 'third_party'
                           ? 'border-red-500 bg-red-50 text-red-700'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300'
@@ -2525,7 +2525,7 @@ export default function PropertyDetails() {
                     <select
                       value={saleForm.buyerId}
                       onChange={(e) => setSaleForm({ ...saleForm, buyerId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       required
                     >
                       <option value="">Choose a buyer...</option>
@@ -2551,7 +2551,7 @@ export default function PropertyDetails() {
                       <select
                         value={saleForm.reasonLost}
                         onChange={(e) => setSaleForm({ ...saleForm, reasonLost: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                       >
                         <option value="">Select a reason...</option>
                         <option value="Client went with competitor">Client went with competitor</option>
@@ -2572,7 +2572,7 @@ export default function PropertyDetails() {
                           value={saleForm.customReasonLost}
                           onChange={(e) => setSaleForm({ ...saleForm, customReasonLost: e.target.value })}
                           placeholder="Enter custom reason..."
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         />
                       </div>
                     )}
@@ -2601,7 +2601,7 @@ export default function PropertyDetails() {
                     onChange={(e) => setSaleForm({ ...saleForm, notes: e.target.value })}
                     placeholder="Any additional notes about this sale..."
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                    className="w-full min-h-[44px] px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
                   />
                 </div>
 
@@ -2610,14 +2610,14 @@ export default function PropertyDetails() {
                   <button
                     type="button"
                     onClick={() => setShowSaleModal(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
+                    className="flex-1 min-h-[44px] touch-manipulation px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 font-medium"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={savingSale || (saleForm.saleType === 'direct' && !saleForm.buyerId)}
-                    className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium"
+                    className="flex-1 min-h-[44px] touch-manipulation px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 font-medium"
                   >
                     {savingSale ? 'Saving...' : 'Confirm Sale'}
                   </button>

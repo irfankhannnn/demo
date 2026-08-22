@@ -13,6 +13,8 @@ const router = Router();
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const MCP_AGENT_ROLE = 'mcp-agent';
+/** Identity used when the MCP token names no human user. Must match reality-flow-mcp's jwtAuth default. */
+const MCP_SERVICE_IDENTITY = 'mcp-agent';
 
 /**
  * Middleware: verify service JWT (not user JWT).
@@ -28,9 +30,18 @@ function verifyMcpToken(req, res, next) {
     return res.status(503).json({ error: 'Service misconfigured' });
   }
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    // Pin the algorithm. JWT_SECRET is symmetric, so without this the
+    // verifier would accept whatever `alg` the token declares.
+    const payload = jwt.verify(token, JWT_SECRET, { algorithms: ['HS256'] });
     if (payload.role !== MCP_AGENT_ROLE) {
       return res.status(403).json({ error: 'Insufficient role' });
+    }
+    // The tenant MUST come from the signed token. Reject a service token
+    // without a tenantId claim rather than letting the handler fall back to
+    // a client-supplied header (see the tenant note on the /tool route).
+    if (!payload.tenantId) {
+      logger.warn('agentTools: token missing tenantId claim');
+      return res.status(403).json({ error: 'Token missing tenantId' });
     }
     req.jwtPayload = payload;
     req.agentTenantId = payload.tenantId;
@@ -47,10 +58,18 @@ function verifyMcpToken(req, res, next) {
  */
 router.post('/tool', verifyMcpToken, async (req, res) => {
   const { toolName, input } = req.body || {};
-  const tenantId = req.agentTenantId || req.headers['x-tenant-id'];
+  // Tenant comes ONLY from the verified JWT. This previously fell back to
+  // `req.headers['x-tenant-id']`, which meant a caller holding any valid
+  // mcp-agent token whose payload lacked a tenantId claim could name ANY
+  // tenant in a header and drive the CRM tools against it — cross-tenant
+  // read and write. That also contradicted the rule stated in
+  // tenantMiddleware.js: "NEVER trust the client-provided x-tenant-id
+  // header." verifyMcpToken now rejects a token with no tenantId claim, so
+  // reaching here without one is impossible.
+  const tenantId = req.agentTenantId;
 
   if (!tenantId) {
-    return res.status(400).json({ error: 'Missing tenantId (must be in JWT or x-tenant-id header)' });
+    return res.status(400).json({ error: 'Missing tenantId' });
   }
 
   if (!toolName || typeof toolName !== 'string') {
@@ -62,8 +81,21 @@ router.post('/tool', verifyMcpToken, async (req, res) => {
   }
 
   try {
-    const userId = req.headers['x-user-id'] || 'mcp-agent';
-    const result = await invokeSkill(tenantId, toolName, input || {}, { userId, source: 'mcp' });
+    const userId = req.headers['x-user-id'] || MCP_SERVICE_IDENTITY;
+    // The permission check is fail-closed and no `CATEGORY#USER` row is ever
+    // created for the anonymous service identity, so in production every call
+    // arriving without an `x-user-id` was denied. The authorisation for that
+    // case is the token itself — signed, tenant-scoped, and role-checked in
+    // verifyMcpToken — so the service identity resolves to `admin`.
+    //
+    // A *named* user keeps failing closed: naming a specific person is a claim
+    // their provisioned category exists to answer, and quietly upgrading an
+    // unprovisioned human to admin would be the actual bypass.
+    const result = await invokeSkill(tenantId, toolName, input || {}, {
+      userId,
+      source: 'mcp',
+      ...(userId === MCP_SERVICE_IDENTITY ? { fallbackCategory: 'admin' } : {}),
+    });
     return res.json(result);
   } catch (err) {
     logger.error('agentTools.invoke.failed', { tenantId, toolName, error: err.message });

@@ -280,16 +280,28 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
 
     const budget = parseBudgetBracket(body.budgetBracket || body.budget);
 
+    // A rental enquiry is a TENANT lead, not a buyer lead. This used to
+    // hardcode leadType 'buyer' for every Instagram lead, so someone who
+    // picked "rent" (or "heavy deposit", which is a rental arrangement) was
+    // filed as a buyer: they showed up in buyer-lead lists, never in
+    // "tenant leads dikhao", and their budget landed in buyerRequirement
+    // instead of tenantRequirement. The requirement value already told us
+    // which one it was; it just wasn't used.
+    const isRental = requirementLabel === 'rent' || requirementLabel === 'heavy_deposit_ok';
+    const requirementPayload = {
+      requirement: requirementLabel,
+      budget: budget ?? undefined,
+      preferredArea: body.preferredArea || body.area || undefined,
+    };
+
     const leadData = {
       name,
       phone,
-      leadType: 'buyer',
+      leadType: isRental ? 'tenant' : 'buyer',
       source: 'Instagram',
-      buyerRequirement: {
-        requirement: requirementLabel,
-        budget: budget ?? undefined,
-        preferredArea: body.preferredArea || body.area || undefined,
-      },
+      ...(isRental
+        ? { tenantRequirement: requirementPayload }
+        : { buyerRequirement: requirementPayload }),
       reelRef: (body.postId || body.permalink)
         ? { postId: body.postId || null, permalink: body.permalink || null }
         : null,

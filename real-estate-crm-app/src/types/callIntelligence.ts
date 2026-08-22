@@ -100,6 +100,8 @@ export interface CallRecordingSummary {
   asrLanguage: string | null;
   pendingActions: number;
   appliedActions: number;
+  /** CRM writes that were attempted and failed. A recording can be COMPLETED with these > 0. */
+  failedActions: number;
   failureStage: string | null;
   failureReason: string | null;
   possibleDuplicateOf: string | null;

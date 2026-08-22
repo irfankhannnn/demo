@@ -16,6 +16,8 @@ import { logger } from '../../logger.js';
  * @param {string} [params.toolName]
  * @param {object} [params.toolResult] - invokeSkill envelope
  * @param {object} [params.truncatedPayload] - safe JSON for LLM
+ * @param {'whatsapp'|'web'} [params.channel] - composition target (Phase 4).
+ *   Defaults to 'whatsapp' so every existing caller is unchanged.
  * @param {() => void} [params.onApiCall]
  * @returns {Promise<string|null>} null if generation failed
  */
@@ -26,6 +28,7 @@ export async function composeReply(params) {
     tenantId = '',
     toolName = null,
     truncatedPayload = null,
+    channel = 'whatsapp',
     onApiCall,
   } = params;
 
@@ -33,7 +36,7 @@ export async function composeReply(params) {
   const modelName = process.env.GEMINI_MODEL;
   if (!apiKey || !modelName) return null;
 
-  const systemInstruction = buildComposerSystemPrompt(personality);
+  const systemInstruction = buildComposerSystemPrompt(personality, channel);
   const dataBlock = truncatedPayload != null
     ? JSON.stringify(truncatedPayload, null, 0)
     : '(no tool data — conversational reply only)';
@@ -46,6 +49,7 @@ export async function composeReply(params) {
     tenantId,
     agentId: 'composer',
     kind: 'composer',
+    channel,
   });
   await geminiLog?.writeInput({
     type: 'generate_content',
@@ -78,7 +82,7 @@ export async function composeReply(params) {
     });
 
     if (valid) return text;
-    logger.debug('agent.composer.invalid_output', { toolName, length: text?.length || 0 });
+    logger.debug('agent.composer.invalid_output', { toolName, channel, length: text?.length || 0 });
     return null;
   } catch (err) {
     await geminiLog?.writeOutput({
@@ -86,7 +90,7 @@ export async function composeReply(params) {
       model: modelName,
       error: err.message,
     });
-    logger.warn('agent.composer.failed', { error: err.message, toolName });
+    logger.warn('agent.composer.failed', { error: err.message, toolName, channel });
     return null;
   }
 }

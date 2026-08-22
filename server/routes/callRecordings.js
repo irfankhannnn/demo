@@ -48,10 +48,11 @@ import {
   deleteRecording,
   markFailed,
 } from '../services/callIntelligence/callRecordingRepository.js';
+import { rawTranscriptKeyFor } from '../services/callIntelligence/transcription/amazonTranscribeProvider.js';
 import { extractPhoneFromFilename, normalizePhoneForMatch, toE164 } from '../services/callIntelligence/phoneExtractor.js';
 import { resolveEntityByPhone, loadEntitySnapshot } from '../services/callIntelligence/entityResolver.js';
 import { startProcessing, processJob, runAnalysisStage } from '../services/callIntelligence/pipeline.js';
-import { isQueueEnabled } from '../services/callIntelligence/queue.js';
+import { isQueueEnabled, enqueueJob } from '../services/callIntelligence/queue.js';
 import { executeAction } from '../services/callIntelligence/actionExecutor.js';
 
 const router = express.Router();
@@ -84,6 +85,11 @@ function toListItem(item) {
     asrLanguage: item.asrLanguage,
     pendingActions: (item.proposedActions || []).filter((a) => a.status === ACTION_STATUS.PENDING).length,
     appliedActions: (item.proposedActions || []).filter((a) => a.status === ACTION_STATUS.APPLIED).length,
+    // A recording whose actions all FAILED still reports COMPLETED — the
+    // transcription and analysis genuinely finished, only the CRM writes did
+    // not. Surfacing the count in the list is what stops that from reading as
+    // "all good"; the drawer already renders each failure with a Retry button.
+    failedActions: (item.proposedActions || []).filter((a) => a.status === ACTION_STATUS.FAILED).length,
     failureStage: item.failureStage || null,
     failureReason: item.failureReason || null,
     possibleDuplicateOf: item.possibleDuplicateOf || null,
@@ -148,6 +154,56 @@ function nudgeInlinePipeline(tenantId, recording, userId) {
     .catch((err) => logger.warn('callIntelligence.nudge.failed', {
       tenantId, recordingId: recording.recordingId, error: err.message,
     }));
+}
+
+/**
+ * ANALYZING is deliberately excluded from both the nudge list above and from
+ * STAGE_CLAIM_STATUSES — that exclusion is what stops two concurrent workers
+ * from running Gemini twice. The cost is that a recording whose worker died
+ * mid-analysis (Lambda timeout, or an SQS message that exhausted its receives
+ * and went to the DLQ) is stuck in ANALYZING with nothing able to re-claim it,
+ * and the UI polls it forever.
+ *
+ * Recovery is time-based and conditional: once the row has not been touched
+ * for the stall window, exactly one caller wins the conditional write back to
+ * TRANSCRIBED, and the stage becomes claimable again. `transitionStatus`
+ * expects ANALYZING here, so a worker that is genuinely still alive and writes
+ * its own update keeps `updatedAt` fresh and never trips the window.
+ *
+ * This runs under SQS too, where the nudge does not — a DLQ'd message is
+ * exactly the case that needs it.
+ */
+const STALLED_ANALYSIS_MS = parseInt(
+  process.env.CALL_INTEL_STALLED_ANALYSIS_MS || String(15 * 60 * 1000), 10,
+);
+
+function recoverStalledAnalysis(tenantId, recording, userId) {
+  if (recording.status !== RECORDING_STATUS.ANALYZING) return;
+  const touchedAt = Date.parse(recording.updatedAt || recording.createdAt || '');
+  if (!Number.isFinite(touchedAt)) return;
+  if (Date.now() - touchedAt < STALLED_ANALYSIS_MS) return;
+
+  const recordingId = recording.recordingId;
+  (async () => {
+    const reclaimed = await transitionStatus(
+      tenantId,
+      recordingId,
+      RECORDING_STATUS.TRANSCRIBED,
+      [RECORDING_STATUS.ANALYZING],
+    );
+    // Another reader got there first.
+    if (!reclaimed) return;
+    logger.warn('callIntelligence.analysis.stalled_recovered', {
+      tenantId, recordingId, stalledForMs: Date.now() - touchedAt,
+    });
+    if (isQueueEnabled()) {
+      await enqueueJob({ tenantId, recordingId, stage: PIPELINE_STAGE.ANALYSIS, userId }, 0);
+    } else {
+      await processJob({ tenantId, recordingId, stage: PIPELINE_STAGE.ANALYSIS, userId });
+    }
+  })().catch((err) => logger.warn('callIntelligence.analysis.stall_recovery_failed', {
+    tenantId, recordingId, error: err.message,
+  }));
 }
 
 // ── Upload ───────────────────────────────────────────────────────────────────
@@ -286,7 +342,22 @@ router.post('/:recordingId/confirm', validateBody(confirmUploadSchema), async (r
     }
 
     await updateRecording(tenantId, recordingId, updates);
-    await transitionStatus(tenantId, recordingId, RECORDING_STATUS.QUEUED, [RECORDING_STATUS.UPLOADED]);
+
+    // The UPLOADED -> QUEUED transition is the concurrency gate for this
+    // endpoint, so its result must be honoured. The status check earlier in
+    // this handler is a read, and the updateRecording above is
+    // unconditional — two concurrent confirms both pass the read and both
+    // reach here. Only one can win this conditional write; the loser must
+    // NOT also call startProcessing, or the recording is enqueued twice and
+    // the pipeline runs (and auto-applies its note) twice.
+    const queued = await transitionStatus(
+      tenantId, recordingId, RECORDING_STATUS.QUEUED, [RECORDING_STATUS.UPLOADED],
+    );
+    if (!queued) {
+      logger.info('callIntelligence.confirm.already_queued', { tenantId, recordingId });
+      const current = await getRecording(tenantId, recordingId);
+      return res.json({ recording: toDetail(current), processing: 'already_started' });
+    }
 
     const started = await startProcessing({ tenantId, recordingId, userId: actingUserId(req) });
     const updated = await getRecording(tenantId, recordingId);
@@ -313,7 +384,10 @@ router.get('/', async (req, res) => {
       status: req.query.status,
     });
 
-    items.forEach((item) => nudgeInlinePipeline(tenantId, item, actingUserId(req)));
+    items.forEach((item) => {
+      nudgeInlinePipeline(tenantId, item, actingUserId(req));
+      recoverStalledAnalysis(tenantId, item, actingUserId(req));
+    });
 
     return res.json({ recordings: items.map(toListItem), nextCursor });
   } catch (error) {
@@ -330,6 +404,7 @@ router.get('/:recordingId', async (req, res) => {
     if (!recording) return res.status(404).json({ error: 'Recording not found' });
 
     nudgeInlinePipeline(tenantId, recording, actingUserId(req));
+    recoverStalledAnalysis(tenantId, recording, actingUserId(req));
     return res.json({ recording: toDetail(recording) });
   } catch (error) {
     logger.error('callIntelligence.get.failed', { tenantId, recordingId, error: error.message });
@@ -397,10 +472,20 @@ router.post('/:recordingId/link', validateBody(linkEntitySchema), async (req, re
     });
 
     if (reanalyze && recording.transcriptS3Key) {
-      // Re-plan actions against the newly linked record.
+      // Re-plan actions against the newly linked record. Keep what was already
+      // applied — clearing the list destroyed the record of what the pipeline
+      // had written to the CRM before the operator corrected the match. The
+      // analysis stage folds these back in and will not re-apply a note to the
+      // same record (a *different* record is a different action, so the note
+      // does land on the newly linked one).
+      const appliedActions = (recording.proposedActions || [])
+        .filter((a) => a.status === ACTION_STATUS.APPLIED);
       await updateRecording(tenantId, recordingId, {
         status: RECORDING_STATUS.TRANSCRIBED,
-        proposedActions: [],
+        proposedActions: appliedActions,
+        // A previously exhausted analysis budget must not block the re-run the
+        // operator just asked for (matches /reanalyze).
+        stageAttempts: { ...(recording.stageAttempts || {}), [PIPELINE_STAGE.ANALYSIS]: 0 },
       });
       const result = await runAnalysisStage({ tenantId, recordingId, userId: actingUserId(req) });
       if (!result.ok) {
@@ -576,6 +661,13 @@ router.delete('/:recordingId', async (req, res) => {
       recording.transcriptS3Key,
       recording.transcriptTextS3Key,
       recording.analysisS3Key,
+      // Amazon Transcribe writes its own raw diarized output to a key we
+      // never persisted on the item, so it survived "delete" — the verbatim
+      // customer conversation stayed in S3 indefinitely, contradicting the
+      // acceptance criterion in docs/proposals/agent-channel-architecture/
+      // recording-flow-test.md §4.12. Reconstructed here because it is
+      // deterministic from (tenantId, recordingId).
+      rawTranscriptKeyFor(tenantId, recordingId),
     ].filter(Boolean);
 
     for (const key of keys) {

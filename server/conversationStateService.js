@@ -2,6 +2,16 @@
  * Conversation State Service
  * Manages multi-turn conversation state for WhatsApp interactions
  * Tracks conversation flow, context, and user intent across messages
+ *
+ * Keyed by `principal` (e.g. `wa:<phone>`) rather than a raw phone number,
+ * so a future channel (e.g. `web:<userId>`) can share this same store --
+ * see docs/proposals/agent-channel-architecture/phase2-imp/01-slice2a-session-principal-rekey.md
+ * for why and how this migrated from the old phone-only key.
+ *
+ * getConversationState() falls back to the legacy phone-only key on a miss,
+ * so an in-flight conversation isn't dropped at deploy time. Every write
+ * always uses the new principal key; legacy rows are never backfilled and
+ * simply expire on their own TTL (see TTL_SECONDS below).
  */
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
@@ -13,28 +23,42 @@ const TABLE_NAME = process.env.CRM_DYNAMODB_TABLE_NAME;
 const TTL_SECONDS = parseInt(process.env.CONVERSATION_STATE_TTL_SECONDS || '86400', 10); // 24 hours
 
 /**
- * Build partition key for conversation state
+ * Build partition key for conversation state from a principal
+ * (e.g. `wa:919876543210`).
  */
-function buildPk(tenantId, contactPhone) {
-  return `TENANT#${tenantId}#WHATSAPP#STATE#${contactPhone}`;
+function buildPk(tenantId, principal) {
+  return `TENANT#${tenantId}#WHATSAPP#STATE#${principal}`;
+}
+
+/**
+ * Build the legacy (pre-principal) partition key from a raw phone number --
+ * only used as a one-time read fallback during the migration window.
+ */
+function buildLegacyPk(tenantId, phone) {
+  return `TENANT#${tenantId}#WHATSAPP#STATE#${phone}`;
+}
+
+/** Extract the raw phone from a `wa:<phone>` principal, for the legacy-key fallback. */
+function phoneFromWhatsAppPrincipal(principal) {
+  return typeof principal === 'string' && principal.startsWith('wa:') ? principal.slice(3) : principal;
 }
 
 /**
  * Initialize conversation state for a new conversation
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal - e.g. `wa:<phone>`
  * @param {object} initialContext - Initial context (leadId, userId, etc.)
  * @returns {Promise<Object>} Created state
  */
-export async function initializeConversationState(tenantId, contactPhone, initialContext = {}) {
+export async function initializeConversationState(tenantId, principal, initialContext = {}) {
   if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
 
   const now = new Date().toISOString();
   const state = {
-    PK: buildPk(tenantId, contactPhone),
+    PK: buildPk(tenantId, principal),
     SK: 'STATE#CURRENT',
     tenantId,
-    contactPhone,
+    principal,
     status: 'active', // active, paused, resolved
     intent: null, // user's primary intent (e.g., 'inquiry', 'complaint', 'booking')
     topic: null, // current topic being discussed
@@ -55,46 +79,71 @@ export async function initializeConversationState(tenantId, contactPhone, initia
       TableName: TABLE_NAME,
       Item: state,
     }));
-    logger.info('conversationStateService.initialize.success', { tenantId, contactPhone });
+    logger.info('conversationStateService.initialize.success', { tenantId, principal });
     return state;
   } catch (err) {
-    logger.error('conversationStateService.initialize.failed', { tenantId, contactPhone, error: err.message });
+    logger.error('conversationStateService.initialize.failed', { tenantId, principal, error: err.message });
     throw err;
   }
 }
 
 /**
- * Get current conversation state
+ * Get current conversation state. Falls back once to the legacy phone-only
+ * key on a miss (WhatsApp principals only), so a conversation that started
+ * before the principal re-key isn't dropped. Subsequent writes for this
+ * principal always go under the new key.
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal - e.g. `wa:<phone>`
  * @returns {Promise<Object|null>} Current state or null if not found
  */
-export async function getConversationState(tenantId, contactPhone) {
+export async function getConversationState(tenantId, principal) {
   if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
 
   try {
     const result = await docClient.send(new GetCommand({
       TableName: TABLE_NAME,
       Key: {
-        PK: buildPk(tenantId, contactPhone),
+        PK: buildPk(tenantId, principal),
         SK: 'STATE#CURRENT',
       },
     }));
-    return result.Item || null;
+    if (result.Item) return result.Item;
   } catch (err) {
-    logger.error('conversationStateService.get.failed', { tenantId, contactPhone, error: err.message });
+    logger.error('conversationStateService.get.failed', { tenantId, principal, error: err.message });
     return null;
   }
+
+  // Dual-read fallback: try the legacy phone-only key for WhatsApp principals.
+  if (typeof principal === 'string' && principal.startsWith('wa:')) {
+    const legacyPhone = phoneFromWhatsAppPrincipal(principal);
+    try {
+      const legacyResult = await docClient.send(new GetCommand({
+        TableName: TABLE_NAME,
+        Key: {
+          PK: buildLegacyPk(tenantId, legacyPhone),
+          SK: 'STATE#CURRENT',
+        },
+      }));
+      if (legacyResult.Item) {
+        logger.info('conversationStateService.get.legacy_key_hit', { tenantId, principal });
+        return legacyResult.Item;
+      }
+    } catch (err) {
+      logger.error('conversationStateService.get.legacy_lookup_failed', { tenantId, principal, error: err.message });
+    }
+  }
+
+  return null;
 }
 
 /**
  * Update conversation state
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal - e.g. `wa:<phone>`
  * @param {object} updates - Fields to update
  * @returns {Promise<Object>} Updated state
  */
-export async function updateConversationState(tenantId, contactPhone, updates) {
+export async function updateConversationState(tenantId, principal, updates) {
   if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
 
   const now = new Date().toISOString();
@@ -118,7 +167,7 @@ export async function updateConversationState(tenantId, contactPhone, updates) {
     const result = await docClient.send(new UpdateCommand({
       TableName: TABLE_NAME,
       Key: {
-        PK: buildPk(tenantId, contactPhone),
+        PK: buildPk(tenantId, principal),
         SK: 'STATE#CURRENT',
       },
       UpdateExpression: `SET ${updateExpressions.join(', ')}`,
@@ -127,10 +176,10 @@ export async function updateConversationState(tenantId, contactPhone, updates) {
       ReturnValues: 'ALL_NEW',
     }));
 
-    logger.info('conversationStateService.update.success', { tenantId, contactPhone, updates: Object.keys(updates) });
+    logger.info('conversationStateService.update.success', { tenantId, principal, updates: Object.keys(updates) });
     return result.Attributes;
   } catch (err) {
-    logger.error('conversationStateService.update.failed', { tenantId, contactPhone, error: err.message });
+    logger.error('conversationStateService.update.failed', { tenantId, principal, error: err.message });
     throw err;
   }
 }
@@ -138,35 +187,35 @@ export async function updateConversationState(tenantId, contactPhone, updates) {
 /**
  * Update intent for conversation
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {string} intent - User's intent (inquiry, complaint, booking, etc.)
  * @returns {Promise<Object>} Updated state
  */
-export async function updateConversationIntent(tenantId, contactPhone, intent) {
-  return updateConversationState(tenantId, contactPhone, { intent });
+export async function updateConversationIntent(tenantId, principal, intent) {
+  return updateConversationState(tenantId, principal, { intent });
 }
 
 /**
  * Update topic for conversation
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {string} topic - Current topic being discussed
  * @returns {Promise<Object>} Updated state
  */
-export async function updateConversationTopic(tenantId, contactPhone, topic) {
-  return updateConversationState(tenantId, contactPhone, { topic });
+export async function updateConversationTopic(tenantId, principal, topic) {
+  return updateConversationState(tenantId, principal, { topic });
 }
 
 /**
  * Increment message count and update last message time
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @returns {Promise<Object>} Updated state
  */
-export async function recordMessageInConversation(tenantId, contactPhone) {
-  const state = await getConversationState(tenantId, contactPhone);
+export async function recordMessageInConversation(tenantId, principal) {
+  const state = await getConversationState(tenantId, principal);
   const messageCount = (state?.messageCount || 0) + 1;
-  return updateConversationState(tenantId, contactPhone, {
+  return updateConversationState(tenantId, principal, {
     messageCount,
     lastMessageAt: new Date().toISOString(),
   });
@@ -176,15 +225,15 @@ export async function recordMessageInConversation(tenantId, contactPhone) {
  * Reset conversation state if the last message is older than the given gap.
  * This prevents old intent/topic/entities from leaking into a new conversation.
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {number} maxGapHours - Maximum allowed gap in hours before resetting
  * @param {object} initialContext - Context to use when re-initializing
  * @returns {Promise<Object|null>} Reset state or null if no reset needed
  */
-export async function resetConversationStateIfStale(tenantId, contactPhone, maxGapHours = 2, initialContext = {}) {
+export async function resetConversationStateIfStale(tenantId, principal, maxGapHours = 2, initialContext = {}) {
   if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
 
-  const state = await getConversationState(tenantId, contactPhone);
+  const state = await getConversationState(tenantId, principal);
   if (!state) return null;
 
   const lastMessageAt = state.lastMessageAt;
@@ -193,9 +242,9 @@ export async function resetConversationStateIfStale(tenantId, contactPhone, maxG
     const now = Date.now();
     const gapMs = maxGapHours * 60 * 60 * 1000;
     if (now - lastTime > gapMs) {
-      await deleteConversationState(tenantId, contactPhone);
-      logger.info('conversationStateService.reset_stale', { tenantId, contactPhone, lastMessageAt, maxGapHours });
-      return initializeConversationState(tenantId, contactPhone, initialContext);
+      await deleteConversationState(tenantId, principal);
+      logger.info('conversationStateService.reset_stale', { tenantId, principal, lastMessageAt, maxGapHours });
+      return initializeConversationState(tenantId, principal, initialContext);
     }
   }
   return null;
@@ -204,12 +253,12 @@ export async function resetConversationStateIfStale(tenantId, contactPhone, maxG
 /**
  * Close conversation
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {string} resolution - How conversation was resolved
  * @returns {Promise<Object>} Updated state
  */
-export async function closeConversation(tenantId, contactPhone, resolution = 'completed') {
-  return updateConversationState(tenantId, contactPhone, {
+export async function closeConversation(tenantId, principal, resolution = 'completed') {
+  return updateConversationState(tenantId, principal, {
     status: 'resolved',
     resolution,
     resolvedAt: new Date().toISOString(),
@@ -219,12 +268,12 @@ export async function closeConversation(tenantId, contactPhone, resolution = 'co
 /**
  * Pause conversation (can be resumed later)
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {string} reason - Reason for pause
  * @returns {Promise<Object>} Updated state
  */
-export async function pauseConversation(tenantId, contactPhone, reason = 'awaiting_user_response') {
-  return updateConversationState(tenantId, contactPhone, {
+export async function pauseConversation(tenantId, principal, reason = 'awaiting_user_response') {
+  return updateConversationState(tenantId, principal, {
     status: 'paused',
     pausedAt: new Date().toISOString(),
     pauseReason: reason,
@@ -234,11 +283,11 @@ export async function pauseConversation(tenantId, contactPhone, reason = 'awaiti
 /**
  * Resume paused conversation
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @returns {Promise<Object>} Updated state
  */
-export async function resumeConversation(tenantId, contactPhone) {
-  return updateConversationState(tenantId, contactPhone, {
+export async function resumeConversation(tenantId, principal) {
+  return updateConversationState(tenantId, principal, {
     status: 'active',
     resumedAt: new Date().toISOString(),
   });
@@ -247,14 +296,14 @@ export async function resumeConversation(tenantId, contactPhone) {
 /**
  * Add context to conversation (merge with existing)
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {object} contextUpdate - Context fields to add/update
  * @returns {Promise<Object>} Updated state
  */
-export async function addContextToConversation(tenantId, contactPhone, contextUpdate) {
-  const state = await getConversationState(tenantId, contactPhone);
+export async function addContextToConversation(tenantId, principal, contextUpdate) {
+  const state = await getConversationState(tenantId, principal);
   const mergedContext = { ...state?.context, ...contextUpdate };
-  return updateConversationState(tenantId, contactPhone, { context: mergedContext });
+  return updateConversationState(tenantId, principal, { context: mergedContext });
 }
 
 function unwrapToolPayload(data) {
@@ -398,18 +447,18 @@ export function extractListAndFocusFromToolResults(toolResults) {
 /**
  * Update the most recently discussed entities in conversation state
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @param {Array} entities - Entities extracted from tool results
  * @param {string} topic - Optional topic override
  * @param {object} [extra] - Optional { lastListResults, currentEntity }
  * @returns {Promise<Object>} Updated state
  */
-export async function updateLastDiscussedEntities(tenantId, contactPhone, entities, topic, extra = {}) {
+export async function updateLastDiscussedEntities(tenantId, principal, entities, topic, extra = {}) {
   if ((!Array.isArray(entities) || entities.length === 0)
     && !extra.lastListResults && !extra.currentEntity) {
     return null;
   }
-  const state = await getConversationState(tenantId, contactPhone);
+  const state = await getConversationState(tenantId, principal);
   const existing = state?.context?.lastDiscussedEntities || [];
   const byId = new Map();
   const byName = new Map();
@@ -430,29 +479,29 @@ export async function updateLastDiscussedEntities(tenantId, contactPhone, entiti
   if (extra.currentEntity) context.currentEntity = extra.currentEntity;
   const updates = { context };
   if (topic) updates.topic = topic;
-  return updateConversationState(tenantId, contactPhone, updates);
+  return updateConversationState(tenantId, principal, updates);
 }
 
 /**
  * Delete conversation state (cleanup)
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @returns {Promise<void>}
  */
-export async function deleteConversationState(tenantId, contactPhone) {
+export async function deleteConversationState(tenantId, principal) {
   if (!TABLE_NAME) throw new Error('CRM_DYNAMODB_TABLE_NAME is not set');
 
   try {
     await docClient.send(new DeleteCommand({
       TableName: TABLE_NAME,
       Key: {
-        PK: buildPk(tenantId, contactPhone),
+        PK: buildPk(tenantId, principal),
         SK: 'STATE#CURRENT',
       },
     }));
-    logger.info('conversationStateService.delete.success', { tenantId, contactPhone });
+    logger.info('conversationStateService.delete.success', { tenantId, principal });
   } catch (err) {
-    logger.error('conversationStateService.delete.failed', { tenantId, contactPhone, error: err.message });
+    logger.error('conversationStateService.delete.failed', { tenantId, principal, error: err.message });
     throw err;
   }
 }
@@ -460,11 +509,11 @@ export async function deleteConversationState(tenantId, contactPhone) {
 /**
  * Get conversation summary for display
  * @param {string} tenantId
- * @param {string} contactPhone
+ * @param {string} principal
  * @returns {Promise<Object>} Summary of conversation state
  */
-export async function getConversationSummary(tenantId, contactPhone) {
-  const state = await getConversationState(tenantId, contactPhone);
+export async function getConversationSummary(tenantId, principal) {
+  const state = await getConversationState(tenantId, principal);
   if (!state) return null;
 
   return {

@@ -606,8 +606,28 @@ export default function Calendar() {
               </div>
             </div>
             
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
+              {/* View Mode — mobile.
+                  The button group below is `hidden sm:flex` because four text
+                  buttons need ~240px. That previously left setViewMode with NO
+                  reachable call site on a phone (the only other one is inside
+                  the month grid, which is itself only reachable from this
+                  toggle), so mobile users were locked into the list view that
+                  viewMode initialises to. A native select is compact and keeps
+                  every mode selectable. */}
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
+                aria-label="Calendar view"
+                className="sm:hidden min-w-0 px-2 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+              >
+                <option value="month">Month</option>
+                <option value="week">Week</option>
+                <option value="day">Day</option>
+                <option value="list">List</option>
+              </select>
+
+              {/* View Mode Toggle — sm and up */}
               <div className="hidden sm:flex bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl p-1 shadow-sm">
                 {(['month', 'week', 'day', 'list'] as const).map((mode) => (
                   <button
@@ -623,12 +643,14 @@ export default function Calendar() {
                   </button>
                 ))}
               </div>
-              
-              {/* Status Filter */}
+
+              {/* Status Filter — now available on mobile too; it was
+                  `hidden sm:block`, so statusFilter was permanently 'all'. */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="hidden sm:block px-3 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                aria-label="Filter by status"
+                className="min-w-0 px-2 sm:px-3 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="scheduled">Scheduled</option>

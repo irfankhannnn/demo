@@ -42,7 +42,21 @@ function redact(value) {
       key.includes('adminemail') ||
       key.includes('adminphone') ||
       key === 'phone' ||
-      key === 'email'
+      key === 'email' ||
+      // Free-text fields carrying customer speech / personal detail. These
+      // reach the logger via skillInvoker's tool input/result logging — a
+      // create_lead_note call logs the entire AI call-summary (name, budget,
+      // requirements, objections), and transcript fields carry verbatim
+      // customer conversation. Under DPDP that does not belong in CloudWatch.
+      // The note body is still retained, deliberately and with a 90-day TTL,
+      // in the AgentAudit table — that is the right place for it.
+      key === 'content' ||
+      key === 'summary' ||
+      key === 'keypoints' ||
+      key === 'notes' ||
+      key === 'transcript' ||
+      key === 'transcriptpreview' ||
+      key === 'transcripttext'
     ) {
       out[k] = '[REDACTED]';
     } else {

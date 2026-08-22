@@ -90,6 +90,9 @@ export async function notifyLeadAssigned(tenantId, lead, assigneeUserId) {
     deepLink: `/crm/leads/${lead.leadId}`,
     entityRef: { entityType: 'lead', entityId: lead.leadId },
     dedupeKey: `lead_assigned:${lead.leadId}:${assigneeUserId}`,
+    // "Assigned to you" is the one notification here with a single owner, so
+    // the push goes to that person's phones rather than the whole agency.
+    targetUserId: assigneeUserId,
   });
 
   const email = await getTeamMemberEmail(tenantId, assigneeUserId);

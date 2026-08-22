@@ -1,7 +1,7 @@
 {
   "name": "reality-flow-mcp",
   "version": "1.0.0",
-  "description": "MCP (Model Context Protocol) microservice for RealtyFlow CRM — exposes CRM tools to Claude, ChatGPT, and other AI apps",
+  "description": "MCP (Model Context Protocol) microservice for RealtyFlow CRM \u2014 exposes CRM tools to Claude, ChatGPT, and other AI apps",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc && npm run copy-views",
@@ -10,7 +10,11 @@
     "start": "node dist/local-server.js",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
-    "deploy": "bash infra/deploy.sh"
+    "deploy": "bash infra/deploy.sh",
+    "generate:tools": "node ../server/scripts/generate-mcp-tools.mjs",
+    "check:tools": "node ../server/scripts/generate-mcp-tools.mjs --check",
+    "check:scopes": "ts-node --compiler-options {\\\"module\\\":\\\"commonjs\\\"} scripts/check-scopes.ts",
+    "prebuild": "npm run generate:tools && npm run check:scopes"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.700.0",

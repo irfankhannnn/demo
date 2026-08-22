@@ -175,11 +175,27 @@ describe('aiDtoMiddleware', () => {
     expect(transformed.data.leadId).toBe('lead-999');
   });
 
-  test('delete_lead uses input ID for deleted DTO', async () => {
+  test('delete_lead is no longer transformed (tool removed -- see Slice 5)', async () => {
+    // delete_lead is no longer in LEAD_TOOLS (the tool itself was removed from
+    // the registry), so transformWithAiDto must fall through to raw pass-through
+    // rather than attempt the old delete DTO shape.
     const transformed = await transformWithAiDto('delete_lead', true, { tenantId: 't1', input: { leadId: 'lead-001' } });
+    expect(transformed).toBe(true);
+  });
 
-    expect(transformed.metadata.action).toBe('deleted');
+  test('archive_lead returns the same update-confirmation DTO as update_lead', async () => {
+    const result = {
+      leadId: 'lead-001',
+      name: 'Raj Kumar',
+      phone: '9876543210',
+      status: 'archived',
+      leadType: 'buyer',
+    };
+    const transformed = await transformWithAiDto('archive_lead', result, { tenantId: 't1', input: { leadId: 'lead-001' } });
+
+    expect(transformed.metadata.action).toBe('updated');
     expect(transformed.data.leadId).toBe('lead-001');
+    expect(transformed.data.status).toBe('archived');
   });
 
   test('convert_lead returns converted DTO', async () => {
@@ -195,11 +211,23 @@ describe('aiDtoMiddleware', () => {
     expect(transformed.data.convertedTo).toBe('owner');
   });
 
-  test('delete_meeting uses input ID for deleted DTO', async () => {
+  test('delete_meeting is no longer transformed (tool removed -- see Slice 5)', async () => {
     const transformed = await transformWithAiDto('delete_meeting', true, { tenantId: 't1', input: { meetingId: 'meet-001' } });
+    expect(transformed).toBe(true);
+  });
 
-    expect(transformed.metadata.action).toBe('deleted');
+  test('archive_meeting returns the same update-confirmation DTO as update_meeting', async () => {
+    const result = {
+      meetingId: 'meet-001',
+      title: 'Site Visit',
+      scheduledDate: '2026-02-01T10:00:00Z',
+      status: 'archived',
+    };
+    const transformed = await transformWithAiDto('archive_meeting', result, { tenantId: 't1', input: { meetingId: 'meet-001' } });
+
+    expect(transformed.metadata.action).toBe('meeting_updated');
     expect(transformed.data.meetingId).toBe('meet-001');
+    expect(transformed.data.status).toBe('archived');
   });
 
   test('create_lead_note fetches lead and returns DTO', async () => {

@@ -14,6 +14,7 @@
 
 import { clearMessages } from '../whatsappConversationService.js';
 import { deleteConversationState } from '../conversationStateService.js';
+import { buildWhatsAppPrincipal } from '../utils/whatsapp.js';
 
 async function askConfirmation(question) {
   const readline = await import('node:readline/promises');
@@ -58,10 +59,18 @@ async function main() {
   }
 
   const { deleted } = await clearMessages(tenantId, phone);
-  try {
-    await deleteConversationState(tenantId, phone);
-  } catch (err) {
-    console.warn(`Conversation state not deleted or did not exist: ${err.message}`);
+  // Delete under both the current principal key and the legacy phone-only key
+  // (conversationStateService.js migrated to principal-keyed state -- see
+  // docs/proposals/agent-channel-architecture/phase2-imp/ -- old rows are
+  // otherwise left to expire on their own TTL, but an explicit "clear" should
+  // actually clear regardless of which key format a given row still uses).
+  const principal = buildWhatsAppPrincipal(phone);
+  for (const key of [principal, phone]) {
+    try {
+      await deleteConversationState(tenantId, key);
+    } catch (err) {
+      console.warn(`Conversation state not deleted for key "${key}" or did not exist: ${err.message}`);
+    }
   }
   console.log(`Deleted ${deleted} messages and conversation state.`);
 }

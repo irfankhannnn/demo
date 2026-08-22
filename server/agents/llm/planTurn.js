@@ -111,7 +111,16 @@ export async function planTurn(message, options = {}) {
         text: 'I cannot run that action. Could you rephrase what you need from the CRM?',
       };
     } else {
-      input = normalizeToolInput(toolName, input);
+      // ORDER MATTERS: check required fields against the args AS THE MODEL
+      // PROVIDED THEM, before normalizeToolInput() runs. normalizeToolInput
+      // renames/removes fields -- create_meeting/update_meeting's
+      // `scheduledDate` is mapped to meetingDate+meetingTime and then
+      // deleted -- so validating afterwards rejected every correctly-formed
+      // meeting request with "I need a bit more info to do that:
+      // scheduledDate". Same root cause as the skillInvoker.js bug fixed in
+      // Phase 1 (phase1-imp/07-bugs-found.md #1); this planner-level copy
+      // short-circuits before the executor is ever reached, so that fix
+      // alone did not make meeting creation work.
       const missing = missingRequired(toolName, input);
       if (missing.length > 0) {
         plan = {
@@ -119,7 +128,7 @@ export async function planTurn(message, options = {}) {
           text: `I need a bit more info to do that: ${missing.join(', ')}.`,
         };
       } else {
-        plan = { kind: 'tool', toolName, input };
+        plan = { kind: 'tool', toolName, input: normalizeToolInput(toolName, input) };
       }
     }
   } else if (text) {

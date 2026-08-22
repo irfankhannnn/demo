@@ -77,6 +77,30 @@ body {
   padding-bottom: calc(56px + env(safe-area-inset-bottom));
 }
 
+/*
+ * Mobile web shows the same tab bar (BottomTabBar carries `md:hidden` on web),
+ * so content below the md breakpoint needs the same clearance. 767px matches
+ * Tailwind's default md (768px) — keep the two in step if the config changes.
+ *
+ * Padded on <body> rather than on <main>: only 30 of the ~55 routed pages wrap
+ * their content in a <main>, so a main-only rule would leave the rest with
+ * their last row of content sitting under the bar. Body padding covers normal
+ * document flow everywhere; [data-scroll-region] covers the pages that scroll
+ * an inner container instead, where body padding does nothing.
+ *
+ * `.has-tab-bar` is set by BottomTabBar only while it is actually rendering on
+ * web, so login/onboarding/legal — which hide the bar — get no dead space.
+ */
+@media (max-width: 767px) {
+  body.has-tab-bar {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  body.has-tab-bar [data-scroll-region] {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+}
+
 /* Explicit opt-in utilities for components that need finer control. */
 .safe-top { padding-top: env(safe-area-inset-top); }
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }

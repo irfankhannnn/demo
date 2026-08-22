@@ -78,10 +78,50 @@ Every code claim in these documents was checked against the branch. Highlights:
 
 ## Non-goals
 
-- **No code changes in this PR.** Documentation and design only.
+- **No code changes in this document set.** These docs are documentation and design only — actual implementation is tracked separately, see [Implementation status](#implementation-status) below.
 - **No model provider selection.** Pluggability is a later, independent phase.
 - **No restructuring of the Exotel voice pipeline** beyond replacing its classifier ([flows/05](./flows/05-voice-exotel.md)).
 - **No changes to billing, delete semantics or infra** beyond what the channel and retrieval work requires.
+
+## Implementation status
+
+Phase 1 implementation is essentially complete, sliced into smaller, independently-tested pieces (the original Phase 1 description bundled a pure code change, an infra change, and a schema change together — verification against the live code showed that's riskier to ship as one unit than as several). Tracked in [`phase1-imp/`](./phase1-imp/):
+
+| Slice | What | Status |
+|---|---|---|
+| 1 | WhatsApp hot-path cleanup (debug fetches removed, tenant lookup deduplicated) | ✅ Done |
+| 2 | GSI + Query for tenant lookup | ✅ Code done, tested — deploy pending (user-owned) |
+| 3 | `archive_property` (proof of concept) | ✅ Done |
+| 4 | `archive_*` for the remaining 7 entities | ✅ Done |
+| 5 | Remove `delete_*` tools + confirmation subsystem | ✅ Done |
+| 6 | Labelled tool-choice eval set (parallel track) | 🟡 Harness built — real data export still blocked |
+
+614 tests passing (at time of writing this phase: 535), zero regressions from any Phase 1 change (verified against the pre-work baseline via `git stash`). Along the way, verification surfaced and fixed 5 currently-live production bugs unrelated to any single slice's goal (`create_meeting` failed on every well-formed call; `update_contact_role` was completely broken; phone-lookup tools never matched a real number; `delete_property_document` silently never deleted anything; a meeting-status state machine gap) plus ~360 lines of confirmed-dead code — see [`phase1-imp/07-bugs-found.md`](./phase1-imp/07-bugs-found.md).
+
+**Phase 2 (agent core extraction) is also complete**, scoped to the three structural pieces the user asked for before launch — session re-keying, business-logic extraction from the WhatsApp processor, and a model-gateway seam. Credit/billing work (an existing refund leak, and the full reserve→meter→settle primitive) is explicitly deferred until after launch. Tracked in [`phase2-imp/`](./phase2-imp/):
+
+| Slice | What | Status |
+|---|---|---|
+| 2a | Principal-based session re-key (`wa:<phone>`, dual-read fallback) | ✅ Done |
+| 2b | Extract business logic from the WhatsApp processor into the agent core | ✅ Done |
+| 2c | Model-gateway seam (classify/plan/compose) | ✅ Done |
+
+614 tests passing (at time of writing this phase: 565), zero regressions across the whole phase. The riskiest finding: `logMessage` (inbound) sits *between* access-control passing and the agent running in the original processor, and a denied message was never logged — a single combined extraction function would have silently changed one of those two behaviors, so Slice 2b split into two functions specifically to preserve that seam. See [`phase2-imp/`](./phase2-imp/) for the full detail per slice.
+
+**Phase 3 (the reliability fix) has started** — the bounded multi-step tool loop is built and tested, shipped **OFF by default** behind `AGENT_TOOL_LOOP_ENABLED` so production behavior is unchanged until it's deliberately enabled. This is headline finding #1 fixed: the agent can now complete a compound request ("create a lead **and** schedule a visit") in one turn instead of silently dropping everything after the first tool call. Tracked in [`phase3-imp/`](./phase3-imp/):
+
+| Slice | What | Status |
+|---|---|---|
+| 3a | Bounded multi-step tool loop (the `functionCalls[0]` fix) | ✅ Done — shipped off behind a flag |
+| 3b–3f | Router→ranker, strict schemas, `find_person`, metrics consolidation, prompt caching | 📋 Not started |
+
+614 tests passing. Implementing 3a surfaced another live production bug: **meeting creation from WhatsApp was completely broken** — every well-formed request was answered *"I need a bit more info to do that: scheduledDate"*, because `planTurn.js` validated required fields *after* the normalizer deleted the field being validated. Same root cause as the Phase 1 `skillInvoker.js` fix, but an independent copy one layer earlier, which means that earlier fix never actually made meetings work. Fixed in both, with a regression test.
+
+See [`phase1-imp/README.md`](./phase1-imp/README.md) for the full breakdown and reasoning.
+
+**Launch readiness.** Three audit passes (frontend/responsive, call-recording pipeline, backend security) plus two follow-up passes are recorded in [`launch-readiness/01-audit-findings.md`](./launch-readiness/01-audit-findings.md). **614 tests passing**; `vite build` passes. Everything scoped for launch is code-complete — what is left is deployment and a run against the real model and real AWS, both of which are user-owned.
+
+**Still unstarted**, and none of it gates launch: Phase 3e/3f, Phase 4 (channel-aware compose), Phase 5/5b/5c (web chat, background flows, voice classifier), Phase R (retrieval — R0 blocked on an SDK bump), and the *generation* half of Phase 6 (detection shipped; generation deferred for want of a TypeScript toolchain). Phase 3c is blocked on Slice 6's real eval data.
 
 ## Relationship to existing docs
 

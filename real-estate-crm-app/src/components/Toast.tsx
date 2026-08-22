@@ -46,7 +46,7 @@ export default function Toast({ message, type, onClose, duration = 3000 }: Toast
       }
     >
       <div
-        className={`relative flex items-center gap-3 pl-4 pr-5 py-3.5 rounded-2xl shadow-xl shadow-black/5 overflow-hidden glass-premium ${borderColor} min-w-[280px] max-w-[420px]`}
+        className={`relative flex items-center gap-3 pl-4 pr-5 py-3.5 rounded-2xl shadow-xl shadow-black/5 overflow-hidden glass-premium ${borderColor} min-w-0 sm:min-w-[280px] max-w-[calc(100vw-2.5rem)] sm:max-w-[420px]`}
       >
         {/* Subtle gradient bg */}
         <div className={`absolute inset-0 bg-gradient-to-br ${gradientFrom} ${gradientTo} pointer-events-none`} />

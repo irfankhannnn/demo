@@ -121,369 +121,19 @@ export async function enrichContextWithLead(tenantId, leadId) {
 // ─── Tool schema registry ─────────────────────────────────────────────────────
 // TOOL_SCHEMAS is imported from server/shared/toolDefinitions.js (single source of truth)
 
-// Placeholder - actual TOOL_SCHEMAS definition removed (see server/shared/toolDefinitions.js)
-const _TOOL_SCHEMAS_REMOVED = {
-  // ── Lead ops ──────────────────────────────────────────────────────────────
-  create_lead: {
-    required: ['name', 'leadType'],
-    types: { name: 'string', leadType: 'string', phone: 'string', email: 'string' },
-    description: 'Use this when the user asks to create a new lead. Triggers: "create lead", "add lead", "new buyer lead", "seller lead Raj", "tenant lead Sarah", "owner lead Imran". Required: name, leadType (buyer|seller|tenant|owner). Optional: phone, email.',
-    paramDescriptions: {
-      name: 'Full name of the lead (e.g., "Raj Sharma", "Faizan Khan").',
-      leadType: 'Type of lead: "buyer", "seller", "tenant", or "owner".',
-      phone: 'Phone number (10 digits, e.g., "9876543210"). Optional.',
-      email: 'Email address (e.g., "raj@example.com"). Optional.',
-    },
-  },
-  get_lead: {
-    required: ['leadId'],
-    types: { leadId: 'string' },
-    paramDescriptions: {
-      leadId: 'The unique ID of the lead (e.g., "lead-abc123").',
-    },
-  },
-  search_leads: {
-    required: [],
-    types: { query: 'string', status: 'string', leadType: 'string', temperature: 'string', assignedTo: 'string', minBudget: 'number', maxBudget: 'number', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, show, or find leads. Triggers: "leads dikhao", "show leads", "Kurla ke leads", "buyer leads", "hot leads", "new leads", "leads assigned to Aman", "hot leads above 1 crore", "sari leads", "all leads". Pass empty parameters {} to list all leads. Extract parameters: query (name/phone/area), leadType (buyer|seller|tenant|owner), status (new|contacted|qualified|negotiating|lost), temperature (hot|warm|cold|unscored), assignedTo (agent name), minBudget/maxBudget (in rupees: 80L=8000000, 1Cr=10000000), limit (max results), responseMode (summary|compact|details|full).',
-    paramDescriptions: {
-      query: 'Search by lead name, phone number, or area (e.g., "Kurla", "Faizan", "9876543210"). Leave empty to list all leads.',
-      status: 'Filter by lead status: "new", "contacted", "qualified", "negotiating", or "lost". Leave empty for all statuses.',
-      leadType: 'Filter by lead type: "buyer", "seller", "tenant", or "owner". Leave empty for all types.',
-      temperature: 'Filter by lead temperature: "hot", "warm", "cold", or "unscored". Leave empty for all.',
-      assignedTo: 'Filter by agent name (e.g., "Aman"). Leave empty for all agents.',
-      minBudget: 'Minimum budget in rupees (e.g., 8000000 for 80L, 10000000 for 1Cr). Leave empty for no minimum.',
-      maxBudget: 'Maximum budget in rupees (e.g., 10000000 for 1Cr, 20000000 for 2Cr). Leave empty for no maximum.',
-      limit: 'Maximum number of leads to return (e.g., 10, 20). Leave empty for default.',
-      responseMode: 'Response detail level: "summary" (names only), "compact" (key fields), "details" (all fields), "full" (everything). Default: summary.',
-    },
-  },
-  update_lead: {
-    required: ['leadId'],
-    types: {
-      leadId: 'string',
-      status: 'string',
-      score: 'string',
-      scoreValue: 'number',
-      scoreReasons: 'string',
-      scoreSource: 'string',
-      assignedTo: 'string',
-      notes: 'string',
-      buyerRequirement: 'object',
-      sellerProperty: 'object',
-      ownerProperty: 'object',
-      tenantRequirement: 'object',
-    },
-    description: 'Use this when the user asks to update a lead. Triggers: "update lead", "change status", "mark as contacted", "update budget", "assign to Aman", "mark lost". Required: leadId. For structured updates (budget, BHK, area), use buyerRequirement/sellerProperty/ownerProperty/tenantRequirement objects instead of notes. Example: user says "update budget to 1 crore" → update buyerRequirement.budget, not create a note.',
-    paramDescriptions: {
-      leadId: 'The unique ID of the lead to update (e.g., "lead-abc123").',
-      status: 'New status: "new", "contacted", "qualified", "negotiating", or "lost".',
-      score: 'Lead score (e.g., "85", "high").',
-      assignedTo: 'Agent name to assign the lead to (e.g., "Aman").',
-      notes: 'Free-text notes to add to the lead. Use for unstructured updates only.',
-    },
-    nestedSchemas: {
-      buyerRequirement: {
-        budget: 'number',
-        preferredArea: 'string',
-        bhk: 'string',
-        propertyType: 'string',
-        propertySubType: 'string',
-        furnishing: 'string',
-        requirement: 'string',
-      },
-      sellerProperty: {
-        expectedPrice: 'number',
-        area: 'string',
-        city: 'string',
-        propertyType: 'string',
-        propertySubType: 'string',
-        bhk: 'string',
-        furnishing: 'string',
-        buildingName: 'string',
-        flatNumber: 'string',
-        floor: 'string',
-        carpetArea: 'number',
-        address: 'string',
-        timelineValue: 'number',
-        timelineUnit: 'string',
-      },
-      ownerProperty: {
-        rentExpected: 'number',
-        securityDeposit: 'number',
-        area: 'string',
-        city: 'string',
-        propertyType: 'string',
-        propertySubType: 'string',
-        bhk: 'string',
-        furnishing: 'string',
-        buildingName: 'string',
-        flatNumber: 'string',
-        floor: 'string',
-        carpetArea: 'number',
-        address: 'string',
-      },
-      tenantRequirement: {
-        budget: 'number',
-        preferredArea: 'string',
-        bhk: 'string',
-        propertyType: 'string',
-        propertySubType: 'string',
-        furnishing: 'string',
-        requirement: 'string',
-      },
-    },
-  },
-  delete_lead: {
-    required: ['leadId'],
-    types: { leadId: 'string' },
-    description: 'Use this when the user asks to delete a lead. Triggers: "delete lead", "remove lead", "delete lead L123". IMPORTANT: Always ask for confirmation before calling this tool. Example: User says "delete Faizan" → ask "Are you sure you want to delete Faizan\'s lead? This cannot be undone."',
-  },
-  convert_lead: {
-    required: ['leadId'],
-    types: { leadId: 'string' },
-  },
-  create_lead_note: {
-    required: ['leadId', 'content'],
-    types: { leadId: 'string', content: 'string', createdBy: 'string' },
-  },
-  get_lead_notes: {
-    required: ['leadId'],
-    types: { leadId: 'string' },
-  },
-  // ── Contact ops ───────────────────────────────────────────────────────────
-  create_contact: {
-    required: ['name'],
-    types: { name: 'string', phone: 'string', email: 'string', role: 'string' },
-    description: 'Use this when the user asks to create a new contact. Triggers: "create contact", "add contact", "new contact Faizan", "contact Raj with phone 9876543210". Required: name. Optional: phone, email, role (owner|buyer|seller|tenant).',
-  },
-  get_contact: {
-    required: ['contactId'],
-    types: { contactId: 'string' },
-  },
-  search_contacts: {
-    required: [],
-    types: { role: 'string', status: 'string', query: 'string', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, or show contacts. Triggers: "contacts dikhao", "show contacts", "contacts batao", "contacts with role owner", "find contact Faizan", "active contacts". Extract parameters: query (name/phone), role (owner|buyer|seller|tenant), status (active|inactive), limit (max results), responseMode (summary|compact|details|full).',
-  },
-  update_contact: {
-    required: ['contactId'],
-    types: { contactId: 'string', name: 'string', phone: 'string', email: 'string' },
-  },
-  delete_contact: {
-    required: ['contactId'],
-    types: { contactId: 'string' },
-    description: 'Use this when the user asks to delete a contact. Triggers: "delete contact", "remove contact". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  update_contact_role: {
-    required: ['contactId', 'role', 'enabled'],
-    types: { contactId: 'string', role: 'string', enabled: 'boolean', profileData: 'object' },
-    description: 'Add or remove a role (owner|buyer|seller|tenant) on a unified contact. enabled=true to add, enabled=false to remove. Optionally pass profileData to update role-specific fields.',
-  },
-  create_contact_note: {
-    required: ['contactId', 'content'],
-    types: { contactId: 'string', content: 'string', createdBy: 'string' },
-  },
-  get_contact_notes: {
-    required: ['contactId'],
-    types: { contactId: 'string' },
-  },
-  // ── Property ops ──────────────────────────────────────────────────────────
-  create_property: {
-    required: ['title', 'propertyType'],
-    types: { title: 'string', propertyType: 'string', city: 'string', area: 'string', ownerId: 'string' },
-    description: 'Use this when the user asks to create a new property. Triggers: "create property", "add property", "new apartment in Bandra", "property 3BHK in Andheri". Required: title, propertyType (apartment|house|villa|office|land). Optional: city, area, ownerId.',
-  },
-  get_property: {
-    required: ['propertyId'],
-    types: { propertyId: 'string' },
-  },
-  search_properties: {
-    required: [],
-    types: { status: 'string', city: 'string', propertyType: 'string', query: 'string', ownerId: 'string', bhk: 'string', furnishing: 'string', minPrice: 'number', maxPrice: 'number', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, or show properties. Triggers: "properties dikhao", "show properties", "properties in Bandra", "3BHK apartments", "furnished properties", "properties above 1 crore", "properties owned by Raj". Extract parameters: query (title/area), propertyType (apartment|house|villa|office|land), city, bhk (1-5), furnishing (furnished|semi-furnished|unfurnished), status (active|inactive|sold), minPrice/maxPrice (in rupees), limit (max results), responseMode (summary|compact|details|full).',
-  },
-  update_property: {
-    required: ['propertyId'],
-    types: { propertyId: 'string', title: 'string', status: 'string', monthlyRent: 'number', salePrice: 'number' },
-  },
-  delete_property: {
-    required: ['propertyId'],
-    types: { propertyId: 'string' },
-    description: 'Use this when the user asks to delete a property. Triggers: "delete property", "remove property". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  get_property_documents: {
-    required: ['propertyId'],
-    types: { propertyId: 'string' },
-  },
-  create_property_document: {
-    required: ['propertyId', 'title', 'url'],
-    types: { propertyId: 'string', title: 'string', url: 'string', documentType: 'string' },
-  },
-  delete_property_document: {
-    required: ['propertyId', 'documentId'],
-    types: { propertyId: 'string', documentId: 'string' },
-    description: 'Delete a property document. Confirm with the user before executing.',
-  },
-  // ── Tenant (customer) ops ─────────────────────────────────────────────────
-  create_tenant: {
-    required: ['name'],
-    types: { name: 'string', phone: 'string', email: 'string' },
-    description: 'Use this when the user asks to create a new tenant/customer. Triggers: "create tenant", "add tenant", "new tenant Sarah", "customer Priya with phone 9876543210". Required: name. Optional: phone, email.',
-  },
-  get_tenant: {
-    required: ['tenantRecordId'],
-    types: { tenantRecordId: 'string' },
-  },
-  search_tenants: {
-    required: [],
-    types: { status: 'string', query: 'string', minBudget: 'number', maxBudget: 'number', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, or show tenants/customers. Triggers: "tenants dikhao", "show tenants", "customers batao", "tenants with budget under 50k", "find tenant Sarah", "tenant in Powai". Extract parameters: query (name/phone), status (active|inactive), minBudget/maxBudget (monthly rent in rupees), limit (max results), responseMode (summary|compact|details|full).',
-  },
-  update_tenant: {
-    required: ['tenantRecordId'],
-    types: { tenantRecordId: 'string', name: 'string', phone: 'string', status: 'string' },
-  },
-  delete_tenant: {
-    required: ['tenantRecordId'],
-    types: { tenantRecordId: 'string' },
-    description: 'Use this when the user asks to delete a tenant. Triggers: "delete tenant", "remove tenant". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  create_tenant_note: {
-    required: ['tenantRecordId', 'content'],
-    types: { tenantRecordId: 'string', content: 'string', createdBy: 'string' },
-  },
-  get_tenant_notes: {
-    required: ['tenantRecordId'],
-    types: { tenantRecordId: 'string' },
-  },
-  // ── Owner ops ─────────────────────────────────────────────────────────────
-  create_owner: {
-    required: ['name'],
-    types: { name: 'string', phone: 'string', email: 'string' },
-    description: 'Use this when the user asks to create a new owner. Triggers: "create owner", "add owner", "new owner Raj", "owner Imran with phone 9876543210". Required: name. Optional: phone, email.',
-  },
-  get_owner: {
-    required: ['ownerId'],
-    types: { ownerId: 'string' },
-  },
-  get_owners: {
-    required: [],
-    types: { status: 'string', query: 'string', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, or show owners. Triggers: "owners dikhao", "show owners", "list all owners", "owners batao", "find owner Raj", "owner with phone 9876543210". Extract parameters: query (name/phone), status (active|inactive), limit (max results), responseMode (summary|compact|details|full).',
-  },
-  update_owner: {
-    required: ['ownerId'],
-    types: { ownerId: 'string', name: 'string', phone: 'string', status: 'string' },
-  },
-  delete_owner: {
-    required: ['ownerId'],
-    types: { ownerId: 'string' },
-    description: 'Use this when the user asks to delete an owner. Triggers: "delete owner", "remove owner". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  create_owner_note: {
-    required: ['ownerId', 'content'],
-    types: { ownerId: 'string', content: 'string', createdBy: 'string' },
-  },
-  get_owner_notes: {
-    required: ['ownerId'],
-    types: { ownerId: 'string' },
-  },
-  // ── Buyer ops ─────────────────────────────────────────────────────────────
-  create_buyer: {
-    required: ['name'],
-    types: { name: 'string', phone: 'string', email: 'string' },
-    description: 'Use this when the user asks to create a new buyer. Triggers: "create buyer", "add buyer", "new buyer Ahmed", "buyer Faizan with phone 9876543210". Required: name. Optional: phone, email.',
-  },
-  get_buyer: {
-    required: ['buyerId'],
-    types: { buyerId: 'string' },
-  },
-  search_buyers: {
-    required: [],
-    types: { query: 'string', status: 'string', minBudget: 'number', maxBudget: 'number', limit: 'number', responseMode: 'string' },
-    description: 'Use this when the user asks to list, search, or show buyers. Triggers: "buyers dikhao", "show buyers", "buyers batao", "buyers with budget above 1 crore", "find buyer Ahmed", "active buyers". Extract parameters: query (name/phone), status (active|inactive|converted), minBudget/maxBudget (in rupees), limit (max results), responseMode (summary|compact|details|full).',
-  },
-  update_buyer: {
-    required: ['buyerId'],
-    types: { buyerId: 'string', name: 'string', phone: 'string', budget: 'number', status: 'string' },
-  },
-  delete_buyer: {
-    required: ['buyerId'],
-    types: { buyerId: 'string' },
-    description: 'Use this when the user asks to delete a buyer. Triggers: "delete buyer", "remove buyer". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  create_buyer_note: {
-    required: ['buyerId', 'content'],
-    types: { buyerId: 'string', content: 'string', createdBy: 'string' },
-  },
-  get_buyer_notes: {
-    required: ['buyerId'],
-    types: { buyerId: 'string' },
-  },
-  // ── Phone / lookup ops ────────────────────────────────────────────────────
-  find_contact_by_phone: {
-    required: ['phone'],
-    types: { phone: 'string' },
-    description: 'Find a unified contact by phone number.',
-  },
-  get_owner_by_phone: {
-    required: ['phone'],
-    types: { phone: 'string' },
-    description: 'Find an owner by phone number.',
-  },
-  get_tenant_by_phone: {
-    required: ['phone'],
-    types: { phone: 'string' },
-    description: 'Find a tenant by phone number.',
-  },
-  // ── Meeting ops ───────────────────────────────────────────────────────────
-  create_meeting: {
-    required: ['title', 'scheduledDate', 'relatedEntityType', 'relatedEntityId'],
-    types: {
-      title: 'string',
-      scheduledDate: 'string',
-      relatedEntityType: 'string',
-      relatedEntityId: 'string',
-      description: 'string',
-      location: 'string',
-      attendees: {
-        type: 'array',
-        items: { type: 'string', description: 'Attendee name or contact identifier' },
-      },
-    },
-    description: 'Use this when the user asks to schedule or create a meeting. Triggers: "schedule meeting", "create meeting", "meeting with Faizan tomorrow at 3pm", "meeting on property P123 next week". Required: title, scheduledDate (YYYY-MM-DD or relative like "tomorrow", "next Monday"), relatedEntityType (lead|contact|owner|tenant|buyer|property), relatedEntityId. Optional: description, location, attendees.',
-  },
-  get_meeting: {
-    required: ['meetingId'],
-    types: { meetingId: 'string' },
-  },
-  get_upcoming_meetings: {
-    required: [],
-    types: { days: 'number', relatedEntityType: 'string', relatedEntityId: 'string' },
-    description: 'List upcoming meetings for the next N days (default 7). Optionally filter by related entity.',
-  },
-  update_meeting: {
-    required: ['meetingId'],
-    types: { meetingId: 'string', title: 'string', scheduledDate: 'string', status: 'string' },
-  },
-  delete_meeting: {
-    required: ['meetingId'],
-    types: { meetingId: 'string' },
-    description: 'Use this when the user asks to delete or cancel a meeting. Triggers: "delete meeting", "cancel meeting". IMPORTANT: Always ask for confirmation before calling this tool.',
-  },
-  // ── CRM metrics ───────────────────────────────────────────────────────────
-  get_crm_metrics: {
-    required: [],
-    types: {},
-    description: 'Use this when the user asks for CRM metrics, statistics, or dashboard data. Triggers: "show metrics", "CRM stats", "how many leads", "metrics batao", "dashboard", "summary". No parameters required.',
-  },
-};
-// NOTE: The above placeholder object is not used. See server/shared/toolDefinitions.js for the actual definitions.
-
 // ─── Input validation ─────────────────────────────────────────────────────────
 
-function validateInput(toolName, input) {
+/**
+ * Required-field check, run against input AS THE CALLER PROVIDED IT --
+ * i.e. BEFORE normalizeToolInput() runs. normalizeToolInput renames/removes
+ * some fields (e.g. create_meeting/update_meeting's scheduledDate is mapped
+ * to meetingDate+meetingTime and then deleted), so checking required-ness
+ * after normalization rejected every well-formed call that used the
+ * documented field name -- create_meeting failed 100% of the time as a
+ * result. See docs/proposals/agent-channel-architecture/phase1-imp/
+ * 04-slice4-archive-remaining-entities.md for how this was found.
+ */
+function validateRequiredFields(toolName, input) {
   const schema = TOOL_SCHEMAS[toolName];
   if (!schema) return;
 
@@ -492,6 +142,12 @@ function validateInput(toolName, input) {
       throw new Error(`Tool '${toolName}': required parameter '${key}' is missing`);
     }
   }
+}
+
+/** Type check, run against input AFTER normalizeToolInput() runs. */
+function validateInputTypes(toolName, input) {
+  const schema = TOOL_SCHEMAS[toolName];
+  if (!schema) return;
 
   for (const [key, typeDef] of Object.entries(schema.types)) {
     if (input[key] === undefined) continue;
@@ -523,6 +179,19 @@ function extractEntityId(input) {
   return key ? input[key] : null;
 }
 
+/** Phone lookup tools — handler signature is (tenantId, phone), not (tenantId, inputObject). */
+const PHONE_LOOKUP_TOOLS = new Set([
+  'find_contact_by_phone', 'get_owner_by_phone', 'get_tenant_by_phone',
+]);
+
+/** Property document tools — handler signature is (tenantId, propertyId, ...), two id fields. */
+const PROPERTY_DOCUMENT_TOOLS = new Set([
+  // delete_property_document is deliberately absent: it was removed from the
+  // registry in Phase 1 Slice 5, so ALLOWED_TOOL_NAMES rejects it before
+  // dispatch is ever reached. archive_property_document replaced it.
+  'create_property_document', 'archive_property_document',
+]);
+
 /** get/delete by id — handler signature is (tenantId, entityId), not (tenantId, inputObject). */
 const AGGREGATE_OR_LOOKUP_TOOLS = new Set([
   'get_owners', 'get_contacts', 'get_customers', 'get_leads', 'get_buyers',
@@ -538,16 +207,53 @@ function isEntityIdLookupTool(toolName, input) {
   if (toolName.endsWith('_notes')) return false;
   if (/^search_/.test(toolName)) return false;
   if (/summary/i.test(toolName)) return false;
-  return /^get_/.test(toolName) || /^delete_/.test(toolName);
+  // archive_* mirrors delete_*'s dispatch shape exactly: handler(tenantId, entityId).
+  // Without this, every archive_* tool fell into the generic
+  // handler.length === 2 branch below and got the whole input object
+  // instead of just the id -- e.g. archiveLead(tenantId, {leadId:'...'})
+  // instead of archiveLead(tenantId, 'lead-id').
+  return /^get_/.test(toolName) || /^delete_/.test(toolName) || /^archive_/.test(toolName);
 }
 
 // ─── Tool execution ───────────────────────────────────────────────────────────
 
 /**
+ * Per-source tool allowlist (Phase 5b).
+ *
+ * The unattended background flows — the lead qualifier, the router and the
+ * follow-up cron — run on a schedule with nobody watching. They need four
+ * tools between them. Without a bound here, the only thing standing between
+ * those flows and the full 68-tool registry is that they currently happen not
+ * to call anything else.
+ *
+ * A source listed here may call ONLY its listed tools. A source that is absent
+ * is unrestricted, which is correct for the interactive surfaces
+ * (`agent.pipeline`, `mcp`) where a human is asking for something and the RBAC
+ * category is the right control. This is defence in depth for the flows where
+ * no human is in the loop, not a replacement for that check.
+ *
+ * Keep entries minimal. Adding a tool here should be a deliberate decision
+ * about what an unsupervised job is allowed to do to a customer's CRM.
+ */
+export const SOURCE_TOOL_ALLOWLIST = {
+  'cron.lead_qualifier': ['get_lead', 'update_lead'],
+  'cron.lead_router': ['get_lead', 'update_lead', 'search_leads'],
+  'cron.lead_followup': ['search_leads', 'create_lead_note'],
+};
+
+/**
  * Invoke a CRM skill action for a tenant (direct DynamoDB path, in-Lambda).
  * Enforces user category-based tool access control.
+ *
+ * @param {object} [options]
+ * @param {string} [options.userId] identity the permission check runs against.
+ *   The check is skipped entirely when this is absent — see `fallbackCategory`.
+ * @param {string} [options.source] audit label for the caller.
+ * @param {string} [options.fallbackCategory] category to apply when `userId`
+ *   names a non-human identity with no provisioned row. See
+ *   `canUserAccessTool` for when passing this is legitimate.
  */
-export async function invokeSkill(tenantId, toolName, rawInput, { userId, source } = {}) {
+export async function invokeSkill(tenantId, toolName, rawInput, { userId, source, fallbackCategory } = {}) {
   const startMs = Date.now();
   let requestLogged = false;
 
@@ -577,11 +283,23 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId, source
     return finish({ ok: false, error: `Tool not allowed: ${toolName}` }, rawInput ?? {});
   }
 
+  // Per-source bound, checked before the category check: an unattended job
+  // reaching for a tool outside its allowlist is a bug or an injection, and
+  // either way should not depend on the actor's category to be refused.
+  const sourceAllowlist = source ? SOURCE_TOOL_ALLOWLIST[source] : null;
+  if (sourceAllowlist && !sourceAllowlist.includes(toolName)) {
+    logger.warn('skillInvoker.invokeSkill.source_not_allowed', { tenantId, source, toolName });
+    return finish(
+      { ok: false, error: `Tool not permitted for this caller: ${toolName}` },
+      rawInput ?? {},
+    );
+  }
+
   // Check user category permissions if userId provided
   // Security: fail-closed by default. Set ALLOW_FAIL_OPEN=true only for emergency debugging.
   if (userId) {
     try {
-      const hasAccess = await canUserAccessTool(tenantId, userId, toolName);
+      const hasAccess = await canUserAccessTool(tenantId, userId, toolName, { fallbackCategory });
       if (!hasAccess) {
         logger.warn('skillInvoker.invokeSkill.access_denied', { tenantId, userId, toolName });
         return finish({ ok: false, error: `User does not have access to tool: ${toolName}` }, rawInput ?? {});
@@ -598,30 +316,36 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId, source
 
   let input = sanitizeInput(rawInput || {});
 
+  try {
+    validateRequiredFields(toolName, input);
+  } catch (err) {
+    return finish({ ok: false, error: err.message }, input);
+  }
+
   // Normalize input (money, dates, phone numbers)
   input = normalizeToolInput(toolName, input);
 
   try {
-    validateInput(toolName, input);
+    validateInputTypes(toolName, input);
   } catch (err) {
     return finish({ ok: false, error: err.message }, input);
   }
 
   const idLookupTools = {
     get_lead: 'leadId',
-    delete_lead: 'leadId',
+    archive_lead: 'leadId',
     get_buyer: 'buyerId',
-    delete_buyer: 'buyerId',
+    archive_buyer: 'buyerId',
     get_owner: 'ownerId',
-    delete_owner: 'ownerId',
+    archive_owner: 'ownerId',
     get_property: 'propertyId',
-    delete_property: 'propertyId',
+    archive_property: 'propertyId',
     get_contact: 'contactId',
-    delete_contact: 'contactId',
+    archive_contact: 'contactId',
     get_tenant: 'tenantRecordId',
-    delete_tenant: 'tenantRecordId',
+    archive_tenant: 'tenantRecordId',
     get_meeting: 'meetingId',
-    delete_meeting: 'meetingId',
+    archive_meeting: 'meetingId',
   };
   const idField = idLookupTools[toolName];
   const idValue = idField ? (input[idField] ?? input.customerId) : null;
@@ -652,7 +376,37 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId, source
     const isUpdateTool = toolName.startsWith('update_');
     const isNoteTool = toolName.includes('_note');
 
-    if (isCreateTool && !isNoteTool) {
+    if (toolName === 'update_contact_role') {
+      // updateContactRole(tenantId, contactId, role, enabled, profileData) has
+      // its own positional shape -- it does NOT fit the generic
+      // handler(tenantId, id, {...data}) pattern every other update_* tool
+      // uses. Falling into that generic branch passed the whole input object
+      // as the 3rd arg (where a `role` string is required), so this tool
+      // failed on every real call with "Invalid role. Must be owner, seller,
+      // buyer, or tenant".
+      data = await handler(tenantId, input.contactId, input.role, input.enabled, input.profileData || null);
+    } else if (PROPERTY_DOCUMENT_TOOLS.has(toolName)) {
+      // createPropertyDocument/archivePropertyDocument/deletePropertyDocument
+      // all take (tenantId, propertyId, ...) -- two id-shaped fields
+      // (propertyId AND documentId) in one input object, which the generic
+      // dispatch below can't handle: extractEntityId() only ever picks the
+      // FIRST *Id field it finds, so documentId was silently dropped and
+      // delete_property_document never actually deleted anything (a
+      // DynamoDB DeleteCommand on a key with documentId: undefined just
+      // silently no-ops instead of erroring).
+      if (toolName === 'create_property_document') {
+        data = await handler(tenantId, input.propertyId, { ...input, createdBy: by });
+      } else {
+        data = await handler(tenantId, input.propertyId, input.documentId);
+      }
+    } else if (PHONE_LOOKUP_TOOLS.has(toolName) && input.phone) {
+      // find_contact_by_phone / get_owner_by_phone / get_tenant_by_phone /
+      // get_customer_by_phone all take (tenantId, phone) with phone as a
+      // plain string. Without this branch they fell through to
+      // handler(tenantId, input) -- passing {phone: '...'} where a string
+      // was expected, so these tools never matched a real phone number.
+      data = await handler(tenantId, input.phone);
+    } else if (isCreateTool && !isNoteTool) {
       data = await handler(tenantId, { ...input, createdBy: by });
     } else if (isUpdateTool && !isNoteTool) {
       // Extract ID field (leadId, contactId, propertyId, etc.)
@@ -684,6 +438,13 @@ export async function invokeSkill(tenantId, toolName, rawInput, { userId, source
       } else if (entityId) {
         data = await handler(tenantId, entityId, input);
       } else {
+        // Covers both arity-1 handlers (getCRMMetrics(tenantId) -- the extra
+        // arg is harmlessly ignored) and arity-1-by-default-param handlers
+        // that DO use a second arg (getLeadsSummary(tenantId, filters={}),
+        // getPriorityLeads(tenantId, opts={}), etc.) -- `handler.length`
+        // can't tell these apart, so this must keep passing input through;
+        // dropping it would silently break every filter/opts-accepting
+        // summary tool.
         data = await handler(tenantId, input);
       }
     }

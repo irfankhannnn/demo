@@ -37,6 +37,7 @@ import adminRoutes from './routes/admin.js';
 import feedbackRoutes from './routes/feedback.js';
 // AI Employee agent routes
 import agentToolsRouter from './routes/agentTools.js';
+import agentChatRouter from './routes/agentChat.js';
 import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
@@ -132,6 +133,10 @@ app.use('/api/auth', authRateLimit, authRoutes);
 // AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
 logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
 app.use('/api/crm/agent', agentToolsRouter);
+// In-CRM AI chat (Phase 5) — SSE, authenticated CRM users only.
+// Mounted BEFORE '/api/crm' so the catch-all crmRoutes cannot shadow it.
+logger.info('routes.mount', { basePath: '/api/crm/agent-chat', router: 'agentChatRouter' });
+app.use('/api/crm/agent-chat', agentChatRouter);
 logger.info('routes.mount', { basePath: '/api/crm/agents', router: 'agentActivityRouter' });
 app.use('/api/crm/agents', agentActivityRouter);
 logger.info('routes.mount', { basePath: '/api/crm/config', router: 'aiEmployeeConfigRouter' });

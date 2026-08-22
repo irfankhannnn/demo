@@ -300,19 +300,19 @@ export default function PhoneLogin() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/60 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50/60 via-white to-purple-50/60 flex items-center justify-center p-3 sm:p-4 relative overflow-hidden">
       {/* Ambient orbs */}
       <div className="absolute top-[-15%] right-[-10%] w-[55%] h-[55%] rounded-full bg-indigo-200/15 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-15%] left-[-10%] w-[55%] h-[55%] rounded-full bg-purple-200/15 blur-[120px] pointer-events-none" />
 
-      <div className="relative glass-premium rounded-3xl w-full max-w-md p-8 animate-scaleIn shadow-2xl shadow-black/5">
+      <div className="relative glass-premium rounded-2xl sm:rounded-3xl w-full max-w-md p-5 sm:p-8 animate-scaleIn shadow-2xl shadow-black/5">
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 w-[60px] h-[60px] rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg shadow-indigo-500/25 animate-float">
-            <Smartphone className="w-7 h-7 text-white" />
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="relative bg-gradient-to-br from-indigo-600 to-purple-600 w-[52px] h-[52px] sm:w-[60px] sm:h-[60px] rounded-2xl flex items-center justify-center mx-auto mb-4 sm:mb-5 shadow-lg shadow-indigo-500/25 animate-float">
+            <Smartphone className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
           </div>
-          <h1 className="text-[26px] font-bold text-slate-900 mb-1.5 tracking-tight">Phone Login</h1>
-          <p className="text-slate-500 text-[15px] leading-relaxed">
+          <h1 className="text-[22px] sm:text-[26px] font-bold text-slate-900 mb-1.5 tracking-tight">Phone Login</h1>
+          <p className="text-slate-500 text-sm sm:text-[15px] leading-relaxed">
             {step === 'phone' && 'Enter your mobile number to get started'}
             {step === 'otp' && 'Enter the OTP sent to your phone'}
             {step === 'details' && 'Complete your profile'}
@@ -321,7 +321,7 @@ export default function PhoneLogin() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 p-4 bg-rose-50/80 border border-rose-200/60 rounded-2xl flex items-start gap-3 animate-fadeIn">
+          <div className="mb-5 sm:mb-6 p-3 sm:p-4 bg-rose-50/80 border border-rose-200/60 rounded-xl sm:rounded-2xl flex items-start gap-3 animate-fadeIn">
             <AlertCircle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
             <p className="text-sm text-rose-700 font-medium">{error}</p>
           </div>
@@ -329,13 +329,13 @@ export default function PhoneLogin() {
 
         {/* Step 1: Phone Number */}
         {step === 'phone' && (
-          <div className="space-y-5 animate-fadeInUp">
+          <div className="space-y-4 sm:space-y-5 animate-fadeInUp">
             <PhoneInput value={phoneNumber} onChange={setPhoneNumber} error={error ? ' ' : ''} disabled={loading} />
 
             <button
               onClick={handleSendOTP}
               disabled={loading || phoneNumber.length !== 10}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-2"
+              className="w-full min-h-[44px] touch-manipulation bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
@@ -357,7 +357,7 @@ export default function PhoneLogin() {
 
         {/* Step 2: OTP Verification */}
         {step === 'otp' && (
-          <div className="space-y-5 animate-fadeInUp">
+          <div className="space-y-4 sm:space-y-5 animate-fadeInUp">
             <div className="text-center">
               <p className="text-sm text-slate-500 font-medium">
                 OTP sent to <span className="font-bold text-slate-700">+91 {phoneNumber}</span>
@@ -369,7 +369,7 @@ export default function PhoneLogin() {
             <button
               onClick={handleVerifyOTP}
               disabled={loading || otp.length !== 6}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
+              className="w-full min-h-[44px] touch-manipulation bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
             >
               {loading ? 'Verifying...' : 'Verify OTP'}
             </button>
@@ -381,7 +381,7 @@ export default function PhoneLogin() {
                 <button
                   onClick={handleResendOTP}
                   disabled={loading}
-                  className="text-sm text-indigo-600 hover:text-indigo-700 font-semibold transition-colors duration-200"
+                  className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-4 touch-manipulation text-sm text-indigo-600 hover:text-indigo-700 font-semibold transition-colors duration-200"
                 >
                   Resend OTP
                 </button>
@@ -390,7 +390,7 @@ export default function PhoneLogin() {
 
             <button
               onClick={() => setStep('phone')}
-              className="w-full text-slate-500 hover:text-slate-800 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200 py-2"
+              className="w-full min-h-[44px] touch-manipulation text-slate-500 hover:text-slate-800 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200 py-2"
             >
               <ArrowLeft className="w-4 h-4" />
               Change Phone Number
@@ -400,8 +400,8 @@ export default function PhoneLogin() {
 
         {/* Step 3: Uninvited/Not Onboarded Message */}
         {step === 'uninvited' && (
-          <div className="space-y-5 animate-fadeInUp">
-            <div className="p-5 bg-amber-50/70 border border-amber-200/50 rounded-2xl flex items-start gap-3">
+          <div className="space-y-4 sm:space-y-5 animate-fadeInUp">
+            <div className="p-4 sm:p-5 bg-amber-50/70 border border-amber-200/50 rounded-xl sm:rounded-2xl flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
               <div>
                 <h3 className="font-bold text-amber-800 mb-1">Not Onboarded</h3>
@@ -417,7 +417,7 @@ export default function PhoneLogin() {
             <div className="text-center">
               <button
                 onClick={() => setStep('phone')}
-                className="w-full text-slate-500 hover:text-slate-800 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
+                className="w-full min-h-[44px] touch-manipulation text-slate-500 hover:text-slate-800 py-3 text-sm font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Try Different Phone Number
@@ -428,8 +428,8 @@ export default function PhoneLogin() {
 
         {/* Step 4: User Details (for invited members only) */}
         {step === 'details' && (
-          <div className="space-y-5 animate-fadeInUp">
-            <div className="p-4 bg-indigo-50/60 border border-indigo-200/40 rounded-2xl">
+          <div className="space-y-4 sm:space-y-5 animate-fadeInUp">
+            <div className="p-3 sm:p-4 bg-indigo-50/60 border border-indigo-200/40 rounded-xl sm:rounded-2xl">
               <p className="text-sm text-indigo-700 font-medium">
                 You have been invited to join. Please complete your profile below.
               </p>
@@ -442,14 +442,14 @@ export default function PhoneLogin() {
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Enter your full name"
-                className="w-full px-4 py-3 border-2 border-slate-200 rounded-2xl focus:border-indigo-400 focus:shadow-[0_0_0_4px_rgba(99,102,241,0.10)] focus:outline-none transition-all duration-200 bg-white/80 text-slate-800 placeholder:text-slate-400 font-medium"
+                className="w-full min-h-[44px] text-base px-4 py-3 border-2 border-slate-200 rounded-2xl focus:border-indigo-400 focus:shadow-[0_0_0_4px_rgba(99,102,241,0.10)] focus:outline-none transition-all duration-200 bg-white/80 text-slate-800 placeholder:text-slate-400 font-medium"
               />
             </div>
 
             <button
               onClick={handleOnboard}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
+              className="w-full min-h-[44px] touch-manipulation bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3.5 rounded-2xl font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg shadow-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed btn-press"
             >
               {loading ? 'Creating Account...' : 'Complete Registration'}
             </button>
@@ -457,10 +457,10 @@ export default function PhoneLogin() {
         )}
 
         {/* Back to Login */}
-        <div className="mt-8 text-center">
+        <div className="mt-6 sm:mt-8 text-center">
           <Link
             to="/login"
-            className="text-sm text-slate-500 hover:text-indigo-600 font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
+            className="min-h-[44px] touch-manipulation text-sm text-slate-500 hover:text-indigo-600 font-semibold flex items-center justify-center gap-2 transition-colors duration-200"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to Login Options

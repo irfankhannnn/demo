@@ -12,15 +12,14 @@
  *
  * InteractionDecision:
  * {
- *   mode: 'chat'|'clarify'|'confirm'|'cancelled'|'list'|'detail'|'summary'|'mutation'|'error'|'empty',
+ *   mode: 'chat'|'clarify'|'list'|'detail'|'summary'|'mutation'|'error'|'empty',
  *   replyOwner: 'formatter'|'llm',
  *   toolName: string|null,
  *   input: object|null,
  *   introPolicy: 'none'|'allow-short',
- *   text: string|null,        // canned text for chat/clarify/confirm/cancelled
+ *   text: string|null,        // canned text for chat/clarify
  *   autoOpenDetail: boolean,
  *   followUp: string|null,
- *   pending: object|null,     // pending confirmation to persist in session
  * }
  */
 
@@ -38,7 +37,6 @@ function base(overrides = {}) {
     text: null,
     autoOpenDetail: false,
     followUp: null,
-    pending: null,
     ...overrides,
   };
 }
@@ -73,23 +71,7 @@ export function decideInteraction(instruction, result) {
     case 'clarify':
       return base({ mode: 'clarify', replyOwner: 'formatter', text: instruction.clarifyQuestion });
 
-    case 'confirm':
-      return base({
-        mode: 'confirm',
-        replyOwner: 'formatter',
-        text: instruction.confirm?.promptText || 'Are you sure? Reply "yes" or "no".',
-        pending: {
-          entity: instruction.confirm?.entity || null,
-          toolName: instruction.confirm?.toolName || null,
-          input: instruction.confirm?.input || {},
-        },
-      });
-
-    case 'cancelled':
-      return base({ mode: 'cancelled', replyOwner: 'formatter', text: 'Okay, cancelled. Nothing was changed.' });
-
-    case 'tool':
-    case 'confirmed': {
+    case 'tool': {
       const toolName = instruction.toolName;
       const meta = getToolMeta(toolName) || {};
 

@@ -408,6 +408,16 @@ export async function updateCustomer(tenantId, customerId, data) {
   return await getCustomer(tenantId, customerId);
 }
 
+/**
+ * Archive a tenant/customer (reversible soft-remove) instead of deleting it.
+ * Reuses the existing 'inactive' status rather than adding a new enum value:
+ * unlike lead's 'lost' (a distinct outcome), tenant status has no meaning
+ * that 'archived' would need to be distinguished from.
+ */
+export async function archiveCustomer(tenantId, customerId) {
+  return updateCustomer(tenantId, customerId, { status: 'inactive' });
+}
+
 export async function deleteCustomer(tenantId, customerId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -923,6 +933,14 @@ export async function updateOwner(tenantId, ownerId, data) {
   }
 
   return await getOwner(tenantId, ownerId);
+}
+
+/**
+ * Archive an owner (reversible soft-remove) instead of deleting it.
+ * Reuses the existing 'inactive' status, same reasoning as archiveCustomer.
+ */
+export async function archiveOwner(tenantId, ownerId) {
+  return updateOwner(tenantId, ownerId, { status: 'inactive' });
 }
 
 export async function deleteOwner(tenantId, ownerId) {
@@ -1734,6 +1752,16 @@ export async function updateProperty(tenantId, propertyId, data) {
   return updatedProperty;
 }
 
+/**
+ * Archive a property (reversible soft-remove) instead of deleting it.
+ * Delegates to updateProperty so archiving goes through the exact same
+ * status-transition validation, GSI2 bookkeeping, and area/timeline sync
+ * a normal status change already does -- no separate code path to drift.
+ */
+export async function archiveProperty(tenantId, propertyId) {
+  return updateProperty(tenantId, propertyId, { status: 'archived' });
+}
+
 export async function deleteProperty(tenantId, propertyId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -2182,7 +2210,58 @@ export async function getPropertyDocuments(tenantId, propertyId) {
       ':sk': 'DOCUMENT#',
     },
   }));
-  return result.Items || [];
+  return (result.Items || []).filter((doc) => !doc.archivedAt);
+}
+
+/**
+ * Update a property document. Minimal by design -- only what
+ * archivePropertyDocument needs (setting archivedAt), not a general-purpose
+ * document editor. No updatePropertyDocument existed before this; documents
+ * were create-then-delete only.
+ */
+export async function updatePropertyDocument(tenantId, propertyId, documentId, updates) {
+  if (!tenantId) {
+    throw new Error('Tenant ID is required');
+  }
+
+  const { updateExpressions, attributeNames, attributeValues } = buildSetUpdateExpression(
+    updates,
+    ['propertyId', 'documentId'],
+  );
+
+  if (updateExpressions.length === 0) {
+    return null;
+  }
+
+  try {
+    const result = await docClient.send(new UpdateCommand({
+      TableName: CRM_TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#PROPERTY#${propertyId}`,
+        SK: `DOCUMENT#${documentId}`,
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ConditionExpression: 'attribute_exists(PK)',
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+      ReturnValues: 'ALL_NEW',
+    }));
+    return result.Attributes;
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Property document not found');
+    }
+    throw err;
+  }
+}
+
+/**
+ * Archive a property document (reversible soft-remove) instead of deleting
+ * it. Documents have no stored status field (they're create-then-delete
+ * only today), so this adds archivedAt the same way archiveContact does.
+ */
+export async function archivePropertyDocument(tenantId, propertyId, documentId) {
+  return updatePropertyDocument(tenantId, propertyId, documentId, { archivedAt: new Date().toISOString() });
 }
 
 export async function deletePropertyDocument(tenantId, propertyId, documentId) {
@@ -2577,10 +2656,13 @@ export async function updateMeeting(tenantId, meetingId, data) {
   // Validate state transitions
   if (data.status && data.status !== before.status) {
     const validTransitions = {
-      scheduled: ['completed', 'cancelled', 'rescheduled'],
-      rescheduled: ['completed', 'cancelled', 'scheduled'],
-      completed: [],
-      cancelled: []
+      scheduled: ['completed', 'cancelled', 'rescheduled', 'archived'],
+      rescheduled: ['completed', 'cancelled', 'scheduled', 'archived'],
+      completed: ['archived'],
+      cancelled: ['archived'],
+      // Archiving is a reversible soft-remove (see archiveMeeting below); the
+      // only way out is an explicit reactivation back to scheduled.
+      archived: ['scheduled'],
     };
     const allowed = validTransitions[before.status] || [];
     if (!allowed.includes(data.status)) {
@@ -2672,6 +2754,10 @@ export async function updateMeeting(tenantId, meetingId, data) {
           activityType = 'meeting_cancelled';
           title = `Meeting Cancelled: ${after.title}`;
           description = data.notes || 'Meeting was cancelled.';
+        } else if (data.status === 'archived') {
+          activityType = 'meeting_archived';
+          title = `Meeting Archived: ${after.title}`;
+          description = 'Meeting was archived.';
         }
       }
 
@@ -2696,8 +2782,9 @@ export async function updateMeeting(tenantId, meetingId, data) {
     const dateTimeChanged = (typeof data.meetingDate === 'string' && data.meetingDate !== before?.meetingDate) ||
                             (typeof data.meetingTime === 'string' && data.meetingTime !== before?.meetingTime);
 
-    if (statusChanged && (data.status === 'cancelled' || data.status === 'completed')) {
-      // Cancel reminder if meeting is cancelled or completed
+    if (statusChanged && (data.status === 'cancelled' || data.status === 'completed' || data.status === 'archived')) {
+      // Cancel any pending reminder -- a scheduled meeting archived directly
+      // (without first being cancelled/completed) must not still fire one.
       await cancelMeetingReminder(tenantId, meetingId);
     } else if (dateTimeChanged && result.Attributes?.status === 'scheduled') {
       // Reschedule reminder if date/time changed and meeting is still scheduled
@@ -2710,6 +2797,17 @@ export async function updateMeeting(tenantId, meetingId, data) {
 
   logger.info('meeting.updated', { meetingId, tenantId });
   return result.Attributes;
+}
+
+/**
+ * Archive a meeting (reversible soft-remove) instead of deleting it.
+ * Delegates to updateMeeting so archiving goes through the same status
+ * transition validation, reminder cancellation, and activity logging a
+ * normal status change already does. Reversible via update_meeting
+ * (status: 'scheduled').
+ */
+export async function archiveMeeting(tenantId, meetingId) {
+  return updateMeeting(tenantId, meetingId, { status: 'archived' });
 }
 
 /**
@@ -2882,6 +2980,10 @@ export function deriveContactStatus(contact, {
   customers = [],
 } = {}) {
   if (!contact) return 'inactive';
+  // An explicit archive decision overrides derived activity signals -- a
+  // human/agent said "stop tracking this," which should hold even if the
+  // contact still technically owns a property or has a role flag set.
+  if (contact.archivedAt) return 'archived';
 
   const ownsProperty = properties.some((property) =>
     propertyIsCurrentlyOwnedBy(property, {
@@ -3086,6 +3188,10 @@ export async function getContacts(tenantId, filters = {}) {
   }
   if (filters.status) {
     contacts = contacts.filter((c) => matchesFilterEnum(c.status, filters.status));
+  } else {
+    // Archived contacts are excluded from the default (unfiltered) list --
+    // an agent must explicitly ask for status: 'archived' to see them.
+    contacts = contacts.filter((c) => c.status !== 'archived');
   }
   if (filters.search && filters.search.trim().length >= 2) {
     const q = filters.search.toLowerCase().trim();
@@ -3313,6 +3419,17 @@ export async function updateContactRole(tenantId, contactId, role, enabled, prof
 /**
  * Delete a contact
  */
+/**
+ * Archive a contact (reversible soft-remove) instead of deleting it.
+ * Unlike other entities, contacts have no stored status field at all --
+ * deriveContactStatus() computes 'active'/'inactive' from role/activity on
+ * every read. archivedAt is a new, durable field specifically for this,
+ * since "stop tracking" can't be represented by a derived value.
+ */
+export async function archiveContact(tenantId, contactId) {
+  return updateContact(tenantId, contactId, { archivedAt: new Date().toISOString() });
+}
+
 export async function deleteContact(tenantId, contactId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -4967,6 +5084,17 @@ export async function findBuyerByPhone(tenantId, phone) {
 }
 
 /**
+ * Archive a lead (reversible soft-remove) instead of deleting it.
+ * Delegates to updateLead, so it inherits the same guards -- notably,
+ * a converted lead cannot be archived either (updateLead blocks all
+ * field changes except notes on converted leads; the buyer/seller/tenant/
+ * owner record is the live entity at that point, not the legacy lead).
+ */
+export async function archiveLead(tenantId, leadId) {
+  return updateLead(tenantId, leadId, { status: 'archived' });
+}
+
+/**
  * Delete a lead
  */
 export async function deleteLead(tenantId, leadId) {
@@ -5637,6 +5765,29 @@ export async function updateBuyer(tenantId, buyerId, data) {
  * - Legacy BUYER entity: delete the row
  * - CONTACT-as-buyer: remove the buyer role from the contact
  */
+/**
+ * Archive a buyer (reversible soft-remove) instead of deleting it.
+ * Mirrors deleteBuyer's dual-path branching rather than delegating to
+ * updateBuyer directly: for a contact-derived buyer, updateBuyer forwards
+ * to updateContact, which strips `status` entirely (contacts have no
+ * stored status field -- see deriveContactStatus/archiveContact above), so
+ * `{status:'inactive'}` would silently no-op there. Turning the buyer role
+ * off is the correct, reversible equivalent for that case.
+ */
+export async function archiveBuyer(tenantId, buyerId) {
+  const existing = await getBuyer(tenantId, buyerId);
+  if (!existing) {
+    throw new Error('Buyer not found');
+  }
+
+  if (existing.isFromContact && existing.contactId) {
+    await updateContactRole(tenantId, existing.contactId, 'buyer', false);
+    return await getBuyer(tenantId, buyerId);
+  }
+
+  return updateBuyer(tenantId, buyerId, { status: 'inactive' });
+}
+
 export async function deleteBuyer(tenantId, buyerId) {
   if (!tenantId) {
     throw new Error('Tenant ID is required');
@@ -5697,6 +5848,110 @@ export async function findPersonByPhone(tenantId, phone) {
     phone: cleanPhone,
   };
 }
+
+/**
+ * Resolve "who is this person?" across BOTH the pipeline (leads) and the
+ * converted CRM records (buyer / owner / tenant / contact), by name or phone.
+ *
+ * Why this exists (Phase 3 Slice 3d): every person-shaped entity has two
+ * possible forms -- a lead that hasn't converted yet, and a converted record
+ * in a different table. The planner used to guess between them from prose
+ * rules in its system prompt. This lets it ask instead.
+ *
+ * Note the difference from findPersonByPhone() above, which this does NOT
+ * replace: that one is phone-only and, critically, never looks at leads --
+ * so it cannot answer the ambiguous case at all. Left in place because it has
+ * its own callers and a different (narrower) contract.
+ *
+ * Cost note: this fans out across several full-table scans, same as every
+ * other search path in this file today (see the TODO(MED-1) at the top). It
+ * is a resolver the agent calls occasionally to disambiguate one person, not
+ * a list endpoint, so the cost is bounded by how often that ambiguity comes
+ * up rather than by traffic.
+ *
+ * @param {string} tenantId
+ * @param {object} filters
+ * @param {string} filters.query - a name (partial ok) or a phone number
+ * @returns {Promise<{found: boolean, query: string, matchCount: number, matches: Array<object>}>}
+ */
+export async function findPerson(tenantId, filters = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const query = String(filters.query ?? '').trim();
+  if (!query) return { found: false, query: '', matchCount: 0, matches: [] };
+
+  const digits = query.replace(/\D/g, '');
+  // 7+ digits is a phone; shorter runs of digits are far more likely part of
+  // a name or a house number than a number someone means to look up.
+  const isPhone = digits.length >= 7;
+  const nameNeedle = query.toLowerCase();
+
+  const matches = (person, name, phone) => {
+    if (isPhone) return String(phone || '').replace(/\D/g, '').includes(digits);
+    return String(name || '').toLowerCase().includes(nameNeedle);
+  };
+
+  const found = [];
+  const push = (recordType, id, name, phone, extra = {}) => {
+    found.push({ recordType, id, name: name || null, phone: phone || null, ...extra });
+  };
+
+  // Settled so one failing scan cannot take down the whole lookup.
+  const [leadsRes, buyersRes, ownersRes, customersRes, contactsRes] = await Promise.allSettled([
+    getLeads(tenantId),
+    getBuyers(tenantId),
+    getOwners(tenantId),
+    getCustomers(tenantId),
+    getContacts(tenantId),
+  ]);
+
+  if (leadsRes.status === 'fulfilled') {
+    for (const lead of unwrapLeadsList(leadsRes.value) || []) {
+      if (!matches(lead, lead.name, lead.phone)) continue;
+      push('lead', lead.leadId, lead.name, lead.phone, {
+        leadType: lead.leadType || null,
+        status: lead.status || null,
+        converted: isLeadConverted(lead),
+      });
+    }
+  }
+  if (buyersRes.status === 'fulfilled') {
+    for (const b of (buyersRes.value?.buyers || [])) {
+      if (matches(b, b.name, b.phone)) push('buyer', b.buyerId, b.name, b.phone, { status: b.status || null });
+    }
+  }
+  if (ownersRes.status === 'fulfilled') {
+    for (const o of (ownersRes.value?.owners || [])) {
+      if (matches(o, o.name, o.phone)) push('owner', o.ownerId, o.name, o.phone, { status: o.status || null });
+    }
+  }
+  if (customersRes.status === 'fulfilled') {
+    for (const c of (customersRes.value?.customers || [])) {
+      if (matches(c, c.name, c.phone)) push('tenant', c.customerId, c.name, c.phone, { status: c.status || null });
+    }
+  }
+  if (contactsRes.status === 'fulfilled') {
+    const contacts = Array.isArray(contactsRes.value) ? contactsRes.value : (contactsRes.value?.contacts || []);
+    for (const ct of contacts) {
+      if (matches(ct, ct.name, ct.phone)) push('contact', ct.contactId, ct.name, ct.phone, { roles: ct.roles || null });
+    }
+  }
+
+  return {
+    found: found.length > 0,
+    query,
+    matchedBy: isPhone ? 'phone' : 'name',
+    matchCount: found.length,
+    matches: found.slice(0, 10),
+  };
+}
+
+// ============== Khata (ledger) — read-only agent access ==============
+// Re-exported here, not reimplemented: skillInvoker dispatches tools via
+// `crmDynamodbService[handlerName]`, so a handler must be reachable as a
+// property of this module. The logic lives in khataDynamodbService.js
+// (different table, different concern). Read-only by design — see that
+// file's header for why no write tool is exposed.
+export { searchKhataEntries, getKhataSummary } from './khataDynamodbService.js';
 
 // ============== Notes for Buyers and Sellers ==============
 

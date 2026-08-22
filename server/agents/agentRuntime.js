@@ -4,10 +4,10 @@
  * Conversational agent (WhatsApp SyncBot) flow — ONE path, no legacy branches:
  *
  *   inbound message
- *     → Stage A: routeDomains()      (pick relevant CRM domain[s])
- *     → Stage B: planTurn()          (plan: ONE scoped tool call OR a chat reply)
+ *     → Stage A: classify()          (pick relevant CRM domain[s] -- modelGateway/, wraps domainRouter.js)
+ *     → Stage B: plan()              (plan: ONE scoped tool call OR a chat reply -- modelGateway/, wraps llm/planTurn.js)
  *     → Stage C: execute             (invokeSkill + optional auto-open detail)
- *     → Stage D: compose             (deterministic formatter, or LLM for summaries)
+ *     → Stage D: compose()           (deterministic formatter, or LLM via modelGateway/ wrapping llm/composeReply.js)
  *
  * Non-conversational agents (qualifier / router / followup / mcp) use a simple
  * single-shot LLM completion with their role prompt (no tools, raw text out).
@@ -30,15 +30,23 @@ import { autoOpenSingleSearchDetail, shouldAutoOpenAfterSearch } from './followU
 import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { getConversationContext } from '../whatsappConversationService.js';
+import { buildWhatsAppPrincipal } from '../utils/whatsapp.js';
+import { canReceiveMessage, canAutoReply } from '../whatsappAccessControl.js';
+import { resolveCategory } from '../userCategoryService.js';
 import {
   getConversationState,
-  updateConversationState,
+  initializeConversationState,
+  recordMessageInConversation,
+  resetConversationStateIfStale,
   updateLastDiscussedEntities,
+  extractEntitiesFromToolResults,
   extractListAndFocusFromToolResults,
 } from '../conversationStateService.js';
-import { routeDomains } from './domainRouter.js';
-import { planTurn } from './llm/planTurn.js';
-import { composeReply } from './llm/composeReply.js';
+// Model-gateway seam (Phase 2 Slice 2c) -- classify()/plan()/compose() wrap
+// domainRouter.js/llm/planTurn.js/llm/composeReply.js unchanged. See
+// server/agents/modelGateway/index.js for why this is a thin delegation,
+// not a rewrite.
+import { classify, plan as planWithGateway, planAndRun as planAndRunWithGateway, compose as composeWithGateway } from './modelGateway/index.js';
 import { decideInteraction } from './interaction/decideInteraction.js';
 import { metrics } from '../observability/cloudwatch.js';
 import { logger } from '../logger.js';
@@ -49,11 +57,30 @@ export { buildAnthropicToolDefinitions, buildGeminiToolDefinitions, normalizeGem
 const AGENT_ACTION_CREDITS = parseInt(process.env.AGENT_ACTION_CREDITS || '15', 10);
 const LOCAL_DEV_BYPASS = process.env.NODE_ENV === 'development' || process.env.AI_EMPLOYEE_BYPASS_PROVISIONING === 'true';
 
-/** Agents that hold a conversation and use CRM tools. */
-const CONVERSATIONAL_AGENTS = new Set(['whatsapp']);
+/**
+ * Phase 3: use the bounded multi-step tool loop (llm/runToolLoop.js) instead
+ * of the single-shot planner (llm/planTurn.js). Read per-turn rather than
+ * cached at module load so it can be flipped without a redeploy.
+ *
+ * Defaults to OFF: the single-shot path stays the production default until
+ * this is deliberately enabled, so shipping the loop is a no-op for live
+ * traffic until someone turns it on. See docs/proposals/
+ * agent-channel-architecture/phase3-imp/01-slice3a-bounded-tool-loop.md.
+ */
+function isToolLoopEnabled() {
+  return process.env.AGENT_TOOL_LOOP_ENABLED === 'true';
+}
 
-const PENDING_YES_RE = /^(yes|yeah|yep|haan|haa+n?|ha|ji|ji haan|sure|confirm|ok karo|kar do|delete karo|proceed|go ahead|pakka)\b/i;
-const PENDING_NO_RE = /^(no|nope|nahi+|na|mat|rehne do|cancel|ruko|stop|abort|chhodo|skip|don'?t)\b/i;
+/**
+ * Agents that hold a conversation and use CRM tools.
+ *
+ * Phase 5 added 'web'. Both channels run the identical pipeline — classify →
+ * plan → execute → compose — against the identical tool registry. What differs
+ * is only the composer's length budget (Phase 4) and how the reply is
+ * delivered. That was the whole point of the Phase 2 extraction: adding a
+ * channel is one entry in this set plus an adapter, not a second agent.
+ */
+const CONVERSATIONAL_AGENTS = new Set(['whatsapp', 'web']);
 
 // ─── Gemini API call accounting (per invoke) ─────────────────────────────────
 let _geminiApiCallsThisInvoke = 0;
@@ -70,6 +97,47 @@ const TRUNCATE_STRING_LENGTH = parseInt(process.env.AGENT_TRUNCATE_STRING_LENGTH
 
 // Summary/insight payloads are already small, curated aggregates — never truncate.
 const NEVER_TRUNCATE_TOOLS = new Set([...SUMMARY_INSIGHT_TOOLS, 'get_leads_summary']);
+
+// ─── Business-hours / agent-pause policy ─────────────────────────────────────
+// Moved here from server/scripts/whatsapp-message-processor.js (Phase 2 Slice 2b)
+// -- this is tenant business-hours policy, not WhatsApp transport, so a future
+// channel needs it too. See docs/proposals/agent-channel-architecture/
+// phase2-imp/02-slice2b-processor-extraction.md.
+function minutesFromTime(timeStr) {
+  if (!timeStr || !/^\d{1,2}:\d{2}$/.test(String(timeStr))) return null;
+  const [h, m] = String(timeStr).split(':').map((v) => parseInt(v, 10));
+  if (Number.isNaN(h) || Number.isNaN(m) || h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function isWithinBusinessHours(start, end, timezone = 'Asia/Kolkata') {
+  if (!start || !end) return true;
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+    const parts = formatter.formatToParts(new Date());
+    const hour = parseInt(parts.find((p) => p.type === 'hour')?.value, 10);
+    const minute = parseInt(parts.find((p) => p.type === 'minute')?.value, 10);
+    if (Number.isNaN(hour) || Number.isNaN(minute)) return true;
+
+    const current = hour * 60 + minute;
+    const startMinutes = minutesFromTime(start);
+    const endMinutes = minutesFromTime(end);
+    if (startMinutes === null || endMinutes === null) return true;
+
+    // Handle cross-midnight ranges like 22:00-02:00.
+    if (endMinutes < startMinutes) {
+      return current >= startMinutes || current <= endMinutes;
+    }
+    return current >= startMinutes && current <= endMinutes;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * Produce a lean, token-safe representation of a tool result before it is sent
@@ -146,54 +214,21 @@ function isEnabledForRollout(tenantId, rolloutPercentage) {
   return (hash % 100) < rolloutPercentage;
 }
 
-// ─── Pending delete-confirmation handling ────────────────────────────────────
-
-/** Short-circuit the planner when the user is answering a pending delete confirm. */
-function planFromPendingConfirmation(prompt, conversationState) {
-  const pending = conversationState?.context?.pendingConfirmation;
-  if (!pending?.toolName) return null;
-  const trimmed = String(prompt || '').trim();
-  if (PENDING_YES_RE.test(trimmed)) {
-    return { kind: 'tool', toolName: pending.toolName, input: pending.input || {}, source: 'pending_confirmation' };
-  }
-  if (PENDING_NO_RE.test(trimmed)) {
-    return { kind: 'chat', text: 'Okay, cancelled. Nothing was changed.', source: 'pending_confirmation' };
-  }
-  return null;
-}
-
-/** Block a destructive delete until the user confirms on a follow-up message. */
-function gateDeleteToolPlan(plan, conversationState) {
-  if (plan.kind !== 'tool' || !plan.toolName?.startsWith('delete_')) return plan;
-  const pending = conversationState?.context?.pendingConfirmation;
-  if (pending?.toolName === plan.toolName) return plan;
-  return {
-    kind: 'confirm_pending',
-    toolName: plan.toolName,
-    input: plan.input || {},
-    text: 'Are you sure you want to delete this record? Reply "yes" to confirm or "no" to cancel.',
-  };
-}
-
-/** Persist last list / focused entity + pending confirmation after a turn. */
-async function persistTurnState(tenantId, contactPhone, toolResults, decision) {
+/**
+ * Persist last list / focused entity after a turn, for follow-up context
+ * (e.g. "open the second one"). Archive tools (server/shared/toolDefinitions.js)
+ * replaced the delete_* tools this used to also gate behind a WhatsApp
+ * yes/no confirmation -- see docs/proposals/agent-channel-architecture/
+ * phase1-imp/05-slice5-remove-delete-tools.md for why that subsystem was
+ * removed rather than kept alongside archive tools.
+ */
+async function persistTurnState(tenantId, principal, toolResults) {
   try {
     const { lastListResults, currentEntity } = extractListAndFocusFromToolResults(toolResults);
-    if (lastListResults || currentEntity) {
-      await updateLastDiscussedEntities(tenantId, contactPhone, [], null, { lastListResults, currentEntity });
-    }
-    const state = await getConversationState(tenantId, contactPhone);
-    const context = { ...(state?.context || {}) };
-    if (decision?.mode === 'confirm' && decision.pending) {
-      context.pendingConfirmation = decision.pending;
-    } else if (context.pendingConfirmation) {
-      context.pendingConfirmation = null;
-    } else {
-      return;
-    }
-    await updateConversationState(tenantId, contactPhone, { context });
+    if (!lastListResults && !currentEntity) return;
+    await updateLastDiscussedEntities(tenantId, principal, [], null, { lastListResults, currentEntity });
   } catch (err) {
-    logger.warn('agent.persist_state.failed', { tenantId, contactPhone, error: err.message });
+    logger.warn('agent.persist_state.failed', { tenantId, principal, error: err.message });
   }
 }
 
@@ -206,33 +241,96 @@ const SEARCH_LIST_TOOLS = new Set([
  * @returns {Promise<object>} same success shape as invokeAgent
  */
 async function runConversationalPipeline(tenantId, agentId, prompt, context, conversationState, conversationHistory, personality, startMs) {
+  /*
+   * Permission identity for this turn.
+   *
+   * `skillInvoker` skips its category check entirely when no userId is given,
+   * and WhatsApp turns passed none — so the largest write surface in the
+   * product ran with the check switched off, silently and with nothing in the
+   * logs to say so. The principal (`wa:<phone>`) is the identity the channel
+   * actually has, so it is what the check runs against.
+   *
+   * Behaviour is unchanged by default: no `CATEGORY#USER` row exists for a
+   * principal, so `WHATSAPP_FALLBACK_CATEGORY` (default `admin`) applies, and
+   * admin covers the whole registry. What changes is that the decision is now
+   * made, logged, and closable — an agency can provision a row for a specific
+   * principal, or set the env to `whatsapp_bot`, without a code change.
+   *
+   * This does not make a shared WhatsApp number safe on its own. The self-chat
+   * check means the only possible sender is whoever controls the tenant's
+   * connected number, so per-staff permissions need per-staff identity, which
+   * this channel does not have. See the launch-readiness audit.
+   */
+  const permissionIdentity = context.userId || context.principal || undefined;
+  // An adapter that knows the actor's real category supplies it (the web
+  // channel derives one from the JWT role). Otherwise: WhatsApp's principal
+  // gets the env default, and a bare named userId still fails closed.
+  const permissionFallback = context.fallbackCategory
+    ?? (context.userId ? undefined : (process.env.WHATSAPP_FALLBACK_CATEGORY || 'admin'));
+
+  /** Progress hooks for channels that render tool activity (Phase 5, web chat). */
+  const notifyToolStart = (toolName) => {
+    try { context.onToolStart?.(toolName); } catch (_) { /* never break a turn on a UI hook */ }
+  };
+  const notifyToolEnd = (toolName, ok) => {
+    try { context.onToolEnd?.(toolName, ok); } catch (_) { /* as above */ }
+  };
+
   // ── Stage A + B: decide the plan ──────────────────────────────────────────
-  let plan = planFromPendingConfirmation(prompt, conversationState);
+  let plan = null;
   let domains = [];
   let smalltalk = false;
 
-  if (!plan) {
-    const routed = await routeDomains(prompt, {
-      conversationState,
-      onApiCall: () => trackGeminiApiCall('router.generateContent'),
-    });
-    domains = routed.domains;
-    smalltalk = routed.smalltalk;
+  const routed = await classify(prompt, {
+    conversationState,
+    onApiCall: () => trackGeminiApiCall('router.generateContent'),
+  });
+  domains = routed.domains;
+  smalltalk = routed.smalltalk;
 
-    if (smalltalk) {
-      plan = { kind: 'chat', source: 'router_smalltalk' };
-    } else {
-      const toolNames = getToolsForDomain(domains);
-      plan = await planTurn(prompt, {
-        tenantId,
-        personality,
-        conversationState,
-        historyMessages: conversationHistory,
-        toolNames,
-        domains,
-        onApiCall: () => trackGeminiApiCall('planner.generateContent'),
+  if (smalltalk) {
+    plan = { kind: 'chat', source: 'router_smalltalk' };
+  } else {
+    const toolNames = getToolsForDomain(domains);
+    const planOptions = {
+      tenantId,
+      personality,
+      conversationState,
+      historyMessages: conversationHistory,
+      toolNames,
+      domains,
+      onApiCall: () => trackGeminiApiCall('planner.generateContent'),
+    };
+    if (isToolLoopEnabled()) {
+      // The loop executes tools itself (the model needs each result before it
+      // can choose the next step), so tool execution + its audit entry are
+      // injected here rather than happening in Stage C below.
+      plan = await planAndRunWithGateway(prompt, {
+        ...planOptions,
+        truncateForModel: truncateToolResultForLlm,
+        // Slice 3b: let a mis-scoped turn retry against the full registry
+        // instead of failing closed on a wrong router guess.
+        allowScopeEscalation: true,
+        // A caller that answers inside a request/response deadline can shrink
+        // the loop's budget. The web channel does: the loop's own 25s default
+        // plus classify and compose can outrun the API Lambda's 30s timeout,
+        // and a turn killed by the platform returns nothing at all — strictly
+        // worse than a turn that stops early and answers with what it has.
+        ...(context.toolLoopBudgetMs ? { budgetMs: context.toolLoopBudgetMs } : {}),
+        executeTool: async (toolName, input) => {
+          notifyToolStart(toolName);
+          const toolResult = await invokeSkill(tenantId, toolName, input, {
+            userId: permissionIdentity,
+            fallbackCategory: permissionFallback,
+            source: 'agent.pipeline',
+          });
+          notifyToolEnd(toolName, Boolean(toolResult?.ok));
+          await logAgentAction(tenantId, agentId, 'tool_call', { toolName, input }, toolResult, 0);
+          return toolResult;
+        },
       });
-      plan = gateDeleteToolPlan(plan, conversationState);
+    } else {
+      plan = await planWithGateway(prompt, planOptions);
     }
   }
 
@@ -253,17 +351,7 @@ async function runConversationalPipeline(tenantId, agentId, prompt, context, con
   let decision = null;
   let instruction = null;
 
-  // ── Non-tool turns (chat / clarify / confirm) ─────────────────────────────
-  if (plan.kind === 'confirm_pending') {
-    decision = decideInteraction({
-      kind: 'confirm',
-      confirm: { entity: 'record', toolName: plan.toolName, input: plan.input, promptText: plan.text },
-    });
-    const text = renderDecision(decision, null, null);
-    if (context.contactPhone) await persistTurnState(tenantId, context.contactPhone, toolResults, decision);
-    return finish(tenantId, agentId, prompt, context, { text, toolResults }, startMs, 'confirm_pending');
-  }
-
+  // ── Non-tool turns (chat / clarify) ───────────────────────────────────────
   if (plan.kind === 'chat') {
     const raw = plan.text?.trim();
     const text = raw && isValidWhatsAppReply(raw) ? raw : decideInteraction({ kind: 'chat' }).text;
@@ -275,20 +363,66 @@ async function runConversationalPipeline(tenantId, agentId, prompt, context, con
     return finish(tenantId, agentId, prompt, context, { text, toolResults }, startMs, 'clarify');
   }
 
+  // ── Multi-step tool loop (Phase 3) ────────────────────────────────────────
+  // 2+ tools ran for this one turn. Every tool has already been executed (and
+  // audited) inside the loop, so there is nothing to run here -- only to
+  // render. The model's own closing text is the reply, because it is the only
+  // thing that has seen all the steps; the deterministic formatter renders one
+  // tool result and cannot summarize a compound action ("created the lead AND
+  // booked the visit"). Falls back to formatting the last step if the model
+  // returned no usable text (e.g. the loop stopped on its step cap).
+  if (plan.kind === 'tool_loop') {
+    for (const step of plan.steps) {
+      toolResults.push({ tool: step.toolName, input: step.input, result: step.result });
+    }
+    const lastStep = plan.steps[plan.steps.length - 1];
+    const raw = plan.text?.trim();
+    let text;
+    if (raw && isValidWhatsAppReply(raw)) {
+      text = raw;
+    } else {
+      const lastDecision = decideInteraction(
+        { kind: 'tool', toolName: lastStep.toolName, input: lastStep.input },
+        lastStep.result,
+      );
+      text = renderDecision(lastDecision, lastStep.result, null);
+    }
+    logger.info('agent.tool_loop.rendered', {
+      tenantId,
+      stepCount: plan.steps.length,
+      stopReason: plan.stopReason,
+      usedModelText: !!(raw && isValidWhatsAppReply(raw)),
+    });
+    if (context.principal) await persistTurnState(tenantId, context.principal, toolResults);
+    return finish(tenantId, agentId, prompt, context, { text, toolResults }, startMs, plan.kind, lastStep.toolName);
+  }
+
   // ── Stage C: execute the tool ─────────────────────────────────────────────
   if (plan.kind === 'tool' && plan.toolName) {
     instruction = { kind: 'tool', toolName: plan.toolName, input: plan.input || {} };
-    result = await invokeSkill(tenantId, plan.toolName, plan.input || {}, {
-      userId: context.userId,
-      source: 'agent.pipeline',
-    });
-    toolResults.push({ tool: plan.toolName, input: plan.input || {}, result });
-    await logAgentAction(tenantId, agentId, 'tool_call', { toolName: plan.toolName, input: plan.input || {} }, result, 0);
+    if (plan.result !== undefined) {
+      // Came from the bounded tool loop, which already executed and audited
+      // this call -- reusing its result instead of running the tool a second
+      // time (a duplicate create_* here would be a real double-write).
+      result = plan.result;
+      toolResults.push({ tool: plan.toolName, input: plan.input || {}, result });
+    } else {
+      notifyToolStart(plan.toolName);
+      result = await invokeSkill(tenantId, plan.toolName, plan.input || {}, {
+        userId: permissionIdentity,
+        fallbackCategory: permissionFallback,
+        source: 'agent.pipeline',
+      });
+      notifyToolEnd(plan.toolName, Boolean(result?.ok));
+      toolResults.push({ tool: plan.toolName, input: plan.input || {}, result });
+      await logAgentAction(tenantId, agentId, 'tool_call', { toolName: plan.toolName, input: plan.input || {} }, result, 0);
+    }
 
     // Auto-open the single matching record when the user searched by name.
     if (SEARCH_LIST_TOOLS.has(plan.toolName) && result?.ok && shouldAutoOpenAfterSearch(plan.input)) {
       const opened = await autoOpenSingleSearchDetail(tenantId, plan.toolName, result, {
-        userId: context.userId,
+        userId: permissionIdentity,
+        fallbackCategory: permissionFallback,
         source: 'agent.pipeline',
       });
       if (opened) {
@@ -310,12 +444,16 @@ async function runConversationalPipeline(tenantId, agentId, prompt, context, con
   let text;
   if (useComposer) {
     const truncated = truncateToolResultForLlm(instruction.toolName, result);
-    const composed = await composeReply({
+    const composed = await composeWithGateway({
       userMessage: prompt,
       personality,
       tenantId,
       toolName: instruction.toolName,
       truncatedPayload: truncated,
+      // Phase 4. `context.channel` is set by the channel adapter; WhatsApp
+      // turns do not set it and get the default, so their replies are
+      // byte-identical to before.
+      channel: context.channel || 'whatsapp',
       onApiCall: () => trackGeminiApiCall('composer.generateContent'),
     });
     text = composed || renderDecision(decision, result, null);
@@ -323,7 +461,7 @@ async function runConversationalPipeline(tenantId, agentId, prompt, context, con
     text = renderDecision(decision, result, null);
   }
 
-  if (context.contactPhone) await persistTurnState(tenantId, context.contactPhone, toolResults, decision);
+  if (context.principal) await persistTurnState(tenantId, context.principal, toolResults);
 
   return finish(tenantId, agentId, prompt, context, { text, toolResults }, startMs, plan.kind, instruction?.toolName);
 }
@@ -359,14 +497,24 @@ async function finish(tenantId, agentId, prompt, context, { text, toolResults },
  * Single-shot completion for non-conversational agents (qualifier/router/followup/mcp).
  * These analyse the provided data and return raw text (usually role-specific JSON).
  */
-async function runSingleShotAgent(tenantId, agentId, prompt, systemPrompt, startMs) {
+async function runSingleShotAgent(tenantId, agentId, prompt, systemPrompt, startMs, responseSchema = null) {
   const apiKey = process.env.GEMINI_API_KEY;
   const modelName = process.env.GEMINI_MODEL;
   if (!apiKey || !modelName) {
     return { ok: false, error: 'llm_not_configured' };
   }
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: modelName, systemInstruction: systemPrompt });
+  // Phase 5b: when a caller supplies a schema, constrain the model to it
+  // instead of parsing prose afterwards. These are unattended flows — the
+  // qualifier writes a lead score with nobody watching — so "the model
+  // probably returned JSON" is not a good enough contract.
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: systemPrompt,
+    ...(responseSchema
+      ? { generationConfig: { responseMimeType: 'application/json', responseSchema } }
+      : {}),
+  });
   trackGeminiApiCall('single_shot.generateContent');
   const result = await model.generateContent(prompt);
   let text = '';
@@ -378,11 +526,29 @@ async function runSingleShotAgent(tenantId, agentId, prompt, systemPrompt, start
 }
 
 /**
+ * A single inbound turn, channel-agnostic. `principal` is the
+ * conversation-state/session key (e.g. `wa:<phone>` for WhatsApp, built via
+ * server/utils/whatsapp.js buildWhatsAppPrincipal(); a future `web:<userId>`
+ * channel would build its own equivalent). Not yet a class/enforced shape --
+ * this codebase is plain JS -- just the documented contract the `context`
+ * object passed to invokeAgent() is expected to satisfy for a conversational
+ * agent. See docs/proposals/agent-channel-architecture/phase2-imp/.
+ * @typedef {object} Turn
+ * @property {string} tenantId
+ * @property {string} [principal]   - session/conversation-state key, e.g. `wa:<phone>`
+ * @property {string} [channel]     - e.g. 'whatsapp' (mirrors agentId today; kept
+ *                                     distinct for when a channel can host more than one agentId)
+ * @property {string} text          - the inbound message text
+ * @property {string} [sessionId]   - reserved for a future explicit session identifier;
+ *                                     principal is the key in use today
+ */
+
+/**
  * Main entry point.
  * @param {string} tenantId
  * @param {string} agentId  - 'whatsapp' (conversational) | 'qualifier' | 'router' | 'followup' | 'mcp'
  * @param {string} prompt
- * @param {object} context  - { userId, source, contactPhone, leadId, ... }
+ * @param {object} context  - { userId, source, contactPhone, principal, leadId, ... } -- see the Turn typedef above for the conversational-agent shape
  */
 export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
   const startMs = Date.now();
@@ -451,13 +617,33 @@ export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
           }
         } catch (_) { /* continue without lead context */ }
       }
-      return await runSingleShotAgent(tenantId, agentId, prompt, systemPrompt, startMs);
+      return await runSingleShotAgent(
+        tenantId, agentId, prompt, systemPrompt, startMs, context.responseSchema || null,
+      );
     }
 
     // ── Conversational agent (WhatsApp): load history + state ────────────────
-    let conversationHistory = [];
+    // Two distinct keys: getConversationContext (whatsappConversationService.js,
+    // the message log) is still phone-keyed and NOT re-keyed in this slice, so
+    // it needs the raw contactPhone. getConversationState (conversationStateService.js)
+    // was re-keyed to a principal (e.g. `wa:<phone>`) -- see server/utils/whatsapp.js
+    // buildWhatsAppPrincipal(). Callers should pass context.principal explicitly;
+    // falling back to deriving it from contactPhone here is a safety net for any
+    // caller not yet updated, not the primary path.
+    // The web channel has no phone number, so it supplies its own history
+    // rather than reading the phone-keyed WhatsApp message log. When a caller
+    // provides history explicitly it wins — the lookup below is the WhatsApp
+    // path, not a general one.
+    let conversationHistory = Array.isArray(context.conversationHistory)
+      ? context.conversationHistory
+      : [];
     let conversationState = null;
-    if (context.contactPhone) {
+    const principal = context.principal || (context.contactPhone ? buildWhatsAppPrincipal(context.contactPhone) : null);
+    // Backfill onto context so runConversationalPipeline's later persistTurnState
+    // call (which reads context.principal) sees the resolved value too, even if
+    // the caller only passed contactPhone.
+    context.principal = principal;
+    if (context.contactPhone && conversationHistory.length === 0) {
       try {
         const history = await getConversationContext(tenantId, context.contactPhone, 20);
         if (history.length > 0) {
@@ -466,10 +652,12 @@ export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
       } catch (err) {
         logger.warn('agent.invoke.conversation_context.failed', { tenantId, contactPhone: context.contactPhone, error: err.message });
       }
+    }
+    if (principal) {
       try {
-        conversationState = await getConversationState(tenantId, context.contactPhone);
+        conversationState = await getConversationState(tenantId, principal);
       } catch (err) {
-        logger.warn('agent.invoke.conversation_state.failed', { tenantId, contactPhone: context.contactPhone, error: err.message });
+        logger.warn('agent.invoke.conversation_state.failed', { tenantId, principal, error: err.message });
       }
     }
 
@@ -499,4 +687,151 @@ export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
     }
     return { ok: false, error: err.message };
   }
+}
+
+// ─── Conversational-turn business logic (Phase 2 Slice 2b) ──────────────────
+//
+// server/scripts/whatsapp-message-processor.js used to do all of this inline
+// before Phase 2 -- the channel adapter's job now shrinks to transport (event
+// parsing), dedup (claim lifecycle), and delivery (sending the reply, logging
+// the inbound/outbound message). This is split into two functions, not one,
+// specifically to preserve a seam the processor needs: it logs the inbound
+// message via whatsappConversationService AFTER access-control passes but
+// BEFORE the agent runs (and never logs a message that was access-denied) --
+// collapsing everything into a single call would either lose that ordering
+// or start logging denied messages, both silent behavior changes.
+//
+// Deliberately separate from invokeAgent() (not folded into it): invokeAgent
+// is also called directly for non-conversational agents (qualifier/router/
+// followup/mcp — see CONVERSATIONAL_AGENTS), which must NOT inherit
+// business-hours/category-access policy that only makes sense for a live
+// conversational turn.
+
+/**
+ * Step 1: business-hours/pause policy + category-based access control +
+ * category resolution + conversation-state bootstrap. Call this first; if it
+ * returns `access_denied`, the caller should stop (release its dedup claim,
+ * skip logging the message, skip the reply) exactly as before this slice.
+ *
+ * @param {object} params
+ * @param {string} params.tenantId
+ * @param {string} params.principal     - e.g. `wa:<phone>`, see server/utils/whatsapp.js
+ * @param {string} params.contactPhone  - raw phone, passed to whatsappAccessControl/userCategoryService (unchanged contract)
+ * @returns {Promise<object>}
+ *   `{ outcome: 'access_denied', reason }` or
+ *   `{ outcome: 'ready', isAgentPaused, isAutoReplyBlocked, autoReply, category }`
+ */
+export async function prepareConversationalTurn({ tenantId, principal, contactPhone }) {
+  const agencyConfig = await getAgencyConfig(tenantId).catch(() => ({}));
+  const autoReply = agencyConfig?.autoReply !== false;
+  const inBusinessHours = isWithinBusinessHours(agencyConfig?.businessHoursStart, agencyConfig?.businessHoursEnd, agencyConfig?.timezone || 'Asia/Kolkata');
+  const isAgentPaused = !autoReply || !inBusinessHours;
+
+  const aiEmployeeConfig = agencyConfig?.aiEmployee || {};
+  const accessCheck = await canReceiveMessage(contactPhone, tenantId, aiEmployeeConfig);
+  if (!accessCheck.allowed) {
+    return { outcome: 'access_denied', reason: accessCheck.reason };
+  }
+
+  const autoReplyCheck = await canAutoReply(contactPhone, tenantId, aiEmployeeConfig);
+  const isAutoReplyBlocked = !autoReplyCheck.allowed;
+
+  const category = await resolveCategory(contactPhone, tenantId, {
+    messageCount: 1,
+    lastInteractionAt: new Date().toISOString(),
+    hasLeadCreated: false,
+  });
+  logger.debug('agent.turn.category_resolved', { tenantId, principal, category });
+
+  try {
+    await resetConversationStateIfStale(tenantId, principal, 2, { source: 'whatsapp', category });
+    let convState = await getConversationState(tenantId, principal);
+    if (!convState) {
+      convState = await initializeConversationState(tenantId, principal, { source: 'whatsapp', category });
+    }
+    await recordMessageInConversation(tenantId, principal);
+  } catch (err) {
+    logger.warn('agent.turn.conversation_state.failed', { tenantId, principal, error: err.message });
+  }
+
+  return { outcome: 'ready', isAgentPaused, isAutoReplyBlocked, autoReply, category };
+}
+
+/**
+ * Step 2: given the result of prepareConversationalTurn (`ready` outcome),
+ * decide whether to invoke the agent and do so, persisting any entities the
+ * turn surfaced. Call this after the caller has logged the inbound message.
+ *
+ * @param {object} params
+ * @param {string} params.tenantId
+ * @param {string} params.principal
+ * @param {string} params.contactPhone
+ * @param {string} params.text
+ * @param {string} params.messageId
+ * @param {boolean} params.isAgentPaused
+ * @param {boolean} params.isAutoReplyBlocked
+ * @param {boolean} params.autoReply
+ * @param {string} params.category
+ * @returns {Promise<object>} one of:
+ *   `{ outcome: 'empty_message' }`
+ *   `{ outcome: 'agent_result', ok, error, text, toolCalls }`
+ *   `{ outcome: 'agent_invocation_failed' }`
+ *   `{ outcome: 'agent_paused', isAutoReplyBlocked, autoReply }`
+ *   `{ outcome: 'agents_not_available' }`
+ */
+export async function runConversationalTurn({ tenantId, principal, contactPhone, text, messageId, isAgentPaused, isAutoReplyBlocked, autoReply, category }) {
+  const hasText = text && typeof text === 'string' && text.trim().length > 0;
+  if (!hasText) {
+    return { outcome: 'empty_message' };
+  }
+
+  if (process.env.AGENTS_ENABLED === 'true' && !isAgentPaused && !isAutoReplyBlocked) {
+    try {
+      const agentResult = await invokeAgent(tenantId, 'whatsapp', text, {
+        source: 'whatsapp', from: contactPhone, contactPhone, principal, messageId, category,
+      });
+      let toolCalls = [];
+      if (agentResult.ok) {
+        toolCalls = agentResult.result?.toolResults || agentResult.toolResults || [];
+        try {
+          const currentState = await getConversationState(tenantId, principal);
+          if (currentState) {
+            const entities = extractEntitiesFromToolResults(toolCalls);
+            const { lastListResults, currentEntity } = extractListAndFocusFromToolResults(toolCalls);
+            if (entities.length > 0 || lastListResults || currentEntity) {
+              await updateLastDiscussedEntities(tenantId, principal, entities, 'crm_query', { lastListResults, currentEntity });
+              logger.info('agent.turn.entities_persisted', {
+                tenantId,
+                principal,
+                count: entities.length,
+                listCount: lastListResults?.length || 0,
+                currentEntity: currentEntity?.name || null,
+                entities: entities.map((e) => e.name),
+              });
+            }
+          } else {
+            logger.debug('agent.turn.entity_extraction.skipped_no_state', { tenantId, principal });
+          }
+        } catch (err) {
+          logger.warn('agent.turn.entity_extraction.failed', { tenantId, principal, error: err.message });
+        }
+      }
+      return {
+        outcome: 'agent_result',
+        ok: agentResult.ok,
+        error: agentResult.error || null,
+        text: agentResult.result?.text || null,
+        toolCalls,
+      };
+    } catch (err) {
+      logger.error('agent.turn.agent_failed', { error: err.message, tenantId, principal, stack: err.stack });
+      return { outcome: 'agent_invocation_failed' };
+    }
+  }
+
+  if (isAgentPaused || isAutoReplyBlocked) {
+    return { outcome: 'agent_paused', isAutoReplyBlocked, autoReply };
+  }
+
+  return { outcome: 'agents_not_available' };
 }

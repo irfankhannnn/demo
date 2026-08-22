@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Building2, Contact, MoreHorizontal } from 'lucide-react';
 import { isNativeApp } from '../lib/platform';
@@ -37,7 +38,7 @@ const HIDDEN_PREFIXES = [
 ];
 
 /**
- * Native bottom tab navigation.
+ * Bottom tab navigation for phone-sized surfaces — the native app and mobile web.
  *
  * The app previously had no navigation shell of any kind — no sidebar, drawer,
  * hamburger or tab bar. Getting from Leads to Properties meant backing all the
@@ -49,13 +50,32 @@ const HIDDEN_PREFIXES = [
  * routes with no <Outlet>, so restructuring it into nested layouts would be a
  * far larger and riskier change than this needs to be.
  *
- * Web is untouched — this returns null unless running as the mobile app.
+ * Mobile web gets the same bar. The problem it solves is not specific to the
+ * Capacitor build — a phone browser has the identical 55 flat routes and the
+ * identical lack of any way to move between them. Gating on `isNativeApp()`
+ * left the one surface most brokers actually open with no navigation at all.
+ *
+ * Desktop web is untouched: on web the bar carries `md:hidden`, so it is a
+ * pure CSS no-op at >= 768px where the existing in-page navigation lives. On
+ * native it is always visible, including on tablets — unchanged from before.
  */
 export default function BottomTabBar() {
   const location = useLocation();
+  const native = isNativeApp();
+  const hidden = HIDDEN_PREFIXES.some((p) => location.pathname.startsWith(p));
 
-  if (!isNativeApp()) return null;
-  if (HIDDEN_PREFIXES.some((p) => location.pathname.startsWith(p))) return null;
+  /*
+   * Content clearance is driven off this class rather than a blanket rule, so
+   * the routes that hide the bar (login, onboarding, legal) do not get dead
+   * space below the fold. The native build keeps its own `.native-app` rule.
+   */
+  useEffect(() => {
+    if (hidden || native) return;
+    document.body.classList.add('has-tab-bar');
+    return () => document.body.classList.remove('has-tab-bar');
+  }, [hidden, native]);
+
+  if (hidden) return null;
 
   const isActive = (tab: Tab): boolean => {
     if (tab.to === '/crm') return location.pathname === '/crm';
@@ -68,7 +88,9 @@ export default function BottomTabBar() {
       aria-label="Main"
       /* pb-[env(safe-area-inset-bottom)] keeps the row clear of the iOS home
          indicator and the Android gesture bar. */
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+      className={`fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)] ${
+        native ? '' : 'md:hidden'
+      }`}
     >
       <ul className="flex items-stretch justify-around">
         {TABS.map((tab) => {

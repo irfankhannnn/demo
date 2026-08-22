@@ -87,12 +87,36 @@ export async function executeAction({ tenantId, recordingId, action, userId = nu
     : { ok: false, error: String(result?.error || 'Tool execution failed') };
 }
 
-/** Apply every action that does not require an approval click. */
+/**
+ * Apply every action that does not require an approval click.
+ *
+ * Each action is claimed with a conditional write *before* the CRM is touched,
+ * the same order the /approve route uses. Reading `action.status` off the
+ * in-memory list was not enough: the list is a snapshot taken when the analysis
+ * stage planned it, so an owner who rejected the note in the seconds between
+ * planning and applying still got it written to the customer record. The claim
+ * fails against a rejected row, and the action is skipped.
+ */
 export async function applyAutomaticActions({ tenantId, recordingId, actions, userId = null }) {
   const applied = [];
   for (const action of actions) {
     if (action.requiresApproval) continue;
     if (action.status !== ACTION_STATUS.PENDING) continue;
+
+    const claimed = await updateActionStatus(
+      tenantId,
+      recordingId,
+      action.actionId,
+      { status: ACTION_STATUS.APPROVED, reviewedBy: 'system', reviewedAt: new Date().toISOString() },
+      [ACTION_STATUS.PENDING],
+    );
+    if (!claimed?.ok) {
+      logger.info('callIntelligence.action.claim_lost', {
+        tenantId, recordingId, actionId: action.actionId, tool: action.tool,
+      });
+      continue;
+    }
+
     const outcome = await executeAction({ tenantId, recordingId, action, userId, automatic: true });
     applied.push({ actionId: action.actionId, tool: action.tool, ...outcome });
   }

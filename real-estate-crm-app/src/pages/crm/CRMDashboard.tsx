@@ -228,7 +228,12 @@ export default function CRMDashboard() {
               >
                 <Home className="h-5 w-5 sm:h-6 sm:w-6" />
               </Link>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0 animate-gentlePulse">
+              {/* Decorative logo tile. Hidden below sm: for an admin/owner the
+                  right-hand action cluster is flex-shrink-0 and needs ~240px,
+                  which overflowed the viewport at 375px and made the whole
+                  page scroll sideways. Dropping a purely decorative 40px tile
+                  (+8px gap) buys that back without removing any control. */}
+              <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0 animate-gentlePulse">
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
@@ -250,7 +255,7 @@ export default function CRMDashboard() {
                 <>
                   <Link
                     to="/admin/invites"
-                    className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                     title="Team Invites"
                   >
                     <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -258,7 +263,7 @@ export default function CRMDashboard() {
                   </Link>
                   <Link
                     to="/admin/members"
-                    className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                     title="Members"
                   >
                     <Users className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -266,7 +271,7 @@ export default function CRMDashboard() {
                   </Link>
                   <Link
                     to="/admin/team-analytics"
-                    className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                     title="Team Analytics"
                   >
                     <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -277,7 +282,7 @@ export default function CRMDashboard() {
               
               <Link
                 to="/profile"
-                className="flex items-center gap-2 px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                 title="Profile"
               >
                 <User className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -286,7 +291,7 @@ export default function CRMDashboard() {
               
               <button
                 onClick={() => setShowLogoutModal(true)}
-                className="flex items-center gap-2 px-3 py-2 text-rose-600 hover:bg-rose-50/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-rose-600 hover:bg-rose-50/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                 title="Logout"
               >
                 <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />

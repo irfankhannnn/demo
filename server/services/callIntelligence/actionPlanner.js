@@ -327,6 +327,55 @@ export function planActions({
     }));
 }
 
+/**
+ * Identity of an action for de-duplication across re-analysis runs.
+ *
+ * Two actions are "the same action" when they call the same tool against the
+ * same CRM record. The target is taken from whichever entity-id argument the
+ * tool uses, so re-linking a recording to a *different* record yields a
+ * different identity and the note is legitimately written to the new record.
+ */
+function actionIdentity(action) {
+  // Stored actions carry their tool arguments under `arguments` (see makeAction).
+  const args = action?.arguments || {};
+  const idArg = Object.values(ID_ARG_BY_ENTITY).find((key) => args[key] != null);
+  return `${action?.tool || ''}|${idArg ? `${idArg}:${args[idArg]}` : ''}`;
+}
+
+/**
+ * Fold a freshly planned action list onto the actions a recording already has.
+ *
+ * Re-analysis (`/reanalyze`, or `/link` with `reanalyze: true`) used to replace
+ * `proposedActions` wholesale, which had two consequences:
+ *
+ *  1. Already-applied actions vanished from the record, so the UI lost the
+ *     history of what the pipeline had actually written to the CRM. The
+ *     `/reanalyze` route tried to prevent this by pre-writing the applied
+ *     subset, but the analysis stage overwrote it moments later — the guard
+ *     never worked.
+ *  2. The auto-applied call-summary note was planned again with a fresh
+ *     `actionId` in PENDING state, so `applyAutomaticActions` wrote a second
+ *     identical note onto the customer record on every re-analysis.
+ *
+ * Applied actions are therefore kept as-is and suppress a re-plan of the same
+ * tool against the same record. A re-analysis that produces a *better* summary
+ * deliberately does not rewrite an already-applied note: a broker seeing one
+ * note per call is worth more than the marginally improved wording, and the
+ * full analysis payload in S3 is always current.
+ *
+ * @param {object[]} freshActions newly planned actions
+ * @param {object[]} existingActions actions currently on the recording
+ * @returns {object[]} applied actions first, then the non-duplicate fresh ones
+ */
+export function mergeWithAppliedActions(freshActions = [], existingActions = []) {
+  const applied = (existingActions || []).filter((a) => a?.status === ACTION_STATUS.APPLIED);
+  if (applied.length === 0) return freshActions || [];
+
+  const appliedIdentities = new Set(applied.map(actionIdentity));
+  const kept = (freshActions || []).filter((action) => !appliedIdentities.has(actionIdentity(action)));
+  return [...applied, ...kept];
+}
+
 /** Payment/khata topics are surfaced to the owner as a hint, never auto-posted. */
 export function buildFinancialHints(analysis) {
   if (!analysis?.payment?.discussed) return [];

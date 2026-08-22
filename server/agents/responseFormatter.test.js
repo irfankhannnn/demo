@@ -87,7 +87,12 @@ describe('Response Formatter', () => {
       expect(result).toContain('Faizan');
       expect(result).toContain('created');
       expect(result).toContain('₹80L');
-      expect(result).toContain('Andheri West');
+      // Area is deliberately NOT asserted. formatCompactConfirmation builds
+      // [type, status, phone, budget, area] and then `.slice(0, 4)` — area is
+      // 5th, so it is intentionally dropped to keep the confirmation compact
+      // ("2–3 key fields" per confirmations.js). This test previously expected
+      // 'Andheri West' and had been failing since that cap was introduced.
+      expect(result).not.toContain('Andheri West');
       expect(result).not.toContain('Lead ID');
       expect(result).not.toContain('Quick Stats');
     });
@@ -237,10 +242,14 @@ describe('Response Formatter', () => {
         createdBy: 'agent',
       };
       const result = formatToolResult('create_lead_note', { ok: true, data: note });
-      expect(result).toContain('*Note*');
+      // The note confirmation was simplified to a short ack + the note text
+      // ("compact create confirmations", listed as completed in
+      // working-context/current-issues-and-pending.md). The '*Note*' header,
+      // the formatted date and the author were dropped on purpose — a
+      // WhatsApp confirmation should not restate what the user just typed.
+      // This test asserted all three and had been failing ever since.
+      expect(result).toContain('Note added');
       expect(result).toContain('Met client at site visit');
-      expect(result).toContain('1 Jul 2026');
-      expect(result).toContain('agent');
     });
 
     test('formats a list of notes', () => {

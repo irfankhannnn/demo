@@ -22,11 +22,12 @@ describe('decideInteraction', () => {
     expect(d.text).toBe('Which one?');
   });
 
-  test('confirm instruction sets pending', () => {
-    const d = decideInteraction({ kind: 'confirm', confirm: { entity: 'lead', toolName: 'delete_lead', input: { leadId: 'x' }, promptText: 'Sure?' } });
-    expect(d.mode).toBe('confirm');
-    expect(d.pending.toolName).toBe('delete_lead');
-    expect(d.text).toBe('Sure?');
+  test('archive tool -> mutation mode (same as any other mutate tool)', () => {
+    const d = decideInteraction(
+      { kind: 'tool', toolName: 'archive_lead', input: { leadId: 'lead-1' } },
+      { ok: true, data: { leadId: 'lead-1', status: 'archived' } },
+    );
+    expect(d.mode).toBe('mutation');
   });
 
   test('list tool -> list mode, formatter, allow-short intro', () => {

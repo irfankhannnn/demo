@@ -14,7 +14,7 @@ import { putObjectText } from '../../s3Service.js';
 import {
   PIPELINE_STAGE,
   RECORDING_STATUS,
-  STAGE_ENTRY_STATUSES,
+  STAGE_CLAIM_STATUSES,
   ENTITY_TYPE,
 } from './constants.js';
 import {
@@ -27,7 +27,7 @@ import {
 } from './callRecordingRepository.js';
 import { getTranscriptionProvider } from './transcription/index.js';
 import { analyzeTranscript, emptyAnalysis } from './analysisService.js';
-import { planActions, buildFinancialHints } from './actionPlanner.js';
+import { planActions, buildFinancialHints, mergeWithAppliedActions } from './actionPlanner.js';
 import { applyAutomaticActions } from './actionExecutor.js';
 import { loadEntitySnapshot, summarizeEntityForPrompt } from './entityResolver.js';
 import { enqueueJob, isQueueEnabled } from './queue.js';
@@ -69,11 +69,14 @@ export async function runTranscriptionStage({ tenantId, recordingId }) {
 
   // ── Start a job when none is running ──────────────────────────────────────
   if (!recording.asrJobName) {
+    // Exclusive claim: STAGE_CLAIM_STATUSES excludes TRANSCRIBING so a second
+    // concurrent delivery cannot also claim and start a duplicate ASR job.
+    // (The poll path below does not transition, so it is unaffected.)
     const claimed = await transitionStatus(
       tenantId,
       recordingId,
       RECORDING_STATUS.TRANSCRIBING,
-      STAGE_ENTRY_STATUSES[PIPELINE_STAGE.TRANSCRIPTION],
+      STAGE_CLAIM_STATUSES[PIPELINE_STAGE.TRANSCRIPTION],
       { failureStage: null, failureReason: null },
     );
     if (!claimed) return { ok: true, done: false, skipped: true };
@@ -161,6 +164,11 @@ export async function runTranscriptionStage({ tenantId, recordingId }) {
     asrConfidence: result.confidence,
     audioDurationSeconds: result.durationSeconds,
     asrPollAttempts: pollAttempts,
+    // The attempt counter is a budget for *this* run of the stage, not a
+    // lifetime tally. It never reset on success, so a recording that needed a
+    // couple of retries early on carried that debt forever and a later manual
+    // re-run could hit the cap immediately.
+    stageAttempts: { ...(recording.stageAttempts || {}), [PIPELINE_STAGE.TRANSCRIPTION]: 0 },
   });
 
   logger.info('callIntelligence.transcription.completed', {
@@ -187,11 +195,14 @@ export async function runAnalysisStage({ tenantId, recordingId, userId = null })
     return { ok: true, done: true, skipped: true };
   }
 
+  // Exclusive claim: excludes ANALYZING, so a concurrent delivery cannot also
+  // run Gemini + planActions + applyAutomaticActions and write the
+  // call-summary note to the lead a second time.
   const claimed = await transitionStatus(
     tenantId,
     recordingId,
     RECORDING_STATUS.ANALYZING,
-    STAGE_ENTRY_STATUSES[PIPELINE_STAGE.ANALYSIS],
+    STAGE_CLAIM_STATUSES[PIPELINE_STAGE.ANALYSIS],
     { failureStage: null, failureReason: null },
   );
   if (!claimed) return { ok: true, done: false, skipped: true };
@@ -249,7 +260,7 @@ export async function runAnalysisStage({ tenantId, recordingId, userId = null })
     promptVersion = analysed.promptVersion;
   }
 
-  const actions = planActions({
+  const planned = planActions({
     analysis,
     match: recording.matchedEntityType && recording.matchedEntityType !== ENTITY_TYPE.UNMATCHED
       ? {
@@ -264,6 +275,12 @@ export async function runAnalysisStage({ tenantId, recordingId, userId = null })
     phone: recording.phone,
     autoApplyNotes: AUTO_APPLY_NOTES,
   });
+
+  // On a re-analysis, keep what was already written to the CRM and suppress a
+  // re-plan of the same tool against the same record — otherwise the applied
+  // history is lost and the auto-applied call note is written a second time.
+  // `recording` was read at the top of this stage, before the status claim.
+  const actions = mergeWithAppliedActions(planned, recording.proposedActions);
 
   // Full analysis payload goes to S3; the item keeps the summary-sized view.
   let storedAnalysisKey = null;
@@ -306,6 +323,8 @@ export async function runAnalysisStage({ tenantId, recordingId, userId = null })
     proposedActions: actions,
     analysisModel: model,
     analysisPromptVersion: promptVersion,
+    // See the transcription stage: the budget is per-run, so clear it on success.
+    stageAttempts: { ...(recording.stageAttempts || {}), [PIPELINE_STAGE.ANALYSIS]: 0 },
   });
 
   const autoApplied = await applyAutomaticActions({ tenantId, recordingId, actions, userId });

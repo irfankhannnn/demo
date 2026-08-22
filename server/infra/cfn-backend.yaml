@@ -55,6 +55,20 @@ Parameters:
     Default: cloudberry-real-estate-notifications
     Description: Name of the DynamoDB table storing in-app notifications and scheduled reminders
 
+  PushTokensTableName:
+    Type: String
+    Default: cloudberry-real-estate-push-tokens
+    Description: Name of the DynamoDB table storing mobile device push tokens (FCM/APNs)
+
+  FirebaseServiceAccountJson:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: >-
+      Firebase service-account key as a single-line JSON string, used to send
+      push via FCM HTTP v1. Leave empty to disable push entirely — the API
+      still accepts and stores device tokens, it just sends nothing.
+
   DevelopersTableName:
     Type: String
     Default: cloudberry-real-estate-developers
@@ -135,6 +149,42 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: Enable AI Employee agents globally
 
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: >-
+      Email address to subscribe to the alerts SNS topic. Leave empty to create
+      the topic with no subscribers (alarms still fire and are visible in the
+      console, but nobody is notified). AWS sends a confirmation email that
+      must be accepted before alerts arrive.
+
+  ToolLogMaxResultChars:
+    Type: String
+    Default: '2000'
+    Description: >-
+      Max characters of a CRM tool result written to CloudWatch. 0 means
+      uncapped — do not use 0 in a deployed environment; tool results contain
+      customer records.
+
+  CloudWatchNamespace:
+    Type: String
+    Default: 'RealEstateFlow/MVP'
+    Description: >-
+      Custom metric namespace. MUST match the fallback in
+      server/observability/cloudwatch.js, otherwise the dashboard's SEARCH
+      expressions silently find nothing.
+
+  AgentToolLoopEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Phase 3 bounded multi-step tool loop. 'false' keeps the original
+      single-shot planner (one tool call per turn). 'true' lets one turn
+      complete a compound request ("create a lead AND schedule a visit").
+      Both code paths ship; this only selects between them, so it is safe to
+      flip back. See docs/proposals/agent-channel-architecture/phase3-imp/.
+
   AllowUserCategoryDefaultFallback:
     Type: String
     Default: 'false'
@@ -143,6 +193,30 @@ Parameters:
       SECURITY: only enable in dev. If true, unknown users fall back to the
       default user category when checking AI tool permissions. Production must
       keep this false and explicitly provision user categories.
+
+  AgentWebToolLoopBudgetMs:
+    Type: Number
+    Default: 18000
+    MinValue: 5000
+    Description: >-
+      Tool-loop budget for an in-CRM web chat turn (Phase 5). Must leave room
+      inside LambdaTimeout (default 30s) for classify and compose on top, or a
+      long multi-step turn is killed by the platform and returns nothing at
+      all. Raise this only alongside LambdaTimeout, or after moving the
+      /api/crm/agent-chat route to its own longer-timeout Lambda.
+
+  WhatsAppFallbackCategory:
+    Type: String
+    Default: 'admin'
+    AllowedValues: ['admin', 'team_lead', 'agent', 'viewer', 'whatsapp_bot']
+    Description: >
+      RBAC category applied to a WhatsApp turn when the sender's principal
+      (wa:<phone>) has no provisioned CATEGORY#USER row, which is every tenant
+      today. 'admin' reproduces the pre-existing behaviour exactly — the
+      permission check used to be skipped altogether on this channel. Set
+      'whatsapp_bot' for a genuinely restricted bot on a shared number, but
+      note it forbids property and buyer writes and so is NOT compatible with
+      the WhatsApp-first flow as currently specified.
 
   BaileyApiEndpoint:
     Type: String
@@ -582,8 +656,25 @@ Parameters:
     Default: 3600
     Description: Expiry (seconds) for the pre-signed S3 playback URL
 
+  CallIntelStalledAnalysisMs:
+    Type: Number
+    Default: 900000
+    MinValue: 60000
+    Description: >-
+      How long a recording may sit in ANALYZING before a read re-drives the
+      stage. ANALYZING is deliberately un-claimable (that is what stops
+      duplicate Gemini runs), so a worker that dies mid-analysis needs this to
+      recover. Must be comfortably longer than a real analysis, or a live
+      worker gets pre-empted.
+
 Conditions:
   ShouldDeployApiRoutePart2: !Equals [!Ref DeployApiRoutePart2, 'true']
+  # When AllowedOrigins is left empty the bucket falls back to "*" for uploads,
+  # which is only acceptable for throwaway dev stacks. Set the parameter.
+  HasAllowedOrigins: !Not [!Equals [!Ref AllowedOrigins, '']]
+  # Without an email the alerts topic is still created (alarms need a target)
+  # but has no subscriber — alarms fire silently into the console.
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
 
 Resources:
   PropertiesTable:
@@ -717,10 +808,41 @@ Resources:
       AttributeDefinitions:
         - AttributeName: TenantId
           AttributeType: S
+        - AttributeName: connectedWhatsAppPhone
+          AttributeType: S
+        - AttributeName: instagramWebhookToken
+          AttributeType: S
 
       KeySchema:
         - AttributeName: TenantId
           KeyType: HASH
+
+      # Resolves tenantId from a connected WhatsApp number without a full
+      # table Scan (server/agencyConfigService.js:getTenantIdByConnectedWhatsAppPhone).
+      # Not every item has connectedWhatsAppPhone set (only agencies that have
+      # connected WhatsApp), which is fine for a GSI hash key -- items missing
+      # the attribute simply don't appear in the index.
+      GlobalSecondaryIndexes:
+        - IndexName: connectedWhatsAppPhone-index
+          KeySchema:
+            - AttributeName: connectedWhatsAppPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # Same reasoning as the WhatsApp index: the Instagram/ManyChat webhook
+        # resolves its tenant from this token on EVERY inbound lead, and did so
+        # with a full-table Scan. Only agencies with the Instagram pipeline
+        # enabled have the attribute, so they are the only items in the index.
+        - IndexName: instagramWebhookToken-index
+          KeySchema:
+            - AttributeName: instagramWebhookToken
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
 
   CreditsTable:
     Type: AWS::DynamoDB::Table
@@ -1060,6 +1182,50 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  PushTokensTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref PushTokensTableName
+      BillingMode: PAY_PER_REQUEST
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      # FCM retires a token after ~270 days idle. Letting DynamoDB expire our
+      # copy keeps the registry from filling with tokens for uninstalled apps
+      # that never reached the unregister endpoint.
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+      GlobalSecondaryIndexes:
+        # token-index: find every registration of one token, so signing in on a
+        # handset a colleague used evicts their row instead of silently
+        # inheriting their notifications.
+        - IndexName: token-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
   # ============================================================
   # Real Estate Management Tables (Developers, Areas, Projects)
   # ============================================================
@@ -1275,11 +1441,52 @@ Resources:
       BucketName: !Ref S3BucketName
       VersioningConfiguration:
         Status: Suspended
+      # This bucket holds call recordings, transcripts and analysis payloads —
+      # customer conversations, names and phone numbers. SSE-S3 (AES-256) is
+      # applied server-side on every write, including the browser's pre-signed
+      # PUT, and needs no client change. BucketKeyEnabled is harmless under
+      # SSE-S3 and avoids a re-write of this block if it ever moves to KMS.
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      # Storage hygiene only — deliberately NO expiration rule. Call recordings
+      # and property documents are customer records; nothing here deletes them.
+      # Object keys are tenant-prefixed (`<tenantId>/call-recordings/...`), and
+      # S3 prefix filters cannot wildcard a leading segment, so these rules are
+      # bucket-wide by necessity. Each one is chosen to be safe at that scope.
+      LifecycleConfiguration:
+        Rules:
+          # A browser that starts a pre-signed multipart upload and abandons it
+          # leaves parts that are billed but invisible in the console.
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          # Versioning is Suspended, but any object versions written while it
+          # was enabled are still billed forever. Also clears delete markers
+          # left with no versions behind them.
+          - Id: ExpireNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: RemoveExpiredDeleteMarkers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
+          # Intelligent-Tiering, not STANDARD_IA: recordings go cold after the
+          # transcript is written, but property images stay hot and IA would
+          # add a per-GB retrieval charge to every page view. Intelligent
+          # tiering has no retrieval fee and moves objects back on access.
+          - Id: TierColdObjects
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 30
       CorsConfiguration:
         CorsRules:
           - AllowedOrigins:
@@ -1292,8 +1499,12 @@ Resources:
             MaxAge: 3600
           # Browsers upload call recordings straight to S3 with a pre-signed
           # PUT, which requires PUT to be allowed and ETag to be readable.
-          - AllowedOrigins:
-              - "*"
+          # Scoped to AllowedOrigins so a leaked pre-signed URL cannot be
+          # replayed from an arbitrary origin.
+          - AllowedOrigins: !If
+              - HasAllowedOrigins
+              - !Split [",", !Ref AllowedOrigins]
+              - ["*"]
             AllowedMethods:
               - PUT
               - POST
@@ -1305,6 +1516,28 @@ Resources:
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
+
+  # Refuse any request that did not arrive over TLS. Pre-signed URLs are handed
+  # to browsers and could in principle be replayed over plain HTTP, which would
+  # put a recording's bytes on the wire in the clear. The bucket had no policy
+  # before this, so nothing is being replaced here.
+  DocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt DocumentsBucket.Arn
+              - !Sub "${DocumentsBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
 
   # ============== Call Intelligence pipeline ==============
 
@@ -1371,6 +1604,7 @@ Resources:
                   - !GetAtt B2BLeadsTable.Arn
                   - !GetAtt KhataTable.Arn
                   - !GetAtt NotificationsTable.Arn
+                  - !GetAtt PushTokensTable.Arn
                   - !GetAtt DevelopersTable.Arn
                   - !GetAtt RealEstateAreasTable.Arn
                   - !GetAtt ProjectsTable.Arn
@@ -1399,6 +1633,7 @@ Resources:
                   - !Sub "${B2BLeadsTable.Arn}/index/*"
                   - !Sub "${KhataTable.Arn}/index/*"
                   - !Sub "${NotificationsTable.Arn}/index/*"
+                  - !Sub "${PushTokensTable.Arn}/index/*"
                   - !Sub "${DevelopersTable.Arn}/index/*"
                   - !Sub "${RealEstateAreasTable.Arn}/index/*"
                   - !Sub "${ProjectsTable.Arn}/index/*"
@@ -1406,6 +1641,7 @@ Resources:
                   - !Sub "${CreditsTable.Arn}/index/*"
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/WebhookLog/index/*"
                   - !Sub "${UserCategoriesTable.Arn}/index/*"
+                  - !Sub "${AgencyConfigTable.Arn}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:TransactWriteItems
@@ -1493,6 +1729,8 @@ Resources:
           B2B_LEADS_TABLE: !Ref B2BLeadsTableName
           KHATA_TABLE_NAME: !Ref KhataTableName
           NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
+          PUSH_TOKENS_TABLE: !Ref PushTokensTableName
+          FIREBASE_SERVICE_ACCOUNT_JSON: !Ref FirebaseServiceAccountJson
           DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
           REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
           PROJECTS_TABLE_NAME: !Ref ProjectsTableName
@@ -1515,9 +1753,12 @@ Resources:
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           JWT_SECRET: !Ref JwtSecret
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
+          WHATSAPP_FALLBACK_CATEGORY: !Ref WhatsAppFallbackCategory
+          AGENT_WEB_TOOL_LOOP_BUDGET_MS: !Ref AgentWebToolLoopBudgetMs
           S3_BUCKET_NAME: !Ref S3BucketName
           PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
           CRM_API_BASE_PATH: !Ref CrmApiBasePath
@@ -1543,6 +1784,11 @@ Resources:
           GEMINI_MODEL: !Ref GeminiModel
           GEMINI_CLASSIFIER_MODEL: !Ref GeminiClassifierModel
           CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
           GRIEVANCE_OFFICER_EMAIL: !Ref GrievanceOfficerEmail
           SERVICE_ACCOUNT_USER: !Ref ServiceAccountUser
           DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
@@ -1577,6 +1823,9 @@ Resources:
           CALL_INTEL_MAX_UPLOAD_BYTES: !Ref CallIntelMaxUploadBytes
           CALL_INTEL_UPLOAD_URL_TTL_SECONDS: !Ref CallIntelUploadUrlTtlSeconds
           CALL_INTEL_PLAYBACK_URL_TTL_SECONDS: !Ref CallIntelPlaybackUrlTtlSeconds
+          # Stall recovery is triggered by API reads (list/detail), so this only
+          # needs to reach the API Lambda.
+          CALL_INTEL_STALLED_ANALYSIS_MS: !Ref CallIntelStalledAnalysisMs
 
   # ============== Call Intelligence worker ==============
   # Same deployment package as the API Lambda, different handler. It reuses
@@ -1602,6 +1851,8 @@ Resources:
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
           AREAS_DYNAMODB_TABLE_NAME: !Ref AreasTableName
           NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
+          PUSH_TOKENS_TABLE: !Ref PushTokensTableName
+          FIREBASE_SERVICE_ACCOUNT_JSON: !Ref FirebaseServiceAccountJson
           DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
           REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
           PROJECTS_TABLE_NAME: !Ref ProjectsTableName
@@ -1610,6 +1861,8 @@ Resources:
           USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
+          WHATSAPP_FALLBACK_CATEGORY: !Ref WhatsAppFallbackCategory
+          AGENT_WEB_TOOL_LOOP_BUDGET_MS: !Ref AgentWebToolLoopBudgetMs
           S3_BUCKET_NAME: !Ref S3BucketName
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId
@@ -1620,6 +1873,11 @@ Resources:
           DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
           LOG_LEVEL: !Ref LogLevel
           CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
           ASR_PROVIDER: !Ref AsrProvider
           TRANSCRIBE_LANGUAGE_OPTIONS: !Ref TranscribeLanguageOptions
@@ -2376,6 +2634,7 @@ Resources:
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
 
@@ -2468,6 +2727,7 @@ Resources:
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
 
@@ -2593,6 +2853,7 @@ Resources:
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
@@ -2602,6 +2863,11 @@ Resources:
           GEMINI_API_KEY: !Ref GeminiApiKey
           GEMINI_MODEL: !Ref GeminiModel
           CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
           AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
 
 
@@ -2726,6 +2992,7 @@ Resources:
           AGENTS_ENABLED: !Ref AgentsEnabled
           AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
           AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
@@ -2735,6 +3002,11 @@ Resources:
           GEMINI_API_KEY: !Ref GeminiApiKey
           GEMINI_MODEL: !Ref GeminiModel
           CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
           AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
 
 
@@ -2760,6 +3032,302 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt WhatsAppProcessorRule.Arn
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # OBSERVABILITY — alerting topic, alarms, dashboard
+  #
+  # Before this, the stack had ZERO CloudWatch alarms, ZERO dashboards and no
+  # SNS topic: a Lambda could fail every invocation and nothing would page.
+  # These alarm on AWS-native metrics (Lambda Errors/Throttles, SQS depth,
+  # DynamoDB throttles) rather than the app's custom metrics, deliberately:
+  # the custom metrics in server/observability/cloudwatch.js carry a TenantId
+  # dimension, so an alarm on them would only ever watch ONE tenant. Those
+  # belong on the dashboard (via SEARCH expressions), not on alarms.
+  # ══════════════════════════════════════════════════════════════════════════
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${EnvironmentName}-realestateflow-alerts"
+      DisplayName: RealEstateFlow Alerts
+
+  AlertsTopicEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ── WhatsApp processor: the user-facing critical path ────────────────────
+  WhatsAppProcessorErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-processor-errors"
+      AlarmDescription: >-
+        WhatsApp message processor is throwing. Users are sending messages and
+        not getting replies. The processor rethrows after releasing its dedup
+        claim, so these are retried -- sustained errors mean retries are also
+        failing.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  WhatsAppProcessorThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-processor-throttles"
+      AlarmDescription: WhatsApp processor is being throttled — inbound messages are queueing or dropping.
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  WhatsAppProcessorDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-whatsapp-processor-slow"
+      AlarmDescription: >-
+        p95 processing time is approaching the Lambda timeout. Watch this when
+        enabling AgentToolLoopEnabled — a multi-step turn is legitimately
+        slower than a single-shot one, and the loop's own wall-clock budget
+        (AGENT_TOOL_LOOP_BUDGET_MS, default 25s) must stay below this timeout.
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 30000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # ── Main API ──────────────────────────────────────────────────────────────
+  ApiLambdaErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-api-lambda-errors"
+      AlarmDescription: Main CRM API Lambda is erroring — the web app is degraded.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiLambdaFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  # ── Call recording pipeline ───────────────────────────────────────────────
+  CallRecordingDlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-call-recording-dlq-not-empty"
+      AlarmDescription: >-
+        A call recording failed all 5 delivery attempts and landed in the DLQ.
+        Any non-zero depth means a customer's recording will never be
+        transcribed unless someone intervenes.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CallRecordingDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  CallRecordingBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-call-recording-backlog"
+      AlarmDescription: Recordings are queueing faster than the worker drains them.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CallRecordingQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1800
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  CallRecordingWorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-call-recording-worker-errors"
+      AlarmDescription: Call recording worker is erroring — transcription/analysis is failing.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CallRecordingWorkerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # ── Data layer ────────────────────────────────────────────────────────────
+  CrmTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-crm-table-throttled"
+      AlarmDescription: >-
+        CrmTable requests are being throttled. Note this table is on-demand,
+        so throttling usually means a hot partition or a burst past the
+        table's adaptive capacity — often a full-table Scan (several search
+        paths still Scan; see the TODO(MED-1) in crmDynamodbService.js).
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref CrmDynamoDbTableName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # ── Dashboard ─────────────────────────────────────────────────────────────
+  OpsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${EnvironmentName}-realestateflow-ops"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": { "markdown": "# RealEstateFlow — ${EnvironmentName}\n**WhatsApp** is the primary channel. If `whatsapp-processor-errors` is firing, users are not getting replies. Agent metrics are per-tenant (SEARCH expressions below)." }
+            },
+            {
+              "type": "metric", "x": 0, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "WhatsApp processor — invocations / errors / throttles",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "Sum" } ],
+                  [ ".", "Errors", ".", ".", { "stat": "Sum", "color": "#d62728" } ],
+                  [ ".", "Throttles", ".", ".", { "stat": "Sum", "color": "#ff7f0e" } ]
+                ],
+                "view": "timeSeries", "stacked": false, "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "WhatsApp processor — duration (p50/p95/max) vs timeout",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "p50" } ],
+                  [ "...", { "stat": "p95" } ],
+                  [ "...", { "stat": "Maximum" } ]
+                ],
+                "view": "timeSeries", "period": 300,
+                "annotations": { "horizontal": [ { "label": "alarm threshold 30s", "value": 30000 } ] }
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "Agent actions — invoked vs failed (all tenants)",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId,Action} MetricName=\"agent.action.invoked\"', 'Sum', 300))", "label": "invoked", "id": "e1" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId,Action} MetricName=\"agent.action.failed\"', 'Sum', 300))", "label": "failed", "id": "e2", "color": "#d62728" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "Call recording pipeline — queue depth, DLQ, worker errors",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${CallRecordingQueue.QueueName}", { "stat": "Maximum", "label": "queue depth" } ],
+                  [ ".", ".", ".", "${CallRecordingDlq.QueueName}", { "stat": "Maximum", "label": "DLQ depth", "color": "#d62728" } ],
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${CallRecordingWorkerFunction}", { "stat": "Sum", "label": "worker errors" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "Main API Lambda — errors / duration",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${ApiLambdaFunction}", { "stat": "Sum", "color": "#d62728" } ],
+                  [ ".", "Duration", ".", ".", { "stat": "p95", "yAxis": "right" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "DynamoDB — CrmTable consumed capacity & throttles",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${CrmDynamoDbTableName}", { "stat": "Sum" } ],
+                  [ ".", "ConsumedWriteCapacityUnits", ".", ".", { "stat": "Sum" } ],
+                  [ ".", "ThrottledRequests", ".", ".", { "stat": "Sum", "color": "#d62728" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 20, "width": 24, "height": 6,
+              "properties": {
+                "title": "Webhooks & credits — received / invalid signature / insufficient credits",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},Provider} MetricName=\"webhook.received\"', 'Sum', 300))", "label": "webhooks received", "id": "w1" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},Provider} MetricName=\"webhook.signature_invalid\"', 'Sum', 300))", "label": "invalid signature", "id": "w2", "color": "#d62728" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId} MetricName=\"creditService.deductCredits.insufficient\"', 'Sum', 300))", "label": "insufficient credits", "id": "w3", "color": "#ff7f0e" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            }
+          ]
+        }
 
 Outputs:
   CallRecordingQueueUrlOutput:

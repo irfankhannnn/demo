@@ -5,6 +5,7 @@ import {
   PutCommand,
   UpdateCommand,
   ScanCommand,
+  QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import bcrypt from 'bcryptjs';
 import { logger } from './logger.js';
@@ -51,6 +52,13 @@ export async function getAgencyConfig(tenantId) {
 /**
  * Resolve tenantId from a connected WhatsApp phone number (AgencyConfig.connectedWhatsAppPhone).
  * Used by local webhook processing and whatsapp-message-processor.
+ *
+ * Queries the connectedWhatsAppPhone-index GSI (server/infra/cfn-backend.yaml)
+ * instead of scanning the table. IMPORTANT: this GSI must be deployed and
+ * report IndexStatus ACTIVE + Backfilling false before this code path is
+ * relied on in an environment -- querying a backfilling index can silently
+ * return incomplete results. See docs/proposals/agent-channel-architecture/
+ * phase1-imp/02-slice2-gsi-tenant-lookup.md for the rollout sequence.
  */
 export async function getTenantIdByConnectedWhatsAppPhone(phone) {
   const normalized = normalizeWhatsAppPhone(phone);
@@ -59,10 +67,10 @@ export async function getTenantIdByConnectedWhatsAppPhone(phone) {
   const result = await logger.span(
     'ddb.getTenantByWhatsAppPhone',
     { tableName: AGENCY_CONFIG_TABLE_NAME, phone: normalized },
-    async () => docClient.send(new ScanCommand({
+    async () => docClient.send(new QueryCommand({
       TableName: AGENCY_CONFIG_TABLE_NAME,
-      ProjectionExpression: 'TenantId, connectedWhatsAppPhone',
-      FilterExpression: 'connectedWhatsAppPhone = :phone',
+      IndexName: 'connectedWhatsAppPhone-index',
+      KeyConditionExpression: 'connectedWhatsAppPhone = :phone',
       ExpressionAttributeValues: { ':phone': normalized },
     }))
   );
@@ -80,13 +88,17 @@ export async function getTenantIdByConnectedWhatsAppPhone(phone) {
 export async function getTenantIdByInstagramWebhookToken(token) {
   if (!token) return null;
 
+  // Queries instagramWebhookToken-index (server/infra/cfn-backend.yaml)
+  // instead of scanning: this runs on every inbound ManyChat lead. Same
+  // ACTIVE + Backfilling:false deploy gate as the WhatsApp index — see
+  // docs/proposals/agent-channel-architecture/phase1-imp/02-slice2-gsi-tenant-lookup.md.
   const result = await logger.span(
     'ddb.getTenantByInstagramWebhookToken',
     { tableName: AGENCY_CONFIG_TABLE_NAME },
-    async () => docClient.send(new ScanCommand({
+    async () => docClient.send(new QueryCommand({
       TableName: AGENCY_CONFIG_TABLE_NAME,
-      ProjectionExpression: 'TenantId, instagramWebhookToken',
-      FilterExpression: 'instagramWebhookToken = :token',
+      IndexName: 'instagramWebhookToken-index',
+      KeyConditionExpression: 'instagramWebhookToken = :token',
       ExpressionAttributeValues: { ':token': token },
     }))
   );

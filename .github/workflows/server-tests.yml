@@ -1,0 +1,107 @@
+name: Server Tests
+
+# The server's Jest suite (580+ tests covering the agent runtime, tool
+# registry, skill dispatch, call-intelligence pipeline and WhatsApp
+# processor) previously ran only on developer machines — playwright.yml
+# builds and tests the CRM frontend but never touches server/. That gap is
+# recorded in working-context/current-issues-and-pending.md ("npm install in
+# server/ so Jest suite runs in CI") and launch-audit/03-production-readiness.md
+# ("Security scans: ❌ No SAST/dependency-audit step in CI").
+#
+# Branch triggers mirror playwright.yml so both run on the same PRs.
+
+on:
+  pull_request:
+    branches: [main, auth_rbac_feature, 'cursor/*']
+  push:
+    branches: [main, auth_rbac_feature]
+
+jobs:
+  server-tests:
+    name: Server Jest + registry checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Run Jest suite
+        working-directory: server
+        # Jest needs the VM-modules flag because the server is native ESM
+        # ("type": "module"); this matches the local `npm test` script.
+        run: npm test
+        env:
+          # conversationStateService / agencyConfigService read these at import
+          # time and throw if unset. The values are never connected to — every
+          # suite mocks the AWS SDK — but they must be present.
+          CRM_DYNAMODB_TABLE_NAME: ci-placeholder-crm-table
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: ci-placeholder-agency-config
+          AWS_REGION: ap-south-1
+
+      # The MCP tool file is now GENERATED from the canonical registry, so the
+      # 20-tool gap that made this step non-blocking is closed and it is
+      # blocking again. Two independent checks run, on purpose:
+      #
+      #   check:mcp-tools  — regenerates and compares byte-for-byte. Catches a
+      #                      committed file that was edited by hand or left
+      #                      stale after a registry change.
+      #   check:mcp-drift  — re-parses the committed file without using the
+      #                      generator at all. Catches a generator bug that
+      #                      produces self-consistent but wrong output, which
+      #                      the first check cannot see.
+      - name: Check MCP tool definitions are regenerated
+        working-directory: server
+        run: npm run check:mcp-tools
+
+      - name: Check MCP tool-registry drift
+        working-directory: server
+        run: npm run check:mcp-drift
+
+      # Compiles the MCP service and runs its OAuth scope-consistency check
+      # (prebuild). Guards against a tool being unscoped — mcpController skips
+      # the check entirely when a tool has no scope — or a write tool being
+      # granted a read scope.
+      - name: Build MCP service and verify OAuth scopes
+        working-directory: reality-flow-mcp
+        run: |
+          npm ci
+          npm run build
+
+  security-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Fails only on CRITICAL. High/moderate findings are printed for triage
+      # but do not block: a transitive advisory appearing overnight should not
+      # wedge an unrelated PR. Tighten to --audit-level=high once the current
+      # backlog is triaged.
+      - name: Audit server dependencies
+        working-directory: server
+        run: npm audit --audit-level=critical
+
+      - name: Audit CRM dependencies
+        working-directory: real-estate-crm-app
+        run: npm audit --audit-level=critical
+
+      - name: Report non-blocking findings (server)
+        if: always()
+        working-directory: server
+        run: npm audit --audit-level=moderate || true

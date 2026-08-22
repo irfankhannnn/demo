@@ -9,6 +9,7 @@ import { useAndroidBackButton } from './hooks/useAndroidBackButton';
 import { initNativeShell, hideSplash } from './lib/nativeInit';
 import { isNativeApp } from './lib/platform';
 import BottomTabBar from './components/BottomTabBar';
+import AiAssistantLauncher from './components/ai/AiAssistantLauncher';
 
 // === [LAUNCH COMPONENT IMPORTS] ===
 // PR-A
@@ -473,6 +474,7 @@ function App() {
             <Route path="*" element={<Navigate to="/crm" replace />} />
           </Routes>
           <BottomTabBar />
+          <AiAssistantLauncher />
           </CreditsProvider>
         </SubscriptionProvider>
       </GoogleMapsProvider>

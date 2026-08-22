@@ -4,6 +4,9 @@
  */
 
 import { USER_CATEGORIES, getDefaultUserCategory, getAllUserCategories, getCategoryDefinition } from './userCategoryService.js';
+import { toolDefinitions } from './shared/toolDefinitions.js';
+
+const READ_ONLY_TOOL_NAMES = new Set(toolDefinitions.filter((t) => t.readOnly).map((t) => t.name));
 
 describe('User Category Service', () => {
   describe('User Categories Definition', () => {
@@ -147,9 +150,12 @@ describe('User Category Service', () => {
     });
 
     test('viewer should have read-only tools', () => {
-      const viewerTools = USER_CATEGORIES.viewer.allowedTools;
-      const readOnlyTools = viewerTools.filter(tool => tool.startsWith('get_') || tool.startsWith('search_') || tool.startsWith('find_'));
-      expect(readOnlyTools.length).toBe(viewerTools.length);
+      // Asserted against the registry's own `readOnly` flag rather than a
+      // get_/search_/find_ name prefix. The prefix heuristic classified
+      // `suggest_next_actions` as a write and would fail a viewer list that is
+      // in fact entirely read-only.
+      const writes = USER_CATEGORIES.viewer.allowedTools.filter((tool) => !READ_ONLY_TOOL_NAMES.has(tool));
+      expect(writes).toEqual([]);
     });
   });
 

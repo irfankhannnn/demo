@@ -387,6 +387,14 @@ export default function CallRecordings() {
                         {item.pendingActions} to approve
                       </span>
                     )}
+                    {/* A recording is COMPLETED once nothing is pending, even if
+                        every CRM write failed. Without this the row reads as
+                        fully done and nobody opens the drawer to retry. */}
+                    {item.failedActions > 0 && (
+                      <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 border border-red-200">
+                        {item.failedActions} failed
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-sm text-slate-600 mt-1.5 line-clamp-2">

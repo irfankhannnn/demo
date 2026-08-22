@@ -32,13 +32,14 @@ RULES:
 - List/search/show/find/create/update/delete or any data question: call the best matching tool. Do not say you will check — call the function.
 - At most ONE tool per user message unless they clearly ask for two separate actions in one sentence.
 - Never invent IDs, names, phone numbers, or counts. Use IDs only from CONVERSATION STATE below when the user refers to "first/second one", "iska", "uska", etc.
+- ONE NAMED PERSON, unsure which record type ("Rajesh ka detail", "open Sakina", "9876543210 kaun hai?") → call find_person first. It searches leads AND buyers/owners/tenants/contacts together and returns each match with its type and ID; then call the matching get_* tool with that ID. Do not guess between search_leads and search_buyers for a single named person.
 - Tenant pipeline vs tenant records: "tenant list" / "sare tenants" without meaning lease customers → search_leads with leadType "tenant". Use search_tenants only for converted customer/lease records.
 - Pipeline lead lists ("buyer leads", "qualified leads", "seller leads", "contacted leads", "buyer list", "tenant list", "sare tenants" without lease context) → ALWAYS search_leads with leadType and/or status filters. Never search_buyers/search_tenants for those — those tools are converted CRM records, not pipeline leads.
 - Converted records: "buyers dikhao" / "show buyers" (no lead/pipeline/status word) → search_buyers. "owners dikhao" → get_owners with query for name/phone. "tenants/customers" with lease/rental context → search_tenants.
 - Status/type/role filters go in parameters (status, leadType, priority, role), NOT in query. Example: "qualified buyer leads" → search_leads({ status: "qualified", leadType: "buyer" }). Leave query empty unless searching a name, phone, or area.
 - "Low/medium/high priority" on leads → search_leads with priority filter. "Who should I call" / hot leads / priority ranking → get_priority_leads (not search_leads).
 - "How many leads" / breakdown counts → get_leads_summary. Full rows → search_leads.
-- Delete: if user has not confirmed after you asked, do NOT call delete_* — reply asking them to confirm (haan/yes).
+- Removing records: there is no delete tool. Use archive_* (archive_lead, archive_property, archive_buyer, ...) — it is reversible, so you do not need to ask for confirmation first. If the user says "delete X", archive it and say it has been archived.
 - Money in tool args: integers in rupees (80 lakh → 8000000, 1.5 crore → 15000000).
 - Do not output chain-of-thought, JSON wrappers, or markdown code fences. If you use text, only the user-facing message.
 
@@ -71,9 +72,13 @@ function formatConversationStateForPlanner(conversationState) {
     }
   }
 
-  if (ctx.pendingConfirmation?.toolName) {
-    lines.push(`Pending delete confirmation for tool ${ctx.pendingConfirmation.toolName} — only proceed if user said yes/haan.`);
-  }
+  // NOTE: a `pendingConfirmation` block used to be injected here, telling the
+  // planner to wait for a yes/haan before proceeding with a delete_* tool.
+  // That whole subsystem was removed in Phase 1 Slice 5 along with the
+  // delete_* tools themselves (archive_* is reversible, so it needs no
+  // confirmation gate) -- conversation state no longer carries the field, so
+  // the branch was permanently dead. See docs/proposals/
+  // agent-channel-architecture/phase1-imp/05-slice5-remove-delete-tools.md.
 
   if (lines.length === 0) return '';
   return `CONVERSATION STATE:\n${lines.join('\n')}`;

@@ -143,4 +143,42 @@ describe('applyAutomaticActions', () => {
     expect(applied).toEqual([]);
     expect(refreshCompletionStatus).not.toHaveBeenCalled();
   });
+
+  it('claims the action BEFORE touching the CRM', async () => {
+    // The in-memory action list is a snapshot taken when the analysis stage
+    // planned it. Ordering matters: a check against that stale snapshot cannot
+    // see a rejection that landed since, only a conditional write can.
+    invokeSkill.mockResolvedValue({ ok: true, data: {} });
+
+    const order = [];
+    updateActionStatus.mockImplementation(async (_t, _r, _a, patch) => {
+      order.push(`status:${patch.status}`);
+      return { ok: true };
+    });
+    invokeSkill.mockImplementation(async () => {
+      order.push('crm');
+      return { ok: true, data: {} };
+    });
+
+    await applyAutomaticActions({
+      tenantId: 't1', recordingId: 'r1', actions: [action()],
+    });
+
+    expect(order).toEqual([
+      `status:${ACTION_STATUS.APPROVED}`,
+      'crm',
+      `status:${ACTION_STATUS.APPLIED}`,
+    ]);
+  });
+
+  it('does not write to the CRM when the claim is lost to a rejection', async () => {
+    updateActionStatus.mockResolvedValue({ ok: false, error: 'action_already_processed' });
+
+    const applied = await applyAutomaticActions({
+      tenantId: 't1', recordingId: 'r1', actions: [action()],
+    });
+
+    expect(invokeSkill).not.toHaveBeenCalled();
+    expect(applied).toEqual([]);
+  });
 });

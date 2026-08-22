@@ -80,8 +80,14 @@ export async function handleMcpRequest(req: Request, res: Response): Promise<voi
     // Scope validation: if the caller has scopes (OAuth token), enforce them.
     // Internal service calls (mcp-agent) have no scopes and are allowed.
     if (tokenScopes.length > 0) {
+      // Every tool now has a scope — `inferScope` falls back to the wildcard
+      // rather than to null. The `requiredScope &&` guard that used to sit
+      // here meant an unscoped tool was checked against nothing at all, so the
+      // twelve tools that fell through the old name-matching (the khata reads
+      // among them) were callable by any authenticated client.
       const requiredScope = TOOL_SCOPES[name];
-      if (requiredScope && !tokenScopes.includes(requiredScope)) {
+      const permitted = tokenScopes.includes(requiredScope) || tokenScopes.includes('crm');
+      if (!permitted) {
         logger.warn('mcp.tool.insufficient_scope', { tenantId, toolName: name, requiredScope, tokenScopes });
         throw new McpError(ErrorCode.InvalidRequest, `Insufficient scope for tool: ${name}. Required: ${requiredScope}`);
       }

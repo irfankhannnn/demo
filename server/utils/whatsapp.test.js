@@ -1,9 +1,25 @@
 /**
  * Unit tests for server/utils/whatsapp.js
- * Tests: normalizeWhatsAppPhone, classifyWhatsAppId
+ * Tests: normalizeWhatsAppPhone, classifyWhatsAppId, buildWhatsAppPrincipal
  */
 
-import { normalizeWhatsAppPhone, classifyWhatsAppId } from './whatsapp.js';
+import { normalizeWhatsAppPhone, classifyWhatsAppId, buildWhatsAppPrincipal } from './whatsapp.js';
+
+describe('buildWhatsAppPrincipal', () => {
+  test('prefixes a normalized phone with wa:', () => {
+    expect(buildWhatsAppPrincipal('919876543210')).toBe('wa:919876543210');
+  });
+
+  test('normalizes before prefixing (matches normalizeWhatsAppPhone exactly)', () => {
+    expect(buildWhatsAppPrincipal('+91 98765 43210')).toBe('wa:919876543210');
+    expect(buildWhatsAppPrincipal('918291537522@s.whatsapp.net')).toBe('wa:918291537522');
+  });
+
+  test('empty/null input still produces a wa: prefix around an empty string (caller responsibility to validate)', () => {
+    expect(buildWhatsAppPrincipal(null)).toBe('wa:');
+    expect(buildWhatsAppPrincipal('')).toBe('wa:');
+  });
+});
 
 describe('normalizeWhatsAppPhone', () => {
   describe('standard phone formats', () => {

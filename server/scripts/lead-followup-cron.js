@@ -52,7 +52,7 @@ async function processFollowupForTenant(tenantId) {
   // Get active leads that may need follow-up (new, contacted, qualified, negotiating)
   const FOLLOWUP_STATUSES = ['new', 'contacted', 'qualified', 'negotiating'];
   const leadsResults = await Promise.all(
-    FOLLOWUP_STATUSES.map(status => invokeSkill(tenantId, 'search_leads', { status }).catch(() => ({ ok: true, data: [] })))
+    FOLLOWUP_STATUSES.map(status => invokeSkill(tenantId, 'search_leads', { status }, { source: 'cron.lead_followup' }).catch(() => ({ ok: true, data: [] })))
   );
   const allLeads = leadsResults.flatMap(r => (r.ok ? (r.data?.items || r.data || []) : []));
   // Deduplicate by leadId
@@ -107,7 +107,7 @@ async function processFollowupForTenant(tenantId) {
           content: `[DRAFT FOLLOWUP] ${message}`,
           type: 'draft_followup',
           createdBy: 'ai-employee',
-        });
+        }, { source: 'cron.lead_followup' });
         draftCount++;
       } else if (mode === 'autosend') {
         let sent = false;

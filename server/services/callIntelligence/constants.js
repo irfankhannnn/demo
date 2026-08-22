@@ -27,7 +27,17 @@ export const PIPELINE_STAGE = {
   CRM_UPDATE: 'CRM_UPDATE',
 };
 
-/** Status values from which a stage may still run (guards duplicate SQS deliveries). */
+/**
+ * Status values from which a stage may still run.
+ *
+ * These INCLUDE the stage's own in-progress status because a stage is
+ * resumable: the transcription stage re-enqueues itself with an SQS delay to
+ * poll the ASR job, so a later delivery legitimately re-enters while the
+ * recording is already TRANSCRIBING.
+ *
+ * Do NOT use this set as a conditional-write claim — see
+ * STAGE_CLAIM_STATUSES below for why.
+ */
 export const STAGE_ENTRY_STATUSES = {
   [PIPELINE_STAGE.TRANSCRIPTION]: [
     RECORDING_STATUS.UPLOADED,
@@ -38,6 +48,36 @@ export const STAGE_ENTRY_STATUSES = {
   [PIPELINE_STAGE.ANALYSIS]: [
     RECORDING_STATUS.TRANSCRIBED,
     RECORDING_STATUS.ANALYZING,
+    RECORDING_STATUS.FAILED,
+  ],
+};
+
+/**
+ * Status values from which a stage may be EXCLUSIVELY CLAIMED — i.e. the set
+ * used as the ConditionExpression when a stage takes ownership of a recording
+ * and is about to do non-idempotent work (start an ASR job, call Gemini,
+ * auto-apply a CRM note).
+ *
+ * Critically this EXCLUDES the stage's own in-progress status. Using
+ * STAGE_ENTRY_STATUSES for the claim made the condition still true while
+ * another invocation was mid-stage, so two concurrent SQS deliveries both
+ * "claimed" successfully and both ran the stage — producing two Transcribe
+ * jobs, two Gemini analyses, two sets of proposedActions (the second
+ * invalidating actionIds the UI already held), and the call-summary note
+ * written to the lead TWICE. The file header's claim that a duplicate
+ * delivery "cannot process the same recording twice" was not true.
+ *
+ * FAILED is retained: a failed recording is not in progress, and retrying it
+ * is the intended recovery path.
+ */
+export const STAGE_CLAIM_STATUSES = {
+  [PIPELINE_STAGE.TRANSCRIPTION]: [
+    RECORDING_STATUS.UPLOADED,
+    RECORDING_STATUS.QUEUED,
+    RECORDING_STATUS.FAILED,
+  ],
+  [PIPELINE_STAGE.ANALYSIS]: [
+    RECORDING_STATUS.TRANSCRIBED,
     RECORDING_STATUS.FAILED,
   ],
 };

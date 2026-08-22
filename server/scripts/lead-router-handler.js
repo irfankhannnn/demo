@@ -41,7 +41,7 @@ async function getTeamMembers(tenantId) {
 
 async function getMemberWorkload(tenantId, memberId) {
   try {
-    const result = await invokeSkill(tenantId, 'search_leads', { assignedTo: memberId, status: 'contacted' });
+    const result = await invokeSkill(tenantId, 'search_leads', { assignedTo: memberId, status: 'contacted' }, { source: 'cron.lead_router' });
     return result.ok ? (result.data?.items?.length ?? result.data?.length ?? 0) : 0;
   } catch (_) {
     return 0;
@@ -50,7 +50,7 @@ async function getMemberWorkload(tenantId, memberId) {
 
 async function routeLead(tenantId, leadId, score) {
   // Fetch lead
-  const leadResult = await invokeSkill(tenantId, 'get_lead', { leadId });
+  const leadResult = await invokeSkill(tenantId, 'get_lead', { leadId }, { source: 'cron.lead_router' });
   if (!leadResult.ok) {
     logger.warn('leadRouter: could not fetch lead', { tenantId, leadId });
     return { routed: false, reason: 'lead_not_found' };
@@ -110,7 +110,7 @@ async function routeLead(tenantId, leadId, score) {
     assignedTo: assignedToId,
     assignedToName,
     status: 'assigned',
-  });
+  }, { source: 'cron.lead_router' });
 
   logger.info('leadRouter: lead assigned', { tenantId, leadId, assignedToId, assignedToName });
   return { routed: true, assignedTo: assignedToId, assignedToName };

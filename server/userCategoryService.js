@@ -6,6 +6,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { logger } from './logger.js';
+import { ALLOWED_TOOL_NAMES, toolDefinitions } from './shared/toolDefinitions.js';
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
@@ -127,31 +128,67 @@ export async function resolveCategory(phone, tenantId, context = {}) {
 }
 
 /**
+ * Every read-only tool in the registry, derived rather than hand-listed.
+ *
+ * Used to grant the analytics/briefing surface to the categories that already
+ * carry `canViewAnalytics: true`. Deriving it means a new read-only tool is
+ * covered the day it is added, instead of silently 403-ing until someone
+ * notices a list here is short.
+ */
+const READ_ONLY_TOOL_NAMES = toolDefinitions.filter((t) => t.readOnly).map((t) => t.name);
+
+/** Flatten + dedupe, so a category can list a tool explicitly and still spread a group that contains it. */
+const union = (...lists) => [...new Set(lists.flat())];
+
+/**
+ * CRM JWT role → RBAC category.
+ *
+ * `setUserCategory` is not called anywhere in this codebase, so **no user has
+ * a `CATEGORY#USER` row**. A named identity therefore always misses the lookup
+ * and, because the check is fail-closed, would be denied every tool. The JWT
+ * role is the identity model that is actually populated, so the web channel
+ * maps from it.
+ *
+ * Roles come from middleware/requireRole.js. An unrecognised role falls to
+ * `viewer` (read-only) rather than to a write-capable default: a role this map
+ * does not know about is a role whose privileges nobody has decided yet.
+ */
+const CATEGORY_BY_CRM_ROLE = {
+  FOUNDER: 'admin',
+  OWNER: 'admin',
+  ADMIN: 'admin',
+  MANAGER: 'team_lead',
+  MEMBER: 'agent',
+};
+
+/**
+ * @param {string} role CRM role from the verified JWT
+ * @returns {string} category key, never undefined
+ */
+export function categoryForCrmRole(role) {
+  return CATEGORY_BY_CRM_ROLE[String(role || '').toUpperCase()] || 'viewer';
+}
+
+/**
  * User categories and their allowed tools
  * Defines what tools each user category can access
+ *
+ * IMPORTANT: these lists are checked against the live registry by
+ * `userCategoryService.categories.test.js`. Hand-maintained copies of the tool
+ * list drifted badly before that test existed — `admin`, whose own description
+ * is "full access to all tools", was missing 13 live tools (every briefing and
+ * summary tool, plus contact notes) while still listing 13 that no longer
+ * exist. Because the permission check is fail-closed, that drift was not
+ * cosmetic: an admin calling `get_daily_brief` through the MCP endpoint was
+ * denied.
  */
 export const USER_CATEGORIES = {
   admin: {
     name: 'Administrator',
     description: 'Full access to all tools',
-    allowedTools: [
-      // Leads
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'delete_lead', 'create_lead_note', 'get_lead_notes', 'update_lead_note', 'delete_lead_note',
-      // Contacts
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'delete_contact', 'update_contact_role', 'find_contact_by_phone',
-      // Properties
-      'create_property', 'get_property', 'search_properties', 'update_property', 'delete_property', 'create_property_document', 'get_property_documents', 'delete_property_document',
-      // Tenants / Customers
-      'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'delete_tenant', 'get_tenant_by_phone', 'create_tenant_note', 'get_tenant_notes', 'update_tenant_note', 'delete_tenant_note', 'get_tenant_rental_history', 'update_tenant_current_rental', 'archive_tenant_rental',
-      // Owners
-      'create_owner', 'get_owner', 'get_owners', 'search_owners', 'update_owner', 'delete_owner', 'get_owner_by_phone', 'create_owner_note', 'get_owner_notes', 'update_owner_note', 'delete_owner_note',
-      // Buyers
-      'create_buyer', 'get_buyer', 'search_buyers', 'update_buyer', 'delete_buyer', 'create_buyer_note', 'get_buyer_notes', 'update_buyer_note', 'delete_buyer_note',
-      // Meetings
-      'create_meeting', 'get_meeting', 'get_meetings', 'get_upcoming_meetings', 'update_meeting', 'delete_meeting',
-      // Metrics
-      'get_crm_metrics',
-    ],
+    // Derived from the registry — "full access" should mean exactly that, and
+    // a hand-copied list cannot stay true as tools are added and removed.
+    allowedTools: [...ALLOWED_TOOL_NAMES],
     canAssignLeads: true,
     canDeleteLeads: true,
     canViewAnalytics: true,
@@ -160,15 +197,18 @@ export const USER_CATEGORIES = {
   agent: {
     name: 'Sales Agent',
     description: 'Can create/update leads, owners, tenants, properties, contacts, buyers, and meetings',
-    allowedTools: [
+    allowedTools: union([
       'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note', 'get_lead_notes',
       'create_owner', 'get_owner', 'get_owners', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
       'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone', 'find_person',
+      'create_contact_note', 'get_contact_notes',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
       'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
-    ],
+      // canViewAnalytics is true for this category, so the briefing/summary
+      // surface belongs to it. All read-only.
+    ], READ_ONLY_TOOL_NAMES),
     canAssignLeads: false,
     canDeleteLeads: false,
     canViewAnalytics: true,
@@ -177,15 +217,16 @@ export const USER_CATEGORIES = {
   team_lead: {
     name: 'Team Lead',
     description: 'Can manage team leads, owners, tenants, properties, contacts, buyers, and meetings',
-    allowedTools: [
+    allowedTools: union([
       'create_lead', 'get_lead', 'search_leads', 'update_lead', 'convert_lead', 'create_lead_note', 'get_lead_notes',
       'create_owner', 'get_owner', 'get_owners', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
       'create_tenant', 'get_tenant', 'search_tenants', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone', 'find_person',
+      'create_contact_note', 'get_contact_notes',
       'get_property', 'search_properties',
       'get_buyer', 'search_buyers',
       'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
-    ],
+    ], READ_ONLY_TOOL_NAMES),
     canAssignLeads: true,
     canDeleteLeads: false,
     canViewAnalytics: true,
@@ -194,32 +235,38 @@ export const USER_CATEGORIES = {
   viewer: {
     name: 'Viewer',
     description: 'Read-only access to leads, owners, tenants, properties, contacts, buyers, and meetings',
-    allowedTools: [
-      'get_lead', 'search_leads',
-      'get_owner', 'get_owners', 'get_owner_by_phone',
-      'get_tenant', 'search_tenants', 'get_tenant_by_phone',
-      'get_contact', 'search_contacts', 'find_contact_by_phone',
-      'get_property', 'search_properties',
-      'get_buyer', 'search_buyers',
-      'get_meeting', 'get_upcoming_meetings',
-    ],
+    // Derived: "read-only access" is exactly the registry's read-only set, and
+    // maintaining a partial copy of it by hand only produces drift.
+    allowedTools: [...READ_ONLY_TOOL_NAMES],
     canAssignLeads: false,
     canDeleteLeads: false,
     canViewAnalytics: true,
     canManageUsers: false,
   },
+  /**
+   * A deliberately restricted WhatsApp identity.
+   *
+   * NOTE this is **not** the category the current WhatsApp-first product uses.
+   * The launch requirement is that a broker can do everything from WhatsApp,
+   * including creating and updating properties — which this category does not
+   * permit. It exists for an agency that wants a genuinely limited bot on a
+   * shared number, and the omissions below are the point of it: no property or
+   * buyer writes, no lead conversion, no document handling.
+   */
   whatsapp_bot: {
     name: 'WhatsApp Bot',
     description: 'Limited tools for WhatsApp conversations including leads, owners, tenants, properties, contacts, buyers, and meetings',
-    allowedTools: [
-      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'create_lead_note', 'get_lead_notes',
-      'get_owner', 'get_owners', 'create_owner', 'update_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
-      'get_tenant', 'search_tenants', 'create_tenant', 'update_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
-      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'update_contact_role', 'find_contact_by_phone',
-      'get_property', 'search_properties',
-      'get_buyer', 'search_buyers',
-      'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting',
-    ],
+    allowedTools: union([
+      'create_lead', 'get_lead', 'search_leads', 'update_lead', 'archive_lead', 'create_lead_note', 'get_lead_notes',
+      'get_owner', 'get_owners', 'create_owner', 'update_owner', 'archive_owner', 'create_owner_note', 'get_owner_notes', 'get_owner_by_phone',
+      'get_tenant', 'search_tenants', 'create_tenant', 'update_tenant', 'archive_tenant', 'create_tenant_note', 'get_tenant_notes', 'get_tenant_by_phone',
+      'create_contact', 'get_contact', 'search_contacts', 'update_contact', 'archive_contact', 'update_contact_role', 'find_contact_by_phone', 'find_person',
+      'create_contact_note', 'get_contact_notes',
+      'get_property', 'search_properties', 'archive_property',
+      'get_buyer', 'search_buyers', 'archive_buyer',
+      'create_meeting', 'get_meeting', 'get_upcoming_meetings', 'update_meeting', 'archive_meeting',
+      // Reads only. Khata money is mutated in the CRM UI, never by the bot.
+    ], READ_ONLY_TOOL_NAMES),
     canAssignLeads: false,
     canDeleteLeads: false,
     canViewAnalytics: false,
@@ -310,21 +357,48 @@ export async function setUserCategory(tenantId, userId, category) {
 
 /**
  * Check if user can access a tool
+ *
  * @param {string} tenantId
  * @param {string} userId
  * @param {string} toolName
+ * @param {object} [options]
+ * @param {string} [options.fallbackCategory]
+ *   Category to apply when this identity has no provisioned row. This is for
+ *   **non-human identities that the caller has already authorised by other
+ *   means** — a signed, tenant-scoped service token, or a channel whose
+ *   transport already proves the actor. Passing it is an explicit decision at
+ *   the call site and is logged on every use.
+ *
+ *   It exists because fail-closed plus an unprovisioned identity is not a
+ *   security posture, it is an outage: the MCP endpoint always sends a userId
+ *   (`'mcp-agent'` when the token names no human), no such row is ever
+ *   created, and `ALLOW_USER_CATEGORY_DEFAULT_FALLBACK` defaults to 'false' in
+ *   CFN — so in production **every MCP tool call was denied**.
+ *
+ *   A *named* human identity still fails closed with no fallback: asserting a
+ *   specific person is a claim their provisioned category is meant to answer.
  * @returns {Promise<boolean>} True if user can access tool
  */
-export async function canUserAccessTool(tenantId, userId, toolName) {
+export async function canUserAccessTool(tenantId, userId, toolName, { fallbackCategory } = {}) {
   let userCategory = await getUserCategory(tenantId, userId);
   if (!userCategory) {
-    // SECURITY: Only fall back to the default category in local dev. In production,
-    // unknown users MUST be explicitly provisioned; otherwise they should be denied.
-    if (process.env.ALLOW_USER_CATEGORY_DEFAULT_FALLBACK === 'true') {
+    if (fallbackCategory && USER_CATEGORIES[fallbackCategory]) {
+      userCategory = USER_CATEGORIES[fallbackCategory];
+      logger.info('userCategoryService.canUserAccessTool.usingFallback', {
+        tenantId, userId, toolName, category: fallbackCategory,
+      });
+    } else if (process.env.ALLOW_USER_CATEGORY_DEFAULT_FALLBACK === 'true') {
+      // SECURITY: Only fall back to the default category in local dev. In production,
+      // unknown users MUST be explicitly provisioned; otherwise they should be denied.
       const defaultCategory = getDefaultUserCategory();
       userCategory = USER_CATEGORIES[defaultCategory];
       logger.warn('userCategoryService.canUserAccessTool.usingDefault', { tenantId, userId, category: defaultCategory });
     } else {
+      if (fallbackCategory) {
+        logger.error('userCategoryService.canUserAccessTool.unknownFallbackCategory', {
+          tenantId, userId, fallbackCategory,
+        });
+      }
       logger.warn('userCategoryService.canUserAccessTool.categoryNotFound', { tenantId, userId });
       return false;
     }

@@ -106,6 +106,22 @@ describe('runTranscriptionStage', () => {
     expect(result.requeueIn).toBeGreaterThan(0);
   });
 
+  it('claims the stage EXCLUSIVELY — the in-progress status is not an accepted precondition', async () => {
+    // Regression guard. The claim used to pass STAGE_ENTRY_STATUSES, which
+    // includes TRANSCRIBING — so the DynamoDB condition was still true while
+    // another invocation was mid-stage, and two concurrent SQS deliveries
+    // BOTH claimed successfully and BOTH started a Transcribe job. The claim
+    // must use STAGE_CLAIM_STATUSES, which excludes it.
+    repo.getRecording.mockResolvedValue(baseRecording());
+    provider.startTranscription.mockResolvedValue({ jobId: 'job-1' });
+
+    await runTranscriptionStage({ tenantId: 't1', recordingId: 'r1' });
+
+    const expectedStatuses = repo.transitionStatus.mock.calls[0][3];
+    expect(expectedStatuses).not.toContain(RECORDING_STATUS.TRANSCRIBING);
+    expect(expectedStatuses).toContain(RECORDING_STATUS.UPLOADED);
+  });
+
   it('does nothing when the recording already moved past transcription', async () => {
     repo.getRecording.mockResolvedValue(baseRecording({ status: RECORDING_STATUS.ANALYZED }));
 
@@ -235,13 +251,30 @@ describe('runTranscriptionStage', () => {
 });
 
 describe('runAnalysisStage', () => {
-  const transcribed = () => baseRecording({
+  const transcribed = (overrides = {}) => baseRecording({
     status: RECORDING_STATUS.TRANSCRIBED,
     transcriptS3Key: 't1/call-recordings/r1/transcript/transcript.json',
     matchedEntityType: ENTITY_TYPE.LEAD,
     matchedEntityId: 'L1',
     matchedEntityName: 'Rahul',
     callDate: '2026-01-05',
+    ...overrides,
+  });
+
+  it('claims the stage EXCLUSIVELY — ANALYZING is not an accepted precondition', async () => {
+    // Same regression as the transcription claim, but this one is worse: a
+    // duplicate claim here meant a second Gemini analysis, a second set of
+    // proposedActions (invalidating actionIds the UI already held), and the
+    // call-summary note auto-applied to the lead TWICE.
+    repo.getRecording.mockResolvedValue(transcribed());
+    s3.getObjectText.mockResolvedValue(JSON.stringify({ transcript: 'test' }));
+    analysis.analyzeTranscript.mockResolvedValue({ ok: false, error: 'stop_here' });
+
+    await runAnalysisStage({ tenantId: 't1', recordingId: 'r1' });
+
+    const expectedStatuses = repo.transitionStatus.mock.calls[0][3];
+    expect(expectedStatuses).not.toContain(RECORDING_STATUS.ANALYZING);
+    expect(expectedStatuses).toContain(RECORDING_STATUS.TRANSCRIBED);
   });
 
   it('analyses the transcript, plans actions and auto-applies the note', async () => {
@@ -278,6 +311,99 @@ describe('runAnalysisStage', () => {
     expect(update.proposedActions[0].requiresApproval).toBe(false);
     expect(update.proposedActions[1].requiresApproval).toBe(true);
     expect(executor.applyAutomaticActions).toHaveBeenCalled();
+  });
+
+  // Regression: re-analysis used to replace proposedActions wholesale. The
+  // /reanalyze route pre-wrote the applied subset to protect it, but this
+  // stage overwrote it moments later — so the guard never actually worked,
+  // and the auto-applied call note was written to the lead a second time.
+  describe('re-analysis of a recording that already applied actions', () => {
+    const appliedNote = {
+      actionId: 'a-old',
+      tool: 'create_lead_note',
+      arguments: { leadId: 'L1', content: 'first summary' },
+      status: ACTION_STATUS.APPLIED,
+      requiresApproval: false,
+      executedAt: '2026-01-05T11:00:00.000Z',
+    };
+
+    const analysed = (customerName = 'Rahul') => ({
+      ok: true,
+      model: 'gemini-test',
+      promptVersion: 'v1',
+      analysis: {
+        language: 'hi-IN',
+        summary: 'Buyer wants a 2 BHK.',
+        keyPoints: [],
+        topics: ['budget'],
+        requirements: {},
+        siteVisit: { requested: false },
+        maintenance: { required: false },
+        payment: { discussed: false },
+        followUp: { required: false },
+        customer: { name: customerName },
+      },
+    });
+
+    beforeEach(() => {
+      s3.getObjectText.mockResolvedValue(JSON.stringify({ transcript: 'test' }));
+      analysis.analyzeTranscript.mockResolvedValue(analysed());
+    });
+
+    it('keeps the applied action and does not re-propose the same note', async () => {
+      repo.getRecording.mockResolvedValue(transcribed({ proposedActions: [appliedNote] }));
+
+      await runAnalysisStage({ tenantId: 't1', recordingId: 'r1' });
+
+      const update = repo.updateRecording.mock.calls.at(-1)[2];
+      const notes = update.proposedActions.filter((a) => a.tool === 'create_lead_note');
+      expect(notes).toHaveLength(1);
+      expect(notes[0].actionId).toBe('a-old');
+      expect(notes[0].status).toBe(ACTION_STATUS.APPLIED);
+    });
+
+    it('does not hand the preserved action back to the auto-applier', async () => {
+      // Belt and braces: the executor also skips non-PENDING actions, but the
+      // note must never reach it in a re-appliable state in the first place.
+      repo.getRecording.mockResolvedValue(transcribed({ proposedActions: [appliedNote] }));
+
+      await runAnalysisStage({ tenantId: 't1', recordingId: 'r1' });
+
+      const handed = executor.applyAutomaticActions.mock.calls.at(-1)[0].actions;
+      const autoAppliable = handed.filter(
+        (a) => !a.requiresApproval && a.status === ACTION_STATUS.PENDING,
+      );
+      expect(autoAppliable.map((a) => a.tool)).not.toContain('create_lead_note');
+    });
+
+    it('DOES write the note when the recording was re-linked to a different record', async () => {
+      // The operator corrected a bad phone match. The old note stays as
+      // history on the old record; a fresh one is owed to the new record.
+      repo.getRecording.mockResolvedValue(transcribed({
+        matchedEntityId: 'L2',
+        matchedEntityName: 'Priya',
+        proposedActions: [appliedNote],
+      }));
+
+      await runAnalysisStage({ tenantId: 't1', recordingId: 'r1' });
+
+      const update = repo.updateRecording.mock.calls.at(-1)[2];
+      const notes = update.proposedActions.filter((a) => a.tool === 'create_lead_note');
+      expect(notes).toHaveLength(2);
+      expect(notes.find((a) => a.status === ACTION_STATUS.APPLIED).arguments.leadId).toBe('L1');
+      const fresh = notes.find((a) => a.status !== ACTION_STATUS.APPLIED);
+      expect(fresh.arguments.leadId).toBe('L2');
+      expect(fresh.requiresApproval).toBe(false);
+    });
+
+    it('leaves a first-pass analysis untouched when nothing was applied yet', async () => {
+      repo.getRecording.mockResolvedValue(transcribed());
+
+      await runAnalysisStage({ tenantId: 't1', recordingId: 'r1' });
+
+      const update = repo.updateRecording.mock.calls.at(-1)[2];
+      expect(update.proposedActions.every((a) => a.status === ACTION_STATUS.PENDING)).toBe(true);
+    });
   });
 
   it('produces an empty analysis rather than calling the LLM on a silent recording', async () => {
