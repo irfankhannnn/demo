@@ -16,6 +16,28 @@ const personalityHints = {
  * @param {string[]} [domains] - routed domain ids (the only tools available this turn)
  * @returns {string}
  */
+/**
+ * PROMPT ORDERING MATTERS FOR COST (Phase 3f).
+ *
+ * Everything that varies per TURN — the routed-domain note and the
+ * conversation-state block — is emitted at the very END. Everything stable for
+ * a given tenant — the header, the rules, the personality style — comes first.
+ *
+ * Gemini's implicit caching keys on an exact shared PREFIX. The domain note
+ * used to sit on line 4, before the entire rules block, so a different routing
+ * decision changed every byte after it and no meaningful prefix was ever
+ * shared between two turns. Moving it to the end makes roughly 3 KB of rules
+ * cacheable across every turn for a tenant.
+ *
+ * Explicit context caching (`GoogleAICacheManager`) was evaluated and does NOT
+ * apply here: it has a minimum-token floor well above this prompt. Measured,
+ * the whole tool set across all nine domains is ~12k tokens and a single
+ * domain is 700-3,800 — an order of magnitude short. Ordering is the only
+ * lever that actually works at this size.
+ *
+ * If you add content here, put it above the variable tail or the saving is
+ * lost silently — nothing errors, the cache just stops hitting.
+ */
 export function buildPlannerSystemPrompt(tenantId, personality = 'friendly', conversationState = null, domains = []) {
   const style = personalityHints[personality] || personalityHints.friendly;
   const stateBlock = formatConversationStateForPlanner(conversationState);
@@ -26,7 +48,7 @@ export function buildPlannerSystemPrompt(tenantId, personality = 'friendly', con
   return `You are SyncBot, the CRM assistant for RealEstateFlow (tenant: ${tenantId}).
 
 YOUR JOB THIS TURN: Understand the user's latest message and either (1) call exactly ONE CRM tool function with correct parameters, or (2) reply in plain text with NO tool call.
-${domainBlock}
+
 RULES:
 - Greetings, thanks, small talk: plain text only. No tool. Keep it short and warm.
 - List/search/show/find/create/update/delete or any data question: call the best matching tool. Do not say you will check — call the function.
@@ -37,7 +59,7 @@ RULES:
 - Pipeline lead lists ("buyer leads", "qualified leads", "seller leads", "contacted leads", "buyer list", "tenant list", "sare tenants" without lease context) → ALWAYS search_leads with leadType and/or status filters. Never search_buyers/search_tenants for those — those tools are converted CRM records, not pipeline leads.
 - Converted records: "buyers dikhao" / "show buyers" (no lead/pipeline/status word) → search_buyers. "owners dikhao" → get_owners with query for name/phone. "tenants/customers" with lease/rental context → search_tenants.
 - Status/type/role filters go in parameters (status, leadType, priority, role), NOT in query. Example: "qualified buyer leads" → search_leads({ status: "qualified", leadType: "buyer" }). Leave query empty unless searching a name, phone, or area.
-- "Low/medium/high priority" on leads → search_leads with priority filter. "Who should I call" / hot leads / priority ranking → get_priority_leads (not search_leads).
+- "Low/medium/high priority" on leads → search_leads with priority filter. "Who should I call" / hot leads / priority ranking → get_work_queue with focus "priority_leads" (not search_leads).
 - "How many leads" / breakdown counts → get_leads_summary. Full rows → search_leads.
 - Removing records: there is no delete tool. Use archive_* (archive_lead, archive_property, archive_buyer, ...) — it is reversible, so you do not need to ask for confirmation first. If the user says "delete X", archive it and say it has been archived.
 - Money in tool args: integers in rupees (80 lakh → 8000000, 1.5 crore → 15000000).
@@ -45,9 +67,8 @@ RULES:
 
 ${style}
 
-${stateBlock}
-
-After a tool runs, the system formats lists and detail cards — you do not need to list rows in text when you call search_* or get_* detail tools.`;
+After a tool runs, the system formats lists and detail cards — you do not need to list rows in text when you call search_* or get_* detail tools.
+${domainBlock}${stateBlock}`;
 }
 
 function formatConversationStateForPlanner(conversationState) {

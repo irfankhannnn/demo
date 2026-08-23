@@ -91,7 +91,7 @@ export function routeDomainsFast(message) {
     return { domains: [], smalltalk: true, source: 'rules.smalltalk' };
   }
 
-  // Hot / priority lead ranking → analytics tools (get_priority_leads), not row search.
+  // Hot / priority lead ranking → analytics tools (get_work_queue), not row search.
   if (HOT_PRIORITY_LEADS_RE.test(lower)) {
     const domains = ['analytics'];
     if (mentionsLead) domains.push('leads');
