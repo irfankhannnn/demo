@@ -996,6 +996,9 @@ export const toolDefinitions = [
     name: 'get_crm_metrics',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks for CRM metrics, statistics, or a summary. Triggers: "metrics dikhao", "show metrics", "CRM summary", "how many leads", "pipeline stats", "statistics batao". Returns: total leads, leads by status, leads by type, total properties, total owners, total tenants, total buyers, total meetings, etc.',
       mcp: 'Get CRM metrics and statistics.',
@@ -1028,6 +1031,9 @@ export const toolDefinitions = [
     name: 'get_properties_summary',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks about property inventory counts. Triggers: "how many properties", "kitni properties hain", "inventory status", "available properties count", "properties summary". Returns total, available, on-hold, rented, sold, pending agreements/verifications, and by type. Prefer this over search_properties when the user only wants numbers.',
       mcp: 'Get a focused property inventory summary.',
@@ -1039,6 +1045,9 @@ export const toolDefinitions = [
     name: 'get_buyers_summary',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks about buyer demand counts. Triggers: "how many buyers", "kitne buyers hain", "buyers summary", "buyer demand". Returns total, active, high-priority count, average budget, and by-priority breakdown.',
       mcp: 'Get a focused buyer demand summary.',
@@ -1050,6 +1059,9 @@ export const toolDefinitions = [
     name: 'get_pipeline_summary',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks about the sales pipeline or funnel. Triggers: "pipeline", "funnel", "conversion rate", "pipeline status", "kitne convert hue". Returns stage counts (new/contacted/qualified/negotiating/converted/lost), active-in-pipeline, and conversion rate.',
       mcp: 'Get the sales pipeline funnel and conversion rate.',
@@ -1061,6 +1073,9 @@ export const toolDefinitions = [
     name: 'get_followup_summary',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks about pending follow-ups. Triggers: "follow-ups", "pending followups", "kise call karna hai", "overdue leads", "kitne followups pending". Returns overdue lead count, today/tomorrow meeting counts, and the top overdue leads with days since last contact.',
       mcp: 'Get pending follow-ups: overdue leads and upcoming meetings.',
@@ -1074,6 +1089,9 @@ export const toolDefinitions = [
     name: 'get_priority_leads',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks who to contact first or for hot leads. Triggers: "who should I call", "aaj kise call karu", "priority leads", "hot leads", "most important leads". Returns a ranked list of leads (ranked by budget, temperature, status, and days since contact), each with a human-readable reason (e.g. "high budget, qualified HOT, no contact in 6 days").',
       mcp: 'Get ranked priority leads (by budget, temperature, status, days since contact) with a reason for each.',
@@ -1087,6 +1105,9 @@ export const toolDefinitions = [
     name: 'get_recent_activity',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks what happened recently. Triggers: "recent activity", "kya naya hua", "yesterday activity", "this week summary", "what changed". Returns counts of new leads, new properties, completed meetings, and conversions over the last N days.',
       mcp: 'Get recent CRM activity over the last N days.',
@@ -1100,6 +1121,9 @@ export const toolDefinitions = [
     name: 'get_daily_brief',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this for a morning briefing or when the user greets you at the start of the day. Triggers: "good morning", "daily brief", "aaj ka plan", "todays snapshot", "brief me". Returns new leads today, meetings today, overdue follow-ups, pending agreements/verifications, and the top hot leads.',
       mcp: 'Get a daily briefing snapshot for the agent.',
@@ -1111,6 +1135,9 @@ export const toolDefinitions = [
     name: 'suggest_next_actions',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks what to do next. Triggers: "what should I do today", "kya karu aaj", "next actions", "what next", "suggest tasks". Returns a prioritised list of concrete actions (call X, attend meeting Y, progress agreement Z) each with a reason.',
       mcp: 'Suggest prioritised next actions for the agent.',
@@ -1124,6 +1151,9 @@ export const toolDefinitions = [
     name: 'get_business_health',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user asks how the business is doing. Triggers: "business health", "how are we doing", "business kaisa chal raha hai", "trends". Returns 7-day lead inflow vs previous 7 days (with trend), 30-day conversions, pending follow-ups, and alerts.',
       mcp: 'Get business health with week-over-week trends and alerts.',
@@ -1135,12 +1165,74 @@ export const toolDefinitions = [
     name: 'get_dashboard_snapshot',
     category: 'metrics',
     readOnly: true,
+    // Phase 3e: folded into get_crm_summary / get_work_queue /
+    // get_business_trends. Still callable -- only hidden from the planner.
+    deprecated: true,
     descriptions: {
       internal: 'Use this when the user wants a full overview of everything at once. Triggers: "dashboard", "overview", "full summary", "sab kuch dikhao", "complete status". Returns a combined snapshot: leads summary, properties summary, pipeline, follow-ups, and top priority leads. Use focused tools (get_leads_summary etc.) when the user asks about only one area.',
       mcp: 'Get a combined dashboard snapshot across leads, properties, pipeline, and follow-ups.',
     },
     handler: 'getDashboardSnapshot',
     parameters: [],
+  },
+
+  // ── Consolidated analytics (Phase 3e) ──────────────────────────────────────
+  // These three replace eleven near-synonymous tools in the planner's view.
+  // The originals remain callable but carry `deprecated: true`, so external
+  // clients and saved automations keep working while the planner stops having
+  // to choose between twelve overlapping descriptions.
+  {
+    name: 'get_crm_summary',
+    category: 'metrics',
+    readOnly: true,
+    descriptions: {
+      internal: 'Use this for ANY "how many / what are the numbers" question about the CRM. Triggers: "summary", "overview", "dashboard", "sab kuch dikhao", "metrics dikhao", "kitni properties hain", "kitne buyers", "pipeline", "funnel", "conversion rate", "full status". Pick scope: "all" for a full overview (default), "properties", "buyers", "pipeline", or "metrics" for raw counts. For a LEADS-only count use get_leads_summary instead — it renders a dedicated card.',
+      mcp: 'CRM counts and breakdowns. scope: all | metrics | properties | buyers | pipeline.',
+    },
+    handler: 'getCrmSummary',
+    parameters: [
+      {
+        name: 'scope',
+        type: 'string',
+        required: false,
+        enum: ['all', 'metrics', 'properties', 'buyers', 'pipeline'],
+        description: 'Which part of the CRM to summarise. Defaults to "all" (full overview).',
+      },
+    ],
+  },
+  {
+    name: 'get_work_queue',
+    category: 'metrics',
+    readOnly: true,
+    descriptions: {
+      internal: 'Use this for ANY "what should I do / who should I contact" question. Triggers: "good morning", "aaj ka plan", "daily brief", "what should I do today", "kya karu aaj", "next actions", "who should I call", "aaj kise call karu", "priority leads", "hot leads", "pending followups", "overdue leads", "kise call karna hai". Pick focus: "today" for the morning brief (default), "priority_leads", "followups", or "next_actions".',
+      mcp: 'What needs attention now. focus: today | priority_leads | followups | next_actions.',
+    },
+    handler: 'getWorkQueue',
+    parameters: [
+      {
+        name: 'focus',
+        type: 'string',
+        required: false,
+        enum: ['today', 'priority_leads', 'followups', 'next_actions'],
+        description: 'Which work view to return. Defaults to "today" (morning brief).',
+      },
+      { name: 'limit', type: 'integer', required: false, description: 'Max items for priority_leads / next_actions.' },
+      { name: 'staleDays', type: 'integer', required: false, description: 'Days without contact before a lead counts as overdue (followups).' },
+    ],
+  },
+  {
+    name: 'get_business_trends',
+    category: 'metrics',
+    readOnly: true,
+    descriptions: {
+      internal: 'Use this when the user asks how the business is TRENDING or what changed recently. Triggers: "business kaisa chal raha hai", "how are we doing", "business health", "trends", "recent activity", "kya naya hua", "this week summary", "what changed". Returns week-on-week lead inflow, conversion rate, and recent activity counts together.',
+      mcp: 'Business trends: week-on-week inflow, conversion rate, and recent activity.',
+    },
+    handler: 'getBusinessTrends',
+    parameters: [
+      { name: 'days', type: 'integer', required: false, description: 'Look-back window for recent activity. Defaults to 7.' },
+    ],
   },
 ];
 
@@ -1518,10 +1610,26 @@ for (const tool of toolDefinitions) {
 }
 
 /** domain id → array of tool names. */
+/**
+ * Tools the PLANNER may choose from, per domain.
+ *
+ * Deprecated tools are excluded here but remain in `ALLOWED_TOOL_NAMES`, so
+ * they stay callable by anything that already names them — MCP clients, saved
+ * automations, the approval executor — while the planner stops having to pick
+ * between near-synonyms. Phase 3e folded eleven analytics tools into three
+ * this way, taking the analytics domain from 12 choices to 4.
+ *
+ * Hiding rather than deleting is what makes the consolidation non-breaking.
+ */
 export const TOOL_NAMES_BY_DOMAIN = DOMAINS.reduce((acc, domain) => {
-  acc[domain] = toolDefinitions.filter((t) => t.domain === domain).map((t) => t.name);
+  acc[domain] = toolDefinitions
+    .filter((t) => t.domain === domain && !t.deprecated)
+    .map((t) => t.name);
   return acc;
 }, {});
+
+/** Tools kept callable for compatibility but hidden from the planner. */
+export const DEPRECATED_TOOL_NAMES = toolDefinitions.filter((t) => t.deprecated).map((t) => t.name);
 
 /**
  * Return the tool names available for one or more domains.

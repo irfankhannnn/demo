@@ -7,7 +7,7 @@
  *
  * Any edit here is lost on the next build. Change the canonical registry
  * instead — that is what makes the WhatsApp agent, the CRM backend and this
- * MCP service expose the same 68 tools.
+ * MCP service expose the same 71 tools.
  *
  * The interfaces, the MCP schema conversion and the OAuth scope mapping are
  * NOT generated; they live in ./toolDefinitions.ts, which imports this file.
@@ -15,7 +15,7 @@
 
 import type { ToolDefinition } from './toolDefinitions';
 
-/** 68 CRM tools, generated from the canonical registry. */
+/** 71 CRM tools, generated from the canonical registry. */
 export const generatedToolDefinitions: ToolDefinition[] = [
   {
     name: "create_lead",
@@ -2515,6 +2515,85 @@ export const generatedToolDefinitions: ToolDefinition[] = [
     handler: "getDashboardSnapshot",
     parameters: [
 
+    ],
+  },
+  {
+    name: "get_crm_summary",
+    category: "metrics",
+    readOnly: true,
+    descriptions: {
+      internal: "Use this for ANY \"how many / what are the numbers\" question about the CRM. Triggers: \"summary\", \"overview\", \"dashboard\", \"sab kuch dikhao\", \"metrics dikhao\", \"kitni properties hain\", \"kitne buyers\", \"pipeline\", \"funnel\", \"conversion rate\", \"full status\". Pick scope: \"all\" for a full overview (default), \"properties\", \"buyers\", \"pipeline\", or \"metrics\" for raw counts. For a LEADS-only count use get_leads_summary instead — it renders a dedicated card.",
+      mcp: "CRM counts and breakdowns. scope: all | metrics | properties | buyers | pipeline.",
+    },
+    handler: "getCrmSummary",
+    parameters: [
+      {
+        "name": "scope",
+        "type": "string",
+        "required": false,
+        "description": "Which part of the CRM to summarise. Defaults to \"all\" (full overview).",
+        "enum": [
+          "all",
+          "metrics",
+          "properties",
+          "buyers",
+          "pipeline"
+        ]
+      }
+    ],
+  },
+  {
+    name: "get_work_queue",
+    category: "metrics",
+    readOnly: true,
+    descriptions: {
+      internal: "Use this for ANY \"what should I do / who should I contact\" question. Triggers: \"good morning\", \"aaj ka plan\", \"daily brief\", \"what should I do today\", \"kya karu aaj\", \"next actions\", \"who should I call\", \"aaj kise call karu\", \"priority leads\", \"hot leads\", \"pending followups\", \"overdue leads\", \"kise call karna hai\". Pick focus: \"today\" for the morning brief (default), \"priority_leads\", \"followups\", or \"next_actions\".",
+      mcp: "What needs attention now. focus: today | priority_leads | followups | next_actions.",
+    },
+    handler: "getWorkQueue",
+    parameters: [
+      {
+        "name": "focus",
+        "type": "string",
+        "required": false,
+        "description": "Which work view to return. Defaults to \"today\" (morning brief).",
+        "enum": [
+          "today",
+          "priority_leads",
+          "followups",
+          "next_actions"
+        ]
+      },
+      {
+        "name": "limit",
+        "type": "integer",
+        "required": false,
+        "description": "Max items for priority_leads / next_actions."
+      },
+      {
+        "name": "staleDays",
+        "type": "integer",
+        "required": false,
+        "description": "Days without contact before a lead counts as overdue (followups)."
+      }
+    ],
+  },
+  {
+    name: "get_business_trends",
+    category: "metrics",
+    readOnly: true,
+    descriptions: {
+      internal: "Use this when the user asks how the business is TRENDING or what changed recently. Triggers: \"business kaisa chal raha hai\", \"how are we doing\", \"business health\", \"trends\", \"recent activity\", \"kya naya hua\", \"this week summary\", \"what changed\". Returns week-on-week lead inflow, conversion rate, and recent activity counts together.",
+      mcp: "Business trends: week-on-week inflow, conversion rate, and recent activity.",
+    },
+    handler: "getBusinessTrends",
+    parameters: [
+      {
+        "name": "days",
+        "type": "integer",
+        "required": false,
+        "description": "Look-back window for recent activity. Defaults to 7."
+      }
     ],
   },
 ];

@@ -7537,6 +7537,95 @@ export async function getDashboardSnapshot(tenantId) {
   };
 }
 
+// ─── Consolidated analytics tools (Phase 3e) ─────────────────────────────────
+//
+// The analytics domain had twelve tools with heavily overlapping triggers
+// ("summary", "overview", "dashboard", "how are we doing", "what should I do"),
+// and the router hands the planner the whole domain at once. Twelve
+// near-synonyms is a tool-choice problem, not a capability: the model has to
+// guess which one the user meant, and different guesses return different
+// shapes for the same question.
+//
+// These three fold eleven of them behind explicit enum parameters, so the
+// planner picks a tool and then states an intent, rather than picking between
+// twelve descriptions. `get_leads_summary` is deliberately NOT folded in — it
+// is the one with a bespoke formatter card (`summary_leads_card`), and routing
+// it through here would silently downgrade "kitni leads hain" to generic LLM
+// prose.
+//
+// The originals stay callable (they are marked `deprecated` so the planner
+// stops seeing them, but remain in ALLOWED_TOOL_NAMES). Nothing that already
+// calls them — MCP clients, saved automations — breaks.
+
+/** Which scopes `get_crm_summary` understands, and what each dispatches to. */
+const CRM_SUMMARY_SCOPES = {
+  all: (tenantId) => getDashboardSnapshot(tenantId),
+  overview: (tenantId) => getDashboardSnapshot(tenantId),
+  metrics: (tenantId) => getCRMMetrics(tenantId),
+  leads: (tenantId, opts) => getLeadsSummary(tenantId, opts),
+  properties: (tenantId, opts) => getPropertiesSummary(tenantId, opts),
+  buyers: (tenantId, opts) => getBuyersSummary(tenantId, opts),
+  pipeline: (tenantId) => getPipelineSummary(tenantId),
+};
+
+/**
+ * Counts and breakdowns across the CRM.
+ * @param {string} tenantId
+ * @param {{scope?: string, leadType?: string}} [opts]
+ */
+export async function getCrmSummary(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const requested = String(opts?.scope || 'all').toLowerCase();
+  const run = CRM_SUMMARY_SCOPES[requested];
+  if (!run) {
+    // Fall back to the broadest view rather than erroring: the user asked a
+    // real question and the widest answer contains the narrow one.
+    return { scope: 'all', data: await getDashboardSnapshot(tenantId) };
+  }
+  return { scope: requested, data: await run(tenantId, opts) };
+}
+
+/** Which focuses `get_work_queue` understands. */
+const WORK_QUEUE_FOCUSES = {
+  today: (tenantId) => getDailyBrief(tenantId),
+  brief: (tenantId) => getDailyBrief(tenantId),
+  priority_leads: (tenantId, opts) => getPriorityLeads(tenantId, opts),
+  followups: (tenantId, opts) => getFollowupSummary(tenantId, opts),
+  next_actions: (tenantId, opts) => suggestNextActions(tenantId, opts),
+};
+
+/**
+ * "What should I be doing?" — the action-oriented half of analytics.
+ * @param {string} tenantId
+ * @param {{focus?: string, limit?: number, staleDays?: number}} [opts]
+ */
+export async function getWorkQueue(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const requested = String(opts?.focus || 'today').toLowerCase();
+  const run = WORK_QUEUE_FOCUSES[requested];
+  if (!run) return { focus: 'today', data: await getDailyBrief(tenantId) };
+  return { focus: requested, data: await run(tenantId, opts) };
+}
+
+/**
+ * "How are we doing?" — trends and what changed recently.
+ *
+ * Returns both halves rather than making the caller choose: the two former
+ * tools answered the same question at different resolutions, and a trend
+ * without the underlying activity is hard to act on.
+ *
+ * @param {string} tenantId
+ * @param {{days?: number}} [opts]
+ */
+export async function getBusinessTrends(tenantId, opts = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+  const [health, activity] = await Promise.all([
+    getBusinessHealth(tenantId).catch(() => null),
+    getRecentActivity(tenantId, opts).catch(() => null),
+  ]);
+  return { health, recentActivity: activity };
+}
+
 export { docClient, CRM_TABLE_NAME };
 
 export default docClient;
