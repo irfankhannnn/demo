@@ -119,9 +119,11 @@ Phase 1 implementation is essentially complete, sliced into smaller, independent
 
 See [`phase1-imp/README.md`](./phase1-imp/README.md) for the full breakdown and reasoning.
 
-**Launch readiness.** Three audit passes (frontend/responsive, call-recording pipeline, backend security) plus two follow-up passes are recorded in [`launch-readiness/01-audit-findings.md`](./launch-readiness/01-audit-findings.md). **614 tests passing**; `vite build` passes. Everything scoped for launch is code-complete — what is left is deployment and a run against the real model and real AWS, both of which are user-owned.
+**Launch readiness.** Three audit passes (frontend/responsive, call-recording pipeline, backend security) plus two follow-up passes are recorded in [`launch-readiness/01-audit-findings.md`](./launch-readiness/01-audit-findings.md). **717 server tests passing**, plus 35 in `ai-calling-service`; `vite build` passes. Everything scoped for launch is code-complete — what is left is deployment and a run against the real model and real AWS, both of which are user-owned.
 
-**Still unstarted**, and none of it gates launch: Phase 3e/3f, Phase 4 (channel-aware compose), Phase 5/5b/5c (web chat, background flows, voice classifier), Phase R (retrieval — R0 blocked on an SDK bump), and the *generation* half of Phase 6 (detection shipped; generation deferred for want of a TypeScript toolchain). Phase 3c is blocked on Slice 6's real eval data.
+**Now also complete:** Phase 3e (analytics consolidation), 3f (prompt prefix), 4 (channel-aware compose), 5 (in-CRM web chat), 5b (background-flow hardening), 5c (Hinglish voice intents), and the generation half of Phase 6 (MCP drift closed, 46/66 → 71/71). Phase R0's SDK blocker is lifted — `SearchVectorsCommand` is available — so R1 onward is unblocked.
+
+**Still open:** Phase 3c (blocked on Slice 6's real eval data), Phase R1–R6 (needs a non-prod spike against real AWS), and token-by-token streaming of the web chat reply (needs a streaming-capable entry point; see [`phase4-5-imp/`](./phase4-5-imp/)).
 
 ## Relationship to existing docs
 
