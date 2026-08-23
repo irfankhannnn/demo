@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import * as crmApi from './crmApiService.js';
 import * as ragService from './ragService.js';
 import * as responseNormalizer from '../utils/responseNormalizer.js';
+import { withHinglishPatterns } from './hinglishIntentPatterns.js';
 
 /**
  * Detect intent from transcript text
@@ -102,8 +103,13 @@ export async function classifyIntent(transcript, context = {}) {
     },
   ];
   
+  // Phase 5c: append Hinglish patterns per intent. Relative priority between
+  // intents is untouched, so a transcript that classified correctly in English
+  // still takes exactly the same branch.
+  const allPatterns = withHinglishPatterns(intentPatterns);
+
   // Check each pattern
-  for (const { intent, patterns, confidence } of intentPatterns) {
+  for (const { intent, patterns, confidence } of allPatterns) {
     for (const pattern of patterns) {
       if (pattern.test(lowerTranscript)) {
         const entities = extractEntities(transcript);
