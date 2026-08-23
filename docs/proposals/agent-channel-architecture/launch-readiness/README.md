@@ -2,7 +2,12 @@
 
 **Scope defined by the founder:** leads, owners, properties, tenants, buyers, sellers, khatabook, meetings, the complete WhatsApp AI flow, the Instagram/ManyChat flow, and S3 upload → analyze → update CRM. **Payment is explicitly on hold.**
 
-**Assessed:** 2026-08-22, branch `auth_rbac_feature`. Test suite **589/589 green**.
+**Assessed:** 2026-08-22, branch `auth_rbac_feature`. Test suite **724/724 green** (589 at first assessment).
+
+**Companion documents:**
+- [`01-audit-findings.md`](./01-audit-findings.md) — every bug found and fixed across five audit passes
+- [`02-credit-refund.md`](./02-credit-refund.md) — the credit-refund leak and the refund policy chosen
+- [`03-decisions-and-open-items.md`](./03-decisions-and-open-items.md) — **product decisions taken, and what is still waiting on a person**
 
 ---
 

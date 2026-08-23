@@ -16,7 +16,7 @@
  * 60+ — which is what makes tool selection accurate and cheap.
  */
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { getBalance, deductCredits } from '../creditService.js';
+import { getBalance, deductCredits, refundCredits } from '../creditService.js';
 import { invokeSkill, enrichContextWithLead } from '../skillInvoker.js';
 import {
   SUMMARY_INSIGHT_TOOLS,
@@ -69,6 +69,53 @@ const LOCAL_DEV_BYPASS = process.env.NODE_ENV === 'development' || process.env.A
  */
 function isToolLoopEnabled() {
   return process.env.AGENT_TOOL_LOOP_ENABLED === 'true';
+}
+
+/**
+ * Return the turn's credits when it failed without doing anything.
+ *
+ * `invokeAgent` deducts AGENT_ACTION_CREDITS *before* running the pipeline, so
+ * any exception after that point — a Gemini timeout, a DynamoDB throttle, a
+ * malformed model response, a Lambda timeout mid-turn — left the customer
+ * charged for an apology. `refundCredits` already existed for exactly this
+ * (its default reason is `handler_failure`, and routes/leads.js has used it
+ * this way all along); the agent path simply never called it.
+ *
+ * REFUND POLICY (deliberately narrow):
+ * Only refund when **no CRM write landed**. A turn can fail after a tool has
+ * already succeeded — "create a lead for Rahul" creates the lead, then compose
+ * throws. The customer got what they asked for; refunding as well would pay
+ * them for work that was done. The complaint being fixed is "you charged me
+ * and did nothing", not "you charged me and it half-worked".
+ *
+ * `context.turnToolResults` is the live array runConversationalPipeline
+ * appends to, so it reflects what actually ran before the throw. If the
+ * failure happened before the pipeline set it (config load, history fetch),
+ * it is absent — and absent means nothing ran, so refund.
+ *
+ * Best-effort: a failed refund is logged and swallowed. It must never replace
+ * the user-facing error with a second one.
+ */
+async function refundOnFailedTurn(tenantId, agentId, context, cause) {
+  if (LOCAL_DEV_BYPASS) return; // nothing was deducted in the first place
+  try {
+    const ran = Array.isArray(context?.turnToolResults) ? context.turnToolResults : [];
+    const wrote = ran.some((entry) => entry?.result?.ok);
+    if (wrote) {
+      logger.info('agent.invoke.refund_skipped', {
+        tenantId, agentId, reason: 'crm_write_landed', tools: ran.length,
+      });
+      return;
+    }
+    await refundCredits(tenantId, AGENT_ACTION_CREDITS, 'agent_action', {
+      reason: `turn_failed: ${String(cause?.message || 'unknown').slice(0, 120)}`,
+    });
+    logger.info('agent.invoke.refunded', { tenantId, agentId, amount: AGENT_ACTION_CREDITS });
+  } catch (refundErr) {
+    logger.error('agent.invoke.refund_failed', {
+      tenantId, agentId, amount: AGENT_ACTION_CREDITS, error: refundErr.message,
+    });
+  }
 }
 
 /**
@@ -346,7 +393,11 @@ async function runConversationalPipeline(tenantId, agentId, prompt, context, con
     source: plan.source || (smalltalk ? 'router' : 'planner'),
   });
 
+  // Shared with invokeAgent's catch block via `context.turnToolResults` so a
+  // failure part-way through the turn can still tell whether a CRM write
+  // landed. Without that, the refund decision below would have to guess.
   const toolResults = [];
+  context.turnToolResults = toolResults;
   let result = null;
   let decision = null;
   let instruction = null;
@@ -676,6 +727,7 @@ export async function invokeAgent(tenantId, agentId, prompt, context = {}) {
   } catch (err) {
     logger.error('agent.invoke.failed', { tenantId, agentId, error: err.message, stack: err.stack });
     try { await metrics.agentActionFailed(tenantId, agentId); } catch (_) {}
+    await refundOnFailedTurn(tenantId, agentId, context, err);
     await logAgentAction(tenantId, agentId, 'invoke', { prompt: String(prompt).slice(0, 200) }, { error: err.message }, AGENT_ACTION_CREDITS);
     // Graceful user-facing fallback for the conversational path.
     if (CONVERSATIONAL_AGENTS.has(agentId)) {

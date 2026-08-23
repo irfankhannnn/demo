@@ -48,9 +48,11 @@ jest.unstable_mockModule('../agencyConfigService.js', () => ({
 jest.unstable_mockModule('../whatsappConversationService.js', () => ({
   getConversationContext: jest.fn().mockResolvedValue([]),
 }));
+const refundCredits = jest.fn();
 jest.unstable_mockModule('../creditService.js', () => ({
   getBalance: jest.fn().mockResolvedValue(1000),
   deductCredits: jest.fn().mockResolvedValue(true),
+  refundCredits,
 }));
 jest.unstable_mockModule('../aiEmployeeProvisioningService.js', () => ({
   getProvisioningByTenant: jest.fn().mockResolvedValue({ status: 'live' }),
@@ -82,6 +84,7 @@ beforeEach(() => {
   invokeSkill.mockResolvedValue({ ok: true, data: { leads: [], total: 0 } });
   delete process.env.AGENT_TOOL_LOOP_ENABLED;
   delete process.env.WHATSAPP_FALLBACK_CATEGORY;
+  refundCredits.mockResolvedValue(true);
 });
 
 describe('runConversationalPipeline — single-shot planner path', () => {
