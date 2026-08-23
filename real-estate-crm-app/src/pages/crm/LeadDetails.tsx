@@ -115,8 +115,6 @@ export default function LeadDetails() {
   const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
   const [ownerSearchResults, setOwnerSearchResults] = useState<any[]>([]);
   const [ownerSearchLoading, setOwnerSearchLoading] = useState(false);
-  const [ownerLookupPhone, setOwnerLookupPhone] = useState('');
-  const [ownerLookupError, setOwnerLookupError] = useState<string | null>(null);
   const [buyerDirectSearchQuery, setBuyerDirectSearchQuery] = useState('');
   const [tenantDirectSearchQuery, setTenantDirectSearchQuery] = useState('');
 
@@ -246,8 +244,6 @@ export default function LeadDetails() {
 
     // Reset owner + property selection when opening the tenant conversion modal
     setTenantDirectSearchQuery('');
-    setOwnerLookupPhone(lead.phone || '');
-    setOwnerLookupError(null);
     setSelectedOwner(null);
     setOwnerProperties([]);
     setSelectedPropertyId('');
@@ -393,7 +389,6 @@ export default function LeadDetails() {
     setSelectedOwner(null);
     setOwnerProperties([]);
     setSelectedPropertyId('');
-    setOwnerLookupError(null);
     setOwnerSearchQuery('');
     setOwnerSearchResults([]);
   };
@@ -437,6 +432,13 @@ export default function LeadDetails() {
         }
       }
 
+      // The snapshot fallback above already throws when it cannot produce a
+      // named lead, but TypeScript cannot narrow across the try/catch. The
+      // guard is not just for the compiler: on the happy path a null response
+      // would previously have been stored as lead state and blown up later,
+      // further from the cause.
+      if (!leadData) throw new Error('Lead not found');
+
       setLead(leadData);
       setNotes(notesData);
       await loadMeetings(
@@ -473,7 +475,17 @@ export default function LeadDetails() {
       const payload = buildLeadSavePayload(lead);
 
       if (isNew) {
-        const created = await api.createLead(payload);
+        // buildLeadSavePayload returns a dynamic record — the requirement
+        // object is attached under a key chosen from the lead type at runtime,
+        // so it cannot be given a precise static shape without fighting it.
+        // leadType and name are restated here because createLead requires
+        // them; handleSave's guard above has already proven both are set, and
+        // naming them makes that dependency visible rather than asserted away.
+        const created = await api.createLead({
+          ...payload,
+          leadType: lead.leadType,
+          name: lead.name,
+        });
         if (draftActivityNote.trim()) {
           try {
             await api.createLeadNote(created.leadId, { content: draftActivityNote });

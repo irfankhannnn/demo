@@ -290,7 +290,9 @@ export default function PropertyDetails() {
           ownerId,
           name: propertyData.ownerName || snapshot?.name || 'Current owner',
           phone: propertyData.ownerPhone || snapshot?.phone || '',
-          email: snapshot?.email || '',
+          // ownerSnapshot carries only { name, phone, contactId } — the
+          // backend never writes an email onto it, so this was always ''.
+          email: '',
           status: 'inactive',
           address: '',
           createdAt: propertyData.updatedAt || propertyData.createdAt || '',
@@ -302,10 +304,12 @@ export default function PropertyDetails() {
 
   const loadCustomers = async () => {
     try {
-      const data = await api.getCustomers();
-      // Backend returns { customers, total, limit, offset }
-      const customerList = Array.isArray(data) ? data : (data.customers || []);
-      setCustomers(customerList);
+      // getCustomers() goes through fetchAllPaginated, which already unwraps
+      // the { customers, total, limit, offset } envelope and follows every
+      // page — so this is a flat array. The old `Array.isArray(data) ? data :
+      // data.customers` guard predated that and its else-branch was
+      // unreachable, which is what tsc was reporting as `type 'never'`.
+      setCustomers(await api.getCustomers());
     } catch (error) {
       console.error('Error loading customers:', error);
     }

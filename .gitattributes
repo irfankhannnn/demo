@@ -1,0 +1,39 @@
+# Normalize line endings in the repository to LF.
+#
+# The repo is LF throughout, but `core.autocrlf` is `false` on at least one
+# developer machine, so a tool that rewrites a whole file on Windows (Python's
+# default text-mode write translates \n to \r\n) silently converts it to CRLF.
+# Git then reports every line of that file as changed, which turns a six-line
+# fix into a four-thousand-line diff and makes review impossible.
+#
+# `text=auto eol=lf` makes git store LF regardless of what a tool wrote, so the
+# damage cannot reach a commit even if it happens in the working tree.
+* text=auto eol=lf
+
+# Binary assets must never be touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.svg text eol=lf
+*.pdf binary
+*.mp3 binary
+*.mp4 binary
+*.mov binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.zip binary
+*.jar binary
+*.keystore binary
+
+# Lockfiles are generated; keep them LF and out of diff review noise.
+package-lock.json text eol=lf linguist-generated=true
+
+# Windows-native scripts genuinely need CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

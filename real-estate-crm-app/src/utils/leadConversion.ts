@@ -53,7 +53,7 @@ export function getConvertedEntityPath(
 
 /** True when conversion destination metadata is present (successful convert / history row). */
 export function hasLeadConversionTarget(
-  lead: Pick<CRMLead, 'convertedTo'> | null | undefined
+  lead: Partial<Pick<CRMLead, 'convertedTo'>> | null | undefined
 ): boolean {
   const convertedTo = lead?.convertedTo;
   return !!(convertedTo && (convertedTo.entityId || convertedTo.contactId));
@@ -64,8 +64,14 @@ export function hasLeadConversionTarget(
  * After atomic conversion, active leads are deleted; residual legacy rows
  * and conversion-history projections may still carry convertedTo.
  */
+/**
+ * Widened to Partial<CRMLead>: every field this reads is accessed optionally,
+ * and callers hold a partially-loaded lead (LeadDetails' state is
+ * Partial<CRMLead> while a record loads). Requiring an exact Pick forced those
+ * callers to cast, which is worse than accepting the partial honestly.
+ */
 export function isLeadConverted(
-  lead: Pick<CRMLead, 'convertedAt' | 'convertedTo' | 'status' | 'archivedFromSnapshot'> | null | undefined
+  lead: Partial<Pick<CRMLead, 'convertedAt' | 'convertedTo' | 'status' | 'archivedFromSnapshot'>> | null | undefined
 ): boolean {
   if (!lead) return false;
   if (lead.archivedFromSnapshot) return true;

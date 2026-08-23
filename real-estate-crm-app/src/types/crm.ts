@@ -189,6 +189,13 @@ export interface CRMProperty {
   ownerContactId?: string | null;
   previousOwnerContactId?: string | null;
   previousOwnerId?: string | null;
+  /**
+   * Denormalized owner name/phone written by createProperty for display.
+   * Legacy but genuinely persisted, and PropertyDetails falls back to them
+   * before ownerSnapshot — they were simply never declared here.
+   */
+  ownerName?: string | null;
+  ownerPhone?: string | null;
   owner?: CRMOwner | null;
   tenantCustomerId?: string;
   tenant?: CRMCustomer;
@@ -259,7 +266,10 @@ export interface CRMProperty {
   featured: boolean;
   verified: boolean;
   views: number;
-  ownerSnapshot?: { name?: string | null; phone?: string | null } | null;
+  // Matches what createProperty writes. There is deliberately no `email`
+  // here: the backend never populates one, so typing it in would let callers
+  // read a field that is always undefined.
+  ownerSnapshot?: { name?: string | null; phone?: string | null; contactId?: string | null } | null;
   convertedFromLeadId?: string;
   createdAt: string;
   updatedAt: string;
@@ -674,14 +684,13 @@ export interface CRMContact {
   // Timestamps
   createdAt: string;
   updatedAt: string;
-  lastActivityAt?: string;
-  lastActivityTitle?: string;
-  lastActivityType?: string;
   // Helper flags
   wasExisting?: boolean;
   isLegacyOwner?: boolean;
   isLegacyCustomer?: boolean;
-  // Activity summary (denormalized from timeline)
+  // Activity summary (denormalized from timeline). Declared once — this block
+  // was duplicated verbatim above the helper flags, which TypeScript reports
+  // as TS2300 on all three fields.
   lastActivityAt?: string;
   lastActivityTitle?: string;
   lastActivityType?: string;

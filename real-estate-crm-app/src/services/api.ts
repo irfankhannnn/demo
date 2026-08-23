@@ -11,7 +11,7 @@ import type {
   TenantRequirement,
   OwnerProperty,
 } from '../types/crm';
-import type { ConversationSummary } from '../types/whatsapp';
+import type { ConversationSummary, WhatsAppConversation } from '../types/whatsapp';
 import type { UploadUrlResponse } from '../types/callIntelligence';
 import { setTokens, type AuthTokens } from '../utils/authStorage';
 import { refreshTokens } from '../utils/cognitoAuth';
@@ -2489,6 +2489,67 @@ class ApiService {
       headers: this.getHeaders(),
     };
     const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations`, init);
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * One conversation's message history.
+   *
+   * WhatsAppInbox.tsx called this, `markWhatsAppConversationRead` and
+   * `sendWhatsAppMessage` before any of them existed on this class — opening a
+   * conversation threw `TypeError: api.getWhatsAppConversation is not a
+   * function`, so the Inbox page could not display or send anything. The three
+   * backend routes were already implemented and mounted; only the client
+   * methods were missing, and `tsc` had been reporting it all along among the
+   * pre-existing errors.
+   */
+  async getWhatsAppConversation(
+    phone: string,
+    opts: { limit?: number; startKey?: string } = {},
+  ): Promise<WhatsAppConversation> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.startKey) params.set('startKey', opts.startKey);
+    const query = params.toString() ? `?${params.toString()}` : '';
+
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}${query}`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  /** Clear the unread badge for one contact. Best-effort — the caller ignores failures. */
+  async markWhatsAppConversationRead(phone: string): Promise<{ ok?: boolean; unreadCount?: number }> {
+    const init = {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}/read`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * Send a message as the agency's connected number.
+   *
+   * The backend rejects this with 400 when Baileys is not enabled or the
+   * tenant has no connected number, which surfaces to the user as the toast
+   * in WhatsAppInbox's catch block.
+   */
+  async sendWhatsAppMessage(phone: string, text: string): Promise<{ messageId?: string; status?: string }> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ text }),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}/messages`,
+      init,
+    );
     return this.handleResponse(response, init);
   }
 

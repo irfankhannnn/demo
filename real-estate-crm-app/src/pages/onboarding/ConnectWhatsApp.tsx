@@ -4,14 +4,8 @@ import { MessageCircle, SkipForward, CheckCircle, Lock, LogOut, RefreshCw } from
 import { api } from '../../services/api';
 import { getIdToken } from '../../utils/authStorage';
 import {
-  CONNECTED_PHONE_KEY,
-  normalizeWhatsAppPhone,
-  formatWhatsAppPhone,
   validateWhatsAppPhone,
   isStorageUnreliable,
-  safeLocalStorageGet,
-  safeLocalStorageSet,
-  safeLocalStorageRemove,
   fetchConnectionStatus,
   saveConnectedPhone as apiSaveConnectedPhone,
   clearConnectedPhone as apiClearConnectedPhone,
