@@ -8,6 +8,7 @@
 - [`01-audit-findings.md`](./01-audit-findings.md) — every bug found and fixed across five audit passes
 - [`02-credit-refund.md`](./02-credit-refund.md) — the credit-refund leak and the refund policy chosen
 - [`03-decisions-and-open-items.md`](./03-decisions-and-open-items.md) — **product decisions taken, and what is still waiting on a person**
+- [`04-backend-deployment-runbook.md`](./04-backend-deployment-runbook.md) — **every CloudFormation template, deploy order, and the six things that block a first deploy today**
 
 ---
 

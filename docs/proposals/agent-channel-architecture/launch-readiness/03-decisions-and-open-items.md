@@ -80,6 +80,8 @@ Options: a Lambda Function URL with `awslambda.streamifyResponse` for `/api/crm/
 ### O6. Deploy, and run against reality
 Nothing here is deployed and nothing has run against the real Gemini model or real AWS. Two GSIs (`connectedWhatsAppPhone-index`, `instagramWebhookToken-index`) must report `ACTIVE` **and** `Backfilling: false` before the code that queries them runs.
 
+**Full runbook: [`04-backend-deployment-runbook.md`](./04-backend-deployment-runbook.md)** — the template inventory, the deploy order, and the six blockers found when the templates were checked against the live account. Both GSIs land in one shot because `AgencyConfigTable` is being created, not updated.
+
 ---
 
 ## Deliberately not doing
