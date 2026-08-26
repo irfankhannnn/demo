@@ -30,6 +30,7 @@ import { CRMMetrics } from '../../types/crm';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
+import WorkspaceSwitch from '../../components/ai/WorkspaceSwitch';
 import { getUserProfile, clearAuthSilently, getIdToken } from '../../utils/authStorage';
 import { resetAnalytics } from '../../lib/analytics';
 import { redirectToLogout } from '../../utils/cognitoAuth';
@@ -219,6 +220,7 @@ export default function CRMDashboard() {
       <header className="glass-premium border-b border-white/30 sticky top-0 z-20 transition-shadow duration-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
+
             {/* Left: Logo and Title */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <Link
@@ -298,6 +300,16 @@ export default function CRMDashboard() {
                 <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
+          </div>
+
+          {/*
+            Assistant ↔ CRM switch. Its own centred row, at every width: this
+            header's action cluster (date, bell, Members, Analytics, Profile,
+            Logout) runs far enough left that an absolutely-centred element
+            lands on top of it even on a wide desktop.
+          */}
+          <div className="mt-3 flex justify-center">
+            <WorkspaceSwitch />
           </div>
         </div>
       </header>

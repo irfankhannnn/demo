@@ -9,9 +9,11 @@ import CallRecordingReviewDrawer from '../../components/CallRecordingReviewDrawe
 import type { CallRecordingDetail, CallRecordingSummary, CallRecordingStatus } from '../../types/callIntelligence';
 import { IN_FLIGHT_STATUSES, STATUS_LABELS } from '../../types/callIntelligence';
 
-/** Mirrors ALLOWED_AUDIO_MIME_TYPES on the server. */
-const ACCEPTED_EXTENSIONS = '.mp3,.m4a,.wav,.aac,.ogg,.opus,.amr,.webm,.flac,.mp4';
-const MAX_UPLOAD_MB = 200;
+import {
+  ACCEPTED_AUDIO_EXTENSIONS as ACCEPTED_EXTENSIONS,
+  MAX_AUDIO_UPLOAD_MB as MAX_UPLOAD_MB,
+  resolveAudioContentType as resolveContentType,
+} from '../../utils/audioUpload';
 
 interface UploadItem {
   id: string;
@@ -19,38 +21,6 @@ interface UploadItem {
   progress: number;
   status: 'uploading' | 'processing' | 'done' | 'error';
   error?: string;
-}
-
-/** Must stay in sync with ALLOWED_AUDIO_MIME_TYPES on the server. */
-const ALLOWED_CONTENT_TYPES = [
-  'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac',
-  'audio/wav', 'audio/x-wav', 'audio/wave', 'audio/webm', 'audio/ogg', 'audio/opus',
-  'audio/flac', 'audio/amr', 'video/mp4',
-];
-
-const CONTENT_TYPE_BY_EXTENSION: Record<string, string> = {
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  mp4: 'audio/mp4',
-  wav: 'audio/wav',
-  aac: 'audio/aac',
-  ogg: 'audio/ogg',
-  opus: 'audio/opus',
-  amr: 'audio/amr',
-  webm: 'audio/webm',
-  flac: 'audio/flac',
-};
-
-/**
- * Browsers report no MIME type for some recorder formats (.amr, .opus) and an
- * unsupported one for others (.amr as audio/3gpp), so the extension decides
- * whenever the reported type is not one the API accepts.
- */
-function resolveContentType(file: File): string {
-  const reported = (file.type || '').toLowerCase();
-  if (ALLOWED_CONTENT_TYPES.includes(reported)) return reported;
-  const extension = file.name.toLowerCase().split('.').pop() || '';
-  return CONTENT_TYPE_BY_EXTENSION[extension] || 'audio/mpeg';
 }
 
 function statusStyle(status: CallRecordingStatus): string {

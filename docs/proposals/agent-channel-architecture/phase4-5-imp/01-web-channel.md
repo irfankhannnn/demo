@@ -101,6 +101,10 @@ The fix is one moved block. The lesson is the test that now exists: `agentRuntim
 - `vite build` passes; `tsc --noEmit` reports nothing new in the added files.
 - CFN parses: 115 parameters, 93 resources.
 
+## Follow-up shipped
+
+The assistant now also exists as a **full page** at `/crm/assistant`, with an Assistant/CRM switch, conversation threads, a `+` menu of CRM flows and quick-action chips. See [`02-assistant-page.md`](./02-assistant-page.md). The floating launcher and side sheet described above are unchanged.
+
 ## Not done
 
 - **Token-by-token streaming of the composed reply.** The events stream, but compose is a single `generateContent` call, so the reply arrives whole. `generateContentStream` plus a `token` event is the natural follow-up, and needs the real streaming entry point above to be worth anything.

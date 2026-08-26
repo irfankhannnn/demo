@@ -83,6 +83,7 @@ import GrievanceList from './pages/admin/GrievanceList';
 
 // CRM Pages
 import CRMDashboard from './pages/crm/CRMDashboard';
+import Assistant from './pages/crm/Assistant';
 import TenantList from './pages/crm/TenantList';
 import TenantDetails from './pages/crm/TenantDetails';
 import OwnerList from './pages/crm/OwnerList';
@@ -421,6 +422,7 @@ function App() {
 
             {/* CRM Routes */}
             <Route path="/crm" element={<ProtectedRoute authState={authState}><CRMDashboard /></ProtectedRoute>} />
+            <Route path="/crm/assistant" element={<ProtectedRoute authState={authState}><Assistant /></ProtectedRoute>} />
             <Route path="/crm/tenants" element={<ProtectedRoute authState={authState}><TenantList /></ProtectedRoute>} />
             <Route path="/crm/tenants/:id" element={<ProtectedRoute authState={authState}><TenantDetails /></ProtectedRoute>} />
             <Route path="/crm/tenants/new" element={<ProtectedRoute authState={authState}><TenantDetails /></ProtectedRoute>} />

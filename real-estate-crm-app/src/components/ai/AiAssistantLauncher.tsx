@@ -21,6 +21,9 @@ import AiChatPanel from './AiChatPanel';
  * on the login screen would be nonsense, and it would sit over the form.
  */
 const HIDDEN_PREFIXES = [
+  // The full assistant page IS this conversation with more room. A floating
+  // "open the assistant" button on top of it would open a sheet over itself.
+  '/crm/assistant',
   '/login',
   '/phone-login',
   '/signup',

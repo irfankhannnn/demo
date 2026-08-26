@@ -165,6 +165,31 @@ export function isProfileFresh(maxAgeSeconds = 60): boolean {
 
 // --- Clear all auth data ---
 
+/**
+ * Assistant transcripts live in localStorage under `assistant_threads_v1:<userId>`
+ * (see components/ai/assistantThreads.ts). They contain customer names and
+ * phone numbers, so signing out has to take them with it — otherwise the next
+ * person on a shared machine can read the previous user's conversations
+ * straight out of devtools.
+ *
+ * Inlined rather than imported to keep this module free of app-level imports;
+ * it is loaded by the auth bootstrap before anything else exists.
+ */
+const ASSISTANT_THREADS_PREFIX = 'assistant_threads_v1:';
+
+function clearAssistantThreads(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(ASSISTANT_THREADS_PREFIX)) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* storage unavailable — nothing was ever written */
+  }
+}
+
 export function clearAuthSilently(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -173,6 +198,7 @@ export function clearAuthSilently(): void {
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
   localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  clearAssistantThreads();
 }
 
 export function clearAuth(): void {
@@ -183,6 +209,7 @@ export function clearAuth(): void {
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
   localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  clearAssistantThreads();
 
   notifyAuthChanged();
 }
