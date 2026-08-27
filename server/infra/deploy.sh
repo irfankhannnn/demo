@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage: ./infra/deploy.sh <dev|prod>
 #   Loads server/.env.dev or server/.env.prod (never a plain server/.env) and
 #   forces ENVIRONMENT_NAME to match the argument, so every physical resource
-#   this stack creates is named realestateflow-<dev|prod>-*. dev and prod are
+#   this stack creates is named <dev|prod>-realestateflow-*. dev and prod are
 #   separate stacks (separate STACK_NAME per env file) — there is no shared
 #   state between them.
 # Toggle deployment steps here:
@@ -138,8 +138,8 @@ for var in "${REQUIRED_VARS[@]}"; do
   fi
 done
 
-if [[ "$STACK_NAME" != realestateflow-* ]]; then
-  echo "ERROR: STACK_NAME ('$STACK_NAME') must start with 'realestateflow-' — set it in $ENV_FILE"
+if [[ "$STACK_NAME" != "${ENVIRONMENT_NAME}-realestateflow-"* ]]; then
+  echo "ERROR: STACK_NAME ('$STACK_NAME') must start with '${ENVIRONMENT_NAME}-realestateflow-' — set it in $ENV_FILE"
   exit 1
 fi
 
@@ -220,6 +220,22 @@ echo "[4/7] Uploading main template to s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_K
 
 MAIN_TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}"
 
+# Record the exact S3 keys this run used, for the CI/CD wrapper
+# (cfn-templates-cicd/server/deploy.sh) to read afterward — it needs these
+# to build a release manifest, but can't safely recompute S3_KEY itself
+# (it's timestamped at the moment this script reaches this line, not when
+# the wrapper's own shell would evaluate `date`). Build artifact, not
+# source — see .gitignore.
+cat > "$SCRIPT_DIR/.last-deploy-artifacts.json" <<EOF
+{
+  "artifactBucket": "${ARTIFACT_BUCKET}",
+  "codeS3Key": "${S3_KEY:-}",
+  "mainTemplateS3Key": "${MAIN_TEMPLATE_KEY}",
+  "routesTemplatePart1S3Key": "${NESTED_TEMPLATE_KEY}",
+  "routesTemplatePart2S3Key": "${NESTED_TEMPLATE_KEY_PART2}"
+}
+EOF
+
 if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   LAMBDA_CODE_PARAMETER_JSON='  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "'"${S3_KEY}"'" },'
 else
@@ -247,13 +263,13 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "DevelopersTableName", "ParameterValue": "${DEVELOPERS_TABLE_NAME}" },
   { "ParameterKey": "RealEstateAreasTableName", "ParameterValue": "${REAL_ESTATE_AREAS_TABLE_NAME}" },
   { "ParameterKey": "ProjectsTableName", "ParameterValue": "${PROJECTS_TABLE_NAME}" },
-  { "ParameterKey": "PushTokensTableName", "ParameterValue": "${PUSH_TOKENS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-push-tokens}" },
-  { "ParameterKey": "UserCategoriesTableName", "ParameterValue": "${USER_CATEGORIES_TABLE_NAME:-realestateflow-${ENVIRONMENT_NAME}-user-categories}" },
-  { "ParameterKey": "GrievancesTableName", "ParameterValue": "${GRIEVANCES_TABLE_NAME:-realestateflow-${ENVIRONMENT_NAME}-grievances}" },
-  { "ParameterKey": "NpsResponsesTableName", "ParameterValue": "${NPS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-nps-responses}" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-subscriptions}" },
-  { "ParameterKey": "WebhookLogTableName", "ParameterValue": "${WEBHOOK_LOG_TABLE:-realestateflow-${ENVIRONMENT_NAME}-webhook-log}" },
-  { "ParameterKey": "TenantApiKeysTableName", "ParameterValue": "${TENANT_API_KEYS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-tenant-api-keys}" },
+  { "ParameterKey": "PushTokensTableName", "ParameterValue": "${PUSH_TOKENS_TABLE:-${ENVIRONMENT_NAME}-realestateflow-push-tokens}" },
+  { "ParameterKey": "UserCategoriesTableName", "ParameterValue": "${USER_CATEGORIES_TABLE_NAME:-${ENVIRONMENT_NAME}-realestateflow-user-categories}" },
+  { "ParameterKey": "GrievancesTableName", "ParameterValue": "${GRIEVANCES_TABLE_NAME:-${ENVIRONMENT_NAME}-realestateflow-grievances}" },
+  { "ParameterKey": "NpsResponsesTableName", "ParameterValue": "${NPS_TABLE:-${ENVIRONMENT_NAME}-realestateflow-nps-responses}" },
+  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-${ENVIRONMENT_NAME}-realestateflow-subscriptions}" },
+  { "ParameterKey": "WebhookLogTableName", "ParameterValue": "${WEBHOOK_LOG_TABLE:-${ENVIRONMENT_NAME}-realestateflow-webhook-log}" },
+  { "ParameterKey": "TenantApiKeysTableName", "ParameterValue": "${TENANT_API_KEYS_TABLE:-${ENVIRONMENT_NAME}-realestateflow-tenant-api-keys}" },
   { "ParameterKey": "S3BucketName", "ParameterValue": "${S3_BUCKET_NAME}" },
   { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "${ARTIFACT_BUCKET}" },
 ${LAMBDA_CODE_PARAMETER_JSON}
@@ -512,7 +528,7 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
   echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
   echo "[7/7] Updating Lambda function directly..."
   "$AWS_BIN" lambda update-function-code \
-    --function-name "realestateflow-${ENVIRONMENT_NAME}-api" \
+    --function-name "${ENVIRONMENT_NAME}-realestateflow-api" \
     --s3-bucket "${ARTIFACT_BUCKET}" \
     --s3-key "${S3_KEY}" \
     --region "$AWS_REGION" \
@@ -520,7 +536,7 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
 
   # The call recording worker ships the same zip with a different handler, so a
   # code-only deploy has to refresh it too or the two drift apart.
-  CALL_RECORDING_WORKER_NAME="realestateflow-${ENVIRONMENT_NAME}-call-recording-worker"
+  CALL_RECORDING_WORKER_NAME="${ENVIRONMENT_NAME}-realestateflow-call-recording-worker"
   if "$AWS_BIN" lambda get-function --function-name "$CALL_RECORDING_WORKER_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
     echo "[7/7] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
     "$AWS_BIN" lambda update-function-code \

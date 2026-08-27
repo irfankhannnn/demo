@@ -12,7 +12,7 @@ Parameters:
     AllowedValues: ['dev', 'prod']
     Description: >-
       Deployment environment. Every table this stack creates is named
-      realestateflow-<EnvironmentName>-<table>, so dev and prod never share
+      <EnvironmentName>-realestateflow-<table>, so dev and prod never share
       data.
 
 Resources:
@@ -21,7 +21,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-grievances"
+      TableName: !Sub "${EnvironmentName}-realestateflow-grievances"
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -68,7 +68,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-webhook-log"
+      TableName: !Sub "${EnvironmentName}-realestateflow-webhook-log"
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -113,7 +113,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-tenant-api-keys"
+      TableName: !Sub "${EnvironmentName}-realestateflow-tenant-api-keys"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: tenantId
@@ -139,7 +139,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-subscriptions"
+      TableName: !Sub "${EnvironmentName}-realestateflow-subscriptions"
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -179,7 +179,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-nps-responses"
+      TableName: !Sub "${EnvironmentName}-realestateflow-nps-responses"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: responseId
@@ -209,7 +209,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-beta-invites"
+      TableName: !Sub "${EnvironmentName}-realestateflow-beta-invites"
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: email

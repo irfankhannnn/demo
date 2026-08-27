@@ -23,6 +23,6 @@
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "__TEMPLATE_URL__" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "__INTERNAL_API_KEY__" },
   { "ParameterKey": "AllowedOrigins", "ParameterValue": "http://localhost:3000,http://localhost:5173" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "realestateflow-dev-subscriptions" },
+  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "dev-realestateflow-subscriptions" },
   { "ParameterKey": "ServerStackName", "ParameterValue": "" }
 ]

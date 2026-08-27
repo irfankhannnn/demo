@@ -198,6 +198,12 @@ cmd_deploy() {
   if [ "$status" = "deployed" ]; then
     code_version="$("$AWS_BIN" s3api head-object --bucket "$LAMBDA_PACKAGES_BUCKET_NAME" --key "$code_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
     routes_version="$("$AWS_BIN" s3api head-object --bucket "$LAMBDA_PACKAGES_BUCKET_NAME" --key "$routes_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
+    # AWS CLI prints the literal string "None" (not empty, not an error) when
+    # the bucket doesn't have versioning enabled yet — normalize both that
+    # and a query failure to the same "unknown" sentinel so every caller
+    # only has to check for one value.
+    [ "$code_version" = "None" ] && code_version="unknown"
+    [ "$routes_version" = "None" ] && routes_version="unknown"
     code_storage_class="$("$AWS_BIN" s3api head-object --bucket "$LAMBDA_PACKAGES_BUCKET_NAME" --key "$code_key" --region "$AWS_REGION" --query StorageClass --output text 2>/dev/null || echo STANDARD)"
     [ "$code_storage_class" = "None" ] && code_storage_class="STANDARD"
 
@@ -292,8 +298,11 @@ cmd_rollback_code() {
   key="$(json_read "$m" artifact.codeKey)"
   version="$(json_read "$m" artifact.codeVersionId)" || true
 
-  if [ -z "${version:-}" ] || [ "$version" = "unknown" ]; then
+  if [ -z "${version:-}" ] || [ "$version" = "unknown" ] || [ "$version" = "None" ]; then
     echo "ERROR: build #$build has no recorded code version id — cannot roll back code from it."
+    echo "(This means the artifact bucket didn't have S3 versioning enabled at deploy time —"
+    echo " see cfn-templates-cicd/common-infra/IMPORT-BUCKETS-RUNBOOK.md. Once versioning is"
+    echo " on, only NEW builds after that point will have a real version id to roll back to.)"
     exit 1
   fi
 

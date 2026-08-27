@@ -124,7 +124,7 @@ Parameters:
 
   SubscriptionsTableName:
     Type: String
-    Default: realestateflow-dev-subscriptions
+    Default: dev-realestateflow-subscriptions
     AllowedPattern: '^[a-zA-Z0-9_.-]+$'
     Description: >-
       Name of the shared DynamoDB Subscriptions table. Created by
@@ -137,7 +137,7 @@ Parameters:
     Type: String
     Default: ''
     Description: >-
-      Optional name of the server stack (e.g. realestateflow-dev-backend)
+      Optional name of the server stack (e.g. dev-realestateflow-backend)
       that exports SubscriptionsTableName and SubscriptionsTableArn. Leave
       blank until that stack has been deployed at least once — setting this
       before the export exists fails the deploy. If provided, its exports
@@ -615,8 +615,17 @@ Resources:
                   - cognito-idp:AdminGetUser
                   - cognito-idp:AdminCreateUser
                   - cognito-idp:AdminUpdateUserAttributes
+                # NOT !GetAtt CognitoUserPoolV2.Arn: CognitoUserPoolV2's
+                # LambdaConfig references these trigger Lambdas, which
+                # reference this role — a GetAtt back to the pool here
+                # closes a real cycle (confirmed via CloudFormation
+                # CreateChangeSet ValidationError: Circular dependency,
+                # 2026-08-27). Scoped to account+region via pseudo
+                # parameters instead — narrower than Resource: '*' (any
+                # service/resource), can't be narrower than that without
+                # the cycle.
                 Resource:
-                  - !GetAtt CognitoUserPoolV2.Arn
+                  - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
   # ===========================================================================
   # 9. Cognito Trigger Lambda Functions (Phone Auth)

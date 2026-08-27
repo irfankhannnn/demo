@@ -2,570 +2,481 @@
 set -euo pipefail
 
 # =============================================================================
-# CRM Backend Microservice â€” Deployment Script
+# CRM Backend — CI/CD entry point, with build/release tracking
 # =============================================================================
-# Usage: ./deploy.sh   (run from cfn-templates-cicd/server/)
-# Toggle deployment steps here:
-#   DEPLOY_LAMBDA=true  = deploy Lambda code + API Gateway
-#   DEPLOY_LAMBDA=false = deploy API Gateway only
-#   DEPLOY_INSTALL=true = run npm install
-#   DEPLOY_INSTALL=false = skip npm install
-#   DEPLOY_ZIP=true     = create and upload function.zip
-#   DEPLOY_ZIP=false    = skip zip creation/upload
-#   DEPLOY_CFN=true     = deploy CloudFormation stack
-#   DEPLOY_CFN=false    = skip CloudFormation deployment (Lambda update only)
-# Set these manually before running the script.
+# Usage:
+#   ./deploy.sh <dev|prod>                       Deploy — records a new numbered build
+#   ./deploy.sh list <dev|prod>                   List recorded builds for that env
+#   ./deploy.sh show <dev|prod> <build>           Print one build's manifest.json
+#   ./deploy.sh rollback-code <dev|prod> <build>  Point the Lambdas at that build's
+#                                                  code (fast, code only — no CFN change)
+#   ./deploy.sh rollback-full <dev|prod> <build>  Redeploy that build's saved CFN
+#                                                  template(s) + params, then its code
 #
-# Defaulting to false keeps the deploy API Gateway-only by default.
-# Requires: .env file in the server/ project root with all required variables
+# Every deploy call delegates the actual packaging/CFN work to the real
+# script: server/infra/deploy.sh. This wrapper's only job is release
+# bookkeeping. Design mirrors cfn-templates-cicd/reality-flow-authentication
+# (same manifest shape, same rollback philosophy — a rollback is a new
+# forward build, never an edit to history) with one structural difference:
 #
-# NOTE: This script lives in cfn-templates-cicd/server/ but deploys the
-# server/ Lambda source. PROJECT_DIR is resolved two levels up + into
-# server/ (not just "..") to reach the actual service root.
+#   Auth uploads its Lambda code to a FIXED S3 key that gets overwritten on
+#   every deploy — old code is only reachable via S3 object *versioning* on
+#   that key. Server instead uploads to a *timestamped, unique-per-deploy*
+#   key (`${ARTIFACT_PREFIX}/function-<timestamp>.zip`) that is NEVER
+#   overwritten — so old code for server is just... still sitting at its
+#   own key, no versioning needed to reach it. That timestamp is computed
+#   inside server/infra/deploy.sh, at a point in time this wrapper can't
+#   independently reconstruct — so that script now writes the exact keys it
+#   used to infra/.last-deploy-artifacts.json (gitignored, a build artifact
+#   like cfn-params.json) right after uploading, and this wrapper reads that
+#   file back after a successful delegate call.
+#
+# Two Lambdas share the same code artifact here (API + call-recording
+# worker) — rollback-code updates both. Two nested route templates
+# (part1/part2) instead of auth's one.
+#
+# Build history lives in ./deploy-versions/ — gitignored (see .gitignore in
+# this folder and the root README's ".gitignore best practices" section).
+# The durable source of truth for actual artifacts is S3 (versioned for the
+# fixed-key templates; inherently permanent for server's timestamped code
+# key); this folder is a local, human-readable index plus quick local
+# template/param snapshots for instant (non-Glacier-wait) CFN rollback.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../../server" && pwd)"
+SERVICE_DIR="$(cd "$SCRIPT_DIR/../../server" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+VERSIONS_DIR="$SCRIPT_DIR/deploy-versions"
 
-DEPLOY_LAMBDA=true
-DEPLOY_INSTALL=true
-DEPLOY_ZIP=true
-DEPLOY_CFN=true
-
-
-# -----------------------------------------------------------------------------
-# Windows Git Bash compatibility
-# -----------------------------------------------------------------------------
 OS_UNAME="$(uname -s || echo '')"
-
-NPM_BIN="npm"
 AWS_BIN="aws"
-
 case "$OS_UNAME" in
   MINGW*|MSYS*|CYGWIN*)
-    if command -v npm.cmd >/dev/null 2>&1; then
-      NPM_BIN="npm.cmd"
-    fi
-    if command -v aws.exe >/dev/null 2>&1; then
-      AWS_BIN="aws.exe"
-    fi
+    if command -v aws.exe >/dev/null 2>&1; then AWS_BIN="aws.exe"; fi
     ;;
 esac
-
-# Convert a POSIX path to a Windows-style path when running under Git Bash/MSYS/Cygwin.
-# AWS CLI (a Windows process) cannot read /d/... paths, so file:// URLs need D:/... paths.
-winpath() {
-  if command -v cygpath >/dev/null 2>&1; then
-    cygpath -m "$1"
-  elif command -v wslpath >/dev/null 2>&1; then
-    wslpath -m "$1"
-  else
-    echo "$1"
-  fi
-}
-
-if ! command -v "$NPM_BIN" >/dev/null 2>&1; then
-  echo "ERROR: $NPM_BIN not found in PATH"
-  exit 1
-fi
-
-# zip check skipped when DEPLOY_LAMBDA=false
-if [ "$DEPLOY_LAMBDA" = true ]; then
-  if ! command -v zip >/dev/null 2>&1; then
-    echo "ERROR: zip not found in PATH (required to package Lambda)"
-    exit 1
-  fi
-fi
 
 if ! command -v "$AWS_BIN" >/dev/null 2>&1; then
   echo "ERROR: $AWS_BIN not found in PATH (AWS CLI required)"
   exit 1
 fi
-
-echo "============================================="
-echo " CRM Backend â€” Deploy"
-echo "============================================="
-
-# -----------------------------------------------------------------------------
-# 1. Load and validate .env
-# -----------------------------------------------------------------------------
-if [ ! -f "$PROJECT_DIR/.env" ]; then
-  echo "ERROR: .env file not found at $PROJECT_DIR/.env"
-  echo "Copy .env.example to .env and fill in the values."
+if ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: node not found in PATH (used here only for safe JSON read/write — no build step)"
   exit 1
 fi
 
-set -a
-source "$PROJECT_DIR/.env"
-set +a
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./deploy.sh <dev|prod>                       Deploy — records a new numbered build
+  ./deploy.sh list <dev|prod>                   List recorded builds for that env
+  ./deploy.sh show <dev|prod> <build>           Print one build's manifest.json
+  ./deploy.sh rollback-code <dev|prod> <build>  Roll back code only (fast, both Lambdas)
+  ./deploy.sh rollback-full <dev|prod> <build>  Roll back CFN template(s)+params, then code
+USAGE
+}
 
-REQUIRED_VARS=(
-  AWS_REGION
-  STACK_NAME
-  ARTIFACT_BUCKET
-  ARTIFACT_PREFIX
-  AUTH_SERVICE_URL
-  PUBLIC_API_DOMAIN_NAME
-  CRM_API_DOMAIN_NAME
-)
-
-for var in "${REQUIRED_VARS[@]}"; do
-  if [ -z "${!var:-}" ]; then
-    echo "ERROR: Required env var $var is not set in .env"
+require_env_arg() {
+  local e="${1:-}"
+  if [ "$e" != "dev" ] && [ "$e" != "prod" ]; then
+    echo "ERROR: environment must be dev or prod (got: '${e}')"
+    usage
     exit 1
   fi
-done
+}
 
-echo "Region:     $AWS_REGION"
-echo "Stack:      $STACK_NAME"
-echo "Auth URL:   $AUTH_SERVICE_URL"
-echo "OAuth Code Table:      ${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}"
-echo "OAuth Connection Table: ${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}"
-echo ""
-echo "NOTE: This stack requires the MCP OAuth tables to exist before deployment."
-echo "      Deploy the reality-flow-mcp stack first, or create these tables manually."
-echo ""
+require_build_arg() {
+  local b="${1:-}"
+  if ! [[ "$b" =~ ^[0-9]{4}$ ]]; then
+    echo "ERROR: build number must be 4 digits, e.g. 0007 (got: '${b}')"
+    exit 1
+  fi
+}
 
-# Generate timestamp for deployment descriptions
-TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
+json_read() {
+  # json_read <file> <dotted.path> — prints a field from a JSON file via node,
+  # so we never hand-parse JSON in bash.
+  node -e "
+    const fs = require('fs');
+    const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+    const path = process.argv[2].split('.');
+    let v = data;
+    for (const k of path) { v = v == null ? v : v[k]; }
+    if (v === undefined || v === null) process.exit(1);
+    console.log(v);
+  " "$1" "$2"
+}
 
-# -----------------------------------------------------------------------------
-# 2. Install dependencies
-# -----------------------------------------------------------------------------
-if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = true ]; then
-  echo "[1/7] Installing dependencies..."
-  cd "$PROJECT_DIR"
-  "$NPM_BIN" ci --omit=dev --no-audit --no-fund
-elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = false ]; then
-  echo "[1/7] Skipping npm install (DEPLOY_INSTALL=false)."
-fi
-
-# -----------------------------------------------------------------------------
-# 3. Package Lambda bundle
-# -----------------------------------------------------------------------------
-if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
-  echo "[2/7] Packaging function.zip..."
-  rm -f "$PROJECT_DIR/function.zip"
-  cd "$PROJECT_DIR"
-  # Use compression level 1 for fast packaging. Level 0 (store) is even faster but larger.
-  # Excluding node_modules TypeScript sources, source maps, docs, and metadata saves ~60+ MB and thousands of files.
-  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ workers/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
-    -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
-       "node_modules/**/*.ts" "node_modules/**/*.map" "node_modules/**/*.d.ts" \
-       "node_modules/**/*.md" "node_modules/**/*.markdown" "node_modules/**/*.yml" "node_modules/**/*.yaml" \
-       "node_modules/**/*.tsbuildinfo" "node_modules/**/*.flow" \
-       "node_modules/**/.npmignore" "node_modules/**/.eslintrc*" "node_modules/**/.editorconfig" \
-       "node_modules/**/.gitkeep" "node_modules/**/.gitattributes" "node_modules/**/.nycrc" \
-       "node_modules/**/.jshintrc" "node_modules/**/.bnf" "node_modules/**/.github/*" "node_modules/**/.bin/*" \
-       "node_modules/**/README*" "node_modules/**/CHANGELOG*" "node_modules/**/LICENSE*" \
-       "node_modules/**/AUTHORS*" "node_modules/**/CONTRIBUTORS*" "node_modules/**/HISTORY*" "node_modules/**/NOTICE*" \
-       "node_modules/**/docs/*" "node_modules/**/tests/*" "node_modules/**/test/*" "node_modules/**/__tests__/*" \
-       "node_modules/**/coverage/*" "node_modules/**/examples/*" "node_modules/**/benchmarks/*" \
-       "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*" "mcp-server/*"
-
-  # -----------------------------------------------------------------------------
-  # 4. Upload to S3
-  # -----------------------------------------------------------------------------
-  S3_KEY="${ARTIFACT_PREFIX}/function-${TIMESTAMP}.zip"
-  echo "[3/7] Uploading function.zip to s3://${ARTIFACT_BUCKET}/${S3_KEY}..."
-  "$AWS_BIN" s3 cp "$PROJECT_DIR/function.zip" "s3://${ARTIFACT_BUCKET}/${S3_KEY}" --region "$AWS_REGION" --no-cli-pager
-elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
-  echo "[2/7] Skipping zip creation (DEPLOY_ZIP=false)."
-  echo "[3/7] Skipping S3 upload (DEPLOY_ZIP=false)."
-elif [ "$DEPLOY_LAMBDA" = false ]; then
-  echo "[1/7] Skipping Lambda deployment (DEPLOY_LAMBDA=false)."
-fi
-
-# Upload nested route templates (split to stay under CloudFormation 500-resource limit)
-NESTED_TEMPLATE_KEY="${ARTIFACT_PREFIX}/apigw-explicit-routes-part1.yaml"
-NESTED_TEMPLATE_KEY_PART2="${ARTIFACT_PREFIX}/apigw-explicit-routes-part2.yaml"
-echo "[4/7] Uploading nested route templates to s3://${ARTIFACT_BUCKET}/..."
-"$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part1.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
-"$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part2.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY_PART2}" --region "$AWS_REGION" --no-cli-pager
-
-TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}"
-TEMPLATE_URL_PART2="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY_PART2}"
-
-# Upload main template (required if >51.2KB)
-MAIN_TEMPLATE_KEY="${ARTIFACT_PREFIX}/cfn-backend.yaml"
-echo "[4/7] Uploading main template to s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}..."
-"$AWS_BIN" s3 cp "$SCRIPT_DIR/cfn-backend.yaml" "s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
-
-MAIN_TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}"
-
-if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
-  LAMBDA_CODE_PARAMETER_JSON='  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "'"${S3_KEY}"'" },'
+# ---- git metadata (best-effort — never fails the script) -------------------
+GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+GIT_COMMIT_SHORT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null || true)" ]; then
+  GIT_DIRTY="true"
 else
-  LAMBDA_CODE_PARAMETER_JSON=''
+  GIT_DIRTY="false"
 fi
+DEPLOYER="$(git config user.name 2>/dev/null || whoami 2>/dev/null || echo unknown)"
 
-# -----------------------------------------------------------------------------
-# 5. Generate cfn-params.json from .env
-# -----------------------------------------------------------------------------
-echo "[5/7] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENVIRONMENT_NAME}" },
-  { "ParameterKey": "LambdaRuntime", "ParameterValue": "${LAMBDA_RUNTIME}" },
-  { "ParameterKey": "LambdaMemorySize", "ParameterValue": "${LAMBDA_MEMORY_SIZE}" },
-  { "ParameterKey": "LambdaTimeout", "ParameterValue": "${LAMBDA_TIMEOUT}" },
-  { "ParameterKey": "DynamoDbTableName", "ParameterValue": "${DYNAMODB_TABLE_NAME}" },
-  { "ParameterKey": "CrmDynamoDbTableName", "ParameterValue": "${CRM_DYNAMODB_TABLE_NAME}" },
-  { "ParameterKey": "AgencyConfigTableName", "ParameterValue": "${AGENCY_CONFIG_DYNAMODB_TABLE_NAME}" },
-  { "ParameterKey": "EnquiriesTableNameCloudberry", "ParameterValue": "${ENQUIRIES_DYNAMODB_TABLE_NAME}" },
-  { "ParameterKey": "AreasTableName", "ParameterValue": "${AREAS_DYNAMODB_TABLE_NAME}" },
-  { "ParameterKey": "B2BLeadsTableName", "ParameterValue": "${B2B_LEADS_TABLE}" },
-  { "ParameterKey": "KhataTableName", "ParameterValue": "${KHATA_TABLE_NAME}" },
-  { "ParameterKey": "NotificationsTableName", "ParameterValue": "${NOTIFICATIONS_TABLE_NAME}" },
-  { "ParameterKey": "DevelopersTableName", "ParameterValue": "${DEVELOPERS_TABLE_NAME}" },
-  { "ParameterKey": "RealEstateAreasTableName", "ParameterValue": "${REAL_ESTATE_AREAS_TABLE_NAME}" },
-  { "ParameterKey": "ProjectsTableName", "ParameterValue": "${PROJECTS_TABLE_NAME}" },
-  { "ParameterKey": "S3BucketName", "ParameterValue": "${S3_BUCKET_NAME}" },
-  { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "${ARTIFACT_BUCKET}" },
-${LAMBDA_CODE_PARAMETER_JSON}
-  { "ParameterKey": "PublicApiDomainName", "ParameterValue": "${PUBLIC_API_DOMAIN_NAME}" },
-  { "ParameterKey": "PublicApiBasePath", "ParameterValue": "${PUBLIC_API_BASE_PATH}" },
-  { "ParameterKey": "PublicApiStageName", "ParameterValue": "${PUBLIC_API_STAGE_NAME}" },
-  { "ParameterKey": "CrmApiDomainName", "ParameterValue": "${CRM_API_DOMAIN_NAME}" },
-  { "ParameterKey": "CrmApiBasePath", "ParameterValue": "${CRM_API_BASE_PATH}" },
-  { "ParameterKey": "CrmApiStageName", "ParameterValue": "${CRM_API_STAGE_NAME}" },
-  { "ParameterKey": "EnableBasePathStrip", "ParameterValue": "${ENABLE_BASE_PATH_STRIP:-false}" },
-  { "ParameterKey": "AuthServiceUrl", "ParameterValue": "${AUTH_SERVICE_URL}" },
-  { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS}" },
-  { "ParameterKey": "NpsHmacSecret", "ParameterValue": "${NPS_HMAC_SECRET}" },
-  { "ParameterKey": "BrevoApiKey", "ParameterValue": "${BREVO_API_KEY}" },
-  { "ParameterKey": "RazorpayWebhookSecret", "ParameterValue": "${RAZORPAY_WEBHOOK_SECRET}" },
-  { "ParameterKey": "RazorpayKeyId", "ParameterValue": "${RAZORPAY_KEY_ID}" },
-  { "ParameterKey": "RazorpayKeySecret", "ParameterValue": "${RAZORPAY_KEY_SECRET}" },
-  { "ParameterKey": "BrevoFromEmail", "ParameterValue": "${BREVO_FROM_EMAIL}" },
-  { "ParameterKey": "BrevoFromName", "ParameterValue": "${BREVO_FROM_NAME}" },
-  { "ParameterKey": "HcaptchaSecretKey", "ParameterValue": "${HCAPTCHA_SECRET_KEY}" },
-  { "ParameterKey": "CreditsTableName", "ParameterValue": "${CREDITS_TABLE_NAME}" },
-  { "ParameterKey": "CreditConfigTableName", "ParameterValue": "${CREDIT_CONFIG_TABLE_NAME}" },
-  { "ParameterKey": "SesFromEmail", "ParameterValue": "${AWS_SES_FROM_EMAIL}" },
-  { "ParameterKey": "EmailProviderPrimary", "ParameterValue": "${EMAIL_PROVIDER_PRIMARY}" },
-  { "ParameterKey": "BaileyEnabled", "ParameterValue": "${BAILEY_ENABLED}" },
-  { "ParameterKey": "BaileyApiKey", "ParameterValue": "${BAILEY_API_KEY}" },
-  { "ParameterKey": "BaileyMode", "ParameterValue": "${BAILEY_MODE:-hosted}" },
-  { "ParameterKey": "BaileyWebhookSecret", "ParameterValue": "${BAILEY_WEBHOOK_SECRET}" },
-  { "ParameterKey": "AgentsEnabled", "ParameterValue": "${AGENTS_ENABLED:-false}" },
-  { "ParameterKey": "AllowUserCategoryDefaultFallback", "ParameterValue": "${ALLOW_USER_CATEGORY_DEFAULT_FALLBACK:-false}" },
-  { "ParameterKey": "BaileyApiEndpoint", "ParameterValue": "${BAILEY_API_ENDPOINT:-https://api.bailey.ai}" },
-  { "ParameterKey": "BaileyApiPrefix", "ParameterValue": "${BAILEY_API_PREFIX:-}" },
-  { "ParameterKey": "PostHogKeyServer", "ParameterValue": "${POSTHOG_KEY_SERVER:-}" },
-  { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },
-  { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
-  { "ParameterKey": "AiCallingInternalApiKey", "ParameterValue": "${AI_CALLING_INTERNAL_API_KEY:-}" },
-  { "ParameterKey": "AiCallingServiceUrl", "ParameterValue": "${AI_CALLING_SERVICE_URL:-}" },
-  { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },
-  { "ParameterKey": "AgentAuditTableName", "ParameterValue": "${AGENT_AUDIT_TABLE_NAME:-cloudberry-real-estate-agent-audit}" },
-  { "ParameterKey": "JwtSecret", "ParameterValue": "${JWT_SECRET:-}" },
-  { "ParameterKey": "AgentActionCredits", "ParameterValue": "${AGENT_ACTION_CREDITS:-15}" },
-  { "ParameterKey": "AiEmployeeRolloutPercentage", "ParameterValue": "${AI_EMPLOYEE_ROLLOUT_PERCENTAGE:-100}" },
-  { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "${AI_EMPLOYEE_PROVISIONING_TABLE:-AIEmployeeProvisioning}" },
-  { "ParameterKey": "LlmProvider", "ParameterValue": "${LLM_PROVIDER:-bedrock}" },
-  { "ParameterKey": "BedrockModelId", "ParameterValue": "${BEDROCK_MODEL_ID:-anthropic.claude-3-haiku-20240307-v1:0}" },
-  { "ParameterKey": "GeminiApiKey", "ParameterValue": "${GEMINI_API_KEY:-}" },
-  { "ParameterKey": "GeminiModel", "ParameterValue": "${GEMINI_MODEL:-gemini-2.5-flash}" },
-  { "ParameterKey": "GeminiClassifierModel", "ParameterValue": "${GEMINI_CLASSIFIER_MODEL:-gemini-2.5-flash}" },
-  { "ParameterKey": "CloudwatchMetricsEnabled", "ParameterValue": "${CLOUDWATCH_METRICS_ENABLED:-true}" },
-  { "ParameterKey": "AiAdminWhatsAppNumbers", "ParameterValue": "${AI_ADMIN_WHATSAPP_NUMBERS:-}" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrlPart2", "ParameterValue": "${TEMPLATE_URL_PART2}" },
-  { "ParameterKey": "DeployApiRoutePart2", "ParameterValue": "true" },
-  { "ParameterKey": "ServiceAccountUser", "ParameterValue": "${SERVICE_ACCOUNT_USER:-system}" },
-  { "ParameterKey": "DefaultCountryCode", "ParameterValue": "${DEFAULT_COUNTRY_CODE:-+91}" },
-  { "ParameterKey": "AppUrl", "ParameterValue": "${APP_URL:-https://app.realestateflow.in}" },
-  { "ParameterKey": "GrievanceOfficerEmail", "ParameterValue": "${GRIEVANCE_OFFICER_EMAIL:-info@realestateflow.in}" },
-  { "ParameterKey": "LogLevel", "ParameterValue": "${LOG_LEVEL:-info}" },
-  { "ParameterKey": "McpBaseUrl", "ParameterValue": "${MCP_BASE_URL:-https://mcp.realtyflow.com}" },
-  { "ParameterKey": "OAuthCodesTableName", "ParameterValue": "${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}" },
-  { "ParameterKey": "OAuthConnectionsTableName", "ParameterValue": "${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}" },
-  { "ParameterKey": "OAuthCallbackUrl", "ParameterValue": "${OAUTH_CALLBACK_URL:-https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback}" },
-  { "ParameterKey": "FrontendUrl", "ParameterValue": "${FRONTEND_URL:-http://localhost:3000}" },
-  { "ParameterKey": "FounderEmail", "ParameterValue": "${FOUNDER_EMAIL:-info@realestateflow.in}" },
-  { "ParameterKey": "BrevoTrialListId", "ParameterValue": "${BREVO_TRIAL_LIST_ID:-}" },
-  { "ParameterKey": "BrevoPaymentFailedTemplateId", "ParameterValue": "${BREVO_PAYMENT_FAILED_TEMPLATE_ID:-}" },
-  { "ParameterKey": "BrevoAiEmployeePaidTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID:-}" },
-  { "ParameterKey": "BrevoAiEmployeeEscalatedFounderTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID:-}" },
-  { "ParameterKey": "BrevoAiEmployeeEscalatedCustomerTemplateId", "ParameterValue": "${BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID:-}" },
-  { "ParameterKey": "BaileyAdminApiKey", "ParameterValue": "${BAILEY_ADMIN_API_KEY:-}" },
-  { "ParameterKey": "AsrProvider", "ParameterValue": "${ASR_PROVIDER:-amazon-transcribe}" },
-  { "ParameterKey": "TranscribeLanguageOptions", "ParameterValue": "${TRANSCRIBE_LANGUAGE_OPTIONS:-en-IN,hi-IN,mr-IN,gu-IN,ta-IN,te-IN,kn-IN,ml-IN,pa-IN,bn-IN}" },
-  { "ParameterKey": "TranscribeLanguageCode", "ParameterValue": "${TRANSCRIBE_LANGUAGE_CODE:-}" },
-  { "ParameterKey": "TranscribeVocabularyName", "ParameterValue": "${TRANSCRIBE_VOCABULARY_NAME:-}" },
-  { "ParameterKey": "CallIntelAutoApplyNotes", "ParameterValue": "${CALL_INTEL_AUTO_APPLY_NOTES:-true}" },
-  { "ParameterKey": "CallIntelWorkerMemorySize", "ParameterValue": "${CALL_INTEL_WORKER_MEMORY_SIZE:-1024}" },
-  { "ParameterKey": "CallIntelWorkerTimeout", "ParameterValue": "${CALL_INTEL_WORKER_TIMEOUT:-300}" },
-  { "ParameterKey": "CallIntelPollDelaySeconds", "ParameterValue": "${CALL_INTEL_POLL_DELAY_SECONDS:-45}" },
-  { "ParameterKey": "CallIntelMaxPollAttempts", "ParameterValue": "${CALL_INTEL_MAX_POLL_ATTEMPTS:-60}" },
-  { "ParameterKey": "CallRecordingQueueRetentionSeconds", "ParameterValue": "${CALL_RECORDING_QUEUE_RETENTION_SECONDS:-345600}" },
-  { "ParameterKey": "CallIntelMaxStageAttempts", "ParameterValue": "${CALL_INTEL_MAX_STAGE_ATTEMPTS:-4}" },
-  { "ParameterKey": "CallIntelMaxTranscriptChars", "ParameterValue": "${CALL_INTEL_MAX_TRANSCRIPT_CHARS:-60000}" },
-  { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "${CALL_INTEL_DEFAULT_MEETING_TIME:-11:00}" },
-  { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "${CALL_INTEL_MAX_UPLOAD_BYTES:-209715200}" },
-  { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_UPLOAD_URL_TTL_SECONDS:-900}" },
-  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_PLAYBACK_URL_TTL_SECONDS:-3600}" }
-]
-EOF
-
-# -----------------------------------------------------------------------------
-# 6. Check for dependent MCP OAuth tables
-# -----------------------------------------------------------------------------
-OAUTH_CODES_TABLE="${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}"
-OAUTH_CONNECTIONS_TABLE="${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}"
-
-if [ "$DEPLOY_CFN" = true ]; then
-  echo "[6/7] Checking for dependent MCP OAuth tables..."
-  if ! "$AWS_BIN" dynamodb describe-table --table-name "$OAUTH_CODES_TABLE" --region "$AWS_REGION" > /dev/null 2>&1; then
-    echo "WARNING: OAuth codes table '$OAUTH_CODES_TABLE' does not exist. Deploy the MCP stack first or create the table manually."
-  fi
-  if ! "$AWS_BIN" dynamodb describe-table --table-name "$OAUTH_CONNECTIONS_TABLE" --region "$AWS_REGION" > /dev/null 2>&1; then
-    echo "WARNING: OAuth connections table '$OAUTH_CONNECTIONS_TABLE' does not exist. Deploy the MCP stack first or create the table manually."
-  fi
-fi
-
-# -----------------------------------------------------------------------------
-# 7. Deploy CloudFormation stack or update Lambda directly
-# -----------------------------------------------------------------------------
-
-# Helper: wait for stack to be in a stable state before deploying
-wait_for_stack_stable() {
-  local stack_name="$1"
-  local max_wait=300  # 5 minutes
-  local waited=0
-
-  while [ $waited -lt $max_wait ]; do
-    local status
-    status=$("$AWS_BIN" cloudformation describe-stacks \
-      --stack-name "$stack_name" \
-      --region "$AWS_REGION" \
-      --no-cli-pager \
-      --query "Stacks[0].StackStatus" \
-      --output text 2>/dev/null || echo "NOT_FOUND")
-
-    case "$status" in
-      CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE|ROLLBACK_COMPLETE|DELETE_COMPLETE|NOT_FOUND)
-        return 0
-        ;;
-      UPDATE_ROLLBACK_IN_PROGRESS|UPDATE_IN_PROGRESS|CREATE_IN_PROGRESS|DELETE_IN_PROGRESS|ROLLBACK_IN_PROGRESS|UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS|UPDATE_COMPLETE_CLEANUP_IN_PROGRESS)
-        echo "  Stack is in state: $status, waiting 10s... (${waited}s elapsed)"
-        sleep 10
-        waited=$((waited + 10))
-        ;;
-      UPDATE_ROLLBACK_FAILED|ROLLBACK_FAILED|CREATE_FAILED|DELETE_FAILED)
-        echo "  ERROR: Stack is in failed state: $status"
-        echo "  Run: aws cloudformation describe-stack-events --stack-name $stack_name --region $AWS_REGION"
-        return 1
-        ;;
-      *)
-        echo "  Unknown stack state: $status, waiting 10s..."
-        sleep 10
-        waited=$((waited + 10))
-        ;;
-    esac
+next_build_number() {
+  local env="$1"
+  local dir="$VERSIONS_DIR/$env"
+  mkdir -p "$dir"
+  local max=0
+  shopt -s nullglob
+  for d in "$dir"/[0-9][0-9][0-9][0-9]; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d")"
+    n=$((10#$n))
+    if [ "$n" -gt "$max" ]; then max=$n; fi
   done
-
-  echo "  ERROR: Timed out waiting for stack to become stable"
-  return 1
+  shopt -u nullglob
+  printf "%04d" "$((max + 1))"
 }
 
-# Helper: deploy CloudFormation with retry for transient API Gateway failures
-cfn_deploy_with_retry() {
-  local max_attempts=3
-  local attempt=1
-  local delay=30
+write_manifest() {
+  # write_manifest <out-file> <buildNumber> <env> <status> <stackName>
+  #   <rollbackOf|null> <rollbackKind|null>
+  #   <bucket> <codeKey>
+  #   <mainTemplateKey> <mainTemplateVersionId>
+  #   <routesPart1Key> <routesPart1VersionId>
+  #   <routesPart2Key> <routesPart2VersionId>
+  #   <commit> <commitShort> <branch> <dirty> <deployer> <region>
+  node -e "
+    const fs = require('fs');
+    const [ , out, buildNumber, env, status, stackName, rollbackOf, rollbackKind,
+            bucket, codeKey,
+            mainTemplateKey, mainTemplateVersionId,
+            routesPart1Key, routesPart1VersionId,
+            routesPart2Key, routesPart2VersionId,
+            commit, commitShort, branch, dirty, deployer, region ] = process.argv;
+    const manifest = {
+      buildNumber, env, status,
+      timestamp: new Date().toISOString(),
+      git: { commit, commitShort, branch, dirty: dirty === 'true' },
+      deployer, stackName, region,
+      artifact: {
+        bucket,
+        // Unique, never-overwritten key — no VersionId needed for this one;
+        // the key itself IS the permanent historical reference.
+        codeKey,
+        mainTemplateKey, mainTemplateVersionId,
+        routesPart1Key, routesPart1VersionId,
+        routesPart2Key, routesPart2VersionId,
+      },
+      rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
+      rollbackKind: rollbackKind === 'null' ? null : rollbackKind,
+    };
+    fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/../history.jsonl', JSON.stringify(manifest) + '\n');
+  " "$@"
+}
 
-  while [ $attempt -le $max_attempts ]; do
-    echo "  Attempt $attempt/$max_attempts..."
+# =============================================================================
+# deploy — delegates to infra/deploy.sh, then records a build
+# =============================================================================
+cmd_deploy() {
+  local env="$1"
+  require_env_arg "$env"
 
-    if "$AWS_BIN" cloudformation deploy \
-      --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
-      --stack-name "$STACK_NAME" \
-      --s3-bucket "$ARTIFACT_BUCKET" \
-      --s3-prefix "${ARTIFACT_PREFIX}" \
-      --parameter-overrides file://$(winpath "$SCRIPT_DIR")/cfn-params.json \
-      --capabilities CAPABILITY_NAMED_IAM \
-      --region "$AWS_REGION" \
-      --no-cli-pager \
-      --no-fail-on-empty-changeset 2>&1; then
-      echo "  CloudFormation deploy successful"
-      return 0
+  set -a
+  # shellcheck disable=SC1090
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENVIRONMENT_NAME="$env"
+
+  local build
+  build="$(next_build_number "$env")"
+  local build_dir="$VERSIONS_DIR/$env/$build"
+  mkdir -p "$build_dir"
+
+  echo "============================================="
+  echo " Build #$build ($env) — starting"
+  echo " commit: $GIT_COMMIT_SHORT  branch: $GIT_BRANCH  dirty: $GIT_DIRTY  by: $DEPLOYER"
+  echo "============================================="
+  if [ "$GIT_DIRTY" = "true" ]; then
+    echo "WARNING: working tree has uncommitted changes — this build won't be exactly reproducible from git history alone."
+  fi
+
+  rm -f "$SERVICE_DIR/infra/.last-deploy-artifacts.json"
+
+  local status="failed"
+  if "$SERVICE_DIR/infra/deploy.sh" "$env"; then
+    status="deployed"
+  fi
+
+  # Snapshot the exact templates/params used, regardless of outcome — a
+  # failed build's attempted config is still worth keeping for debugging.
+  cp "$SERVICE_DIR/infra/cfn-backend.yaml" "$build_dir/cfn-backend.yaml" 2>/dev/null || true
+  cp "$SERVICE_DIR/infra/apigw-explicit-routes-part1.yaml" "$build_dir/apigw-explicit-routes-part1.yaml" 2>/dev/null || true
+  cp "$SERVICE_DIR/infra/apigw-explicit-routes-part2.yaml" "$build_dir/apigw-explicit-routes-part2.yaml" 2>/dev/null || true
+  cp "$SERVICE_DIR/infra/cfn-params.json" "$build_dir/cfn-params.json" 2>/dev/null || true
+
+  local bucket="${ARTIFACT_BUCKET:-unknown}"
+  local code_key="unknown"
+  local main_key="unknown" main_version="unknown"
+  local part1_key="unknown" part1_version="unknown"
+  local part2_key="unknown" part2_version="unknown"
+
+  if [ "$status" = "deployed" ]; then
+    local artifacts_file="$SERVICE_DIR/infra/.last-deploy-artifacts.json"
+    if [ -f "$artifacts_file" ]; then
+      bucket="$(json_read "$artifacts_file" artifactBucket)"
+      code_key="$(json_read "$artifacts_file" codeS3Key)" || code_key="unknown"
+      main_key="$(json_read "$artifacts_file" mainTemplateS3Key)"
+      part1_key="$(json_read "$artifacts_file" routesTemplatePart1S3Key)"
+      part2_key="$(json_read "$artifacts_file" routesTemplatePart2S3Key)"
+
+      main_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$main_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
+      part1_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$part1_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
+      part2_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$part2_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
+    else
+      echo "WARNING: deploy reported success but $artifacts_file was not written — server/infra/deploy.sh may be an older version missing this. Artifact keys will be recorded as 'unknown'."
     fi
+  fi
 
-    if [ $attempt -eq $max_attempts ]; then
-      echo "  ERROR: CloudFormation deploy failed after $max_attempts attempts"
-      return 1
-    fi
+  write_manifest "$build_dir/manifest.json" \
+    "$build" "$env" "$status" "${STACK_NAME:-unknown}" "null" "null" \
+    "$bucket" "$code_key" \
+    "$main_key" "$main_version" \
+    "$part1_key" "$part1_version" \
+    "$part2_key" "$part2_version" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}"
 
-    echo "  Deploy failed, waiting ${delay}s before retry..."
-    echo "  Checking if stack is rolling back..."
-    sleep "$delay"
+  echo "$build" > "$VERSIONS_DIR/$env/LATEST"
 
-    # Wait for rollback to complete before retrying
-    if ! wait_for_stack_stable "$STACK_NAME"; then
-      echo "  ERROR: Stack is not in a stable state, cannot retry"
-      return 1
-    fi
+  echo ""
+  echo "Build #$build recorded: $build_dir/manifest.json (status: $status)"
 
-    delay=$((delay * 2))
-    attempt=$((attempt + 1))
+  if [ "$status" != "deployed" ]; then
+    echo "Deploy failed — see output above. This build is recorded as 'failed' and is not a valid rollback target."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# list / show
+# =============================================================================
+cmd_list() {
+  local env="$1"
+  require_env_arg "$env"
+  local dir="$VERSIONS_DIR/$env"
+  if [ ! -d "$dir" ]; then
+    echo "No builds recorded for $env yet."
+    return 0
+  fi
+
+  printf "%-7s %-9s %-21s %-9s %-20s %-10s\n" "BUILD" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  shopt -s nullglob
+  for d in "$dir"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    node -e "
+      const fs = require('fs');
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const row = [m.buildNumber, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([7,9,21,9,20,10][i])).join(' '));
+    " "$d/manifest.json"
   done
+  shopt -u nullglob
+  echo ""
+  echo "Latest: $(cat "$dir/LATEST" 2>/dev/null || echo none)"
 }
 
-set_route_part2_parameter() {
-  local enabled="$1"
-
-  python - "$SCRIPT_DIR/cfn-params.json" "$enabled" <<'PY'
-import json
-import sys
-
-params_path, enabled = sys.argv[1:]
-with open(params_path, encoding="utf-8") as params_file:
-    params = json.load(params_file)
-
-for parameter in params:
-    if parameter["ParameterKey"] == "DeployApiRoutePart2":
-        parameter["ParameterValue"] = enabled
-        break
-else:
-    params.append({
-        "ParameterKey": "DeployApiRoutePart2",
-        "ParameterValue": enabled,
-    })
-
-with open(params_path, "w", encoding="utf-8") as params_file:
-    json.dump(params, params_file, indent=2)
-    params_file.write("\n")
-PY
+cmd_show() {
+  local env="$1" build="$2"
+  require_env_arg "$env"
+  require_build_arg "$build"
+  local m="$VERSIONS_DIR/$env/$build/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no manifest at $m"
+    exit 1
+  fi
+  cat "$m"
 }
 
-route_split_migration_required() {
-  local part2_stacks
-  part2_stacks=$("$AWS_BIN" cloudformation list-stack-resources \
-    --stack-name "$STACK_NAME" \
-    --region "$AWS_REGION" \
-    --query "StackResourceSummaries[?LogicalResourceId=='PublicApiResourcesStackPart2' || LogicalResourceId=='CrmApiResourcesStackPart2'].LogicalResourceId" \
-    --output text \
-    --no-cli-pager)
-
-  [ -z "$part2_stacks" ] || [ "$part2_stacks" = "None" ]
-}
-
-if [ "$DEPLOY_CFN" = true ]; then
-  echo "[7/7] Deploying CloudFormation stack: $STACK_NAME..."
-
-  # Pre-check: ensure stack is in a stable state before deploying
-  echo "  Checking stack status..."
-  if ! wait_for_stack_stable "$STACK_NAME"; then
-    echo "  ERROR: Stack is not stable. Fix the stack state before deploying."
+# =============================================================================
+# rollback-code — fast path: point both Lambdas at an old code artifact
+# =============================================================================
+cmd_rollback_code() {
+  local env="$1" build="$2"
+  require_env_arg "$env"
+  require_build_arg "$build"
+  local build_dir="$VERSIONS_DIR/$env/$build"
+  local m="$build_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded build #$build for $env"
     exit 1
   fi
 
-  if route_split_migration_required; then
-    echo "  Migrating explicit API routes: updating existing Part 1 stacks first..."
-    echo "  The /api proxy remains available while the old route resources are moved."
-    set_route_part2_parameter false
-    cfn_deploy_with_retry
+  set -a
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENVIRONMENT_NAME="$env"
 
-    echo "  Creating explicit API route Part 2 stacks..."
-    set_route_part2_parameter true
-    cfn_deploy_with_retry
-  else
-    cfn_deploy_with_retry
+  local bucket key
+  bucket="$(json_read "$m" artifact.bucket)"
+  key="$(json_read "$m" artifact.codeKey)" || true
+
+  if [ -z "${key:-}" ] || [ "$key" = "unknown" ]; then
+    echo "ERROR: build #$build has no recorded code key — cannot roll back code from it."
+    exit 1
   fi
-elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
-  echo "[7/7] Updating Lambda function directly..."
+
+  echo "Checking archival status of s3://$bucket/$key ..."
+  local storage_class
+  storage_class="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$key" --region "$AWS_REGION" --query StorageClass --output text 2>/dev/null || echo STANDARD)"
+  [ "$storage_class" = "None" ] && storage_class="STANDARD"
+
+  if [ "$storage_class" = "DEEP_ARCHIVE" ] || [ "$storage_class" = "GLACIER" ]; then
+    cat <<EOF
+
+This build's code is in $storage_class — it must be restored before Lambda can read it.
+Run:
+  $AWS_BIN s3api restore-object --bucket $bucket --key $key --region $AWS_REGION \\
+    --restore-request '{"Days":7,"GlacierJobParameters":{"Tier":"Standard"}}'
+
+Then wait for the restore (~12h for Deep Archive Standard tier; check with):
+  $AWS_BIN s3api head-object --bucket $bucket --key $key --region $AWS_REGION --query Restore
+
+Re-run this rollback-code command once that shows the restore is complete.
+EOF
+    exit 1
+  fi
+
+  echo "Rolling back code: s3://$bucket/$key"
+
   "$AWS_BIN" lambda update-function-code \
-    --function-name dev-real-estate-api \
-    --s3-bucket "${ARTIFACT_BUCKET}" \
-    --s3-key "${S3_KEY}" \
+    --function-name "${ENVIRONMENT_NAME}-realestateflow-api" \
+    --s3-bucket "$bucket" \
+    --s3-key "$key" \
     --region "$AWS_REGION" \
     --no-cli-pager
 
-  # The call recording worker ships the same zip with a different handler, so a
-  # code-only deploy has to refresh it too or the two drift apart.
-  CALL_RECORDING_WORKER_NAME="${ENVIRONMENT_NAME:-dev}-real-estate-call-recording-worker"
-  if "$AWS_BIN" lambda get-function --function-name "$CALL_RECORDING_WORKER_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
-    echo "[7/7] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
+  # The call-recording worker ships the same zip with a different handler —
+  # a code-only rollback has to refresh it too or the two drift apart, same
+  # reasoning as the direct-update path in server/infra/deploy.sh itself.
+  local worker_name="${ENVIRONMENT_NAME}-realestateflow-call-recording-worker"
+  if "$AWS_BIN" lambda get-function --function-name "$worker_name" --region "$AWS_REGION" > /dev/null 2>&1; then
     "$AWS_BIN" lambda update-function-code \
-      --function-name "$CALL_RECORDING_WORKER_NAME" \
-      --s3-bucket "${ARTIFACT_BUCKET}" \
-      --s3-key "${S3_KEY}" \
+      --function-name "$worker_name" \
+      --s3-bucket "$bucket" \
+      --s3-key "$key" \
       --region "$AWS_REGION" \
       --no-cli-pager
   else
-    echo "[7/7] Call recording worker Lambda not found ($CALL_RECORDING_WORKER_NAME); run a CloudFormation deploy to create it."
+    echo "Note: call-recording worker Lambda ($worker_name) not found — skipped (not deployed in this env, or Call Intelligence not provisioned)."
   fi
-elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
-  echo "[7/7] Skipping Lambda update (DEPLOY_ZIP=false)."
-else
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
-fi
 
-# Force API Gateway deployments
-echo "Forcing API Gateway deployments..."
-PUBLIC_API_ID=$("$AWS_BIN" cloudformation describe-stack-resources --region "$AWS_REGION" --stack-name "$STACK_NAME" --logical-resource-id RealEstatePublicRestApi --query "StackResources[0].PhysicalResourceId" --output text)
-CRM_API_ID=$("$AWS_BIN" cloudformation describe-stack-resources --region "$AWS_REGION" --stack-name "$STACK_NAME" --logical-resource-id RealEstateCrmRestApi --query "StackResources[0].PhysicalResourceId" --output text)
+  echo "Rolled back code to build #$build ($key)."
 
-# Retry helper for API Gateway create-deployment (handles TooManyRequestsException)
-apigw_deploy_with_retry() {
-  local api_id="$1"
-  local stage_name="$2"
-  local attempt=1
-  local max_attempts=5
-  local delay=5
+  # Record the rollback as its own new build — a rollback is a new forward
+  # release, not an edit to history, per standard CI/CD release practice.
+  local new_build
+  new_build="$(next_build_number "$env")"
+  local new_dir="$VERSIONS_DIR/$env/$new_build"
+  mkdir -p "$new_dir"
+  cp "$build_dir"/*.yaml "$new_dir/" 2>/dev/null || true
+  cp "$build_dir/cfn-params.json" "$new_dir/" 2>/dev/null || true
 
-  while [ $attempt -le $max_attempts ]; do
-    if "$AWS_BIN" apigateway create-deployment --region "$AWS_REGION" --rest-api-id "$api_id" --stage-name "$stage_name" --description "deploy.sh $TIMESTAMP" > /dev/null 2>&1; then
-      echo "  Deployment successful for API $api_id (stage: $stage_name)"
-      return 0
-    fi
+  write_manifest "$new_dir/manifest.json" \
+    "$new_build" "$env" "deployed" "${STACK_NAME:-unknown}" "$build" "code-only" \
+    "$bucket" "$key" \
+    "$(json_read "$m" artifact.mainTemplateKey)" "$(json_read "$m" artifact.mainTemplateVersionId)" \
+    "$(json_read "$m" artifact.routesPart1Key)" "$(json_read "$m" artifact.routesPart1VersionId)" \
+    "$(json_read "$m" artifact.routesPart2Key)" "$(json_read "$m" artifact.routesPart2VersionId)" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}"
 
-    if [ $attempt -eq $max_attempts ]; then
-      echo "  ERROR: API Gateway deployment failed for $api_id after $max_attempts attempts"
-      return 1
-    fi
-
-    echo "  Rate limited on API $api_id, retrying in ${delay}s... (attempt $attempt/$max_attempts)"
-    sleep $delay
-    delay=$((delay * 2))
-    attempt=$((attempt + 1))
-  done
+  echo "$new_build" > "$VERSIONS_DIR/$env/LATEST"
+  echo "Recorded as build #$new_build (rollbackOf: #$build, code-only)."
 }
 
-if [ "$PUBLIC_API_ID" != "None" ] && [ -n "$PUBLIC_API_ID" ]; then
-  sleep 3
-  apigw_deploy_with_retry "$PUBLIC_API_ID" "$PUBLIC_API_STAGE_NAME"
-fi
+# =============================================================================
+# rollback-full — redeploy a build's saved CFN template(s) + params, then code
+# =============================================================================
+cmd_rollback_full() {
+  local env="$1" build="$2"
+  require_env_arg "$env"
+  require_build_arg "$build"
+  local build_dir="$VERSIONS_DIR/$env/$build"
+  local m="$build_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded build #$build for $env"
+    exit 1
+  fi
+  if [ ! -f "$build_dir/cfn-backend.yaml" ] || [ ! -f "$build_dir/cfn-params.json" ]; then
+    echo "ERROR: build #$build is missing its template/params snapshot — cannot do a full rollback."
+    echo "(rollback-code may still work if it has a recorded code key.)"
+    exit 1
+  fi
 
-if [ "$CRM_API_ID" != "None" ] && [ -n "$CRM_API_ID" ]; then
-  sleep 5
-  apigw_deploy_with_retry "$CRM_API_ID" "$CRM_API_STAGE_NAME"
-fi
+  set -a
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENVIRONMENT_NAME="$env"
 
-echo ""
-echo "============================================="
-echo " Deploy complete!"
-echo "============================================="
+  echo "Full rollback to build #$build: redeploying its saved CFN template(s) + params, then its code."
+  echo "This runs a normal 'aws cloudformation deploy' with historical files."
 
-# Print key outputs
-echo ""
-echo "Stack outputs:"
-"$AWS_BIN" cloudformation describe-stacks \
-  --stack-name "$STACK_NAME" \
-  --region "$AWS_REGION" \
-  --no-cli-pager \
-  --query "Stacks[0].Outputs" \
-  --output table
+  local bucket
+  bucket="$(json_read "$m" artifact.bucket)"
 
-# -----------------------------------------------------------------------------
-# 7. Cleanup
-# -----------------------------------------------------------------------------
-echo ""
-echo "Cleaning up function.zip..."
-rm -f "$PROJECT_DIR/function.zip"
+  # Re-upload nested route templates AND the main template from the LOCAL
+  # snapshot, not from S3 — the S3 copies may have moved to Deep Archive by
+  # now and take hours to restore; the local snapshots are instant and
+  # identical content. This also matches server/infra/deploy.sh's own
+  # convention of always uploading the main template fresh (it's >51.2KB).
+  local part1_key part2_key main_key
+  part1_key="$(json_read "$m" artifact.routesPart1Key)"
+  part2_key="$(json_read "$m" artifact.routesPart2Key)"
+  main_key="$(json_read "$m" artifact.mainTemplateKey)"
 
-echo "Done."
+  if [ -f "$build_dir/apigw-explicit-routes-part1.yaml" ]; then
+    "$AWS_BIN" s3 cp "$build_dir/apigw-explicit-routes-part1.yaml" "s3://$bucket/$part1_key" --region "$AWS_REGION" --no-cli-pager
+  fi
+  if [ -f "$build_dir/apigw-explicit-routes-part2.yaml" ]; then
+    "$AWS_BIN" s3 cp "$build_dir/apigw-explicit-routes-part2.yaml" "s3://$bucket/$part2_key" --region "$AWS_REGION" --no-cli-pager
+  fi
+  "$AWS_BIN" s3 cp "$build_dir/cfn-backend.yaml" "s3://$bucket/$main_key" --region "$AWS_REGION" --no-cli-pager
+
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$build_dir/cfn-backend.yaml" \
+    --stack-name "${STACK_NAME}" \
+    --s3-bucket "$bucket" \
+    --s3-prefix "${ARTIFACT_PREFIX}" \
+    --parameter-overrides "file://$build_dir/cfn-params.json" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region "$AWS_REGION" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+
+  echo "CFN template(s)/params restored from build #$build. Rolling back code next..."
+  cmd_rollback_code "$env" "$build"
+}
+
+# =============================================================================
+# dispatch
+# =============================================================================
+mkdir -p "$VERSIONS_DIR"
+
+case "${1:-}" in
+  list)
+    cmd_list "${2:-}"
+    ;;
+  show)
+    cmd_show "${2:-}" "${3:-}"
+    ;;
+  rollback-code)
+    cmd_rollback_code "${2:-}" "${3:-}"
+    ;;
+  rollback-full)
+    cmd_rollback_full "${2:-}" "${3:-}"
+    ;;
+  dev|prod)
+    cmd_deploy "$1"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

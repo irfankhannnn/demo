@@ -22,6 +22,8 @@ Thumbs.db
 
 # Build artifacts
 function.zip
+infra/cfn-params.json
+infra/.last-deploy-artifacts.json
 
 # Demo seeder runtime trace
 scripts/node-trace.json

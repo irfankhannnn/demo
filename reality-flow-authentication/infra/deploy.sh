@@ -188,7 +188,7 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-realestateflow-${ENV}-subscriptions}" },
+  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-${ENV}-realestateflow-subscriptions}" },
   { "ParameterKey": "ServerStackName", "ParameterValue": "${SERVER_STACK_NAME:-}" }
 ]
 EOF
@@ -222,7 +222,7 @@ PARAM_OVERRIDES=(
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
   "InternalApiKey=${INTERNAL_API_KEY:-}"
   "AllowedOrigins=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}"
-  "SubscriptionsTableName=${SUBSCRIPTIONS_TABLE:-realestateflow-${ENV}-subscriptions}"
+  "SubscriptionsTableName=${SUBSCRIPTIONS_TABLE:-${ENV}-realestateflow-subscriptions}"
   "ServerStackName=${SERVER_STACK_NAME:-}"
 )
 "$AWS_BIN" cloudformation deploy \

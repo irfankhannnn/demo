@@ -23,47 +23,47 @@ Parameters:
 
   DynamoDbTableName:
     Type: String
-    Default: realestateflow-dev-core
+    Default: dev-realestateflow-core
     Description: Name of the core DynamoDB table used by the application
 
   CrmDynamoDbTableName:
     Type: String
-    Default: realestateflow-dev-crm
+    Default: dev-realestateflow-crm
     Description: Name of the DynamoDB table used by the multi-tenant CRM
 
   AgencyConfigTableName:
     Type: String
-    Default: realestateflow-dev-agencies
+    Default: dev-realestateflow-agencies
     Description: Name of the DynamoDB table storing per-agency admin configuration
 
   AreasTableName:
     Type: String
-    Default: realestateflow-dev-areas
+    Default: dev-realestateflow-areas
     Description: Name of the DynamoDB table storing area information with banners
 
   EnquiriesTableNameCloudberry:
     Type: String
-    Default: realestateflow-dev-enquiries
+    Default: dev-realestateflow-enquiries
     Description: Name of the DynamoDB table storing contact and consultation enquiries
 
   B2BLeadsTableName:
     Type: String
-    Default: realestateflow-dev-b2b-details
+    Default: dev-realestateflow-b2b-details
     Description: Name of the DynamoDB table storing B2B sales leads (Ten BKC channel partnership inquiries)
 
   KhataTableName:
     Type: String
-    Default: realestateflow-dev-khata
+    Default: dev-realestateflow-khata
     Description: Name of the DynamoDB table storing Khata Book transactions and categories
 
   NotificationsTableName:
     Type: String
-    Default: realestateflow-dev-notifications
+    Default: dev-realestateflow-notifications
     Description: Name of the DynamoDB table storing in-app notifications and scheduled reminders
 
   PushTokensTableName:
     Type: String
-    Default: realestateflow-dev-push-tokens
+    Default: dev-realestateflow-push-tokens
     Description: Name of the DynamoDB table storing mobile device push tokens (FCM/APNs)
 
   FirebaseServiceAccountJson:
@@ -77,23 +77,23 @@ Parameters:
 
   DevelopersTableName:
     Type: String
-    Default: realestateflow-dev-developers
+    Default: dev-realestateflow-developers
     Description: Name of the DynamoDB table storing real estate developer profiles (Emaar, Sobha, Lodha, etc.)
 
   RealEstateAreasTableName:
     Type: String
-    Default: realestateflow-dev-communities
+    Default: dev-realestateflow-communities
     Description: Name of the DynamoDB table storing area/community profiles (DIFC, Dubai Marina, Andheri, etc.)
 
 
   ProjectsTableName:
     Type: String
-    Default: realestateflow-dev-projects
+    Default: dev-realestateflow-projects
     Description: Name of the DynamoDB table storing real estate projects
 
   GrievancesTableName:
     Type: String
-    Default: realestateflow-dev-grievances
+    Default: dev-realestateflow-grievances
     Description: >-
       Name of the DynamoDB table storing DPDP Act 2023 grievances. Must match
       the table launch-tables-cfn.yaml creates for the same EnvironmentName —
@@ -102,7 +102,7 @@ Parameters:
 
   NpsResponsesTableName:
     Type: String
-    Default: realestateflow-dev-nps-responses
+    Default: dev-realestateflow-nps-responses
     Description: >-
       Name of the DynamoDB table storing Net Promoter Score responses. Must
       match the table launch-tables-cfn.yaml creates for the same
@@ -110,7 +110,7 @@ Parameters:
 
   SubscriptionsTableName:
     Type: String
-    Default: realestateflow-dev-subscriptions
+    Default: dev-realestateflow-subscriptions
     Description: >-
       Name of the DynamoDB table storing tenant subscription plans and seat
       limits. Must match the table launch-tables-cfn.yaml creates for the
@@ -118,7 +118,7 @@ Parameters:
 
   WebhookLogTableName:
     Type: String
-    Default: realestateflow-dev-webhook-log
+    Default: dev-realestateflow-webhook-log
     Description: >-
       Name of the DynamoDB table storing inbound webhook idempotency records.
       Must match the table launch-tables-cfn.yaml creates for the same
@@ -126,7 +126,7 @@ Parameters:
 
   TenantApiKeysTableName:
     Type: String
-    Default: realestateflow-dev-tenant-api-keys
+    Default: dev-realestateflow-tenant-api-keys
     Description: >-
       Name of the DynamoDB table storing per-tenant API keys. Must match the
       table launch-tables-cfn.yaml creates for the same EnvironmentName (see
@@ -134,17 +134,17 @@ Parameters:
 
   CreditsTableName:
     Type: String
-    Default: realestateflow-dev-credits
+    Default: dev-realestateflow-credits
     Description: DynamoDB table for tenant credit balances and ledger
 
   CreditConfigTableName:
     Type: String
-    Default: realestateflow-dev-credit-config
+    Default: dev-realestateflow-credit-config
     Description: DynamoDB table for owner-editable credit configuration
 
   UserCategoriesTableName:
     Type: String
-    Default: realestateflow-dev-user-categories
+    Default: dev-realestateflow-user-categories
     Description: DynamoDB table for WhatsApp user category assignments
 
   SesFromEmail:
@@ -439,7 +439,7 @@ Parameters:
 
   AgentAuditTableName:
     Type: String
-    Default: realestateflow-dev-agent-audit
+    Default: dev-realestateflow-agent-audit
     Description: DynamoDB table for AI Employee agent audit logs
 
   JwtSecret:
@@ -460,7 +460,7 @@ Parameters:
 
   AiEmployeeProvisioningTableName:
     Type: String
-    Default: realestateflow-dev-ai-employee-provisioning
+    Default: dev-realestateflow-ai-employee-provisioning
     Description: >-
       DynamoDB table for AI Employee provisioning rows. This stack owns and
       creates the table (see AiEmployeeProvisioningTable below) — do not
@@ -1587,7 +1587,7 @@ Resources:
   CallRecordingDlq:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "realestateflow-${EnvironmentName}-call-recordings-dlq"
+      QueueName: !Sub "${EnvironmentName}-realestateflow-call-recordings-dlq"
       MessageRetentionPeriod: 1209600 # 14 days
       Tags:
         - Key: Environment
@@ -1596,7 +1596,7 @@ Resources:
   CallRecordingQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: !Sub "realestateflow-${EnvironmentName}-call-recordings"
+      QueueName: !Sub "${EnvironmentName}-realestateflow-call-recordings"
       # Must be >= the worker timeout, otherwise SQS redelivers a message that
       # is still being processed.
       VisibilityTimeout: !Ref CallIntelWorkerTimeout
@@ -1611,7 +1611,7 @@ Resources:
   ApiLambdaExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-api-lambda-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-api-lambda-role"
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -1754,7 +1754,7 @@ Resources:
   ApiLambdaFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-api"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-api"
       Runtime: !Ref LambdaRuntime
       Handler: lambda-handler.handler
       Role: !GetAtt ApiLambdaExecutionRole.Arn
@@ -1878,7 +1878,7 @@ Resources:
   CallRecordingWorkerFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-call-recording-worker"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-call-recording-worker"
       Runtime: !Ref LambdaRuntime
       Handler: workers/callRecordingWorker.handler
       Role: !GetAtt ApiLambdaExecutionRole.Arn
@@ -1951,7 +1951,7 @@ Resources:
   RealEstatePublicRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-public-api"
+      Name: !Sub "${EnvironmentName}-realestateflow-public-api"
       BinaryMediaTypes:
         - "*/*"
       EndpointConfiguration:
@@ -2037,7 +2037,7 @@ Resources:
   RealEstateCrmRestApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-crm-api"
+      Name: !Sub "${EnvironmentName}-realestateflow-crm-api"
       BinaryMediaTypes:
         - "*/*"
       EndpointConfiguration:
@@ -2141,7 +2141,7 @@ Resources:
   CreditResetRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-credit-reset-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-credit-reset-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2171,7 +2171,7 @@ Resources:
   CreditResetFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-credit-reset"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-credit-reset"
       Runtime: nodejs20.x
       Handler: scripts/credit-reset-cron.handler
       Timeout: 300
@@ -2190,7 +2190,7 @@ Resources:
   CreditResetRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-credit-reset"
+      Name: !Sub "${EnvironmentName}-realestateflow-credit-reset"
       Description: 'Trigger credit reset Lambda daily at 00:30 IST (18:30 UTC)'
       ScheduleExpression: 'cron(30 18 * * ? *)'
       State: ENABLED
@@ -2209,7 +2209,7 @@ Resources:
   TrialReminderRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-trial-reminder-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-trial-reminder-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2242,7 +2242,7 @@ Resources:
   TrialReminderFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-trial-reminder"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-trial-reminder"
       Runtime: nodejs20.x
       Handler: scripts/trial-reminder-cron.handler
       Role: !GetAtt TrialReminderRole.Arn
@@ -2262,7 +2262,7 @@ Resources:
   TrialReminderRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-trial-reminder"
+      Name: !Sub "${EnvironmentName}-realestateflow-trial-reminder"
       Description: 'Trigger trial reminder Lambda daily at 09:00 IST (03:30 UTC)'
       ScheduleExpression: 'cron(30 3 * * ? *)'
       State: ENABLED
@@ -2285,7 +2285,7 @@ Resources:
   IncompleteDataRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-incomplete-data-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-incomplete-data-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2318,7 +2318,7 @@ Resources:
   IncompleteDataFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-incomplete-data"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-incomplete-data"
       Runtime: nodejs20.x
       Handler: scripts/incomplete-data-cron.handler
       Timeout: 300
@@ -2343,7 +2343,7 @@ Resources:
   IncompleteDataRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-incomplete-data"
+      Name: !Sub "${EnvironmentName}-realestateflow-incomplete-data"
       Description: 'Trigger incomplete data check daily at 09:00 IST (03:30 UTC)'
       ScheduleExpression: 'cron(30 3 * * ? *)'
       State: ENABLED
@@ -2362,7 +2362,7 @@ Resources:
   ExpiringAgreementsRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-expiring-agreements-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-expiring-agreements-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2395,7 +2395,7 @@ Resources:
   ExpiringAgreementsFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-expiring-agreements"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-expiring-agreements"
       Runtime: nodejs20.x
       Handler: scripts/expiring-agreements-cron.handler
       Timeout: 300
@@ -2420,7 +2420,7 @@ Resources:
   ExpiringAgreementsRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-expiring-agreements"
+      Name: !Sub "${EnvironmentName}-realestateflow-expiring-agreements"
       Description: 'Trigger expiring agreements alert daily at 08:30 IST (03:00 UTC)'
       ScheduleExpression: 'cron(0 3 * * ? *)'
       State: ENABLED
@@ -2439,7 +2439,7 @@ Resources:
   TeamSummaryRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-team-summary-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-team-summary-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2474,7 +2474,7 @@ Resources:
   TeamSummaryFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-team-summary"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-team-summary"
       Runtime: nodejs20.x
       Handler: scripts/team-summary-cron.handler
       Timeout: 300
@@ -2502,7 +2502,7 @@ Resources:
   TeamSummaryRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-team-summary"
+      Name: !Sub "${EnvironmentName}-realestateflow-team-summary"
       Description: 'Trigger team summary Lambda daily at 18:00 IST (12:30 UTC)'
       ScheduleExpression: 'cron(30 12 * * ? *)'
       State: ENABLED
@@ -2525,7 +2525,7 @@ Resources:
   EscalationRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-escalation-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-escalation-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2560,7 +2560,7 @@ Resources:
   EscalationFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-ai-employee-escalation"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-ai-employee-escalation"
       Runtime: nodejs20.x
       Handler: scripts/escalation-cron.handler
       Role: !GetAtt EscalationRole.Arn
@@ -2585,7 +2585,7 @@ Resources:
   EscalationSchedule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-ai-employee-escalation"
+      Name: !Sub "${EnvironmentName}-realestateflow-ai-employee-escalation"
       Description: 'Every 6 hours  check pending AI Employee provisioning SLA'
       ScheduleExpression: 'rate(6 hours)'
       State: ENABLED
@@ -2608,7 +2608,7 @@ Resources:
   LeadQualifierRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-lead-qualifier-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-qualifier-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2661,7 +2661,7 @@ Resources:
   LeadQualifierFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-lead-qualifier"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-qualifier"
       Runtime: nodejs20.x
       Handler: scripts/lead-qualifier-handler.handler
       Role: !GetAtt LeadQualifierRole.Arn
@@ -2686,7 +2686,7 @@ Resources:
   LeadQualifierRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-lead-qualifier"
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-qualifier"
       EventPattern:
         source:
           - 'crm.leads'
@@ -2708,7 +2708,7 @@ Resources:
   LeadRouterRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-lead-router-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-router-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2752,7 +2752,7 @@ Resources:
   LeadRouterFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-lead-router"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-router"
       Runtime: nodejs20.x
       Handler: scripts/lead-router-handler.handler
       Role: !GetAtt LeadRouterRole.Arn
@@ -2779,7 +2779,7 @@ Resources:
   LeadRouterRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-lead-router"
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-router"
       Description: 'Trigger lead routing when a lead is qualified by the agent'
       EventPattern:
         source:
@@ -2802,7 +2802,7 @@ Resources:
   LeadFollowupRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-lead-followup-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-followup-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -2873,7 +2873,7 @@ Resources:
   LeadFollowupFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-lead-followup"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-followup"
       Runtime: nodejs20.x
       Handler: scripts/lead-followup-cron.handler
       Role: !GetAtt LeadFollowupRole.Arn
@@ -2918,7 +2918,7 @@ Resources:
   LeadFollowupRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-lead-followup"
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-followup"
       Description: 'Daily at 04:00 IST  send follow-up nudges for stale leads'
       ScheduleExpression: 'cron(30 22 * * ? *)'
       State: ENABLED
@@ -2941,7 +2941,7 @@ Resources:
   WhatsAppProcessorRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor-role"
+      RoleName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-role"
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -3012,7 +3012,7 @@ Resources:
   WhatsAppProcessorFunction:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor"
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor"
       Runtime: nodejs20.x
       Handler: scripts/whatsapp-message-processor.handler
       Role: !GetAtt WhatsAppProcessorRole.Arn
@@ -3057,7 +3057,7 @@ Resources:
   WhatsAppProcessorRule:
     Type: AWS::Events::Rule
     Properties:
-      Name: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor"
+      Name: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor"
       Description: 'Process incoming WhatsApp messages from Bailey gateway'
       EventPattern:
         source:
@@ -3092,7 +3092,7 @@ Resources:
   AlertsTopic:
     Type: AWS::SNS::Topic
     Properties:
-      TopicName: !Sub "realestateflow-${EnvironmentName}-alerts"
+      TopicName: !Sub "${EnvironmentName}-realestateflow-alerts"
       DisplayName: RealEstateFlow Alerts
 
   AlertsTopicEmailSubscription:
@@ -3107,7 +3107,7 @@ Resources:
   WhatsAppProcessorErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor-errors"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-errors"
       AlarmDescription: >-
         WhatsApp message processor is throwing. Users are sending messages and
         not getting replies. The processor rethrows after releasing its dedup
@@ -3130,7 +3130,7 @@ Resources:
   WhatsAppProcessorThrottlesAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor-throttles"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-throttles"
       AlarmDescription: WhatsApp processor is being throttled — inbound messages are queueing or dropping.
       Namespace: AWS/Lambda
       MetricName: Throttles
@@ -3148,7 +3148,7 @@ Resources:
   WhatsAppProcessorDurationAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-whatsapp-processor-slow"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-slow"
       AlarmDescription: >-
         p95 processing time is approaching the Lambda timeout. Watch this when
         enabling AgentToolLoopEnabled — a multi-step turn is legitimately
@@ -3171,7 +3171,7 @@ Resources:
   ApiLambdaErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-api-lambda-errors"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-api-lambda-errors"
       AlarmDescription: Main CRM API Lambda is erroring — the web app is degraded.
       Namespace: AWS/Lambda
       MetricName: Errors
@@ -3191,7 +3191,7 @@ Resources:
   CallRecordingDlqDepthAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-call-recording-dlq-not-empty"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-dlq-not-empty"
       AlarmDescription: >-
         A call recording failed all 5 delivery attempts and landed in the DLQ.
         Any non-zero depth means a customer's recording will never be
@@ -3212,7 +3212,7 @@ Resources:
   CallRecordingBacklogAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-call-recording-backlog"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-backlog"
       AlarmDescription: Recordings are queueing faster than the worker drains them.
       Namespace: AWS/SQS
       MetricName: ApproximateAgeOfOldestMessage
@@ -3230,7 +3230,7 @@ Resources:
   CallRecordingWorkerErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-call-recording-worker-errors"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-worker-errors"
       AlarmDescription: Call recording worker is erroring — transcription/analysis is failing.
       Namespace: AWS/Lambda
       MetricName: Errors
@@ -3249,7 +3249,7 @@ Resources:
   CrmTableThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
-      AlarmName: !Sub "realestateflow-${EnvironmentName}-crm-table-throttled"
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-crm-table-throttled"
       AlarmDescription: >-
         CrmTable requests are being throttled. Note this table is on-demand,
         so throttling usually means a hot partition or a burst past the
@@ -3272,7 +3272,7 @@ Resources:
   OpsDashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
-      DashboardName: !Sub "realestateflow-${EnvironmentName}-ops"
+      DashboardName: !Sub "${EnvironmentName}-realestateflow-ops"
       DashboardBody: !Sub |
         {
           "widgets": [

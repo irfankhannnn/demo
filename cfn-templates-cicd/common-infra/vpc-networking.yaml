@@ -789,11 +789,25 @@ Resources:
         Rules:
           # Live/current objects (each service's "latest" build) auto-tier
           # by access pattern — no manual hot/cold tuning needed.
-          - Id: IntelligentTieringForCurrentVersions
+          # Handles BOTH artifact-key schemes services use: a fixed key
+          # that gets overwritten on every deploy (reality-flow-authentication
+          # — old content is only reachable as a "noncurrent version", see
+          # the rule below) AND a unique per-deploy timestamped key that's
+          # never overwritten (server — there is no "noncurrent version" for
+          # a key nobody ever overwrites, so it must age out via its own
+          # object age instead). A frequently-overwritten key's "current
+          # version age" keeps resetting on every deploy, so the 60/365-day
+          # steps below are effectively a no-op for it in practice; for a
+          # never-overwritten key they're the only mechanism that applies.
+          - Id: TierAndArchiveCurrentVersions
             Status: Enabled
             Transitions:
               - StorageClass: INTELLIGENT_TIERING
                 TransitionInDays: 0
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 60
+            Expiration:
+              Days: 365
           # Every prior build (superseded by a newer upload to the same
           # key) becomes a "noncurrent version" under S3 versioning. Kept
           # retrievable for 1 year for rollback purposes, moved to Deep
@@ -860,11 +874,25 @@ Resources:
         Rules:
           # Live/current objects (each service's "latest" template) auto-tier
           # by access pattern — no manual hot/cold tuning needed.
-          - Id: IntelligentTieringForCurrentVersions
+          # Handles BOTH artifact-key schemes services use: a fixed key
+          # that gets overwritten on every deploy (reality-flow-authentication
+          # — old content is only reachable as a "noncurrent version", see
+          # the rule below) AND a unique per-deploy timestamped key that's
+          # never overwritten (server — there is no "noncurrent version" for
+          # a key nobody ever overwrites, so it must age out via its own
+          # object age instead). A frequently-overwritten key's "current
+          # version age" keeps resetting on every deploy, so the 60/365-day
+          # steps below are effectively a no-op for it in practice; for a
+          # never-overwritten key they're the only mechanism that applies.
+          - Id: TierAndArchiveCurrentVersions
             Status: Enabled
             Transitions:
               - StorageClass: INTELLIGENT_TIERING
                 TransitionInDays: 0
+              - StorageClass: DEEP_ARCHIVE
+                TransitionInDays: 60
+            Expiration:
+              Days: 365
           # Every prior template version kept retrievable for 1 year for
           # rollback, moved to Deep Archive after the first 2 months. See
           # the matching comment on ArtifactBucket for the retrieval-time
