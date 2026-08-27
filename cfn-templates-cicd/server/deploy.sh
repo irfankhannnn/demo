@@ -4,12 +4,7 @@ set -euo pipefail
 # =============================================================================
 # CRM Backend Microservice â€” Deployment Script
 # =============================================================================
-# Usage: ./infra/deploy.sh <dev|prod>
-#   Loads server/.env.dev or server/.env.prod (never a plain server/.env) and
-#   forces ENVIRONMENT_NAME to match the argument, so every physical resource
-#   this stack creates is named realestateflow-<dev|prod>-*. dev and prod are
-#   separate stacks (separate STACK_NAME per env file) — there is no shared
-#   state between them.
+# Usage: ./deploy.sh   (run from cfn-templates-cicd/server/)
 # Toggle deployment steps here:
 #   DEPLOY_LAMBDA=true  = deploy Lambda code + API Gateway
 #   DEPLOY_LAMBDA=false = deploy API Gateway only
@@ -22,11 +17,15 @@ set -euo pipefail
 # Set these manually before running the script.
 #
 # Defaulting to false keeps the deploy API Gateway-only by default.
-# Requires: .env file in project root with all required variables
+# Requires: .env file in the server/ project root with all required variables
+#
+# NOTE: This script lives in cfn-templates-cicd/server/ but deploys the
+# server/ Lambda source. PROJECT_DIR is resolved two levels up + into
+# server/ (not just "..") to reach the actual service root.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../../server" && pwd)"
 
 DEPLOY_LAMBDA=true
 DEPLOY_INSTALL=true
@@ -88,38 +87,17 @@ echo " CRM Backend â€” Deploy"
 echo "============================================="
 
 # -----------------------------------------------------------------------------
-# 0. Require an explicit dev|prod argument and load the matching env file
+# 1. Load and validate .env
 # -----------------------------------------------------------------------------
-DEPLOY_ENV="${1:-}"
-if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
-  echo "ERROR: Usage: $0 <dev|prod>"
-  echo "  e.g. ./infra/deploy.sh dev"
-  echo "       ./infra/deploy.sh prod"
-  exit 1
-fi
-
-ENV_FILE="$PROJECT_DIR/.env.${DEPLOY_ENV}"
-
-# -----------------------------------------------------------------------------
-# 1. Load and validate the environment file
-# -----------------------------------------------------------------------------
-if [ ! -f "$ENV_FILE" ]; then
-  echo "ERROR: env file not found at $ENV_FILE"
-  echo "Copy server/.env.sample to $ENV_FILE and fill in the values."
+if [ ! -f "$PROJECT_DIR/.env" ]; then
+  echo "ERROR: .env file not found at $PROJECT_DIR/.env"
+  echo "Copy .env.example to .env and fill in the values."
   exit 1
 fi
 
 set -a
-source "$ENV_FILE"
+source "$PROJECT_DIR/.env"
 set +a
-
-# The CLI argument is the source of truth, not whatever ENVIRONMENT_NAME the
-# env file happens to set — this is what stops a dev deploy from silently
-# reusing prod's stack/table names (or vice versa) if the file drifts.
-ENVIRONMENT_NAME="$DEPLOY_ENV"
-
-echo "Deploy target: $DEPLOY_ENV (env file: $(basename "$ENV_FILE"))"
-echo ""
 
 REQUIRED_VARS=(
   AWS_REGION
@@ -133,21 +111,16 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then
-    echo "ERROR: Required env var $var is not set in $ENV_FILE"
+    echo "ERROR: Required env var $var is not set in .env"
     exit 1
   fi
 done
 
-if [[ "$STACK_NAME" != realestateflow-* ]]; then
-  echo "ERROR: STACK_NAME ('$STACK_NAME') must start with 'realestateflow-' — set it in $ENV_FILE"
-  exit 1
-fi
-
 echo "Region:     $AWS_REGION"
 echo "Stack:      $STACK_NAME"
 echo "Auth URL:   $AUTH_SERVICE_URL"
-echo "OAuth Code Table:      ${OAUTH_CODES_TABLE_NAME:-realestate-flow-${ENVIRONMENT_NAME}-oauth-codes}"
-echo "OAuth Connection Table: ${OAUTH_CONNECTIONS_TABLE:-realestate-flow-${ENVIRONMENT_NAME}-oauth-connections}"
+echo "OAuth Code Table:      ${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}"
+echo "OAuth Connection Table: ${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}"
 echo ""
 echo "NOTE: This stack requires the MCP OAuth tables to exist before deployment."
 echo "      Deploy the reality-flow-mcp stack first, or create these tables manually."
@@ -247,13 +220,6 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "DevelopersTableName", "ParameterValue": "${DEVELOPERS_TABLE_NAME}" },
   { "ParameterKey": "RealEstateAreasTableName", "ParameterValue": "${REAL_ESTATE_AREAS_TABLE_NAME}" },
   { "ParameterKey": "ProjectsTableName", "ParameterValue": "${PROJECTS_TABLE_NAME}" },
-  { "ParameterKey": "PushTokensTableName", "ParameterValue": "${PUSH_TOKENS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-push-tokens}" },
-  { "ParameterKey": "UserCategoriesTableName", "ParameterValue": "${USER_CATEGORIES_TABLE_NAME:-realestateflow-${ENVIRONMENT_NAME}-user-categories}" },
-  { "ParameterKey": "GrievancesTableName", "ParameterValue": "${GRIEVANCES_TABLE_NAME:-realestateflow-${ENVIRONMENT_NAME}-grievances}" },
-  { "ParameterKey": "NpsResponsesTableName", "ParameterValue": "${NPS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-nps-responses}" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-subscriptions}" },
-  { "ParameterKey": "WebhookLogTableName", "ParameterValue": "${WEBHOOK_LOG_TABLE:-realestateflow-${ENVIRONMENT_NAME}-webhook-log}" },
-  { "ParameterKey": "TenantApiKeysTableName", "ParameterValue": "${TENANT_API_KEYS_TABLE:-realestateflow-${ENVIRONMENT_NAME}-tenant-api-keys}" },
   { "ParameterKey": "S3BucketName", "ParameterValue": "${S3_BUCKET_NAME}" },
   { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "${ARTIFACT_BUCKET}" },
 ${LAMBDA_CODE_PARAMETER_JSON}
@@ -313,8 +279,8 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "GrievanceOfficerEmail", "ParameterValue": "${GRIEVANCE_OFFICER_EMAIL:-info@realestateflow.in}" },
   { "ParameterKey": "LogLevel", "ParameterValue": "${LOG_LEVEL:-info}" },
   { "ParameterKey": "McpBaseUrl", "ParameterValue": "${MCP_BASE_URL:-https://mcp.realtyflow.com}" },
-  { "ParameterKey": "OAuthCodesTableName", "ParameterValue": "${OAUTH_CODES_TABLE_NAME:-realestate-flow-${ENVIRONMENT_NAME}-oauth-codes}" },
-  { "ParameterKey": "OAuthConnectionsTableName", "ParameterValue": "${OAUTH_CONNECTIONS_TABLE:-realestate-flow-${ENVIRONMENT_NAME}-oauth-connections}" },
+  { "ParameterKey": "OAuthCodesTableName", "ParameterValue": "${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}" },
+  { "ParameterKey": "OAuthConnectionsTableName", "ParameterValue": "${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}" },
   { "ParameterKey": "OAuthCallbackUrl", "ParameterValue": "${OAUTH_CALLBACK_URL:-https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback}" },
   { "ParameterKey": "FrontendUrl", "ParameterValue": "${FRONTEND_URL:-http://localhost:3000}" },
   { "ParameterKey": "FounderEmail", "ParameterValue": "${FOUNDER_EMAIL:-info@realestateflow.in}" },
@@ -346,8 +312,8 @@ EOF
 # -----------------------------------------------------------------------------
 # 6. Check for dependent MCP OAuth tables
 # -----------------------------------------------------------------------------
-OAUTH_CODES_TABLE="${OAUTH_CODES_TABLE_NAME:-realestate-flow-${ENVIRONMENT_NAME}-oauth-codes}"
-OAUTH_CONNECTIONS_TABLE="${OAUTH_CONNECTIONS_TABLE:-realestate-flow-${ENVIRONMENT_NAME}-oauth-connections}"
+OAUTH_CODES_TABLE="${OAUTH_CODES_TABLE_NAME:-realtyflow-oauth-codes}"
+OAUTH_CONNECTIONS_TABLE="${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}"
 
 if [ "$DEPLOY_CFN" = true ]; then
   echo "[6/7] Checking for dependent MCP OAuth tables..."
@@ -512,7 +478,7 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
   echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
   echo "[7/7] Updating Lambda function directly..."
   "$AWS_BIN" lambda update-function-code \
-    --function-name "realestateflow-${ENVIRONMENT_NAME}-api" \
+    --function-name dev-real-estate-api \
     --s3-bucket "${ARTIFACT_BUCKET}" \
     --s3-key "${S3_KEY}" \
     --region "$AWS_REGION" \
@@ -520,7 +486,7 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
 
   # The call recording worker ships the same zip with a different handler, so a
   # code-only deploy has to refresh it too or the two drift apart.
-  CALL_RECORDING_WORKER_NAME="realestateflow-${ENVIRONMENT_NAME}-call-recording-worker"
+  CALL_RECORDING_WORKER_NAME="${ENVIRONMENT_NAME:-dev}-real-estate-call-recording-worker"
   if "$AWS_BIN" lambda get-function --function-name "$CALL_RECORDING_WORKER_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
     echo "[7/7] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
     "$AWS_BIN" lambda update-function-code \

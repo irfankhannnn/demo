@@ -4,8 +4,11 @@ set -euo pipefail
 # =============================================================================
 # Reality Flow Authentication Microservice — Deployment Script
 # =============================================================================
-# Usage: ./infra/deploy.sh
-# Requires: .env file in project root with all required variables
+# Usage: ./infra/deploy.sh <dev|prod>
+#   Loads .env.dev or .env.prod (never a plain .env) and forces ENV to match
+#   the argument, so every physical resource this stack creates is named
+#   <dev|prod>-realestateflow-auth-*, matching the naming already live on
+#   prod-realestateflow-networking-common. dev and prod are separate stacks.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,22 +53,42 @@ echo " Reality Flow Auth — Deploy"
 echo "============================================="
 
 # -----------------------------------------------------------------------------
-# 1. Load and validate .env
+# 0. Require an explicit dev|prod argument and load the matching env file
 # -----------------------------------------------------------------------------
-if [ ! -f "$PROJECT_DIR/.env" ]; then
-  echo "ERROR: .env file not found at $PROJECT_DIR/.env"
-  echo "Copy sample.env to .env and fill in the values."
+DEPLOY_ENV="${1:-}"
+if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
+  echo "ERROR: Usage: $0 <dev|prod>"
+  echo "  e.g. ./infra/deploy.sh dev"
+  echo "       ./infra/deploy.sh prod"
+  exit 1
+fi
+
+ENV_FILE="$PROJECT_DIR/.env.${DEPLOY_ENV}"
+
+# -----------------------------------------------------------------------------
+# 1. Load and validate the environment file
+# -----------------------------------------------------------------------------
+if [ ! -f "$ENV_FILE" ]; then
+  echo "ERROR: env file not found at $ENV_FILE"
+  echo "Copy sample.env to $ENV_FILE and fill in the values."
   exit 1
 fi
 
 set -a
-source "$PROJECT_DIR/.env"
+source "$ENV_FILE"
 set +a
+
+# The CLI argument is the source of truth, not whatever ENV the env file
+# happens to set — this is what stops a dev deploy from silently reusing
+# prod's stack/table/Cognito-pool names (or vice versa) if the file drifts.
+ENV="$DEPLOY_ENV"
+
+echo "Deploy target: $DEPLOY_ENV (env file: $(basename "$ENV_FILE"))"
+echo ""
 
 REQUIRED_VARS=(
   AWS_REGION
   SERVICE_NAME
-  ENV
   GOOGLE_CLIENT_ID
   GOOGLE_CLIENT_SECRET
   COGNITO_DOMAIN_PREFIX_V2
@@ -76,10 +99,15 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then
-    echo "ERROR: Required env var $var is not set in .env"
+    echo "ERROR: Required env var $var is not set in $ENV_FILE"
     exit 1
   fi
 done
+
+if [[ "$SERVICE_NAME" != realestateflow-* ]]; then
+  echo "ERROR: SERVICE_NAME ('$SERVICE_NAME') must start with 'realestateflow-' — set it in $ENV_FILE"
+  exit 1
+fi
 
 STACK_NAME="${ENV}-${SERVICE_NAME}-stack"
 
@@ -143,8 +171,6 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "LogRetentionInDays", "ParameterValue": "${LOG_RETENTION_IN_DAYS:-14}" },
   { "ParameterKey": "SubnetIds", "ParameterValue": "${SUBNET_IDS:-}" },
   { "ParameterKey": "SecurityGroupIds", "ParameterValue": "${SECURITY_GROUP_IDS:-}" },
-  { "ParameterKey": "CognitoUserPoolId", "ParameterValue": "" },
-  { "ParameterKey": "CognitoClientId", "ParameterValue": "" },
   { "ParameterKey": "LambdaPackagesBucketName", "ParameterValue": "${LAMBDA_PACKAGES_BUCKET_NAME}" },
   { "ParameterKey": "DatabaseHost", "ParameterValue": "" },
   { "ParameterKey": "DatabasePort", "ParameterValue": "" },
@@ -162,7 +188,7 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-Subscriptions}" },
+  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-realestateflow-${ENV}-subscriptions}" },
   { "ParameterKey": "ServerStackName", "ParameterValue": "${SERVER_STACK_NAME:-}" }
 ]
 EOF
@@ -179,8 +205,6 @@ PARAM_OVERRIDES=(
   "LogRetentionInDays=${LOG_RETENTION_IN_DAYS:-14}"
   "SubnetIds=${SUBNET_IDS:-}"
   "SecurityGroupIds=${SECURITY_GROUP_IDS:-}"
-  "CognitoUserPoolId="
-  "CognitoClientId="
   "LambdaPackagesBucketName=${LAMBDA_PACKAGES_BUCKET_NAME}"
   "DatabaseHost="
   "DatabasePort="
@@ -198,7 +222,7 @@ PARAM_OVERRIDES=(
   "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
   "InternalApiKey=${INTERNAL_API_KEY:-}"
   "AllowedOrigins=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}"
-  "SubscriptionsTableName=${SUBSCRIPTIONS_TABLE:-Subscriptions}"
+  "SubscriptionsTableName=${SUBSCRIPTIONS_TABLE:-realestateflow-${ENV}-subscriptions}"
   "ServerStackName=${SERVER_STACK_NAME:-}"
 )
 "$AWS_BIN" cloudformation deploy \

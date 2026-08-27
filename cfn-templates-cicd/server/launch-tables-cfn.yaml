@@ -1,19 +1,14 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  RealEstateFlow launch tables — Grievances, Subscriptions, webhook
-  idempotency, tenant API keys, NPS responses, beta invites. AI Employee
-  provisioning is NOT here — it's owned by server/infra/cfn-backend.yaml.
+  RealEstateFlow launch tables — Grievances, Subscriptions, AI Employee provisioning,
+  webhook idempotency, tenant API keys, NPS responses, beta invites.
   Deploy in ap-south-1 before launch PRs go live.
 
 Parameters:
   EnvironmentName:
     Type: String
-    Default: dev
-    AllowedValues: ['dev', 'prod']
-    Description: >-
-      Deployment environment. Every table this stack creates is named
-      realestateflow-<EnvironmentName>-<table>, so dev and prod never share
-      data.
+    Default: prod
+    Description: Environment tag (prod, staging)
 
 Resources:
   GrievancesTable:
@@ -21,7 +16,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-grievances"
+      TableName: Grievances
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -58,17 +53,46 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
 
-  # AIEmployeeProvisioning is intentionally NOT declared here. The server
-  # stack (server/infra/cfn-backend.yaml, AiEmployeeProvisioningTable
-  # resource) owns and creates it — declaring it in both places makes
-  # whichever stack deploys second fail with "Table already exists".
+  AIEmployeeProvisioningTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: AIEmployeeProvisioning
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
 
   WebhookLogTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-webhook-log"
+      TableName: WebhookLog
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -113,7 +137,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-tenant-api-keys"
+      TableName: TenantApiKeys
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: tenantId
@@ -139,7 +163,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-subscriptions"
+      TableName: Subscriptions
       BillingMode: PAY_PER_REQUEST
       PointInTimeRecoverySpecification:
         PointInTimeRecoveryEnabled: true
@@ -179,7 +203,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-nps-responses"
+      TableName: NPSResponses
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: responseId
@@ -209,7 +233,7 @@ Resources:
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      TableName: !Sub "realestateflow-${EnvironmentName}-beta-invites"
+      TableName: BetaInvites
       BillingMode: PAY_PER_REQUEST
       AttributeDefinitions:
         - AttributeName: email
@@ -226,6 +250,8 @@ Outputs:
     Value: !GetAtt GrievancesTable.Arn
   SubscriptionsTableArn:
     Value: !GetAtt SubscriptionsTable.Arn
+  AIEmployeeProvisioningTableArn:
+    Value: !GetAtt AIEmployeeProvisioningTable.Arn
   WebhookLogTableArn:
     Value: !GetAtt WebhookLogTable.Arn
   TenantApiKeysTableArn:

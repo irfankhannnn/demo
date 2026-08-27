@@ -15,8 +15,11 @@ Thumbs.db
 *.swp
 *.swo
 
-# Auto-generated deployment files
+# Auto-generated deployment files (regenerated fresh by deploy.sh from
+# .env.<env> on every run — carry real secrets, unlike the *.sample.json
+# checked-in templates)
 server/infra/cfn-params.json
+cfn-templates-cicd/**/cfn-params.json
 
 # Environment files (contain secrets — never commit real .env files)
 # .env.sample files are committed as templates; .env and .env.production are local/deploy secrets.
@@ -43,4 +46,11 @@ env-update.json
 **/crm-env*.json
 **/whatsapp-*env.json
 **/env-compact.json
+
+# CI/CD local build/release history (per-machine deploy log + instant-access
+# template/param snapshots). S3 (versioned) is the durable source of truth
+# for the actual artifacts — this is never checked in. See the .gitignore
+# best-practices section in the root README.md, and
+# cfn-templates-cicd/*/README.md for the deploy-versions/ design.
+cfn-templates-cicd/*/deploy-versions/
 
