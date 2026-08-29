@@ -54,3 +54,35 @@ env-update.json
 # cfn-templates-cicd/*/README.md for the deploy-versions/ design.
 cfn-templates-cicd/*/deploy-versions/
 
+
+# ---------------------------------------------------------------------------
+# Instagram Solution (branch: instagram-solution)
+# ---------------------------------------------------------------------------
+# A plain ".env" line does NOT match ".env.dev"/".env.prod" - both patterns are
+# required, with an explicit exception for the committed sample templates.
+backend_insta_sol_ms/.env
+backend_insta_sol_ms/.env.*
+!backend_insta_sol_ms/.env.sample
+frontend_insta_sol_ms/.env
+frontend_insta_sol_ms/.env.*
+!frontend_insta_sol_ms/.env.sample
+instagram-local-agent/.env
+instagram-local-agent/.env.*
+!instagram-local-agent/.env.sample
+
+# Build artifacts, regenerated on every deploy - never hand-edited, never committed
+backend_insta_sol_ms/infra/cfn-params.json
+backend_insta_sol_ms/infra/.last-deploy-artifacts.json
+backend_insta_sol_ms/function.zip
+frontend_insta_sol_ms/infra/cfn-params.json
+frontend_insta_sol_ms/infra/.last-deploy-artifacts.json
+frontend_insta_sol_ms/dist/
+
+# Local build/release index - S3 is the durable source of truth
+cfn-templates-cicd/backend_insta_sol_ms/deploy-versions/
+cfn-templates-cicd/frontend_insta_sol_ms/deploy-versions/
+
+# Laptop agent local state - SQLite DB, tokens, machine key. Never commit.
+instagram-local-agent/.ig-agent/
+instagram-local-agent/config/config.json
+instagram-local-agent/config/rules.json

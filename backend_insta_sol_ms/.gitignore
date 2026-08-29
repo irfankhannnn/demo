@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+coverage/
+*.zip
+
+# Env files. NOTE: the bare `.env` pattern does NOT match `.env.prod` or
+# `.env.dev` — that miss has leaked real credentials in this repo before, so
+# the wildcard is mandatory and only the committed sample is excepted.
+.env
+.env.*
+!.env.sample
+
+*.log
+.DS_Store
