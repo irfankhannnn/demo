@@ -1,0 +1,469 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  AI Calling Service - Separate Lambda infrastructure for AI voice calling agent
+  Integrates with Exotel (India telephony) and ElevenLabs (AI voice)
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name (dev/staging/prod)
+
+  AICallingTableName:
+    Type: String
+    Default: ai-calling-data
+    Description: DynamoDB table for AI calling data
+
+  AICallingKnowledgeBucket:
+    Type: String
+    Description: S3 bucket name for knowledge documents (must be globally unique)
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket containing the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key for the Lambda deployment package
+
+  CrmInternalApiUrl:
+    Type: String
+    Description: URL of the existing CRM API for internal data fetching
+
+  CrmInternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key for authenticating with CRM internal API
+
+  ExotelApiKey:
+    Type: String
+    NoEcho: true
+    Description: Exotel API key
+
+  ExotelApiToken:
+    Type: String
+    NoEcho: true
+    Description: Exotel API token
+
+  ExotelSid:
+    Type: String
+    Description: Exotel account SID
+
+  ElevenLabsApiKey:
+    Type: String
+    NoEcho: true
+    Description: ElevenLabs API key
+
+  BedrockKnowledgeBaseId:
+    Type: String
+    Default: ""
+    Description: Bedrock Knowledge Base ID (optional, can be configured later)
+
+  CustomDomainName:
+    Type: String
+    Default: ""
+    Description: Custom domain name for API Gateway (e.g., api.yourdomain.com)
+
+  CustomDomainBasePath:
+    Type: String
+    Default: devrealestateagencyai
+    Description: "Base path for custom domain mapping (default: devrealestateagencyai)"
+
+  # NOTE: Domain is managed by the main API stack. AI Calling stack only creates
+  # a BasePathMapping to an existing custom domain.
+
+Conditions:
+  UseCustomDomain: !Not [!Equals [!Ref CustomDomainName, ""]]
+
+Resources:
+  # DynamoDB Table for AI Calling Data
+  AICallingTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AICallingTableName
+      BillingMode: PAY_PER_REQUEST
+      
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-status-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        
+        - IndexName: tenant-date-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-calling
+
+  # S3 Bucket for Knowledge Documents
+  KnowledgeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref AICallingKnowledgeBucket
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+            AllowedHeaders:
+              - "*"
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-calling
+
+  # S3 Bucket for Call Recordings
+  RecordingsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${AICallingKnowledgeBucket}-recordings"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+          - Id: ExpireAfter90Days
+            Status: Enabled
+            ExpirationInDays: 90
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-calling
+
+  # Secrets Manager for API Keys
+  AICallingSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${EnvironmentName}/ai-calling/credentials"
+      Description: API credentials for AI Calling Service
+      SecretString: !Sub |
+        {
+          "exotelApiKey": "${ExotelApiKey}",
+          "exotelApiToken": "${ExotelApiToken}",
+          "exotelSid": "${ExotelSid}",
+          "elevenLabsApiKey": "${ElevenLabsApiKey}",
+          "crmInternalApiKey": "${CrmInternalApiKey}"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # IAM Role for Lambda
+  AICallingLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-ai-calling-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+        - PolicyName: AICallingLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # DynamoDB Access
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt AICallingTable.Arn
+                  - !Sub "${AICallingTable.Arn}/index/*"
+              
+              # S3 Access
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt KnowledgeBucket.Arn
+                  - !Sub "${KnowledgeBucket.Arn}/*"
+                  - !GetAtt RecordingsBucket.Arn
+                  - !Sub "${RecordingsBucket.Arn}/*"
+              
+              # Secrets Manager Access
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  - !Ref AICallingSecrets
+              
+              # Bedrock Access
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:Retrieve
+                  - bedrock:RetrieveAndGenerate
+                Resource: "*"
+
+  # Lambda Function
+  AICallingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-ai-calling-service"
+      Runtime: nodejs20.x
+      Handler: src/lambda-handler.handler
+      Role: !GetAtt AICallingLambdaRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: 512
+      Timeout: 30
+      TracingConfig:
+        Mode: Active
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          AWS_REGION_CUSTOM: !Ref AWS::Region
+          AI_CALLING_TABLE_NAME: !Ref AICallingTableName
+          AI_CALLING_KNOWLEDGE_BUCKET: !Ref AICallingKnowledgeBucket
+          CRM_INTERNAL_API_URL: !Ref CrmInternalApiUrl
+          SECRETS_ARN: !Ref AICallingSecrets
+          BEDROCK_KNOWLEDGE_BASE_ID: !Ref BedrockKnowledgeBaseId
+          API_BASE_PATH_PREFIX: !If [UseCustomDomain, !Ref CustomDomainBasePath, ""]
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-calling
+
+  # API Gateway REST API
+  AICallingApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-ai-calling-api"
+      Description: AI Calling Service API
+      BinaryMediaTypes:
+        - "*/*"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  # API Gateway CORS Response
+  ApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,x-tenant-id,x-api-key'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  ApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,x-tenant-id,x-api-key'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  # Proxy Resource
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ParentId: !GetAtt AICallingApi.RootResourceId
+      PathPart: "{proxy+}"
+
+  # Root Method
+  ApiRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResourceId: !GetAtt AICallingApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AICallingLambdaFunction.Arn}/invocations"
+
+  # Proxy Method
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AICallingLambdaFunction.Arn}/invocations"
+
+  # API Deployment
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiRootMethod
+      - ApiProxyMethod
+    Properties:
+      RestApiId: !Ref AICallingApi
+      StageName: !Ref EnvironmentName
+
+  # Base Path Mapping
+  BasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: UseCustomDomain
+    Properties:
+      DomainName: !Ref CustomDomainName
+      RestApiId: !Ref AICallingApi
+      BasePath: !Ref CustomDomainBasePath
+      Stage: !Ref EnvironmentName
+
+  # Lambda Permission for API Gateway
+  ApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AICallingLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${AICallingApi}/*/*/*"
+
+  # CloudWatch Log Group
+  AICallingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EnvironmentName}-ai-calling-service"
+      RetentionInDays: 30
+
+Outputs:
+  AICallingTableNameOutput:
+    Description: AI Calling DynamoDB table name
+    Value: !Ref AICallingTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-TableName"
+
+  AICallingTableArnOutput:
+    Description: AI Calling DynamoDB table ARN
+    Value: !GetAtt AICallingTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-TableArn"
+
+  KnowledgeBucketNameOutput:
+    Description: Knowledge S3 bucket name
+    Value: !Ref AICallingKnowledgeBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-KnowledgeBucket"
+
+  RecordingsBucketNameOutput:
+    Description: Recordings S3 bucket name
+    Value: !Sub "${AICallingKnowledgeBucket}-recordings"
+    Export:
+      Name: !Sub "${AWS::StackName}-RecordingsBucket"
+
+  AICallingApiUrlOutput:
+    Description: AI Calling API URL
+    Value: !Sub "https://${AICallingApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiUrl"
+
+  AICallingLambdaArnOutput:
+    Description: AI Calling Lambda function ARN
+    Value: !GetAtt AICallingLambdaFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaArn"
+
+  SecretsArnOutput:
+    Description: Secrets Manager ARN for API credentials
+    Value: !Ref AICallingSecrets
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretsArn"
+
+  CustomDomainNameOutput:
+    Description: Custom domain name
+    Value: !Ref CustomDomainName
+    Condition: UseCustomDomain
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomDomainName"
+
+  CustomApiUrlOutput:
+    Description: Custom API URL
+    Value: !Sub "https://${CustomDomainName}/${CustomDomainBasePath}"
+    Condition: UseCustomDomain
+    Export:
+      Name: !Sub "${AWS::StackName}-CustomApiUrl"

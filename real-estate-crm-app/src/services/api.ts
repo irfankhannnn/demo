@@ -6,7 +6,15 @@ import type {
   UpdateOwnerData,
   CreatePropertyData,
   UpdatePropertyData,
+  BuyerRequirement,
+  SellerProperty,
+  TenantRequirement,
+  OwnerProperty,
 } from '../types/crm';
+import type { ConversationSummary, WhatsAppConversation } from '../types/whatsapp';
+import type { UploadUrlResponse } from '../types/callIntelligence';
+import { setTokens, type AuthTokens } from '../utils/authStorage';
+import { refreshTokens } from '../utils/cognitoAuth';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 
@@ -15,41 +23,79 @@ if (!API_BASE_URL) {
 }
 
 class ApiService {
+  private isRefreshing = false;
+  private refreshSubscribers: Array<(token: string) => void> = [];
+
   private get token(): string | null {
     return localStorage.getItem('auth_id_token');
   }
 
-  async getEnquiryNotes(enquiryId: string) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes`, {
+  private subscribeTokenRefresh(callback: (token: string) => void) {
+    this.refreshSubscribers.push(callback);
+  }
+
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach(callback => callback(token));
+    this.refreshSubscribers = [];
+  }
+
+  async get(path: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}${path}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async post(path: string, data?: Record<string, unknown>) {
+    const init = {
+      method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+      body: data ? JSON.stringify(data) : undefined,
+    };
+    const response = await fetch(`${API_BASE_URL}${path}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async delete(path: string) {
+    const init = { method: 'DELETE', headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}${path}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getEnquiryNotes(enquiryId: string) {
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createEnquiryNote(enquiryId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateEnquiryNote(enquiryId: string, noteId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes/${noteId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteEnquiryNote(enquiryId: string, noteId: string) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes/${noteId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   setToken(token: string) {
@@ -81,16 +127,122 @@ class ApiService {
     return headers;
   }
 
-  private async handleResponse(response: Response) {
+  private async refreshWithRetry(maxRetries = 3): Promise<AuthTokens> {
+    let lastError: unknown;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await refreshTokens();
+      } catch (err) {
+        lastError = err;
+        if (i < maxRetries - 1) {
+          await new Promise(r => setTimeout(r, 500 * (i + 1)));
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  private async handleResponse(response: Response, init?: RequestInit) {
+    // Express ETag → 304 has no body. Retry once with cache bypass (never recurse).
+    if (response.status === 304) {
+      const sep = response.url.includes('?') ? '&' : '?';
+      const retry = await fetch(`${response.url}${sep}_nc=${Date.now()}`, {
+        method: init?.method || 'GET',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          ...this.getHeaders(),
+          ...(init?.headers as Record<string, string> | undefined),
+        },
+        body: init?.body,
+      });
+      if (!retry.ok) {
+        const error = await retry.json().catch(() => ({ error: `HTTP ${retry.status}` }));
+        throw new Error(error.error || `HTTP ${retry.status}`);
+      }
+      return retry.json();
+    }
+
     if (!response.ok) {
       if (response.status === 401) {
-        this.clearToken();
-        window.location.href = '/login';
+        // Attempt to refresh using the httpOnly cookie (server-managed)
+        try {
+          if (!this.isRefreshing) {
+            this.isRefreshing = true;
+            const newTokens = await this.refreshWithRetry();
+            setTokens(newTokens);
+            this.isRefreshing = false;
+            this.onTokenRefreshed(newTokens.idToken);
+            // Retry the original request with new token
+            return this.retryRequest(response, init);
+          } else {
+            // Wait for the refresh to complete
+            return new Promise((resolve) => {
+              this.subscribeTokenRefresh(() => {
+                resolve(this.retryRequest(response, init));
+              });
+            });
+          }
+        } catch (refreshError) {
+          console.error('[ApiService] Token refresh failed:', refreshError);
+          this.isRefreshing = false;
+          this.clearToken();
+          // Signal the auth state machine in App.tsx rather than hard-navigating.
+          // A location assignment triggers a full document load, which the web
+          // app only survives because CloudFront rewrites unknown paths to
+          // index.html. Capacitor's local server has no such rule, so on mobile
+          // this was a white screen. clearToken() does not dispatch this itself,
+          // unlike clearAuth() in authStorage.
+          window.dispatchEvent(new Event('auth-changed'));
+          throw new Error('Session expired. Please log in again.');
+        }
+      }
+      if (response.status === 402) {
+        const error = await response.json().catch(() => ({ error: 'insufficient_credits' }));
+        if (error.error === 'insufficient_credits') {
+          window.dispatchEvent(new CustomEvent('insufficient-credits', { detail: error }));
+        }
+        const err = new Error(error.message || 'Out of credits');
+        (err as any).code = 'insufficient_credits';
+        (err as any).balance = error.balance;
+        (err as any).required = error.required;
+        throw err;
       }
       const error = await response.json().catch(() => ({ error: 'An error occurred' }));
-      throw new Error(error.error || `HTTP ${response.status}`);
+      const err = new Error(error.message || error.error || `HTTP ${response.status}`) as Error & {
+        code?: string;
+        convertedTo?: unknown;
+      };
+      if (error.code) err.code = error.code;
+      if (error.convertedTo) err.convertedTo = error.convertedTo;
+      throw err;
     }
     return response.json();
+  }
+
+  private async retryRequest(originalResponse: Response, init?: RequestInit): Promise<any> {
+    const url = originalResponse.url;
+    const options: RequestInit = {
+      method: init?.method || 'GET',
+      headers: this.getHeaders(),
+      credentials: 'include',
+    };
+
+    // For non-GET retries, preserve the original body. If the body was a stream or
+    // FormData it may not be reusable, so we throw a clear error instead of silently
+    // changing the method.
+    if (options.method !== 'GET' && options.method !== 'HEAD') {
+      if (init?.body) {
+        options.body = init.body;
+      } else {
+        throw new Error(
+          `Session expired during a ${options.method} request. Please retry your action after logging in again.`
+        );
+      }
+    }
+
+    const response = await fetch(url, options);
+    return this.handleResponse(response, options);
   }
 
   private stripDynamoFields<T extends Record<string, any>>(data: T): Partial<T> {
@@ -119,527 +271,320 @@ class ApiService {
     return cleaned as Partial<T>;
   }
 
-  // Dashboard
-  async getDashboardMetrics() {
-    const response = await fetch(`${API_BASE_URL}/dashboard/metrics`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+  /** Unwrap paginated list responses `{ items, total }` or return arrays as-is. */
+  private unwrapList<T>(data: unknown, listKey: string): T[] {
+    if (Array.isArray(data)) return data as T[];
+    if (data && typeof data === 'object' && listKey in data) {
+      const list = (data as Record<string, unknown>)[listKey];
+      return Array.isArray(list) ? (list as T[]) : [];
+    }
+    return [];
   }
 
-  /* ============== DISABLED: Flats/Buildings/Areas hierarchy removed ==============
-  // Rental List
-  async getRentalList() {
-    const response = await fetch(`${API_BASE_URL}/rentals`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+  /** Fetch all pages from a paginated CRM list endpoint. */
+  private async fetchAllPaginated<T>(
+    buildUrl: (offset: number, limit: number) => string,
+    listKey: string,
+    pageSize = 200,
+  ): Promise<T[]> {
+    const all: T[] = [];
+    let offset = 0;
+    let total = Infinity;
+
+    while (offset < total) {
+      const init: RequestInit = {
+        headers: this.getHeaders(),
+        cache: 'no-store',
+        credentials: 'include',
+      };
+      const response = await fetch(buildUrl(offset, pageSize), init);
+      const data = await this.handleResponse(response, init);
+      const page = this.unwrapList<T>(data, listKey);
+      const pageTotal = (data as { total?: number })?.total;
+      all.push(...page);
+      total = typeof pageTotal === 'number' ? pageTotal : all.length;
+      offset += pageSize;
+      if (page.length === 0) break;
+    }
+
+    return all;
   }
-
-  // Search
-  async search(query: string) {
-    const response = await fetch(`${API_BASE_URL}/search?query=${encodeURIComponent(query)}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  // Area endpoints
-  async getAreas() {
-    const response = await fetch(`${API_BASE_URL}/areas`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async createArea(name: string) {
-    const response = await fetch(`${API_BASE_URL}/areas`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ name }),
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateArea(id: string, name: string) {
-    const response = await fetch(`${API_BASE_URL}/areas/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ name }),
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteArea(id: string) {
-    const response = await fetch(`${API_BASE_URL}/areas/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  // Building endpoints
-  async getBuildings() {
-    const response = await fetch(`${API_BASE_URL}/buildings`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getBuilding(id: string) {
-    const response = await fetch(`${API_BASE_URL}/buildings/${id}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async createBuilding(data: { name: string; areaId: string }) {
-    const response = await fetch(`${API_BASE_URL}/buildings`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateBuilding(id: string, data: { name: string; areaId: string }) {
-    const response = await fetch(`${API_BASE_URL}/buildings/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteBuilding(id: string) {
-    const response = await fetch(`${API_BASE_URL}/buildings/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  // Flat endpoints
-  async getFlatsByBuilding(buildingId: string) {
-    const response = await fetch(`${API_BASE_URL}/flats/building/${buildingId}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getFlat(flatId: string) {
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async createFlat(data: { buildingId: string; flatNumber: string; floorNumber?: number }) {
-    const response = await fetch(`${API_BASE_URL}/flats`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateFlat(flatId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteFlat(flatId: string) {
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  // Owner endpoints
-  async saveOwner(
-    flatId: string,
-    data: Record<string, unknown>,
-    files?: { photo?: File; pan?: File; aadhar?: File }
-  ) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    
-    if (files?.photo) formData.append('photo', files.photo);
-    if (files?.pan) formData.append('pan', files.pan);
-    if (files?.aadhar) formData.append('aadhar', files.aadhar);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/owner`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  // Tenant endpoints
-  async saveTenant(
-    flatId: string,
-    data: Record<string, unknown>,
-    files?: { photo?: File; pan?: File; aadhar?: File }
-  ) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    
-    if (files?.photo) formData.append('photo', files.photo);
-    if (files?.pan) formData.append('pan', files.pan);
-    if (files?.aadhar) formData.append('aadhar', files.aadhar);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/tenant`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  // Agreement endpoints
-  async createAgreement(flatId: string, data: Record<string, unknown>, file?: File) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    if (file) formData.append('document', file);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/agreement`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateAgreement(
-    flatId: string,
-    agreementId: string,
-    data: Record<string, unknown>,
-    file?: File
-  ) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    if (file) formData.append('document', file);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/agreement/${agreementId}`, {
-      method: 'PUT',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  // Verification endpoints
-  async createVerification(flatId: string, data: Record<string, unknown>, file?: File) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    if (file) formData.append('document', file);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/verification`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateVerification(
-    flatId: string,
-    verificationId: string,
-    data: Record<string, unknown>,
-    file?: File
-  ) {
-    const formData = new FormData();
-    formData.append('data', JSON.stringify(data));
-    if (file) formData.append('document', file);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/verification/${verificationId}`, {
-      method: 'PUT',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  // Document endpoints
-  async uploadDocument(flatId: string, file: File, documentType: string, description?: string) {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('documentType', documentType);
-    if (description) formData.append('description', description);
-
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/documents`, {
-      method: 'POST',
-      headers: this.getHeaders(true),
-      body: formData,
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteDocument(flatId: string, documentType: string, documentId: string) {
-    const response = await fetch(`${API_BASE_URL}/flats/${flatId}/documents/${documentType}/${documentId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-  */
 
   // ============== CRM Endpoints ==============
 
   // CRM Metrics
   async getCRMMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/metrics`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/metrics`, init);
+    return this.handleResponse(response, init);
   }
 
   // Customer endpoints
   async getCustomers() {
-    const response = await fetch(`${API_BASE_URL}/crm/customers`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    return this.fetchAllPaginated<import('../types/crm').CRMCustomer>(
+      (offset, limit) => `${API_BASE_URL}/crm/customers?limit=${limit}&offset=${offset}`,
+      'customers',
+    );
   }
 
   async getCustomer(customerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async createCustomer(data: CreateCustomerData) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateCustomer(customerId: string, data: UpdateCustomerData) {
     const safeData = this.stripDynamoFields(data as any);
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(safeData),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteCustomer(customerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async getCustomerNotes(customerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createCustomerNote(customerId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateCustomerNote(customerId: string, noteId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes/${noteId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteCustomerNote(customerId: string, noteId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes/${noteId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Phone lookup for auto-fill
   async getCustomerByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    if (response.status === 404) return null;
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   async getOwnerByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    if (response.status === 404) return null;
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Owner endpoints
-  async getOwners() {
-    const response = await fetch(`${API_BASE_URL}/crm/owners`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    // Backend now returns { owners: [...], sellerCount: N }
-    // For backward compatibility, return just the owners array but store sellerCount
-    if (result && typeof result === 'object' && 'owners' in result) {
-      (this as any)._cachedSellerCount = result.sellerCount || 0;
-      return result.owners;
+  async getOwners(filters?: { status?: string; seller?: boolean }) {
+    const params = new URLSearchParams();
+    if (filters?.status && filters.status !== 'all') {
+      params.set('status', filters.status);
+    } else if (filters?.status === 'all') {
+      params.set('status', 'all');
     }
-    return result;
-  }
-
-  async getSellerCount() {
-    // Return cached seller count from last getOwners call
-    return (this as any)._cachedSellerCount || 0;
-  }
-
-  async getOwner(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    if (filters?.seller) {
+      params.set('seller', 'true');
+    }
+    const query = params.toString();
+    const suffix = query ? `&${query}` : '';
+    return this.fetchAllPaginated<import('../types/crm').CRMOwner>(
+      (offset, limit) => `${API_BASE_URL}/crm/owners?limit=${limit}&offset=${offset}${suffix}`,
+      'owners',
+    );
   }
 
   async getOwnerNotes(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createOwnerNote(ownerId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateOwnerNote(ownerId: string, noteId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes/${noteId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteOwnerNote(ownerId: string, noteId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes/${noteId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async createOwner(data: CreateOwnerData) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateOwner(ownerId: string, data: UpdateOwnerData) {
     const safeData = this.stripDynamoFields(data as any);
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(safeData),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteOwner(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async getOwnerProperties(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/properties`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/properties`, init);
+    return this.handleResponse(response, init);
   }
 
   // Property endpoints (CRM)
   async getCRMProperties(status?: string) {
-    const url = status 
-      ? `${API_BASE_URL}/crm/properties?status=${status}`
-      : `${API_BASE_URL}/crm/properties`;
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    return this.fetchAllPaginated<import('../types/crm').CRMProperty>(
+      (offset, limit) => {
+        const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+        if (status) params.set('status', status);
+        return `${API_BASE_URL}/crm/properties?${params}`;
+      },
+      'properties',
+    );
   }
 
   async getCRMProperty(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, {
+    const init: RequestInit = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+      cache: 'no-store',
+      credentials: 'include',
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getPropertyRentalHistory(propertyId: string) {
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/rental-history`, init);
+    return this.handleResponse(response, init);
   }
 
   async createCRMProperty(data: CreatePropertyData) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateCRMProperty(propertyId: string, data: UpdatePropertyData) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteCRMProperty(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async uploadPropertyImages(propertyId: string, files: File[]) {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/images`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/images`, init);
+    return this.handleResponse(response, init);
   }
 
   async uploadPropertyVideos(propertyId: string, files: File[]) {
@@ -654,43 +599,48 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('videos', file));
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/videos`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/videos`, init);
+    return this.handleResponse(response, init);
   }
 
   async deletePropertyImage(propertyId: string, imageKey: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/images/${encodeURIComponent(imageKey)}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/images/${encodeURIComponent(imageKey)}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deletePropertyVideo(propertyId: string, videoKey: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/videos/${encodeURIComponent(videoKey)}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/videos/${encodeURIComponent(videoKey)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Public property endpoints (for /properties page)
   async getPublicProperties() {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/public/list`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/public/list`, init);
+    return this.handleResponse(response, init);
   }
 
   async getPublicProperty(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/public/${propertyId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/public/${propertyId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Owner Document Upload ==============
@@ -701,19 +651,21 @@ class ApiService {
     if (files.pan) formData.append('pan', files.pan);
     if (files.aadhar) formData.append('aadhar', files.aadhar);
 
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/documents`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/documents`, init);
+    return this.handleResponse(response, init);
   }
 
   async getOwnerWithDocuments(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/with-documents`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/${ownerId}/with-documents`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Customer/Tenant Document Upload ==============
@@ -724,19 +676,21 @@ class ApiService {
     if (files.pan) formData.append('pan', files.pan);
     if (files.aadhar) formData.append('aadhar', files.aadhar);
 
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/documents`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/documents`, init);
+    return this.handleResponse(response, init);
   }
 
   async getCustomerWithDocuments(customerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/with-documents`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/${customerId}/with-documents`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Buyer Document Upload ==============
@@ -747,19 +701,31 @@ class ApiService {
     if (files.pan) formData.append('pan', files.pan);
     if (files.aadhar) formData.append('aadhar', files.aadhar);
 
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/documents`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/documents`, init);
+    return this.handleResponse(response, init);
   }
 
   async getBuyerWithDocuments(buyerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/with-documents`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/with-documents`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async createBuyerListing(buyerId: string, propertyId: string, listingType: 'rent' | 'sale') {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ propertyId, listingType }),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/list-property`, init);
+    return this.handleResponse(response, init);
   }
 
   // Seller document methods removed - use Owner document methods instead
@@ -767,19 +733,21 @@ class ApiService {
   // ============== Properties with Details (for Dashboard) ==============
 
   async getCRMPropertiesDetailed() {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/list/detailed`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/list/detailed`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Property Agreements ==============
 
   async getPropertyAgreements(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements`, init);
+    return this.handleResponse(response, init);
   }
 
   async createPropertyAgreement(propertyId: string, data: Record<string, unknown>, document?: File) {
@@ -787,12 +755,13 @@ class ApiService {
     formData.append('data', JSON.stringify(data));
     if (document) formData.append('document', document);
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements`, init);
+    return this.handleResponse(response, init);
   }
 
   async updatePropertyAgreement(propertyId: string, agreementId: string, data: Record<string, unknown>, document?: File) {
@@ -800,21 +769,23 @@ class ApiService {
     formData.append('data', JSON.stringify(data));
     if (document) formData.append('document', document);
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements/${agreementId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/agreements/${agreementId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Property Verifications ==============
 
   async getPropertyVerifications(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications`, init);
+    return this.handleResponse(response, init);
   }
 
   async createPropertyVerification(propertyId: string, data: Record<string, unknown>, document?: File) {
@@ -822,12 +793,13 @@ class ApiService {
     formData.append('data', JSON.stringify(data));
     if (document) formData.append('document', document);
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications`, init);
+    return this.handleResponse(response, init);
   }
 
   async updatePropertyVerification(propertyId: string, verificationId: string, data: Record<string, unknown>, document?: File) {
@@ -835,21 +807,23 @@ class ApiService {
     formData.append('data', JSON.stringify(data));
     if (document) formData.append('document', document);
     
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications/${verificationId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/verifications/${verificationId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Property Documents ==============
 
   async getPropertyDocuments(propertyId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents`, init);
+    return this.handleResponse(response, init);
   }
 
   async uploadPropertyDocuments(propertyId: string, files: File[], documentType: string, description?: string) {
@@ -858,12 +832,13 @@ class ApiService {
     formData.append('documentType', documentType);
     if (description) formData.append('description', description);
 
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents/upload`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents/upload`, init);
+    return this.handleResponse(response, init);
   }
 
   async uploadPropertyDocument(propertyId: string, file: File, documentType: string, description?: string) {
@@ -873,11 +848,102 @@ class ApiService {
   }
 
   async deletePropertyDocument(propertyId: string, documentId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents/${documentId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/documents/${documentId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  // ============== Property Status Management Endpoints ==============
+
+  async listPropertyForSale(propertyId: string, listedPrice: number) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ listedPrice }),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/list-for-sale`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getListings(filters?: {
+    status?: string;
+    listingType?: string;
+    propertyId?: string;
+    listedByContactId?: string;
+  }) {
+    const queryParams = new URLSearchParams();
+    if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.listingType) queryParams.append('listingType', filters.listingType);
+    if (filters?.propertyId) queryParams.append('propertyId', filters.propertyId);
+    if (filters?.listedByContactId) queryParams.append('listedByContactId', filters.listedByContactId);
+    const qs = queryParams.toString();
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/listings${qs ? `?${qs}` : ''}`,
+      init
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async withdrawListing(listingId: string, reason?: string) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ reason: reason || 'withdrawn' }),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/listings/${listingId}/withdraw`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async listPropertyForRent(propertyId: string, expectedRent: number, securityDeposit: number) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ expectedRent, securityDeposit }),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/list-for-rent`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async markPropertySold(propertyId: string, data: {
+    soldPrice: number;
+    buyerId?: string | null;
+    saleType?: 'direct' | 'third_party';
+    reasonLost?: string | null;
+    notes?: string | null;
+    brokerageAmount?: number;
+    brokerageLost?: number;
+  }) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/mark-sold`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async markPropertyRented(propertyId: string, data: {
+    customerId: string;
+    rentalDetails: {
+      monthlyRent: number;
+      leaseStartDate?: string;
+      leaseEndDate?: string;
+      securityDeposit?: number;
+      brokeragePaid?: number;
+      notes?: string;
+    };
+  }) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/properties/${propertyId}/mark-rented`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Enquiry Endpoints ==============
@@ -887,26 +953,29 @@ class ApiService {
     const url = status
       ? `${API_BASE_URL}/enquiries?status=${status}`
       : `${API_BASE_URL}/enquiries`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get enquiry metrics
   async getEnquiryMetrics() {
-    const response = await fetch(`${API_BASE_URL}/enquiries/metrics`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/metrics`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get single enquiry
   async getEnquiry(enquiryId: string) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Create enquiry manually (CRM)
@@ -924,139 +993,154 @@ class ApiService {
     status?: 'new' | 'contacted' | 'converted' | 'closed';
     assignedTo?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/enquiries`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update enquiry
   async updateEnquiry(enquiryId: string, data: { status?: string; notes?: string; assignedTo?: string }) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Convert enquiry to owner or tenant
   async convertEnquiry(enquiryId: string, convertTo: 'owner' | 'tenant') {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/convert`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ convertTo }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/convert`, init);
+    return this.handleResponse(response, init);
   }
 
   // Close enquiry
   async closeEnquiry(enquiryId: string, reason?: string) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/close`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify({ reason }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/close`, init);
+    return this.handleResponse(response, init);
   }
 
   // Reopen enquiry
   async reopenEnquiry(enquiryId: string) {
-    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/reopen`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/enquiries/${enquiryId}/reopen`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Lookup by Phone Endpoints ==============
 
   // Lookup owner by phone (for auto-fill)
   async lookupOwnerByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/owners/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/owners/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Lookup customer/tenant by phone (for auto-fill)
   async lookupCustomerByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/customers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/customers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== B2B Leads Endpoints ==============
 
   async getB2BLeads() {
-    const response = await fetch(`${API_BASE_URL}/b2b-leads`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/b2b-leads`, init);
+    return this.handleResponse(response, init);
   }
 
   async getB2BLead(leadId: string) {
-    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateB2BLead(leadId: string, data: { status?: string; priority?: string; notes?: string }) {
-    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async addB2BLeadNote(leadId: string, note: string) {
-    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ note }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/b2b-leads/${leadId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Business Analytics Endpoints ==============
 
   async getBusinessAnalytics() {
-    const response = await fetch(`${API_BASE_URL}/crm/analytics/business`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/analytics/business`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Khata Book Endpoints ==============
 
   // Categories
   async getKhataCategories() {
-    const response = await fetch(`${API_BASE_URL}/khata/categories`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/categories`, init);
+    return this.handleResponse(response, init);
   }
 
   async createKhataCategory(name: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/categories`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ name }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/categories`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteKhataCategory(categoryId: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/categories/${categoryId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/categories/${categoryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Entries
@@ -1078,17 +1162,19 @@ class ApiService {
       ? `${API_BASE_URL}/khata/entries?${queryParams}`
       : `${API_BASE_URL}/khata/entries`;
     
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   async getKhataEntry(entryId: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async createKhataEntry(data: {
@@ -1104,13 +1190,15 @@ class ApiService {
     description?: string;
     reminderAt?: string;
     reminderNote?: string;
+    sourceRef?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateKhataEntry(entryId: string, data: {
@@ -1127,45 +1215,50 @@ class ApiService {
     reminderAt?: string;
     reminderNote?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async settleKhataEntry(entryId: string, settlementNotes?: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}/settle`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ settlementNotes }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}/settle`, init);
+    return this.handleResponse(response, init);
   }
 
   async unsettleKhataEntry(entryId: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}/unsettle`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}/unsettle`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteKhataEntry(entryId: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/entries/${entryId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Summary & Analytics
   async getKhataSummary() {
-    const response = await fetch(`${API_BASE_URL}/khata/summary`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/summary`, init);
+    return this.handleResponse(response, init);
   }
 
   async getKhataBifurcation(settlementStatus?: string) {
@@ -1173,35 +1266,39 @@ class ApiService {
       ? `${API_BASE_URL}/khata/bifurcation?settlementStatus=${settlementStatus}`
       : `${API_BASE_URL}/khata/bifurcation`;
     
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Settlement Intelligence
   async getKhataAging() {
-    const response = await fetch(`${API_BASE_URL}/khata/settlement/aging`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/settlement/aging`, init);
+    return this.handleResponse(response, init);
   }
 
   async getKhataSettlementTrends() {
-    const response = await fetch(`${API_BASE_URL}/khata/settlement/trends`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/settlement/trends`, init);
+    return this.handleResponse(response, init);
   }
 
   async getKhataSettlementHistory(limit?: number) {
     const url = limit
       ? `${API_BASE_URL}/khata/settlement/history?limit=${limit}`
       : `${API_BASE_URL}/khata/settlement/history`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Search parties by name or phone
@@ -1210,18 +1307,20 @@ class ApiService {
     if (partyType) {
       queryParams.append('partyType', partyType);
     }
-    const response = await fetch(`${API_BASE_URL}/khata/parties/search?${queryParams}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/parties/search?${queryParams}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get properties for a specific party
   async getKhataPartyProperties(partyType: string, partyId: string) {
-    const response = await fetch(`${API_BASE_URL}/khata/parties/${partyType}/${partyId}/properties`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/khata/parties/${partyType}/${partyId}/properties`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Meeting/Calendar Endpoints ==============
@@ -1238,10 +1337,11 @@ class ApiService {
       ? `${API_BASE_URL}/crm/meetings?${queryParams}`
       : `${API_BASE_URL}/crm/meetings`;
     
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get upcoming meetings
@@ -1250,42 +1350,47 @@ class ApiService {
       ? `${API_BASE_URL}/crm/meetings/upcoming?days=${days}`
       : `${API_BASE_URL}/crm/meetings/upcoming`;
     
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get meeting metrics
   async getMeetingMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/metrics`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/metrics`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get meetings for a specific entity
   async getMeetingsByEntity(entityType: string, entityId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/entity/${entityType}/${entityId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/entity/${entityType}/${entityId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get single meeting
   async getMeeting(meetingId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get meeting history/events
   async getMeetingHistory(meetingId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}/history`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}/history`, init);
+    return this.handleResponse(response, init);
   }
 
   // Create meeting
@@ -1305,12 +1410,13 @@ class ApiService {
     attendeeEmail?: string;
     notes?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update meeting
@@ -1325,21 +1431,23 @@ class ApiService {
     outcome?: string;
     notes?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Delete meeting
   async deleteMeeting(meetingId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/meetings/${meetingId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Notification Endpoints ==============
@@ -1359,71 +1467,79 @@ class ApiService {
       ? `${API_BASE_URL}/notifications?${queryParams}`
       : `${API_BASE_URL}/notifications`;
 
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get notification counts (for badge display)
   async getNotificationCounts() {
-    const response = await fetch(`${API_BASE_URL}/notifications/counts`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/counts`, init);
+    return this.handleResponse(response, init);
   }
 
   // Mark a notification as read
   async markNotificationAsRead(notificationId: string) {
-    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, init);
+    return this.handleResponse(response, init);
   }
 
   // Mark all notifications as read
   async markAllNotificationsAsRead() {
-    const response = await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/mark-all-read`, init);
+    return this.handleResponse(response, init);
   }
 
   // Process scheduled notifications (manual trigger)
   async processScheduledNotifications() {
-    const response = await fetch(`${API_BASE_URL}/notifications/process-scheduled`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/process-scheduled`, init);
+    return this.handleResponse(response, init);
   }
 
   // Generate rent expiry notifications (manual trigger)
   async generateRentExpiryNotifications() {
-    const response = await fetch(`${API_BASE_URL}/notifications/generate-rent-expiry`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/generate-rent-expiry`, init);
+    return this.handleResponse(response, init);
   }
 
   // Process all notifications (scheduled + rent expiry)
   async processAllNotifications() {
-    const response = await fetch(`${API_BASE_URL}/notifications/process-all`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/process-all`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get notification settings
   async getNotificationSettings() {
-    const response = await fetch(`${API_BASE_URL}/notifications/settings`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/settings`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update notification settings
@@ -1434,12 +1550,13 @@ class ApiService {
     enableMeetingReminders?: boolean;
     enableKhataReminders?: boolean;
   }) {
-    const response = await fetch(`${API_BASE_URL}/notifications/settings`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(settings),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/notifications/settings`, init);
+    return this.handleResponse(response, init);
   }
 
   // Delete old notifications (cleanup)
@@ -1448,85 +1565,101 @@ class ApiService {
       ? `${API_BASE_URL}/notifications/cleanup?daysOld=${daysOld}`
       : `${API_BASE_URL}/notifications/cleanup`;
 
-    const response = await fetch(url, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Contact Endpoints ==============
 
   // Get all contacts with optional filters
-  async getContacts(filters?: { role?: string; status?: string }) {
+  async getContacts(filters?: {
+    role?: string;
+    status?: string;
+    sellerLifecycle?: string;
+    ownerLifecycle?: string;
+  }) {
     const queryParams = new URLSearchParams();
     if (filters?.role) queryParams.append('role', filters.role);
     if (filters?.status) queryParams.append('status', filters.status);
+    if (filters?.sellerLifecycle) queryParams.append('sellerLifecycle', filters.sellerLifecycle);
+    if (filters?.ownerLifecycle) queryParams.append('ownerLifecycle', filters.ownerLifecycle);
 
     const url = queryParams.toString()
       ? `${API_BASE_URL}/crm/contacts?${queryParams}`
       : `${API_BASE_URL}/crm/contacts`;
 
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get contacts by specific role (convenience method)
-  async getContactsByRole(role: 'owner' | 'buyer' | 'tenant') {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${role}s`, {
+  async getContactsByRole(role: 'owner' | 'buyer' | 'tenant' | 'seller') {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${role}s`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get contacts by role (convenience methods)
   async getContactOwners() {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/owners`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/owners`, init);
+    return this.handleResponse(response, init);
   }
 
   // getContactSellers removed - sellers are now owners with properties for sale
 
   async getContactBuyers() {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/buyers`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/buyers`, init);
+    return this.handleResponse(response, init);
   }
 
   async getContactTenants() {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/tenants`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/tenants`, init);
+    return this.handleResponse(response, init);
   }
 
   // Lookup contact by phone
   async lookupContactByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get single contact
   async getContact(contactId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get contact with document URLs
   async getContactWithDocuments(contactId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/with-documents`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/with-documents`, init);
+    return this.handleResponse(response, init);
   }
 
   // Create contact
@@ -1547,14 +1680,14 @@ class ApiService {
     source?: string;
     tags?: string[];
     notes?: string;
-    status?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts`, init);
+    return this.handleResponse(response, init);
   }
 
   // Create or update contact by phone (dedupe)
@@ -1570,41 +1703,46 @@ class ApiService {
     source?: string;
     notes?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/upsert-by-phone`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/upsert-by-phone`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update contact
   async updateContact(contactId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, {
+    const { status: _derivedStatus, ...updateData } = this.stripDynamoFields(data);
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
-      body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
+      body: JSON.stringify(updateData),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update contact role
   async updateContactRole(contactId: string, role: string, enabled: boolean, profileData?: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/role`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify({ role, enabled, profileData }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/role`, init);
+    return this.handleResponse(response, init);
   }
 
   // Delete contact
   async deleteContact(contactId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Upload contact documents
@@ -1614,91 +1752,160 @@ class ApiService {
     if (files.pan) formData.append('pan', files.pan);
     if (files.aadhar) formData.append('aadhar', files.aadhar);
 
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/documents`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(true),
       body: formData,
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/documents`, init);
+    return this.handleResponse(response, init);
   }
 
   // Contact notes
   async getContactNotes(contactId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createContactNote(contactId: string, data: { content: string }) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateContactNote(contactId: string, noteId: string, data: { content: string }) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes/${noteId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteContactNote(contactId: string, noteId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes/${noteId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  // Contact activity timeline
+  async getContactActivity(contactId: string, entityType?: string, entityId?: string) {
+    const params = new URLSearchParams();
+    if (entityType && entityId) {
+      params.append('entityType', entityType);
+      params.append('entityId', entityId);
+    }
+    const queryString = params.toString();
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/${contactId}/activity${queryString ? `?${queryString}` : ''}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getContactActivityPreviews(contactIds: string[], limit = 3) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ contactIds, limit }),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/activity-previews`, init);
+    return this.handleResponse(response, init);
   }
 
   // Migration endpoints
   async migrateOwnerToContact(ownerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/owner/${ownerId}`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/owner/${ownerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async migrateCustomerToContact(customerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/customer/${customerId}`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/customer/${customerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async migrateAllToContacts() {
-    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/all`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/contacts/migrate/all`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Lead Endpoints ==============
 
-  // Get all leads with optional filters
-  async getLeads(filters?: { leadType?: string; status?: string; priority?: string; excludeConverted?: boolean }) {
+  // Get all leads with optional filters (paginated envelope)
+  async getLeads(filters?: {
+    leadType?: string;
+    status?: string;
+    temperature?: 'hot' | 'warm' | 'cold' | 'unscored' | 'all';
+    excludeConverted?: boolean;
+    converted?: boolean;
+    assignedTo?: string;
+    unassigned?: boolean;
+    search?: string;
+    limit?: number;
+    offset?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{ leads: import('../types/crm').CRMLead[]; total: number; limit: number; offset: number }> {
     const queryParams = new URLSearchParams();
     if (filters?.leadType) queryParams.append('leadType', filters.leadType);
     if (filters?.status) queryParams.append('status', filters.status);
-    if (filters?.priority) queryParams.append('priority', filters.priority);
+    if (filters?.temperature && filters.temperature !== 'all') queryParams.append('temperature', filters.temperature);
     if (filters?.excludeConverted) queryParams.append('excludeConverted', 'true');
+    if (filters?.converted) queryParams.append('converted', 'true');
+    if (filters?.assignedTo) queryParams.append('assignedTo', filters.assignedTo);
+    if (filters?.unassigned) queryParams.append('unassigned', 'true');
+    if (filters?.search) queryParams.append('search', filters.search);
+    if (filters?.limit != null) queryParams.append('limit', String(filters.limit));
+    if (filters?.offset != null) queryParams.append('offset', String(filters.offset));
+    if (filters?.sortBy) queryParams.append('sortBy', filters.sortBy);
+    if (filters?.sortOrder) queryParams.append('sortOrder', filters.sortOrder);
 
     const url = queryParams.toString()
       ? `${API_BASE_URL}/crm/leads?${queryParams}`
       : `${API_BASE_URL}/crm/leads`;
 
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    const data = await this.handleResponse(response, init);
+    if (Array.isArray(data)) {
+      return { leads: data, total: data.length, limit: data.length, offset: 0 };
+    }
+    if (data && typeof data === 'object' && 'leads' in data) {
+      const envelope = data as { leads?: import('../types/crm').CRMLead[]; total?: number; limit?: number; offset?: number };
+      const leads = Array.isArray(envelope.leads) ? envelope.leads : [];
+      return {
+        leads,
+        total: envelope.total ?? leads.length,
+        limit: envelope.limit ?? leads.length,
+        offset: envelope.offset ?? 0,
+      };
+    }
+    return { leads: [], total: 0, limit: 50, offset: 0 };
   }
 
   // Get leads by type (convenience methods)
@@ -1706,10 +1913,11 @@ class ApiService {
     const url = excludeConverted
       ? `${API_BASE_URL}/crm/leads/buyers?excludeConverted=true`
       : `${API_BASE_URL}/crm/leads/buyers`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // getSellerLeads removed - seller-type leads now convert to owners
@@ -1718,36 +1926,40 @@ class ApiService {
     const url = excludeConverted
       ? `${API_BASE_URL}/crm/leads/tenants?excludeConverted=true`
       : `${API_BASE_URL}/crm/leads/tenants`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   async getOwnerLeads(excludeConverted?: boolean) {
     const url = excludeConverted
       ? `${API_BASE_URL}/crm/leads/owners?excludeConverted=true`
       : `${API_BASE_URL}/crm/leads/owners`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   // Get lead metrics
   async getLeadMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/metrics`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/metrics`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get single lead
   async getLead(leadId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Create lead
@@ -1758,107 +1970,146 @@ class ApiService {
     phone?: string;
     source?: string;
     status?: string;
-    priority?: string;
     assignedTo?: string;
-    buyerRequirement?: { requirement?: string; budget?: number; preferredArea?: string; bhk?: number; propertyType?: string; timeline?: string };
-    sellerProperty?: { propertyType?: string; area?: string; expectedPrice?: number; timeline?: string; notes?: string };
-    tenantRequirement?: { requirement?: string; budget?: number; preferredArea?: string; moveInDate?: string };
-    ownerProperty?: { propertyType?: string; area?: string; rentExpected?: number; notes?: string };
+    buyerRequirement?: BuyerRequirement;
+    sellerProperty?: SellerProperty;
+    tenantRequirement?: TenantRequirement;
+    ownerProperty?: OwnerProperty;
     notes?: string;
   }) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads`, init);
+    return this.handleResponse(response, init);
   }
 
   // Update lead
   async updateLead(leadId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  // Trigger an on-demand AI qualification call for a lead ("Call now to qualify")
+  async triggerQualifyCall(leadId: string): Promise<{ callSessionId: string; status: string }> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/qualify-call`, init);
+    return this.handleResponse(response, init);
   }
 
   // Convert lead to buyer/tenant/owner/seller based on lead type
   async convertLead(leadId: string, options: Record<string, unknown> = {}) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/convert`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(options),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/convert`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getLeadConversionHistory(filters?: { leadType?: string; search?: string }) {
+    const queryParams = new URLSearchParams();
+    if (filters?.leadType) queryParams.append('leadType', filters.leadType);
+    if (filters?.search) queryParams.append('search', filters.search);
+    const qs = queryParams.toString();
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/leads/conversions/history${qs ? `?${qs}` : ''}`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async getLeadConversionSnapshot(leadId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/conversion`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get matching contacts for lead conversion
   async getMatchingContactsForLead(leadId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/matching-contacts`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/matching-contacts`, init);
+    return this.handleResponse(response, init);
   }
 
   // Delete lead
   async deleteLead(leadId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Lead notes
   async getLeadNotes(leadId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createLeadNote(leadId: string, data: { content: string }) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateLeadNote(leadId: string, noteId: string, data: { content: string }) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteLeadNote(leadId: string, noteId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/${leadId}/notes/${noteId}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Search leads by name, phone, or email
   async searchLeads(q: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/search?q=${encodeURIComponent(q)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/search?q=${encodeURIComponent(q)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Get available agents for assignedTo dropdown
-  async getLeadAgents(): Promise<Array<{ username: string; label: string }>> {
-    const response = await fetch(`${API_BASE_URL}/crm/leads/agents`, {
+  async getLeadAgents(): Promise<Array<{ userId: string; username: string; label: string; role?: string }>> {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/leads/agents`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Buyer Endpoints ==============
@@ -1870,58 +2121,65 @@ class ApiService {
     if (filters?.propertyType) params.append('propertyType', filters.propertyType);
     
     const url = `${API_BASE_URL}/crm/buyers${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   async getBuyer(buyerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async createBuyer(data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateBuyer(buyerId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async getBuyerNotes(buyerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/notes`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async createBuyerNote(buyerId: string, data: { content: string }) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/notes`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/${buyerId}/notes`, init);
+    return this.handleResponse(response, init);
   }
 
   async getBuyerMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/metrics/summary`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/metrics/summary`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Seller Endpoints REMOVED ==============
@@ -1930,28 +2188,31 @@ class ApiService {
 
   // Cross-role phone lookup
   async lookupPersonByPhone(phone: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/buyers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/buyers/lookup/by-phone?phone=${encodeURIComponent(phone)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Search Endpoints ==============
 
   // Search owners by name or phone
   async searchOwners(query: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/search/owners?q=${encodeURIComponent(query)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/search/owners?q=${encodeURIComponent(query)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Search customers/tenants by name or phone
   async searchCustomers(query: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/search/customers?q=${encodeURIComponent(query)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/search/customers?q=${encodeURIComponent(query)}`, init);
+    return this.handleResponse(response, init);
   }
 
   // Search properties with filters
@@ -1972,167 +2233,11 @@ class ApiService {
     if (filters?.minRent) params.append('minRent', filters.minRent);
     if (filters?.maxRent) params.append('maxRent', filters.maxRent);
     
-    const response = await fetch(`${API_BASE_URL}/crm/search/properties?${params.toString()}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  /* ============== DISABLED: Real Estate Management - Developers ==============
-
-  async getDevelopers(filters?: { status?: string; country?: string }) {
-    const params = new URLSearchParams();
-    if (filters?.status) params.append('status', filters.status);
-    if (filters?.country) params.append('country', filters.country);
-    
-    const url = `${API_BASE_URL}/crm/developers${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getDeveloper(developerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getDeveloperBySlug(slug: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/slug/${slug}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async createDeveloper(data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateDeveloper(developerId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteDeveloper(developerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async searchDevelopers(query: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/search?q=${encodeURIComponent(query)}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getDeveloperMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/metrics`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getDeveloperProjects(developerId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/projects`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  // ============== Real Estate Management - Areas/Communities ==============
-
-  async getRealEstateAreas(filters?: { status?: string; city?: string; country?: string }) {
-    const params = new URLSearchParams();
-    if (filters?.status) params.append('status', filters.status);
-    if (filters?.city) params.append('city', filters.city);
-    if (filters?.country) params.append('country', filters.country);
-    
-    const url = `${API_BASE_URL}/crm/real-estate-areas${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getRealEstateArea(areaId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getRealEstateAreaBySlug(slug: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/slug/${slug}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async createRealEstateArea(data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
-  }
-
-  async updateRealEstateArea(areaId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
-  }
-
-  async deleteRealEstateArea(areaId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async searchRealEstateAreas(query: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/search?q=${encodeURIComponent(query)}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
-  }
-
-  async getRealEstateAreaMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/metrics`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getRealEstateAreaProjects(areaId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/projects`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/search/properties?${params.toString()}`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Real Estate Management - Projects ==============
@@ -2145,195 +2250,114 @@ class ApiService {
     if (filters?.lifecycleStatus) params.append('lifecycleStatus', filters.lifecycleStatus);
     
     const url = `${API_BASE_URL}/crm/projects${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await fetch(url, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getProject(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getProjectBySlug(slug: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/slug/${slug}`, {
-      headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(url, init);
+    return this.handleResponse(response, init);
   }
 
   async createProject(data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(data),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateProject(projectId: string, data: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}`, {
+    const init = {
       method: 'PUT',
       headers: this.getHeaders(),
       body: JSON.stringify(this.stripDynamoFields(data)),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteProject(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateProjectStatus(projectId: string, status: string, metadata?: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/status`, {
+    const init = {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify({ status, ...metadata }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/status`, init);
+    return this.handleResponse(response, init);
   }
 
   async updateProjectInventory(projectId: string, inventoryData: Record<string, unknown>) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/inventory`, {
+    const init = {
       method: 'PATCH',
       headers: this.getHeaders(),
       body: JSON.stringify(inventoryData),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/inventory`, init);
+    return this.handleResponse(response, init);
   }
 
   async markProjectUnitSold(projectId: string, unitType?: string, quantity?: number) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/units/sold`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify({ unitType, quantity }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/units/sold`, init);
+    return this.handleResponse(response, init);
   }
 
   async incrementProjectViews(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/views`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/views`, init);
+    return this.handleResponse(response, init);
   }
 
   async incrementProjectEnquiries(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/enquiries`, {
+    const init = {
       method: 'POST',
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/enquiries`, init);
+    return this.handleResponse(response, init);
   }
 
   async searchProjects(query: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/search?q=${encodeURIComponent(query)}`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/search?q=${encodeURIComponent(query)}`, init);
+    return this.handleResponse(response, init);
   }
 
   async getProjectMetrics() {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/metrics`, {
+    const init = {
       headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async getProjectDetailedMetrics(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/metrics`, {
-      headers: this.getHeaders(),
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  // ============== Developer Media Upload ==============
-
-  async uploadDeveloperLogo(developerId: string, file: File) {
-    const formData = new FormData();
-    formData.append('logo', file);
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/logo`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadDeveloperImages(developerId: string, files: File[]) {
-    const formData = new FormData();
-    files.forEach(file => formData.append('images', file));
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/images`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadDeveloperVideos(developerId: string, files: File[]) {
-    const formData = new FormData();
-    files.forEach(file => formData.append('videos', file));
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/videos`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async deleteDeveloperImage(developerId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/images`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/metrics`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteDeveloperVideo(developerId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/videos`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
       body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/developers/${developerId}/videos`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Area Media Upload ==============
@@ -2342,56 +2366,25 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/images`, {
+    const init = {
       method: 'POST',
       headers,
       body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadAreaVideos(areaId: string, files: File[]) {
-    const formData = new FormData();
-    files.forEach(file => formData.append('videos', file));
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/videos`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async deleteAreaImage(areaId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/images`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/images`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteAreaVideo(areaId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/videos`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
       body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/real-estate-areas/${areaId}/videos`, init);
+    return this.handleResponse(response, init);
   }
 
   // ============== Project Media & Document Upload ==============
@@ -2400,105 +2393,328 @@ class ApiService {
     const formData = new FormData();
     files.forEach(file => formData.append('images', file));
     
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
+    const headers = this.getHeaders(true);
     
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/images`, {
+    const init = {
       method: 'POST',
       headers,
       body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadProjectVideos(projectId: string, files: File[]) {
-    const formData = new FormData();
-    files.forEach(file => formData.append('videos', file));
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/videos`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadProjectBrochure(projectId: string, file: File) {
-    const formData = new FormData();
-    formData.append('brochure', file);
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/brochure`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async uploadProjectFloorPlans(projectId: string, files: File[]) {
-    const formData = new FormData();
-    files.forEach(file => formData.append('floorPlans', file));
-    
-    const token = localStorage.getItem('token');
-    const tenantId = localStorage.getItem('tenantId');
-    const headers: HeadersInit = {};
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-    if (tenantId) headers['x-tenant-id'] = tenantId;
-    
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/floor-plans`, {
-      method: 'POST',
-      headers,
-      body: formData,
-    });
-    const result = await this.handleResponse(response);
-    return result.data || result;
-  }
-
-  async deleteProjectImage(projectId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/images`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/images`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteProjectVideo(projectId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/videos`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
       body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/videos`, init);
+    return this.handleResponse(response, init);
   }
 
   async deleteProjectFloorPlan(projectId: string, s3Key: string) {
-    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/floor-plans`, {
+    const init = {
       method: 'DELETE',
       headers: this.getHeaders(),
       body: JSON.stringify({ s3Key }),
-    });
-    return this.handleResponse(response);
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/projects/${projectId}/floor-plans`, init);
+    return this.handleResponse(response, init);
   }
-  */
+
+  // ============== AI Employee ==============
+
+  async getAgentActivity(params?: { limit?: number; agentId?: string }) {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.agentId) query.set('agentId', params.agentId);
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/agents/activity?${query}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getAiEmployeeConfig() {
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/config/ai-employee`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async updateAiEmployeeConfig(config: {
+    aiEmployeeEnabled?: boolean;
+    followupAgentMode?: 'draft' | 'autosend';
+    followupAgentAutoSendChannels?: string[];
+    aiPersonality?: 'professional' | 'friendly' | 'direct';
+    autoReply?: boolean;
+    businessHoursStart?: string;
+    businessHoursEnd?: string;
+    timezone?: string;
+    connectedWhatsAppPhone?: string | null;
+  }) {
+    const init = {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+      body: JSON.stringify(config),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/config/ai-employee`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getAiEmployeeProvisioningStatus() {
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/ai-employee/status`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async sendTestAiMessage() {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/ai-employee/test-message`, init);
+    return this.handleResponse(response, init);
+  }
+
+  // ============== WhatsApp Inbox ==============
+
+  async getWhatsAppConversations(): Promise<ConversationSummary[]> {
+    const init = {
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/conversations`, init);
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * One conversation's message history.
+   *
+   * WhatsAppInbox.tsx called this, `markWhatsAppConversationRead` and
+   * `sendWhatsAppMessage` before any of them existed on this class — opening a
+   * conversation threw `TypeError: api.getWhatsAppConversation is not a
+   * function`, so the Inbox page could not display or send anything. The three
+   * backend routes were already implemented and mounted; only the client
+   * methods were missing, and `tsc` had been reporting it all along among the
+   * pre-existing errors.
+   */
+  async getWhatsAppConversation(
+    phone: string,
+    opts: { limit?: number; startKey?: string } = {},
+  ): Promise<WhatsAppConversation> {
+    const params = new URLSearchParams();
+    if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.startKey) params.set('startKey', opts.startKey);
+    const query = params.toString() ? `?${params.toString()}` : '';
+
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}${query}`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  /** Clear the unread badge for one contact. Best-effort — the caller ignores failures. */
+  async markWhatsAppConversationRead(phone: string): Promise<{ ok?: boolean; unreadCount?: number }> {
+    const init = {
+      method: 'PATCH',
+      headers: this.getHeaders(),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}/read`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * Send a message as the agency's connected number.
+   *
+   * The backend rejects this with 400 when Baileys is not enabled or the
+   * tenant has no connected number, which surfaces to the user as the toast
+   * in WhatsAppInbox's catch block.
+   */
+  async sendWhatsAppMessage(phone: string, text: string): Promise<{ messageId?: string; status?: string }> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ text }),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/api/whatsapp/conversations/${encodeURIComponent(phone)}/messages`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async getWhatsAppConnectionStatus(phone: string): Promise<{ connected: boolean; state?: string; error?: string; sessionId?: string | null }> {
+    const encodedPhone = encodeURIComponent(phone);
+    const response = await fetch(`${API_BASE_URL}/api/whatsapp/status/${encodedPhone}`, {
+      headers: this.getHeaders(),
+    });
+    if (!response.ok) {
+      return { connected: false, error: 'status_check_failed' };
+    }
+    const result = await this.handleResponse(response);
+    return result.data || result;
+  }
+
+  // ============== Call Intelligence (call recordings) ==============
+
+  /** Step 1 of the upload: reserve a recording and get a pre-signed S3 URL. */
+  async createCallRecordingUploadUrl(data: {
+    filename: string;
+    contentType: string;
+    sizeBytes?: number;
+    phone?: string;
+    callDate?: string;
+  }): Promise<UploadUrlResponse> {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/upload-url`, init);
+    return this.handleResponse(response, init);
+  }
+
+  /**
+   * Step 2: PUT the file straight to S3.
+   * Deliberately bypasses `getHeaders()` — sending an Authorization header to a
+   * pre-signed URL makes S3 reject the request.
+   *
+   * `contentType` must be the exact value the URL was signed with, otherwise S3
+   * answers 403 SignatureDoesNotMatch.
+   */
+  async uploadCallRecordingToS3(
+    uploadUrl: string,
+    file: File,
+    onProgress?: (percent: number) => void,
+    contentType?: string,
+  ): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', uploadUrl, true);
+      xhr.setRequestHeader('Content-Type', contentType || file.type);
+
+      xhr.upload.onprogress = (event) => {
+        if (onProgress && event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) resolve();
+        else reject(new Error(`Upload failed with status ${xhr.status}`));
+      };
+      xhr.onerror = () => reject(new Error('Upload failed. Check your connection and try again.'));
+      xhr.onabort = () => reject(new Error('Upload cancelled'));
+      xhr.send(file);
+    });
+  }
+
+  /** Step 3: confirm the upload so the transcription pipeline starts. */
+  async confirmCallRecordingUpload(recordingId: string, data: { callDate?: string } = {}) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/confirm`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordings(params: { limit?: number; cursor?: string; status?: string } = {}) {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.cursor) query.set('cursor', params.cursor);
+    if (params.status) query.set('status', params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : '';
+
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings${suffix}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecording(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordingTranscript(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/transcript`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async getCallRecordingAudioUrl(recordingId: string) {
+    const init = { headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/audio-url`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async linkCallRecordingEntity(
+    recordingId: string,
+    data: { entityType: string; entityId: string; reanalyze?: boolean },
+  ) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(data),
+    };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/link`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async reanalyzeCallRecording(recordingId: string) {
+    const init = { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({}) };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}/reanalyze`, init);
+    return this.handleResponse(response, init);
+  }
+
+  async approveCallRecordingAction(
+    recordingId: string,
+    actionId: string,
+    args?: Record<string, unknown>,
+  ) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(args ? { arguments: args } : {}),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/call-recordings/${recordingId}/actions/${actionId}/approve`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async rejectCallRecordingAction(recordingId: string, actionId: string, reason?: string) {
+    const init = {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify(reason ? { reason } : {}),
+    };
+    const response = await fetch(
+      `${API_BASE_URL}/crm/call-recordings/${recordingId}/actions/${actionId}/reject`,
+      init,
+    );
+    return this.handleResponse(response, init);
+  }
+
+  async deleteCallRecording(recordingId: string) {
+    const init = { method: 'DELETE', headers: this.getHeaders() };
+    const response = await fetch(`${API_BASE_URL}/crm/call-recordings/${recordingId}`, init);
+    return this.handleResponse(response, init);
+  }
 }
 
 export const api = new ApiService();
+
+

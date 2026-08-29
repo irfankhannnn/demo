@@ -1,19 +1,31 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { extractClaims } from '../utils/cognito';
 import { ok, badRequest, conflict, internalError, notFound, forbidden } from '../utils/http';
-import { updateUserProfile, findUserByUserId, findUserByEmail, findUserByPhone, findUserByPendingEmail } from '../models/usersModel';
-import { getAgencyConfig, updateAgencyConfig } from '../models/agencyConfigModel';
+import {
+  updateUserProfile,
+  findUserByUserId,
+  findUserByEmail,
+  findUserByPhone,
+  findUserByPendingEmail,
+  createAdminUser,
+} from '../models/usersModel';
+import { getAgencyConfig, updateAgencyConfig, createAgencyConfig } from '../models/agencyConfigModel';
 import { findInvitesByEmail, findInvitesByPhone, deleteInvite } from '../models/invitesModel';
-import { findIdentityBySub } from '../models/authIdentitiesModel';
+import { findIdentityBySub, createIdentity } from '../models/authIdentitiesModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
+import { logger } from '../utils/logger';
 
 // --- Zod Schemas ---
 
 const registerAdminSchema = z.object({
   agencyName: z.string().min(1, 'agencyName is required'),
   displayName: z.string().min(1, 'displayName is required'),
+  consentAccepted: z.literal(true, {
+    errorMap: () => ({ message: 'Terms and Privacy Policy consent is required' }),
+  }),
 });
 
 const acceptInviteSchema = z.object({
@@ -120,7 +132,7 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
     // Auto-accept if exactly 1 pending invite
     if (pendingInvites.length === 1) {
       const invite = pendingInvites[0];
-      console.log('[bootstrap] Auto-accepting invite for:', email, 'under tenant:', invite.TenantId);
+      logger.info('[bootstrap] Auto-accepting invite for under tenant', { email, tenantId: invite.TenantId });
 
       const result = await resolveMemberUser(
         sub,
@@ -170,22 +182,121 @@ export async function bootstrap(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // No invites and no pre-onboarded agency
-    forbidden(res, 'NOT_ONBOARDED', 'You are not onboarded. Please contact the administrator to get onboarded.');
+    // No invites — new user eligible for self-serve trial signup
+    ok(res, {
+      exists: false,
+      needsRegistration: true,
+      cognitoSub: sub,
+      email: email || null,
+      name: name || null,
+      phoneNumber: phone_number || null,
+      hasPendingInvites: false,
+    });
   } catch (error) {
-    console.error('bootstrap error:', error);
+    logger.error('bootstrap error', { error });
     internalError(res, 'Failed to bootstrap user');
   }
 }
 
 /**
  * POST /auth/register-admin
- * DEPRECATED: Admin self-registration is no longer allowed.
- * Admins must be pre-onboarded via the onboarding page by SaaS owner.
- * This endpoint now returns a 403 Forbidden error.
+ * Self-serve agency admin registration for 14-day trial signups.
  */
 export async function registerAdmin(req: Request, res: Response): Promise<void> {
-  forbidden(res, 'NOT_ONBOARDED', 'Admin self-registration is not allowed. Please contact the SaaS administrator to get onboarded.');
+  try {
+    const claims = extractClaims(req);
+    const { sub, email, phone_number, name } = claims;
+
+    if (!sub) {
+      badRequest(res, 'Cognito sub is missing from claims');
+      return;
+    }
+
+    const parsed = registerAdminSchema.safeParse(req.body);
+    if (!parsed.success) {
+      badRequest(res, parsed.error.errors.map((e) => e.message).join(', '));
+      return;
+    }
+
+    const { agencyName, displayName } = parsed.data;
+
+    const existingIdentity = await findIdentityBySub(sub);
+    if (existingIdentity) {
+      const existingUser = await findUserByUserId(existingIdentity.userId);
+      if (existingUser) {
+        conflict(res, 'User already registered');
+        return;
+      }
+    }
+
+    const tenantId = uuidv4();
+    const normalizedEmail = (email || `${sub}@phone.realestateflow.in`).toLowerCase().trim();
+    const provider: 'google' | 'phone' = email ? 'google' : 'phone';
+
+    if (email) {
+      const emailTaken = await findUserByEmail(normalizedEmail);
+      if (emailTaken) {
+        conflict(res, 'Email already registered');
+        return;
+      }
+    }
+
+    if (phone_number) {
+      const phoneTaken = await findUserByPhone(phone_number);
+      if (phoneTaken) {
+        conflict(res, 'Phone number already registered');
+        return;
+      }
+    }
+
+    const userId = uuidv4();
+
+    const [user, agency] = await Promise.all([
+      createAdminUser({
+        tenantId,
+        cognitoSub: sub,
+        userId,
+        email: normalizedEmail,
+        displayName,
+        phoneNumber: phone_number,
+        authMethod: provider,
+      }),
+      createAgencyConfig({
+        tenantId,
+        agencyName,
+        adminEmail: normalizedEmail,
+      }),
+    ]);
+
+    await createIdentity({
+      sub,
+      userId,
+      tenantId,
+      provider,
+      email: email?.toLowerCase().trim(),
+      phone: phone_number,
+    });
+
+    ok(res, {
+      success: true,
+      user: {
+        userId: user.userId,
+        cognitoSub: user.cognitoSub,
+        email: user.email,
+        role: user.role,
+        tenantId: user.TenantId,
+        displayName: user.displayName,
+        status: user.status,
+      },
+      agency: {
+        agencyName: agency.agencyName,
+        status: agency.status,
+      },
+    });
+  } catch (error) {
+    console.error('registerAdmin error:', error);
+    internalError(res, 'Failed to register admin');
+  }
 }
 
 /**
@@ -224,7 +335,7 @@ export async function checkInvite(req: Request, res: Response): Promise<void> {
       invites: enrichedInvites,
     });
   } catch (error) {
-    console.error('checkInvite error:', error);
+    logger.error('checkInvite error', { error });
     internalError(res, 'Failed to check invites');
   }
 }
@@ -274,6 +385,28 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    // Check if email or phone is already registered in another agency
+    const existingByEmail = await findUserByEmail(email);
+    const existingByPhone = phone_number ? await findUserByPhone(phone_number) : null;
+
+    if (existingByEmail && existingByEmail.TenantId !== matchingInvite.TenantId) {
+      forbidden(
+        res,
+        'EMAIL_ALREADY_REGISTERED',
+        'This email is already registered with another agency. Please use a different email or contact support.'
+      );
+      return;
+    }
+
+    if (existingByPhone && existingByPhone.TenantId !== matchingInvite.TenantId) {
+      forbidden(
+        res,
+        'PHONE_ALREADY_REGISTERED',
+        'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+      );
+      return;
+    }
+
     // Use resolveMemberUser to create/link member
     const result = await resolveMemberUser(
       sub,
@@ -285,6 +418,28 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
     );
 
     if (result.isNewMember === null) {
+      // Check if it failed due to duplicate email/phone
+      const dupeCheckEmail = await findUserByEmail(email);
+      const dupeCheckPhone = phone_number ? await findUserByPhone(phone_number) : null;
+
+      if (dupeCheckEmail && dupeCheckEmail.TenantId !== matchingInvite.TenantId) {
+        forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+        return;
+      }
+
+      if (dupeCheckPhone && dupeCheckPhone.TenantId !== matchingInvite.TenantId) {
+        forbidden(
+          res,
+          'PHONE_ALREADY_REGISTERED',
+          'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+        );
+        return;
+      }
+
       internalError(res, 'Failed to resolve member');
       return;
     }
@@ -305,7 +460,7 @@ export async function acceptInvite(req: Request, res: Response): Promise<void> {
       agency: result.agency ? { agencyName: result.agency.agencyName, status: result.agency.status } : null,
     });
   } catch (error) {
-    console.error('acceptInvite error:', error);
+    logger.error('acceptInvite error', { error });
     internalError(res, 'Failed to accept invite');
   }
 }
@@ -366,7 +521,7 @@ export async function me(req: Request, res: Response): Promise<void> {
         : null,
     });
   } catch (error) {
-    console.error('me error:', error);
+    logger.error('me error', { error });
     internalError(res, 'Failed to get user profile');
   }
 }
@@ -412,7 +567,7 @@ export async function patchProfile(req: Request, res: Response): Promise<void> {
 
     ok(res, { message: 'Profile updated successfully' });
   } catch (error) {
-    console.error('patchProfile error:', error);
+    logger.error('patchProfile error', { error });
     internalError(res, 'Failed to update profile');
   }
 }
@@ -466,7 +621,8 @@ export async function patchAgency(req: Request, res: Response): Promise<void> {
 
     ok(res, { message: 'Agency configuration updated successfully' });
   } catch (error) {
-    console.error('patchAgency error:', error);
+    logger.error('patchAgency error', { error });
     internalError(res, 'Failed to update agency configuration');
   }
 }
+

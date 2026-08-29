@@ -1,0 +1,57 @@
+{
+  "name": "cloudberry-crm-e2e-tests",
+  "version": "1.0.0",
+  "description": "Playwright E2E tests for Cloudberry CRM",
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+
+    "test:setup": "playwright test --project=setup",
+    "test:public": "playwright test --project=chromium-public",
+    "test:api": "playwright test --project=chromium-api",
+    "test:api:simple": "playwright test --project=chromium-api --reporter=./reporters/apiReporter.ts",
+    "test:api:html": "playwright test --project=chromium-api --reporter=html && npx playwright show-report reports/html",
+    "test:crm": "playwright test --project=chromium-crm",
+    "test:mobile": "playwright test --project=mobile-android --project=mobile-ios",
+    "test:mobile:android": "playwright test --project=mobile-android",
+    "test:mobile:ios": "playwright test --project=mobile-ios",
+
+    "test:leads": "playwright test ui/crm/lead-flows.spec.ts",
+    "test:khata": "playwright test ui/crm/khata-flows.spec.ts",
+    "test:dashboard": "playwright test ui/crm/dashboard-core-flows.spec.ts",
+    "test:crm-ops": "playwright test ui/crm/crm-operations-flows.spec.ts",
+    "test:admin-ui": "playwright test ui/crm/admin-ui-flows.spec.ts",
+    "test:buyers": "playwright test ui/crm/buyer-flows.spec.ts",
+    "test:tenants": "playwright test ui/crm/tenant-flows.spec.ts",
+    "test:profile": "playwright test ui/crm/profile.spec.ts",
+    "test:ai-employee": "playwright test ui/crm/ai-employee.spec.ts",
+    "test:paywall": "playwright test ui/crm/paywall.spec.ts",
+    "test:nps": "playwright test ui/crm/nps.spec.ts",
+    "test:timeline": "playwright test ui/crm/unified-timeline-flows.spec.ts",
+    "test:properties": "playwright test ui/crm/property-flows.spec.ts",
+
+    "test:auth": "playwright test ui/public/auth.spec.ts",
+    "test:cookie": "playwright test ui/public/cookie-consent.spec.ts",
+    "test:grievance": "playwright test ui/public/grievance.spec.ts",
+
+    "test:seat-cap": "playwright test api/seat-cap.spec.ts",
+    "test:cross-tenant": "playwright test api/cross-tenant-pentest.spec.ts",
+    "test:state-transitions": "playwright test api/state-transitions.spec.ts",
+    "test:ownership-transfer": "playwright test api/ownership-transfer.spec.ts",
+    "test:validation-security": "playwright test api/validation-security.spec.ts",
+    "test:cors-public": "playwright test api/cors-public-endpoints.spec.ts",
+    "test:penetration": "playwright test api/penetration-security.spec.ts",
+    "test:edge-cases": "playwright test api/edge-cases-boundary.spec.ts",
+    "test:data-integrity": "playwright test api/data-integrity.spec.ts",
+    "test:concurrent": "playwright test api/concurrent-race.spec.ts",
+
+    "install:playwright": "playwright install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "dotenv": "^16.4.5"
+  }
+}

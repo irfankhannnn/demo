@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { wrapAwsClient } from './awsClientWrapper.js';
 import { incrementDeveloperProjectCount, decrementDeveloperProjectCount, getDeveloper } from './developersDynamodbService.js';
 import { incrementAreaProjectCount, decrementAreaProjectCount, updateAreaPriceRange, getArea } from './realEstateAreasDynamodbService.js';
+import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -279,7 +280,7 @@ export async function createProject(tenantId, data) {
         {
           status: data.constructionStatus || 'planned',
           date: now,
-          updatedBy: data.createdBy || 'system',
+          updatedBy: data.createdBy || SERVICE_ACCOUNT_USER,
         },
       ],
       constructionMilestones: data.constructionMilestones || [],
@@ -290,7 +291,7 @@ export async function createProject(tenantId, data) {
     createdAt: now,
     updatedAt: now,
     publishedAt: data.visibility === 'public' ? now : null,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     
     // GSI Keys
     GSI1PK: `TENANT#${tenantId}#DEVELOPER#${data.developerId}`,
@@ -764,7 +765,7 @@ export async function updateProjectLifecycleStatus(tenantId, projectId, newStatu
   lifecycle.statusHistory.push({
     status: newStatus,
     date: now,
-    updatedBy: metadata.updatedBy || 'system',
+    updatedBy: metadata.updatedBy || SERVICE_ACCOUNT_USER,
     notes: metadata.notes || null,
   });
   lifecycle.currentStatus = newStatus;

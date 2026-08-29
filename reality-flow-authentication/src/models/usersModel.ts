@@ -43,6 +43,11 @@ export interface UserItem {
   GSI_PhonePK?: string;
   GSI_PhoneSK?: string;
   authMethod: 'google' | 'phone';
+  whatsAppPhoneNumber?: string;
+  whatsAppBusinessAccountId?: string;
+  whatsAppVerified?: boolean;
+  whatsAppConnectedAt?: string;
+  GSI_WhatsAppPK?: string;
 }
 
 /**
@@ -342,14 +347,45 @@ export async function listUsersByTenant(tenantId: string): Promise<UserItem[]> {
     .query({
       TableName: USERS_TABLE,
       KeyConditionExpression: 'TenantId = :tid AND begins_with(SK, :prefix)',
+      FilterExpression: '#status = :active',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
       ExpressionAttributeValues: {
         ':tid': tenantId,
         ':prefix': 'USER#',
+        ':active': 'ACTIVE',
       },
     })
     .promise();
 
   return (result.Items || []) as UserItem[];
+}
+
+/**
+ * Count users for a tenant (used for seat limit enforcement).
+ */
+export async function countUsersByTenant(tenantId: string): Promise<number> {
+  const { USERS_TABLE } = getConfig();
+
+  const result = await dynamodb
+    .query({
+      TableName: USERS_TABLE,
+      KeyConditionExpression: 'TenantId = :tid AND begins_with(SK, :prefix)',
+      FilterExpression: '#status = :active',
+      ExpressionAttributeNames: {
+        '#status': 'status',
+      },
+      ExpressionAttributeValues: {
+        ':tid': tenantId,
+        ':prefix': 'USER#',
+        ':active': 'ACTIVE',
+      },
+      Select: 'COUNT',
+    })
+    .promise();
+
+  return result.Count || 0;
 }
 
 /**
@@ -593,6 +629,105 @@ export async function promotePendingEmail(
     if (err?.code === 'ConditionalCheckFailedException') return false;
     throw err;
   }
+}
+
+/**
+ * Find user by whatsAppPhoneNumber using WhatsAppIndex GSI.
+ * Requires a DynamoDB GSI named 'WhatsAppIndex' on GSI_WhatsAppPK attribute.
+ */
+export async function findUserByWhatsAppPhone(phone: string): Promise<UserItem | null> {
+  const { USERS_TABLE } = getConfig();
+  // Normalize: strip spaces, ensure +91 format
+  const normalized = phone.replace(/\s/g, '');
+
+  const result = await dynamodb
+    .query({
+      TableName: USERS_TABLE,
+      IndexName: process.env.WHATSAPP_GSI_NAME || 'WhatsAppIndex',
+      KeyConditionExpression: 'GSI_WhatsAppPK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `WHATSAPP#${normalized}`,
+      },
+      Limit: 1,
+    })
+    .promise();
+
+  if (result.Items && result.Items.length > 0) {
+    const validItem = result.Items.find(isValidUserItem);
+    return validItem || null;
+  }
+
+  return null;
+}
+
+/**
+ * Update whatsApp fields after successful pairing.
+ */
+export async function updateWhatsAppConnection(
+  tenantId: string,
+  userId: string,
+  whatsAppPhoneNumber: string,
+  whatsAppBusinessAccountId?: string
+): Promise<void> {
+  const { USERS_TABLE } = getConfig();
+  const normalized = whatsAppPhoneNumber.replace(/\s/g, '');
+  const now = new Date().toISOString();
+
+  const updateExpressionParts = [
+    'whatsAppPhoneNumber = :phone',
+    'whatsAppVerified = :verified',
+    'whatsAppConnectedAt = :connectedAt',
+    'GSI_WhatsAppPK = :gsiPk',
+    'updatedAt = :now',
+  ];
+  const expressionValues: Record<string, unknown> = {
+    ':phone': normalized,
+    ':verified': true,
+    ':connectedAt': now,
+    ':gsiPk': `WHATSAPP#${normalized}`,
+    ':now': now,
+  };
+
+  if (whatsAppBusinessAccountId) {
+    updateExpressionParts.push('whatsAppBusinessAccountId = :baId');
+    expressionValues[':baId'] = whatsAppBusinessAccountId;
+  }
+
+  await dynamodb
+    .update({
+      TableName: USERS_TABLE,
+      Key: { TenantId: tenantId, SK: `USER#${userId}` },
+      UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
+      ExpressionAttributeValues: expressionValues,
+    })
+    .promise();
+}
+
+/**
+ * Fix stale PhoneIndex keys when phoneNumber and GSI_PhonePK are out of sync.
+ */
+export async function reconcilePhoneGsiIfNeeded(user: UserItem): Promise<void> {
+  if (!user.phoneNumber) return;
+
+  const expectedPk = `PHONE#${user.phoneNumber}`;
+  if (user.GSI_PhonePK === expectedPk) return;
+
+  const { USERS_TABLE } = getConfig();
+  const now = new Date().toISOString();
+
+  await dynamodb
+    .update({
+      TableName: USERS_TABLE,
+      Key: { TenantId: user.TenantId, SK: `USER#${user.userId}` },
+      UpdateExpression: 'SET GSI_PhonePK = :pk, GSI_PhoneSK = :sk, updatedAt = :now',
+      ExpressionAttributeValues: {
+        ':pk': expectedPk,
+        ':sk': `USER#${user.userId}`,
+        ':now': now,
+      },
+      ConditionExpression: 'attribute_exists(TenantId) AND attribute_exists(SK)',
+    })
+    .promise();
 }
 
 /**

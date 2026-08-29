@@ -2,6 +2,8 @@
 ## Role: All Marketing Work (Manual + Automation)
 ## Phases: Pre-Launch (P1–P18) + Week 1 (Day 1–7)
 
+> **Batch update 2026-06-11:** AI content drafts generated for MAD-001/002/003/004/008/009/010/011 (~65% pre-launch marketing). Human review + Higgsfield assets (MAD-005) + founder LinkedIn (MAD-006) remain.
+
 > **How to use this file:**
 > - Each Jira Story has an ID, phase, priority, source reference, and sub-tasks.
 > - "Source File" = the exact `.md` file in `marketing-and-sales/launch-plan-v2/` to read before starting.
@@ -21,7 +23,7 @@
 - **Context:** DPDP Act 2023 mandates 4 legal documents before accepting any user data: Terms of Service, Privacy Policy, Refund Policy, and Cookie Policy. These must be published at `/legal/*` before Day 1. Madhu drives the AI-generation of drafts, coordinates external lawyer review, and ensures the final content is ready for Zeeshan to publish at the LP routes.
 
 #### Tasks
-- [ ] **MAD-001-T1** — Run the AI Prompt from `P1-legal-foundation.md` with all company details provided by Founder
+- [x] **MAD-001-T1** — Run the AI Prompt from `P1-legal-foundation.md` — ✅ drafts at `launch-implement/pre-launch/01-legal/` (placeholders pending founder)
   - Inputs: company GSTIN, CIN, registered address, Grievance Officer name + email, all sub-processors list (AWS, Razorpay, Brevo, AiSensy, Cloudflare, PostHog, Sentry, Crisp, BetterStack, Cal.com, ElevenLabs, Instantly)
   - Output: draft ToS, Privacy Policy, Refund Policy, Cookie Policy at `marketing-and-sales/launch-implement/pre-launch/01-legal/`
 - [ ] **MAD-001-T2** — Review AI drafts against DPDP Act checklist (provided in P1 source file)

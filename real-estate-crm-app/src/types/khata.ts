@@ -85,6 +85,7 @@ export interface CreateKhataEntryData {
   propertyId: string;
   partyType: KhataPartyType;
   partyId: string;
+  partyName: string;
   transactionType: KhataTransactionType;
   amount?: number;
   categoryId?: string;

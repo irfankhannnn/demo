@@ -4,10 +4,13 @@ import {
   GetCommand,
   PutCommand,
   UpdateCommand,
+  ScanCommand,
+  QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import bcrypt from 'bcryptjs';
 import { logger } from './logger.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { normalizeWhatsAppPhone } from './utils/whatsapp.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -44,6 +47,63 @@ export async function getAgencyConfig(tenantId) {
   });
 
   return result.Item || null;
+}
+
+/**
+ * Resolve tenantId from a connected WhatsApp phone number (AgencyConfig.connectedWhatsAppPhone).
+ * Used by local webhook processing and whatsapp-message-processor.
+ *
+ * Queries the connectedWhatsAppPhone-index GSI (server/infra/cfn-backend.yaml)
+ * instead of scanning the table. IMPORTANT: this GSI must be deployed and
+ * report IndexStatus ACTIVE + Backfilling false before this code path is
+ * relied on in an environment -- querying a backfilling index can silently
+ * return incomplete results. See docs/proposals/agent-channel-architecture/
+ * phase1-imp/02-slice2-gsi-tenant-lookup.md for the rollout sequence.
+ */
+export async function getTenantIdByConnectedWhatsAppPhone(phone) {
+  const normalized = normalizeWhatsAppPhone(phone);
+  if (!normalized) return null;
+
+  const result = await logger.span(
+    'ddb.getTenantByWhatsAppPhone',
+    { tableName: AGENCY_CONFIG_TABLE_NAME, phone: normalized },
+    async () => docClient.send(new QueryCommand({
+      TableName: AGENCY_CONFIG_TABLE_NAME,
+      IndexName: 'connectedWhatsAppPhone-index',
+      KeyConditionExpression: 'connectedWhatsAppPhone = :phone',
+      ExpressionAttributeValues: { ':phone': normalized },
+    }))
+  );
+
+  return result.Items?.[0]?.TenantId || null;
+}
+
+/**
+ * Resolve tenantId from a connected Instagram/ManyChat webhook token
+ * (AgencyConfig.instagramWebhookToken). Each tenant that turns on the
+ * Instagram lead pipeline gets a unique token embedded in the ManyChat
+ * "External Request" URL, e.g. POST /api/webhooks/instagram/:webhookToken.
+ * Set/rotate the token via updateAgencyConfig(tenantId, { instagramWebhookToken }).
+ */
+export async function getTenantIdByInstagramWebhookToken(token) {
+  if (!token) return null;
+
+  // Queries instagramWebhookToken-index (server/infra/cfn-backend.yaml)
+  // instead of scanning: this runs on every inbound ManyChat lead. Same
+  // ACTIVE + Backfilling:false deploy gate as the WhatsApp index — see
+  // docs/proposals/agent-channel-architecture/phase1-imp/02-slice2-gsi-tenant-lookup.md.
+  const result = await logger.span(
+    'ddb.getTenantByInstagramWebhookToken',
+    { tableName: AGENCY_CONFIG_TABLE_NAME },
+    async () => docClient.send(new QueryCommand({
+      TableName: AGENCY_CONFIG_TABLE_NAME,
+      IndexName: 'instagramWebhookToken-index',
+      KeyConditionExpression: 'instagramWebhookToken = :token',
+      ExpressionAttributeValues: { ':token': token },
+    }))
+  );
+
+  return result.Items?.[0]?.TenantId || null;
 }
 
 /**
@@ -142,3 +202,36 @@ export async function changeAgencyAdminPassword(tenantId, newPassword) {
     );
   });
 }
+
+/**
+ * Scan all agency configs optionally filtered by a boolean field.
+ * Used by lead-followup-cron to iterate tenants with AI Employee enabled.
+ * NOTE: This does a full table scan — acceptable for small tenant counts.
+ */
+export async function scanAgencyConfigs(filter = {}) {
+  const params = {
+    TableName: AGENCY_CONFIG_TABLE_NAME,
+    ProjectionExpression: 'TenantId',
+  };
+
+  if (filter.aiEmployeeEnabled !== undefined) {
+    params.FilterExpression = 'aiEmployeeEnabled = :enabled';
+    params.ExpressionAttributeValues = {
+      ':enabled': filter.aiEmployeeEnabled === true,
+    };
+  }
+
+  const allItems = [];
+  let lastKey;
+
+  do {
+    if (lastKey) params.ExclusiveStartKey = lastKey;
+    const result = await docClient.send(new ScanCommand(params));
+    allItems.push(...(result.Items || []));
+    lastKey = result.LastEvaluatedKey;
+  } while (lastKey);
+
+  return allItems.map(item => item.TenantId).filter(Boolean);
+}
+
+

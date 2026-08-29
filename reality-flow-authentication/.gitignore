@@ -1,6 +1,8 @@
 node_modules/
 dist/
 .env
+.env.*
+!sample.env
 infra/cfn-params.json
 function.zip
 *.js.map

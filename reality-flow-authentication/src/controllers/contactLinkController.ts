@@ -13,6 +13,7 @@ import {
 import { findIdentityBySub } from '../models/authIdentitiesModel';
 import { createPhoneLinkOtp, verifyPhoneLinkOtp } from '../models/phoneLinkOtpModel';
 import { validateAndFormatIndianPhone } from '../utils/phoneValidation';
+import { logger } from '../utils/logger';
 
 // --- Zod Schemas ---
 
@@ -92,7 +93,7 @@ export async function selfEmailStart(req: Request, res: Response): Promise<void>
       pendingEmail: normalizedEmail,
     });
   } catch (error) {
-    console.error('selfEmailStart error:', error);
+    logger.error('selfEmailStart error', { error });
     internalError(res, 'Failed to start email linking');
   }
 }
@@ -146,7 +147,7 @@ export async function selfPhoneStart(req: Request, res: Response): Promise<void>
       ...(otpResult.testOtp ? { testOtp: otpResult.testOtp } : {}),
     });
   } catch (error) {
-    console.error('selfPhoneStart error:', error);
+    logger.error('selfPhoneStart error', { error });
     internalError(res, 'Failed to start phone linking');
   }
 }
@@ -209,7 +210,7 @@ export async function selfPhoneVerify(req: Request, res: Response): Promise<void
       phoneVerified: true,
     });
   } catch (error) {
-    console.error('selfPhoneVerify error:', error);
+    logger.error('selfPhoneVerify error', { error });
     internalError(res, 'Failed to verify phone');
   }
 }
@@ -273,7 +274,7 @@ export async function adminEmailStart(req: Request, res: Response): Promise<void
       pendingEmail: normalizedEmail,
     });
   } catch (error) {
-    console.error('adminEmailStart error:', error);
+    logger.error('adminEmailStart error', { error });
     internalError(res, 'Failed to start email linking for member');
   }
 }
@@ -348,7 +349,8 @@ export async function adminPhoneStart(req: Request, res: Response): Promise<void
       ...(otpResult.testOtp ? { testOtp: otpResult.testOtp } : {}),
     });
   } catch (error) {
-    console.error('adminPhoneStart error:', error);
+    logger.error('adminPhoneStart error', { error });
     internalError(res, 'Failed to start phone linking for member');
   }
 }
+

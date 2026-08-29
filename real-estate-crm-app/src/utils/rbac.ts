@@ -7,26 +7,25 @@ import { getUserProfile } from './authStorage';
 
 export type Permission = 'create' | 'read' | 'update' | 'delete';
 
+const ELEVATED_ROLES = ['ADMIN', 'MANAGER', 'FOUNDER', 'OWNER'] as const;
+
 /**
  * Check if the current user has a specific permission.
- * Admin: All permissions (CRUD)
+ * Elevated roles: all permissions (CRUD)
  * Member: Create, Read, Update only (no Delete)
  */
 export function hasPermission(permission: Permission): boolean {
   const profile = getUserProfile();
   if (!profile) return false;
 
-  // Admin has all permissions
-  if (profile.role === 'ADMIN') {
+  if (ELEVATED_ROLES.includes(profile.role as typeof ELEVATED_ROLES[number])) {
     return true;
   }
 
-  // Member cannot delete
   if (profile.role === 'MEMBER' && permission === 'delete') {
     return false;
   }
 
-  // Member can create, read, update
   return true;
 }
 
@@ -36,6 +35,15 @@ export function hasPermission(permission: Permission): boolean {
 export function isAdmin(): boolean {
   const profile = getUserProfile();
   return profile?.role === 'ADMIN';
+}
+
+/**
+ * Check if current user can delete leads or perform admin-only lead actions.
+ */
+export function canManageLeads(): boolean {
+  const profile = getUserProfile();
+  if (!profile) return false;
+  return ['ADMIN', 'MANAGER', 'FOUNDER', 'OWNER'].includes(profile.role);
 }
 
 /**

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import Toast from '../../components/Toast';
 import { CRMMeeting, CRMCustomerNote, CRMOwnerNote, CRMEnquiryNote, CRMLeadNote } from '../../types/crm';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
@@ -338,7 +339,20 @@ export default function Calendar() {
   
   // View state
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'list'>('month');
+  /**
+   * Agenda ("list") is the default on phones.
+   *
+   * The week grid is min-w-[1100px] and the day grid min-w-[900px]; on a 390px
+   * screen those are horizontal-scroll strips where most of the day is off
+   * screen. The list view is already a proper responsive agenda, so mobile
+   * simply starts there. All four modes stay selectable — this changes the
+   * starting point, not the capability.
+   */
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day' | 'list'>(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 639px)').matches
+      ? 'list'
+      : 'month'
+  );
   const [statusFilter, setStatusFilter] = useState<string>('all');
   
   // Popup state
@@ -347,6 +361,10 @@ export default function Calendar() {
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [historyMeetingId, setHistoryMeetingId] = useState<string | null>(null);
   const [rescheduleMeeting, setRescheduleMeeting] = useState<CRMMeeting | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -420,7 +438,7 @@ export default function Calendar() {
       await loadData();
     } catch (e) {
       console.error('Failed to update meeting status', e);
-      alert('Failed to update meeting status');
+      showToast('Failed to update meeting status', 'error');
     }
   };
 
@@ -573,7 +591,7 @@ export default function Calendar() {
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
                 <ChevronLeft className="w-5 h-5 text-gray-600" />
               </button>
@@ -588,8 +606,28 @@ export default function Calendar() {
               </div>
             </div>
             
-            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              {/* View Mode Toggle */}
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 min-w-0">
+              {/* View Mode — mobile.
+                  The button group below is `hidden sm:flex` because four text
+                  buttons need ~240px. That previously left setViewMode with NO
+                  reachable call site on a phone (the only other one is inside
+                  the month grid, which is itself only reachable from this
+                  toggle), so mobile users were locked into the list view that
+                  viewMode initialises to. A native select is compact and keeps
+                  every mode selectable. */}
+              <select
+                value={viewMode}
+                onChange={(e) => setViewMode(e.target.value as typeof viewMode)}
+                aria-label="Calendar view"
+                className="sm:hidden min-w-0 px-2 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+              >
+                <option value="month">Month</option>
+                <option value="week">Week</option>
+                <option value="day">Day</option>
+                <option value="list">List</option>
+              </select>
+
+              {/* View Mode Toggle — sm and up */}
               <div className="hidden sm:flex bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl p-1 shadow-sm">
                 {(['month', 'week', 'day', 'list'] as const).map((mode) => (
                   <button
@@ -605,12 +643,14 @@ export default function Calendar() {
                   </button>
                 ))}
               </div>
-              
-              {/* Status Filter */}
+
+              {/* Status Filter — now available on mobile too; it was
+                  `hidden sm:block`, so statusFilter was permanently 'all'. */}
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="hidden sm:block px-3 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                aria-label="Filter by status"
+                className="min-w-0 px-2 sm:px-3 py-2 bg-white/80 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
               >
                 <option value="all">All Status</option>
                 <option value="scheduled">Scheduled</option>
@@ -1016,6 +1056,9 @@ export default function Calendar() {
           loadData();
         }}
       />
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

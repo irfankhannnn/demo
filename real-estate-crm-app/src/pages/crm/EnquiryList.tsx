@@ -32,10 +32,12 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import Toast from '../../components/Toast';
 import { CRMEnquiryNote, CRMMeeting } from '../../types/crm';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
+import { hasNativeRuntime } from '../../lib/platform';
 
 interface Enquiry {
   enquiryId: string;
@@ -54,7 +56,7 @@ interface Enquiry {
   source: string;
   createdAt: string;
   updatedAt: string;
-  convertedTo?: 'owner' | 'tenant';
+  convertedTo?: 'owner' | 'tenant' | 'lead';
   convertedId?: string;
   convertedAt?: string;
   closedAt?: string;
@@ -103,6 +105,10 @@ export default function EnquiryList() {
   const [creatingEnquiry, setCreatingEnquiry] = useState(false);
   const [historyMeetingId, setHistoryMeetingId] = useState<string | null>(null);
   const [rescheduleMeeting, setRescheduleMeeting] = useState<CRMMeeting | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const showToast = (message: string, type: 'success' | 'error' = 'error') => {
+    setToast({ message, type });
+  };
   const [newEnquiryData, setNewEnquiryData] = useState<{
     formType: string;
     name: string;
@@ -135,7 +141,7 @@ export default function EnquiryList() {
       updateMeetingInState(updated as CRMMeeting);
     } catch (e) {
       console.error('Failed to update meeting status', e);
-      alert('Failed to update meeting status');
+      showToast('Failed to update meeting status', 'error');
     }
   };
 
@@ -270,7 +276,7 @@ export default function EnquiryList() {
       setEnquiryNotes(notes);
     } catch (error) {
       console.error('Failed to update discussion note', error);
-      alert('Failed to update note');
+      showToast('Failed to update note', 'error');
     } finally {
       setDiscussionActionLoading(false);
     }
@@ -289,7 +295,7 @@ export default function EnquiryList() {
       setEnquiryNotes(notes);
     } catch (error) {
       console.error('Failed to delete discussion note', error);
-      alert('Failed to delete note');
+      showToast('Failed to delete note', 'error');
     } finally {
       setDiscussionActionLoading(false);
     }
@@ -401,7 +407,7 @@ export default function EnquiryList() {
       setUpdateStatusData({ status: 'new', contactNotes: '' });
     } catch (error) {
       console.error('Error updating enquiry:', error);
-      alert('Failed to update status');
+      showToast('Failed to update status', 'error');
     } finally {
       setUpdating(false);
     }
@@ -427,7 +433,7 @@ export default function EnquiryList() {
   const handleCreateEnquiry = async () => {
     try {
       if (!newEnquiryData.name.trim() || !newEnquiryData.phone.trim()) {
-        alert('Name and phone are required');
+        showToast('Name and phone are required', 'error');
         return;
       }
 
@@ -456,7 +462,7 @@ export default function EnquiryList() {
       await loadData();
     } catch (error) {
       console.error('Error creating enquiry:', error);
-      alert('Failed to create enquiry');
+      showToast('Failed to create enquiry', 'error');
     } finally {
       setCreatingEnquiry(false);
     }
@@ -465,8 +471,14 @@ export default function EnquiryList() {
 
   // Voice recording functions
   const startVoiceRecording = () => {
+    // Neither WKWebView nor the Android System WebView implements the Web
+    // Speech API, so this can never work inside the app.
+    if (hasNativeRuntime()) {
+      showToast('Voice input is not available in the mobile app yet.', 'error');
+      return;
+    }
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Voice recording is not supported in this browser. Please use Chrome or Edge.');
+      showToast('Voice recording is not supported in this browser. Please use Chrome or Edge.', 'error');
       return;
     }
     
@@ -493,7 +505,7 @@ export default function EnquiryList() {
             setEnquiryNotes((prev) => (prev.some((p) => p.noteId === note.noteId) ? prev : [...prev, note]));
           } catch (error) {
             console.error('Failed to add voice transcript to internal notes', error);
-            alert('Failed to save voice note');
+            showToast('Failed to save voice note', 'error');
           }
         })();
       }
@@ -533,7 +545,7 @@ export default function EnquiryList() {
       setEnquiryNotes(notes);
     } catch (error) {
       console.error('Failed to add discussion note', error);
-      alert('Failed to add note');
+      showToast('Failed to add note', 'error');
     }
   };
 
@@ -565,22 +577,45 @@ export default function EnquiryList() {
       setMetrics(metricsData);
       
       setShowConvertModal(false);
-      alert(`Successfully converted to ${convertTo}! You can find them in the ${convertTo === 'owner' ? 'Owners' : 'Tenants'} section.`);
+      showToast(`Successfully converted to ${convertTo}! You can find them in the ${convertTo === 'owner' ? 'Owners' : 'Tenants'} section.`, 'success');
     } catch (error) {
       console.error('Error converting enquiry:', error);
       if (error instanceof Error) {
         const msg = error.message.toLowerCase();
         if (msg.includes('already converted') || msg.includes('already exists')) {
-          alert(error.message);
+          showToast(error.message, 'error');
         } else {
-          alert('Failed to convert enquiry');
+          showToast('Failed to convert enquiry', 'error');
         }
       } else {
-        alert('Failed to convert enquiry');
+        showToast('Failed to convert enquiry', 'error');
       }
     } finally {
       setConverting(false);
     }
+  };
+
+  // Convert enquiry to Lead (navigates to lead creation with pre-filled data)
+  const handleConvertToLead = () => {
+    if (!selectedEnquiry) return;
+    
+    // Map enquiry data to lead initial data
+    const leadInitialData = {
+      name: selectedEnquiry.name,
+      phone: selectedEnquiry.phone,
+      email: selectedEnquiry.email || '',
+      source: selectedEnquiry.source || 'enquiry',
+      notes: selectedEnquiry.message || '',
+      // Determine lead type from enquiry data
+      leadType: selectedEnquiry.userType === 'owner' ? 'seller' : 
+                selectedEnquiry.userType === 'tenant' ? 'tenant' : 
+                selectedEnquiry.userType === 'buyer' ? 'buyer' : 'buyer',
+      enquiryId: selectedEnquiry.enquiryId, // Track source enquiry
+    };
+    
+    setShowConvertModal(false);
+    // Navigate to lead creation with pre-filled data
+    navigate('/crm/leads/new', { state: { initialData: leadInitialData } });
   };
 
   // Close enquiry
@@ -610,7 +645,7 @@ export default function EnquiryList() {
       setCloseReason('');
     } catch (error) {
       console.error('Error closing enquiry:', error);
-      alert('Failed to close enquiry');
+      showToast('Failed to close enquiry', 'error');
     } finally {
       setUpdating(false);
     }
@@ -640,7 +675,7 @@ export default function EnquiryList() {
       setMetrics(metricsData);
     } catch (error) {
       console.error('Error reopening enquiry:', error);
-      alert('Failed to reopen enquiry');
+      showToast('Failed to reopen enquiry', 'error');
     } finally {
       setUpdating(false);
     }
@@ -753,13 +788,13 @@ export default function EnquiryList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
               </button>
@@ -799,7 +834,7 @@ export default function EnquiryList() {
         {/* Metrics Cards */}
         {metrics && (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-4 sm:mb-6">
-            <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+            <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                   <MessageSquare className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -810,7 +845,7 @@ export default function EnquiryList() {
                 </div>
               </div>
             </div>
-            <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+            <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                   <Clock className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -821,7 +856,7 @@ export default function EnquiryList() {
                 </div>
               </div>
             </div>
-            <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+            <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-yellow-500 to-amber-600 flex items-center justify-center shadow-lg shadow-yellow-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                   <Phone className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -832,7 +867,7 @@ export default function EnquiryList() {
                 </div>
               </div>
             </div>
-            <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+            <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                   <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -843,7 +878,7 @@ export default function EnquiryList() {
                 </div>
               </div>
             </div>
-            <div className="bg-white/60 backdrop-blur-xl rounded-xl sm:rounded-2xl border border-white/20 p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group col-span-2 sm:col-span-1">
+            <div className="glass-premium rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group col-span-2 sm:col-span-1">
               <div className="flex items-center gap-2 sm:gap-3">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center shadow-lg shadow-gray-500/30 group-hover:scale-110 transition-transform flex-shrink-0">
                   <XCircle className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
@@ -1423,24 +1458,33 @@ export default function EnquiryList() {
             <p className="text-gray-600 mb-6">
               Convert <span className="font-medium">{selectedEnquiry.name}</span> to:
             </p>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => handleConvert('owner')}
                 disabled={converting}
-                className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-colors disabled:opacity-50"
+                className="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-green-500 hover:bg-green-50 transition-colors disabled:opacity-50"
               >
-                <Building className="w-10 h-10 text-green-600" />
-                <span className="font-medium text-gray-900">Owner</span>
-                <span className="text-xs text-gray-500 text-center">Property owner who wants to list</span>
+                <Building className="w-8 h-8 text-green-600" />
+                <span className="font-medium text-gray-900 text-sm">Owner</span>
+                <span className="text-xs text-gray-500 text-center">Property owner</span>
               </button>
               <button
                 onClick={() => handleConvert('tenant')}
                 disabled={converting}
-                className="flex flex-col items-center gap-3 p-6 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                className="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors disabled:opacity-50"
               >
-                <User className="w-10 h-10 text-blue-600" />
-                <span className="font-medium text-gray-900">Tenant</span>
-                <span className="text-xs text-gray-500 text-center">Looking to rent a property</span>
+                <User className="w-8 h-8 text-blue-600" />
+                <span className="font-medium text-gray-900 text-sm">Tenant</span>
+                <span className="text-xs text-gray-500 text-center">Looking to rent</span>
+              </button>
+              <button
+                onClick={handleConvertToLead}
+                disabled={converting}
+                className="flex flex-col items-center gap-2 p-4 border-2 border-gray-200 rounded-xl hover:border-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50"
+              >
+                <MessageSquare className="w-8 h-8 text-orange-600" />
+                <span className="font-medium text-gray-900 text-sm">Lead</span>
+                <span className="text-xs text-gray-500 text-center">Track in CRM</span>
               </button>
             </div>
             {converting && (
@@ -1739,6 +1783,9 @@ export default function EnquiryList() {
         onClose={() => setRescheduleMeeting(null)}
         onSuccess={(updated) => updateMeetingInState(updated)}
       />
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

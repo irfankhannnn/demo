@@ -1,184 +1,99 @@
 # 02 — External Account Setups
 
-All accounts below can be created in parallel. Outputs (API keys, IDs) go into env vars (see `01-infra-setup.md INFRA-07`).
+> **Scope:** Third-party vendor signups. All are **non-code** — the consuming code (LP analytics partial, billing webhook, grievance form, Sentry, Brevo) already ships and is env-gated, so each account just needs to be created and its key pasted into env (`01-infra-setup.md` INFRA-07).
+> **Owner files to read:** `team-work/FOUNDER-tasks.md` (`FND-004/005/006`) and `team-work/MADHU-tasks.md` (`MAD-003/010`).
+> All accounts can be created in parallel; **Razorpay KYC + Instantly warm-up are the long poles — start them first (3–21 day SLAs).**
 
 ---
 
-## ACCT-01: PostHog
-**Priority:** Critical — Required before any analytics works
+## ACCT-01: PostHog — Product Analytics
+**Why:** Single source of truth for the signup→paid funnel; the LP, CRM, and Lambda all emit events to the same project key. Nothing in the funnel is measurable until this exists.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- Sign up at posthog.com → **EU cloud** (`eu.i.posthog.com`) for DPDP data residency.
+- Create project `RealEstateFlow`; enable session recording + funnels + cohorts.
+- Capture `POSTHOG_KEY` → used in LP `.env`, CRM `VITE_POSTHOG_KEY`, Lambda `POSTHOG_KEY_SERVER` (same key all three).
 
-- Sign up at posthog.com (free tier, EU region for DPDP)
-- Create project `RealEstateFlow`
-- Capture: `POSTHOG_KEY` (used in LP `.env`, CRM `.env`, Lambda env)
-- Enable: session recording, funnel analysis, cohorts
-- Configure funnel "Mumbai launch funnel" (8 steps from `pre-launch/10-analytics/posthog-dashboard.md`)
+## ACCT-02: GA4 — Google Analytics (LP only)
+**Why:** Google-side conversion tracking for the marketing site + Google Ads attribution; CRM does not use GA4.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- Create GA4 property at analytics.google.com → capture `GA4_ID` (`G-XXXXXXXXXX`) → LP `.env` only.
+- Mark `signup_completed` + `subscription_started` as conversions.
 
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T1 · `pre-launch-prep/P10-analytics-events.md`
+## ACCT-03: Meta Business Pixel (LP only)
+**Why:** Facebook/Instagram ad attribution + retargeting audiences off the landing pages.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- Events Manager → create Pixel → capture `META_PIXEL_ID` → LP `.env` only.
+- Map conversions: `Lead` (form submit), `Subscribe` (signup), `Purchase` (subscription).
 
----
+## ACCT-04: LinkedIn Insight Tag (LP only)
+**Why:** Attribution for LinkedIn outreach/ads — the primary B2B channel for brokers.
+**Priority:** Medium (P2) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- campaignmanager → create Insight Tag → capture `LINKEDIN_PARTNER_ID` → LP `.env` only.
 
-## ACCT-02: GA4
-**Priority:** High — LP analytics only (not CRM)
+## ACCT-05: Sentry — Error Tracking (CRM + Server)
+**Why:** The CRM and Lambda are blind without it (CloudWatch only shows logs, not grouped exceptions). Code is wired + env-guarded; just needs the two DSNs.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- Create 2 projects at sentry.io → capture `VITE_SENTRY_DSN` (CRM `.env`) + `SENTRY_DSN_SERVER` (Lambda env).
+- Alert rule: any P0 error → immediate email + WhatsApp.
 
-- Create GA4 property at analytics.google.com
-- Capture: `GA4_ID` (G-XXXXXXXXXX) → LP `.env` only
-- Mark conversion events: `signup_completed`, `subscription_started`
+## ACCT-06: Hotjar — Session Recording (LP only)
+**Why:** Heatmaps + recordings to debug LP drop-off before paid traffic arrives.
+**Priority:** Medium (P2) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-005`
+- Create project at hotjar.com → capture `HOTJAR_ID`, `HOTJAR_SV=6` → LP `.env` only.
 
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T2 · `coding-agent-brief/00-MASTER-BRIEF.md §5`
+## ACCT-07: Razorpay — Payments (KYC + Products + Plans)
+**Why:** No revenue without it; the billing webhook + paywall are coded against live plan IDs. **KYC SLA is 3–7 business days and your website must be verified to issue live keys — start Day 1.**
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-004`
+- Submit live KYC: company PAN, GST cert, cancelled cheque, director Aadhaar+PAN+selfie, registration cert.
+- After approval: Tax Settings → GSTIN, state = Maharashtra, place-of-supply auto-detect, HSN `998314`.
+- Create 4 Products + 9 Plans (config in `launch-implement/pre-launch/02-pricing/razorpay-products.md`); capture live plan IDs → `pricing.json.razorpayPlanIds.live`.
+- Register webhook `https://api.realestateflow.in/api/billing/webhook` (all subscription + payment events) → capture `RAZORPAY_WEBHOOK_SECRET` → Lambda env.
 
----
+## ACCT-08: Brevo — Transactional Email
+**Why:** Sends grievance acknowledgements (DPDP requirement), trial reminders, and the welcome drip. The grievance/trial code calls Brevo by template ID.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-006`
+- Verify domain `realestateflow.in` in sender settings; generate `BREVO_API_KEY` → Lambda env.
+- Create "Trial Signups" contact list → `BREVO_TRIAL_LIST_ID`.
+- Create the email templates and capture IDs: `BREVO_GRIEVANCE_ACK/NOTIFY_*`, `BREVO_TRIAL_DAY10/12/14/EXPIRED_*`, `BREVO_AI_EMPLOYEE_PAID/LIVE/ESCALATED_*`, `BREVO_WELCOME_T0_*`.
 
-## ACCT-03: Meta Business Pixel
-**Priority:** High — LP analytics only
+## ACCT-09: hCaptcha — Bot Protection
+**Why:** Protects the public grievance form from spam/abuse (DPDP + cost control). The form verifies the token server-side.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-006`
+- Sign up at hcaptcha.com (free 100k/mo) → add site `realestateflow.in`.
+- Capture `VITE_HCAPTCHA_SITE_KEY` → CRM `.env` · `HCAPTCHA_SECRET_KEY` → Lambda env.
 
-- Create Pixel at business.facebook.com → Events Manager
-- Capture: `META_PIXEL_ID` → LP `.env` only
-- Configure conversions: `Lead` (form submit), `Subscribe` (signup), `Purchase` (subscription)
+## ACCT-10: AiSensy — WhatsApp BSP
+**Why:** Drives the AI-Employee onboarding broadcast; the billing webhook adds paid users to a broadcast list.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-006`
+- Complete WhatsApp BSP onboarding; create broadcast list "AI-Employee-Onboarding-Pending".
+- Capture `AISENSY_API_KEY`, `AISENSY_BROADCAST_LIST_ID` → Lambda env.
 
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T3
+## ACCT-11: Instantly — Cold-Email Warm-up
+**Why:** Gates Day-17 cold outreach — mailboxes need ~21 days of warm-up first, so this must start at **T-21**.
+**Priority:** High (P1) · **Read:** `team-work/MADHU-tasks.md` → `MAD-003`
+- Sign up at app.instantly.ai; connect `info@realestateflow.in` via OAuth.
+- Enable warm-up ramp 5→10→15→25→40→50/day over 21 days; keep spam rate ≤0.1%.
 
----
+## ACCT-12: Cal.com — Demo Booking
+**Why:** Every LP CTA + email signature links to a booking page; without the handle those links 404.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-006`
+- Create account; set handle `{{FOUNDER_HANDLE}}`; add "15-min RealEstateFlow Demo" (video, IST).
+- Hand the handle to Madhu for LP copy + signatures.
 
-## ACCT-04: LinkedIn Insight Tag
-**Priority:** Medium — LP analytics only
+## ACCT-13: Crisp — Helpdesk Chat
+**Why:** In-app + LP live chat so Week-1 testers can reach the founder instantly; embed snippet goes in all LPs + CRM.
+**Priority:** High (P1) · **Read:** `team-work/MADHU-tasks.md` → `MAD-010`
+- Create workspace (Free, 2 seats); configure 6 saved replies + business hours + off-hours auto-reply.
+- Copy the embed snippet → hand to dev for LP/CRM `index.html`; install mobile app + verify push <30s.
 
-- Create Insight Tag at linkedin.com/campaignmanager
-- Capture: `LINKEDIN_PARTNER_ID` → LP `.env` only
-- Configure conversions: `signup_completed`, `subscription_started`
+## ACCT-14: BetterStack — Status Page + Uptime
+**Why:** Public status page + uptime alerts so outages are caught (and communicated) before customers complain.
+**Priority:** High (P1) · **Read:** `team-work/MADHU-tasks.md` → `MAD-010`
+- Create 6 monitors (`/`, `/pricing`, `/demo`, `api…/health`, `app…/`, `/api/billing/webhook`).
+- Public status page → map `status.realestateflow.in` (CNAME in Cloudflare); alerts → founder email + WhatsApp.
 
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T4
-
----
-
-## ACCT-05: Sentry (2 projects)
-**Priority:** High — Error tracking for CRM + Server
-
-- Create 2 Sentry projects at sentry.io: one for CRM SPA, one for server Lambda
-- Capture: `VITE_SENTRY_DSN` (CRM `.env`) + `SENTRY_DSN_SERVER` (Lambda env)
-- Configure: any P0 error → immediate email + WhatsApp founder
-
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T5 · PR-E (`analytics-layer`) uses both DSNs
-
----
-
-## ACCT-06: Hotjar
-**Priority:** Medium — LP session recording only
-
-- Create project at hotjar.com
-- Capture: `HOTJAR_ID`, `HOTJAR_SV=6` → LP `.env` only
-
-**References:** `team-work/FOUNDER-tasks.md` FND-005-T6
-
----
-
-## ACCT-07: Razorpay (KYC + Products + Plans)
-**Priority:** Critical — Required before any payment can be accepted
-
-- Submit live KYC docs: company PAN, GST certificate, cancelled cheque, director Aadhaar + PAN + selfie, company registration cert. KYC SLA: 3-7 business days — **start immediately**.
-- Once KYC approved: Settings → Tax Settings → enter GSTIN, state=Maharashtra, enable place-of-supply auto-detect, HSN=998314
-- Create 4 Products + 9 Plans per `pre-launch/02-pricing/razorpay-products.md` (generated by MAD-002 AI prompt)
-- Upload logo, registered office, CIN in Razorpay branding settings
-- Capture all live plan IDs → update `pricing.json.razorpayPlanIds.live`
-- Register webhook: `https://api.realestateflow.in/api/billing/webhook` → all subscription + payment events → capture `RAZORPAY_WEBHOOK_SECRET` → Lambda env
-
-**References:** `team-work/FOUNDER-tasks.md` FND-004 · `pre-launch-prep/P7-gst-invoicing.md` · `pre-launch-prep/P18-cloud-infra-checklist.md` Track C · `pricing.json` · PR-F (billing webhook uses plan IDs)
-
----
-
-## ACCT-08: Brevo (Transactional Email)
-**Priority:** Critical — Required for grievance ack, trial emails, welcome drip
-
-- Confirm account active at brevo.com
-- Verify domain `realestateflow.in` in Brevo sender settings
-- Generate API key → `BREVO_API_KEY` → Lambda env
-- Create contact list "Trial Signups" → capture `BREVO_TRIAL_LIST_ID` → Lambda env
-- Create 9 email templates (from content generated by MAD content tasks):
-  - `BREVO_GRIEVANCE_ACK_TEMPLATE_ID`, `BREVO_GRIEVANCE_NOTIFY_TEMPLATE_ID`
-  - `BREVO_TRIAL_DAY10/12/14/EXPIRED_TEMPLATE_ID`
-  - `BREVO_AI_EMPLOYEE_PAID/LIVE/ESCALATED_TEMPLATE_ID`
-  - `BREVO_WELCOME_T0_TEMPLATE_ID`
-
-**References:** `team-work/FOUNDER-tasks.md` FND-006-T1 · PR-B (grievance emails) · PR-F (AI Employee emails) · PR-J (trial emails) · PR-L (signup Brevo wire-up)
-
----
-
-## ACCT-09: hCaptcha
-**Priority:** Critical — Required for grievance form (DPDP + spam protection)
-
-- Sign up at hcaptcha.com (free: 100k verifications/month)
-- Add site for `realestateflow.in`
-- Capture: `VITE_HCAPTCHA_SITE_KEY` → CRM `.env` · `HCAPTCHA_SECRET_KEY` → Lambda env
-
-**References:** `team-work/FOUNDER-tasks.md` FND-006-T2 · PR-B (grievance form uses hCaptcha)
-
----
-
-## ACCT-10: AiSensy (WhatsApp BSP)
-**Priority:** High — Required for AI Employee onboarding broadcast
-
-- Create AiSensy account; complete WhatsApp BSP onboarding
-- Create broadcast list "AI-Employee-Onboarding-Pending"
-- Capture: `AISENSY_API_KEY`, `AISENSY_BROADCAST_LIST_ID` → Lambda env
-
-**References:** `team-work/FOUNDER-tasks.md` FND-006-T3 · PR-F (billing webhook triggers AiSensy broadcast)
-
----
-
-## ACCT-11: Instantly (Cold Email Warm-up)
-**Priority:** High — Blocks Day-17 cold outreach if not done by T-21
-
-- Sign up at app.instantly.ai (Growth plan ~₹3,500/mo)
-- Connect `info@realestateflow.in` mailbox via OAuth
-- Enable warm-up with ramp: 5/day → 10 → 15 → 25 → 40 → 50 over 21 days
-- Monitor daily: spam rate must stay ≤0.1%
-
-**References:** `team-work/MADHU-tasks.md` MAD-003-T4 · `pre-launch-prep/P3-email-deliverability.md`
-
----
-
-## ACCT-12: Cal.com
-**Priority:** High — Required for LP CTAs and email signatures
-
-- Create account at cal.com; set handle `{{FOUNDER_HANDLE}}`
-- Create booking type: "15-min RealEstateFlow Demo" (video call, IST timezone)
-- Hand handle to Madhu for LP copy + email signature placeholders
-
-**References:** `team-work/FOUNDER-tasks.md` FND-006-T5 · PR-I (LP pages use `cal.com/{{FOUNDER_HANDLE}}`)
-
----
-
-## ACCT-13: Crisp Helpdesk
-**Priority:** High — Required before Week 1 Day 5
-
-- Create account at crisp.chat (Free plan, 2 seats)
-- Workspace name: RealEstateFlow
-- Configure 6 saved replies, business hours, off-hours auto-reply
-- Copy Crisp embed snippet → hand to developer to embed in all 5 LPs + CRM SPA `index.html`
-- Install Crisp mobile app; verify push notifications arrive on founder mobile within 30s
-
-**References:** `team-work/MADHU-tasks.md` MAD-010 · `week-1-foundation/day-05-helpdesk-status.md`
-
----
-
-## ACCT-14: BetterStack (Status Page + Uptime)
-**Priority:** High — Required before Week 1 Day 5
-
-- Create account at uptime.betterstack.com (free: 10 monitors)
-- Create 6 uptime monitors: `realestateflow.in/`, `/pricing`, `/demo`, `api.realestateflow.in/health`, `app.realestateflow.in/`, `/api/billing/webhook`
-- Create public status page; map custom domain `status.realestateflow.in` (CNAME in Cloudflare)
-- Configure incident alerts: founder email + WhatsApp
-
-**References:** `team-work/MADHU-tasks.md` MAD-010 · `week-1-foundation/day-05-helpdesk-status.md`
-
----
-
-## ACCT-15: Google Workspace
-**Priority:** Critical — Email deliverability and professional inbox
-
-- Sign up at workspace.google.com (₹125/user/month)
-- Create user `info@realestateflow.in` (primary) + alias `founder@realestateflow.in`
-- Verify domain ownership in Google Workspace admin → add TXT record in Cloudflare
-- Generate DKIM in Workspace Admin → Gmail → Authenticate email → add DKIM TXT to Cloudflare → start authentication
-- Set up email signature from `pre-launch/03-deliverability/signature.html` (generated by MAD-003 AI prompt)
-
-**References:** `team-work/MADHU-tasks.md` MAD-003-T3 · `pre-launch-prep/P3-email-deliverability.md`
+## ACCT-15: Google Workspace — Business Inbox
+**Why:** Professional `info@`/`founder@` inbox + the DKIM/MX backbone for email deliverability; outreach from a free inbox lands in spam.
+**Priority:** Critical (P0) · **Read:** `team-work/MADHU-tasks.md` → `MAD-003`
+- Create `info@realestateflow.in` (+ alias `founder@`); verify domain (TXT in Cloudflare).
+- Generate DKIM → add TXT in Cloudflare → start authentication; set the email signature (`launch-implement/pre-launch/03-deliverability/signature.html`).

@@ -1,7 +1,8 @@
-import express from 'express';
+﻿import express from 'express';
 import multer from 'multer';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import { uploadToS3, getSignedUrl } from '../s3Service.js';
 import {
   createContact,
@@ -21,7 +22,11 @@ import {
   getPropertyContacts,
   getOwners,
   getCustomers,
+  getContactActivityTimeline,
+  getContactActivityPreviews,
+  getContactIdForEntity,
 } from '../crmDynamodbService.js';
+import { withCreateActor, withUpdateActor } from '../utils/requestActor.js';
 
 const router = express.Router();
 
@@ -37,12 +42,30 @@ const upload = multer({
 // Get all contacts with optional filters
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { role, status } = req.query;
+    const { role, status, area, sellerLifecycle, ownerLifecycle } = req.query;
     const filters = {};
     if (role) filters.role = role;
     if (status) filters.status = status;
+    if (area) filters.area = area;
+    if (sellerLifecycle) filters.sellerLifecycle = sellerLifecycle;
+    if (ownerLifecycle) filters.ownerLifecycle = ownerLifecycle;
 
-    const contacts = await getContacts(req.tenantId, filters);
+    let contacts = await getContacts(req.tenantId, filters);
+
+    // Heal stale sellers when listing sellers (Danish-style: sold out but still flagged)
+    if (role === 'seller') {
+      const { reconcileSellerContact } = await import('../services/listingService.js');
+      contacts = await Promise.all(
+        (contacts || []).map((c) => reconcileSellerContact(req.tenantId, c).catch(() => c)),
+      );
+      contacts = contacts.filter((c) => c.roles?.seller === true);
+      if (sellerLifecycle) {
+        contacts = contacts.filter(
+          (c) => (c.sellerProfile?.lifecycleStatus || 'active') === sellerLifecycle,
+        );
+      }
+    }
+
     res.json(contacts);
   } catch (error) {
     console.error('Get contacts error:', error);
@@ -53,7 +76,9 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
 // Get contacts by role (convenience endpoints)
 router.get('/owners', validateToken, extractTenantId, async (req, res) => {
   try {
-    const contacts = await getContacts(req.tenantId, { role: 'owner' });
+    const filters = { role: 'owner' };
+    if (req.query.ownerLifecycle) filters.ownerLifecycle = req.query.ownerLifecycle;
+    const contacts = await getContacts(req.tenantId, filters);
     res.json(contacts);
   } catch (error) {
     console.error('Get owner contacts error:', error);
@@ -63,7 +88,14 @@ router.get('/owners', validateToken, extractTenantId, async (req, res) => {
 
 router.get('/sellers', validateToken, extractTenantId, async (req, res) => {
   try {
-    const contacts = await getContacts(req.tenantId, { role: 'seller' });
+    const filters = { role: 'seller' };
+    if (req.query.sellerLifecycle) filters.sellerLifecycle = req.query.sellerLifecycle;
+    let contacts = await getContacts(req.tenantId, filters);
+    const { reconcileSellerContact } = await import('../services/listingService.js');
+    contacts = await Promise.all(
+      (contacts || []).map((c) => reconcileSellerContact(req.tenantId, c).catch(() => c)),
+    );
+    contacts = contacts.filter((c) => c.roles?.seller === true);
     res.json(contacts);
   } catch (error) {
     console.error('Get seller contacts error:', error);
@@ -87,6 +119,21 @@ router.get('/tenants', validateToken, extractTenantId, async (req, res) => {
     res.json(contacts);
   } catch (error) {
     console.error('Get tenant contacts error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Batch activity previews for contact list cards
+router.post('/activity-previews', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { contactIds, limit } = req.body || {};
+    if (!Array.isArray(contactIds) || contactIds.length === 0) {
+      return res.status(400).json({ error: 'contactIds array is required' });
+    }
+    const previews = await getContactActivityPreviews(req.tenantId, contactIds, limit);
+    res.json(previews);
+  } catch (error) {
+    console.error('Get contact activity previews error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -151,20 +198,25 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
 });
 
 // Create contact
-router.post('/', validateToken, extractTenantId, async (req, res) => {
+router.post('/', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const contact = await createContact(req.tenantId, req.body);
-    res.status(201).json(contact);
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'contact_add');
+    const contact = await createContact(req.tenantId, withCreateActor(req.user, req.body));
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'contact_add', { recordId: contact.contactId });
+    res.status(201).json({ ...contact, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Create contact error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
 // Create or update contact by phone (dedupe)
-router.post('/upsert-by-phone', validateToken, extractTenantId, async (req, res) => {
+router.post('/upsert-by-phone', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const contact = await createOrUpdateContactByPhone(req.tenantId, req.body);
+    const contact = await createOrUpdateContactByPhone(req.tenantId, withCreateActor(req.user, req.body));
     res.status(contact.wasExisting ? 200 : 201).json(contact);
   } catch (error) {
     console.error('Upsert contact error:', error);
@@ -173,9 +225,9 @@ router.post('/upsert-by-phone', validateToken, extractTenantId, async (req, res)
 });
 
 // Update contact
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const contact = await updateContact(req.tenantId, req.params.id, req.body);
+    const contact = await updateContact(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
     res.json(contact);
   } catch (error) {
     console.error('Update contact error:', error);
@@ -184,7 +236,7 @@ router.put('/:id', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update contact role
-router.put('/:id/role', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/role', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const { role, enabled, profileData } = req.body;
     if (!role) {
@@ -205,7 +257,7 @@ router.put('/:id/role', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Delete contact
-router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteContact(req.tenantId, req.params.id);
     res.json({ success: true });
@@ -218,7 +270,7 @@ router.delete('/:id', validateToken, extractTenantId, async (req, res) => {
 // ============== Contact Document Upload Routes ==============
 
 // Upload contact documents (photo, PAN, Aadhar)
-router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -262,7 +314,7 @@ router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
-    const contact = await updateContact(req.tenantId, contactId, updateData);
+    const contact = await updateContact(req.tenantId, contactId, withUpdateActor(req.user, updateData));
 
     // Return with signed URLs
     const result = { ...contact };
@@ -295,9 +347,9 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
-    const note = await createContactNote(req.tenantId, req.params.id, req.body);
+    const note = await createContactNote(req.tenantId, req.params.id, withCreateActor(req.user, req.body));
     res.status(201).json(note);
   } catch (error) {
     console.error('Create contact note error:', error);
@@ -305,7 +357,7 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.put('/:id/notes/:noteId', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const updated = await updateContactNote(req.tenantId, req.params.id, req.params.noteId, req.body);
     res.json(updated);
@@ -315,7 +367,7 @@ router.put('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res
   }
 });
 
-router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, res) => {
+router.delete('/:id/notes/:noteId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     await deleteContactNote(req.tenantId, req.params.id, req.params.noteId);
     res.json({ success: true });
@@ -328,7 +380,7 @@ router.delete('/:id/notes/:noteId', validateToken, extractTenantId, async (req, 
 // ============== Migration Routes ==============
 
 // Migrate a single owner to contact
-router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await migrateOwnerToContact(req.tenantId, req.params.ownerId);
     res.json(contact);
@@ -339,7 +391,7 @@ router.post('/migrate/owner/:ownerId', validateToken, extractTenantId, async (re
 });
 
 // Migrate a single customer to contact
-router.post('/migrate/customer/:customerId', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/customer/:customerId', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const contact = await migrateCustomerToContact(req.tenantId, req.params.customerId);
     res.json(contact);
@@ -350,7 +402,7 @@ router.post('/migrate/customer/:customerId', validateToken, extractTenantId, asy
 });
 
 // Migrate all owners and customers to contacts
-router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => {
+router.post('/migrate/all', validateToken, extractTenantId, requireAdminOrManager, async (req, res) => {
   try {
     const results = {
       owners: { migrated: 0, errors: [] },
@@ -358,7 +410,8 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     };
 
     // Migrate owners
-    const owners = await getOwners(req.tenantId);
+    const ownersResult = await getOwners(req.tenantId);
+    const owners = ownersResult.owners || [];
     for (const owner of owners) {
       try {
         await migrateOwnerToContact(req.tenantId, owner.ownerId);
@@ -369,7 +422,7 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     }
 
     // Migrate customers
-    const customers = await getCustomers(req.tenantId);
+    const { customers } = await getCustomers(req.tenantId);
     for (const customer of customers) {
       try {
         await migrateCustomerToContact(req.tenantId, customer.customerId);
@@ -382,6 +435,35 @@ router.post('/migrate/all', validateToken, extractTenantId, async (req, res) => 
     res.json(results);
   } catch (error) {
     console.error('Migrate all error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// ============== Contact Activity Timeline Route ==============
+
+router.get('/:id/activity', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { entityType, entityId } = req.query;
+
+    let contactId = id;
+
+    // If entityType and entityId are provided, resolve the contactId
+    if (entityType && entityId) {
+      const resolvedContactId = await getContactIdForEntity(req.tenantId, entityType, entityId);
+      if (resolvedContactId) {
+        contactId = resolvedContactId;
+      } else {
+        // If no contactId resolved, return empty array
+        res.json([]);
+        return;
+      }
+    }
+
+    const activity = await getContactActivityTimeline(req.tenantId, contactId, entityType, entityId);
+    res.json(activity);
+  } catch (error) {
+    console.error('Get contact activity error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

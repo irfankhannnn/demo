@@ -1,0 +1,313 @@
+
+Express routes: 195
+API Gateway routes: 146
+
+MISSING in API Gateway (will cause 403/404/CORS): 130
+  GET /api/admin/agent-activity
+  PATCH /api/admin/grievances/:id
+  GET /api/admin/team-analytics
+  GET /api/admin/team-analytics/export
+  GET /api/b2b-leads/:leadId
+  PUT /api/b2b-leads/:leadId
+  POST /api/b2b-leads/:leadId/notes
+  GET /api/credit-config
+  PUT /api/credit-config/costs
+  PUT /api/credit-config/free-tier
+  PUT /api/credit-config/packs
+  GET /api/crm/agent/tools
+  GET /api/crm/buyers/:id
+  PUT /api/crm/buyers/:id
+  POST /api/crm/buyers/:id/documents
+  POST /api/crm/buyers/:id/list-property
+  GET /api/crm/buyers/:id/notes
+  POST /api/crm/buyers/:id/notes
+  POST /api/crm/buyers/:id/purchases
+  PUT /api/crm/buyers/:id/purchases/:propertyId
+  GET /api/crm/buyers/:id/with-documents
+  GET /api/crm/buyers/metrics/summary
+  DELETE /api/crm/contacts/:id
+  GET /api/crm/contacts/:id
+  PUT /api/crm/contacts/:id
+  GET /api/crm/contacts/:id/activity
+  POST /api/crm/contacts/:id/documents
+  GET /api/crm/contacts/:id/notes
+  POST /api/crm/contacts/:id/notes
+  DELETE /api/crm/contacts/:id/notes/:noteId
+  PUT /api/crm/contacts/:id/notes/:noteId
+  PUT /api/crm/contacts/:id/role
+  GET /api/crm/contacts/:id/with-documents
+  POST /api/crm/contacts/migrate/all
+  POST /api/crm/contacts/migrate/customer/:customerId
+  POST /api/crm/contacts/migrate/owner/:ownerId
+  GET /api/crm/customers/:id
+  PUT /api/crm/customers/:id
+  POST /api/crm/customers/:id/archive-rental
+  PUT /api/crm/customers/:id/current-rental
+  POST /api/crm/customers/:id/documents
+  GET /api/crm/customers/:id/notes
+  POST /api/crm/customers/:id/notes
+  DELETE /api/crm/customers/:id/notes/:noteId
+  PUT /api/crm/customers/:id/notes/:noteId
+  GET /api/crm/customers/:id/rental-history
+  GET /api/crm/customers/:id/with-documents
+  DELETE /api/crm/leads/:id
+  GET /api/crm/leads/:id
+  PUT /api/crm/leads/:id
+  POST /api/crm/leads/:id/convert
+  GET /api/crm/leads/:id/matching-contacts
+  GET /api/crm/leads/:id/notes
+  POST /api/crm/leads/:id/notes
+  DELETE /api/crm/leads/:id/notes/:noteId
+  PUT /api/crm/leads/:id/notes/:noteId
+  DELETE /api/crm/meetings/:id
+  GET /api/crm/meetings/:id
+  PUT /api/crm/meetings/:id
+  GET /api/crm/meetings/:id/history
+  GET /api/crm/meetings/entity/:entityType/:entityId
+  GET /api/crm/meetings/metrics
+  GET /api/crm/meetings/upcoming
+  DELETE /api/crm/owners/:id
+  GET /api/crm/owners/:id
+  PUT /api/crm/owners/:id
+  POST /api/crm/owners/:id/documents
+  GET /api/crm/owners/:id/notes
+  POST /api/crm/owners/:id/notes
+  DELETE /api/crm/owners/:id/notes/:noteId
+  PUT /api/crm/owners/:id/notes/:noteId
+  GET /api/crm/owners/:id/properties
+  GET /api/crm/owners/:id/with-documents
+  GET /api/crm/properties/:id
+  PUT /api/crm/properties/:id
+  GET /api/crm/properties/:id/agreements
+  POST /api/crm/properties/:id/agreements
+  PUT /api/crm/properties/:id/agreements/:agreementId
+  GET /api/crm/properties/:id/documents
+  DELETE /api/crm/properties/:id/documents/:documentId
+  POST /api/crm/properties/:id/documents/upload
+  POST /api/crm/properties/:id/images
+  DELETE /api/crm/properties/:id/images/:key
+  POST /api/crm/properties/:id/list-for-rent
+  POST /api/crm/properties/:id/list-for-sale
+  POST /api/crm/properties/:id/mark-rented
+  POST /api/crm/properties/:id/mark-sold
+  GET /api/crm/properties/:id/rental-history
+  POST /api/crm/properties/:id/vacate
+  GET /api/crm/properties/:id/verifications
+  POST /api/crm/properties/:id/verifications
+  PUT /api/crm/properties/:id/verifications/:verificationId
+  POST /api/crm/properties/:id/videos
+  DELETE /api/crm/properties/:id/videos/:key
+  GET /api/crm/properties/list/detailed
+  GET /api/crm/properties/public/:id
+  GET /api/crm/search/customers
+  GET /api/crm/search/properties
+  GET /api/enquiries/:id
+  PUT /api/enquiries/:id
+  PUT /api/enquiries/:id/close
+  POST /api/enquiries/:id/convert
+  GET /api/enquiries/:id/notes
+  POST /api/enquiries/:id/notes
+  DELETE /api/enquiries/:id/notes/:noteId
+  PUT /api/enquiries/:id/notes/:noteId
+  PUT /api/enquiries/:id/reopen
+  POST /api/enquiries/consultation
+  POST /api/enquiries/contact
+  GET /api/enquiries/metrics
+  GET /api/feedback
+  GET /api/health/deep
+  DELETE /api/khata/categories/:categoryId
+  DELETE /api/khata/entries/:entryId
+  GET /api/khata/entries/:entryId
+  PUT /api/khata/entries/:entryId
+  POST /api/khata/entries/:entryId/settle
+  POST /api/khata/entries/:entryId/unsettle
+  GET /api/khata/parties/:partyType/:partyId/properties
+  GET /api/khata/settlement/:type
+  POST /api/notifications/:notificationId/read
+  DELETE /api/notifications/cleanup
+  GET /api/notifications/counts
+  POST /api/notifications/generate-rent-expiry
+  POST /api/notifications/mark-all-read
+  POST /api/notifications/process-all
+  POST /api/notifications/process-scheduled
+  GET /api/notifications/settings
+  PUT /api/notifications/settings
+  POST /api/notifications/test
+
+EXTRA in API Gateway (not used by Express): 81
+  OPTIONS /api/admin/grievances
+  PATCH /api/admin/grievances
+  OPTIONS /api/ai-employee/status
+  GET /api/areas
+  OPTIONS /api/areas
+  POST /api/areas
+  OPTIONS /api/auth/post-registration
+  OPTIONS /api/auth/whatsapp/pairing-qr
+  OPTIONS /api/b2b-leads
+  OPTIONS /api/billing/webhook
+  OPTIONS /api/crm/agent/tool
+  OPTIONS /api/crm/agents/activity
+  OPTIONS /api/crm/analytics/business
+  OPTIONS /api/crm/buyers
+  OPTIONS /api/crm/config/ai-employee
+  OPTIONS /api/crm/contacts
+  OPTIONS /api/crm/contacts/buyers
+  OPTIONS /api/crm/contacts/lookup
+  OPTIONS /api/crm/contacts/lookup/by-phone
+  OPTIONS /api/crm/contacts/owners
+  OPTIONS /api/crm/contacts/sellers
+  OPTIONS /api/crm/contacts/tenants
+  OPTIONS /api/crm/contacts/upsert-by-phone
+  OPTIONS /api/crm/customers
+  OPTIONS /api/crm/customers/lookup/by-phone
+  OPTIONS /api/crm/leads
+  OPTIONS /api/crm/leads/agents
+  OPTIONS /api/crm/leads/buyers
+  OPTIONS /api/crm/leads/owners
+  OPTIONS /api/crm/leads/search
+  OPTIONS /api/crm/leads/sellers
+  OPTIONS /api/crm/leads/tenants
+  OPTIONS /api/crm/meetings
+  OPTIONS /api/crm/metrics
+  OPTIONS /api/crm/owners
+  OPTIONS /api/crm/owners/lookup/by-phone
+  OPTIONS /api/crm/properties
+  OPTIONS /api/crm/search/owners
+  GET /api/dashboard/metrics
+  OPTIONS /api/dashboard/metrics
+  OPTIONS /api/enquiries
+  OPTIONS /api/feedback/nps
+  OPTIONS /api/grievance
+  OPTIONS /api/health
+  OPTIONS /api/internal
+  GET /api/internal/owners
+  OPTIONS /api/internal/owners
+  GET /api/internal/properties/available
+  OPTIONS /api/internal/properties/available
+  GET /api/internal/properties/search
+  OPTIONS /api/internal/properties/search
+  OPTIONS /api/internal/site-visits
+  POST /api/internal/site-visits
+  OPTIONS /api/khata
+  OPTIONS /api/khata/bifurcation
+  OPTIONS /api/khata/categories
+  OPTIONS /api/khata/entries
+  OPTIONS /api/khata/parties/search
+  GET /api/khata/settlement/aging
+  OPTIONS /api/khata/settlement/aging
+  GET /api/khata/settlement/history
+  OPTIONS /api/khata/settlement/history
+  GET /api/khata/settlement/trends
+  OPTIONS /api/khata/settlement/trends
+  OPTIONS /api/khata/summary
+  OPTIONS /api/notifications
+  POST /api/notifications
+  OPTIONS /api/notifications/send
+  POST /api/notifications/send
+  GET /api/rentals
+  OPTIONS /api/rentals
+  GET /api/search
+  OPTIONS /api/search
+  OPTIONS /api/subscriptions
+  OPTIONS /api/subscriptions/check-seat
+  OPTIONS /api/subscriptions/credits
+  OPTIONS /api/subscriptions/credits/ledger
+  OPTIONS /api/subscriptions/credits/purchase
+  OPTIONS /api/subscriptions/current
+  OPTIONS /api/subscriptions/trial-status
+  OPTIONS /api/webhooks/whatsapp
+
+Browser-facing routes missing OPTIONS (CORS preflight risk):
+  /api/admin/grievances/:id has PATCH but no OPTIONS
+  /api/auth/post-registration has POST but no OPTIONS
+  /api/auth/whatsapp/pairing-qr has POST but no OPTIONS
+  /api/b2b-leads has GET,POST but no OPTIONS
+  /api/b2b-leads/:leadId has GET,PUT but no OPTIONS
+  /api/b2b-leads/:leadId/notes has POST but no OPTIONS
+  /api/billing/webhook has POST but no OPTIONS
+  /api/credit-config/costs has PUT but no OPTIONS
+  /api/credit-config/free-tier has PUT but no OPTIONS
+  /api/credit-config/packs has PUT but no OPTIONS
+  /api/crm/agent/tool has POST but no OPTIONS
+  /api/crm/buyers has GET,POST but no OPTIONS
+  /api/crm/buyers/:id has GET,PUT but no OPTIONS
+  /api/crm/buyers/:id/documents has POST but no OPTIONS
+  /api/crm/buyers/:id/list-property has POST but no OPTIONS
+  /api/crm/buyers/:id/notes has GET,POST but no OPTIONS
+  /api/crm/buyers/:id/purchases has POST but no OPTIONS
+  /api/crm/buyers/:id/purchases/:propertyId has PUT but no OPTIONS
+  /api/crm/config/ai-employee has GET,PATCH but no OPTIONS
+  /api/crm/contacts has GET,POST but no OPTIONS
+  /api/crm/contacts/:id has DELETE,GET,PUT but no OPTIONS
+  /api/crm/contacts/:id/documents has POST but no OPTIONS
+  /api/crm/contacts/:id/notes has GET,POST but no OPTIONS
+  /api/crm/contacts/:id/notes/:noteId has DELETE,PUT but no OPTIONS
+  /api/crm/contacts/:id/role has PUT but no OPTIONS
+  /api/crm/contacts/migrate/all has POST but no OPTIONS
+  /api/crm/contacts/migrate/customer/:customerId has POST but no OPTIONS
+  /api/crm/contacts/migrate/owner/:ownerId has POST but no OPTIONS
+  /api/crm/contacts/upsert-by-phone has POST but no OPTIONS
+  /api/crm/customers has GET,POST but no OPTIONS
+  /api/crm/customers/:id has GET,PUT but no OPTIONS
+  /api/crm/customers/:id/archive-rental has POST but no OPTIONS
+  /api/crm/customers/:id/current-rental has PUT but no OPTIONS
+  /api/crm/customers/:id/documents has POST but no OPTIONS
+  /api/crm/customers/:id/notes has GET,POST but no OPTIONS
+  /api/crm/customers/:id/notes/:noteId has DELETE,PUT but no OPTIONS
+  /api/crm/leads has GET,POST but no OPTIONS
+  /api/crm/leads/:id has DELETE,GET,PUT but no OPTIONS
+  /api/crm/leads/:id/convert has POST but no OPTIONS
+  /api/crm/leads/:id/notes has GET,POST but no OPTIONS
+  /api/crm/leads/:id/notes/:noteId has DELETE,PUT but no OPTIONS
+  /api/crm/meetings has GET,POST but no OPTIONS
+  /api/crm/meetings/:id has DELETE,GET,PUT but no OPTIONS
+  /api/crm/owners has GET,POST but no OPTIONS
+  /api/crm/owners/:id has DELETE,GET,PUT but no OPTIONS
+  /api/crm/owners/:id/documents has POST but no OPTIONS
+  /api/crm/owners/:id/notes has GET,POST but no OPTIONS
+  /api/crm/owners/:id/notes/:noteId has DELETE,PUT but no OPTIONS
+  /api/crm/properties has GET,POST but no OPTIONS
+  /api/crm/properties/:id has GET,PUT but no OPTIONS
+  /api/crm/properties/:id/agreements has GET,POST but no OPTIONS
+  /api/crm/properties/:id/agreements/:agreementId has PUT but no OPTIONS
+  /api/crm/properties/:id/documents/:documentId has DELETE but no OPTIONS
+  /api/crm/properties/:id/documents/upload has POST but no OPTIONS
+  /api/crm/properties/:id/images has POST but no OPTIONS
+  /api/crm/properties/:id/images/:key has DELETE but no OPTIONS
+  /api/crm/properties/:id/list-for-rent has POST but no OPTIONS
+  /api/crm/properties/:id/list-for-sale has POST but no OPTIONS
+  /api/crm/properties/:id/mark-rented has POST but no OPTIONS
+  /api/crm/properties/:id/mark-sold has POST but no OPTIONS
+  /api/crm/properties/:id/vacate has POST but no OPTIONS
+  /api/crm/properties/:id/verifications has GET,POST but no OPTIONS
+  /api/crm/properties/:id/verifications/:verificationId has PUT but no OPTIONS
+  /api/crm/properties/:id/videos has POST but no OPTIONS
+  /api/crm/properties/:id/videos/:key has DELETE but no OPTIONS
+  /api/enquiries has GET,POST but no OPTIONS
+  /api/enquiries/:id has GET,PUT but no OPTIONS
+  /api/enquiries/:id/close has PUT but no OPTIONS
+  /api/enquiries/:id/convert has POST but no OPTIONS
+  /api/enquiries/:id/notes has GET,POST but no OPTIONS
+  /api/enquiries/:id/notes/:noteId has DELETE,PUT but no OPTIONS
+  /api/enquiries/:id/reopen has PUT but no OPTIONS
+  /api/enquiries/consultation has POST but no OPTIONS
+  /api/enquiries/contact has POST but no OPTIONS
+  /api/feedback/nps has POST but no OPTIONS
+  /api/grievance has POST but no OPTIONS
+  /api/khata/categories has GET,POST but no OPTIONS
+  /api/khata/categories/:categoryId has DELETE but no OPTIONS
+  /api/khata/entries has GET,POST but no OPTIONS
+  /api/khata/entries/:entryId has DELETE,GET,PUT but no OPTIONS
+  /api/khata/entries/:entryId/settle has POST but no OPTIONS
+  /api/khata/entries/:entryId/unsettle has POST but no OPTIONS
+  /api/notifications/:notificationId/read has POST but no OPTIONS
+  /api/notifications/cleanup has DELETE but no OPTIONS
+  /api/notifications/generate-rent-expiry has POST but no OPTIONS
+  /api/notifications/mark-all-read has POST but no OPTIONS
+  /api/notifications/process-all has POST but no OPTIONS
+  /api/notifications/process-scheduled has POST but no OPTIONS
+  /api/notifications/settings has GET,PUT but no OPTIONS
+  /api/notifications/test has POST but no OPTIONS
+  /api/subscriptions/check-seat has POST but no OPTIONS
+  /api/subscriptions/credits/purchase has POST but no OPTIONS
+  /api/webhooks/whatsapp has POST but no OPTIONS

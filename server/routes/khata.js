@@ -1,16 +1,26 @@
 import express from 'express';
+import { z } from 'zod';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { scheduleKhataReminder, cancelKhataReminder } from '../notificationDynamodbService.js';
 import validateToken from '../middleware/validateToken.js';
+import { requireAdmin } from '../middleware/requireRole.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  createKhataEntrySchema,
+  updateKhataEntrySchema,
+  settleKhataEntrySchema,
+} from '../validation/otherSchemas.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 
 const router = express.Router();
 
-// Apply auth middleware to all khata routes
+// Apply auth middleware to all khata routes (tenant-scoped financial data)
 router.use(validateToken);
 router.use(extractTenantId);
+router.use(requireAdmin);
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const ddbDocClient = DynamoDBDocumentClient.from(client);
@@ -64,10 +74,11 @@ router.get('/parties/search', async (req, res) => {
 
     // Search based on party type
     if (!normalizedPartyType || normalizedPartyType === 'OWNER') {
-      const [owners, contacts] = await Promise.all([
+      const [ownersResult, contacts] = await Promise.all([
         crmService.getOwners(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const owners = ownersResult.owners || [];
 
       const matchingOwners = owners
         .filter(matchesSearch)
@@ -92,10 +103,11 @@ router.get('/parties/search', async (req, res) => {
     }
 
     if (!normalizedPartyType || normalizedPartyType === 'TENANT') {
-      const [tenants, contacts] = await Promise.all([
+      const [tenantsResult, contacts] = await Promise.all([
         crmService.getCustomers(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const tenants = tenantsResult.customers || [];
 
       const matchingTenants = tenants
         .filter(matchesSearch)
@@ -120,7 +132,8 @@ router.get('/parties/search', async (req, res) => {
     }
 
     if (!normalizedPartyType || normalizedPartyType === 'BUYER') {
-      const buyers = await crmService.getBuyers(tenantId);
+      const buyersResult = await crmService.getBuyers(tenantId);
+      const buyers = buyersResult.buyers || [];
       const matchingBuyers = buyers
         .filter(matchesSearch)
         .map((buyer) => ({
@@ -134,11 +147,13 @@ router.get('/parties/search', async (req, res) => {
 
     // Seller is represented by owners with for-sale/sold properties
     if (!normalizedPartyType || normalizedPartyType === 'SELLER') {
-      const [owners, properties, contacts] = await Promise.all([
+      const [ownersResult, propertiesResult, contacts] = await Promise.all([
         crmService.getOwners(tenantId),
         crmService.getProperties(tenantId),
         crmService.getContacts(tenantId).catch(() => []),
       ]);
+      const owners = ownersResult.owners || [];
+      const properties = propertiesResult.properties || [];
 
       const sellerOwnerIds = new Set(
         (properties || [])
@@ -179,7 +194,7 @@ router.get('/parties/search', async (req, res) => {
     res.json(uniqueResults);
   } catch (error) {
     console.error('Error searching parties:', error);
-    res.status(500).json({ error: 'Failed to search parties' });
+    return res.status(500).json({ error: 'Failed to search parties' });
   }
 });
 
@@ -198,10 +213,11 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
     let properties = [];
 
     if (normalizedPartyType === 'OWNER') {
-      const [ownerProperties, allProperties] = await Promise.all([
+      const [ownerProperties, allPropertiesResult] = await Promise.all([
         crmService.getPropertiesByOwner(tenantId, partyId).catch(() => []),
         crmService.getProperties(tenantId),
       ]);
+      const allProperties = allPropertiesResult.properties || [];
 
       const contactOwnedProperties = (allProperties || []).filter(
         (property) => property?.ownerContactId === partyId
@@ -215,7 +231,8 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
         ).values()
       );
     } else if (normalizedPartyType === 'TENANT') {
-      const allProperties = await crmService.getProperties(tenantId);
+      const allPropertiesResult = await crmService.getProperties(tenantId);
+      const allProperties = allPropertiesResult.properties || [];
       properties = (allProperties || []).filter(
         (property) =>
           property?.tenantCustomerId === partyId ||
@@ -223,11 +240,13 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
           property?.rentalInfo?.currentTenantId === partyId
       );
     } else if (normalizedPartyType === 'BUYER') {
-      const [buyer, buyers, allProperties] = await Promise.all([
+      const [buyer, buyersResult, allPropertiesResult] = await Promise.all([
         crmService.getBuyer(tenantId, partyId).catch(() => null),
-        crmService.getBuyers(tenantId).catch(() => []),
+        crmService.getBuyers(tenantId).catch(() => ({ buyers: [] })),
         crmService.getProperties(tenantId),
       ]);
+      const buyers = buyersResult.buyers || [];
+      const allProperties = allPropertiesResult.properties || [];
 
       const buyerFromList = (buyers || []).find((candidate) => candidate?.buyerId === partyId) || null;
 
@@ -259,10 +278,11 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
       }
     } else if (normalizedPartyType === 'SELLER') {
       // Seller maps to owner/contact; prefer sale-related properties, fallback to all linked properties
-      const [ownerProperties, allProperties] = await Promise.all([
+      const [ownerProperties, allPropertiesResult] = await Promise.all([
         crmService.getPropertiesByOwner(tenantId, partyId).catch(() => []),
         crmService.getProperties(tenantId),
       ]);
+      const allProperties = allPropertiesResult.properties || [];
 
       const contactOwnerProperties = (allProperties || []).filter(
         (property) => property?.ownerContactId === partyId
@@ -285,7 +305,7 @@ router.get('/parties/:partyType/:partyId/properties', async (req, res) => {
     res.json(properties || []);
   } catch (error) {
     console.error('Error fetching party properties:', error);
-    res.status(500).json({ error: 'Failed to fetch properties' });
+    return res.status(500).json({ error: 'Failed to fetch properties' });
   }
 });
 
@@ -307,12 +327,12 @@ router.get('/categories', async (req, res) => {
     res.json(result.Items || []);
   } catch (error) {
     console.error('Error fetching categories:', error);
-    res.status(500).json({ error: 'Failed to fetch categories' });
+    return res.status(500).json({ error: 'Failed to fetch categories' });
   }
 });
 
 // Create new category
-router.post('/categories', async (req, res) => {
+router.post('/categories', validateBody(z.object({ name: z.string().min(1).max(200) })), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { name } = req.body;
@@ -343,7 +363,7 @@ router.post('/categories', async (req, res) => {
     res.status(201).json(category);
   } catch (error) {
     console.error('Error creating category:', error);
-    res.status(500).json({ error: 'Failed to create category' });
+    return res.status(500).json({ error: 'Failed to create category' });
   }
 });
 
@@ -364,7 +384,7 @@ router.delete('/categories/:categoryId', async (req, res) => {
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('Error deleting category:', error);
-    res.status(500).json({ error: 'Failed to delete category' });
+    return res.status(500).json({ error: 'Failed to delete category' });
   }
 });
 
@@ -453,7 +473,7 @@ router.get('/entries', async (req, res) => {
     res.json(filteredEntries);
   } catch (error) {
     console.error('Error fetching entries:', error);
-    res.status(500).json({ error: 'Failed to fetch entries' });
+    return res.status(500).json({ error: 'Failed to fetch entries' });
   }
 });
 
@@ -478,15 +498,17 @@ router.get('/entries/:entryId', async (req, res) => {
     res.json(result.Item);
   } catch (error) {
     console.error('Error fetching entry:', error);
-    res.status(500).json({ error: 'Failed to fetch entry' });
+    return res.status(500).json({ error: 'Failed to fetch entry' });
   }
 });
 
 // Create new entry
-router.post('/entries', async (req, res) => {
+router.post('/entries', validateBody(createKhataEntrySchema), async (req, res) => {
   try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
     const tenantId = req.tenantId;
-    const username = req.user?.username || 'system';
+    await precheckCredits(tenantId, 'khata_entry');
+    const username = req.user?.username || SERVICE_ACCOUNT_USER;
     const {
       propertyId,
       partyType,
@@ -499,7 +521,8 @@ router.post('/entries', async (req, res) => {
       lineItems,
       description,
       reminderAt,
-      reminderNote
+      reminderNote,
+      sourceRef
     } = req.body;
 
     // Validation
@@ -545,6 +568,25 @@ router.post('/entries', async (req, res) => {
       return res.status(400).json({ error: 'Amount must be greater than 0' });
     }
 
+    // Check for duplicate sourceRef to ensure idempotency
+    if (sourceRef) {
+      try {
+        const checkResult = await ddbDocClient.send(new ScanCommand({
+          TableName: KHATA_TABLE,
+          FilterExpression: 'PK = :pk AND sourceRef = :sourceRef',
+          ExpressionAttributeValues: {
+            ':pk': `TENANT#${tenantId}`,
+            ':sourceRef': sourceRef,
+          },
+        }));
+        if (checkResult.Items && checkResult.Items.length > 0) {
+          return res.json(checkResult.Items[0]);
+        }
+      } catch (checkError) {
+        console.error('Error checking duplicate entry:', checkError);
+      }
+    }
+
     const primaryCategoryId = normalizedLineItems ? normalizedLineItems[0].categoryId : categoryId;
     const primaryCategoryName = normalizedLineItems ? (normalizedLineItems[0].categoryName || categoryName) : categoryName;
 
@@ -573,6 +615,7 @@ router.post('/entries', async (req, res) => {
       settlementStatus: 'PENDING',
       reminderAt: reminderAt || null,
       reminderNote: reminderNote || null,
+      sourceRef: sourceRef || null,
       createdAt: now,
       createdBy: username,
       updatedAt: now
@@ -593,15 +636,18 @@ router.post('/entries', async (req, res) => {
       }
     }
 
-    res.status(201).json(entry);
+    const creditResult = await chargeCreditsForAction(tenantId, 'khata_entry', { recordId: entryId });
+    res.status(201).json({ ...entry, creditsRemaining: creditResult.balance });
   } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
     console.error('Error creating entry:', error);
-    res.status(500).json({ error: 'Failed to create entry' });
+    return res.status(500).json({ error: 'Failed to create entry' });
   }
 });
 
 // Update entry
-router.put('/entries/:entryId', async (req, res) => {
+router.put('/entries/:entryId', validateBody(updateKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
     const { entryId } = req.params;
@@ -617,7 +663,8 @@ router.put('/entries/:entryId', async (req, res) => {
       lineItems,
       description,
       reminderAt,
-      reminderNote
+      reminderNote,
+      sourceRef
     } = req.body;
 
     const updateExpressions = [];
@@ -625,6 +672,11 @@ router.put('/entries/:entryId', async (req, res) => {
     const expressionAttributeValues = {
       ':updatedAt': new Date().toISOString()
     };
+
+    if (sourceRef !== undefined) {
+      updateExpressions.push('sourceRef = :sourceRef');
+      expressionAttributeValues[':sourceRef'] = sourceRef || null;
+    }
 
     if (propertyId !== undefined) {
       updateExpressions.push('#propertyId = :propertyId');
@@ -758,15 +810,15 @@ router.put('/entries/:entryId', async (req, res) => {
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error updating entry:', error);
-    res.status(500).json({ error: 'Failed to update entry' });
+    return res.status(500).json({ error: 'Failed to update entry' });
   }
 });
 
 // Settle entry
-router.post('/entries/:entryId/settle', async (req, res) => {
+router.post('/entries/:entryId/settle', validateBody(settleKhataEntrySchema), async (req, res) => {
   try {
     const tenantId = req.tenantId;
-    const username = req.user?.username || 'system';
+    const username = req.user?.username || SERVICE_ACCOUNT_USER;
     const { entryId } = req.params;
     const { settlementNotes } = req.body;
 
@@ -802,7 +854,7 @@ router.post('/entries/:entryId/settle', async (req, res) => {
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error settling entry:', error);
-    res.status(500).json({ error: 'Failed to settle entry' });
+    return res.status(500).json({ error: 'Failed to settle entry' });
   }
 });
 
@@ -834,7 +886,7 @@ router.post('/entries/:entryId/unsettle', async (req, res) => {
     res.json(result.Attributes);
   } catch (error) {
     console.error('Error unsettling entry:', error);
-    res.status(500).json({ error: 'Failed to unsettle entry' });
+    return res.status(500).json({ error: 'Failed to unsettle entry' });
   }
 });
 
@@ -855,7 +907,7 @@ router.delete('/entries/:entryId', async (req, res) => {
     res.json({ message: 'Entry deleted successfully' });
   } catch (error) {
     console.error('Error deleting entry:', error);
-    res.status(500).json({ error: 'Failed to delete entry' });
+    return res.status(500).json({ error: 'Failed to delete entry' });
   }
 });
 
@@ -904,7 +956,7 @@ router.get('/summary', async (req, res) => {
     res.json(summary);
   } catch (error) {
     console.error('Error fetching summary:', error);
-    res.status(500).json({ error: 'Failed to fetch summary' });
+    return res.status(500).json({ error: 'Failed to fetch summary' });
   }
 });
 
@@ -1011,7 +1063,7 @@ router.get('/bifurcation', async (req, res) => {
     res.json(bifurcation);
   } catch (error) {
     console.error('Error fetching bifurcation:', error);
-    res.status(500).json({ error: 'Failed to fetch bifurcation' });
+    return res.status(500).json({ error: 'Failed to fetch bifurcation' });
   }
 });
 
@@ -1226,7 +1278,7 @@ router.get('/settlement/:type', async (req, res) => {
     return res.status(400).json({ error: 'Invalid type. Use: aging, trends, or history' });
   } catch (error) {
     console.error('Error fetching settlement data:', error);
-    res.status(500).json({ error: 'Failed to fetch settlement data' });
+    return res.status(500).json({ error: 'Failed to fetch settlement data' });
   }
 });
 

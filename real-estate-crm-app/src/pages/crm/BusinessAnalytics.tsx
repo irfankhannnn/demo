@@ -21,6 +21,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { exportTextFile } from '../../lib/fileExport';
 
 interface AgreementExpiry {
   propertyId: string;
@@ -127,12 +128,12 @@ export default function BusinessAnalytics() {
       ])
     ].map(row => row.join(',')).join('\n');
 
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `business-analytics-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    exportTextFile({
+      filename: `business-analytics-${new Date().toISOString().split('T')[0]}.csv`,
+      data: csv,
+      mimeType: 'text/csv',
+      shareTitle: 'Business analytics export',
+    }).catch((err) => console.error('Export failed:', err));
   };
 
   const filteredExpiries = data?.agreementExpiries
@@ -175,13 +176,13 @@ export default function BusinessAnalytics() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
               <button
                 onClick={() => navigate('/crm')}
-                className="p-1.5 sm:p-2 hover:bg-white/50 rounded-xl transition-colors flex-shrink-0"
+                className="p-1.5 sm:p-2 hover:bg-white/60 rounded-xl transition-all duration-200 flex-shrink-0"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-600" />
               </button>
@@ -191,7 +192,7 @@ export default function BusinessAnalytics() {
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Business Analytics</h1>
-                  <p className="text-xs sm:text-sm text-gray-500">Comprehensive insights & metrics</p>
+                  <p className="text-xs sm:text-sm text-slate-400 font-semibold">Comprehensive insights & metrics</p>
                 </div>
               </div>
             </div>
@@ -329,7 +330,12 @@ export default function BusinessAnalytics() {
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-600">Completion Rate</span>
                 <span className="font-bold text-indigo-600">
-                  {Math.round(((metrics?.completedVerifications || 0) / ((metrics?.completedVerifications || 0) + (metrics?.pendingVerifications || 1))) * 100)}%
+                  {(() => {
+                    const total = (metrics?.completedVerifications || 0) + (metrics?.pendingVerifications || 0);
+                    return total > 0
+                      ? Math.round(((metrics?.completedVerifications || 0) / total) * 100) + '%'
+                      : 'N/A';
+                  })()}
                 </span>
               </div>
             </div>
@@ -354,7 +360,7 @@ export default function BusinessAnalytics() {
                 <span className="font-bold text-gray-900">₹{(metrics?.averageRent || 0).toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Properties</span>
+                <span className="text-sm text-gray-600">Rented Properties</span>
                 <span className="font-bold text-gray-900">{metrics?.activeProperties || 0}</span>
               </div>
             </div>

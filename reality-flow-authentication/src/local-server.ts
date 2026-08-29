@@ -1,5 +1,16 @@
 import dotenv from 'dotenv';
-dotenv.config();
+import fs from 'fs';
+import path from 'path';
+
+// Prefer .env.local for local testing against already-deployed AWS
+// resources (real Cognito pool / DynamoDB tables, run via `npm run dev`);
+// falls back to .env so this doesn't change behavior for anyone not using it.
+const envLocalPath = path.resolve(__dirname, '../.env.local');
+if (fs.existsSync(envLocalPath)) {
+  dotenv.config({ path: envLocalPath });
+} else {
+  dotenv.config();
+}
 
 import { createApp } from './app';
 import { loadConfig } from './config/config';

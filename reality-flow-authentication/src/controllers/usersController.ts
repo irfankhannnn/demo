@@ -8,6 +8,7 @@ import {
   findUserByUserId,
 } from '../models/usersModel';
 import { findIdentityBySub, deleteIdentitiesByUserId } from '../models/authIdentitiesModel';
+import { logger } from '../utils/logger';
 
 /**
  * GET /users
@@ -52,7 +53,7 @@ export async function listUsersHandler(req: Request, res: Response): Promise<voi
       })),
     });
   } catch (error) {
-    console.error('listUsersHandler error:', error);
+    logger.error('listUsersHandler error', { error });
     internalError(res, 'Failed to list users');
   }
 }
@@ -106,7 +107,8 @@ export async function deleteUserHandler(req: Request, res: Response): Promise<vo
 
     ok(res, { success: true });
   } catch (error) {
-    console.error('deleteUserHandler error:', error);
+    logger.error('deleteUserHandler error', { error });
     internalError(res, 'Failed to delete user');
   }
 }
+

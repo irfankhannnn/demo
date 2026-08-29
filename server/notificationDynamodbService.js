@@ -12,6 +12,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { dispatchPushForNotification } from './services/push/pushService.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -57,6 +58,7 @@ export const NotificationCategory = {
   TENANTS: 'TENANTS',
   PROPERTIES: 'PROPERTIES',
   KHATABOOK: 'KHATABOOK',
+  LEADS: 'LEADS',
 };
 
 export const NotificationType = {
@@ -64,6 +66,9 @@ export const NotificationType = {
   MEETING_REMINDER_15M: 'MEETING_REMINDER_15M',
   KHATA_REMINDER: 'KHATA_REMINDER',
   NEW_ENQUIRY: 'NEW_ENQUIRY',
+  NEW_LEAD: 'NEW_LEAD',
+  LEAD_ASSIGNED: 'LEAD_ASSIGNED',
+  LEAD_HOT: 'LEAD_HOT',
 };
 
 // ============== Inbox Notification Operations ==============
@@ -92,6 +97,9 @@ export async function createNotification(tenantId, data) {
     deepLink: data.deepLink || null, // e.g., /crm/properties/123
     entityRef: data.entityRef || null, // { entityType: 'property', entityId: '...' }
     dedupeKey: data.dedupeKey || null, // For preventing duplicate notifications
+    // Optional: narrows the push audience to one team member. The inbox itself
+    // stays tenant-wide, so this only affects who gets buzzed on their phone.
+    targetUserId: data.targetUserId || null,
     readAt: null,
     createdAt,
     // GSI for unread notifications
@@ -114,6 +122,14 @@ export async function createNotification(tenantId, data) {
   }));
 
   logger.info('notification.create.success', { tenantId, notificationId, type: data.type });
+
+  // Mirror to the user's phones. Every in-app notification funnels through this
+  // function, so hooking here is what makes push work for the whole feature
+  // rather than the handful of call sites that exist today. dispatchPush never
+  // throws and returns immediately while Firebase is unconfigured, so the
+  // notification write above is not put at risk by it.
+  await dispatchPushForNotification(tenantId, notification);
+
   return notification;
 }
 

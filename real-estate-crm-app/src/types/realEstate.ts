@@ -51,6 +51,7 @@ export interface Developer {
   // SEO & Marketing
   metaTitle: string | null;
   metaDescription: string | null;
+  youtubeChannel?: string | null;
   
   // Flags
   featured: boolean;

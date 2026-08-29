@@ -1,0 +1,53 @@
+# ======================================
+# AI / Documentation
+# ======================================
+ai-calling-service/
+ai-response-design/
+ai_context_management_plan/
+claude-skills/
+docs/
+working-context/
+openclaw_workspace_reference/
+
+# ======================================
+# Marketing / Assets
+# ======================================
+assets/
+huashu-design/
+marketing/
+marketing-and-sales/
+launch-audit/
+first-video/
+my-video/
+onboarding-page/
+
+# ======================================
+# Output / Generated
+# ======================================
+graphify-out/
+output/
+
+# ======================================
+# Tests & Scripts
+# ======================================
+scripts/
+
+
+# ======================================
+# Misc
+# ======================================
+.codex/
+.cursor/
+.devin/
+.github/
+d:/
+
+# ======================================
+# Root documentation
+# ======================================
+*.md
+*.txt
+
+# Keep these root files
+!AGENTS.md
+!CLAUDE.md

@@ -10,6 +10,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -131,7 +132,7 @@ export async function createDeveloper(tenantId, data) {
     // Timestamps
     createdAt: now,
     updatedAt: now,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     
     // GSI Keys
     GSI1PK: `TENANT#${tenantId}#SEARCH`,

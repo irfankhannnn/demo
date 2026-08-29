@@ -8,7 +8,8 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "package": "node scripts/package-lambda.js",
-    "deploy": "aws cloudformation deploy --template-file cfn-template.yaml --stack-name ai-calling-service --capabilities CAPABILITY_NAMED_IAM"
+    "deploy": "aws cloudformation deploy --template-file cfn-template.yaml --stack-name ai-calling-service --capabilities CAPABILITY_NAMED_IAM",
+    "test": "node --test src/**/*.test.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.400.0",

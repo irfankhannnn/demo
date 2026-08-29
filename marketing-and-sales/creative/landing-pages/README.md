@@ -1,6 +1,6 @@
 # RealEstateFlow — Landing Pages
 
-Complete marketing site for RealEstateFlow Real Estate OS. 6 standalone HTML pages, deployable to Netlify in minutes.
+Complete marketing site for RealEstateFlow Real Estate OS. 5 standalone HTML pages, deployable to Netlify in minutes.
 
 ## Pages Built
 
@@ -10,7 +10,6 @@ Complete marketing site for RealEstateFlow Real Estate OS. 6 standalone HTML pag
 | Agency Owner LP | `agency-owners/index.html` | `/agency-owners` | Google Ads → broker owners |
 | Agent LP | `agents/index.html` | `/agents` | LinkedIn/WhatsApp → young agents |
 | AI Employee LP | `ai-employee/index.html` | `/ai-employee` | Meta Video Ads → AI bot add-on |
-| Enterprise LP | `enterprise/index.html` | `/enterprise` | LinkedIn Ads → chains/franchises |
 | Demo Page | `demo/index.html` | `/demo` | All paid ad traffic → Calendly |
 
 ## Deploy to Netlify
@@ -30,7 +29,7 @@ netlify deploy --prod
 
 ## Before Going Live — 5-Step Checklist
 
-### Step 1 — Replace 3 Tracking IDs (same ID goes in all 6 files)
+### Step 1 — Replace 3 Tracking IDs (same ID goes in all files)
 
 Open each HTML file and replace these 3 placeholders:
 
@@ -40,11 +39,11 @@ Open each HTML file and replace these 3 placeholders:
 | `YOUR_PIXEL_ID` | Your Meta Pixel ID | business.facebook.com → Events Manager |
 | `YOUR_HOTJAR_ID` | Your Hotjar Site ID (numeric) | hotjar.com → Sites & Organizations |
 
-These are already in `<head>` of all 6 pages — just find/replace across the folder.
+These are already in `<head>` of all pages — just find/replace across the folder.
 
 ### Step 2 — Add Your Calendly Username
 
-Calendly is already embedded in **demo** and **agency-owners** pages + partially in **ai-employee**. 
+Calendly is already embedded in **demo** and **agency-owners** pages + partially in **ai-employee**.
 Search all files for `YOUR_CALENDLY_USERNAME` and replace:
 ```
 REPLACE: YOUR_CALENDLY_USERNAME
@@ -54,7 +53,7 @@ URL format: `https://calendly.com/YOUR_USERNAME/30min`
 
 ### Step 3 — Connect Netlify Forms → Your Lead API
 
-All 6 form names (for webhook mapping):
+All 5 form names (for webhook mapping):
 
 | Form Name | Page | Lead type |
 |-----------|------|-----------|
@@ -63,7 +62,6 @@ All 6 form names (for webhook mapping):
 | `agency-owner-lead` | Agency Owners | Demo booking |
 | `agent-trial` | Agents | Trial signup |
 | `ai-employee-demo` | AI Employee | Bot demo + `interest=ai-employee-addon` |
-| `enterprise-lead` | Enterprise | Enterprise inquiry |
 
 In Netlify: **Site Settings → Forms → Form Notifications → Add Webhook** → paste your API URL.
 
@@ -79,7 +77,7 @@ Search for `[ YouTube embed` in any file. Replace each placeholder `<div>` with:
 
 ### Step 5 — Update Contact Details
 
-Global find/replace across all 6 files:
+Global find/replace across all files:
 - `919999999999` → your WhatsApp number (no + prefix in wa.me links)
 - `hello@realestateflow.in` → your actual email
 
@@ -92,7 +90,6 @@ Global find/replace across all 6 files:
 | Page load | Every page view | `config` | `PageView` |
 | Form submit | Any Netlify form submitted | `generate_lead` | `Lead` |
 | Calendly booked | User books a slot | `schedule` | `Schedule` |
-| Enterprise submit | Enterprise form | `generate_lead` + value=99000 INR | `Lead` |
 
 All events are already wired in — just need real IDs.
 
@@ -100,11 +97,11 @@ All events are already wired in — just need real IDs.
 
 | Plan | Price |
 |------|-------|
-| CRM Solo | ₹3,000/month |
-| CRM Team | ₹3,000 + ₹1,000/extra member/month |
-| Enterprise White-Label | ₹99,000 one-time + cloud bills |
-| WhatsApp AI Bot (Add-on) | +₹5,000/month — **NO free trial** |
+| CRM Solo | ₹999/month |
+| CRM Team | ₹1,999/month (up to 3 members) |
+| CRM Team+ | ₹4,999/month (up to 10 members) |
+| WhatsApp AI Bot (Add-on) | +₹7,999/month — **NO free trial** |
 
-**CRM Trial:** 2 months FREE, no credit card  
-**AI Bot Trial:** None — paid from day 1  
-**Guarantee:** 6-month money-back on CRM (no questions)
+**CRM Trial:** 14-day free trial, no credit card
+**AI Bot Trial:** None — paid from day 1
+**Guarantee:** 30-day money-back on CRM (no questions)

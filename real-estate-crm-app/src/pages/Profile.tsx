@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield, Plus, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { User, Building2, Mail, Phone, MapPin, Save, ArrowLeft, LogOut, Shield, Plus, CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import LogoutConfirmModal from '../components/LogoutConfirmModal';
+import DeleteAccountModal from '../components/DeleteAccountModal';
+import { clearSecrets } from '../lib/secureStore';
 import { normalizeWhitespace } from '../utils/validation';
 import { clearAuthSilently, getUserProfile, setUserProfile } from '../utils/authStorage';
 import { redirectToLogout, callMe } from '../utils/cognitoAuth';
@@ -23,6 +25,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [success, setSuccess] = useState('');
   const [error, setError] = useState('');
 
@@ -103,7 +106,16 @@ export default function Profile() {
     setSaving(true);
 
     try {
-      const authApiUrl = import.meta.env.VITE_AUTH_API_URL || 'http://localhost:3002';
+      // No localhost fallback. Inside the app that resolves to the device
+      // itself, so the request fails, and Android blocks cleartext HTTP by
+      // default anyway. Fail with a clear message instead of a confusing
+      // network error.
+      const authApiUrl = import.meta.env.VITE_AUTH_API_URL;
+      if (!authApiUrl) {
+        setError('Authentication service is not configured. Please contact support.');
+        return;
+      }
+
       const idToken = localStorage.getItem('auth_id_token');
       
       if (!idToken) {
@@ -265,6 +277,17 @@ export default function Profile() {
   const handleLogout = () => {
     clearAuthSilently();
     redirectToLogout();
+  };
+
+  /**
+   * After the account is gone there is no session to sign out of, so this
+   * clears local state and goes straight to login rather than routing through
+   * the Cognito logout endpoint for a user that no longer exists.
+   */
+  const handleAccountDeleted = async () => {
+    await clearSecrets();
+    clearAuthSilently();
+    navigate('/login', { replace: true });
   };
 
   if (loading) {
@@ -528,6 +551,31 @@ export default function Profile() {
             </div>
           </form>
         </div>
+
+        {/*
+          Danger Zone. App Store Review Guideline 5.1.1(v) requires account
+          deletion to be initiable from inside the app; an app that offers
+          account creation without it is rejected. Kept visually separate from
+          the profile form so it cannot be hit while editing details.
+        */}
+        <div className="mt-6 sm:mt-8 bg-white rounded-xl sm:rounded-2xl shadow-xl border border-red-200 overflow-hidden">
+          <div className="border-b border-red-100 bg-red-50 px-5 sm:px-8 py-4">
+            <h2 className="text-base sm:text-lg font-semibold text-red-900">Danger Zone</h2>
+          </div>
+          <div className="px-5 sm:px-8 py-5 sm:py-6">
+            <p className="text-sm text-slate-600 mb-4">
+              Permanently delete your account and personal data. This cannot be undone.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto min-h-[44px] rounded-lg border border-red-300 bg-white px-5 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete account
+            </button>
+          </div>
+        </div>
       </main>
 
       {/* Logout Confirmation Modal */}
@@ -535,6 +583,12 @@ export default function Profile() {
         isOpen={showLogoutModal}
         onClose={() => setShowLogoutModal(false)}
         onConfirm={handleLogout}
+      />
+
+      <DeleteAccountModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onDeleted={handleAccountDeleted}
       />
     </div>
   );

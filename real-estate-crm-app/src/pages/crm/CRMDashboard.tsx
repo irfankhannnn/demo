@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Users,
@@ -19,16 +19,31 @@ import {
   BookOpen,
   Calendar,
   ShoppingCart,
-  PhoneCall,
   UserPlus,
+  Bot,
+  MessageCircle,
+  Inbox,
+  PhoneCall,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import LogoutConfirmModal from '../../components/LogoutConfirmModal';
 import NotificationCenter from '../../components/NotificationCenter';
-import { getUserProfile, clearAuthSilently } from '../../utils/authStorage';
+import WorkspaceSwitch from '../../components/ai/WorkspaceSwitch';
+import { getUserProfile, clearAuthSilently, getIdToken } from '../../utils/authStorage';
+import { resetAnalytics } from '../../lib/analytics';
 import { redirectToLogout } from '../../utils/cognitoAuth';
+import {
+  CONNECTED_PHONE_KEY,
+  formatWhatsAppPhone,
+  fetchConnectionStatus,
+  resolveConnectedPhone,
+  WhatsappPoller,
+  WhatsappConnectionSync,
+  WHATSAPP_POLL_INTERVAL_MS,
+  type WhatsappStatusResult,
+} from '../../utils/whatsappConnection';
 
 interface UnifiedCrmCounts {
   buyers: number;
@@ -36,12 +51,14 @@ interface UnifiedCrmCounts {
   owners: number;
   tenants: number;
   leads: number;
+  contacts: number;
 }
 
 export default function CRMDashboard() {
   const navigate = useNavigate();
   const profile = getUserProfile();
-  const isAdmin = profile?.role === 'ADMIN';
+  const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'FOUNDER' || profile?.role === 'OWNER';
+  const baileyEnabled = import.meta.env.VITE_BAILEY_ENABLED === 'true';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -49,12 +66,91 @@ export default function CRMDashboard() {
     owners: 0,
     tenants: 0,
     leads: 0,
+    contacts: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const hasRun = useRef(false);
+
+  const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [whatsappPhone, setWhatsappPhone] = useState<string | null>(null);
+  const [whatsappState, setWhatsappState] = useState<string | null>(null);
+  const [whatsappError, setWhatsappError] = useState<string | null>(null);
+  const [checkingWhatsapp, setCheckingWhatsapp] = useState(false);
+  const [whatsappErrorType, setWhatsappErrorType] = useState<string | null>(null);
+
+  const pollerRef = useRef<WhatsappPoller | null>(null);
+  const syncRef = useRef<WhatsappConnectionSync | null>(null);
+  const mountedRef = useRef(true);
+
+  // Set up cross-tab synchronization for WhatsApp state.
+  useEffect(() => {
+    syncRef.current = new WhatsappConnectionSync();
+    const unsubscribe = syncRef.current.onChange((state) => {
+      if (!mountedRef.current) return;
+      if (state.phone !== undefined) setWhatsappPhone(state.phone || null);
+      if (state.connected !== undefined) setWhatsappConnected(state.connected);
+      if (state.error !== undefined) setWhatsappError(state.error || null);
+      if (state.errorType !== undefined) setWhatsappErrorType(state.errorType || null);
+    });
+    return () => {
+      unsubscribe();
+      syncRef.current?.close();
+    };
+  }, []);
+
+  // Cleanup on unmount.
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      pollerRef.current?.stop();
+      syncRef.current?.close();
+    };
+  }, []);
+
+  // Poll WhatsApp status on mount and when Bailey is enabled.
+  useEffect(() => {
+    if (!baileyEnabled) return;
+
+    const startPolling = async () => {
+      const phoneNumber = await resolveConnectedPhone(() => api.getAiEmployeeConfig());
+      if (!mountedRef.current) return;
+
+      if (!phoneNumber) {
+        setWhatsappConnected(false);
+        setWhatsappPhone(null);
+        return;
+      }
+
+      setWhatsappPhone(phoneNumber);
+
+      const handlePollerResult = (result: WhatsappStatusResult) => {
+        if (!mountedRef.current) return;
+        setCheckingWhatsapp(false);
+        setWhatsappConnected(result.connected);
+        setWhatsappState(result.state || null);
+        setWhatsappError(result.error || null);
+        setWhatsappErrorType(result.errorType || null);
+      };
+
+      setCheckingWhatsapp(true);
+      pollerRef.current = new WhatsappPoller();
+      pollerRef.current.start(phoneNumber, WHATSAPP_POLL_INTERVAL_MS, handlePollerResult);
+    };
+
+    startPolling();
+
+    return () => {
+      pollerRef.current?.stop();
+      pollerRef.current = null;
+    };
+  }, [baileyEnabled]);
 
   useEffect(() => {
+    if (hasRun.current) return;
+    hasRun.current = true;
     loadData();
   }, []);
 
@@ -63,30 +159,16 @@ export default function CRMDashboard() {
       setLoading(true);
       setError(null);
 
-      const [
-        metricsData,
-        buyers,
-        owners,
-        tenants,
-        leads,
-      ] = await Promise.all([
-        api.getCRMMetrics(),
-        api.getBuyers(),
-        api.getOwners(),
-        api.getCustomers(),
-        api.getLeads(),
-      ]);
-
-      // Get seller count from cached value after getOwners call
-      const sellerCount = await api.getSellerCount();
+      const metricsData = await api.getCRMMetrics();
 
       setMetrics(metricsData);
       setUnifiedCounts({
-        buyers: Array.isArray(buyers) ? buyers.length : 0,
-        sellers: sellerCount,
-        owners: Array.isArray(owners) ? owners.length : 0,
-        tenants: Array.isArray(tenants) ? tenants.length : 0,
-        leads: Array.isArray(leads) ? leads.length : 0,
+        buyers: metricsData.buyersCount || 0,
+        sellers: metricsData.sellersCount || 0,
+        owners: metricsData.totalOwners || 0,
+        tenants: metricsData.tenantsCount || 0,
+        leads: metricsData.leadsCount || 0,
+        contacts: metricsData.contactsCount || 0,
       });
     } catch (error) {
       console.error('Error loading CRM dashboard data:', error);
@@ -100,6 +182,7 @@ export default function CRMDashboard() {
   };
 
   const handleLogout = () => {
+    resetAnalytics();
     clearAuthSilently();
     redirectToLogout();
   };
@@ -134,30 +217,36 @@ export default function CRMDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20 transition-shadow duration-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-3 sm:py-4">
           <div className="flex justify-between items-center gap-2 sm:gap-4">
+
             {/* Left: Logo and Title */}
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <Link
                 to="/"
-                className="p-1.5 sm:p-2 text-slate-600 hover:text-indigo-600 transition-colors rounded-xl hover:bg-white/50 flex-shrink-0"
+                className="p-1.5 sm:p-2 text-slate-500 hover:text-indigo-600 transition-all duration-200 rounded-xl hover:bg-white/60 flex-shrink-0"
                 title="Homepage"
               >
                 <Home className="h-5 w-5 sm:h-6 sm:w-6" />
               </Link>
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0">
+              {/* Decorative logo tile. Hidden below sm: for an admin/owner the
+                  right-hand action cluster is flex-shrink-0 and needs ~240px,
+                  which overflowed the viewport at 375px and made the whole
+                  page scroll sideways. Dropping a purely decorative 40px tile
+                  (+8px gap) buys that back without removing any control. */}
+              <div className="hidden sm:flex w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 items-center justify-center shadow-lg shadow-indigo-500/30 flex-shrink-0 animate-gentlePulse">
                 <Building2 className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
               </div>
               <div className="min-w-0">
-                <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate">CRM Dashboard</h1>
-                <p className="text-xs text-slate-500 hidden sm:block">Welcome back, Admin</p>
+                <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate tracking-tight">CRM Dashboard</h1>
+                <p className="text-xs text-slate-400 hidden sm:block font-medium">Welcome back, Admin</p>
               </div>
             </div>
             
             {/* Right: Actions */}
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-white/60 backdrop-blur-sm border border-white/20 text-indigo-700 rounded-xl text-sm font-medium shadow-sm">
+              <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-white/50 backdrop-blur-sm border border-white/30 text-indigo-700 rounded-xl text-sm font-semibold shadow-sm">
                 <Clock className="w-4 h-4" />
                 {new Date().toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' })}
               </div>
@@ -168,41 +257,59 @@ export default function CRMDashboard() {
                 <>
                   <Link
                     to="/admin/invites"
-                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                     title="Team Invites"
                   >
                     <UserPlus className="h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="hidden sm:inline text-sm">Invites</span>
+                    <span className="hidden sm:inline">Invites</span>
                   </Link>
                   <Link
                     to="/admin/members"
-                    className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                     title="Members"
                   >
                     <Users className="h-4 w-4 sm:h-5 sm:w-5" />
-                    <span className="hidden sm:inline text-sm">Members</span>
+                    <span className="hidden sm:inline">Members</span>
+                  </Link>
+                  <Link
+                    to="/admin/team-analytics"
+                    className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
+                    title="Team Analytics"
+                  >
+                    <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <span className="hidden sm:inline">Analytics</span>
                   </Link>
                 </>
               )}
               
               <Link
                 to="/profile"
-                className="flex items-center gap-2 px-3 py-2 text-slate-700 hover:text-indigo-600 hover:bg-white/50 rounded-xl transition-colors font-medium"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-slate-600 hover:text-indigo-600 hover:bg-white/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                 title="Profile"
               >
                 <User className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline text-sm">Profile</span>
+                <span className="hidden sm:inline">Profile</span>
               </Link>
               
               <button
                 onClick={() => setShowLogoutModal(true)}
-                className="flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50/80 rounded-xl transition-colors font-medium"
+                className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-rose-600 hover:bg-rose-50/60 rounded-xl transition-all duration-200 font-semibold text-sm"
                 title="Logout"
               >
                 <LogOut className="h-4 w-4 sm:h-5 sm:w-5" />
-                <span className="hidden sm:inline text-sm">Logout</span>
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
+          </div>
+
+          {/*
+            Assistant ↔ CRM switch. Its own centred row, at every width: this
+            header's action cluster (date, bell, Members, Analytics, Profile,
+            Logout) runs far enough left that an absolutely-centred element
+            lands on top of it even on a wide desktop.
+          */}
+          <div className="mt-3 flex justify-center">
+            <WorkspaceSwitch />
           </div>
         </div>
       </header>
@@ -211,112 +318,130 @@ export default function CRMDashboard() {
         
         {/* Quick Stats Overview */}
          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/leads')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/leads')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Leads</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{unifiedCounts.leads}</h3>
-                <div className="flex items-center mt-2 text-sm">
-                  <span className="text-indigo-600 flex items-center font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Leads</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.leads}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-indigo-600 flex items-center font-semibold bg-indigo-50/70 px-2.5 py-1 rounded-full border border-indigo-100/50">
                     <TrendingUp className="w-3 h-3 mr-1" />
                     Manage conversions
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-amber-50 rounded-lg sm:rounded-xl group-hover:bg-amber-100 transition-colors">
-                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-amber-600" />
+              <div className="p-2.5 sm:p-3 bg-amber-50 rounded-2xl group-hover:bg-amber-100/80 transition-colors duration-300 shadow-sm">
+                <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/buyers')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/buyers')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Buyers</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{unifiedCounts.buyers}</h3>
-                <div className="flex items-center mt-2 text-sm">
-                  <span className="text-orange-600 flex items-center font-medium bg-orange-50 px-2 py-0.5 rounded-full">
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Buyers</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.buyers}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-orange-600 flex items-center font-semibold bg-orange-50/70 px-2.5 py-1 rounded-full border border-orange-100/50">
                     <ShoppingCart className="w-3 h-3 mr-1" />
-                    Contacts
+                    Seeking &amp; purchased
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-orange-50 rounded-lg sm:rounded-xl group-hover:bg-orange-100 transition-colors">
-                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
+              <div className="p-2.5 sm:p-3 bg-orange-50 rounded-2xl group-hover:bg-orange-100/80 transition-colors duration-300 shadow-sm">
+                <ShoppingCart className="w-5 h-5 sm:w-6 sm:h-6 text-orange-500" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/owners')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/contacts')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Owners</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{unifiedCounts.owners}</h3>
-                <div className="flex items-center mt-2 text-sm">
-                  <span className="text-blue-600 flex items-center font-medium bg-blue-50 px-2 py-0.5 rounded-full">
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Contacts</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.contacts}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-indigo-600 flex items-center font-semibold bg-indigo-50/70 px-2.5 py-1 rounded-full border border-indigo-100/50">
+                    <User className="w-3 h-3 mr-1" />
+                    Full history
+                  </span>
+                </div>
+              </div>
+              <div className="p-2.5 sm:p-3 bg-indigo-50 rounded-2xl group-hover:bg-indigo-100/80 transition-colors duration-300 shadow-sm">
+                <User className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-500" />
+              </div>
+            </div>
+          </div>
+
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/owners')}>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Owners</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.owners}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-blue-600 flex items-center font-semibold bg-blue-50/70 px-2.5 py-1 rounded-full border border-blue-100/50">
                     <Building2 className="w-3 h-3 mr-1" />
-                    Contacts
+                    Current owners
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-blue-50 rounded-lg sm:rounded-xl group-hover:bg-blue-100 transition-colors">
-                <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+              <div className="p-2.5 sm:p-3 bg-blue-50 rounded-2xl group-hover:bg-blue-100/80 transition-colors duration-300 shadow-sm">
+                <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/properties')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/properties')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Total Properties</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{metrics?.totalProperties || 0}</h3>
-                <div className="flex items-center mt-2 text-sm gap-2">
-                  <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {metrics?.availableProperties || 0} Avail
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Total Properties</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{metrics?.totalProperties || 0}</h3>
+                <div className="flex items-center mt-2.5 text-sm gap-2">
+                  <span className="text-blue-600 bg-blue-50/70 px-2.5 py-1 rounded-full text-xs font-semibold border border-blue-100/50">
+                    {metrics?.availableProperties || 0} Listed
                   </span>
-                  <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full text-xs font-medium">
-                    {metrics?.rentedProperties || 0} Rented
+                  <span className="text-purple-600 bg-purple-50/70 px-2.5 py-1 rounded-full text-xs font-semibold border border-purple-100/50">
+                    {metrics?.rentedProperties || 0} Occupied
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-purple-50 rounded-lg sm:rounded-xl group-hover:bg-purple-100 transition-colors">
-                <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+              <div className="p-2.5 sm:p-3 bg-purple-50 rounded-2xl group-hover:bg-purple-100/80 transition-colors duration-300 shadow-sm">
+                <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/tenants')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/tenants')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Tenants</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{unifiedCounts.tenants}</h3>
-                <div className="flex items-center mt-2 text-sm">
-                  <span className="text-teal-600 flex items-center font-medium bg-teal-50 px-2 py-0.5 rounded-full">
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Tenants</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.tenants}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-teal-600 flex items-center font-semibold bg-teal-50/70 px-2.5 py-1 rounded-full border border-teal-100/50">
                     <Users className="w-3 h-3 mr-1" />
-                    Contacts
+                    Occupants
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-teal-50 rounded-lg sm:rounded-xl group-hover:bg-teal-100 transition-colors">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600" />
+              <div className="p-2.5 sm:p-3 bg-teal-50 rounded-2xl group-hover:bg-teal-100/80 transition-colors duration-300 shadow-sm">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-teal-500" />
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg sm:rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer group active:scale-95" onClick={() => navigate('/crm/owners?sellers=1')}>
+          <div className="glass-premium rounded-2xl p-5 sm:p-6 cursor-pointer group card-lift active:scale-[0.98]" onClick={() => navigate('/crm/owners?sellers=1')}>
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">Sellers</p>
-                <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{unifiedCounts.sellers}</h3>
-                <div className="flex items-center mt-2 text-sm">
-                  <span className="text-emerald-600 flex items-center font-medium bg-emerald-50 px-2 py-0.5 rounded-full">
+                <p className="text-xs sm:text-sm font-semibold text-slate-400 uppercase tracking-wider">Sellers</p>
+                <h3 className="text-2xl sm:text-3xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.sellers}</h3>
+                <div className="flex items-center mt-2.5 text-sm">
+                  <span className="text-emerald-600 flex items-center font-semibold bg-emerald-50/70 px-2.5 py-1 rounded-full border border-emerald-100/50">
                     <Users className="w-3 h-3 mr-1" />
-                    Owners with listings
+                    Active sellers
                   </span>
                 </div>
               </div>
-              <div className="p-2 sm:p-3 bg-emerald-50 rounded-lg sm:rounded-xl group-hover:bg-emerald-100 transition-colors">
-                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600" />
+              <div className="p-2.5 sm:p-3 bg-emerald-50 rounded-2xl group-hover:bg-emerald-100/80 transition-colors duration-300 shadow-sm">
+                <Users className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-500" />
               </div>
             </div>
           </div>
@@ -326,38 +451,39 @@ export default function CRMDashboard() {
           {/* Main Column (Left - 2/3) */}
           <div className="lg:col-span-2 space-y-4 sm:space-y-6 lg:space-y-8">
             
-            {/* Action Center Banner - Blinks continuously until resolved */}
+            {/* Action Center Banner */}
             {pendingActions > 0 && (
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg sm:rounded-xl shadow-md p-4 sm:p-6 text-white animate-pulse-attention relative overflow-hidden">
-                {/* Animated border glow effect */}
-                <div className="absolute inset-0 rounded-xl border-2 border-white/30 animate-ping opacity-20"></div>
-                <div className="flex items-start justify-between relative z-10">
+              <div className="relative overflow-hidden rounded-2xl p-5 sm:p-6 text-white shadow-lg shadow-indigo-500/20 animate-fadeInUp">
+                <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-purple-600" />
+                <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
+                <div className="absolute inset-0 rounded-2xl ring-1 ring-white/20" />
+                <div className="relative z-10 flex items-start justify-between">
                   <div>
                     <h2 className="text-base sm:text-lg font-bold flex items-center gap-2">
                       <ShieldAlert className="w-5 h-5 animate-bounce" />
-                      <span className="animate-pulse text-red-500">Attention Needed</span>
+                      <span>Attention Needed</span>
                     </h2>
-                    <p className="mt-1 text-sm sm:text-base text-indigo-100 opacity-90">
+                    <p className="mt-1 text-sm sm:text-base text-indigo-100/90 font-medium">
                       You have {pendingActions} items requiring your attention.
                     </p>
-                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-3 sm:mt-4">
+                    <div className="flex flex-wrap gap-2 sm:gap-3 mt-4">
                       {(metrics?.agreementsPending || 0) > 0 && (
-                        <span className="px-3 py-1 bg-white/20 rounded-full text-sm backdrop-blur-sm border border-white/10 flex items-center gap-1">
+                        <span className="px-3 py-1.5 bg-white/15 rounded-full text-sm backdrop-blur-sm border border-white/10 flex items-center gap-1.5 font-medium">
                           <FileText className="w-3.5 h-3.5" />
                           {metrics?.agreementsPending} Agreements Pending
                         </span>
                       )}
                       {(metrics?.verificationsPending || 0) > 0 && (
-                        <span className="px-3 py-1 bg-white/20 rounded-full text-sm backdrop-blur-sm border border-white/10 flex items-center gap-1">
+                        <span className="px-3 py-1.5 bg-white/15 rounded-full text-sm backdrop-blur-sm border border-white/10 flex items-center gap-1.5 font-medium">
                           <CheckCircle className="w-3.5 h-3.5" />
                           {metrics?.verificationsPending} Verifications Pending
                         </span>
                       )}
                     </div>
                   </div>
-                  <button 
+                  <button
                     onClick={() => navigate('/crm/properties')}
-                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-white text-indigo-600 rounded-lg text-sm sm:text-base font-semibold hover:bg-gray-50 transition-colors shadow-sm active:scale-95"
+                    className="px-4 sm:px-5 py-2 sm:py-2.5 bg-white text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-50 transition-all duration-200 shadow-lg shadow-white/20 active:scale-[0.96]"
                   >
                     View Items
                   </button>
@@ -366,47 +492,47 @@ export default function CRMDashboard() {
             )}
 
             {/* Unified CRM Quick Access */}
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-4 sm:p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                <h2 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-2">
-                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500" />
+            <div className="glass-premium rounded-2xl overflow-hidden shadow-lg shadow-black/5">
+              <div className="p-4 sm:p-6 border-b border-white/40 flex justify-between items-center bg-white/30">
+                <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2 tracking-tight">
+                  <Users className="w-4 h-4 sm:w-5 sm:h-5 text-slate-400" />
                   Unified CRM
                 </h2>
-                <button 
+                <button
                   onClick={() => navigate('/crm/leads')}
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+                  className="text-sm font-bold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-all duration-200 group"
                 >
-                  View Leads <ArrowRight className="w-4 h-4" />
+                  View Leads <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
                 </button>
               </div>
 
               <div className="p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <button
                   onClick={() => navigate('/crm/tenants')}
-                  className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors text-left active:scale-95"
+                  className="p-4 border border-slate-200/60 rounded-2xl hover:bg-white/40 transition-all duration-200 text-left card-lift active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-gray-500">Tenants</div>
-                      <div className="text-xl font-bold text-gray-900">{unifiedCounts.tenants}</div>
+                      <div className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Tenants</div>
+                      <div className="text-2xl font-bold text-slate-900 mt-1 tracking-tight">{unifiedCounts.tenants}</div>
                     </div>
-                    <div className="p-2 bg-teal-50 rounded-lg">
-                      <Users className="w-5 h-5 text-teal-600" />
+                    <div className="p-2.5 bg-teal-50 rounded-2xl shadow-sm">
+                      <Users className="w-5 h-5 text-teal-500" />
                     </div>
                   </div>
                 </button>
 
                 <button
                   onClick={() => navigate('/crm/leads/new')}
-                  className="p-4 border border-indigo-200 rounded-lg bg-indigo-50 hover:bg-indigo-100 transition-colors text-left active:scale-95"
+                  className="p-4 border border-indigo-200/60 rounded-2xl bg-gradient-to-br from-indigo-50/80 to-purple-50/60 hover:from-indigo-50 hover:to-purple-50 transition-all duration-200 text-left card-lift active:scale-[0.98]"
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-sm text-indigo-700">Quick Action</div>
-                      <div className="text-base font-semibold text-indigo-900">Create Lead</div>
-                      <div className="text-xs text-indigo-700 mt-1">Convert to any role</div>
+                      <div className="text-sm font-bold text-indigo-600">Quick Action</div>
+                      <div className="text-base font-bold text-indigo-900">Create Lead</div>
+                      <div className="text-xs text-indigo-600/80 mt-1 font-medium">Convert to any role</div>
                     </div>
-                    <div className="p-2 bg-white rounded-lg">
+                    <div className="p-2.5 bg-white rounded-2xl shadow-sm">
                       <Plus className="w-5 h-5 text-indigo-600" />
                     </div>
                   </div>
@@ -415,27 +541,27 @@ export default function CRMDashboard() {
             </div>
 
             {/* Quick Actions Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
-              <button 
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
+              <button
                 onClick={() => navigate('/crm/buyers/new')}
-                className="bg-white p-4 sm:p-6 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-blue-300 transition-all text-left group active:scale-95"
+                className="glass-premium p-5 sm:p-6 rounded-2xl hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300 text-left group card-lift active:scale-[0.98]"
               >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-blue-100 transition-colors">
-                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
+                <div className="w-11 h-11 sm:w-12 sm:h-12 bg-blue-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-blue-100/80 transition-colors duration-300 shadow-sm">
+                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
                 </div>
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900">Add New Buyer</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">Create buyer contact profile</p>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Add New Buyer</h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">Create buyer contact profile</p>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/crm/tenants/new')}
-                className="bg-white p-4 sm:p-6 rounded-lg sm:rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-purple-300 transition-all text-left group active:scale-95"
+                className="glass-premium p-5 sm:p-6 rounded-2xl hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300 text-left group card-lift active:scale-[0.98]"
               >
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-50 rounded-lg flex items-center justify-center mb-3 sm:mb-4 group-hover:bg-purple-100 transition-colors">
-                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                <div className="w-11 h-11 sm:w-12 sm:h-12 bg-purple-50 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-purple-100/80 transition-colors duration-300 shadow-sm">
+                  <Plus className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
                 </div>
-                <h3 className="text-sm sm:text-base font-semibold text-gray-900">Add New Tenant</h3>
-                <p className="text-xs sm:text-sm text-gray-500 mt-1">Create tenant contact profile</p>
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Add New Tenant</h3>
+                <p className="text-xs sm:text-sm text-slate-500 mt-1 font-medium">Create tenant contact profile</p>
               </button>
             </div>
           </div>
@@ -444,85 +570,85 @@ export default function CRMDashboard() {
           <div className="space-y-4 sm:space-y-6 lg:space-y-8">
             
             {/* Property Status Summary */}
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-              <h3 className="font-bold text-gray-900 mb-4 flex items-center justify-between">
+            <div className="glass-premium rounded-2xl p-5 sm:p-6 shadow-lg shadow-black/5">
+              <h3 className="font-bold text-slate-900 mb-5 flex items-center justify-between tracking-tight">
                 <span>Property Status</span>
-                <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{metrics?.totalProperties || 0} Total</span>
+                <span className="text-xs font-bold text-slate-500 bg-slate-100/70 px-2.5 py-1 rounded-full border border-slate-200/50">{metrics?.totalProperties || 0} Total</span>
               </h3>
-              
+
               <div className="space-y-4">
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Available</span>
-                    <span className="font-medium text-gray-900">{metrics?.availableProperties || 0}</span>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-slate-500 font-semibold">Available</span>
+                    <span className="font-bold text-slate-900">{metrics?.availableProperties || 0}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div 
-                      className="bg-green-500 h-2 rounded-full" 
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-2 rounded-full transition-all duration-700"
                       style={{ width: `${((metrics?.availableProperties || 0) / (metrics?.totalProperties || 1)) * 100}%` }}
-                    ></div>
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Rented</span>
-                    <span className="font-medium text-gray-900">{metrics?.rentedProperties || 0}</span>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-slate-500 font-semibold">Rented</span>
+                    <span className="font-bold text-slate-900">{metrics?.rentedProperties || 0}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full" 
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-700"
                       style={{ width: `${((metrics?.rentedProperties || 0) / (metrics?.totalProperties || 1)) * 100}%` }}
-                    ></div>
+                    />
                   </div>
                 </div>
 
                 <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">On Hold</span>
-                    <span className="font-medium text-gray-900">{metrics?.onHoldProperties || 0}</span>
+                  <div className="flex justify-between text-sm mb-1.5">
+                    <span className="text-slate-500 font-semibold">On Hold</span>
+                    <span className="font-bold text-slate-900">{metrics?.onHoldProperties || 0}</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2">
-                    <div 
-                      className="bg-yellow-500 h-2 rounded-full" 
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-amber-500 h-2 rounded-full transition-all duration-700"
                       style={{ width: `${((metrics?.onHoldProperties || 0) / (metrics?.totalProperties || 1)) * 100}%` }}
-                    ></div>
+                    />
                   </div>
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={() => navigate('/crm/properties')}
-                className="w-full mt-6 py-2 text-sm text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-medium transition-colors"
+                className="w-full mt-6 py-2.5 text-sm text-indigo-600 bg-indigo-50/70 hover:bg-indigo-100/80 rounded-xl font-bold transition-all duration-200 border border-indigo-100/50"
               >
                 Manage Properties
               </button>
             </div>
 
             {/* Compliance Status */}
-            <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
-              <h3 className="font-bold text-gray-900 mb-4">Compliance Tracking</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div className="glass-premium rounded-2xl p-5 sm:p-6 shadow-lg shadow-black/5">
+              <h3 className="font-bold text-slate-900 mb-5 tracking-tight">Compliance Tracking</h3>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between p-3.5 bg-slate-50/70 rounded-2xl border border-slate-100/50">
                   <div className="flex items-center gap-3">
-                    <FileText className={`w-5 h-5 ${(metrics?.agreementsPending || 0) > 0 ? 'text-yellow-500' : 'text-green-500'}`} />
+                    <FileText className={`w-5 h-5 ${(metrics?.agreementsPending || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Agreements</p>
-                      <p className="text-xs text-gray-500">{metrics?.agreementsPending || 0} Pending</p>
+                      <p className="text-sm font-bold text-slate-900">Agreements</p>
+                      <p className="text-xs text-slate-400 font-semibold">{metrics?.agreementsPending || 0} Pending</p>
                     </div>
                   </div>
-                  <span className="font-bold text-gray-900">{metrics?.agreementsDone || 0} Done</span>
+                  <span className="font-bold text-slate-900 text-sm">{metrics?.agreementsDone || 0} Done</span>
                 </div>
 
-                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between p-3.5 bg-slate-50/70 rounded-2xl border border-slate-100/50">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className={`w-5 h-5 ${(metrics?.verificationsPending || 0) > 0 ? 'text-yellow-500' : 'text-green-500'}`} />
+                    <CheckCircle className={`w-5 h-5 ${(metrics?.verificationsPending || 0) > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
                     <div>
-                      <p className="text-sm font-medium text-gray-900">Verifications</p>
-                      <p className="text-xs text-gray-500">{metrics?.verificationsPending || 0} Pending</p>
+                      <p className="text-sm font-bold text-slate-900">Verifications</p>
+                      <p className="text-xs text-slate-400 font-semibold">{metrics?.verificationsPending || 0} Pending</p>
                     </div>
                   </div>
-                  <span className="font-bold text-gray-900">{metrics?.verificationsDone || 0} Done</span>
+                  <span className="font-bold text-slate-900 text-sm">{metrics?.verificationsDone || 0} Done</span>
                 </div>
               </div>
             </div>
@@ -577,120 +703,225 @@ export default function CRMDashboard() {
         </div>
         */}
 
-        {/* Quick Links - Moved to Bottom */}
-        <div className="bg-white rounded-lg sm:rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mt-6 sm:mt-8">
-          <h3 className="font-bold text-gray-900 mb-4">Quick Links</h3>
+        {/* Quick Links */}
+        <div className="glass-premium rounded-2xl p-5 sm:p-6 mt-6 sm:mt-8 shadow-lg shadow-black/5">
+          <h3 className="font-bold text-slate-900 mb-5 tracking-tight">Quick Links</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3">
-            <button 
-              onClick={() => navigate('/crm/calendar')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/calendar')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-blue-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                <Calendar className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                 Calendar
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/analytics')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/analytics')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <BarChart3 className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                 Analytics
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/khata')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/khata')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-purple-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <BookOpen className="w-4 h-4 text-gray-400 group-hover:text-purple-500" />
+                <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition-colors" />
                 Khata Book
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-purple-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/rented-properties')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/rented-properties')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <FileText className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                 Rented List
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/leads')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/leads')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-amber-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-gray-400 group-hover:text-amber-500" />
+                <TrendingUp className="w-4 h-4 text-slate-400 group-hover:text-amber-500 transition-colors" />
                 Leads
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-amber-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/tenants')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/tenants')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-teal-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <Users className="w-4 h-4 text-slate-400 group-hover:text-teal-500 transition-colors" />
                 Tenants
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-teal-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/owners')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/contacts')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Home className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <User className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
+                Contacts
+              </span>
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
+            </button>
+            <button
+              onClick={() => navigate('/crm/owners')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-blue-200/70 font-semibold"
+            >
+              <span className="flex items-center gap-2">
+                <Home className="w-4 h-4 text-slate-400 group-hover:text-blue-500 transition-colors" />
                 Owners
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/buyers')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/buyers')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-orange-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <ShoppingCart className="w-4 h-4 text-gray-400 group-hover:text-orange-500" />
+                <ShoppingCart className="w-4 h-4 text-slate-400 group-hover:text-orange-500 transition-colors" />
                 Buyers
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-orange-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/hierarchy')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/hierarchy')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <Building2 className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                 Hierarchy
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/b2b-leads')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/b2b-leads')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-indigo-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <Briefcase className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" />
                 B2B Leads
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-all" />
             </button>
-            <button 
-              onClick={() => navigate('/crm/properties')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-gray-200"
+            <button
+              onClick={() => navigate('/crm/properties')}
+              className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/50 hover:border-purple-200/70 font-semibold"
             >
               <span className="flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-gray-400 group-hover:text-indigo-500" />
+                <Building2 className="w-4 h-4 text-slate-400 group-hover:text-purple-500 transition-colors" />
                 Properties
               </span>
-              <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-indigo-400" />
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-purple-400 group-hover:translate-x-0.5 transition-all" />
             </button>
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/ai-employee')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-blue-200/70 hover:border-blue-400/70 bg-blue-50/30 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-brand group-hover:text-blue-600 transition-colors" />
+                  AI Employee
+                </span>
+                <ChevronRight className="w-4 h-4 text-blue-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/ai-integrations')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-purple-200/70 hover:border-purple-400/70 bg-purple-50/30 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Bot className="w-4 h-4 text-purple-600 group-hover:text-purple-700 transition-colors" />
+                  AI Integrations
+                </span>
+                <ChevronRight className="w-4 h-4 text-purple-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
+            {isAdmin && baileyEnabled && (
+              <div
+                onClick={() => navigate('/onboarding/connect-whatsapp')}
+                className={`cursor-pointer flex flex-col gap-1 px-3 py-2.5 text-sm rounded-xl transition-all duration-200 group border ${
+                  whatsappConnected
+                    ? 'bg-green-50/50 border-green-200/70 hover:border-green-400/70'
+                    : 'bg-white/50 border-slate-200/70 hover:border-green-400/70'
+                } ${checkingWhatsapp ? 'opacity-80' : ''}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 font-semibold">
+                    <span
+                      className={`relative flex h-2.5 w-2.5 ${
+                        whatsappConnected ? 'bg-green-500' : 'bg-red-500'
+                      } rounded-full ${checkingWhatsapp ? 'animate-pulse' : ''}`}
+                    >
+                      {whatsappConnected && (
+                        <span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping" />
+                      )}
+                    </span>
+                    <MessageCircle className={`w-4 h-4 transition-colors ${whatsappConnected ? 'text-green-600' : 'text-slate-400 group-hover:text-green-600'}`} />
+                    <span className={whatsappConnected ? 'text-green-700' : 'text-slate-600 group-hover:text-green-700'}>
+                      {whatsappConnected ? 'WhatsApp Connected' : whatsappPhone ? 'WhatsApp Disconnected' : 'Connect WhatsApp'}
+                    </span>
+                  </span>
+                  <ChevronRight className={`w-4 h-4 transition-all ${whatsappConnected ? 'text-green-300 group-hover:text-green-500' : 'text-slate-300 group-hover:text-green-500'} group-hover:translate-x-0.5`} />
+                </div>
+                {whatsappPhone && (
+                  <p className={`text-xs pl-[1.125rem] ${whatsappConnected ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatWhatsAppPhone(whatsappPhone)}
+                    {whatsappState && whatsappState !== 'unknown' && (
+                      <span className="ml-2 opacity-75">({whatsappState})</span>
+                    )}
+                  </p>
+                )}
+                {whatsappError && !whatsappConnected && (
+                  <p className={`text-xs pl-[1.125rem] ${
+                    whatsappErrorType === 'network' ? 'text-orange-500' :
+                    whatsappErrorType === 'auth' ? 'text-purple-500' :
+                    'text-red-500'
+                  }`}>
+                    {whatsappErrorType === 'network' ? '⚠️ Network error: ' : whatsappErrorType === 'auth' ? '🔐 Auth error: ' : ''}
+                    {whatsappError}
+                  </p>
+                )}
+              </div>
+            )}
+            {isAdmin && baileyEnabled && whatsappConnected && (
+              <button
+                onClick={() => navigate('/crm/whatsapp-inbox')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/70 hover:border-green-400/70 bg-white/50 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Inbox className="w-4 h-4 text-green-600 group-hover:text-green-700 transition-colors" />
+                  WhatsApp Inbox
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-green-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/call-recordings')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/70 hover:border-blue-400/70 bg-white/50 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <PhoneCall className="w-4 h-4 text-blue-600 group-hover:text-blue-700 transition-colors" />
+                  Call Recordings
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
             {/* AI Calling - DISABLED */}
             {/*
             <button 

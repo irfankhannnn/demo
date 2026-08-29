@@ -1,0 +1,156 @@
+/**
+ * trial-reminder-cron.js
+ * Daily cron at 09:00 IST (03:30 UTC) — sends trial reminder emails via Brevo.
+ * 
+ * Queries Subscriptions where paymentStatus='trialing'.
+ * Sends emails at:
+ *   - Day 10 (4 days left): soft pitch
+ *   - Day 12 (2 days left): urgency + tiers
+ *   - Day 14 (1 day left): last chance
+ *   - Day 3 post-expiry: reactivation offer (7 extra days)
+ * 
+ * Idempotent: Subscriptions.lastTrialEmail stores last email type sent; skip if already sent.
+ */
+
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { sendEmail } from '../emailService.js';
+
+const client = new DynamoDBClient({
+  region: process.env.AWS_REGION || 'ap-south-1',
+  ...(process.env.DYNAMODB_ENDPOINT && { endpoint: process.env.DYNAMODB_ENDPOINT }),
+});
+const docClient = DynamoDBDocumentClient.from(client);
+const TABLE_NAME = process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions';
+
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const APP_URL = process.env.APP_URL;
+
+const EMAIL_TEMPLATES = {
+  'trial-day-10': {
+    subject: '4 days left on your RealEstateFlow trial',
+    templateId: null, // Use Brevo template ID when configured
+  },
+  'trial-day-12': {
+    subject: '2 days left — pick a plan to keep going',
+    templateId: null,
+  },
+  'trial-day-14': {
+    subject: 'Your trial ends tomorrow — last chance for ₹999',
+    templateId: null,
+  },
+  'trial-expired-day-3': {
+    subject: 'We miss you — 7 extra days if you upgrade today',
+    templateId: null,
+  },
+};
+
+
+async function sendTrialEmail(to, emailType, params) {
+  const template = EMAIL_TEMPLATES[emailType];
+  const upgradeUrl = APP_URL ? `${APP_URL}/crm/settings/billing?upgrade=true` : null;
+  try {
+    await sendEmail({
+      to,
+      subject: template.subject,
+      html: `<p>Hi,</p><p>${template.subject}.</p>${upgradeUrl ? `<p><a href="${upgradeUrl}">Upgrade now →</a></p>` : ''}`,
+      brevoTemplateId: template.templateId,
+      params,
+    });
+    console.log(`Sent ${emailType} to ${to}`);
+  } catch (err) {
+    console.error(`Email send failed for ${to} (${emailType}):`, err.message);
+  }
+}
+
+async function markEmailSent(tenantId, emailType) {
+  await docClient.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { tenantId },
+    UpdateExpression: 'SET lastTrialEmail = :type, lastTrialEmailAt = :now',
+    ExpressionAttributeValues: {
+      ':type': emailType,
+      ':now': new Date().toISOString(),
+    },
+  }));
+}
+
+async function processTrialReminders() {
+  const now = Date.now();
+  let lastKey = undefined;
+  let processed = 0;
+
+  do {
+    // Use GSI for efficient trial-status queries
+    const result = await docClient.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      IndexName: 'paymentStatus-createdAt-index',
+      KeyConditionExpression: 'paymentStatus = :trialing',
+      ExpressionAttributeValues: {
+        ':trialing': 'trialing',
+      },
+      ...(lastKey && { ExclusiveStartKey: lastKey }),
+    }));
+
+    for (const sub of result.Items || []) {
+      const trialEndsAt = new Date(sub.trialEndsAt).getTime();
+      const msLeft = trialEndsAt - now;
+      const daysLeft = msLeft / 86400000;
+      const daysSinceExpiry = -daysLeft;
+
+      let emailType = null;
+
+      if (daysLeft >= 3 && daysLeft < 4) {
+        emailType = 'trial-day-10';
+      } else if (daysLeft >= 1 && daysLeft < 2) {
+        emailType = 'trial-day-12';
+      } else if (daysLeft >= 0 && daysLeft < 1) {
+        emailType = 'trial-day-14';
+      } else if (daysSinceExpiry >= 3 && daysSinceExpiry < 4 && !sub.isPaying) {
+        emailType = 'trial-expired-day-3';
+      }
+
+      if (!emailType) continue;
+      if (sub.lastTrialEmail === emailType) continue; // idempotent
+
+      // Need tenant contact email — fetch from Users table or use a stored email
+      const email = sub.contactEmail || sub.adminEmail;
+      if (!email) {
+        console.warn(`No contact email for tenant ${sub.tenantId}, skipping ${emailType}`);
+        continue;
+      }
+
+      try {
+        await sendTrialEmail(email, emailType, {
+          trialDaysLeft: Math.max(0, Math.ceil(daysLeft)),
+          plan: sub.plan,
+        });
+        await markEmailSent(sub.tenantId, emailType);
+        processed++;
+      } catch (err) {
+        console.error(`Failed to send ${emailType} to ${email} for tenant ${sub.tenantId}:`, err.message);
+        // Don't mark as sent; allow retry next cron run
+      }
+    }
+
+    lastKey = result.LastEvaluatedKey;
+  } while (lastKey);
+
+  console.log(`Trial reminder cron complete. Processed ${processed} emails.`);
+}
+
+// Lambda handler
+export const handler = async () => {
+  try {
+    await processTrialReminders();
+    return { statusCode: 200, body: 'OK' };
+  } catch (err) {
+    console.error('Trial reminder cron failed:', err);
+    throw err;
+  }
+};
+
+// CLI invocation
+if (process.argv[1] && process.argv[1].includes('trial-reminder-cron')) {
+  processTrialReminders().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });
+}

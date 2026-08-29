@@ -29,37 +29,43 @@ export default function ConfirmDialog({
     }
   };
 
+  const isDanger = confirmVariant === 'danger';
+  const iconBg = isDanger ? 'bg-rose-50' : 'bg-indigo-50';
+  const iconColor = isDanger ? 'text-rose-600' : 'text-indigo-600';
+  const confirmGradient = isDanger
+    ? 'bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 shadow-rose-500/25'
+    : 'bg-gradient-to-r from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 shadow-indigo-500/25';
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm animate-fadeIn"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn"
+      style={{ background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(8px)' }}
       onKeyDown={handleKeyDown}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-title"
       aria-describedby="confirm-message"
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 transform transition-all animate-scaleIn">
+      <div className="glass-premium rounded-3xl w-full max-w-md p-8 animate-scaleInCenter shadow-2xl shadow-black/10">
         {/* Icon */}
-        <div className="flex justify-center mb-4">
+        <div className="flex justify-center mb-5">
           <div
-            className={`w-16 h-16 rounded-full flex items-center justify-center ${
-              confirmVariant === 'danger' ? 'bg-red-100' : 'bg-blue-100'
-            }`}
+            className={`w-[68px] h-[68px] rounded-2xl flex items-center justify-center ${iconBg} shadow-inner`}
           >
-            {confirmVariant === 'danger' ? (
-              <Trash2 className={`w-8 h-8 ${confirmVariant === 'danger' ? 'text-red-600' : 'text-blue-600'}`} />
+            {isDanger ? (
+              <Trash2 className={`w-8 h-8 ${iconColor}`} />
             ) : (
-              <AlertCircle className={`w-8 h-8 ${confirmVariant === 'danger' ? 'text-red-600' : 'text-blue-600'}`} />
+              <AlertCircle className={`w-8 h-8 ${iconColor}`} />
             )}
           </div>
         </div>
 
         {/* Content */}
-        <div className="text-center mb-6">
-          <h2 id="confirm-title" className="text-2xl font-bold text-slate-900 mb-2">
+        <div className="text-center mb-7">
+          <h2 id="confirm-title" className="text-xl font-bold text-slate-900 mb-2 tracking-tight">
             {title}
           </h2>
-          <p id="confirm-message" className="text-slate-600">
+          <p id="confirm-message" className="text-slate-500 leading-relaxed text-[15px]">
             {message}
           </p>
         </div>
@@ -68,17 +74,13 @@ export default function ConfirmDialog({
         <div className="flex gap-3">
           <button
             onClick={onCancel}
-            className="flex-1 px-4 py-3 border-2 border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 transition-all"
+            className="flex-1 px-5 py-3.5 border-2 border-slate-200/80 text-slate-600 rounded-2xl font-semibold hover:bg-slate-50/80 hover:border-slate-300 transition-all duration-200 active:scale-[0.97]"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
-            className={`flex-1 px-4 py-3 text-white rounded-xl font-semibold transition-all shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] ${
-              confirmVariant === 'danger'
-                ? 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
-                : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800'
-            }`}
+            className={`flex-1 px-5 py-3.5 text-white rounded-2xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl active:scale-[0.97] ${confirmGradient}`}
           >
             {confirmLabel}
           </button>

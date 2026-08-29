@@ -1,38 +1,19 @@
 # 05 — Deployment & Pre-launch Verification
 
-All deployment tasks run after the corresponding coding PRs are merged and env vars are populated.
+> **Scope:** The actual ship — build + push LP, CRM, demo, and the API Lambda, then smoke-test prod. All run **after** the vendor accounts exist (`02`) and env vars are filled (`01` INFRA-07). The application code is merged in PR #24; this file is pure deploy/ops.
+> **Owner files to read:** `team-work/ZEESHAN-tasks.md` (`ZEE-013`, build/deploy support) and `team-work/FOUNDER-tasks.md` (`FND-002/007`, AWS).
+>
+> **Already done — no action needed (removed from this list):**
+> - DEPLOY-01 tagged route-injection blocks — present + verified in `server/server.js` and `real-estate-crm-app/src/App.tsx`.
+> - LP analytics/consent partials + Netlify CSP + homepage SEO/AEO — shipped in PR #24 (`npm run build:lps` verifies 14/14 pages carry PostHog/GA4/consent).
 
 ---
 
-## DEPLOY-01: Add Tagged Extension Blocks to Shared Files (Pre-coding Setup)
-**Priority:** Critical — Must happen before ANY coding agent starts (see `03-ANTI-CONFLICT-RULES.md`)
+## DEPLOY-02: Fill LP `.env` Before Build
+**Why:** The LP build injects analytics IDs + founder details at compile time; a missing value produces broken pages or dead CTAs.
+**Priority:** Critical (P0) · **Read:** `team-work/ZEESHAN-tasks.md` → `ZEE-013`
 
-Add two tagged comment blocks to `server/server.js`:
-```javascript
-// === [LAUNCH ROUTES IMPORTS] ===
-// === [/LAUNCH ROUTES IMPORTS] ===
-```
-And:
-```javascript
-// === [LAUNCH ROUTES MOUNTS] ===
-// === [/LAUNCH ROUTES MOUNTS] ===
-```
-
-Add three tagged comment blocks inside `<Routes>` in `real-estate-crm-app/src/App.tsx`:
-```tsx
-{/* === [LAUNCH PUBLIC ROUTES] === */}{/* === [/LAUNCH PUBLIC ROUTES] === */}
-{/* === [LAUNCH PROTECTED ROUTES] === */}{/* === [/LAUNCH PROTECTED ROUTES] === */}
-{/* === [LAUNCH LAYOUT COMPONENTS] === */}{/* === [/LAUNCH LAYOUT COMPONENTS] === */}
-```
-
-**References:** `coding-agent-brief/00-MASTER-BRIEF.md §11-12` · `coding-agent-brief/03-ANTI-CONFLICT-RULES.md §Rule 1`
-
----
-
-## DEPLOY-02: Fill LP Placeholder Values Before Build
-**Priority:** Critical — Build fails or produces broken LPs without these
-
-Create `creative/landing-pages/.env` (from `.env.example`) and fill:
+**Steps** — copy `creative/landing-pages/.env.example` → `.env` and fill:
 ```
 POSTHOG_KEY=phc_...
 GA4_ID=G-...
@@ -46,98 +27,87 @@ COMPANY_LEGAL_NAME=...
 GSTIN=...
 CIN=...
 ```
-
-Also update any remaining `{{PLACEHOLDER}}` tokens in LP HTML files (PR-I agents leave documented stubs).
-
-**References:** `coding-agent-brief/prompts/PR-I-landing-pages.md` AC §4 · `pre-launch-prep/P15-landing-pages-rewrite.md` Manual Steps §1
+Then resolve any remaining `{{PLACEHOLDER}}` tokens in the LP HTML.
 
 ---
 
-## DEPLOY-03: Run LP Build + Deploy to Netlify
-**Priority:** Critical — Required before Day 6
+## DEPLOY-03: Build + Deploy LP to Netlify
+**Why:** Ships the marketing site (`realestateflow.in`) — the top of the funnel every other task feeds.
+**Priority:** Critical (P0) · **Read:** `team-work/ZEESHAN-tasks.md` → `ZEE-013`
 
-- `cd creative/landing-pages/build && npm install && npm run build:lps`
-- Verify no placeholder strings in `dist/`: `grep -r "XXXX\|YOUR_\|hello@\|9999999999" dist/`
-- Deploy: `netlify deploy --prod --dir=creative/landing-pages/dist`
-- In Netlify dashboard: add custom domain `realestateflow.in` + `www.realestateflow.in`
-- Update Cloudflare CNAME to point to Netlify site URL
-- Wait for HTTPS cert (~15 min)
-- Verify all 12 URLs return 200
-
-**References:** `team-work/ZEESHAN-tasks.md` ZEE-013-T2/T3 · `week-1-foundation/day-06-landing-pages-deploy.md` Manual Steps §1-6
-
----
-
-## DEPLOY-04: Run Lighthouse + OG Verification on All 12 LPs
-**Priority:** High — Lighthouse mobile ≥90 required before public launch
-
-- Run PageSpeed Insights (or `npm run lighthouse:all`) on each of the 12 LP URLs
-- Fix any category below 90 (usually: image optimization, unused CSS, LCP preload)
-- Verify OG previews at opengraph.xyz for each URL
-- Verify schema validation at validator.schema.org for each page
-
-**References:** `pre-launch-prep/P15-landing-pages-rewrite.md` AC · `pre-launch-prep/P16-seo-aeo-master.md` AC
+**Steps**
+```bash
+cd marketing-and-sales/creative/landing-pages/build && npm ci && npm run build:lps
+grep -r "XXXX\|YOUR_\|hello@\|9999999999" ../dist/   # must return nothing
+netlify deploy --prod --dir=../dist
+```
+Then: add custom domain `realestateflow.in` (+ `www`) in Netlify → point the Cloudflare CNAME at the Netlify URL → wait for HTTPS (~15 min) → confirm all 12 URLs return 200.
 
 ---
 
-## DEPLOY-05: Deploy CRM SPA to Netlify
-**Priority:** Critical
+## DEPLOY-04: Lighthouse + OG/Schema Verification (12 LPs)
+**Why:** Mobile Lighthouse ≥ 90 and valid OG/schema are required before paid traffic — slow or unpreviewable pages tank ad quality scores and CTR.
+**Priority:** High (P1) · **Read:** `team-work/ZEESHAN-tasks.md` → `ZEE-013`
 
-- `cd real-estate-crm-app && npm run build`
-- Deploy to Netlify: separate site for `app.realestateflow.in`
-- Set all CRM env vars in Netlify site settings: `VITE_POSTHOG_KEY`, `VITE_SENTRY_DSN`, `VITE_RAZORPAY_KEY_ID`, `VITE_HCAPTCHA_SITE_KEY`, `VITE_IS_DEMO=false`, `VITE_API_URL=https://api.realestateflow.in`
-- Custom domain `app.realestateflow.in` → update Cloudflare CNAME
-- Verify login flow works on production domain
+**Steps**
+1. Run PageSpeed Insights (or `npm run lighthouse:all`) on each of the 12 URLs; fix anything < 90 (usually image opt, unused CSS, LCP preload).
+2. Verify OG previews at opengraph.xyz and schema at validator.schema.org for each page.
 
-**References:** `real-estate-crm-app/netlify.toml` · `coding-agent-brief/00-MASTER-BRIEF.md §9`
+---
+
+## DEPLOY-05: Build + Deploy CRM SPA to Netlify
+**Why:** Ships `app.realestateflow.in` — the product itself; every LP CTA redirects here to sign up/log in.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-002`
+
+**Steps**
+1. `cd real-estate-crm-app && npm run build` → deploy to its **own** Netlify site.
+2. Set CRM env in Netlify: `VITE_POSTHOG_KEY`, `VITE_SENTRY_DSN`, `VITE_RAZORPAY_KEY_ID`, `VITE_HCAPTCHA_SITE_KEY`, `VITE_IS_DEMO=false`, `VITE_API_URL=https://api.realestateflow.in`.
+3. Custom domain `app.realestateflow.in` (Cloudflare CNAME) → verify login on the prod domain.
 
 ---
 
 ## DEPLOY-06: Deploy Demo SPA
-**Priority:** High — Required before cold outreach links to demo.realestateflow.in
+**Why:** `demo.realestateflow.in` is the no-signup sandbox cold outreach links to; needs the demo Cognito pool (INFRA-02) + seed data.
+**Priority:** High (P1) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-007`
 
-- Build CRM SPA with `VITE_IS_DEMO=true` + demo Cognito pool env vars
-- Deploy to separate Netlify site; custom domain `demo.realestateflow.in`
-- Run seed script once: `node server/scripts/seed-demo-tenant.js --reset`
-- Smoke test: login with `demo@realestateflow.in`, confirm populated data + DemoBanner visible
-
-**References:** `team-work/FOUNDER-tasks.md` FND-007-T5/T6 · PR-A output
+**Steps**
+1. Build the CRM with `VITE_IS_DEMO=true` + the `DEMO_*` pool vars → deploy to a separate Netlify site.
+2. Seed once: `node server/scripts/seed-demo-tenant.js --reset`.
+3. Smoke test: log in as `demo@realestateflow.in` → confirm populated data + the Demo banner.
 
 ---
 
-## DEPLOY-07: Deploy API Lambda + Update Function Configuration
-**Priority:** Critical
+## DEPLOY-07: Deploy API Lambda + Set Server Env
+**Why:** The backend every app calls; without the server secrets the routes run but integrations no-op.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-002`
 
-- Deploy server bundle to Lambda in `ap-south-1`
-- Update Lambda env vars with all server secrets (Razorpay, Brevo, AiSensy, hCaptcha, PostHog, Sentry)
-- Smoke test: `curl https://api.realestateflow.in/api/health` → 200
-
-**References:** `server/DEPLOYMENT-GUIDE.md` · `coding-agent-brief/00-MASTER-BRIEF.md §9`
+**Steps**
+1. Deploy the server bundle to Lambda in `ap-south-1` (`server/DEPLOYMENT-GUIDE.md`).
+2. Set all server secrets (Razorpay, Brevo, AiSensy, hCaptcha, PostHog, Sentry).
+3. Smoke: `curl https://api.realestateflow.in/api/health` → 200.
 
 ---
 
 ## DEPLOY-08: Submit Sitemap to Search Engines
-**Priority:** Medium — SEO foundation; do on Day 6 after LPs live
+**Why:** Kicks off organic indexing the day the LPs go live — compounding SEO from Day 6.
+**Priority:** Medium (P2) · **Read:** `team-work/MADHU-tasks.md` → `MAD-007`
 
-- Google Search Console: verify `realestateflow.in` property → submit `realestateflow.in/sitemap.xml` → request indexing for top 5 pages
-- Bing Webmaster Tools: same
-- Brave Search Webmaster: same
-- ahrefs Webmaster Tools (free): add for backlink monitoring baseline
-
-**References:** `team-work/MADHU-tasks.md` MAD-007-T5/T6 · `pre-launch-prep/P16-seo-aeo-master.md` Manual Steps §5-6
+**Steps** — submit `realestateflow.in/sitemap.xml` to Google Search Console, Bing Webmaster, Brave; add ahrefs Webmaster Tools for a backlink baseline; request indexing for the top 5 pages.
 
 ---
 
 ## DEPLOY-09: Full Pre-launch Smoke Test (T-1)
-**Priority:** Critical
+**Why:** Final go/no-go gate that proves the whole stack (DNS → API → DDB → analytics → email → Sentry) works end-to-end before customers arrive.
+**Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-002`
 
-- `aws sts get-caller-identity` → returns founder ARN
-- `aws dynamodb describe-table --table-name Grievances` → ACTIVE
-- `dig realestateflow.in` → resolves via Cloudflare
-- `curl https://api.realestateflow.in/api/health` → 200
-- Visit `realestateflow.in` incognito → loads → cookie banner → form submits → analytics fires
-- Visit `app.realestateflow.in` → login → PostHog Live Events shows `signup_started`
-- Grievance form submit → tracking ID returned + email lands in `info@realestateflow.in`
-- Sentry test event → appears in dashboard
-
-**References:** `pre-launch-prep/P18-cloud-infra-checklist.md` Track F · `team-work/FOUNDER-tasks.md` FND-002-T11
+**Checklist**
+```bash
+aws sts get-caller-identity                                   # founder ARN
+aws dynamodb describe-table --table-name Grievances           # ACTIVE
+dig realestateflow.in                                         # resolves via Cloudflare
+curl https://api.realestateflow.in/api/health                 # 200
+```
+- `realestateflow.in` (incognito) → loads → cookie banner → form submits → analytics fires.
+- `app.realestateflow.in` → login → PostHog Live Events shows `signup_started`.
+- Grievance form → tracking ID returned + email lands in `info@realestateflow.in`.
+- Sentry test event → appears in dashboard.

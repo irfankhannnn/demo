@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import { MapPin, Navigation, Search, X, Check } from 'lucide-react';
+import { Geolocation } from '@capacitor/geolocation';
+import { hasNativeRuntime } from '../lib/platform';
+import { openExternal } from '../lib/nativeAuth';
 
 interface LocationPickerProps {
   latitude: string;
@@ -36,37 +39,74 @@ export default function LocationPicker({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  // Get current location using browser geolocation
-  const getCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      return;
-    }
-
+  /**
+   * Resolve the device's current position.
+   *
+   * Native goes through @capacitor/geolocation rather than navigator.geolocation:
+   * the WebView API needs onGeolocationPermissionsShowPrompt wired up on Android
+   * and would otherwise fail silently, and the plugin surfaces the OS permission
+   * prompt properly on both platforms.
+   */
+  const getCurrentLocation = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const lat = position.coords.latitude.toFixed(6);
-        const lng = position.coords.longitude.toFixed(6);
-        setTempLat(lat);
-        setTempLng(lng);
+    try {
+      if (hasNativeRuntime()) {
+        const permission = await Geolocation.checkPermissions();
+        if (permission.location !== 'granted') {
+          const requested = await Geolocation.requestPermissions();
+          if (requested.location !== 'granted') {
+            setError('Location permission denied. Enable it in Settings to use this.');
+            setLoading(false);
+            return;
+          }
+        }
+
+        const position = await Geolocation.getCurrentPosition({
+          enableHighAccuracy: true,
+          timeout: 10000,
+        });
+        setTempLat(position.coords.latitude.toFixed(6));
+        setTempLng(position.coords.longitude.toFixed(6));
         setLoading(false);
-      },
-      (err) => {
-        setError(`Unable to get location: ${err.message}`);
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        setError('Geolocation is not supported by your browser');
         setLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setTempLat(position.coords.latitude.toFixed(6));
+          setTempLng(position.coords.longitude.toFixed(6));
+          setLoading(false);
+        },
+        (err) => {
+          setError(`Unable to get location: ${err.message}`);
+          setLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } catch (err) {
+      setError(err instanceof Error ? `Unable to get location: ${err.message}` : 'Unable to get location');
+      setLoading(false);
+    }
   }, []);
 
-  // Open Google Maps for address search
+  /**
+   * Open Google Maps for an address search.
+   *
+   * window.open in a WebView opens a blank in-app frame with no chrome and no
+   * way back, so native routes through the system browser instead.
+   */
   const openGoogleMapsSearch = () => {
     const query = searchQuery || address || 'Mumbai, India';
     const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
-    window.open(url, '_blank');
+    openExternal(url);
   };
 
   // Confirm and apply location

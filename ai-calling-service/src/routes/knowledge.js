@@ -12,7 +12,10 @@ const router = express.Router();
 const REGION = process.env.AWS_REGION || 'ap-south-1';
 const KNOWLEDGE_BUCKET = process.env.AI_CALLING_KNOWLEDGE_BUCKET;
 
-const s3Client = new S3Client({ region: REGION });
+// requestChecksumCalculation: 'WHEN_REQUIRED' keeps the SDK from hoisting an
+// empty-body CRC32 into presigned PUT URLs, which makes S3 reject the browser's
+// upload with BadDigest. Default is 'WHEN_SUPPORTED' since SDK v3.729.
+const s3Client = new S3Client({ region: REGION, requestChecksumCalculation: 'WHEN_REQUIRED' });
 
 // Middleware to extract tenant ID
 const extractTenantId = (req, res, next) => {

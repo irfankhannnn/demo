@@ -2,6 +2,7 @@ import express from 'express';
 import multer from 'multer';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
   createBuyer,
   getBuyers,
@@ -11,6 +12,8 @@ import {
   getBuyerNotes,
   findPersonByPhone,
 } from '../crmDynamodbService.js';
+import { createListingFromPurchase } from '../crmHelpers.js';
+import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 import { uploadToS3, getSignedUrl as getS3SignedUrl } from '../s3Service.js';
 
 const router = express.Router();
@@ -22,83 +25,76 @@ const upload = multer({
 // Get all buyers with optional filters
 router.get('/', validateToken, extractTenantId, async (req, res) => {
   try {
-    const { status, priority, propertyType } = req.query;
+    const {
+      status, priority, propertyType, source, bhk, furnishing, area,
+      search, minBudget, maxBudget, createdFrom, createdTo, tag,
+      sortBy, sortOrder, limit, offset,
+    } = req.query;
+
     const filters = {};
     if (status) filters.status = status;
     if (priority) filters.priority = priority;
     if (propertyType) filters.propertyType = propertyType;
+    if (source) filters.source = source;
+    if (bhk) filters.bhk = bhk;
+    if (furnishing) filters.furnishing = furnishing;
+    if (area) filters.area = area;
+    if (search) filters.search = search;
+    if (minBudget) filters.minBudget = minBudget;
+    if (maxBudget) filters.maxBudget = maxBudget;
+    if (createdFrom) filters.createdFrom = createdFrom;
+    if (createdTo) filters.createdTo = createdTo;
+    if (tag) filters.tag = tag;
+    if (sortBy) filters.sortBy = sortBy;
+    if (sortOrder) filters.sortOrder = sortOrder;
+    if (limit) filters.limit = limit;
+    if (offset) filters.offset = offset;
 
-    const buyers = await getBuyers(req.tenantId, filters);
-    res.json(buyers);
+    const result = await getBuyers(req.tenantId, filters);
+    res.json(result);
   } catch (error) {
     console.error('Get buyers error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 
-// Get single buyer
-router.get('/:id', validateToken, extractTenantId, async (req, res) => {
+// Get buyer metrics
+router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) => {
   try {
-    const buyer = await getBuyer(req.tenantId, req.params.id);
-    if (!buyer) {
-      return res.status(404).json({ error: 'Buyer not found' });
-    }
-    res.json(buyer);
-  } catch (error) {
-    console.error('Get buyer error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-});
+    const result = await getBuyers(req.tenantId);
+    const buyers = result?.buyers || [];
 
-// Create buyer
-router.post('/', validateToken, extractTenantId, async (req, res) => {
-  try {
-    const buyerData = {
-      ...req.body,
-      createdBy: req.user?.username || 'Admin',
+    const metrics = {
+      total: buyers.length,
+      byStatus: {},
+      byPriority: {},
+      byPropertyType: {},
+      avgBudget: 0,
     };
-    
-    // Check if person exists in other roles
-    if (buyerData.phone) {
-      const personLookup = await findPersonByPhone(req.tenantId, buyerData.phone);
-      if (personLookup.found) {
-        buyerData.linkedRoles = personLookup.roles.map(r => ({
-          role: r.role,
-          id: r.id,
-          name: r.data.name
-        }));
+
+    buyers.forEach(buyer => {
+      // Count by status
+      metrics.byStatus[buyer.status] = (metrics.byStatus[buyer.status] || 0) + 1;
+      
+      // Count by priority
+      metrics.byPriority[buyer.priority] = (metrics.byPriority[buyer.priority] || 0) + 1;
+      
+      // Count by property type
+      metrics.byPropertyType[buyer.propertyType] = (metrics.byPropertyType[buyer.propertyType] || 0) + 1;
+      
+      // Sum budgets
+      if (buyer.budget) {
+        metrics.avgBudget += buyer.budget;
       }
-    }
-    
-    const buyer = await createBuyer(req.tenantId, buyerData);
-    
-    // Return with cross-role info
-    const response = {
-      ...buyer,
-      crossRoleInfo: buyer.linkedRoles.length > 0 ? {
-        message: `This person also exists as: ${buyer.linkedRoles.map(r => r.role).join(', ')}`,
-        roles: buyer.linkedRoles
-      } : null
-    };
-    
-    res.status(201).json(response);
-  } catch (error) {
-    console.error('Create buyer error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-});
+    });
 
-// Update buyer
-router.put('/:id', validateToken, extractTenantId, async (req, res) => {
-  try {
-    const updateData = {
-      ...req.body,
-      updatedBy: req.user?.username || 'Admin',
-    };
-    const buyer = await updateBuyer(req.tenantId, req.params.id, updateData);
-    res.json(buyer);
+    if (buyers.length > 0) {
+      metrics.avgBudget = Math.round(metrics.avgBudget / buyers.length);
+    }
+
+    res.json(metrics);
   } catch (error) {
-    console.error('Update buyer error:', error);
+    console.error('Get buyer metrics error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
@@ -119,6 +115,79 @@ router.get('/lookup/by-phone', validateToken, extractTenantId, async (req, res) 
   }
 });
 
+// Get single buyer
+router.get('/:id', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const buyer = await getBuyer(req.tenantId, req.params.id);
+    if (!buyer) {
+      return res.status(404).json({ error: 'Buyer not found' });
+    }
+    res.json(buyer);
+  } catch (error) {
+    console.error('Get buyer error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Create buyer
+router.post('/', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const { precheckCredits, chargeCreditsForAction, handleCreditError } = await import('../middleware/meterCredits.js');
+    await precheckCredits(req.tenantId, 'contact_add');
+    const buyerData = {
+      ...req.body,
+      createdBy: req.user?.username || SERVICE_ACCOUNT_USER,
+    };
+    
+    // Check if person exists in other roles
+    if (buyerData.phone) {
+      const personLookup = await findPersonByPhone(req.tenantId, buyerData.phone);
+      if (personLookup.found) {
+        buyerData.linkedRoles = personLookup.roles.map(r => ({
+          role: r.role,
+          id: r.id,
+          name: r.data.name
+        }));
+      }
+    }
+    
+    const buyer = await createBuyer(req.tenantId, buyerData);
+    const creditResult = await chargeCreditsForAction(req.tenantId, 'contact_add', { recordId: buyer.buyerId });
+    
+    // Return with cross-role info
+    const response = {
+      ...buyer,
+      creditsRemaining: creditResult.balance,
+      crossRoleInfo: (buyer.linkedRoles || []).length > 0 ? {
+        message: `This person also exists as: ${(buyer.linkedRoles || []).map(r => r.role).join(', ')}`,
+        roles: buyer.linkedRoles
+      } : null
+    };
+    
+    res.status(201).json(response);
+  } catch (error) {
+    const { handleCreditError } = await import('../middleware/meterCredits.js');
+    if (handleCreditError(error, res)) return;
+    console.error('Create buyer error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Update buyer
+router.put('/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const updateData = {
+      ...req.body,
+      updatedBy: req.user?.username || SERVICE_ACCOUNT_USER,
+    };
+    const buyer = await updateBuyer(req.tenantId, req.params.id, updateData);
+    res.json(buyer);
+  } catch (error) {
+    console.error('Update buyer error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 // Get buyer notes
 router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   try {
@@ -131,11 +200,11 @@ router.get('/:id/notes', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Create buyer note
-router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
+router.post('/:id/notes', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
   try {
     const noteData = {
       ...req.body,
-      createdBy: req.user?.username || 'Admin',
+      createdBy: req.user?.username || SERVICE_ACCOUNT_USER,
     };
     const note = await createBuyerNote(req.tenantId, req.params.id, noteData);
     res.status(201).json(note);
@@ -145,51 +214,10 @@ router.post('/:id/notes', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
-// Get buyer metrics
-router.get('/metrics/summary', validateToken, extractTenantId, async (req, res) => {
-  try {
-    const buyers = await getBuyers(req.tenantId);
-    
-    const metrics = {
-      total: buyers.length,
-      byStatus: {},
-      byPriority: {},
-      byPropertyType: {},
-      avgBudget: 0,
-    };
-    
-    buyers.forEach(buyer => {
-      // Count by status
-      metrics.byStatus[buyer.status] = (metrics.byStatus[buyer.status] || 0) + 1;
-      
-      // Count by priority
-      metrics.byPriority[buyer.priority] = (metrics.byPriority[buyer.priority] || 0) + 1;
-      
-      // Count by property type
-      if (buyer.propertyType) {
-        metrics.byPropertyType[buyer.propertyType] = (metrics.byPropertyType[buyer.propertyType] || 0) + 1;
-      }
-    });
-    
-    // Calculate average budget
-    const buyersWithBudget = buyers.filter(b => b.budget > 0);
-    if (buyersWithBudget.length > 0) {
-      metrics.avgBudget = Math.round(
-        buyersWithBudget.reduce((sum, b) => sum + b.budget, 0) / buyersWithBudget.length
-      );
-    }
-    
-    res.json(metrics);
-  } catch (error) {
-    console.error('Get buyer metrics error:', error);
-    res.status(500).json({ error: error.message || 'Internal server error' });
-  }
-});
-
 // ============== Buyer Document Upload Routes ==============
 
 // Upload buyer documents (photo, PAN, Aadhar)
-router.post('/:id/documents', validateToken, extractTenantId, upload.fields([
+router.post('/:id/documents', validateToken, extractTenantId, requireCrmMemberOrAbove, upload.fields([
   { name: 'photo', maxCount: 1 },
   { name: 'pan', maxCount: 1 },
   { name: 'aadhar', maxCount: 1 }
@@ -270,6 +298,38 @@ router.get('/:id/with-documents', validateToken, extractTenantId, async (req, re
     res.json(buyerWithUrls);
   } catch (error) {
     console.error('Get buyer with documents error:', error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// Create an owner listing from a buyer's purchased property
+router.post('/:id/list-property', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const { propertyId, listingType } = req.body;
+    if (!propertyId) {
+      return res.status(400).json({ error: 'propertyId is required' });
+    }
+    if (!listingType || !['rent', 'sale'].includes(listingType)) {
+      return res.status(400).json({ error: "listingType must be 'rent' or 'sale'" });
+    }
+
+    const result = await createListingFromPurchase(
+      req.tenantId,
+      req.params.id,
+      propertyId,
+      listingType,
+      req.user?.username || SERVICE_ACCOUNT_USER
+    );
+
+    res.status(201).json(result);
+  } catch (error) {
+    console.error('Create listing from purchase error:', error);
+    if (error.message === 'Buyer not found') {
+      return res.status(404).json({ error: error.message });
+    }
+    if (error.message === 'Property not found in buyer purchase history') {
+      return res.status(400).json({ error: error.message });
+    }
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });

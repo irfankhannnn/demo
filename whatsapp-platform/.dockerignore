@@ -1,0 +1,11 @@
+node_modules
+npm-debug.log
+.env
+auth_state
+auth-backups
+*.test.js
+__tests__
+.git
+.gitignore
+README.md
+docs

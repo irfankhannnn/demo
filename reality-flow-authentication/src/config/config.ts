@@ -19,6 +19,27 @@ const envSchema = z.object({
   AUTH_IDENTITIES_TABLE: z.string().min(1, 'AUTH_IDENTITIES_TABLE is required'),
   AGENCY_CONFIG_TABLE: z.string().min(1, 'AGENCY_CONFIG_TABLE is required'),
   OTP_TABLE: z.string().min(1, 'OTP_TABLE is required'),
+  SUBSCRIPTIONS_TABLE: z.string().min(1).default('Subscriptions'),
+
+  // CORS - allowed origins for auth service.
+  // capacitor://localhost (iOS WKWebView) and https://localhost (Android, per
+  // server.androidScheme in capacitor.config.ts) are appended unconditionally:
+  // they are fixed platform constants, and if they are missing the mobile app
+  // cannot reach /auth/refresh at all, which logs every user out hourly.
+  // Entries are trimmed so a spaced-out env value like "a, b" still matches.
+  ALLOWED_ORIGINS: z
+    .string()
+    .default('http://localhost:3000,http://localhost:5173')
+    .transform(s => [
+      ...new Set([
+        ...s.split(',').map(o => o.trim()).filter(Boolean),
+        'capacitor://localhost',
+        'https://localhost',
+      ]),
+    ]),
+
+  // Internal API key for service-to-service auth
+  INTERNAL_API_KEY: z.string().min(1, 'INTERNAL_API_KEY is required'),
 
   // Local dev
   PORT: z.string().default('3002').transform(Number),

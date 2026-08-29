@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
@@ -18,6 +18,18 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME;
 
 // Initialize S3 client (uses env credentials by default)
 const s3 = wrapAwsClient(new S3Client({ region: REGION }), 'S3', { bucketName: BUCKET_NAME });
+
+// Separate client used only for presigning browser uploads.
+//
+// Since v3.729 the SDK defaults to requestChecksumCalculation: 'WHEN_SUPPORTED',
+// so presigning a PutObjectCommand (which has no Body) computes a CRC32 of an
+// empty payload and hoists it into the *signed* query string as
+// x-amz-checksum-crc32=AAAAAA==. The browser then PUTs the real file and S3
+// rejects it with BadDigest because the body no longer matches that checksum.
+// 'WHEN_REQUIRED' keeps checksums off presigned URLs while still emitting them
+// for the operations that mandate them. The main `s3` client above keeps the
+// default so server-side uploads retain their integrity checks.
+const s3Presign = new S3Client({ region: REGION, requestChecksumCalculation: 'WHEN_REQUIRED' });
 
 function ensureBucketConfigured() {
   if (!BUCKET_NAME || BUCKET_NAME.trim().length === 0) {
@@ -139,6 +151,90 @@ export async function deleteFromS3(key) {
     });
     throw new Error('Failed to delete file from S3');
   }
+}
+
+/**
+ * Generate a pre-signed PUT URL so a browser can upload directly to S3
+ * without streaming the file through the API Lambda.
+ * @param {string} key
+ * @param {string} contentType must match the Content-Type the client sends
+ * @param {number} expiresIn seconds (default 900)
+ * @returns {Promise<string>}
+ */
+export async function getPresignedUploadUrl(key, contentType, expiresIn = 900) {
+  ensureBucketConfigured();
+  try {
+    const cmd = new PutObjectCommand({ Bucket: BUCKET_NAME, Key: key, ContentType: contentType });
+    return await logger.span('s3.presignUpload', { bucket: BUCKET_NAME, key, contentType, expiresIn }, async () => {
+      return await getSignedUrl(s3Presign, cmd, { expiresIn });
+    });
+  } catch (error) {
+    logger.error('s3.presignUpload.error', {
+      bucket: BUCKET_NAME,
+      key,
+      contentType,
+      errorMessage: error?.message,
+      errorName: error?.name,
+    });
+    throw new Error('Failed to generate pre-signed upload URL');
+  }
+}
+
+/**
+ * Fetch object metadata. Returns null when the object does not exist.
+ * @param {string} key
+ * @returns {Promise<{contentLength: number, contentType: string, lastModified: Date}|null>}
+ */
+export async function headObject(key) {
+  ensureBucketConfigured();
+  try {
+    const result = await s3.send(new HeadObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+    return {
+      contentLength: result.ContentLength,
+      contentType: result.ContentType,
+      lastModified: result.LastModified,
+    };
+  } catch (error) {
+    if (error?.name === 'NotFound' || error?.$metadata?.httpStatusCode === 404) {
+      return null;
+    }
+    logger.error('s3.head.error', { bucket: BUCKET_NAME, key, errorMessage: error?.message, errorName: error?.name });
+    throw new Error('Failed to read object metadata from S3');
+  }
+}
+
+/**
+ * Read an object as UTF-8 text (used for transcript/analysis JSON).
+ * @param {string} key
+ * @returns {Promise<string>}
+ */
+export async function getObjectText(key) {
+  ensureBucketConfigured();
+  const result = await s3.send(new GetObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+  return await result.Body.transformToString('utf-8');
+}
+
+/**
+ * Write a UTF-8 text/JSON object.
+ * @param {string} key
+ * @param {string} body
+ * @param {string} contentType
+ */
+export async function putObjectText(key, body, contentType = 'application/json') {
+  ensureBucketConfigured();
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: body,
+    ContentType: contentType,
+  }));
+  return key;
+}
+
+/** Bucket name currently configured (needed by Amazon Transcribe job input/output). */
+export function getBucketName() {
+  ensureBucketConfigured();
+  return BUCKET_NAME;
 }
 
 // Alias for CRM compatibility

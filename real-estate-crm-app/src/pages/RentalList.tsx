@@ -151,10 +151,13 @@ export default function RentalList() {
 
   const getStatusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      available: 'bg-green-100 text-green-800',
-      on_hold: 'bg-yellow-100 text-yellow-800',
-      out_of_stock: 'bg-gray-100 text-gray-800',
-      rented: 'bg-blue-100 text-blue-800',
+      available: 'bg-emerald-100 text-emerald-800',
+      'for-sale': 'bg-blue-100 text-blue-800',
+      'for-rent': 'bg-yellow-100 text-yellow-800',
+      rented: 'bg-indigo-100 text-indigo-800',
+      sold: 'bg-red-100 text-red-800',
+      'on-hold': 'bg-amber-100 text-amber-800',
+      'out-of-stock': 'bg-gray-100 text-gray-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
@@ -223,9 +226,12 @@ export default function RentalList() {
             >
               <option value="all">All Status</option>
               <option value="available">Available</option>
+              <option value="for-sale">For Sale</option>
+              <option value="for-rent">For Rent</option>
               <option value="rented">Rented</option>
-              <option value="on_hold">On Hold</option>
-              <option value="out_of_stock">Out of Stock</option>
+              <option value="sold">Sold</option>
+              <option value="on-hold">On Hold</option>
+              <option value="out-of-stock">Out of Stock</option>
             </select>
             <select
               value={filterAgreement}

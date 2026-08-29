@@ -6,7 +6,7 @@
 // --- Token keys ---
 const ID_TOKEN_KEY = 'auth_id_token';
 const ACCESS_TOKEN_KEY = 'auth_access_token';
-const REFRESH_TOKEN_KEY = 'auth_refresh_token';
+// Refresh token is stored in httpOnly cookie (server-side) — NEVER in localStorage
 const TOKEN_EXPIRY_KEY = 'auth_token_expiry';
 const USER_PROFILE_KEY = 'auth_user_profile';
 const PROFILE_TIMESTAMP_KEY = 'auth_profile_timestamp';
@@ -18,7 +18,7 @@ const LEGACY_ADMIN_TOKEN_KEY = 'admin_token';
 export interface AuthTokens {
   idToken: string;
   accessToken: string;
-  refreshToken?: string;
+  refreshToken?: string; // kept for type compat; always undefined now
   expiresIn: number; // seconds
 }
 
@@ -31,7 +31,7 @@ export interface UserProfile {
   cognitoSub: string;
   email?: string;
   phoneNumber?: string;
-  role: 'ADMIN' | 'MEMBER';
+  role: 'ADMIN' | 'MEMBER' | 'FOUNDER' | 'OWNER' | 'MANAGER';
   tenantId: string;
   displayName: string;
   status: string;
@@ -57,7 +57,6 @@ export interface UserProfile {
 }
 
 export function setOnboardingSession(active: boolean, notify = true): void {
-  console.log('[authStorage] setOnboardingSession:', active);
   if (active) {
     localStorage.setItem(ONBOARDING_SESSION_KEY, 'true');
   } else {
@@ -70,9 +69,26 @@ export function setOnboardingSession(active: boolean, notify = true): void {
 }
 
 export function hasOnboardingSession(): boolean {
-  const result = localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
-  console.log('[authStorage] hasOnboardingSession:', result);
-  return result;
+  return localStorage.getItem(ONBOARDING_SESSION_KEY) === 'true';
+}
+
+// --- JWT helpers ---
+
+function base64UrlDecode(str: string): string {
+  const padding = '='.repeat((4 - (str.length % 4)) % 4);
+  const base64 = str.replace(/-/g, '+').replace(/_/g, '/') + padding;
+  return atob(base64);
+}
+
+function decodeJwtExp(idToken: string): number | null {
+  try {
+    const payload = idToken.split('.')[1];
+    if (!payload) return null;
+    const decoded = JSON.parse(base64UrlDecode(payload));
+    return decoded.exp ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
 }
 
 // --- Token operations ---
@@ -80,14 +96,18 @@ export function hasOnboardingSession(): boolean {
 export function setTokens(tokens: AuthTokens): void {
   localStorage.setItem(ID_TOKEN_KEY, tokens.idToken);
   localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-  if (tokens.refreshToken) {
-    localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-  }
-  const expiryTime = Date.now() + tokens.expiresIn * 1000;
+  // Refresh token is stored in httpOnly cookie by the server — do NOT store in localStorage
+  const jwtExp = decodeJwtExp(tokens.idToken);
+  const expiresInMs =
+    typeof tokens.expiresIn === 'number' && !Number.isNaN(tokens.expiresIn)
+      ? tokens.expiresIn * 1000
+      : 3600 * 1000;
+  const expiryTime = jwtExp ?? (Date.now() + expiresInMs);
   localStorage.setItem(TOKEN_EXPIRY_KEY, expiryTime.toString());
 
-  // Clean up legacy token
+  // Clean up legacy tokens (including any old refresh tokens)
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  localStorage.removeItem('auth_refresh_token');
 
   notifyAuthChanged();
 }
@@ -101,7 +121,8 @@ export function getAccessToken(): string | null {
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  // Refresh token lives in httpOnly cookie (server-managed)
+  return null;
 }
 
 export function isTokenExpired(): boolean {
@@ -144,26 +165,51 @@ export function isProfileFresh(maxAgeSeconds = 60): boolean {
 
 // --- Clear all auth data ---
 
+/**
+ * Assistant transcripts live in localStorage under `assistant_threads_v1:<userId>`
+ * (see components/ai/assistantThreads.ts). They contain customer names and
+ * phone numbers, so signing out has to take them with it — otherwise the next
+ * person on a shared machine can read the previous user's conversations
+ * straight out of devtools.
+ *
+ * Inlined rather than imported to keep this module free of app-level imports;
+ * it is loaded by the auth bootstrap before anything else exists.
+ */
+const ASSISTANT_THREADS_PREFIX = 'assistant_threads_v1:';
+
+function clearAssistantThreads(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(ASSISTANT_THREADS_PREFIX)) keys.push(key);
+    }
+    keys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* storage unavailable — nothing was ever written */
+  }
+}
+
 export function clearAuthSilently(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
   localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  clearAssistantThreads();
 }
 
 export function clearAuth(): void {
   localStorage.removeItem(ID_TOKEN_KEY);
   localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TOKEN_EXPIRY_KEY);
   localStorage.removeItem(USER_PROFILE_KEY);
   localStorage.removeItem(PROFILE_TIMESTAMP_KEY);
   localStorage.removeItem(ONBOARDING_SESSION_KEY);
   localStorage.removeItem(LEGACY_ADMIN_TOKEN_KEY);
+  clearAssistantThreads();
 
   notifyAuthChanged();
 }

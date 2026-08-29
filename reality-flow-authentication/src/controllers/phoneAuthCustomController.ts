@@ -10,14 +10,18 @@
 
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import { v4 as uuidv4 } from 'uuid';
 import { validateAndFormatIndianPhone } from '../utils/phoneValidation';
-import { ok, badRequest, forbidden, internalError } from '../utils/http';
-import { getAgencyConfig } from '../models/agencyConfigModel';
+import { ok, badRequest, forbidden, internalError, conflict } from '../utils/http';
+import { getAgencyConfig, createAgencyConfig } from '../models/agencyConfigModel';
 import { findInvitesByPhone, findInvitesByEmail, deleteInvite } from '../models/invitesModel';
-import { findIdentityBySub } from '../models/authIdentitiesModel';
+import { findIdentityBySub, createIdentity } from '../models/authIdentitiesModel';
+import { createAdminUser, findUserByPhone, findUserByEmail } from '../models/usersModel';
 import { resolveUser } from '../utils/resolveUser';
 import { resolveMemberUser } from '../utils/resolveMemberUser';
 import { extractClaims } from '../utils/cognito';
+import { setRefreshTokenCookie } from '../utils/cookies';
+import { logger } from '../utils/logger';
 import AWS from 'aws-sdk';
 
 const cognito = new AWS.CognitoIdentityServiceProvider({ region: 'ap-south-1' });
@@ -32,7 +36,7 @@ async function resolvePhoneNumberFromAccessToken(accessToken: string): Promise<s
     const phoneAttr = userResult.UserAttributes?.find(attr => attr.Name === 'phone_number');
     return phoneAttr?.Value || null;
   } catch (error) {
-    console.error('[resolvePhone] Error getting user attributes:', error);
+    logger.error('[resolvePhone] Error getting user attributes', { error });
     return null;
   }
 }
@@ -82,6 +86,7 @@ const onboardSchema = z.object({
   displayName: z.string().min(1, 'displayName is required'),
   role: z.enum(['ADMIN', 'MEMBER']),
   agencyName: z.string().optional(),
+  consentAccepted: z.literal(true).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -133,7 +138,7 @@ export async function startPhoneAuthHandler(req: Request, res: Response) {
           })
           .promise();
       } else {
-        console.error('[start] Error checking/creating Cognito user:', error);
+        logger.error('[start] Error checking/creating Cognito user', { error });
         return internalError(res, 'Failed to prepare user account');
       }
     }
@@ -158,11 +163,11 @@ export async function startPhoneAuthHandler(req: Request, res: Response) {
         expiresIn: 300,
       });
     } else {
-      console.error('[start] Unexpected challenge:', authResult);
+      logger.error('[start] Unexpected challenge', { authResult });
       return internalError(res, 'Unexpected authentication challenge');
     }
   } catch (error) {
-    console.error('[start] Error:', error);
+    logger.error('[start] Error', { error });
     return internalError(res, 'Failed to start phone authentication');
   }
 }
@@ -207,9 +212,9 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
             UserAttributes: [{ Name: 'phone_number_verified', Value: 'true' }],
           })
           .promise();
-        console.log('[confirm] Marked phone_number_verified=true for:', formattedPhone);
+        logger.info('[confirm] Marked phone_number_verified=true for', { phone: formattedPhone });
       } catch (e) {
-        console.error('[confirm] Failed to mark phone_number_verified:', e);
+        logger.error('[confirm] Failed to mark phone_number_verified', { error: e });
       }
     }
 
@@ -238,7 +243,7 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
 
     // OTP correct – must have tokens
     if (!authResult.AuthenticationResult) {
-      console.error('[confirm] Unexpected auth result:', authResult);
+      logger.error('[confirm] Unexpected auth result', { authResult });
       return internalError(res, 'Authentication failed');
     }
 
@@ -262,23 +267,25 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
     try {
       resolved = await resolveUser(sub, 'phone', undefined, formattedPhone);
     } catch (resolveErr) {
-      console.error('[confirm] resolveUser error:', resolveErr);
+      logger.error('[confirm] resolveUser error', { error: resolveErr });
       return internalError(res, 'Failed to resolve user identity');
     }
 
     if (resolved.isNewUser === false) {
       // --- Existing or auto-linked user ---
       const { user, agency } = resolved;
-      console.log('[confirm] Resolved existing user:', user.userId, '| role:', user.role);
 
       await markPhoneVerifiedIfPossible();
+
+      if (authResult.AuthenticationResult?.RefreshToken) {
+        setRefreshTokenCookie(res, authResult.AuthenticationResult.RefreshToken);
+      }
 
       return ok(res, {
         message: 'Login successful',
         tokens: {
           idToken,
           accessToken,
-          refreshToken: authResult.AuthenticationResult.RefreshToken,
         },
         user: {
           userId: user.userId,
@@ -297,38 +304,37 @@ export async function confirmPhoneAuthHandler(req: Request, res: Response) {
     }
 
     // --- New user: check for pending phone invites ---
-    console.log('[confirm] New user (not resolved):', sub);
+    logger.info('[confirm] New user (not resolved)', { sub });
 
     let pendingInvites: any[] = [];
     try {
       pendingInvites = await findInvitesByPhone(formattedPhone);
-      console.log(`[confirm] Found ${pendingInvites.length} pending invites for phone ${formattedPhone}`);
+      logger.info(`[confirm] Found ${pendingInvites.length} pending invites for phone ${formattedPhone}`);
     } catch (inviteErr) {
-      console.error('[confirm] Failed to check invites:', inviteErr);
-    }
-
-    if (pendingInvites.length === 0) {
-      return forbidden(res, 'NOT_ONBOARDED', 'You are not onboarded. Please contact the administrator to get onboarded.');
+      logger.error('[confirm] Failed to check invites', { error: inviteErr });
     }
 
     await markPhoneVerifiedIfPossible();
+
+    if (authResult.AuthenticationResult?.RefreshToken) {
+      setRefreshTokenCookie(res, authResult.AuthenticationResult.RefreshToken);
+    }
 
     return ok(res, {
       message: 'Phone verified successfully',
       tokens: {
         idToken,
         accessToken,
-        refreshToken: authResult.AuthenticationResult.RefreshToken,
       },
       user: { sub, phoneNumber: formattedPhone },
       existingUser: false,
       newUser: true,
       needsOnboarding: true,
-      hasPendingInvite: true,
+      hasPendingInvite: pendingInvites.length > 0,
       pendingInvitesCount: pendingInvites.length,
     });
   } catch (error: any) {
-    console.error('[confirm] Error:', error);
+    logger.error('[confirm] Error', { error });
 
     if (error.code === 'NotAuthorizedException') {
       return badRequest(res, 'Invalid or expired OTP');
@@ -381,7 +387,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     if (existingIdentity) {
       const { findUserByUserId } = await import('../models/usersModel');
       const existingUser = await findUserByUserId(existingIdentity.userId);
-      console.log('[onboard] User already onboarded:', sub);
+      logger.info('[onboard] User already onboarded', { sub });
       const agency = existingUser ? await getAgencyConfig(existingUser.TenantId) : null;
       return ok(res, {
         message: 'User already onboarded',
@@ -402,21 +408,74 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     }
 
     // Reliably resolve phone number from token
-    console.log('[onboard] Resolving phone number from token for user:', sub);
+    logger.info('[onboard] Resolving phone number from token for user', { sub });
     const phoneNumber = await resolvePhoneNumberFromAccessToken(accessToken);
     
     if (!phoneNumber) {
-      console.error('[onboard] Failed to resolve phone number from token for user:', sub);
+      logger.error('[onboard] Failed to resolve phone number from token for user', { sub });
       return badRequest(res, 'Unable to retrieve phone number from your account. Please re-login.');
     }
 
-    // Block self-admin onboarding - admins must be pre-onboarded via onboarding page
     if (role === 'ADMIN') {
-      return forbidden(res, 'NOT_ONBOARDED', 'Admin self-registration is not allowed. Please contact the SaaS administrator to get onboarded.');
+      if (!agencyName) {
+        return badRequest(res, 'agencyName is required for admin registration');
+      }
+      if (!parsed.data.consentAccepted) {
+        return badRequest(res, 'Terms and Privacy Policy consent is required');
+      }
+
+      const phoneTaken = await findUserByPhone(phoneNumber);
+      if (phoneTaken) {
+        return conflict(res, 'Phone number already registered');
+      }
+
+      const tenantId = uuidv4();
+      const userId = uuidv4();
+      const email = `${phoneNumber.replace(/\D/g, '')}@phone.realestateflow.in`;
+
+      const [user, agency] = await Promise.all([
+        createAdminUser({
+          tenantId,
+          cognitoSub: sub,
+          userId,
+          email,
+          displayName,
+          phoneNumber,
+          authMethod: 'phone',
+        }),
+        createAgencyConfig({
+          tenantId,
+          agencyName,
+          adminEmail: email,
+        }),
+      ]);
+
+      await createIdentity({
+        sub,
+        userId,
+        tenantId,
+        provider: 'phone',
+        phone: phoneNumber,
+      });
+
+      return ok(res, {
+        message: 'Admin registered successfully',
+        user: {
+          userId: user.userId,
+          sub: user.cognitoSub,
+          phoneNumber: user.phoneNumber,
+          displayName: user.displayName,
+          role: user.role,
+          tenantId: user.TenantId,
+          status: user.status,
+        },
+        agency: { agencyName: agency.agencyName, status: agency.status },
+        newUser: true,
+      });
     }
 
     // --- Member onboarding (requires invite) ---
-    console.log('[onboard] Looking up phone invites for:', phoneNumber);
+    logger.info('[onboard] Looking up phone invites for', { phoneNumber });
     let pendingInvites = await findInvitesByPhone(phoneNumber);
     
     // Filter invites to ensure they are valid (PENDING + not expired)
@@ -426,7 +485,7 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       invite.expiresAt > now
     );
     
-    console.log(`[onboard] Found ${pendingInvites.length} valid pending invites after filtering`);
+    logger.info(`[onboard] Found ${pendingInvites.length} valid pending invites after filtering`);
     
     if (pendingInvites.length === 0) {
       return res.status(403).json({
@@ -441,11 +500,32 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     
     // Validate tenant integrity
     if (!invite.TenantId) {
-      console.error('[onboard] Invalid invite: missing TenantId');
+      logger.error('[onboard] Invalid invite: missing TenantId');
       return internalError(res, 'Invalid invitation data. Please contact support.');
     }
+
+    // Check if email or phone is already registered in another agency
+    if (invite.inviteeEmail) {
+      const existingByEmail = await findUserByEmail(invite.inviteeEmail);
+      if (existingByEmail && existingByEmail.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+      }
+    }
+
+    const existingByPhone = await findUserByPhone(phoneNumber);
+    if (existingByPhone && existingByPhone.TenantId !== invite.TenantId) {
+      return forbidden(
+        res,
+        'PHONE_ALREADY_REGISTERED',
+        'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+      );
+    }
     
-    console.log('[onboard] Found valid invite, resolving MEMBER under tenant:', invite.TenantId);
+    logger.info('[onboard] Found valid invite, resolving MEMBER under tenant', { tenantId: invite.TenantId });
 
     // Use resolveMemberUser to create/link member
     const result = await resolveMemberUser(
@@ -458,11 +538,31 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
     );
 
     if (result.isNewMember === null) {
+      // Check if it failed due to duplicate email/phone
+      const dupeCheckEmail = invite.inviteeEmail ? await findUserByEmail(invite.inviteeEmail) : null;
+      const dupeCheckPhone = await findUserByPhone(phoneNumber);
+
+      if (dupeCheckEmail && dupeCheckEmail.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'EMAIL_ALREADY_REGISTERED',
+          'This email is already registered with another agency. Please use a different email or contact support.'
+        );
+      }
+
+      if (dupeCheckPhone && dupeCheckPhone.TenantId !== invite.TenantId) {
+        return forbidden(
+          res,
+          'PHONE_ALREADY_REGISTERED',
+          'This phone number is already registered with another agency. Please use a different phone number or contact support.'
+        );
+      }
+
       return internalError(res, 'Failed to resolve member');
     }
 
     await deleteInvite(invite.TenantId, invite.inviteCode);
-    console.log('[onboard] Member resolved, invite deleted');
+    logger.info('[onboard] Member resolved, invite deleted');
 
     return ok(res, {
       message: 'Member registered successfully',
@@ -479,7 +579,9 @@ export async function onboardPhoneUserHandler(req: Request, res: Response) {
       newUser: result.isNewMember,
     });
   } catch (error) {
-    console.error('[onboard] Error:', error);
+    logger.error('[onboard] Error', { error });
     return internalError(res, 'Failed to complete onboarding');
   }
 }
+
+

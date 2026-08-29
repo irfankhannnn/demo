@@ -11,6 +11,19 @@
     "blotato": {
       "type": "http",
       "url": "https://mcp.blotato.com/sse"
+    },
+    "nabi-crm": {
+      "type": "http",
+      "url": "${MCP_API_URL}/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_TOKEN}",
+        "x-tenant-id": "${MCP_TENANT_ID}"
+      }
+    },
+    "git": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@mseep/git-mcp-server"]
     }
   }
 }

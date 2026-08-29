@@ -1,8 +1,0 @@
-{
-  "name": "cloudberry-real-estate",
-  "description": "Real estate marketing and video production project",
-  "version": "1.0.0",
-  "settings": {
-    "maxOutputTokens": 200000
-  }
-}

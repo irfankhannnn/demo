@@ -89,51 +89,6 @@ logAwsContext().catch((err) => {
 
 // ============== Admin Operations ==============
 
-export async function createDefaultAdmin() {
-  const adminId = 'admin-default';
-  const username = process.env.DEFAULT_ADMIN_USERNAME || 'admin';
-  const password = process.env.DEFAULT_ADMIN_PASSWORD || 'admin123';
-  
-  try {
-    // Check if admin exists
-    const existingAdmin = await getAdminByUsername(username);
-    if (existingAdmin) {
-      console.log('Default admin already exists');
-      return existingAdmin;
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = {
-      PK: `ADMIN#${adminId}`,
-      SK: 'PROFILE',
-      EntityType: 'ADMIN',
-      adminId,
-      username,
-      password: hashedPassword,
-      createdAt: new Date().toISOString(),
-    };
-
-    await docClient.send(new PutCommand({
-      TableName: TABLE_NAME,
-      Item: admin,
-    }));
-
-    console.log('Default admin created successfully');
-    return admin;
-  } catch (error) {
-    if (error?.name === 'ResourceNotFoundException') {
-      logger.warn('admin.default.skip.tableNotFound', {
-        tableName: TABLE_NAME,
-        region: REGION,
-        errorMessage: error?.message,
-      });
-      return null;
-    }
-    console.error('Error creating default admin:', error);
-    throw error;
-  }
-}
-
 export async function getAdminByUsername(username) {
   try {
     const result = await docClient.send(new ScanCommand({
@@ -438,9 +393,10 @@ export async function getRentalList() {
       const allTenants = await getAllTenantIds();
       
       for (const tenantId of allTenants) {
-        const properties = await crmDb.getProperties(tenantId);
-        const rentedProperties = properties.filter(p => 
-          p.status === 'rented' || p.status === 'on_hold'
+        const propertiesResult = await crmDb.getProperties(tenantId);
+        const properties = propertiesResult.properties || [];
+        const rentedProperties = properties.filter(p =>
+          p.status === 'rented' || p.status === 'on-hold'
         );
         
         // Convert CRM properties to rental list format

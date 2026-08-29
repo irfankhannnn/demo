@@ -97,6 +97,7 @@ Attributes:
   paymentStatus (string) — enum: trialing | active | cancelled | past_due
   razorpaySubscriptionId (string, optional)
   nextBillingDate (string, ISO timestamp, optional)
+  consentSignedAt (string, ISO timestamp, optional) — DPDP ToS/Privacy consent at signup
   createdAt (string, ISO timestamp)
   updatedAt (string, ISO timestamp)
 

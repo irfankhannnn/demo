@@ -1,0 +1,10 @@
+node_modules/
+dist/
+function.zip
+.env
+infra/cfn-params.json
+infra/cfn-params.dev.json
+infra/cfn-params.test.json
+infra/cfn-params.prod.json
+*.log
+.DS_Store

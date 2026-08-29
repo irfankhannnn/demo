@@ -1,0 +1,318 @@
+<template>
+  <div
+    id="root"
+    data-composition-id="02-yeh-aapka-system-hai"
+    data-start="0"
+    data-duration="4.9"
+    data-width="1080"
+    data-height="1920"
+  >
+    <!-- ================= FULL-BLEED GROUND (never on #root) ================= -->
+    <div
+      class="clip f02-ground"
+      data-start="0"
+      data-duration="4.9"
+      data-track-index="0"
+    ></div>
+
+    <!-- ================= THE CROWD (6 plain paper cards) ================= -->
+    <div
+      class="clip f02-layer"
+      id="f02-crowd"
+      data-start="0"
+      data-duration="4.9"
+      data-track-index="1"
+    >
+      <div id="f02-crowd-inner">
+        <div data-layout-allow-overlap class="f02-card f02-d3" data-i="0">Sir woh Andheri wala flat?</div>
+        <div data-layout-allow-overlap class="f02-card f02-d2" data-i="1">Payment kab aayega?</div>
+        <div data-layout-allow-overlap class="f02-card f02-d1" data-i="2">Bhai file kahan hai?</div>
+        <div data-layout-allow-overlap class="f02-card f02-d1" data-i="3">Kal site visit tha na?</div>
+        <div data-layout-allow-overlap class="f02-card f02-d2" data-i="4">Uska number bhejo</div>
+        <div data-layout-allow-overlap class="f02-card f02-d3" data-i="5">Token kitna liya tha?</div>
+      </div>
+    </div>
+
+    <!-- ================= THE PAYOFF LINE ================= -->
+    <div
+      class="clip f02-layer"
+      id="f02-payoff-layer" data-layout-allow-overlap
+      data-start="0"
+      data-duration="4.9"
+      data-track-index="2"
+    >
+      <div id="f02-payoff" data-layout-allow-overlap>Yeh aapka<br />system hai.</div>
+    </div>
+  </div>
+
+  <style>
+/* == canonical brand fonts (auto-normalized) == */
+@font-face{font-family:'Manrope';font-style:normal;font-weight:400;font-display:block;src:url('assets/fonts/Manrope-400-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:400;font-display:block;src:url('assets/fonts/Manrope-400-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:500;font-display:block;src:url('assets/fonts/Manrope-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:500;font-display:block;src:url('assets/fonts/Manrope-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:600;font-display:block;src:url('assets/fonts/Manrope-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:600;font-display:block;src:url('assets/fonts/Manrope-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:700;font-display:block;src:url('assets/fonts/Manrope-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:700;font-display:block;src:url('assets/fonts/Manrope-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Manrope-800-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Manrope-800-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Unbounded-800-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Unbounded-800-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:900;font-display:block;src:url('assets/fonts/Unbounded-900-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:900;font-display:block;src:url('assets/fonts/Unbounded-900-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+/* == end canonical brand fonts == */
+
+    /* ---- Fonts (Google Fonts, latin subset, declared in-file) ---- */
+    
+    
+
+    /* ---- Frame root: styled by #root, NEVER by a class ---- */
+    #root {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+      container-type: size;
+      font-family: "Manrope", sans-serif;
+      /* NO background here — the ground rides on the .clip layer below */
+    }
+
+    /* ---- Full-bleed ink ground ---- */
+    .f02-ground {
+      position: absolute;
+      inset: 0;
+      background: #1c1512;
+    }
+
+    /* ---- Safe-zone stage: y 220–1500, right-most 140px kept clear ---- */
+    .f02-layer {
+      position: absolute;
+      left: 0;
+      top: 220px;
+      width: 940px;
+      height: 1280px;
+    }
+
+    #f02-crowd-inner {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* ---- Plain rounded paper cards. Not WhatsApp: no tail, no chrome,
+           no ticks, no timestamp, no green, no shadow, no gradient. ---- */
+    .f02-card {
+      --dof: 0px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      /* GSAP bakes xPercent/yPercent:-50 — no CSS transform here */
+      box-sizing: border-box;
+      padding: 22px 30px;
+      border-radius: 18px;
+      background: #fbf2e4;
+      color: #1c1512;
+      font-family: "Manrope", sans-serif;
+      font-weight: 600;
+      font-size: 3.2cqw;
+      line-height: 1.35;
+      letter-spacing: -0.005em;
+      filter: blur(var(--dof));
+      will-change: transform, filter;
+    }
+
+    /* depth 1 — near / sharp / full size */
+    .f02-card[data-i="2"] {
+      width: 440px;
+    }
+    .f02-card[data-i="3"] {
+      width: 400px;
+    }
+    /* depth 2 — mid */
+    .f02-card[data-i="1"] {
+      width: 420px;
+    }
+    .f02-card[data-i="4"] {
+      width: 400px;
+    }
+    /* depth 3 — far / smaller / dimmer */
+    .f02-card[data-i="0"] {
+      width: 430px;
+    }
+    .f02-card[data-i="5"] {
+      width: 390px;
+    }
+
+    .f02-d1 {
+      z-index: 3;
+    }
+    .f02-d2 {
+      z-index: 2;
+    }
+    .f02-d3 {
+      z-index: 1;
+    }
+
+    /* ---- Payoff display line ---- */
+    #f02-payoff-layer {
+      display: grid;
+      place-items: center;
+      pointer-events: none;
+    }
+    #f02-payoff {
+      width: 900px;
+      text-align: center;
+      font-family: "Unbounded", sans-serif;
+      font-weight: 800;
+      font-size: 9.6cqw;
+      line-height: 0.95;
+      letter-spacing: -0.035em;
+      color: #fbf2e4;
+      transform-origin: 50% 50%;
+      will-change: transform, opacity;
+    }
+  </style>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+  <script>
+    (function () {
+      var FRAME_ID = "02-yeh-aapka-system-hai";
+
+      // ---------------------------------------------------------------
+      // Deterministic per-element table. Every position, tilt, depth and
+      // entry edge derives from the element INDEX — no Math.random(),
+      // no Date.now(). Identical on every render and every seek.
+      // Offsets are px from the stage centre (canvas 470, 860).
+      // ---------------------------------------------------------------
+      var CARDS = [
+        // i, spreadX, spreadY, tilt, depth, edge
+        { x: -95, y: -520, rot: -2.6, depth: 3, edge: "top" },
+        { x: -215, y: -335, rot: 3.1, depth: 2, edge: "left" },
+        { x: 175, y: -175, rot: -1.8, depth: 1, edge: "right" },
+        { x: -180, y: 195, rot: 2.4, depth: 1, edge: "bottom" },
+        { x: 190, y: 370, rot: -3.2, depth: 2, edge: "left" },
+        { x: -85, y: 545, rot: 2.0, depth: 3, edge: "top" },
+      ];
+
+      // depth ladder — back cards smaller and dimmed, front cards full contrast
+      var DEPTH = {
+        1: { scale: 1.0, opacity: 1.0, dof: 0, dim: 1.0 },
+        2: { scale: 0.88, opacity: 0.86, dof: 5, dim: 0.74 },
+        3: { scale: 0.74, opacity: 0.66, dof: 11, dim: 0.52 },
+      };
+
+      // off-stage entry points, one per edge
+      var OFF = { top: -1150, bottom: 1150, left: -900, right: 900 };
+
+      // scene 1 : 0.0–0.8  · scene 2 : 0.8–2.4
+      var ENTER_AT = [0.0, 0.12, 0.82, 1.1, 1.38, 1.66];
+      var ENTER_DUR = 0.75;
+
+      // scene 3 : 2.4–3.2 — cluster -> inward close + depth-of-field
+      var CLOSE_AT = 2.42;
+      var CLOSE_DUR = 0.78;
+      var CLOSE_K = 0.6; // center-outward-expansion, run INWARD
+      var CROWD_SWELL = 1.07;
+
+      // scene 4 : 3.2–4.5 — crowd dims + freezes, payoff lands
+      var DIM_AT = 3.24;
+      var DIM_DUR = 0.34;
+      var POP_AT = 3.34;
+      var POP_DUR = 0.6;
+
+      var tl = gsap.timeline({ paused: true });
+      var cards = gsap.utils.toArray("#f02-crowd-inner .f02-card");
+
+      cards.forEach(function (el, i) {
+        var c = CARDS[i];
+        var d = DEPTH[c.depth];
+
+        var startX = c.x;
+        var startY = c.y;
+        if (c.edge === "top" || c.edge === "bottom") startY = OFF[c.edge];
+        else startX = OFF[c.edge];
+
+        // ---- Scenes 1 & 2 — arrival from an edge, long-tail settle ----
+        tl.fromTo(
+          el,
+          {
+            xPercent: -50,
+            yPercent: -50,
+            x: startX,
+            y: startY,
+            rotation: c.rot,
+            scale: d.scale,
+          },
+          {
+            x: c.x,
+            y: c.y,
+            rotation: c.rot,
+            scale: d.scale,
+            duration: ENTER_DUR,
+            ease: "power3.out",
+          },
+          ENTER_AT[i],
+        );
+        tl.fromTo(
+          el,
+          { opacity: 0 },
+          { opacity: d.opacity, duration: 0.3, ease: "power1.out" },
+          ENTER_AT[i],
+        );
+
+        // ---- Scene 3 — the signature move: the crowd closes IN ----
+        tl.to(
+          el,
+          {
+            x: c.x * CLOSE_K,
+            y: c.y * CLOSE_K,
+            scale: d.scale * CROWD_SWELL,
+            duration: CLOSE_DUR,
+            ease: "power2.inOut",
+          },
+          CLOSE_AT,
+        );
+
+        // ---- Scene 3 — depth-of-field settles on the OUTER ring.
+        //      Depth 1 (the cards hugging the open centre) stays sharp. ----
+        if (d.dof > 0) {
+          tl.to(
+            el,
+            {
+              "--dof": d.dof + "px",
+              opacity: d.dim,
+              duration: CLOSE_DUR,
+              ease: "power2.inOut",
+            },
+            CLOSE_AT,
+          );
+        }
+      });
+
+      // ---- Scene 4 — the crowd dims to ~45% and FREEZES ----
+      tl.to(
+        "#f02-crowd-inner",
+        { opacity: 0.58, duration: DIM_DUR, ease: "power2.out" },
+        DIM_AT,
+      );
+
+      // ---- Scene 4 — payoff lands flat on top (spring-pop, smooth settle) ----
+      tl.fromTo(
+        "#f02-payoff",
+        { scale: 0, opacity: 0 },
+        {
+          scale: 1,
+          opacity: 1,
+          duration: POP_DUR,
+          ease: "power3.out",
+        },
+        POP_AT,
+      );
+
+      // held still to 4.5s — deadpan. No exit tween (not the final frame).
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines[FRAME_ID] = tl;
+    })();
+  </script>
+</template>

@@ -15,6 +15,17 @@ import { getPropertiesByStatus } from '../crmDynamodbService.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
 import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
+import { requireAdmin, requireAdminOrManager } from '../middleware/requireRole.js';
+import validateBody from '../middleware/validateBody.js';
+import {
+  updateNotificationSettingsSchema,
+  createTestNotificationSchema,
+  registerPushDeviceSchema,
+} from '../validation/otherSchemas.js';
+import {
+  registerDeviceToken,
+  unregisterDeviceToken,
+} from '../services/push/deviceTokenRepository.js';
 
 const router = express.Router();
 
@@ -28,7 +39,7 @@ router.get('/', validateToken, extractTenantId, async (req, res) => {
     const options = {
       category: category || null,
       unreadOnly: unreadOnly === 'true',
-      limit: limit ? parseInt(limit, 10) : 50,
+      limit: limit ? parseInt(limit, 10) : parseInt(process.env.DEFAULT_PAGE_LIMIT || '50', 10),
     };
 
     const notifications = await getNotifications(req.tenantId, options);
@@ -74,7 +85,7 @@ router.post('/mark-all-read', validateToken, extractTenantId, async (req, res) =
 });
 
 // Delete old notifications (cleanup)
-router.delete('/cleanup', validateToken, extractTenantId, async (req, res) => {
+router.delete('/cleanup', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const { daysOld } = req.query;
     const result = await deleteOldNotifications(req.tenantId, daysOld ? parseInt(daysOld, 10) : 30);
@@ -85,10 +96,48 @@ router.delete('/cleanup', validateToken, extractTenantId, async (req, res) => {
   }
 });
 
+// ============== Push Device Routes ==============
+
+// Register (or refresh) this device's push token. Called on every app launch,
+// because FCM can rotate a token at any time without telling the server.
+router.post('/devices', validateToken, extractTenantId, validateBody(registerPushDeviceSchema), async (req, res) => {
+  try {
+    // Server-derived, never from the body: a client must not be able to
+    // register a push token against somebody else's account.
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required to register a device' });
+    }
+
+    const device = await registerDeviceToken(req.tenantId, userId, req.body);
+    res.status(201).json(device);
+  } catch (error) {
+    console.error('Register push device error:', error);
+    res.status(500).json({ error: error.message || 'Failed to register push device' });
+  }
+});
+
+// Unregister on logout, so the next person to sign in on this handset does not
+// keep receiving the previous user's notifications.
+router.delete('/devices/:token', validateToken, extractTenantId, async (req, res) => {
+  try {
+    const userId = req.user?.userId || req.user?.sub;
+    if (!userId) {
+      return res.status(400).json({ error: 'User ID is required to unregister a device' });
+    }
+
+    const result = await unregisterDeviceToken(req.tenantId, userId, req.params.token);
+    res.json(result);
+  } catch (error) {
+    console.error('Unregister push device error:', error);
+    res.status(500).json({ error: error.message || 'Failed to unregister push device' });
+  }
+});
+
 // ============== Notification Processing Routes ==============
 
 // Process due scheduled notifications (can be called by a cron job or manually)
-router.post('/process-scheduled', validateToken, extractTenantId, async (req, res) => {
+router.post('/process-scheduled', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const result = await processDueNotifications(req.tenantId);
     res.json(result);
@@ -99,7 +148,7 @@ router.post('/process-scheduled', validateToken, extractTenantId, async (req, re
 });
 
 // Generate rent expiry notifications (can be called by a cron job or manually)
-router.post('/generate-rent-expiry', validateToken, extractTenantId, async (req, res) => {
+router.post('/generate-rent-expiry', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     // Get notification settings
     const config = await getAgencyConfig(req.tenantId);
@@ -118,7 +167,7 @@ router.post('/generate-rent-expiry', validateToken, extractTenantId, async (req,
 });
 
 // Combined processing endpoint (process scheduled + generate rent expiry)
-router.post('/process-all', validateToken, extractTenantId, async (req, res) => {
+router.post('/process-all', validateToken, extractTenantId, requireAdmin, async (req, res) => {
   try {
     const results = {
       scheduled: null,
@@ -168,7 +217,7 @@ router.get('/settings', validateToken, extractTenantId, async (req, res) => {
 });
 
 // Update notification settings
-router.put('/settings', validateToken, extractTenantId, async (req, res) => {
+router.put('/settings', validateToken, extractTenantId, requireAdminOrManager, validateBody(updateNotificationSettingsSchema), async (req, res) => {
   try {
     const {
       rentedExpiryThresholdDays,
@@ -197,7 +246,7 @@ router.put('/settings', validateToken, extractTenantId, async (req, res) => {
 // ============== Test/Debug Routes ==============
 
 // Create a test notification (for debugging)
-router.post('/test', validateToken, extractTenantId, async (req, res) => {
+router.post('/test', validateToken, extractTenantId, requireAdmin, validateBody(createTestNotificationSchema), async (req, res) => {
   try {
     const { category, type, title, message, deepLink } = req.body;
 

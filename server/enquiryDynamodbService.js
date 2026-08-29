@@ -11,6 +11,8 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
+import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
+import { collectAllPages } from './utils/dynamoPagination.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -92,8 +94,8 @@ export async function createEnquiry(tenantId, enquiryData) {
 export async function getEnquiries(tenantId) {
   if (!TABLE_NAME) throw new Error('Enquiries table not configured');
 
-  const result = await logger.span('ddb.getEnquiries', { tableName: TABLE_NAME, tenantId }, async () => {
-    return await docClient.send(new QueryCommand({
+  const items = await logger.span('ddb.getEnquiries', { tableName: TABLE_NAME, tenantId }, async () => {
+    return await collectAllPages(docClient, QueryCommand, {
       TableName: TABLE_NAME,
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
       // IMPORTANT: Notes are stored with SK like ENQUIRY#{enquiryId}#NOTE#{noteId}.
@@ -105,10 +107,10 @@ export async function getEnquiries(tenantId) {
         ':entityType': 'ENQUIRY',
       },
       ScanIndexForward: false, // Most recent first
-    }));
+    }, { maxPages: 100 });
   });
 
-  return result.Items || [];
+  return items;
 }
 
 /**
@@ -212,6 +214,7 @@ export async function updateEnquiry(tenantId, enquiryId, updates) {
       SK: `ENQUIRY#${enquiryId}`,
     },
     UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+    ConditionExpression: 'attribute_exists(PK)',
     ExpressionAttributeValues: expressionAttributeValues,
     ReturnValues: 'ALL_NEW',
   };
@@ -220,10 +223,17 @@ export async function updateEnquiry(tenantId, enquiryId, updates) {
     params.ExpressionAttributeNames = expressionAttributeNames;
   }
 
-  const result = await logger.span('ddb.updateEnquiry', { tableName: TABLE_NAME, tenantId, enquiryId }, async () => {
-    return await docClient.send(new UpdateCommand(params));
-  });
-  return result.Attributes;
+  try {
+    const result = await logger.span('ddb.updateEnquiry', { tableName: TABLE_NAME, tenantId, enquiryId }, async () => {
+      return await docClient.send(new UpdateCommand(params));
+    });
+    return result.Attributes;
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new Error('Enquiry not found');
+    }
+    throw err;
+  }
 }
 
 // ============== Enquiry Notes Operations ==============
@@ -242,7 +252,7 @@ export async function createEnquiryNote(tenantId, enquiryId, data) {
     enquiryId,
     noteId,
     content: data.content,
-    createdBy: data.createdBy || 'system',
+    createdBy: data.createdBy || SERVICE_ACCOUNT_USER,
     createdAt: timestamp,
   };
 
@@ -280,7 +290,7 @@ export async function getEnquiryNotes(tenantId, enquiryId) {
         enquiryId,
         noteId: 'PROFILE_NOTES',
         content: enquiry.notes,
-        createdBy: 'System',
+        createdBy: SERVICE_ACCOUNT_USER,
         createdAt: enquiry.createdAt || new Date().toISOString(),
       }];
     }

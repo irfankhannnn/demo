@@ -7,7 +7,12 @@ Description: 'Reality Flow Authentication Microservice - Cognito + API Gateway +
 Parameters:
   ServiceName:
     Type: String
-    Default: reality-flow-auth
+    Default: realestateflow-auth
+    Description: >-
+      Base name for every resource this stack creates. Every physical name
+      below is built as ${Env}-${ServiceName}-<resource> (Env first), e.g.
+      prod-realestateflow-auth-lambda — matching the naming convention
+      already live on prod-realestateflow-networking-common.
 
   Env:
     Type: String
@@ -76,13 +81,9 @@ Parameters:
     NoEcho: true
     Description: Google OAuth 2.0 Client Secret
 
-  CognitoDomainPrefix:
-    Type: String
-    Description: Unique prefix for Cognito hosted UI domain (e.g. reality-flow-auth-dev)
-
   CognitoDomainPrefixV2:
     Type: String
-    Description: Unique prefix for Cognito V2 hosted UI domain with phone auth (e.g. reality-flow-auth-v2-dev)
+    Description: Unique prefix for Cognito V2 hosted UI domain with phone auth (e.g. dev-realestateflow-auth-v2)
 
   IdentityCallbackURL:
     Type: String
@@ -110,12 +111,47 @@ Parameters:
     Default: ''
     Description: S3 URL for nested template that creates explicit API Gateway routes without ANY/proxy+ methods
 
+  InternalApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Internal API key for service-to-service authentication
+
+  AllowedOrigins:
+    Type: String
+    Default: 'http://localhost:3000,http://localhost:5173'
+    Description: Comma-separated list of allowed CORS origins
+
+  SubscriptionsTableName:
+    Type: String
+    Default: dev-realestateflow-subscriptions
+    AllowedPattern: '^[a-zA-Z0-9_.-]+$'
+    Description: >-
+      Name of the shared DynamoDB Subscriptions table. Created by
+      server/infra/launch-tables-cfn.yaml, not this stack — must match what
+      that stack names it for the same environment. Used only when
+      ServerStackName is not provided (i.e. on auth's first deploy, before
+      the server stack exists to export from).
+
+  ServerStackName:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional name of the server stack (e.g. dev-realestateflow-backend)
+      that exports SubscriptionsTableName and SubscriptionsTableArn. Leave
+      blank until that stack has been deployed at least once — setting this
+      before the export exists fails the deploy. If provided, its exports
+      are used instead of the SubscriptionsTableName parameter.
+
 # =============================================================================
 # Conditions
 # =============================================================================
 Conditions:
   HasVpcConfig:
     !Not [!Equals [!Select [0, !Ref SubnetIds], '']]
+
+  UseServerStackExport:
+    !Not [!Equals [!Ref ServerStackName, '']]
 
 # =============================================================================
 # Resources
@@ -392,9 +428,13 @@ Resources:
   # ===========================================================================
   UsersTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${Env}-${ServiceName}-users'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: TenantId
           AttributeType: S
@@ -478,9 +518,13 @@ Resources:
   # ===========================================================================
   AgencyConfigTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${Env}-${ServiceName}-agency-config'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: TenantId
           AttributeType: S
@@ -510,9 +554,13 @@ Resources:
   # ===========================================================================
   AuthIdentitiesTable:
     Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       TableName: !Sub '${Env}-${ServiceName}-auth-identities'
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: sub
           AttributeType: S
@@ -567,7 +615,17 @@ Resources:
                   - cognito-idp:AdminGetUser
                   - cognito-idp:AdminCreateUser
                   - cognito-idp:AdminUpdateUserAttributes
-                Resource: '*'
+                # NOT !GetAtt CognitoUserPoolV2.Arn: CognitoUserPoolV2's
+                # LambdaConfig references these trigger Lambdas, which
+                # reference this role — a GetAtt back to the pool here
+                # closes a real cycle (confirmed via CloudFormation
+                # CreateChangeSet ValidationError: Circular dependency,
+                # 2026-08-27). Scoped to account+region via pseudo
+                # parameters instead — narrower than Resource: '*' (any
+                # service/resource), can't be narrower than that without
+                # the cycle.
+                Resource:
+                  - !Sub "arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*"
 
   # ===========================================================================
   # 9. Cognito Trigger Lambda Functions (Phone Auth)
@@ -576,7 +634,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-define-auth-challenge'
-      Runtime: nodejs16.x
+      Runtime: nodejs20.x
       Handler: index.handler
       Role: !GetAtt CognitoTriggerLambdaRole.Arn
       Timeout: 30
@@ -613,7 +671,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-create-auth-challenge'
-      Runtime: nodejs16.x
+      Runtime: nodejs20.x
       Handler: index.handler
       Role: !GetAtt CognitoTriggerLambdaRole.Arn
       Timeout: 30
@@ -625,16 +683,20 @@ Resources:
           TEST_OTP_VALUE: !Ref TestOtpValue
       Code:
         ZipFile: |
-          const AWS = require('aws-sdk');
+          const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+          const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+          const { CognitoIdentityProviderClient, AdminGetUserCommand, AdminCreateUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
+          const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
           const crypto = require('crypto');
-          const ddb = new AWS.DynamoDB.DocumentClient();
-          const cognito = new AWS.CognitoIdentityServiceProvider();
-          
+          const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+          const cognito = new CognitoIdentityProviderClient({});
+          const sns = new SNSClient({});
+
           function phoneToCognitoUsername(phoneNumberE164) {
             const digitsOnly = phoneNumberE164.replace(/\D/g, '');
             return `${digitsOnly}@phone.realityflow.local`;
           }
-          
+
           exports.handler = async (event) => {
             try {
               // Extract phone number from user attributes
@@ -642,7 +704,7 @@ Resources:
               if (!phoneNumber) {
                 throw new Error('phone_number attribute missing');
               }
-              
+
               const testOtpEnabled = (process.env.TEST_OTP_ENABLED || '').toLowerCase() === 'true';
               const testOtpValue = process.env.TEST_OTP_VALUE || '123456';
               console.log('CreateAuthChallenge config', {
@@ -651,22 +713,22 @@ Resources:
                 testOtpEnabled,
                 usingFixedOtp: testOtpEnabled,
               });
-              
+
               const cognitoUsername = phoneToCognitoUsername(phoneNumber);
-              
+
               // Only generate and send OTP on FIRST challenge (not retries)
               const isFirstChallenge = !event.request.session || event.request.session.length === 0;
-              
+
               if (isFirstChallenge) {
                 // Ensure user exists (safety net - backend should already do this)
                 try {
-                  await cognito.adminGetUser({
+                  await cognito.send(new AdminGetUserCommand({
                     UserPoolId: event.userPoolId,
                     Username: cognitoUsername
-                  }).promise();
+                  }));
                 } catch (err) {
-                  if (err.code === 'UserNotFoundException') {
-                    await cognito.adminCreateUser({
+                  if (err.name === 'UserNotFoundException') {
+                    await cognito.send(new AdminCreateUserCommand({
                       UserPoolId: event.userPoolId,
                       Username: cognitoUsername,
                       UserAttributes: [
@@ -674,18 +736,18 @@ Resources:
                         { Name: 'phone_number_verified', Value: 'false' }
                       ],
                       MessageAction: 'SUPPRESS'
-                    }).promise();
+                    }));
                   } else {
                     throw err;
                   }
                 }
-                
+
                 const otp = testOtpEnabled ? testOtpValue : Math.floor(100000 + Math.random() * 900000).toString();
                 const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
                 const ttl = Math.floor(Date.now() / 1000) + 300; // 5 minutes
-                
+
                 // Store OTP
-                await ddb.put({
+                await ddb.send(new PutCommand({
                   TableName: process.env.OTP_TABLE,
                   Item: {
                     PhoneNumber: phoneNumber,
@@ -695,23 +757,22 @@ Resources:
                     createdAt: Date.now(),
                     ttl
                   }
-                }).promise();
-                
+                }));
+
                 if (!testOtpEnabled) {
                   // Send OTP via SNS (skipped in dev/test mode)
-                  const sns = new AWS.SNS();
-                  await sns.publish({
+                  await sns.send(new PublishCommand({
                     PhoneNumber: phoneNumber,
                     Message: `Your verification code is ${otp}. Valid for 5 minutes.`
-                  }).promise();
+                  }));
                 }
-                
+
                 console.log('CreateAuthChallenge OTP stored', {
                   phoneNumber,
                   testOtpEnabled,
                   otpLength: otp.length,
                 });
-                
+
                 event.response.publicChallengeParameters = { phoneNumber };
                 event.response.privateChallengeParameters = { otpHash };
               } else {
@@ -719,7 +780,7 @@ Resources:
                 event.response.publicChallengeParameters = { phoneNumber };
                 event.response.privateChallengeParameters = {};
               }
-              
+
               return event;
             } catch (error) {
               console.error('CreateAuthChallenge error:', error);
@@ -731,7 +792,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-verify-auth-challenge'
-      Runtime: nodejs16.x
+      Runtime: nodejs20.x
       Handler: index.handler
       Role: !GetAtt CognitoTriggerLambdaRole.Arn
       Timeout: 30
@@ -741,16 +802,16 @@ Resources:
           OTP_TABLE: !Ref OtpTable
       Code:
         ZipFile: |
-          const AWS = require('aws-sdk');
+          const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+          const { DynamoDBDocumentClient, GetCommand, DeleteCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
           const crypto = require('crypto');
-          const ddb = new AWS.DynamoDB.DocumentClient();
-          const cognito = new AWS.CognitoIdentityServiceProvider();
-          
+          const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
           function phoneToCognitoUsername(phoneNumberE164) {
             const digitsOnly = phoneNumberE164.replace(/\D/g, '');
             return `${digitsOnly}@phone.realityflow.local`;
           }
-          
+
           exports.handler = async (event) => {
             try {
               const phoneNumber = event.request.userAttributes?.phone_number;
@@ -760,49 +821,49 @@ Resources:
                 phoneNumber,
                 hasAnswer: !!answer,
               });
-              
+
               if (!phoneNumber || !answer) {
                 event.response.answerCorrect = false;
                 return event;
               }
-              
+
               // Get OTP record
-              const result = await ddb.get({
+              const result = await ddb.send(new GetCommand({
                 TableName: process.env.OTP_TABLE,
                 Key: {
                   PhoneNumber: phoneNumber,
                   SK: 'OTP#LOGIN'
                 }
-              }).promise();
-              
+              }));
+
               if (!result.Item) {
                 event.response.answerCorrect = false;
                 return event;
               }
-              
+
               const otpRecord = result.Item;
               const now = Date.now();
-              
+
               // Check expiry
               if (now > otpRecord.ttl * 1000) {
-                await ddb.delete({
+                await ddb.send(new DeleteCommand({
                   TableName: process.env.OTP_TABLE,
                   Key: { PhoneNumber: phoneNumber, SK: 'OTP#LOGIN' }
-                }).promise();
+                }));
                 event.response.answerCorrect = false;
                 return event;
               }
-              
+
               // Check attempts
               if (otpRecord.attempts >= 3) {
-                await ddb.delete({
+                await ddb.send(new DeleteCommand({
                   TableName: process.env.OTP_TABLE,
                   Key: { PhoneNumber: phoneNumber, SK: 'OTP#LOGIN' }
-                }).promise();
+                }));
                 event.response.answerCorrect = false;
                 return event;
               }
-              
+
               // Verify OTP
               const answerHash = crypto.createHash('sha256').update(answer).digest('hex');
               const isCorrect = answerHash === otpRecord.otpHash;
@@ -811,23 +872,23 @@ Resources:
                 isCorrect,
                 attempts: otpRecord.attempts,
               });
-              
+
               if (isCorrect) {
                 // Delete OTP on success
-                await ddb.delete({
+                await ddb.send(new DeleteCommand({
                   TableName: process.env.OTP_TABLE,
                   Key: { PhoneNumber: phoneNumber, SK: 'OTP#LOGIN' }
-                }).promise();
+                }));
               } else {
                 // Increment attempts
-                await ddb.update({
+                await ddb.send(new UpdateCommand({
                   TableName: process.env.OTP_TABLE,
                   Key: { PhoneNumber: phoneNumber, SK: 'OTP#LOGIN' },
                   UpdateExpression: 'SET attempts = attempts + :inc',
                   ExpressionAttributeValues: { ':inc': 1 }
-                }).promise();
+                }));
               }
-              
+
               event.response.answerCorrect = isCorrect;
               return event;
             } catch (error) {
@@ -853,6 +914,10 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        # Only needed when HasVpcConfig is true (grants ENI create/describe/
+        # delete for VpcConfig below) — harmless to attach unconditionally
+        # when it isn't, since VpcConfig then just isn't set on the function.
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
       Policies:
         - PolicyName: DynamoDBAccess
           PolicyDocument:
@@ -902,6 +967,19 @@ Resources:
                   - cognito-idp:RespondToAuthChallenge
                 Resource:
                   - !GetAtt CognitoUserPoolV2.Arn
+        - PolicyName: SubscriptionsReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                Resource:
+                  - !If
+                    - UseServerStackExport
+                    - Fn::ImportValue:
+                        Fn::Sub: '${ServerStackName}-SubscriptionsTableArn'
+                    - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
 
   # ===========================================================================
   # 11. Lambda Function
@@ -910,11 +988,25 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: !Sub '${Env}-${ServiceName}-lambda'
-      Runtime: nodejs18.x
+      Runtime: nodejs20.x
       Handler: dist/index.handler
       Role: !GetAtt AuthLambdaRole.Arn
       Timeout: !Ref LambdaTimeout
       MemorySize: !Ref LambdaMemorySize
+      # Placed in the private app subnets when SubnetIds/SecurityGroupIds are
+      # supplied (prod: the shared prod-realestateflow-networking-common
+      # VPC) — otherwise runs without VPC config (dev default). Only this
+      # Lambda is placed in the VPC; the three Cognito trigger Lambdas below
+      # are NOT, deliberately — Cognito enforces a strict timeout on custom
+      # auth challenge Lambdas, and none of them talk to anything that
+      # requires being inside the VPC, so the ENI cold-start risk isn't
+      # worth taking there.
+      VpcConfig:
+        !If
+          - HasVpcConfig
+          - SubnetIds: !Ref SubnetIds
+            SecurityGroupIds: !Ref SecurityGroupIds
+          - !Ref 'AWS::NoValue'
       Environment:
         Variables:
           USERS_TABLE: !Ref UsersTable
@@ -926,6 +1018,14 @@ Resources:
           AWS_REGION_NAME: !Ref 'AWS::Region'
           ENV: !Ref Env
           OTP_TABLE: !Ref OtpTable
+          SUBSCRIPTIONS_TABLE:
+            !If
+              - UseServerStackExport
+              - Fn::ImportValue:
+                  Fn::Sub: '${ServerStackName}-SubscriptionsTableName'
+              - !Ref SubscriptionsTableName
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
       Code:
         S3Bucket: !Ref LambdaPackagesBucketName
         S3Key: !Sub '${ServiceName}/function.zip'
@@ -1000,9 +1100,9 @@ Resources:
         RootResourceId: !GetAtt AuthApiGateway.RootResourceId
         LambdaFunctionArn: !GetAtt AuthLambdaFunction.Arn
         CognitoAuthorizerId: !Ref CognitoAuthorizer
-        AllowOrigin: "*"
+        AllowOrigin: !Select [0, !Split [",", !Ref AllowedOrigins]]
         AllowHeaders: "Content-Type,Authorization,X-Amz-Date,X-Api-Key,X-Access-Token"
-        AllowMethods: "GET,POST,PUT,DELETE,OPTIONS"
+        AllowMethods: "GET,POST,PATCH,PUT,DELETE,OPTIONS"
 
   # ===========================================================================
   # 13. Cognito Trigger Lambda Permissions
@@ -1135,6 +1235,28 @@ Outputs:
     Value: !GetAtt OtpTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-OtpTableArn'
+
+  SubscriptionsTableName:
+    Description: Subscriptions DynamoDB table name referenced by the auth service (SUBSCRIPTIONS_TABLE)
+    Value:
+      !If
+        - UseServerStackExport
+        - Fn::ImportValue:
+            Fn::Sub: '${ServerStackName}-SubscriptionsTableName'
+        - !Ref SubscriptionsTableName
+    Export:
+      Name: !Sub '${AWS::StackName}-SubscriptionsTableName'
+
+  SubscriptionsTableArn:
+    Description: Subscriptions DynamoDB table ARN referenced by the auth service
+    Value:
+      !If
+        - UseServerStackExport
+        - Fn::ImportValue:
+            Fn::Sub: '${ServerStackName}-SubscriptionsTableArn'
+        - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-SubscriptionsTableArn'
 
   # V2 Cognito Outputs (with Phone Authentication)
   CognitoUserPoolIdV2:

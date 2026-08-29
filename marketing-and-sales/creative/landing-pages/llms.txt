@@ -1,0 +1,23 @@
+# RealEstateFlow
+
+> AI Employee for real estate broking agencies on WhatsApp + Telegram. ₹999 to start. Mumbai-built.
+
+## Core
+- [Homepage](https://realestateflow.in)
+- [Pricing](https://realestateflow.in/pricing)
+- [For Agency Owners](https://realestateflow.in/agency-owners)
+- [For Solo Agents](https://realestateflow.in/agents)
+- [AI Employee](https://realestateflow.in/ai-employee)
+- [Demo](https://realestateflow.in/demo)
+- [About](https://realestateflow.in/about)
+
+## Comparisons
+- [vs Sell.Do](https://realestateflow.in/vs/sell-do)
+- [vs Zoho CRM](https://realestateflow.in/vs/zoho-crm)
+- [vs Excel/Spreadsheet](https://realestateflow.in/vs/excel-spreadsheet)
+
+## Legal
+- [Terms](https://realestateflow.in/legal/terms)
+- [Privacy](https://realestateflow.in/legal/privacy)
+- [Refund](https://realestateflow.in/legal/refund)
+- [Cookies](https://realestateflow.in/legal/cookies)

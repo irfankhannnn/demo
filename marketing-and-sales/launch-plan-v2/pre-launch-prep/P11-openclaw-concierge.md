@@ -16,14 +16,14 @@ The AI Employee is the wedge but actual provisioning is technical (OpenClaw conf
 As an agency owner who just paid for AI Employee add-on, I want a clear status page showing "Setup in progress — your AI Employee will be live within 24h" + a Loom walkthrough delivered when ready, so I trust the process and don't open 5 support tickets.
 
 ## Acceptance Criteria
-- [ ] Razorpay webhook `subscription.charged` (or `subscription.activated`) handler at `server/routes/billing.js` verifies signature + checks `plan_id == 'ai_employee_addon'`
-- [ ] If true, creates row in DynamoDB `AIEmployeeProvisioning` with: `tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, status='pending', expectedSLAEnd (paidAt + 24h), planId, razorpaySubscriptionId, internalNotes, loomUrl, liveAt, createdAt, updatedAt`
-- [ ] Webhook also: emails `info@realestateflow.in` (CC support) with onboarding ticket details + adds tenant to AiSensy broadcast list `AI-Employee-Onboarding-Pending`
-- [ ] Webhook posts PostHog event `ai_employee_provisioned` (status=`pending`)
-- [ ] CRM SPA `pages/crm/AIEmployeeStatus.tsx` (route `/integrations/ai-employee`) shows tenant-scoped read-only status: 🟡 pending / 🟢 live / 🔴 escalated, expected SLA, last-updated timestamp, Loom embed (when live), contact-support CTA
-- [ ] 10-step support SOP at `marketing-and-sales/launch-implement/pre-launch/11-openclaw-concierge/sop.md`
-- [ ] 3 customer message templates at `marketing-and-sales/launch-implement/pre-launch/11-openclaw-concierge/messages.md`: paid-acknowledgement, activation, 24h-escalation
-- [ ] Auto-escalation cron: every 6h, scans `AIEmployeeProvisioning` where `status==pending` and `now > expectedSLAEnd` → emails founder + customer apology + ₹500 credit (Razorpay credit note)
+- [x] Razorpay webhook `subscription.charged` (or `subscription.activated`) handler at `server/routes/billing.js` verifies signature + checks `plan_id == 'ai_employee_addon'`
+- [x] If true, creates row in DynamoDB `AIEmployeeProvisioning` with: `tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, status='pending', expectedSLAEnd (paidAt + 24h), planId, razorpaySubscriptionId, internalNotes, loomUrl, liveAt, createdAt, updatedAt`
+- [x] Webhook also: emails `info@realestateflow.in` (CC support) with onboarding ticket details + adds tenant to AiSensy broadcast list `AI-Employee-Onboarding-Pending`
+- [x] Webhook posts PostHog event `ai_employee_provisioned` (status=`pending`)
+- [x] CRM SPA `pages/crm/AIEmployeeStatus.tsx` (route `/integrations/ai-employee`) shows tenant-scoped read-only status: 🟡 pending / 🟢 live / 🔴 escalated, expected SLA, last-updated timestamp, Loom embed (when live), contact-support CTA
+- [x] 10-step support SOP at `marketing-and-sales/launch-implement/pre-launch/11-openclaw-concierge/sop.md`
+- [x] 3 customer message templates at `marketing-and-sales/launch-implement/pre-launch/11-openclaw-concierge/messages.md`: paid-acknowledgement, activation, 24h-escalation
+- [x] Auto-escalation cron: every 6h, scans `AIEmployeeProvisioning` where `status==pending` and `now > expectedSLAEnd` → emails founder + customer apology + ₹500 credit (Razorpay credit note)
 - [ ] M1 cap: max 3 new AI Employee signups per week (enforced at checkout via Razorpay plan availability flag toggled by support if cap reached)
 - [ ] Tenant-scoped API key auto-issued on activation (used by OpenClaw to write back to CRM)
 

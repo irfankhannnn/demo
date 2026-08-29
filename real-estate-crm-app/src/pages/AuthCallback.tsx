@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { exchangeCodeForTokens, callBootstrap, callMe } from '../utils/cognitoAuth';
 import { clearAuthSilently, setTokens, setUserProfile } from '../utils/authStorage';
 
@@ -8,6 +8,7 @@ export default function AuthCallback() {
   const [error, setError] = useState('');
   const [notOnboarded, setNotOnboarded] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const hasRun = useRef(false);
 
   useEffect(() => {
@@ -17,7 +18,10 @@ export default function AuthCallback() {
     }
     hasRun.current = true;
 
-    const params = new URLSearchParams(window.location.search);
+    // Read from the router rather than window.location. On native this route is
+    // reached by navigate() from the deep-link handler rather than a real page
+    // load, so the router is the authoritative source for the query string.
+    const params = new URLSearchParams(location.search);
     const code = params.get('code');
     const authError = params.get('error');
     const errorDescription = params.get('error_description');

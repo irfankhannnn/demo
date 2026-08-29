@@ -40,7 +40,9 @@ export default function CustomerList() {
     try {
       setLoading(true);
       const data = await api.getCustomers();
-      setCustomers(data);
+      // Backend returns { customers, total, limit, offset }
+      const customerList = Array.isArray(data) ? data : (data.customers || []);
+      setCustomers(customerList);
     } catch (error) {
       console.error('Error loading customers:', error);
       if (error instanceof Error && error.message.includes('token')) {
@@ -168,8 +170,8 @@ export default function CustomerList() {
           low: 'bg-blue-100 text-blue-700',
         };
         return (
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${priorityStyles[customer.priority] || 'bg-gray-100 text-gray-600'}`}>
-            {customer.priority}
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${customer.priority ? priorityStyles[customer.priority] : 'bg-gray-100 text-gray-600'}`}>
+            {customer.priority || '—'}
           </span>
         );
       },
@@ -227,7 +229,7 @@ export default function CustomerList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50 to-emerald-50">
       {/* Header */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-white/20 sticky top-0 z-20">
+      <header className="glass-premium border-b border-white/30 sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center gap-4">
             <div className="flex items-center gap-4">
@@ -235,7 +237,7 @@ export default function CustomerList() {
                 onClick={() => navigate('/crm')}
                 className="p-2 hover:bg-white/50 rounded-xl transition-colors"
               >
-                <ArrowLeft className="h-5 w-5 text-gray-600" />
+                <ArrowLeft className="h-5 w-5 text-slate-500" />
               </button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
@@ -270,7 +272,7 @@ export default function CustomerList() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-2xl p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/30 group-hover:scale-110 transition-transform">
                 <Users className="h-6 w-6 text-white" />
@@ -281,7 +283,7 @@ export default function CustomerList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-2xl p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform">
                 <UserCheck className="h-6 w-6 text-white" />
@@ -292,7 +294,7 @@ export default function CustomerList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-2xl p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-red-500 to-red-600 flex items-center justify-center shadow-lg shadow-red-500/30 group-hover:scale-110 transition-transform">
                 <AlertTriangle className="h-6 w-6 text-white" />
@@ -303,7 +305,7 @@ export default function CustomerList() {
               </div>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-xl rounded-2xl border border-white/20 p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
+          <div className="glass-premium rounded-2xl p-4 shadow-xl shadow-gray-200/30 hover:shadow-2xl transition-all duration-300 group">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center shadow-lg shadow-gray-500/30 group-hover:scale-110 transition-transform">
                 <Clock className="h-6 w-6 text-white" />

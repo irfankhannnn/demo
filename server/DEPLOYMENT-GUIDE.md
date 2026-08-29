@@ -1,24 +1,31 @@
 # API Gateway Deployment Guide
 
+> **Security / tenant isolation:** see [`BACKEND_HARDENING.md`](./BACKEND_HARDENING.md).
+>
+> **Call recording pipeline (SQS queue + worker Lambda):** see
+> [`docs/CALL_INTELLIGENCE.md`](../docs/CALL_INTELLIGENCE.md). The worker ships
+> in the same deployment package as the API Lambda, so a code-only deploy must
+> update both — `deploy.sh` already does.
+
 ## Current Status
 
 ✅ **CloudFormation template is production-ready** with the following configurations:
 
 ### CORS Configuration
-- ✅ `PassthroughBehavior: WHEN_NO_MATCH` on all OPTIONS methods
-- ✅ Proper CORS headers for 4XX and 5XX responses
-- ✅ Supports both production domains and localhost
+- Express + Lambda echo origins from `ALLOWED_ORIGINS` (never `*` with credentials)
+- See `BACKEND_HARDENING.md` for the single source of truth (`utils/corsOrigins.js`)
+- API Gateway MOCK OPTIONS use the nested stack `AllowOrigin` parameter
 
 ### API Gateway Structure
-- ✅ **Public API**: Handles public website endpoints (no auth)
-- ✅ **CRM API**: Handles CRM/admin endpoints (JWT auth)
-- ✅ Both use `{proxy+}` pattern for flexibility with 100+ endpoints
-
+- **Public API** and **CRM API** both use `apigw-explicit-routes.yaml`
+- Catch-all `/api/{proxy+}` plus explicit children where parents would block the proxy
+  (`/api/health/deep`, `/api/admin/{proxy+}`)
+- Auth is enforced in Express (JWT / API key / platform operator)
 ### Security
-- ✅ IAM roles with least privilege
-- ✅ Multi-tenancy via `x-tenant-id` header
-- ✅ JWT authentication for CRM endpoints
-- ✅ Binary media types for file uploads
+- IAM roles with least privilege
+- Multi-tenancy via **server-derived tenantId** (JWT or API key) — see `BACKEND_HARDENING.md`
+- JWT authentication for CRM endpoints
+- Binary media types for file uploads (API Gateway REST body limit: 10 MB)
 
 ## Prerequisites
 
@@ -122,7 +129,7 @@ fetch('https://services-api.cloudberrysolutions.in/realestateagency/api/health',
   method: 'OPTIONS'
 }).then(r => {
   console.log('Status:', r.status); // Should be 200
-  console.log('CORS headers:', r.headers.get('access-control-allow-origin')); // Should be *
+  console.log('CORS headers:', r.headers.get('access-control-allow-origin')); // Allowlisted origin, never *
 });
 
 // Test actual GET request
