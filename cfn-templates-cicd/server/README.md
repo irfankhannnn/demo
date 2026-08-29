@@ -22,17 +22,28 @@ there's only one copy to ever go stale again (same reasoning as
 cd cfn-templates-cicd/server
 ./deploy.sh dev                        # deploy — records a new numbered build
 ./deploy.sh prod
-./deploy.sh list dev                   # list recorded builds for dev
-./deploy.sh show dev 0003              # print one build's manifest.json
+./deploy.sh list                       # list every recorded build (any env)
+./deploy.sh list prod                  # list only prod builds
+./deploy.sh show 0003                  # print one build's manifest.json
 ./deploy.sh rollback-code prod 0007    # fast: point both Lambdas at old code
 ./deploy.sh rollback-full prod 0007    # full: redeploy that build's CFN(s) + code
 ```
 
 `dev`/`prod` is required for a deploy.
 
+## Build numbers are global, not per-environment
+
+Same as `cfn-templates-cicd/reality-flow-authentication`: one counter across
+dev **and** prod, so "build #7" is unambiguous by itself — which env it
+targeted is recorded *inside* it (`manifest.json`'s `env` field, and as a
+path segment in S3). `rollback-code`/`rollback-full` refuse to run if the
+`<env>` you pass doesn't match what the target build actually recorded.
+
 ## How this differs from the auth wrapper
 
-Same manifest shape and rollback philosophy as
+Same manifest shape, same global build counter, same S3 tagging
+(`Branch`/`DeployDate`/`Status`/`CommitId` on every object touched), same
+`builds/<build>/<env>/` S3 layout, and same rollback philosophy as
 `cfn-templates-cicd/reality-flow-authentication` (a rollback is always a new,
 numbered forward build — never an edit to history), but three structural
 differences, all because `server` and `reality-flow-authentication` package
@@ -60,18 +71,48 @@ things differently:
    S3 — the S3 copies may have moved to Deep Archive by the time you need
    them) before running `aws cloudformation deploy`.
 
+## S3 layout
+
+One artifact bucket **per environment** (`dev-realestateflow-artifacts` /
+`prod-realestateflow-artifacts`). Inside it, under `${ARTIFACT_PREFIX}`
+(e.g. `prod-realestateflow`):
+
+```
+${ARTIFACT_PREFIX}/function-<timestamp>.zip                "latest" code —
+${ARTIFACT_PREFIX}/cfn-backend.yaml                          the ONE set of
+${ARTIFACT_PREFIX}/apigw-explicit-routes-part1.yaml           keys Lambda/CFN
+${ARTIFACT_PREFIX}/apigw-explicit-routes-part2.yaml           actually read
+
+${ARTIFACT_PREFIX}/builds/0001/prod/cfn-backend.yaml                permanent,
+${ARTIFACT_PREFIX}/builds/0001/prod/apigw-explicit-routes-part1.yaml build+env-
+${ARTIFACT_PREFIX}/builds/0001/prod/apigw-explicit-routes-part2.yaml scoped
+${ARTIFACT_PREFIX}/builds/0001/prod/code/function-<timestamp>.zip    archive
+```
+
+`code/` is a directory (not a fixed filename) so the two Lambdas' shared zip
+today can become two independently-named zips later with no structural
+change.
+
+**Every object this script touches — the "latest" keys and every
+build-archive file — gets S3 tags:** `Branch`, `DeployDate`,
+`Status` (`deployed`/`failed`, the actual script outcome), `CommitId`.
+Applied via `put-object-tagging` after the deploy attempt finishes, same as
+auth.
+
 ## Build/release tracking (`deploy-versions/`)
 
-Same structure as auth's: `deploy-versions/<env>/<0001, 0002, ...>/`,
-**gitignored** (see this folder's `.gitignore` and the root README's
-".gitignore best practices" section). Each build directory holds
+Same structure as auth's: `deploy-versions/<0001, 0002, ...>/` (build number
+at the top level, no per-env split — env lives inside `manifest.json` and
+in the S3 path), **gitignored** (see this folder's `.gitignore` and the root
+README's ".gitignore best practices" section). Each build directory holds
 `manifest.json` (build #, env, status, git commit/branch/dirty-flag,
 deployer, timestamp, stack name, and the S3 bucket/keys — plus VersionIds
 for the two nested templates and the main template, which do use S3
-versioning since they're fixed keys) and local snapshots of
-`cfn-backend.yaml`, both `apigw-explicit-routes-part*.yaml` files, and
-`cfn-params.json`. `deploy-versions/<env>/LATEST` and
-`deploy-versions/<env>/history.jsonl` work identically to auth's.
+versioning since they're fixed keys, plus the four `builds/<build>/<env>/`
+archive keys) and local snapshots of `cfn-backend.yaml`, both
+`apigw-explicit-routes-part*.yaml` files, and `cfn-params.json`.
+`deploy-versions/LATEST` and `deploy-versions/history.jsonl` work
+identically to auth's (global, not per-env).
 
 ## Deep Archive retrieval caveat
 

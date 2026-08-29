@@ -1,9 +1,17 @@
 node_modules/
+# .env, .env.production, .env.dev/.env.staging/.env.prod (per-environment
+# deploy config for infra/deploy.sh), .env.*.local — all contain real
+# secrets and/or real infra values. Mirrors server/.gitignore's pattern.
 .env
-.env.production
+.env.*
+!.env.sample
 auth_state/
 auth-backups/
 infra/cfn-params-*.json
 !infra/cfn-params.example.json
 infra/.generated-*.env
+# Build artifact written by infra/deploy.sh each run — see
+# cfn-templates-cicd/whatsapp-platform/README.md for how the CI/CD wrapper
+# reads it back to record a build.
+infra/.last-deploy-artifacts.json
 *.log

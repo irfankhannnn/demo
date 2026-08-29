@@ -1,436 +1,488 @@
-#!/usr/bin/env bash
-# =============================================================================
-# WhatsApp Platform — Single Entry-Point Deploy Script
-#
-# Usage:
-#   cd cfn-templates-cicd/whatsapp-platform
-#   bash deploy.sh [command] [env]
-#
-# Commands:
-#   deploy   (default) — build image, push to ECR, deploy/update CFN stack
-#   start               — set ECS desired count to 1 (no infra changes)
-#   stop                — set ECS desired count to 0 (no infra changes, saves cost)
-#   status              — show current service status (task count, CPU/mem, health)
-#   endpoint            — show current ECS task public IP endpoint (no ALB)
-#
-# Env: dev | staging | prod (default: dev)
-#
-# Backward-compatible: `bash deploy.sh dev` still works (env-only shorthand).
-#
-# Zero manual config required for a fresh AWS account/VPC:
-#   - AWS_VPC_ID / AWS_VPC_CIDR / AWS_PRIVATE_SUBNET_IDS are auto-detected from
-#     the account's default VPC if not set (or left as placeholders) in .env.
-#   - Required secrets (API keys, webhook secret, encryption key) are
-#     auto-generated if left as placeholders, and saved to
-#     infra/.generated-<env>.env (gitignored) for reuse on redeploys.
-#
-# Environment overrides (read from ../.env or shell):
-#   SKIP_BUILD=true    — skip Docker build + ECR push (re-deploy infra only)
-#   SKIP_CFN=true      — skip CloudFormation deploy (build + push only)
-#   ALARM_EMAIL=...    — enable CloudWatch alarm and Spot interruption email notifications
-#   HOSTED_ZONE_ID=... — enable Route53 dynamic DNS for a stable hostname
-#   DOMAIN_NAME=...    — DNS record name to update (e.g., whatsapp.realtyflow.com)
-# =============================================================================
+#!/bin/bash
 set -euo pipefail
 
-# NOTE: This script lives in cfn-templates-cicd/whatsapp-platform/ but builds
-# and deploys the whatsapp-platform/ Docker service. ROOT_DIR is resolved two
-# levels up + into whatsapp-platform/ (not just "..") to reach the actual
-# service root (Dockerfile, .env, source).
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/../../whatsapp-platform" && pwd)"
+# =============================================================================
+# WhatsApp Platform — CI/CD entry point, with build/release tracking
+# =============================================================================
+# Usage:
+#   ./deploy.sh <dev|staging|prod>          Deploy — records a new numbered build
+#   ./deploy.sh list [env]                   List recorded builds (optionally filtered)
+#   ./deploy.sh show <build>                 Print one build's manifest.json
+#   ./deploy.sh rollback-code <env> <build>  Point ECS at that build's exact image
+#                                             (fast — skips docker build/push)
+#   ./deploy.sh rollback-full <env> <build>  Redeploy that build's saved CFN
+#                                             template + params (also pins the image)
+#   ./deploy.sh start|stop|status|endpoint <env>
+#                                             Pure ECS service control, no build
+#                                             recorded — passthrough to infra/deploy.sh
+#
+# Every deploy call delegates the actual build/packaging/CFN work to the real
+# script: whatsapp-platform/infra/deploy.sh. This wrapper's only job is
+# release bookkeeping — see README.md in this folder for the full design.
+# Design mirrors cfn-templates-cicd/reality-flow-authentication and
+# cfn-templates-cicd/server (same manifest shape, same global build counter,
+# same rollback philosophy — a rollback is a new forward build, never an edit
+# to history), with structural differences driven by this service being a
+# Docker/ECS/Fargate app rather than a Lambda:
+#
+#   1. No S3 code artifact — the "code" is a Docker image in ECR. Every
+#      deploy is pushed under a unique, immutable tag (git short SHA + UTC
+#      timestamp) computed inside infra/deploy.sh, at a point this wrapper
+#      can't independently reconstruct — so, exactly like server/deploy.sh
+#      does for its timestamped S3 key, it writes the exact identity it used
+#      to infra/.last-deploy-artifacts.json (gitignored, a build artifact)
+#      right after resolving it, and this wrapper reads that file back.
+#   2. No S3 object tagging — there's no per-image equivalent of S3 object
+#      tags in ECR (only whole-repository resource tags), so the immutable
+#      image tag itself is the sole historical marker, the same way server's
+#      timestamped S3 key needs no additional versioning to stay unique.
+#   3. ECS/Fargate task definitions are CloudFormation-managed — there is no
+#      code-only update path like Lambda's `update-function-code`. Both
+#      rollback-code and rollback-full go through `aws cloudformation
+#      deploy`; rollback-code just skips the docker build/push step and
+#      pins IMAGE_TAG at the old build's image via infra/deploy.sh's own
+#      SKIP_BUILD support, so it's still the fast path.
+#   4. Three environments (dev/staging/prod), not two — this service also
+#      supports `staging`, matching infra/deploy.sh.
+#   5. dev's stack name is a historical exception. Every other service uses
+#      "${env}-realestateflow-*"; this service's live dev stack was created
+#      before that convention existed (dev-realestate-flow-whatsapp-platform,
+#      hyphenated, deployed 2026-07-04) and dev keeps that literal name so a
+#      deploy updates the running stack instead of creating an orphan next
+#      to it. staging/prod (no live stack yet) use the correct convention
+#      from the start — see stack_name_for_env() below and the matching
+#      comment in infra/deploy.sh.
+#
+# Build numbers are GLOBAL (one counter across all envs, not one per env) —
+# "build #7" is unambiguous on its own; which env it targeted is recorded
+# inside it, not encoded by which counter produced it.
+#
+# Build history lives locally in ./deploy-versions/ — gitignored (see the
+# root .gitignore and README.md in this folder). Unlike auth/server, there
+# is no separate durable S3 archive to fall back on for the CFN
+# template/params — this local snapshot IS the only historical copy, so
+# never delete deploy-versions/ if you might need rollback-full later.
+# =============================================================================
 
-# ─── Parse command + env (supports old `deploy.sh [env]` shorthand) ───────────
-COMMAND="${1:-deploy}"
-ENV_NAME="${2:-dev}"
-case "${COMMAND}" in
-  dev|staging|prod)
-    ENV_NAME="${COMMAND}"
-    COMMAND="deploy"
-    ;;
-  deploy|start|stop|status|endpoint)
-    ;;
-  *)
-    echo "Unknown command: ${COMMAND}"
-    echo "Usage: bash deploy.sh [deploy|start|stop|status|endpoint] [dev|staging|prod]"
-    exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_DIR="$(cd "$SCRIPT_DIR/../../whatsapp-platform" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+VERSIONS_DIR="$SCRIPT_DIR/deploy-versions"
+
+OS_UNAME="$(uname -s || echo '')"
+AWS_BIN="aws"
+case "$OS_UNAME" in
+  MINGW*|MSYS*|CYGWIN*)
+    if command -v aws.exe >/dev/null 2>&1; then AWS_BIN="aws.exe"; fi
     ;;
 esac
 
-REGION="${AWS_REGION:-ap-south-1}"
-STACK_NAME="${ENV_NAME}-realestate-flow-whatsapp-platform"
-CLUSTER_NAME="${ENV_NAME}-whatsapp-platform"
-SERVICE_NAME="${ENV_NAME}-whatsapp-platform"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
-SKIP_BUILD="${SKIP_BUILD:-false}"
-SKIP_CFN="${SKIP_CFN:-false}"
-
-# Load .env if present (base config)
-if [ -f "${ROOT_DIR}/.env" ]; then
-  set -a; source "${ROOT_DIR}/.env"; set +a
-fi
-
-# Load previously auto-generated secrets/infra values for this env, if any
-GENERATED_FILE="${SCRIPT_DIR}/.generated-${ENV_NAME}.env"
-if [ -f "${GENERATED_FILE}" ]; then
-  set -a; source "${GENERATED_FILE}"; set +a
-fi
-
-echo "============================================="
-echo " WhatsApp Platform — ${COMMAND}"
-echo "============================================="
-echo " Environment: ${ENV_NAME}"
-echo " Stack:       ${STACK_NAME}"
-echo " Region:      ${REGION}"
-echo ""
-
-# =============================================================================
-# Command: start / stop / status — pure ECS service control, no infra changes
-# =============================================================================
-if [ "${COMMAND}" = "start" ] || [ "${COMMAND}" = "stop" ]; then
-  DESIRED=1
-  [ "${COMMAND}" = "stop" ] && DESIRED=0
-
-  echo "Setting ECS service '${SERVICE_NAME}' desired count to ${DESIRED}..."
-  aws ecs update-service \
-    --cluster "${CLUSTER_NAME}" \
-    --service "${SERVICE_NAME}" \
-    --desired-count "${DESIRED}" \
-    --region "${REGION}" \
-    >/dev/null
-
-  echo "✅ Done. Desired count = ${DESIRED}."
-  echo "   Check status: bash deploy.sh status ${ENV_NAME}"
-  exit 0
-fi
-
-if [ "${COMMAND}" = "status" ]; then
-  aws ecs describe-services \
-    --cluster "${CLUSTER_NAME}" \
-    --services "${SERVICE_NAME}" \
-    --region "${REGION}" \
-    --query 'services[0].{status:status,desired:desiredCount,running:runningCount,pending:pendingCount,taskDef:taskDefinition}' \
-    --output table
-  exit 0
-fi
-
-if [ "${COMMAND}" = "endpoint" ]; then
-  TASK_ARN="$(aws ecs list-tasks \
-    --cluster "${CLUSTER_NAME}" \
-    --service-name "${SERVICE_NAME}" \
-    --region "${REGION}" \
-    --query 'taskArns[0]' \
-    --output text 2>/dev/null || echo '')"
-
-  if [ -z "${TASK_ARN}" ] || [ "${TASK_ARN}" = "None" ]; then
-    echo "No running tasks found for service '${SERVICE_NAME}'."
-    echo "Start the service first: bash deploy.sh start ${ENV_NAME}"
-    exit 1
-  fi
-
-  ENI_ID="$(aws ecs describe-tasks \
-    --cluster "${CLUSTER_NAME}" \
-    --tasks "${TASK_ARN}" \
-    --region "${REGION}" \
-    --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
-    --output text 2>/dev/null || echo '')"
-
-  if [ -z "${ENI_ID}" ] || [ "${ENI_ID}" = "None" ]; then
-    echo "Task is running but network interface not yet assigned. Wait 30 seconds and retry."
-    exit 1
-  fi
-
-  PUBLIC_IP="$(aws ec2 describe-network-interfaces \
-    --network-interface-ids "${ENI_ID}" \
-    --region "${REGION}" \
-    --query 'NetworkInterfaces[0].Association.PublicIp' \
-    --output text 2>/dev/null || echo '')"
-
-  if [ -z "${PUBLIC_IP}" ] || [ "${PUBLIC_IP}" = "None" ]; then
-    echo "Task is running but public IP not yet assigned. Wait 30 seconds and retry."
-    exit 1
-  fi
-
-  echo "http://${PUBLIC_IP}:3003"
-  exit 0
-fi
-
-# =============================================================================
-# Command: deploy — full build + auto-config + CFN deploy
-# =============================================================================
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-ECR_REPO_NAME="${ENV_NAME}-whatsapp-platform"
-ECR_REPO="${ECR_REPO:-${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO_NAME}}"
-
-# ─── Step 1: Build + push Docker image ────────────────────────────────────────
-if [ "${SKIP_BUILD}" = "true" ]; then
-  echo "[SKIP] Docker build/push (SKIP_BUILD=true)"
-else
-  if ! aws ecr describe-repositories --repository-names "${ECR_REPO_NAME}" --region "${REGION}" >/dev/null 2>&1; then
-    echo "[1/6] Creating ECR repository: ${ECR_REPO_NAME}"
-    aws ecr create-repository --repository-name "${ECR_REPO_NAME}" --region "${REGION}"
-  fi
-
-  echo "[2/6] Building Docker image: ${ECR_REPO}:${IMAGE_TAG}"
-  docker build -t "${ECR_REPO}:${IMAGE_TAG}" "${ROOT_DIR}"
-
-  echo "[3/6] Pushing image to ECR"
-  aws ecr get-login-password --region "${REGION}" | \
-    docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-  docker push "${ECR_REPO}:${IMAGE_TAG}"
-fi
-
-# ─── Step 2: Auto-detect VPC/subnets when not explicitly configured ───────────
-is_placeholder_vpc() { [ -z "${1:-}" ] || [ "${1}" = "vpc-xxxxxxxx" ]; }
-is_placeholder_cidr() { [ -z "${1:-}" ] || [ "${1}" = "0.0.0.0/0" ]; }
-is_placeholder_subnets() { [ -z "${1:-}" ] || [ "${1}" = "subnet-aaaaaaaa,subnet-bbbbbbbb,subnet-cccccccc" ]; }
-
-if [ "${SKIP_CFN}" != "true" ]; then
-  echo "[4/6] Resolving AWS network configuration"
-
-  if is_placeholder_vpc "${AWS_VPC_ID:-}"; then
-    echo "  AWS_VPC_ID not set — auto-detecting default VPC in ${REGION}..."
-    AWS_VPC_ID="$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true \
-      --region "${REGION}" --query 'Vpcs[0].VpcId' --output text)"
-    if [ -z "${AWS_VPC_ID}" ] || [ "${AWS_VPC_ID}" = "None" ]; then
-      echo "  ERROR: No default VPC found in ${REGION} and AWS_VPC_ID not set."
-      echo "  Set AWS_VPC_ID explicitly in .env for non-default VPCs."
-      exit 1
-    fi
-    echo "  Using VPC: ${AWS_VPC_ID}"
-  fi
-
-  if is_placeholder_cidr "${AWS_VPC_CIDR:-}"; then
-    AWS_VPC_CIDR="$(aws ec2 describe-vpcs --vpc-ids "${AWS_VPC_ID}" \
-      --region "${REGION}" --query 'Vpcs[0].CidrBlock' --output text)"
-    echo "  Using VPC CIDR: ${AWS_VPC_CIDR}"
-  fi
-
-  if is_placeholder_subnets "${AWS_PRIVATE_SUBNET_IDS:-}"; then
-    echo "  AWS_PRIVATE_SUBNET_IDS not set — auto-detecting subnets in ${AWS_VPC_ID}..."
-    AWS_PRIVATE_SUBNET_IDS="$(aws ec2 describe-subnets \
-      --filters "Name=vpc-id,Values=${AWS_VPC_ID}" \
-      --region "${REGION}" --query 'Subnets[].SubnetId' --output text | tr '\t' ',')"
-    if [ -z "${AWS_PRIVATE_SUBNET_IDS}" ]; then
-      echo "  ERROR: No subnets found in VPC ${AWS_VPC_ID}."
-      echo "  Set AWS_PRIVATE_SUBNET_IDS explicitly in .env."
-      exit 1
-    fi
-    SUBNET_COUNT="$(echo "${AWS_PRIVATE_SUBNET_IDS}" | tr ',' '\n' | wc -l | tr -d ' ')"
-    if [ "${SUBNET_COUNT}" -lt 2 ]; then
-      echo "  ERROR: Fargate requires subnets in at least 2 AZs; found ${SUBNET_COUNT}."
-      echo "  Set AWS_PRIVATE_SUBNET_IDS explicitly in .env with subnets from 2+ AZs."
-      exit 1
-    fi
-    echo "  Using subnets: ${AWS_PRIVATE_SUBNET_IDS}"
-  fi
-fi
-
-# ─── Step 3: Auto-generate required secrets if missing/placeholder ───────────
-generate_secret() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -hex 32
-  else
-    head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'
-  fi
-}
-
-is_placeholder_secret() {
-  case "${1:-}" in
-    ""|change-me|change-me-to-a-long-random-string|change-me-to-a-different-long-random-string|change-me-to-32-plus-char-random-string) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-SECRETS_GENERATED="false"
-ensure_secret() {
-  local var_name="$1"
-  local current_value="${!var_name:-}"
-  if is_placeholder_secret "${current_value}"; then
-    local generated
-    generated="$(generate_secret)"
-    printf -v "${var_name}" '%s' "${generated}"
-    echo "  Auto-generated ${var_name} (saved to $(basename "${GENERATED_FILE}"))"
-    SECRETS_GENERATED="true"
-  fi
-}
-
-ensure_secret "BAILEYS_API_KEY"
-ensure_secret "BAILEYS_ADMIN_API_KEY"
-ensure_secret "BAILEYS_WEBHOOK_SECRET"
-ensure_secret "AUTH_ENCRYPTION_KEY"
-
-# Persist auto-generated values (secrets + resolved network config) so re-runs
-# are idempotent and don't regenerate secrets or re-query AWS every time.
-cat > "${GENERATED_FILE}" <<EOF
-# Auto-generated by deploy.sh for env=${ENV_NAME} on $(date -u +%Y-%m-%dT%H:%M:%SZ)
-# DO NOT COMMIT — contains secrets. Delete this file to force re-generation/re-detection.
-BAILEYS_API_KEY=${BAILEYS_API_KEY}
-BAILEYS_ADMIN_API_KEY=${BAILEYS_ADMIN_API_KEY}
-BAILEYS_WEBHOOK_SECRET=${BAILEYS_WEBHOOK_SECRET}
-AUTH_ENCRYPTION_KEY=${AUTH_ENCRYPTION_KEY}
-AWS_VPC_ID=${AWS_VPC_ID:-}
-AWS_VPC_CIDR=${AWS_VPC_CIDR:-}
-AWS_PRIVATE_SUBNET_IDS=${AWS_PRIVATE_SUBNET_IDS:-}
-EOF
-chmod 600 "${GENERATED_FILE}" 2>/dev/null || true
-
-if [ "${SECRETS_GENERATED}" = "true" ]; then
-  echo "  ⚠️  New secrets were generated. Back up ${GENERATED_FILE} securely (e.g. a password manager)."
-fi
-
-# ─── Step 4: Set environment-specific task sizing ─────────────────────────────
-# Apply sensible defaults per environment if not explicitly set in .env
-set_env_defaults() {
-  local env="$1"
-  case "${env}" in
-    dev)
-      TASK_CPU_VAL="${TASK_CPU:-256}"
-      TASK_MEMORY_VAL="${TASK_MEMORY:-512}"
-      DESIRED_COUNT_VAL="${DESIRED_COUNT:-0}"
-      ;;
-    staging)
-      TASK_CPU_VAL="${TASK_CPU:-256}"
-      TASK_MEMORY_VAL="${TASK_MEMORY:-1024}"
-      DESIRED_COUNT_VAL="${DESIRED_COUNT:-1}"
-      ;;
-    prod)
-      TASK_CPU_VAL="${TASK_CPU:-512}"
-      TASK_MEMORY_VAL="${TASK_MEMORY:-1024}"
-      DESIRED_COUNT_VAL="${DESIRED_COUNT:-1}"
-      ;;
-    *)
-      echo "  ERROR: Invalid environment '${env}'. Must be one of: dev, staging, prod"
-      echo "  Usage: bash deploy.sh [deploy|start|stop|status] [dev|staging|prod]"
-      exit 1
-      ;;
-  esac
-}
-set_env_defaults "${ENV_NAME}"
-
-echo "  Task sizing: CPU=${TASK_CPU_VAL}, Memory=${TASK_MEMORY_VAL}, DesiredCount=${DESIRED_COUNT_VAL}"
-
-# ─── Step 5: Validate Fargate CPU/Memory combination ──────────────────────────
-echo "[5/6] Validating Fargate CPU/Memory combination"
-
-validate_cpu_memory() {
-  local cpu="$1" mem="$2"
-  case "${cpu}" in
-    256)  case "${mem}" in 512|1024|2048) return 0 ;; esac ;;
-    512)  case "${mem}" in 1024|2048|3072|4096) return 0 ;; esac ;;
-    1024) case "${mem}" in 2048|3072|4096|5120|6144|7168|8192) return 0 ;; esac ;;
-    2048) case "${mem}" in 4096|8192) return 0 ;; esac ;;
-    4096) case "${mem}" in 8192) return 0 ;; esac ;;
-  esac
-  echo "  ERROR: Invalid Fargate CPU/Memory combination: CPU=${cpu}, Memory=${mem}"
-  echo "  See https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task-cpu-memory-error.html"
+if ! command -v "$AWS_BIN" >/dev/null 2>&1; then
+  echo "ERROR: $AWS_BIN not found in PATH (AWS CLI required)"
   exit 1
-}
-validate_cpu_memory "${TASK_CPU_VAL}" "${TASK_MEMORY_VAL}"
-
-# ─── Step 6: Generate params file + deploy CloudFormation ─────────────────────
-PARAMS_FILE="${SCRIPT_DIR}/cfn-params-${ENV_NAME}.json"
-echo "[6/6] Generating params file and deploying"
-
-if [ -z "${SESSION_BUCKET_NAME:-}" ]; then
-  SESSION_BUCKET_NAME="${ENV_NAME}-whatsapp-session-state-${ACCOUNT_ID}"
-  echo "  SESSION_BUCKET_NAME not set — defaulting to: ${SESSION_BUCKET_NAME}"
+fi
+if ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: node not found in PATH (used here only for safe JSON read/write — no build step)"
+  exit 1
 fi
 
-CRM_WEBHOOK="${CRM_WEBHOOK_URL:-}"
-EVENT_BRIDGE="${USE_EVENTBRIDGE:-true}"
-EVENT_BUS="${EVENT_BUS_NAME:-default}"
-MAX_SESSIONS="${MAX_SESSIONS_PER_TASK:-100}"
-DIRECT_INGRESS_CIDR="${DIRECT_INGRESS_CIDR:-0.0.0.0/0}"
-SPOT_CAPACITY="${SPOT_CAPACITY:-true}"
-HOSTED_ZONE_ID="${HOSTED_ZONE_ID:-}"
-DOMAIN_NAME="${DOMAIN_NAME:-}"
-CLOUDWATCH_METRICS="${CLOUDWATCH_METRICS_ENABLED:-true}"
-LOG_RETENTION="${LOG_RETENTION_DAYS:-30}"
-ALARM_EMAIL="${ALARM_EMAIL:-}"
+# Convert a POSIX path to a Windows-style path when running under Git Bash/MSYS/Cygwin.
+# AWS CLI (a Windows process) cannot read /c/... paths, so file:// URLs need C:/... paths.
+# Same helper as server/infra/deploy.sh and whatsapp-platform/infra/deploy.sh.
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -m "$1"
+  else
+    echo "$1"
+  fi
+}
 
-cat > "${PARAMS_FILE}" <<EOF
-[
-  {"ParameterKey": "EnvironmentName", "ParameterValue": "${ENV_NAME}"},
-  {"ParameterKey": "ContainerImageUri", "ParameterValue": "${ECR_REPO}:${IMAGE_TAG}"},
-  {"ParameterKey": "SessionBucketName", "ParameterValue": "${SESSION_BUCKET_NAME}"},
-  {"ParameterKey": "InternalApiKey", "ParameterValue": "${BAILEYS_API_KEY}"},
-  {"ParameterKey": "AdminApiKey", "ParameterValue": "${BAILEYS_ADMIN_API_KEY}"},
-  {"ParameterKey": "WebhookSecret", "ParameterValue": "${BAILEYS_WEBHOOK_SECRET}"},
-  {"ParameterKey": "AuthEncryptionKey", "ParameterValue": "${AUTH_ENCRYPTION_KEY}"},
-  {"ParameterKey": "CrmWebhookUrl", "ParameterValue": "${CRM_WEBHOOK}"},
-  {"ParameterKey": "UseEventBridge", "ParameterValue": "${EVENT_BRIDGE}"},
-  {"ParameterKey": "EventBusName", "ParameterValue": "${EVENT_BUS}"},
-  {"ParameterKey": "MaxSessionsPerTask", "ParameterValue": "${MAX_SESSIONS}"},
-  {"ParameterKey": "DesiredCount", "ParameterValue": "${DESIRED_COUNT_VAL}"},
-  {"ParameterKey": "TaskCpu", "ParameterValue": "${TASK_CPU_VAL}"},
-  {"ParameterKey": "TaskMemory", "ParameterValue": "${TASK_MEMORY_VAL}"},
-  {"ParameterKey": "VpcId", "ParameterValue": "${AWS_VPC_ID}"},
-  {"ParameterKey": "VpcCidr", "ParameterValue": "${AWS_VPC_CIDR}"},
-  {"ParameterKey": "PrivateSubnetIds", "ParameterValue": "${AWS_PRIVATE_SUBNET_IDS}"},
-  {"ParameterKey": "DirectIngressCidr", "ParameterValue": "${DIRECT_INGRESS_CIDR}"},
-  {"ParameterKey": "HostedZoneId", "ParameterValue": "${HOSTED_ZONE_ID}"},
-  {"ParameterKey": "DomainName", "ParameterValue": "${DOMAIN_NAME}"},
-  {"ParameterKey": "SpotCapacity", "ParameterValue": "${SPOT_CAPACITY}"},
-  {"ParameterKey": "CloudwatchMetricsEnabled", "ParameterValue": "${CLOUDWATCH_METRICS}"},
-  {"ParameterKey": "LogRetentionDays", "ParameterValue": "${LOG_RETENTION}"},
-  {"ParameterKey": "AlarmEmail", "ParameterValue": "${ALARM_EMAIL}"}
-]
-EOF
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./deploy.sh <dev|staging|prod>           Deploy — records a new numbered build
+  ./deploy.sh list [env]                    List recorded builds (optionally filtered by env)
+  ./deploy.sh show <build>                  Print one build's manifest.json
+  ./deploy.sh rollback-code <env> <build>   Roll back to a build's exact image (fast)
+  ./deploy.sh rollback-full <env> <build>   Roll back CFN template+params, pinning that image
+  ./deploy.sh start <env>                   Set ECS desired count to 1 (no build recorded)
+  ./deploy.sh stop <env>                    Set ECS desired count to 0 (no build recorded)
+  ./deploy.sh status <env>                  Show current service status (no build recorded)
+  ./deploy.sh endpoint <env>                Show current task public IP (no build recorded)
+USAGE
+}
 
-echo "  Generated: ${PARAMS_FILE}"
+require_env_arg() {
+  local e="${1:-}"
+  case "$e" in
+    dev|staging|prod) ;;
+    *)
+      echo "ERROR: environment must be dev, staging, or prod (got: '${e}')"
+      usage
+      exit 1
+      ;;
+  esac
+}
 
-if [ "${SKIP_CFN}" = "true" ]; then
-  echo "[SKIP] CloudFormation deploy (SKIP_CFN=true)"
+require_build_arg() {
+  local b="${1:-}"
+  if ! [[ "$b" =~ ^[0-9]{4}$ ]]; then
+    echo "ERROR: build number must be 4 digits, e.g. 0007 (got: '${b}')"
+    exit 1
+  fi
+}
+
+json_read() {
+  # json_read <file> <dotted.path> — prints a field from a JSON file via node,
+  # so we never hand-parse JSON in bash.
+  node -e "
+    const fs = require('fs');
+    const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+    const path = process.argv[2].split('.');
+    let v = data;
+    for (const k of path) { v = v == null ? v : v[k]; }
+    if (v === undefined || v === null) process.exit(1);
+    console.log(v);
+  " "$1" "$2"
+}
+
+# ---- git metadata (best-effort — never fails the script) -------------------
+GIT_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
+GIT_COMMIT_SHORT="$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+GIT_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+if [ -n "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null || true)" ]; then
+  GIT_DIRTY="true"
 else
-  echo "  Deploying CloudFormation stack: ${STACK_NAME}"
-  aws cloudformation deploy \
-    --template-file "${SCRIPT_DIR}/cfn-platform.yaml" \
-    --stack-name "${STACK_NAME}" \
-    --parameter-overrides "file://${PARAMS_FILE}" \
+  GIT_DIRTY="false"
+fi
+DEPLOYER="$(git config user.name 2>/dev/null || whoami 2>/dev/null || echo unknown)"
+DEPLOY_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# stack_name_for_env <env> — must exactly match the formula in
+# infra/deploy.sh (the delegate script actually creates/updates the stack;
+# this wrapper only needs to know its name for manifests and rollback-full's
+# direct CFN calls). dev keeps its pre-existing literal name (the live
+# dev-realestate-flow-whatsapp-platform stack predates the repo-wide
+# "${env}-realestateflow-*" convention) — see infra/deploy.sh's comment.
+stack_name_for_env() {
+  local env="$1"
+  case "$env" in
+    dev) echo "${env}-realestate-flow-whatsapp-platform" ;;
+    *)   echo "${env}-realestateflow-whatsapp-platform" ;;
+  esac
+}
+
+# ---- global (not per-env) build counter -------------------------------------
+next_build_number() {
+  mkdir -p "$VERSIONS_DIR"
+  local max=0
+  shopt -s nullglob
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d")"
+    n=$((10#$n))
+    if [ "$n" -gt "$max" ]; then max=$n; fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$((max + 1))"
+}
+
+write_manifest() {
+  # write_manifest <out-file> <buildNumber> <env> <status> <stackName>
+  #   <rollbackOf|null> <rollbackKind|null>
+  #   <ecrRepoName> <ecrRepo> <imageTag> <imageUri> <imageDigest>
+  #   <region> <accountId>
+  #   <commit> <commitShort> <branch> <dirty> <deployer> <deployDate>
+  node -e "
+    const fs = require('fs');
+    const [ , out, buildNumber, env, status, stackName, rollbackOf, rollbackKind,
+            ecrRepoName, ecrRepo, imageTag, imageUri, imageDigest,
+            region, accountId,
+            commit, commitShort, branch, dirty, deployer, deployDate ] = process.argv;
+    const manifest = {
+      buildNumber, env, status,
+      timestamp: new Date().toISOString(),
+      deployDate,
+      git: { commit, commitShort, branch, dirty: dirty === 'true' },
+      deployer, stackName, region,
+      artifact: {
+        ecrRepoName, ecrRepo, accountId,
+        // The immutable tag+digest ARE the historical reference — no S3
+        // versioning or object-tagging equivalent exists for ECR images.
+        imageTag, imageUri, imageDigest,
+      },
+      rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
+      rollbackKind: rollbackKind === 'null' ? null : rollbackKind,
+    };
+    fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/history.jsonl', JSON.stringify(manifest) + '\n');
+  " "$@"
+}
+
+# record_build <build> <build_dir> <env> <status> <rollbackOf|null> <rollbackKind|null>
+# Shared by deploy and rollback-code — both delegate to infra/deploy.sh and
+# need the same post-run bookkeeping: snapshot the template/params used,
+# read back the resolved image identity, write the manifest.
+record_build() {
+  local build="$1" build_dir="$2" env="$3" status="$4" rollback_of="$5" rollback_kind="$6"
+
+  # Snapshot the exact template/params used, regardless of outcome — a
+  # failed build's attempted config is still worth keeping for debugging.
+  cp "$SERVICE_DIR/infra/cfn-platform.yaml" "$build_dir/cfn-platform.yaml" 2>/dev/null || true
+  cp "$SERVICE_DIR/infra/cfn-params-${env}.json" "$build_dir/cfn-params-${env}.json" 2>/dev/null || true
+
+  local ecr_repo_name="unknown" ecr_repo="unknown" image_tag="unknown"
+  local image_uri="unknown" image_digest="unknown" region="${AWS_REGION:-ap-south-1}" account_id="unknown"
+
+  if [ "$status" = "deployed" ]; then
+    local artifacts_file="$SERVICE_DIR/infra/.last-deploy-artifacts.json"
+    if [ -f "$artifacts_file" ]; then
+      ecr_repo_name="$(json_read "$artifacts_file" ecrRepoName)"
+      ecr_repo="$(json_read "$artifacts_file" ecrRepo)"
+      image_tag="$(json_read "$artifacts_file" imageTag)"
+      image_uri="$(json_read "$artifacts_file" imageUri)"
+      image_digest="$(json_read "$artifacts_file" imageDigest)"
+      region="$(json_read "$artifacts_file" region)"
+      account_id="$(json_read "$artifacts_file" accountId)"
+    else
+      echo "WARNING: deploy reported success but $artifacts_file was not written — infra/deploy.sh may be an older version missing this. Artifact fields will be recorded as 'unknown'."
+    fi
+  fi
+
+  write_manifest "$build_dir/manifest.json" \
+    "$build" "$env" "$status" "$(stack_name_for_env "$env")" "$rollback_of" "$rollback_kind" \
+    "$ecr_repo_name" "$ecr_repo" "$image_tag" "$image_uri" "$image_digest" "$region" "$account_id" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$build" > "$VERSIONS_DIR/LATEST"
+  echo ""
+  echo "Build #$build recorded: $build_dir/manifest.json (status: $status)"
+
+  if [ "$status" != "deployed" ]; then
+    echo "Deploy failed — see output above. This build is recorded as 'failed' and is not a valid rollback target."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# deploy — delegates to infra/deploy.sh, then records a build
+# =============================================================================
+cmd_deploy() {
+  local env="$1"
+  require_env_arg "$env"
+
+  local build
+  build="$(next_build_number)"
+  local build_dir="$VERSIONS_DIR/$build"
+  mkdir -p "$build_dir"
+
+  echo "============================================="
+  echo " Build #$build ($env) — starting"
+  echo " commit: $GIT_COMMIT_SHORT  branch: $GIT_BRANCH  dirty: $GIT_DIRTY  by: $DEPLOYER"
+  echo "============================================="
+  if [ "$GIT_DIRTY" = "true" ]; then
+    echo "WARNING: working tree has uncommitted changes — this build won't be exactly reproducible from git history alone."
+  fi
+
+  rm -f "$SERVICE_DIR/infra/.last-deploy-artifacts.json"
+
+  local status="failed"
+  if "$SERVICE_DIR/infra/deploy.sh" deploy "$env"; then
+    status="deployed"
+  fi
+
+  record_build "$build" "$build_dir" "$env" "$status" "null" "null"
+}
+
+# =============================================================================
+# list / show
+# =============================================================================
+cmd_list() {
+  local filter_env="${1:-}"
+  if [ ! -d "$VERSIONS_DIR" ]; then
+    echo "No builds recorded yet."
+    return 0
+  fi
+
+  printf "%-7s %-8s %-9s %-21s %-9s %-20s %-10s\n" "BUILD" "ENV" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  shopt -s nullglob
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    node -e "
+      const fs = require('fs');
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const filterEnv = process.argv[2];
+      if (filterEnv && m.env !== filterEnv) process.exit(0);
+      const row = [m.buildNumber, m.env, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([7,8,9,21,9,20,10][i])).join(' '));
+    " "$d/manifest.json" "$filter_env"
+  done
+  shopt -u nullglob
+  echo ""
+  echo "Latest (any env): $(cat "$VERSIONS_DIR/LATEST" 2>/dev/null || echo none)"
+}
+
+cmd_show() {
+  local build="$1"
+  require_build_arg "$build"
+  local m="$VERSIONS_DIR/$build/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no manifest at $m"
+    exit 1
+  fi
+  cat "$m"
+}
+
+# verify_build_env <build> <env> <manifest-path> — safety check: since build
+# numbers are global, confirm the build you're targeting for rollback
+# actually WAS a build for the env you're rolling back.
+verify_build_env() {
+  local build="$1" env="$2" m="$3"
+  local actual_env
+  actual_env="$(json_read "$m" env)"
+  if [ "$actual_env" != "$env" ]; then
+    echo "ERROR: build #$build was a '$actual_env' build, not '$env' — refusing to roll back the wrong environment with it."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# rollback-code — fast path: redeploy pinned to an old build's exact image
+# =============================================================================
+# "Fast" here means "skips the docker build/push step", not "skips
+# CloudFormation" — ECS/Fargate task definitions are CFN-managed, so there is
+# no Lambda-style code-only update path. infra/deploy.sh's own SKIP_BUILD
+# support does the pinning; this just delegates to it with the old tag.
+cmd_rollback_code() {
+  local env="$1" build="$2"
+  require_env_arg "$env"
+  require_build_arg "$build"
+  local build_dir="$VERSIONS_DIR/$build"
+  local m="$build_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded build #$build"
+    exit 1
+  fi
+  verify_build_env "$build" "$env" "$m"
+
+  local image_tag
+  image_tag="$(json_read "$m" artifact.imageTag)" || true
+  if [ -z "${image_tag:-}" ] || [ "$image_tag" = "unknown" ]; then
+    echo "ERROR: build #$build has no recorded image tag — cannot roll back to it."
+    exit 1
+  fi
+
+  echo "Rolling back: redeploying pinned to build #$build's image (tag: $image_tag) — no rebuild."
+
+  rm -f "$SERVICE_DIR/infra/.last-deploy-artifacts.json"
+
+  local new_build
+  new_build="$(next_build_number)"
+  local new_dir="$VERSIONS_DIR/$new_build"
+  mkdir -p "$new_dir"
+
+  local status="failed"
+  if SKIP_BUILD=true IMAGE_TAG="$image_tag" "$SERVICE_DIR/infra/deploy.sh" deploy "$env"; then
+    status="deployed"
+  fi
+
+  record_build "$new_build" "$new_dir" "$env" "$status" "$build" "code-only"
+}
+
+# =============================================================================
+# rollback-full — redeploy a build's saved CFN template + params directly
+# =============================================================================
+cmd_rollback_full() {
+  local env="$1" build="$2"
+  require_env_arg "$env"
+  require_build_arg "$build"
+  local build_dir="$VERSIONS_DIR/$build"
+  local m="$build_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded build #$build"
+    exit 1
+  fi
+  verify_build_env "$build" "$env" "$m"
+  if [ ! -f "$build_dir/cfn-platform.yaml" ] || [ ! -f "$build_dir/cfn-params-${env}.json" ]; then
+    echo "ERROR: build #$build is missing its template/params snapshot — cannot do a full rollback."
+    echo "(rollback-code may still work if it has a recorded image tag.)"
+    exit 1
+  fi
+
+  local stack_name
+  stack_name="$(stack_name_for_env "$env")"
+  local region="${AWS_REGION:-ap-south-1}"
+
+  echo "Full rollback to build #$build: redeploying its saved CFN template + params directly."
+  echo "That params snapshot's ContainerImageUri already points at build #$build's exact"
+  echo "image, so this one CFN deploy restores both the infrastructure and the code."
+
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$(winpath "$build_dir/cfn-platform.yaml")" \
+    --stack-name "$stack_name" \
+    --parameter-overrides "file://$(winpath "$build_dir/cfn-params-${env}.json")" \
     --capabilities CAPABILITY_NAMED_IAM \
-    --region "${REGION}" \
+    --region "$region" \
+    --no-cli-pager \
     --no-fail-on-empty-changeset
 
-  echo ""
-  echo "=== Stack Outputs ==="
-  aws cloudformation describe-stacks \
-    --stack-name "${STACK_NAME}" \
-    --region "${REGION}" \
-    --query 'Stacks[0].Outputs' \
-    --output table
+  local new_build
+  new_build="$(next_build_number)"
+  local new_dir="$VERSIONS_DIR/$new_build"
+  mkdir -p "$new_dir"
+  cp "$build_dir/cfn-platform.yaml" "$new_dir/cfn-platform.yaml"
+  cp "$build_dir/cfn-params-${env}.json" "$new_dir/cfn-params-${env}.json"
 
-  echo ""
-  echo "=== CRM Configuration ==="
-  if [ -n "${DOMAIN_NAME}" ]; then
-    echo "  Dynamic DNS enabled. Use this stable endpoint in CRM:"
-    echo ""
-    echo "    http://${DOMAIN_NAME}:3003"
-    echo ""
-    echo "  The Lambda will update the A record when the task restarts."
-  else
-    echo "  ALB removed. The ECS task now uses a dynamic public IP."
-    echo "  After starting the service, get the current endpoint with:"
-    echo ""
-    echo "    bash deploy.sh endpoint ${ENV_NAME}"
-    echo ""
-    echo "  IMPORTANT: The public IP changes when the task restarts."
-    echo "  Set HOSTED_ZONE_ID + DOMAIN_NAME in .env to enable Route53 dynamic DNS."
-  fi
-  echo ""
-  echo "  Add to CRM Lambda env:"
-  echo "    BAILEY_ENABLED=true"
-  echo "    BAILEY_MODE=selfhosted"
-  if [ -n "${DOMAIN_NAME}" ]; then
-    echo "    BAILEY_API_ENDPOINT=http://${DOMAIN_NAME}:3003"
-  else
-    echo "    BAILEY_API_ENDPOINT=http://<task-public-ip>:3003"
-  fi
-  echo "    BAILEY_API_KEY=${BAILEYS_API_KEY}"
-  echo "    BAILEY_WEBHOOK_SECRET=${BAILEYS_WEBHOOK_SECRET}"
-  echo ""
-  echo "=== Dev Cost Controls ==="
-  echo "  Stop when idle:  bash deploy.sh stop ${ENV_NAME}"
-  echo "  Start again:     bash deploy.sh start ${ENV_NAME}"
-  echo "  Check status:    bash deploy.sh status ${ENV_NAME}"
-fi
+  write_manifest "$new_dir/manifest.json" \
+    "$new_build" "$env" "deployed" "$stack_name" "$build" "full" \
+    "$(json_read "$m" artifact.ecrRepoName)" "$(json_read "$m" artifact.ecrRepo)" \
+    "$(json_read "$m" artifact.imageTag)" "$(json_read "$m" artifact.imageUri)" "$(json_read "$m" artifact.imageDigest)" \
+    "$region" "$(json_read "$m" artifact.accountId)" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$new_build" > "$VERSIONS_DIR/LATEST"
+  echo "Recorded as build #$new_build (rollbackOf: #$build, full)."
+}
+
+# =============================================================================
+# start / stop / status / endpoint — pure ECS control, passthrough, no build
+# recorded (these don't change what's deployed, just whether it's running)
+# =============================================================================
+cmd_passthrough() {
+  local action="$1" env="${2:-}"
+  require_env_arg "$env"
+  exec "$SERVICE_DIR/infra/deploy.sh" "$action" "$env"
+}
+
+# =============================================================================
+# dispatch
+# =============================================================================
+mkdir -p "$VERSIONS_DIR"
+
+case "${1:-}" in
+  list)
+    cmd_list "${2:-}"
+    ;;
+  show)
+    cmd_show "${2:-}"
+    ;;
+  rollback-code)
+    cmd_rollback_code "${2:-}" "${3:-}"
+    ;;
+  rollback-full)
+    cmd_rollback_full "${2:-}" "${3:-}"
+    ;;
+  start|stop|status|endpoint)
+    cmd_passthrough "$1" "${2:-}"
+    ;;
+  dev|staging|prod)
+    cmd_deploy "$1"
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac

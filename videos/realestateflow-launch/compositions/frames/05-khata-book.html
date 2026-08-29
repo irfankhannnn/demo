@@ -1,0 +1,414 @@
+<template>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+  <style>
+/* == canonical brand fonts (auto-normalized) == */
+@font-face{font-family:'Manrope';font-style:normal;font-weight:400;font-display:block;src:url('assets/fonts/Manrope-400-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:400;font-display:block;src:url('assets/fonts/Manrope-400-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:500;font-display:block;src:url('assets/fonts/Manrope-500-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:500;font-display:block;src:url('assets/fonts/Manrope-500-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:600;font-display:block;src:url('assets/fonts/Manrope-600-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:600;font-display:block;src:url('assets/fonts/Manrope-600-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:700;font-display:block;src:url('assets/fonts/Manrope-700-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:700;font-display:block;src:url('assets/fonts/Manrope-700-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Manrope-800-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Manrope';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Manrope-800-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Unbounded-800-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:800;font-display:block;src:url('assets/fonts/Unbounded-800-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:900;font-display:block;src:url('assets/fonts/Unbounded-900-latin-ext.woff2') format('woff2');unicode-range:U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;}
+@font-face{font-family:'Unbounded';font-style:normal;font-weight:900;font-display:block;src:url('assets/fonts/Unbounded-900-latin.woff2') format('woff2');unicode-range:U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;}
+/* == end canonical brand fonts == */
+
+    #root {
+      position: relative;
+      width: 1080px;
+      height: 1920px;
+      overflow: hidden;
+    }
+
+    /* — Layer 0: full-bleed ink ground, on a clip (never on #root). — */
+    .f05-ground {
+      position: absolute;
+      inset: 0;
+      background: #1c1512;
+    }
+
+    /* — Layer 1: safe-band stage. Content lives y 220–1500, right 140px clear. — */
+    .f05-stage {
+      position: absolute;
+      inset: 0;
+    }
+
+    /* Scene 1 — label */
+    .f05-label {
+      position: absolute;
+      left: 66px;
+      top: 246px;
+      width: 850px;
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 26px;
+      line-height: 1.2;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #ff7a1a;
+      white-space: nowrap;
+    }
+
+    /* Scene 2 — headline. Unbounded is used ONLY here on this frame. */
+    .f05-head {
+      position: absolute;
+      left: 66px;
+      top: 320px;
+      width: 850px;
+      font-family: "Unbounded", "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 54px;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      color: #fbf2e4;
+    }
+
+    .f05-word {
+      display: inline-block;
+      margin-right: 0.26em;
+      will-change: transform;
+    }
+
+    /* Scene 1 — the ledger card (morph target of frame 04's marigold Khata tile) */
+    .f05-card {
+      position: absolute;
+      left: 66px;
+      top: 520px;
+      width: 850px;
+      height: 746px;
+      box-sizing: border-box;
+      background: #251c16;
+      border-radius: 18px;
+      transform-origin: 50% 50%;
+      overflow: hidden;
+      will-change: transform;
+    }
+
+    /* the marigold top edge that survives the morph */
+    .f05-cardedge {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 6px;
+      background: #ff7a1a;
+    }
+
+    .f05-cardinner {
+      position: absolute;
+      inset: 0;
+      padding: 42px 36px 0 36px;
+      box-sizing: border-box;
+    }
+
+    /* Scene 2 — column headers */
+    .f05-heads {
+      position: relative;
+      height: 44px;
+    }
+
+    .f05-colhead {
+      position: absolute;
+      top: 0;
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 24px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #c9bba8;
+      white-space: nowrap;
+    }
+
+    .f05-colhead.give {
+      left: 404px;
+      width: 180px;
+      text-align: right;
+    }
+
+    .f05-colhead.take {
+      left: 596px;
+      width: 182px;
+      text-align: right;
+    }
+
+    .f05-rule {
+      position: relative;
+      height: 1px;
+      background: #3a2e25;
+      margin-top: 8px;
+    }
+
+    /* Scene 3 — ledger rows */
+    .f05-row {
+      position: relative;
+      height: 150px;
+      display: flex;
+      align-items: center;
+      will-change: transform;
+    }
+
+    .f05-rowline {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 1px;
+      background: #3a2e25;
+    }
+
+    .f05-party {
+      position: absolute;
+      left: 0;
+      top: 38px;
+      width: 390px;
+    }
+
+    .f05-name {
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 700;
+      font-size: 32px;
+      line-height: 1.2;
+      color: #fbf2e4;
+      white-space: nowrap;
+    }
+
+    .f05-sub {
+      margin-top: 6px;
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 500;
+      font-size: 23px;
+      line-height: 1.25;
+      color: #948575;
+      white-space: nowrap;
+    }
+
+    .f05-amt {
+      position: absolute;
+      top: 52px;
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 34px;
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+      color: #fbf2e4;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .f05-amt.give {
+      left: 404px;
+      width: 180px;
+    }
+
+    .f05-amt.take {
+      left: 596px;
+      width: 182px;
+    }
+
+    /* Scene 4 — the single settled row. The ONLY green in the whole video. */
+    .f05-settled {
+      position: absolute;
+      left: 404px;
+      top: 52px;
+      width: 374px;
+      text-align: right;
+      font-family: "Manrope", "Segoe UI", system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 34px;
+      line-height: 1.1;
+      color: #1faa59;
+      opacity: 0;
+      white-space: nowrap;
+    }
+  </style>
+
+  <div
+    id="root"
+    data-composition-id="05-khata-book"
+    data-start="0"
+    data-duration="3.5"
+    data-width="1080"
+    data-height="1920"
+  >
+    <div id="khata-book-ground" class="clip f05-ground" data-start="0" data-duration="3.5" data-track-index="0"></div>
+
+    <div id="khata-book-stage" class="clip f05-stage" data-start="0" data-duration="3.5" data-track-index="1">
+      <div class="f05-label" id="f05-label">Khata Book</div>
+
+      <div class="f05-head" id="f05-head">
+        <div><span class="f05-word">Kisne</span><span class="f05-word">kitna</span><span class="f05-word">dena</span><span class="f05-word">hai.</span></div>
+        <div><span class="f05-word">Kisne</span><span class="f05-word">kitna</span><span class="f05-word">lena</span><span class="f05-word">hai.</span></div>
+      </div>
+
+      <div class="f05-card" id="f05-card">
+        <div class="f05-cardedge" id="f05-cardedge"></div>
+        <div class="f05-cardinner" id="f05-cardinner">
+          <div class="f05-heads">
+            <div class="f05-colhead give">To Give</div>
+            <div class="f05-colhead take">To Take</div>
+          </div>
+          <div class="f05-rule"></div>
+
+          <div class="f05-row">
+            <div class="f05-party">
+              <div class="f05-name">Sunil Mehta</div>
+              <div class="f05-sub">Lokhandwala &middot; Brokerage</div>
+            </div>
+            <div class="f05-amt take">&#8377;1,25,000</div>
+            <div class="f05-rowline"></div>
+          </div>
+
+          <div class="f05-row" id="f05-row2">
+            <div class="f05-party">
+              <div class="f05-name">Anjali Rao</div>
+              <div class="f05-sub">Powai &middot; Security Deposit</div>
+            </div>
+            <div class="f05-amt give" id="f05-amt2">&#8377;80,000</div>
+            <div class="f05-settled" id="f05-settled">Settled &#10003;</div>
+            <div class="f05-rowline"></div>
+          </div>
+
+          <div class="f05-row">
+            <div class="f05-party">
+              <div class="f05-name">Kiran Shah</div>
+              <div class="f05-sub">Chembur &middot; Maintenance</div>
+            </div>
+            <div class="f05-amt give">&#8377;18,500</div>
+            <div class="f05-rowline"></div>
+          </div>
+
+          <div class="f05-row">
+            <div class="f05-party">
+              <div class="f05-name">Faizan Khan</div>
+              <div class="f05-sub">Andheri West &middot; Rent</div>
+            </div>
+            <div class="f05-amt take">&#8377;62,000</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.querySelector('[data-composition-id="05-khata-book"]');
+
+      var label = root.querySelector("#f05-label");
+      var words = Array.prototype.slice.call(root.querySelectorAll(".f05-word"));
+      var card = root.querySelector("#f05-card");
+      var edge = root.querySelector("#f05-cardedge");
+      var inner = root.querySelector("#f05-cardinner");
+      var rows = Array.prototype.slice.call(root.querySelectorAll(".f05-row"));
+      var amt2 = root.querySelector("#f05-amt2");
+      var settled = root.querySelector("#f05-settled");
+
+      window.__timelines = window.__timelines || {};
+      var tl = gsap.timeline({ paused: true });
+
+      /* ——— Scene 1 (0.0–0.7s): the marigold Khata tile from frame 04 morphs up
+         and outward into the full ledger card. Frame 04's tile sits at grid
+         col 3 / row 3 — centre (599.5, 884.5), 199x205. This card's centre is
+         (491, 893). The fromTo below starts the card exactly on that tile's
+         centre and scale, so the cut reads as one continuous object.
+         card-morph-anchor: uniform scale only, never width/height. ——— */
+      var TILE_DX = 108.5;
+      var TILE_DY = -8.5;
+      var TILE_SCALE = 0.25;
+
+      tl.fromTo(
+        card,
+        {
+          x: TILE_DX,
+          y: TILE_DY,
+          scale: TILE_SCALE,
+          backgroundColor: "rgb(255, 122, 26)",
+          borderRadius: 14,
+        },
+        {
+          x: 0,
+          y: 0,
+          scale: 1,
+          backgroundColor: "rgb(37, 28, 22)",
+          borderRadius: 18,
+          duration: 0.66,
+          ease: "power3.out",
+        },
+        0.0,
+      );
+
+      /* the marigold top edge resolves as the card's ground recedes */
+      tl.fromTo(edge, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, 0.34);
+
+      /* card contents stay out until the card itself has arrived */
+      tl.fromTo(inner, { opacity: 0 }, { opacity: 1, duration: 0.20, ease: "power2.out" }, 0.36);
+
+      tl.fromTo(label, { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.36, ease: "power3.out" }, 0.04);
+
+      /* ——— Scene 2 (0.7–1.6s): headline per-word reveal ——— */
+      var WORD_AT = 0.68;
+      var WORD_STAGGER = 0.075;
+
+      words.forEach(function (el, i) {
+        tl.fromTo(
+          el,
+          { opacity: 0, y: 22 },
+          { opacity: 1, y: 0, duration: 0.44, ease: "power3.out" },
+          WORD_AT + i * WORD_STAGGER,
+        );
+      });
+      /* last word (i=7) lands at 0.68 + 0.525 + 0.44 = 1.645s */
+
+      /* ——— Scene 3 (1.6–2.4s): four ledger rows cascade, index-derived stagger ——— */
+      var ROW_AT = 1.6;
+      var ROW_STAGGER = 0.14;
+
+      rows.forEach(function (el, i) {
+        tl.fromTo(
+          el,
+          { opacity: 0, y: 26 },
+          { opacity: 1, y: 0, duration: 0.46, ease: "power3.out" },
+          ROW_AT + i * ROW_STAGGER,
+        );
+      });
+      /* last row (i=3) lands at 1.6 + 0.42 + 0.46 = 2.48s */
+
+      /* ——— Scene 4 (2.4–3.0s): row 2 resolves to Settled — the ONLY green in
+         the video. asr-keyword-glow, settling FLAT (no residual bloom). ——— */
+      tl.to(amt2, { opacity: 0, y: -10, duration: 0.2, ease: "power2.in" }, 2.44);
+      tl.fromTo(
+        settled,
+        { opacity: 0, y: 12 },
+        { opacity: 1, y: 0, duration: 0.34, ease: "power3.out" },
+        2.6,
+      );
+
+      /* glow envelope decays fully to zero so the plane stays flat at rest */
+      var driver = { t: 0 };
+      tl.to(
+        driver,
+        {
+          t: 1,
+          duration: 0.4,
+          ease: "none",
+          onUpdate: function () {
+            var t = driver.t;
+            var g = t < 0.4 ? t / 0.4 : 1 - (t - 0.4) / 0.6;
+            if (g < 0) g = 0;
+            settled.style.textShadow = "0 0 " + 16 * g + "px rgba(31, 170, 89, " + 0.7 * g + ")";
+          },
+        },
+        2.6,
+      );
+
+      /* held still to 3.0s — no drift, no push. */
+
+      window.__timelines["05-khata-book"] = tl;
+    })();
+  </script>
+</template>

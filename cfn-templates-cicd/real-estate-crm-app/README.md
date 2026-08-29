@@ -1,81 +1,156 @@
-# CRM Frontend Deployment (S3 + CloudFront)
+# RealtyFlow CRM Frontend — CI/CD entry point
 
-Static hosting for `real-estate-crm-app` on S3, served through CloudFront,
-following the same `cfn-*.yaml` + `deploy*.ps1` pattern used by
-`ai-calling-service/`.
+This folder no longer holds its own copy of the CFN template. `deploy.sh`
+here delegates the actual build/CFN work to the real script:
 
-## Stack
-
-- `cfn-frontend.yaml` — S3 bucket (private, OAC-only access) + CloudFront
-  distribution + SPA-friendly error handling (403/404 → `index.html`, 200).
-- `deploy.ps1` — builds the app and deploys/updates the stack.
-
-The S3 bucket is created in **ap-south-1 (Mumbai)**. CloudFront itself has no
-region — it's a global edge network — but `PriceClass_200` (the default) is
-required so requests are actually served from Indian edge locations.
-
-## One-time setup
-
-1. Copy the sample env file for the environment you're deploying and fill in
-   real values:
-   ```
-   cp .env.nonprod.sample .env.nonprod
-   cp .env.prod.sample .env.prod
-   ```
-   Each file holds both the `VITE_*` build-time config (read by `vite build
-   --mode <env>`) and the `FRONTEND_*` deploy-time config (read by
-   `deploy.ps1`) — one file per environment, one source of truth.
-
-2. `FRONTEND_S3_BUCKET_NAME` must be globally unique across all of S3 — pick
-   something like `cloudberry-nonprod-crm-frontend` / `cloudberry-prod-crm-frontend`
-   (already the sample defaults) or your own name.
-
-3. (Optional) Custom domain: set `FRONTEND_CUSTOM_DOMAIN_NAME` and
-   `FRONTEND_ACM_CERTIFICATE_ARN`. **The ACM certificate must be requested in
-   `us-east-1`** — this is a hard CloudFront requirement regardless of the
-   ap-south-1 stack region. Set `FRONTEND_HOSTED_ZONE_ID` too if you want
-   `deploy.ps1` to also create the Route53 alias record.
-
-4. Make sure the AWS CLI is configured with credentials that can manage S3,
-   CloudFormation and CloudFront in the target account.
-
-## Deploying
-
-Run from `cfn-templates-cicd/real-estate-crm-app/` (this script builds and
-deploys the `real-estate-crm-app/` project two levels up):
-
-```powershell
-# nonprod
-.\deploy.ps1 -Environment nonprod
-
-# prod
-.\deploy.ps1 -Environment prod
+```
+real-estate-crm-app/infra/deploy.sh
 ```
 
-Note: any `npm run deploy:*` scripts in `real-estate-crm-app/package.json`
-that point at the old `infra/deploy.ps1` path need updating to this new
-location as well — this repo's copy of `package.json` predates that wiring,
-so it wasn't found to fix here.
+Everything — `cfn-frontend.yaml`, `cfn-params.sample.json` (if added), and
+the build/CFN-deploy logic itself — lives there now. What this wrapper adds
+on top: **build/release tracking and rollback.**
 
-Each run:
-1. `npm ci`
-2. `vite build --mode <Environment>` (loads `.env.<Environment>`)
-3. `aws cloudformation deploy` for `cfn-frontend.yaml`
-4. `aws s3 sync dist/ s3://<bucket>` — hashed assets cached for 1 year,
-   `index.html` set to `no-cache` so new deploys go live immediately
-5. `aws cloudfront create-invalidation --paths "/*"`
+This is a **static site**, not a Lambda service — unlike
+`cfn-templates-cicd/reality-flow-authentication` and `cfn-templates-cicd/server`,
+there's no single "latest" code object to version. The live frontend S3
+bucket (versioned, per `cfn-frontend.yaml`) IS the deployed artifact; this
+wrapper's job is to keep a permanent, build-numbered **archive** of each
+build's `dist/` output alongside the CFN template it was deployed with, so a
+build can be inspected or restored later even after later deploys have
+overwritten the live bucket's content.
 
-Useful flags: `-SkipInstall`, `-SkipBuild`, `-SkipCfnDeploy`, `-SkipSync`,
-`-SkipInvalidate` — e.g. re-sync a build without touching the CFN stack:
+## Running it
 
-```powershell
-.\deploy.ps1 -Environment prod -SkipCfnDeploy
+```
+cd cfn-templates-cicd/real-estate-crm-app
+./deploy.sh dev                          # deploy — records a new numbered build
+./deploy.sh prod
+./deploy.sh list                         # list every recorded build (any env)
+./deploy.sh list prod                    # list only prod builds
+./deploy.sh show 0003                    # print one build's manifest.json
+./deploy.sh rollback-content prod 0007   # fast: re-sync old dist/ + invalidate CDN
+./deploy.sh rollback-full prod 0007      # full: redeploy that build's CFN + content
 ```
 
-## First deploy takes a few minutes
+`dev`/`prod` is required for a deploy — the script refuses to run without
+it.
 
-CloudFront distribution creation/update typically takes 5-15 minutes to
-propagate globally. `aws cloudformation deploy` waits for the stack to
-reach a terminal state before returning, so the script will appear to hang
-during this — that's expected on the first deploy or whenever distribution
-config (not just S3 content) changes.
+## Build numbers are global, not per-environment
+
+One counter across dev **and** prod — build #7 is unambiguous by itself.
+Deploy dev, then prod, then dev again and you get builds `0001`, `0002`,
+`0003` in that order, not two separate `0001, 0002...` sequences. Which env
+a build targeted is recorded *inside* it (`manifest.json`'s `env` field,
+and as a path segment in S3 — see below), not implied by which counter
+produced it. `rollback-content`/`rollback-full` double-check this: if you
+ask to roll back `dev` using a build that was actually a `prod` build, they
+refuse rather than silently touching the wrong environment.
+
+## S3 layout
+
+One artifact bucket **per environment** (`dev-realestateflow-artifacts` /
+`prod-realestateflow-artifacts` — see
+`cfn-templates-cicd/common-infra/vpc-networking.yaml`), the same bucket the
+Lambda services archive their code into. Inside it:
+
+```
+realestateflow-crm-frontend/builds/0001/prod/dist.tar.gz          permanent,
+realestateflow-crm-frontend/builds/0001/prod/cfn-frontend.yaml    build+env-
+                                                                    scoped
+realestateflow-crm-frontend/builds/0002/dev/dist.tar.gz            archive
+realestateflow-crm-frontend/builds/0002/dev/cfn-frontend.yaml      (never
+                                                                    overwritten)
+```
+
+There's no `${SERVICE_NAME}/dist.tar.gz` "latest" key the way the Lambda
+services have `${SERVICE_NAME}/function.zip` — the actual live content
+lives in the frontend bucket itself
+(`dev-realestateflow-crm-frontend` / `prod-realestateflow-crm-frontend`),
+not the artifact bucket.
+
+**Every object this script uploads gets S3 tags:**
+
+| Tag | Value |
+|---|---|
+| `Branch` | git branch that produced the build |
+| `DeployDate` | UTC timestamp of the deploy attempt |
+| `Status` | `deployed` or `failed` — the actual script outcome |
+| `CommitId` | git commit SHA at deploy time |
+
+Tags are applied via a `put-object-tagging` follow-up call after the deploy
+attempt finishes, never at upload time — `Status` isn't knowable until then.
+
+## Build/release tracking (`deploy-versions/`)
+
+Every deploy also records locally under `deploy-versions/<build>/`
+(gitignored — S3 above is the durable, shareable source of truth; this is
+a local index plus instant-access template/param snapshots for rollback):
+
+- `manifest.json` — build number, env, status, UTC timestamp, git
+  commit/branch/dirty-flag, deployer, the CFN stack name, the artifact
+  bucket + build-archive keys (`dist.tar.gz`, `cfn-frontend.yaml`), and the
+  live frontend bucket name + CloudFront distribution ID.
+- `dist.tar.gz`, `cfn-frontend.yaml`, `cfn-params.json` — local snapshots,
+  so a full rollback never depends on fetching anything back from S3
+  (which may be sitting in Deep Archive by the time you need it).
+
+A **failed** deploy is still recorded (status `failed`, and tagged
+`Status=failed` in S3 too) — worth keeping for debugging, never a valid
+rollback target.
+
+`deploy-versions/LATEST` holds the current global build number;
+`deploy-versions/history.jsonl` is an append-only, one-line-per-build log of
+every manifest ever written, across both envs.
+
+## Rollback
+
+**`rollback-content <env> <build>`** — fast path. Downloads that build's
+archived `dist.tar.gz`, `aws s3 sync --delete`s it onto the live frontend
+bucket (so files removed by a later build are also removed — matching what
+a real deploy would have produced), then invalidates CloudFront. Bypasses
+CloudFormation entirely.
+
+**`rollback-full <env> <build>`** — also redeploys that build's saved CFN
+template + params (a normal `aws cloudformation deploy`, using the local
+snapshot — not the possibly-archived S3 copy), then does the content
+rollback above.
+
+Either way, a rollback is recorded as **a new build**, tagged
+`rollbackOf: "<original build>"` — a rollback is a new forward release, not
+an edit to history.
+
+**Deep Archive retrieval caveat:** the artifact buckets' objects move to S3
+Glacier Deep Archive after 60 days (see
+`cfn-templates-cicd/common-infra/vpc-networking.yaml`). Deep Archive's
+fastest retrieval tier is ~12 hours — no faster option exists for this
+storage class. If `rollback-content` targets a build old enough to have
+archived, it detects this, prints the exact `aws s3api restore-object`
+command to run, and tells you to re-run once the restore completes. The
+local template/params snapshots are unaffected — `rollback-full` doesn't
+wait on Deep Archive at all for the template side.
+
+## What the `dev`/`prod` argument actually does
+
+There is **one CloudFormation template** (`cfn-frontend.yaml`), used
+unchanged for both environments — only the *parameter values* passed into
+it differ, and each environment deploys to its own stack, its own S3
+bucket, and its own CloudFront distribution. `infra/deploy.sh <env>`:
+
+1. Resolves `ENV_FILE = real-estate-crm-app/.env.<env>` — the argument
+   selects which env file gets read. No `.env` fallback.
+2. `source`s that file.
+3. **Overwrites** `ENV` with the CLI argument regardless of what the file
+   says — a stale `.env.prod` can never cause a "prod" run to silently
+   deploy as dev, or vice versa.
+4. Regenerates `infra/cfn-params.json` fresh every run — a build artifact,
+   never hand-edit it.
+5. Deploys against `STACK_NAME = ${ENV}-${SERVICE_NAME}-stack` — e.g.
+   `dev-realestateflow-crm-frontend-stack` vs
+   `prod-realestateflow-crm-frontend-stack`. Two distinct stacks; a `prod`
+   run never touches dev's resources.
+
+Every physical resource is named `${Env}-${ServiceName}-<resource>` —
+e.g. `prod-realestateflow-crm-frontend` (the S3 bucket) — matching the
+`<env>-realestateflow-<component>` convention already live on
+`prod-realestateflow-networking-common`.

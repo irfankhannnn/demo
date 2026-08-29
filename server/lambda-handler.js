@@ -1,10 +1,37 @@
 import serverlessExpress from '@vendia/serverless-express';
-import app from './server.js';
-import { applyCorsHeaders, buildResponse } from './utils/response.js';
-import { captureServerException, flushSentry } from './lib/sentry.js';
-import { shutdownPostHog } from './lib/posthog.js';
+import { hydrateConfigFromSsm } from './config/ssmBootstrap.js';
 
 let serverlessExpressInstance;
+
+// server.js (the Express app) and everything it imports read process.env.X
+// at module-load time in many places, so it can only be require'd/imported
+// AFTER SSM hydration has populated process.env — a static top-level
+// `import` would run before hydrateConfigFromSsm() ever gets a chance to.
+// This memoized dynamic import runs that hydration first, once per
+// container, and every subsequent invocation reuses the same resolved
+// modules (dynamic import() is itself cached by the module loader).
+let appModulesPromise;
+async function loadAppModules() {
+  if (!appModulesPromise) {
+    appModulesPromise = hydrateConfigFromSsm().then(() =>
+      Promise.all([
+        import('./server.js'),
+        import('./utils/response.js'),
+        import('./lib/sentry.js'),
+        import('./lib/posthog.js'),
+      ])
+    );
+  }
+  const [serverModule, responseModule, sentryModule, posthogModule] = await appModulesPromise;
+  return {
+    app: serverModule.default,
+    applyCorsHeaders: responseModule.applyCorsHeaders,
+    buildResponse: responseModule.buildResponse,
+    captureServerException: sentryModule.captureServerException,
+    flushSentry: sentryModule.flushSentry,
+    shutdownPostHog: posthogModule.shutdownPostHog,
+  };
+}
 
 /**
  * Strips configured base paths from the request path.
@@ -94,6 +121,11 @@ function getEventOrigin(event) {
 }
 
 export const handler = async (event, context) => {
+  // Must be first: process.env.ENABLE_BASE_PATH_STRIP below (and everything
+  // server.js itself reads) may come from SSM, not a real Lambda env var.
+  const { app, applyCorsHeaders, buildResponse, captureServerException, flushSentry, shutdownPostHog } =
+    await loadAppModules();
+
   const requestOrigin = getEventOrigin(event);
 
   // Handle OPTIONS preflight requests directly (allowlisted origins only)

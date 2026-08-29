@@ -25,8 +25,23 @@ Each subfolder's `deploy.sh` (or `deploy-lambda.ps1`) was moved here from `<serv
 
 ```
 cd cfn-templates-cicd/server && ./deploy.sh
-cd cfn-templates-cicd/whatsapp-platform && bash deploy.sh deploy dev
+cd cfn-templates-cicd/whatsapp-platform && ./deploy.sh dev
 ```
+
+**2026-08-28 update:** `whatsapp-platform/deploy.sh` here was a standalone
+duplicate of `whatsapp-platform/infra/deploy.sh`, not a delegate — unlike
+`reality-flow-authentication/` and `server/`, which already followed the
+"this folder holds no copies, `deploy.sh` delegates to `infra/deploy.sh`"
+pattern. Reconciled to match: this folder's `cfn-platform.yaml`,
+`cfn-params.example.json`, `start-service.sh`, and `stop-service.sh` are
+removed (the canonical copies live only in `whatsapp-platform/infra/` now),
+and `deploy.sh` is rewritten as a thin wrapper with the same build/release
+tracking and rollback design as auth/server — see
+`cfn-templates-cicd/whatsapp-platform/README.md` for the full design and the
+concrete differences (ECR image, not S3 zip; no S3 object tagging; CFN-only
+rollback since ECS has no code-only update path; three envs including
+`staging`). The command syntax below and in the "Redeploying from this
+location" table reflects the new interface.
 
 ## Stack ↔ Template Mapping
 
@@ -113,4 +128,4 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 | real-estate-crm-app | `cd cfn-templates-cicd/real-estate-crm-app && .\deploy.ps1 -Environment nonprod` | Builds + deploys the frontend from `real-estate-crm-app/`; reads `.env.<Environment>` there; never deployed yet — see Discrepancy 7 |
 | reality-flow-authentication | `cd cfn-templates-cicd/reality-flow-authentication && ./deploy.sh` | Reads `.env` from `reality-flow-authentication/` |
 | reality-flow-mcp | `cd cfn-templates-cicd/reality-flow-mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `reality-flow-mcp/`; supports `--skip-package` / `--skip-cfn` |
-| whatsapp-platform | `cd cfn-templates-cicd/whatsapp-platform && bash deploy.sh [deploy\|start\|stop\|status\|endpoint] [dev\|staging\|prod]` | Builds/pushes Docker image from `whatsapp-platform/`; `.generated-<env>.env` (secrets) stays in this folder |
+| whatsapp-platform | `cd cfn-templates-cicd/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `whatsapp-platform/infra/` |

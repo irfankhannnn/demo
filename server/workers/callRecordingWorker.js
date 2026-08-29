@@ -8,15 +8,39 @@
  * Messages that keep failing land in the DLQ via the queue's redrive policy.
  */
 
-import { logger } from '../logger.js';
-import { PIPELINE_STAGE } from '../services/callIntelligence/constants.js';
-import { processJob } from '../services/callIntelligence/pipeline.js';
+import { hydrateConfigFromSsm } from '../config/ssmBootstrap.js';
+
+// Same reasoning as lambda-handler.js: these modules read process.env.X
+// (table names, API keys, ...) at import time, and most of that now lives
+// in SSM rather than a real Lambda env var — so they can't be static
+// top-level imports here, since those run before hydration ever gets a
+// chance to. Deferred and memoized per container.
+let workerModulesPromise;
+async function loadWorkerModules() {
+  if (!workerModulesPromise) {
+    workerModulesPromise = hydrateConfigFromSsm().then(() =>
+      Promise.all([
+        import('../logger.js'),
+        import('../services/callIntelligence/constants.js'),
+        import('../services/callIntelligence/pipeline.js'),
+      ])
+    );
+  }
+  const [loggerModule, constantsModule, pipelineModule] = await workerModulesPromise;
+  return {
+    logger: loggerModule.logger,
+    PIPELINE_STAGE: constantsModule.PIPELINE_STAGE,
+    processJob: pipelineModule.processJob,
+  };
+}
 
 /**
  * @param {{ Records: Array<{ messageId: string, body: string }> }} event
  * @returns {Promise<{ batchItemFailures: Array<{ itemIdentifier: string }> }>}
  */
 export async function handler(event) {
+  const { logger, PIPELINE_STAGE, processJob } = await loadWorkerModules();
+
   const records = event?.Records || [];
   const batchItemFailures = [];
 

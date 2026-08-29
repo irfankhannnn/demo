@@ -1,0 +1,129 @@
+REALESTATEFLOW — SOURCE MATERIAL (no-capture path)
+==================================================
+
+CATEGORY
+Real Estate Operating System. Not "a CRM".
+
+CORE REFRAME (approved for this build)
+"WhatsApp rahega. Chaos jayega."
+(WhatsApp stays. The chaos goes.)
+
+THE THESIS
+"Har CRM India mein fail hota hai — kyunki broker WhatsApp nahi chhodta.
+Toh humne CRM ko WhatsApp ke andar daal diya."
+(Every CRM fails in India because the broker won't leave WhatsApp.
+So we put the CRM inside WhatsApp.)
+
+SUPPORTING LINES (approved)
+- "WhatsApp aapka darwaza hai. Aapka daftar nahi."   (WhatsApp is your door. Not your office.)
+- "Ab CRM kholna nahi padega. CRM aapko WhatsApp pe milega."
+- "Ek naya employee. Wahi WhatsApp. Zero training."
+- "Apni agency ka Real Estate OS."
+
+THE ENEMY
+Not WhatsApp the app — WhatsApp as your database, memory, ledger and filing cabinet.
+The ask is near-zero behaviour change: keep WhatsApp, put a system behind it.
+
+PILLARS
+Control · Visibility · Risk Reduction · Growth Enablement
+
+AUDIENCE
+Owner/principal of an Indian real-estate agency. 2-15 staff. Mumbai, Thane, Navi Mumbai, Pune.
+Age 28-45. Android, one hand, at night, sound often ON. Speaks Hinglish, reads English,
+feels in Hindi. Buying trigger: the moment they lose money or face to a mistake they can't explain.
+
+--------------------------------------------------------------------------------
+VERIFIED FEATURE SET — the only features this video may show
+(checked against the codebase; see 14-METRICS-CLAIMS-REVIEW.md §2.3)
+--------------------------------------------------------------------------------
+
+LEADS
+  Buyer · Seller · Owner · Tenant leads · Enquiries · B2B leads
+  Lead status: new, contacted, qualified, negotiating, converted, lost
+  Search by name, phone or area. Convert lead to buyer/owner/tenant/customer.
+
+PEOPLE
+  Buyers · Owners · Tenants · Customers · Contacts
+
+INVENTORY
+  Properties · Projects · Developers · Areas · Rented properties · Buildings
+
+KHATA BOOK
+  To Give / To Take, per party, per property, with settlement status and reminders.
+  Categories: Brokerage · Maintenance · Deep Cleaning · Repair · Security Deposit ·
+  Rent · Utility Bills
+
+OPERATIONS
+  Calendar & meetings · Notes · Documents · Call recordings · Team hierarchy ·
+  Business analytics · Billing
+
+INTELLIGENCE
+  Daily brief · Pipeline summary · Priority leads · Follow-up summary ·
+  Business health · Next-action suggestions
+
+WHATSAPP AI EMPLOYEE (the differentiator)
+  Connect your OWN WhatsApp number by QR — no Meta Business API needed.
+  Runs real CRM operations from inside WhatsApp: create and search leads, add buyers,
+  owners, tenants and contacts, log properties, schedule meetings, write notes,
+  attach documents.
+  Understands Hinglish: kharidar, kirayedar, makan, malik, sampark, milan, kitne, dikhao.
+  Replies in Hinglish, inside WhatsApp, 24x7.
+
+--------------------------------------------------------------------------------
+OFFER — state identically everywhere or not at all
+--------------------------------------------------------------------------------
+CRM: 2 months free. No credit card.
+6-month money-back guarantee. No questions.
+WhatsApp AI Employee: optional add-on, +Rs 5,000/month, NO free trial — paid from day one.
+Founding 50: the first 50 agencies get the 2 free months PLUS founding pricing locked 12 months.
+
+MANDATORY DISCLOSURE
+Any creative that shows or names the AI Employee must state:
+"AI Employee: optional add-on · Rs 5,000/month · no free trial."
+
+--------------------------------------------------------------------------------
+BANNED — must not appear in this video
+--------------------------------------------------------------------------------
+"200+ Agencies · Mumbai · Delhi · Pune · Dubai"     -> FALSE. Zero customers.
+"32% of leads lost in WhatsApp every month"          -> UNSOURCED.
+"Aapki agency Rs 20 lakh khoti hai har saal"         -> UNSOURCED. Most exposed claim in the set.
+"80% of deals need 5+ follow-ups"                    -> Sales folklore, no primary source.
+Any testimonial, customer quote, "trusted by", or AI face presented as a real customer.
+Technical jargon: API, database, cloud.
+Income claims, legal guarantees, "India's #1".
+
+THE RULE THAT REPLACES THEM
+Never assert a loss figure. Make the viewer produce their own.
+e.g. "Abhi batao — aapki agency mein kitni deal live hai? Sochna pada?"
+
+--------------------------------------------------------------------------------
+BRAND SYSTEM — v3 "Bazaar Signal"
+--------------------------------------------------------------------------------
+Ink (page ground)      #1C1512   warm near-black, never cold navy
+Ink 2 (card)           #251C16
+Ink 3 (alt card)       #2E241D
+Paper (light ground)   #FBF2E4   khata-ledger cream, never stark white
+Paper 2                #F3E6D2
+Marigold (primary)     #FF7A1A   CTAs, prices, headline highlights, logo accent wave
+Marigold hover         #E8620A
+Gulal (secondary pop)  #FF3D7F   once per screen; never paired with marigold on one card
+Gulal hover            #E01F63
+Tulsi (tertiary)       #1FAA59   checkmarks / "verified" ONLY — a deliberate wink at WhatsApp
+Dust (muted on dark)   #C9BBA8
+Dust dim (on light)    #948575
+Error / pain           #EF4444
+
+Usage ratio per screen: ~42% ink, ~18% paper, ~22% marigold, ~14% gulal, ~4% tulsi.
+
+Hero gradient (dark grounds): linear-gradient(100deg, #FF7A1A 15%, #FF3D7F 85%)
+
+TYPE
+Display: Unbounded, weights 800/900 ONLY. Headlines, hooks, big numbers. Never body copy.
+Body/UI: Manrope, 400-800. Captions, paragraphs, button labels, stat callouts.
+CTA button labels: Manrope 800, not Unbounded.
+Numerals/stats: Manrope with tabular-nums.
+
+TONE
+Direct, practical, confident. Short sentences. Strong verbs. No jargon.
+70% English / 30% romanized Hindi. Structure: Problem -> Agitation -> Solution -> Outcome.
+Core belief: "A real estate business without a system is a risky business."

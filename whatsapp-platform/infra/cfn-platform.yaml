@@ -204,6 +204,11 @@ Resources:
   # ─── KMS key for session state encryption ──────────────────────────────────
   SessionKmsKey:
     Type: AWS::KMS::Key
+    # Retain — SessionStateBucket (below) is also Retained. Without this, a
+    # stack delete/replace would destroy the key while the bucket's
+    # KMS-encrypted objects survive, making them permanently unreadable.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
     Properties:
       Description: !Sub "${EnvironmentName} WhatsApp session state encryption"
       EnableKeyRotation: true

@@ -5,42 +5,66 @@ set -euo pipefail
 # CRM Backend — CI/CD entry point, with build/release tracking
 # =============================================================================
 # Usage:
-#   ./deploy.sh <dev|prod>                       Deploy — records a new numbered build
-#   ./deploy.sh list <dev|prod>                   List recorded builds for that env
-#   ./deploy.sh show <dev|prod> <build>           Print one build's manifest.json
-#   ./deploy.sh rollback-code <dev|prod> <build>  Point the Lambdas at that build's
-#                                                  code (fast, code only — no CFN change)
-#   ./deploy.sh rollback-full <dev|prod> <build>  Redeploy that build's saved CFN
-#                                                  template(s) + params, then its code
+#   ./deploy.sh <dev|prod>                  Deploy — records a new numbered build
+#   ./deploy.sh list [dev|prod]              List recorded builds (optionally filtered)
+#   ./deploy.sh show <build>                 Print one build's manifest.json
+#   ./deploy.sh rollback-code <env> <build>  Point both Lambdas at that build's
+#                                             code (fast, code only — no CFN change)
+#   ./deploy.sh rollback-full <env> <build>  Redeploy that build's saved CFN
+#                                             template(s) + params, then its code
 #
 # Every deploy call delegates the actual packaging/CFN work to the real
 # script: server/infra/deploy.sh. This wrapper's only job is release
 # bookkeeping. Design mirrors cfn-templates-cicd/reality-flow-authentication
-# (same manifest shape, same rollback philosophy — a rollback is a new
-# forward build, never an edit to history) with one structural difference:
+# (same manifest shape, same global build counter, same S3 tagging, same
+# rollback philosophy — a rollback is a new forward build, never an edit to
+# history) with two structural differences:
 #
-#   Auth uploads its Lambda code to a FIXED S3 key that gets overwritten on
-#   every deploy — old code is only reachable via S3 object *versioning* on
-#   that key. Server instead uploads to a *timestamped, unique-per-deploy*
-#   key (`${ARTIFACT_PREFIX}/function-<timestamp>.zip`) that is NEVER
-#   overwritten — so old code for server is just... still sitting at its
-#   own key, no versioning needed to reach it. That timestamp is computed
-#   inside server/infra/deploy.sh, at a point in time this wrapper can't
-#   independently reconstruct — so that script now writes the exact keys it
-#   used to infra/.last-deploy-artifacts.json (gitignored, a build artifact
-#   like cfn-params.json) right after uploading, and this wrapper reads that
-#   file back after a successful delegate call.
+#   1. Server's code artifact is already uploaded to a TIMESTAMPED, unique-
+#      per-deploy key (`${ARTIFACT_PREFIX}/function-<timestamp>.zip`) by
+#      server/infra/deploy.sh itself — never overwritten, no S3 versioning
+#      needed to reach an old one. That timestamp is computed inside that
+#      script, at a point this wrapper can't independently reconstruct — so
+#      it writes the exact keys it used to infra/.last-deploy-artifacts.json
+#      (gitignored, a build artifact like cfn-params.json) right after
+#      uploading, and this wrapper reads that file back.
+#   2. Two Lambdas share that one code artifact (API + call-recording
+#      worker) — rollback-code updates both. Two nested route templates
+#      (part1/part2) instead of auth's one.
 #
-# Two Lambdas share the same code artifact here (API + call-recording
-# worker) — rollback-code updates both. Two nested route templates
-# (part1/part2) instead of auth's one.
+# Build numbers are GLOBAL (one counter across dev AND prod, not one per
+# env) — "build #7" is unambiguous on its own; which env it targeted is
+# recorded inside it.
 #
-# Build history lives in ./deploy-versions/ — gitignored (see .gitignore in
-# this folder and the root README's ".gitignore best practices" section).
-# The durable source of truth for actual artifacts is S3 (versioned for the
-# fixed-key templates; inherently permanent for server's timestamped code
-# key); this folder is a local, human-readable index plus quick local
-# template/param snapshots for instant (non-Glacier-wait) CFN rollback.
+# S3 layout under the artifact bucket (dev-realestateflow-artifacts /
+# prod-realestateflow-artifacts — one bucket per environment, per
+# cfn-templates-cicd/common-infra/vpc-networking.yaml):
+#   ${ARTIFACT_PREFIX}/function-<timestamp>.zip          "latest" code — the
+#   ${ARTIFACT_PREFIX}/cfn-backend.yaml                  ONE set of keys the
+#   ${ARTIFACT_PREFIX}/apigw-explicit-routes-part1.yaml  Lambdas/CFN actually
+#   ${ARTIFACT_PREFIX}/apigw-explicit-routes-part2.yaml  read; templates get
+#                                                         overwritten each
+#                                                         deploy, the zip key
+#                                                         is always new
+#   ${ARTIFACT_PREFIX}/builds/<build>/<env>/cfn-backend.yaml
+#   ${ARTIFACT_PREFIX}/builds/<build>/<env>/apigw-explicit-routes-part1.yaml
+#   ${ARTIFACT_PREFIX}/builds/<build>/<env>/apigw-explicit-routes-part2.yaml
+#   ${ARTIFACT_PREFIX}/builds/<build>/<env>/code/function.zip
+#     (code/ is a directory, not a fixed filename — if server ever splits
+#     into more than one deployable artifact, each just gets its own file
+#     here with no structural change)
+#
+# Every object this script touches (the "latest" keys AND every build-
+# archive file) gets S3 tags: Branch, DeployDate, Status (deployed|failed —
+# the actual script outcome), CommitId. Status is only known after the
+# delegate script returns, so tagging always happens as a follow-up
+# put-object-tagging call, never at upload time.
+#
+# Build history also lives locally in ./deploy-versions/ — gitignored (see
+# .gitignore in this folder and the root README's ".gitignore best
+# practices" section). S3 is the durable, shareable source of truth; this
+# folder is a local index plus instant-access (non-Glacier-wait) template/
+# param snapshots for rollback.
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -68,11 +92,11 @@ fi
 usage() {
   cat <<'USAGE'
 Usage:
-  ./deploy.sh <dev|prod>                       Deploy — records a new numbered build
-  ./deploy.sh list <dev|prod>                   List recorded builds for that env
-  ./deploy.sh show <dev|prod> <build>           Print one build's manifest.json
-  ./deploy.sh rollback-code <dev|prod> <build>  Roll back code only (fast, both Lambdas)
-  ./deploy.sh rollback-full <dev|prod> <build>  Roll back CFN template(s)+params, then code
+  ./deploy.sh <dev|prod>                  Deploy — records a new numbered build
+  ./deploy.sh list [dev|prod]              List recorded builds (optionally filtered by env)
+  ./deploy.sh show <build>                 Print one build's manifest.json
+  ./deploy.sh rollback-code <env> <build>  Roll back code only (fast, both Lambdas)
+  ./deploy.sh rollback-full <env> <build>  Roll back CFN template(s)+params, then code
 USAGE
 }
 
@@ -94,8 +118,7 @@ require_build_arg() {
 }
 
 json_read() {
-  # json_read <file> <dotted.path> — prints a field from a JSON file via node,
-  # so we never hand-parse JSON in bash.
+  # json_read <file> <dotted.path> — prints a field from a JSON file via node.
   node -e "
     const fs = require('fs');
     const data = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
@@ -117,14 +140,14 @@ else
   GIT_DIRTY="false"
 fi
 DEPLOYER="$(git config user.name 2>/dev/null || whoami 2>/dev/null || echo unknown)"
+DEPLOY_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+# ---- global (not per-env) build counter -------------------------------------
 next_build_number() {
-  local env="$1"
-  local dir="$VERSIONS_DIR/$env"
-  mkdir -p "$dir"
+  mkdir -p "$VERSIONS_DIR"
   local max=0
   shopt -s nullglob
-  for d in "$dir"/[0-9][0-9][0-9][0-9]; do
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
     [ -d "$d" ] || continue
     local n
     n="$(basename "$d")"
@@ -135,14 +158,23 @@ next_build_number() {
   printf "%04d" "$((max + 1))"
 }
 
+tag_object() {
+  local bucket="$1" key="$2" status="$3"
+  "$AWS_BIN" s3api put-object-tagging \
+    --bucket "$bucket" --key "$key" --region "$AWS_REGION" \
+    --tagging "TagSet=[{Key=Branch,Value=${GIT_BRANCH}},{Key=DeployDate,Value=${DEPLOY_DATE}},{Key=Status,Value=${status}},{Key=CommitId,Value=${GIT_COMMIT}}]" \
+    --no-cli-pager \
+    || echo "WARNING: failed to tag s3://$bucket/$key (non-fatal)"
+}
+
 write_manifest() {
   # write_manifest <out-file> <buildNumber> <env> <status> <stackName>
-  #   <rollbackOf|null> <rollbackKind|null>
-  #   <bucket> <codeKey>
+  #   <rollbackOf|null> <rollbackKind|null> <bucket> <codeKey>
   #   <mainTemplateKey> <mainTemplateVersionId>
   #   <routesPart1Key> <routesPart1VersionId>
   #   <routesPart2Key> <routesPart2VersionId>
-  #   <commit> <commitShort> <branch> <dirty> <deployer> <region>
+  #   <buildCodeKey> <buildTemplateKey> <buildRoutesPart1Key> <buildRoutesPart2Key>
+  #   <commit> <commitShort> <branch> <dirty> <deployer> <region> <deployDate>
   node -e "
     const fs = require('fs');
     const [ , out, buildNumber, env, status, stackName, rollbackOf, rollbackKind,
@@ -150,10 +182,12 @@ write_manifest() {
             mainTemplateKey, mainTemplateVersionId,
             routesPart1Key, routesPart1VersionId,
             routesPart2Key, routesPart2VersionId,
-            commit, commitShort, branch, dirty, deployer, region ] = process.argv;
+            buildCodeKey, buildTemplateKey, buildRoutesPart1Key, buildRoutesPart2Key,
+            commit, commitShort, branch, dirty, deployer, region, deployDate ] = process.argv;
     const manifest = {
       buildNumber, env, status,
       timestamp: new Date().toISOString(),
+      deployDate,
       git: { commit, commitShort, branch, dirty: dirty === 'true' },
       deployer, stackName, region,
       artifact: {
@@ -164,12 +198,16 @@ write_manifest() {
         mainTemplateKey, mainTemplateVersionId,
         routesPart1Key, routesPart1VersionId,
         routesPart2Key, routesPart2VersionId,
+        buildCodeKey: buildCodeKey || null,
+        buildTemplateKey: buildTemplateKey || null,
+        buildRoutesPart1Key: buildRoutesPart1Key || null,
+        buildRoutesPart2Key: buildRoutesPart2Key || null,
       },
       rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
       rollbackKind: rollbackKind === 'null' ? null : rollbackKind,
     };
     fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
-    fs.appendFileSync(require('path').dirname(out) + '/../history.jsonl', JSON.stringify(manifest) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/history.jsonl', JSON.stringify(manifest) + '\n');
   " "$@"
 }
 
@@ -187,8 +225,8 @@ cmd_deploy() {
   ENVIRONMENT_NAME="$env"
 
   local build
-  build="$(next_build_number "$env")"
-  local build_dir="$VERSIONS_DIR/$env/$build"
+  build="$(next_build_number)"
+  local build_dir="$VERSIONS_DIR/$build"
   mkdir -p "$build_dir"
 
   echo "============================================="
@@ -218,6 +256,8 @@ cmd_deploy() {
   local main_key="unknown" main_version="unknown"
   local part1_key="unknown" part1_version="unknown"
   local part2_key="unknown" part2_version="unknown"
+  local build_prefix="${ARTIFACT_PREFIX}/builds/${build}/${env}"
+  local build_code_key="" build_template_key="" build_part1_key="" build_part2_key=""
 
   if [ "$status" = "deployed" ]; then
     local artifacts_file="$SERVICE_DIR/infra/.last-deploy-artifacts.json"
@@ -231,6 +271,31 @@ cmd_deploy() {
       main_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$main_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
       part1_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$part1_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
       part2_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$part2_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
+      [ "$main_version" = "None" ] && main_version="unknown"
+      [ "$part1_version" = "None" ] && part1_version="unknown"
+      [ "$part2_version" = "None" ] && part2_version="unknown"
+
+      # Permanent build+env archive copies. The code key is already unique/
+      # timestamped, so this copy is a convenience path, not a rollback
+      # necessity — but keeps the same builds/<build>/<env>/ shape as auth.
+      build_code_key="${build_prefix}/code/$(basename "$code_key")"
+      build_template_key="${build_prefix}/cfn-backend.yaml"
+      build_part1_key="${build_prefix}/apigw-explicit-routes-part1.yaml"
+      build_part2_key="${build_prefix}/apigw-explicit-routes-part2.yaml"
+
+      "$AWS_BIN" s3 cp "s3://${bucket}/${code_key}" "s3://${bucket}/${build_code_key}" --region "$AWS_REGION" --no-cli-pager
+      "$AWS_BIN" s3 cp "$build_dir/cfn-backend.yaml" "s3://${bucket}/${build_template_key}" --region "$AWS_REGION" --no-cli-pager
+      "$AWS_BIN" s3 cp "s3://${bucket}/${part1_key}" "s3://${bucket}/${build_part1_key}" --region "$AWS_REGION" --no-cli-pager
+      "$AWS_BIN" s3 cp "s3://${bucket}/${part2_key}" "s3://${bucket}/${build_part2_key}" --region "$AWS_REGION" --no-cli-pager
+
+      tag_object "$bucket" "$code_key" "$status"
+      tag_object "$bucket" "$main_key" "$status"
+      tag_object "$bucket" "$part1_key" "$status"
+      tag_object "$bucket" "$part2_key" "$status"
+      tag_object "$bucket" "$build_code_key" "$status"
+      tag_object "$bucket" "$build_template_key" "$status"
+      tag_object "$bucket" "$build_part1_key" "$status"
+      tag_object "$bucket" "$build_part2_key" "$status"
     else
       echo "WARNING: deploy reported success but $artifacts_file was not written — server/infra/deploy.sh may be an older version missing this. Artifact keys will be recorded as 'unknown'."
     fi
@@ -242,9 +307,10 @@ cmd_deploy() {
     "$main_key" "$main_version" \
     "$part1_key" "$part1_version" \
     "$part2_key" "$part2_version" \
-    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}"
+    "$build_code_key" "$build_template_key" "$build_part1_key" "$build_part2_key" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}" "$DEPLOY_DATE"
 
-  echo "$build" > "$VERSIONS_DIR/$env/LATEST"
+  echo "$build" > "$VERSIONS_DIR/LATEST"
 
   echo ""
   echo "Build #$build recorded: $build_dir/manifest.json (status: $status)"
@@ -259,40 +325,49 @@ cmd_deploy() {
 # list / show
 # =============================================================================
 cmd_list() {
-  local env="$1"
-  require_env_arg "$env"
-  local dir="$VERSIONS_DIR/$env"
-  if [ ! -d "$dir" ]; then
-    echo "No builds recorded for $env yet."
+  local filter_env="${1:-}"
+  if [ ! -d "$VERSIONS_DIR" ]; then
+    echo "No builds recorded yet."
     return 0
   fi
 
-  printf "%-7s %-9s %-21s %-9s %-20s %-10s\n" "BUILD" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  printf "%-7s %-6s %-9s %-21s %-9s %-20s %-10s\n" "BUILD" "ENV" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
   shopt -s nullglob
-  for d in "$dir"/[0-9][0-9][0-9][0-9]; do
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
     [ -f "$d/manifest.json" ] || continue
     node -e "
       const fs = require('fs');
       const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
-      const row = [m.buildNumber, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
-      console.log(row.map((v,i)=>String(v).padEnd([7,9,21,9,20,10][i])).join(' '));
-    " "$d/manifest.json"
+      const filterEnv = process.argv[2];
+      if (filterEnv && m.env !== filterEnv) process.exit(0);
+      const row = [m.buildNumber, m.env, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([7,6,9,21,9,20,10][i])).join(' '));
+    " "$d/manifest.json" "$filter_env"
   done
   shopt -u nullglob
   echo ""
-  echo "Latest: $(cat "$dir/LATEST" 2>/dev/null || echo none)"
+  echo "Latest (any env): $(cat "$VERSIONS_DIR/LATEST" 2>/dev/null || echo none)"
 }
 
 cmd_show() {
-  local env="$1" build="$2"
-  require_env_arg "$env"
+  local build="$1"
   require_build_arg "$build"
-  local m="$VERSIONS_DIR/$env/$build/manifest.json"
+  local m="$VERSIONS_DIR/$build/manifest.json"
   if [ ! -f "$m" ]; then
     echo "ERROR: no manifest at $m"
     exit 1
   fi
   cat "$m"
+}
+
+verify_build_env() {
+  local build="$1" env="$2" m="$3"
+  local actual_env
+  actual_env="$(json_read "$m" env)"
+  if [ "$actual_env" != "$env" ]; then
+    echo "ERROR: build #$build was a '$actual_env' build, not '$env' — refusing to roll back the wrong environment with it."
+    exit 1
+  fi
 }
 
 # =============================================================================
@@ -302,12 +377,13 @@ cmd_rollback_code() {
   local env="$1" build="$2"
   require_env_arg "$env"
   require_build_arg "$build"
-  local build_dir="$VERSIONS_DIR/$env/$build"
+  local build_dir="$VERSIONS_DIR/$build"
   local m="$build_dir/manifest.json"
   if [ ! -f "$m" ]; then
-    echo "ERROR: no recorded build #$build for $env"
+    echo "ERROR: no recorded build #$build"
     exit 1
   fi
+  verify_build_env "$build" "$env" "$m"
 
   set -a
   source "$SERVICE_DIR/.env.$env"
@@ -370,11 +446,13 @@ EOF
 
   echo "Rolled back code to build #$build ($key)."
 
+  tag_object "$bucket" "$key" "deployed"
+
   # Record the rollback as its own new build — a rollback is a new forward
   # release, not an edit to history, per standard CI/CD release practice.
   local new_build
-  new_build="$(next_build_number "$env")"
-  local new_dir="$VERSIONS_DIR/$env/$new_build"
+  new_build="$(next_build_number)"
+  local new_dir="$VERSIONS_DIR/$new_build"
   mkdir -p "$new_dir"
   cp "$build_dir"/*.yaml "$new_dir/" 2>/dev/null || true
   cp "$build_dir/cfn-params.json" "$new_dir/" 2>/dev/null || true
@@ -385,9 +463,13 @@ EOF
     "$(json_read "$m" artifact.mainTemplateKey)" "$(json_read "$m" artifact.mainTemplateVersionId)" \
     "$(json_read "$m" artifact.routesPart1Key)" "$(json_read "$m" artifact.routesPart1VersionId)" \
     "$(json_read "$m" artifact.routesPart2Key)" "$(json_read "$m" artifact.routesPart2VersionId)" \
-    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}"
+    "$(json_read "$m" artifact.buildCodeKey 2>/dev/null || echo '')" \
+    "$(json_read "$m" artifact.buildTemplateKey 2>/dev/null || echo '')" \
+    "$(json_read "$m" artifact.buildRoutesPart1Key 2>/dev/null || echo '')" \
+    "$(json_read "$m" artifact.buildRoutesPart2Key 2>/dev/null || echo '')" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "${AWS_REGION:-unknown}" "$DEPLOY_DATE"
 
-  echo "$new_build" > "$VERSIONS_DIR/$env/LATEST"
+  echo "$new_build" > "$VERSIONS_DIR/LATEST"
   echo "Recorded as build #$new_build (rollbackOf: #$build, code-only)."
 }
 
@@ -398,12 +480,13 @@ cmd_rollback_full() {
   local env="$1" build="$2"
   require_env_arg "$env"
   require_build_arg "$build"
-  local build_dir="$VERSIONS_DIR/$env/$build"
+  local build_dir="$VERSIONS_DIR/$build"
   local m="$build_dir/manifest.json"
   if [ ! -f "$m" ]; then
-    echo "ERROR: no recorded build #$build for $env"
+    echo "ERROR: no recorded build #$build"
     exit 1
   fi
+  verify_build_env "$build" "$env" "$m"
   if [ ! -f "$build_dir/cfn-backend.yaml" ] || [ ! -f "$build_dir/cfn-params.json" ]; then
     echo "ERROR: build #$build is missing its template/params snapshot — cannot do a full rollback."
     echo "(rollback-code may still work if it has a recorded code key.)"
@@ -424,8 +507,7 @@ cmd_rollback_full() {
   # Re-upload nested route templates AND the main template from the LOCAL
   # snapshot, not from S3 — the S3 copies may have moved to Deep Archive by
   # now and take hours to restore; the local snapshots are instant and
-  # identical content. This also matches server/infra/deploy.sh's own
-  # convention of always uploading the main template fresh (it's >51.2KB).
+  # identical content.
   local part1_key part2_key main_key
   part1_key="$(json_read "$m" artifact.routesPart1Key)"
   part2_key="$(json_read "$m" artifact.routesPart2Key)"
@@ -433,11 +515,14 @@ cmd_rollback_full() {
 
   if [ -f "$build_dir/apigw-explicit-routes-part1.yaml" ]; then
     "$AWS_BIN" s3 cp "$build_dir/apigw-explicit-routes-part1.yaml" "s3://$bucket/$part1_key" --region "$AWS_REGION" --no-cli-pager
+    tag_object "$bucket" "$part1_key" "deployed"
   fi
   if [ -f "$build_dir/apigw-explicit-routes-part2.yaml" ]; then
     "$AWS_BIN" s3 cp "$build_dir/apigw-explicit-routes-part2.yaml" "s3://$bucket/$part2_key" --region "$AWS_REGION" --no-cli-pager
+    tag_object "$bucket" "$part2_key" "deployed"
   fi
   "$AWS_BIN" s3 cp "$build_dir/cfn-backend.yaml" "s3://$bucket/$main_key" --region "$AWS_REGION" --no-cli-pager
+  tag_object "$bucket" "$main_key" "deployed"
 
   "$AWS_BIN" cloudformation deploy \
     --template-file "$build_dir/cfn-backend.yaml" \
@@ -464,7 +549,7 @@ case "${1:-}" in
     cmd_list "${2:-}"
     ;;
   show)
-    cmd_show "${2:-}" "${3:-}"
+    cmd_show "${2:-}"
     ;;
   rollback-code)
     cmd_rollback_code "${2:-}" "${3:-}"

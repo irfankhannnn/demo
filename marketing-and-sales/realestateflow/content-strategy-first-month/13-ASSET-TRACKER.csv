@@ -1,0 +1,29 @@
+post_no,date,day,asset_id,format,pillar,title,producer,editor_needed,recording_needed,cta_keyword,ground_colour,length_sec,status,asset_file,notes
+1,8/10/2026,Mon,R01,A-presenter,ChaosMirror,Raat ke 11:47,AI->ED,YES,,follow,ink,28,NOT_STARTED,,Day 1. Cold open must be dark and silent for 1.5s
+2,8/11/2026,Tue,C01,E-carousel,ChaosMirror,7 signs agency runs on memory,AI,NO,,save+tag,gulal,,NOT_STARTED,,5 slides
+3,8/12/2026,Wed,R02,C-kinetic,ChaosMirror,Reality Check 1 - WhatsApp ek inbox hai,AI,NO,,,ink,10,NOT_STARTED,,HyperFrames
+4,8/13/2026,Thu,R03,A-presenter,ChaosMirror,Employee resign karta hai,AI->ED,YES,,comment,ink,32,NOT_STARTED,,WEEK 1 HERO. Generate 3 variations
+5,8/14/2026,Fri,P01,F-poster,Culture,Broker ka CRM meme,AI,NO,,tag,marigold,,NOT_STARTED,,Paper ground. No CTA no logo lockup
+6,8/15/2026,Sat,R04,A-presenter,ChaosMirror,Independence Day - agency gulaam hai,AI->ED,YES,,follow,ink,22,NOT_STARTED,,No tricolour graphics. Tone check required
+7,8/16/2026,Sun,C02,E-carousel,ChaosMirror,5 Sunday night questions,AI,NO,,save,gulal,,NOT_STARTED,,Agency OS series
+8,8/17/2026,Mon,R05,A-presenter,KhataPaisa,Pandrah hazaar kiska hai,AI->ED,YES,,KHATA,ink,26,NOT_STARTED,,2.5s silence at 6s is mandatory
+9,8/18/2026,Tue,C03,E-carousel,KhataPaisa,Leak of the Week 1 - 5 places you leak,AI,NO,,AUDIT,paper,,NOT_STARTED,,No asserted loss stats. Self-calculate framing
+10,8/19/2026,Wed,R06,C-kinetic,KhataPaisa,Reality Check 2 - kitna aaya vs aana tha,AI,NO,,,ink,11,NOT_STARTED,,HyperFrames
+11,8/20/2026,Thu,R07,D-chat,KhataPaisa,Khata template giveaway,AI,NO,,KHATA,paper,20,NOT_STARTED,,Do not clone WhatsApp UI. Stylised skit only
+12,8/21/2026,Fri,R08,A-presenter,ChaosMirror,Buyer ab builder ko direct dhoondh raha hai,AI->ED,YES,,comment,gulal,34,NOT_STARTED,,WEEK 2 HERO. Grade shift cold to warm at 15s
+13,8/22/2026,Sat,P02,F-poster,System,Follow-up self-audit poster,AI,NO,,save,ink,,NOT_STARTED,,Uses no unsourced statistic - reader calculates own
+14,8/23/2026,Sun,C04,E-carousel,System,6 commission rules,AI,NO,,save,gulal,,NOT_STARTED,,Agency OS series
+15,8/24/2026,Mon,R09,A-presenter,System,THE THESIS - har CRM fail hota hai,AI->ED,YES,S-A1,follow,ink,38,NOT_STARTED,,HERO OF MONTH. 2 Arjun clips 2 environments. Book editor 2 days
+16,8/25/2026,Tue,C05,E-carousel,System,Real Estate OS vs CRM,AI,NO,,DEMO,marigold,,NOT_STARTED,,
+17,8/26/2026,Wed,R10,B-screendemo,System,Screen demo 1 - dashboard,REC->ED,YES,S-01,DEMO,ink,24,NOT_STARTED,,Zoom-punches not pans. Never letterbox
+18,8/27/2026,Thu,R11,C-kinetic,System,Reality Check 3 - system ka matlab software nahi,AI,NO,,,ink,12,NOT_STARTED,,Animated strike-through on software
+19,8/28/2026,Fri,R12,B-screendemo,KhataPaisa,Screen demo 2 - Khata Book,REC->ED,YES,S-02,KHATA,gulal,26,NOT_STARTED,,Callback to R05. To Give=red To Take=tulsi
+20,8/29/2026,Sat,P03,F-poster,System,Before After split,AI,NO,,save,ink,,NOT_STARTED,,Hard split no gradient across seam
+21,8/30/2026,Sun,R13,A-presenter,BuildInPublic,Hum ye kyun bana rahe hain,AI->ED,YES,,follow,paper,30,NOT_STARTED,,Softest treatment. No CTA graphic
+22,8/31/2026,Mon,R14,B-screendemo,AIEmployee,THE REVEAL - CRM ko WhatsApp pe message kiya,REC->ED,YES,S-03,SYSTEM,ink,30,NOT_STARTED,,HERO. Real phone only. Do not speed up the wait. Pricing disclosure mandatory
+23,9/1/2026,Tue,C06,E-carousel,AIEmployee,10 things to ask your AI Employee,AI,NO,,DEMO,marigold,,NOT_STARTED,,All 10 commands verified against real capability list
+24,9/2/2026,Wed,R15,B-screendemo,AIEmployee,WhatsApp Se Puchho 1 - Andheri ke kharidar,REC->ED,YES,S-04,DEMO,ink,18,NOT_STARTED,,Build reusable series title card template
+25,9/3/2026,Thu,R16,C-kinetic,AIEmployee,Naya employee wahi WhatsApp,AI,NO,,,ink,13,NOT_STARTED,,5000/mo disclosure at 11s is MANDATORY and must be legible
+26,9/4/2026,Fri,R17,B-screendemo,AIEmployee,WhatsApp Se Puchho 2 - aaj ka brief do,REC->ED,YES,S-05,DEMO,marigold,19,NOT_STARTED,,Record in real morning light
+27,9/5/2026,Sat,P04,F-poster,BuildInPublic,Founding 50 announcement,AI,NO,,SYSTEM,marigold,,NOT_STARTED,,Loudest asset of month. Disclosure line required
+28,9/6/2026,Sun,R18,A-presenter,BuildInPublic,Month closer - Founding 50,AI->ED,YES,,SYSTEM,ink,28,NOT_STARTED,,Montage uses real frames from posts that ran

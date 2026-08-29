@@ -26,13 +26,16 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files
+# Environment files — glob so a new .env.<env> is caught automatically
+# (a plain ".env" line does NOT match ".env.dev"/".env.prod"/etc.)
 .env
-.env.local
-.env.production
-.env.nonprod
-.env.prod
-.env.mobile
+.env.*
+!.env.*.sample
+
+# Build artifact — regenerated fresh with real parameter values on every
+# infra/deploy.sh run (ACM cert ARN, hosted zone ID, WAF ARN, custom
+# domain). Never hand-edit or commit it.
+infra/cfn-params.json
 
 # Capacitor
 # The android/ and ios/ projects ARE tracked. They hold AndroidManifest.xml,

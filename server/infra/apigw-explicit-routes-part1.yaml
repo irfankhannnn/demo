@@ -33,6 +33,7 @@ Resources:
   # This eliminates the need to add every new Express route to API Gateway.
   ApiProxyResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: ApiResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ApiResource
@@ -40,6 +41,7 @@ Resources:
 
   ApiProxyAnyMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: ApiProxyResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref ApiProxyResource
@@ -84,6 +86,7 @@ Resources:
   # ============== CRM Lead Owners ==============
   CrmLeadOwnersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadsResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -91,6 +94,7 @@ Resources:
 
   CrmLeadOwnersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadOwnersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadOwnersResource
@@ -139,6 +143,7 @@ Resources:
 
   CrmLeadOwnersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadOwnersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadOwnersResource
@@ -166,6 +171,7 @@ Resources:
 
   CrmBuyerLookupResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyersResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyersResource
@@ -173,6 +179,7 @@ Resources:
 
   CrmBuyerLookupByPhoneResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerLookupResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerLookupResource
@@ -180,6 +187,7 @@ Resources:
 
   CrmBuyerLookupByPhoneGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerLookupByPhoneResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerLookupByPhoneResource
@@ -209,6 +217,7 @@ Resources:
   
   CrmBuyerNotesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerResource
@@ -216,6 +225,7 @@ Resources:
 
   CrmBuyerNotesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNotesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNotesResource
@@ -234,6 +244,7 @@ Resources:
 
   CrmBuyerNotesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNotesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNotesResource
@@ -252,6 +263,7 @@ Resources:
 
   CrmBuyerNotesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNotesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNotesResource
@@ -279,6 +291,7 @@ Resources:
 
   CrmBuyerNoteResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerNotesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerNotesResource
@@ -286,6 +299,7 @@ Resources:
 
   CrmBuyerNotePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNoteResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNoteResource
@@ -304,6 +318,7 @@ Resources:
 
   CrmBuyerNoteDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNotePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNoteResource
@@ -322,6 +337,7 @@ Resources:
 
   CrmBuyerNoteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerNoteDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerNoteResource
@@ -349,6 +365,7 @@ Resources:
 
   CrmBuyerDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerNoteOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerResource
@@ -356,6 +373,7 @@ Resources:
 
   CrmBuyerDocumentsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerDocumentsResource
@@ -372,6 +390,7 @@ Resources:
 
   CrmBuyerDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerDocumentsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerDocumentsResource
@@ -399,6 +418,7 @@ Resources:
 
   CrmBuyerWithDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerResource
@@ -406,6 +426,7 @@ Resources:
 
   CrmBuyerWithDocumentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerWithDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerWithDocumentsResource
@@ -424,6 +445,7 @@ Resources:
 
   CrmBuyerWithDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerWithDocumentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerWithDocumentsResource
@@ -452,6 +474,7 @@ Resources:
   # ============== CRM Lead Metrics ==============
   CrmLeadMetricsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadOwnersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -459,6 +482,7 @@ Resources:
 
   CrmLeadMetricsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadMetricsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadMetricsResource
@@ -509,6 +533,7 @@ Resources:
   # ============== CRM Routes ==============
   CrmResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: ApiProxyAnyMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref ApiResource
@@ -516,6 +541,7 @@ Resources:
 
   CrmMetricsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -523,6 +549,7 @@ Resources:
 
   CrmMetricsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmMetricsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmMetricsResource
@@ -572,6 +599,7 @@ Resources:
 
   CrmOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmMetricsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmMetricsResource
@@ -601,6 +629,7 @@ Resources:
 
   CrmConfigResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -608,6 +637,7 @@ Resources:
 
   CrmConfigAiEmployeeResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmConfigResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmConfigResource
@@ -615,6 +645,7 @@ Resources:
 
   CrmConfigAiEmployeeGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmConfigAiEmployeeResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmConfigAiEmployeeResource
@@ -638,6 +669,7 @@ Resources:
 
   CrmConfigAiEmployeePatchMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmConfigAiEmployeeGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmConfigAiEmployeeResource
@@ -661,6 +693,7 @@ Resources:
 
   CrmConfigAiEmployeeOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmConfigAiEmployeePatchMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmConfigAiEmployeeResource
@@ -688,6 +721,7 @@ Resources:
 
   CrmAgentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmConfigAiEmployeeOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -695,6 +729,7 @@ Resources:
 
   CrmAgentsActivityResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmAgentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmAgentsResource
@@ -702,6 +737,7 @@ Resources:
 
   CrmAgentsActivityGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmAgentsActivityResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmAgentsActivityResource
@@ -725,6 +761,7 @@ Resources:
 
   CrmAgentsActivityOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmAgentsActivityGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmAgentsActivityResource
@@ -752,6 +789,7 @@ Resources:
 
   CrmAgentResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmAgentsActivityOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -759,6 +797,7 @@ Resources:
 
   CrmAgentToolResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmAgentResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmAgentResource
@@ -766,6 +805,7 @@ Resources:
 
   CrmAgentToolPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmAgentToolResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmAgentToolResource
@@ -789,6 +829,7 @@ Resources:
 
   CrmAgentToolOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmAgentToolPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmAgentToolResource
@@ -818,6 +859,7 @@ Resources:
   # ============== CRM Customers ==============
   CrmCustomersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmAgentToolOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -825,6 +867,7 @@ Resources:
 
   CrmCustomersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomersResource
@@ -874,6 +917,7 @@ Resources:
 
   CrmCustomersPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomersResource
@@ -923,6 +967,7 @@ Resources:
 
   CrmCustomersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomersPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomersResource
@@ -952,6 +997,7 @@ Resources:
 
   CrmCustomerResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomersResource
@@ -959,6 +1005,7 @@ Resources:
 
   CrmCustomerGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerResource
@@ -1008,6 +1055,7 @@ Resources:
 
   CrmCustomerPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerResource
@@ -1057,6 +1105,7 @@ Resources:
 
   CrmCustomerOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerResource
@@ -1085,6 +1134,7 @@ Resources:
   # ============== CRM Customer Notes ==============
   CrmCustomerNotesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomerResource
@@ -1092,6 +1142,7 @@ Resources:
 
   CrmCustomerNotesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNotesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNotesResource
@@ -1141,6 +1192,7 @@ Resources:
 
   CrmCustomerNotesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNotesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNotesResource
@@ -1190,6 +1242,7 @@ Resources:
 
   CrmCustomerNotesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNotesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNotesResource
@@ -1217,6 +1270,7 @@ Resources:
 
   CrmCustomerNoteResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerNotesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomerNotesResource
@@ -1224,6 +1278,7 @@ Resources:
 
   CrmCustomerNotePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNoteResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNoteResource
@@ -1273,6 +1328,7 @@ Resources:
 
   CrmCustomerNoteDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNotePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNoteResource
@@ -1322,6 +1378,7 @@ Resources:
 
   CrmCustomerNoteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerNoteDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerNoteResource
@@ -1350,6 +1407,7 @@ Resources:
   # ============== CRM Customer Lookup ==============
   CrmCustomerLookupResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerNoteOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomersResource
@@ -1357,6 +1415,7 @@ Resources:
 
   CrmCustomerLookupByPhoneResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerLookupResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomerLookupResource
@@ -1364,6 +1423,7 @@ Resources:
 
   CrmCustomerLookupByPhoneGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerLookupByPhoneResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerLookupByPhoneResource
@@ -1412,6 +1472,7 @@ Resources:
 
   CrmCustomerLookupByPhoneOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerLookupByPhoneGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerLookupByPhoneResource
@@ -1442,6 +1503,7 @@ Resources:
   # ============== CRM Customer Documents ==============
   CrmCustomerDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerLookupByPhoneOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomerResource
@@ -1449,6 +1511,7 @@ Resources:
 
   CrmCustomerDocumentsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerDocumentsResource
@@ -1498,6 +1561,7 @@ Resources:
 
   CrmCustomerDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerDocumentsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerDocumentsResource
@@ -1525,6 +1589,7 @@ Resources:
 
   CrmCustomerWithDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmCustomerResource
@@ -1532,6 +1597,7 @@ Resources:
 
   CrmCustomerWithDocumentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerWithDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerWithDocumentsResource
@@ -1581,6 +1647,7 @@ Resources:
 
   CrmCustomerWithDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmCustomerWithDocumentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmCustomerWithDocumentsResource
@@ -1609,6 +1676,7 @@ Resources:
   # ============== CRM Owners ==============
   CrmOwnersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCustomerWithDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -1616,6 +1684,7 @@ Resources:
 
   CrmOwnersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnersResource
@@ -1665,6 +1734,7 @@ Resources:
 
   CrmOwnersPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnersResource
@@ -1714,6 +1784,7 @@ Resources:
 
   CrmOwnersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnersPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnersResource
@@ -1743,6 +1814,7 @@ Resources:
 
   CrmOwnerResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnersResource
@@ -1750,6 +1822,7 @@ Resources:
 
   CrmOwnerGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerResource
@@ -1799,6 +1872,7 @@ Resources:
 
   CrmOwnerPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerResource
@@ -1848,6 +1922,7 @@ Resources:
 
   CrmOwnerOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerResource
@@ -1876,6 +1951,7 @@ Resources:
   # ============== CRM Owner Notes ==============
   CrmOwnerNotesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerResource
@@ -1883,6 +1959,7 @@ Resources:
 
   CrmOwnerNotesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNotesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNotesResource
@@ -1932,6 +2009,7 @@ Resources:
 
   CrmOwnerNotesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNotesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNotesResource
@@ -1981,6 +2059,7 @@ Resources:
 
   CrmOwnerNotesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNotesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNotesResource
@@ -2008,6 +2087,7 @@ Resources:
 
   CrmOwnerNoteResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerNotesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerNotesResource
@@ -2015,6 +2095,7 @@ Resources:
 
   CrmOwnerNotePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNoteResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNoteResource
@@ -2064,6 +2145,7 @@ Resources:
 
   CrmOwnerNoteDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNotePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNoteResource
@@ -2113,6 +2195,7 @@ Resources:
 
   CrmOwnerNoteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerNoteDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerNoteResource
@@ -2141,6 +2224,7 @@ Resources:
   # ============== CRM Owner Lookup ==============
   CrmOwnerLookupResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerNoteOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnersResource
@@ -2148,6 +2232,7 @@ Resources:
 
   CrmOwnerLookupByPhoneResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerLookupResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerLookupResource
@@ -2155,6 +2240,7 @@ Resources:
 
   CrmOwnerLookupByPhoneOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerLookupByPhoneResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerLookupByPhoneResource
@@ -2182,6 +2268,7 @@ Resources:
 
   CrmOwnerLookupByPhoneGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerLookupByPhoneOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerLookupByPhoneResource
@@ -2233,6 +2320,7 @@ Resources:
   # ============== CRM Owner Properties ==============
   CrmOwnerPropertiesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerLookupByPhoneGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerResource
@@ -2240,6 +2328,7 @@ Resources:
 
   CrmOwnerPropertiesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerPropertiesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerPropertiesResource
@@ -2289,6 +2378,7 @@ Resources:
 
   CrmOwnerPropertiesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerPropertiesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerPropertiesResource
@@ -2317,6 +2407,7 @@ Resources:
   # ============== CRM Owner Documents ==============
   CrmOwnerDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerPropertiesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerResource
@@ -2324,6 +2415,7 @@ Resources:
 
   CrmOwnerDocumentsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerDocumentsResource
@@ -2373,6 +2465,7 @@ Resources:
 
   CrmOwnerDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerDocumentsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerDocumentsResource
@@ -2400,6 +2493,7 @@ Resources:
 
   CrmOwnerWithDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmOwnerResource
@@ -2407,6 +2501,7 @@ Resources:
 
   CrmOwnerWithDocumentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerWithDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerWithDocumentsResource
@@ -2456,6 +2551,7 @@ Resources:
 
   CrmOwnerWithDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmOwnerWithDocumentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmOwnerWithDocumentsResource
@@ -2484,6 +2580,7 @@ Resources:
   # ============== CRM Properties ==============
   CrmPropertiesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOwnerWithDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -2491,6 +2588,7 @@ Resources:
 
   CrmPropertiesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertiesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertiesResource
@@ -2540,6 +2638,7 @@ Resources:
 
   CrmPropertiesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertiesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertiesResource
@@ -2589,6 +2688,7 @@ Resources:
 
   CrmPropertiesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertiesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertiesResource
@@ -2616,6 +2716,7 @@ Resources:
 
   CrmPropertyResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertiesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertiesResource
@@ -2623,6 +2724,7 @@ Resources:
 
   CrmPropertyGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyResource
@@ -2672,6 +2774,7 @@ Resources:
 
   CrmPropertyPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyResource
@@ -2721,6 +2824,7 @@ Resources:
 
   CrmPropertyOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyResource
@@ -2749,6 +2853,7 @@ Resources:
   # ============== CRM Property Images ==============
   CrmPropertyImagesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -2756,6 +2861,7 @@ Resources:
 
   CrmPropertyImagesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyImagesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyImagesResource
@@ -2805,6 +2911,7 @@ Resources:
 
   CrmPropertyImagesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyImagesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyImagesResource
@@ -2832,6 +2939,7 @@ Resources:
 
   CrmPropertyImageResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyImagesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyImagesResource
@@ -2839,6 +2947,7 @@ Resources:
 
   CrmPropertyImageDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyImageResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyImageResource
@@ -2888,6 +2997,7 @@ Resources:
 
   CrmPropertyImageOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyImageDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyImageResource
@@ -2916,6 +3026,7 @@ Resources:
   # ============== CRM Property Videos ==============
   CrmPropertyVideosResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyImageOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -2923,6 +3034,7 @@ Resources:
 
   CrmPropertyVideosPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVideosResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVideosResource
@@ -2972,6 +3084,7 @@ Resources:
 
   CrmPropertyVideosOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVideosPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVideosResource
@@ -2999,6 +3112,7 @@ Resources:
 
   CrmPropertyVideoResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyVideosOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyVideosResource
@@ -3006,6 +3120,7 @@ Resources:
 
   CrmPropertyVideoDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVideoResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVideoResource
@@ -3055,6 +3170,7 @@ Resources:
 
   CrmPropertyVideoOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVideoDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVideoResource
@@ -3083,6 +3199,7 @@ Resources:
   # ============== CRM Property Agreements ==============
   CrmPropertyAgreementsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyVideoOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -3090,6 +3207,7 @@ Resources:
 
   CrmPropertyAgreementsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyAgreementsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyAgreementsResource
@@ -3139,6 +3257,7 @@ Resources:
 
   CrmPropertyAgreementsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyAgreementsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyAgreementsResource
@@ -3188,6 +3307,7 @@ Resources:
 
   CrmPropertyAgreementsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyAgreementsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyAgreementsResource
@@ -3215,6 +3335,7 @@ Resources:
 
   CrmPropertyAgreementResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyAgreementsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyAgreementsResource
@@ -3222,6 +3343,7 @@ Resources:
 
   CrmPropertyAgreementPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyAgreementResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyAgreementResource
@@ -3271,6 +3393,7 @@ Resources:
 
   CrmPropertyAgreementOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyAgreementPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyAgreementResource
@@ -3299,6 +3422,7 @@ Resources:
   # ============== CRM Property Verifications ==============
   CrmPropertyVerificationsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyAgreementOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -3306,6 +3430,7 @@ Resources:
 
   CrmPropertyVerificationsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVerificationsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVerificationsResource
@@ -3355,6 +3480,7 @@ Resources:
 
   CrmPropertyVerificationsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVerificationsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVerificationsResource
@@ -3404,6 +3530,7 @@ Resources:
 
   CrmPropertyVerificationsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVerificationsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVerificationsResource
@@ -3431,6 +3558,7 @@ Resources:
 
   CrmPropertyVerificationResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyVerificationsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyVerificationsResource
@@ -3438,6 +3566,7 @@ Resources:
 
   CrmPropertyVerificationPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVerificationResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVerificationResource
@@ -3487,6 +3616,7 @@ Resources:
 
   CrmPropertyVerificationOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVerificationPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVerificationResource
@@ -3515,6 +3645,7 @@ Resources:
   # ============== CRM Property Documents ==============
   CrmPropertyDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyVerificationOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -3522,6 +3653,7 @@ Resources:
 
   CrmPropertyDocumentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentsResource
@@ -3571,6 +3703,7 @@ Resources:
 
   CrmPropertyDocumentsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentsResource
@@ -3620,6 +3753,7 @@ Resources:
 
   CrmPropertyDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentsResource
@@ -3647,6 +3781,7 @@ Resources:
 
   CrmPropertyDocumentsUploadResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyDocumentsResource
@@ -3654,6 +3789,7 @@ Resources:
 
   CrmPropertyDocumentsUploadPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentsUploadResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentsUploadResource
@@ -3687,6 +3823,7 @@ Resources:
 
   CrmPropertyDocumentsUploadOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentsUploadPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentsUploadResource
@@ -3714,6 +3851,7 @@ Resources:
 
   CrmPropertyDocumentResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyDocumentsUploadOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyDocumentsResource
@@ -3721,6 +3859,7 @@ Resources:
 
   CrmPropertyDocumentDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentResource
@@ -3770,6 +3909,7 @@ Resources:
 
   CrmPropertyDocumentOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyDocumentDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyDocumentResource
@@ -3798,6 +3938,7 @@ Resources:
   # ============== CRM Public Properties ==============
   CrmPublicResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyDocumentOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertiesResource
@@ -3805,6 +3946,7 @@ Resources:
 
   CrmPublicListResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPublicResource
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPublicResource
@@ -3812,6 +3954,7 @@ Resources:
 
   CrmPublicListGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPublicListResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPublicListResource
@@ -3862,6 +4005,7 @@ Resources:
   
   CrmPublicPropertyResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPublicListGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPublicResource
@@ -3869,6 +4013,7 @@ Resources:
 
   CrmPublicPropertyGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPublicPropertyResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPublicPropertyResource
@@ -3920,6 +4065,7 @@ Resources:
   # ============== CRM Property Status Management ==============
   CrmPropertyListForSaleResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPublicPropertyGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -3927,6 +4073,7 @@ Resources:
 
   CrmPropertyListForSalePostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyListForSaleResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyListForSaleResource
@@ -3955,6 +4102,7 @@ Resources:
 
   CrmPropertyListForSaleOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyListForSalePostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyListForSaleResource
@@ -3982,6 +4130,7 @@ Resources:
 
   CrmPropertyListForRentResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyListForSaleOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -3989,6 +4138,7 @@ Resources:
 
   CrmPropertyListForRentPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyListForRentResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyListForRentResource
@@ -4017,6 +4167,7 @@ Resources:
 
   CrmPropertyListForRentOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyListForRentPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyListForRentResource
@@ -4044,6 +4195,7 @@ Resources:
 
   CrmPropertyMarkSoldResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyListForRentOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -4051,6 +4203,7 @@ Resources:
 
   CrmPropertyMarkSoldPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyMarkSoldResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyMarkSoldResource
@@ -4079,6 +4232,7 @@ Resources:
 
   CrmPropertyMarkSoldOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyMarkSoldPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyMarkSoldResource
@@ -4106,6 +4260,7 @@ Resources:
 
   CrmPropertyMarkRentedResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyMarkSoldOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -4113,6 +4268,7 @@ Resources:
 
   CrmPropertyMarkRentedPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyMarkRentedResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyMarkRentedResource
@@ -4141,6 +4297,7 @@ Resources:
 
   CrmPropertyMarkRentedOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyMarkRentedPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyMarkRentedResource
@@ -4168,6 +4325,7 @@ Resources:
 
   CrmPropertyVacateResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyMarkRentedOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmPropertyResource
@@ -4175,6 +4333,7 @@ Resources:
 
   CrmPropertyVacatePostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVacateResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVacateResource
@@ -4198,6 +4357,7 @@ Resources:
 
   CrmPropertyVacateOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmPropertyVacatePostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmPropertyVacateResource
@@ -4226,6 +4386,7 @@ Resources:
   # ============== CRM Leads ==============
   CrmLeadsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmPropertyVacateOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -4233,6 +4394,7 @@ Resources:
 
   CrmLeadsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadMetricsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadsResource
@@ -4282,6 +4444,7 @@ Resources:
 
   CrmLeadsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadsResource
@@ -4331,6 +4494,7 @@ Resources:
 
   CrmLeadsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadsResource
@@ -4360,6 +4524,7 @@ Resources:
 
   CrmLeadResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4367,6 +4532,7 @@ Resources:
 
   CrmLeadGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadResource
@@ -4416,6 +4582,7 @@ Resources:
 
   CrmLeadPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadResource
@@ -4465,6 +4632,7 @@ Resources:
 
   CrmLeadDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadResource
@@ -4514,6 +4682,7 @@ Resources:
 
   CrmLeadOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadResource
@@ -4542,6 +4711,7 @@ Resources:
   # ============== CRM Lead Search ==============
   CrmLeadSearchResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4549,6 +4719,7 @@ Resources:
 
   CrmLeadSearchGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadSearchResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadSearchResource
@@ -4598,6 +4769,7 @@ Resources:
 
   CrmLeadSearchOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadSearchGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadSearchResource
@@ -4626,6 +4798,7 @@ Resources:
   # ============== CRM Lead Agents ==============
   CrmLeadAgentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadSearchOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4633,6 +4806,7 @@ Resources:
 
   CrmLeadAgentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadAgentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadAgentsResource
@@ -4682,6 +4856,7 @@ Resources:
 
   CrmLeadAgentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadAgentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadAgentsResource
@@ -4710,6 +4885,7 @@ Resources:
   # ============== CRM Lead Types ==============
   CrmLeadBuyersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadAgentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4717,6 +4893,7 @@ Resources:
 
   CrmLeadBuyersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadBuyersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadBuyersResource
@@ -4766,6 +4943,7 @@ Resources:
 
   CrmLeadBuyersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadBuyersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadBuyersResource
@@ -4793,6 +4971,7 @@ Resources:
 
   CrmLeadSellersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadBuyersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4800,6 +4979,7 @@ Resources:
 
   CrmLeadSellersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadSellersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadSellersResource
@@ -4849,6 +5029,7 @@ Resources:
 
   CrmLeadSellersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadSellersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadSellersResource
@@ -4876,6 +5057,7 @@ Resources:
 
   CrmLeadTenantsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadSellersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadsResource
@@ -4883,6 +5065,7 @@ Resources:
 
   CrmLeadTenantsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadTenantsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadTenantsResource
@@ -4932,6 +5115,7 @@ Resources:
 
   CrmLeadTenantsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadTenantsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadTenantsResource
@@ -4960,6 +5144,7 @@ Resources:
   # ============== CRM Lead Convert ==============
   CrmLeadConvertResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadTenantsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadResource
@@ -4967,6 +5152,7 @@ Resources:
 
   CrmLeadConvertPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadConvertResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadConvertResource
@@ -5016,6 +5202,7 @@ Resources:
 
   CrmLeadConvertOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadConvertPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadConvertResource
@@ -5044,6 +5231,7 @@ Resources:
   # ============== CRM Lead Matching Contacts ==============
   CrmLeadMatchingContactsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadConvertOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadResource
@@ -5051,6 +5239,7 @@ Resources:
 
   CrmLeadMatchingContactsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadMatchingContactsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadMatchingContactsResource
@@ -5089,6 +5278,7 @@ Resources:
 
   CrmLeadMatchingContactsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadMatchingContactsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadMatchingContactsResource
@@ -5117,6 +5307,7 @@ Resources:
   # ============== CRM Lead Notes ==============
   CrmLeadNotesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadMatchingContactsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadResource
@@ -5124,6 +5315,7 @@ Resources:
 
   CrmLeadNotesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNotesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNotesResource
@@ -5173,6 +5365,7 @@ Resources:
 
   CrmLeadNotesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNotesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNotesResource
@@ -5222,6 +5415,7 @@ Resources:
 
   CrmLeadNotesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNotesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNotesResource
@@ -5249,6 +5443,7 @@ Resources:
 
   CrmLeadNoteResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadNotesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmLeadNotesResource
@@ -5256,6 +5451,7 @@ Resources:
 
   CrmLeadNotePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNoteResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNoteResource
@@ -5305,6 +5501,7 @@ Resources:
 
   CrmLeadNoteDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNotePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNoteResource
@@ -5354,6 +5551,7 @@ Resources:
 
   CrmLeadNoteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadNoteDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmLeadNoteResource
@@ -5382,6 +5580,7 @@ Resources:
   # ============== CRM Buyers ==============
   CrmBuyersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadNoteOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -5389,6 +5588,7 @@ Resources:
 
   CrmBuyersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerLookupByPhoneGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyersResource
@@ -5438,6 +5638,7 @@ Resources:
 
   CrmBuyersPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyersResource
@@ -5487,6 +5688,7 @@ Resources:
 
   CrmBuyersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyersPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyersResource
@@ -5516,6 +5718,7 @@ Resources:
 
   CrmBuyerResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyersResource
@@ -5523,6 +5726,7 @@ Resources:
 
   CrmBuyerGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerWithDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerResource
@@ -5572,6 +5776,7 @@ Resources:
 
   CrmBuyerPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerResource
@@ -5621,6 +5826,7 @@ Resources:
 
   CrmBuyerDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerResource
@@ -5670,6 +5876,7 @@ Resources:
 
   CrmBuyerOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerResource
@@ -5698,6 +5905,7 @@ Resources:
   # ============== CRM Buyer Purchases ==============
   CrmBuyerPurchasesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerResource
@@ -5705,6 +5913,7 @@ Resources:
 
   CrmBuyerPurchasesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerPurchasesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerPurchasesResource
@@ -5754,6 +5963,7 @@ Resources:
 
   CrmBuyerPurchasesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerPurchasesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerPurchasesResource
@@ -5781,6 +5991,7 @@ Resources:
 
   CrmBuyerPurchaseResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerPurchasesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmBuyerPurchasesResource
@@ -5788,6 +5999,7 @@ Resources:
 
   CrmBuyerPurchasePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerPurchaseResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerPurchaseResource
@@ -5837,6 +6049,7 @@ Resources:
 
   CrmBuyerPurchaseOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmBuyerPurchasePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmBuyerPurchaseResource
@@ -5865,6 +6078,7 @@ Resources:
   # ============== CRM Contacts ==============
   CrmContactsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmBuyerPurchaseOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmResource
@@ -5872,6 +6086,7 @@ Resources:
 
   CrmContactsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsResource
@@ -5921,6 +6136,7 @@ Resources:
 
   CrmContactsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsResource
@@ -5970,6 +6186,7 @@ Resources:
 
   CrmContactsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsResource
@@ -5998,6 +6215,7 @@ Resources:
   # ============== CRM Contact Role Filters ==============
   CrmContactsOwnersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6005,6 +6223,7 @@ Resources:
 
   CrmContactsOwnersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsOwnersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsOwnersResource
@@ -6048,6 +6267,7 @@ Resources:
 
   CrmContactsOwnersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsOwnersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsOwnersResource
@@ -6075,6 +6295,7 @@ Resources:
 
   CrmContactsSellersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactsOwnersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6082,6 +6303,7 @@ Resources:
 
   CrmContactsSellersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsSellersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsSellersResource
@@ -6125,6 +6347,7 @@ Resources:
 
   CrmContactsSellersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsSellersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsSellersResource
@@ -6152,6 +6375,7 @@ Resources:
 
   CrmContactsBuyersResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactsSellersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6159,6 +6383,7 @@ Resources:
 
   CrmContactsBuyersGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsBuyersResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsBuyersResource
@@ -6202,6 +6427,7 @@ Resources:
 
   CrmContactsBuyersOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsBuyersGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsBuyersResource
@@ -6229,6 +6455,7 @@ Resources:
 
   CrmContactsTenantsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactsBuyersOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6236,6 +6463,7 @@ Resources:
 
   CrmContactsTenantsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsTenantsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsTenantsResource
@@ -6279,6 +6507,7 @@ Resources:
 
   CrmContactsTenantsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactsTenantsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactsTenantsResource
@@ -6306,6 +6535,7 @@ Resources:
 
   CrmContactResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactsTenantsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6313,6 +6543,7 @@ Resources:
 
   CrmContactGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactResource
@@ -6362,6 +6593,7 @@ Resources:
 
   CrmContactPutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactResource
@@ -6411,6 +6643,7 @@ Resources:
 
   CrmContactDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactPutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactResource
@@ -6460,6 +6693,7 @@ Resources:
 
   CrmContactOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactResource
@@ -6489,6 +6723,7 @@ Resources:
 
   CrmContactLookupResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6496,6 +6731,7 @@ Resources:
 
   CrmContactLookupOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactLookupResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactLookupResource
@@ -6523,6 +6759,7 @@ Resources:
 
   CrmContactLookupByPhoneResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactLookupOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactLookupResource
@@ -6530,6 +6767,7 @@ Resources:
 
   CrmContactLookupByPhoneGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactLookupByPhoneResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactLookupByPhoneResource
@@ -6578,6 +6816,7 @@ Resources:
 
   CrmContactLookupByPhoneOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactLookupByPhoneGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactLookupByPhoneResource
@@ -6605,6 +6844,7 @@ Resources:
 
   CrmContactUpsertByPhoneResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactLookupByPhoneOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactsResource
@@ -6612,6 +6852,7 @@ Resources:
 
   CrmContactUpsertByPhonePostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactUpsertByPhoneResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactUpsertByPhoneResource
@@ -6660,6 +6901,7 @@ Resources:
 
   CrmContactUpsertByPhoneOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactUpsertByPhonePostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactUpsertByPhoneResource
@@ -6687,6 +6929,7 @@ Resources:
 
   CrmContactWithDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactUpsertByPhoneOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactResource
@@ -6694,6 +6937,7 @@ Resources:
 
   CrmContactWithDocumentsGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactWithDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactWithDocumentsResource
@@ -6742,6 +6986,7 @@ Resources:
 
   CrmContactWithDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactWithDocumentsGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactWithDocumentsResource
@@ -6769,6 +7014,7 @@ Resources:
 
   CrmContactDocumentsResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactWithDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactResource
@@ -6776,6 +7022,7 @@ Resources:
 
   CrmContactDocumentsPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactDocumentsResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactDocumentsResource
@@ -6824,6 +7071,7 @@ Resources:
 
   CrmContactDocumentsOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactDocumentsPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactDocumentsResource
@@ -6851,6 +7099,7 @@ Resources:
 
   CrmContactRoleResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactDocumentsOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactResource
@@ -6858,6 +7107,7 @@ Resources:
 
   CrmContactRolePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactRoleResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactRoleResource
@@ -6906,6 +7156,7 @@ Resources:
 
   CrmContactRoleOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactRolePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactRoleResource
@@ -6933,6 +7184,7 @@ Resources:
 
   CrmContactNotesResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactRoleOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactResource
@@ -6940,6 +7192,7 @@ Resources:
 
   CrmContactNotesGetMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNotesResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNotesResource
@@ -6988,6 +7241,7 @@ Resources:
 
   CrmContactNotesPostMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNotesGetMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNotesResource
@@ -7036,6 +7290,7 @@ Resources:
 
   CrmContactNotesOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNotesPostMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNotesResource
@@ -7063,6 +7318,7 @@ Resources:
 
   CrmContactNoteResource:
     Type: AWS::ApiGateway::Resource
+    DependsOn: CrmContactNotesOptionsMethod
     Properties:
       RestApiId: !Ref RestApiId
       ParentId: !Ref CrmContactNotesResource
@@ -7070,6 +7326,7 @@ Resources:
 
   CrmContactNotePutMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNoteResource
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNoteResource
@@ -7118,6 +7375,7 @@ Resources:
 
   CrmContactNoteDeleteMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNotePutMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNoteResource
@@ -7166,6 +7424,7 @@ Resources:
 
   CrmContactNoteOptionsMethod:
     Type: AWS::ApiGateway::Method
+    DependsOn: CrmContactNoteDeleteMethod
     Properties:
       RestApiId: !Ref RestApiId
       ResourceId: !Ref CrmContactNoteResource

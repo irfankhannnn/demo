@@ -53,6 +53,15 @@ case "$OS_UNAME" in
     ;;
 esac
 
+# aws.exe (AWS CLI v2) is a self-contained/frozen Python binary that reads
+# local files (e.g. --template-file) using the system codepage on Windows
+# (cp1252 here), not UTF-8 — confirmed PYTHONUTF8=1 has no effect on it
+# (unlike a normal python.exe), so the only real fix is keeping
+# cfn-backend.yaml free of non-ASCII bytes that land in cp1252's undefined
+# range (comment banners using box-drawing characters have hit this: "
+# 'charmap' codec can't decode byte 0x90..." mid-deploy). Keep template
+# comments/strings plain ASCII.
+
 # Convert a POSIX path to a Windows-style path when running under Git Bash/MSYS/Cygwin.
 # AWS CLI (a Windows process) cannot read /d/... paths, so file:// URLs need D:/... paths.
 winpath() {
@@ -160,18 +169,18 @@ TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
 # 2. Install dependencies
 # -----------------------------------------------------------------------------
 if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = true ]; then
-  echo "[1/7] Installing dependencies..."
+  echo "[1/8] Installing dependencies..."
   cd "$PROJECT_DIR"
   "$NPM_BIN" ci --omit=dev --no-audit --no-fund
 elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_INSTALL" = false ]; then
-  echo "[1/7] Skipping npm install (DEPLOY_INSTALL=false)."
+  echo "[1/8] Skipping npm install (DEPLOY_INSTALL=false)."
 fi
 
 # -----------------------------------------------------------------------------
 # 3. Package Lambda bundle
 # -----------------------------------------------------------------------------
 if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
-  echo "[2/7] Packaging function.zip..."
+  echo "[2/8] Packaging function.zip..."
   rm -f "$PROJECT_DIR/function.zip"
   cd "$PROJECT_DIR"
   # Use compression level 1 for fast packaging. Level 0 (store) is even faster but larger.
@@ -194,19 +203,19 @@ if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   # 4. Upload to S3
   # -----------------------------------------------------------------------------
   S3_KEY="${ARTIFACT_PREFIX}/function-${TIMESTAMP}.zip"
-  echo "[3/7] Uploading function.zip to s3://${ARTIFACT_BUCKET}/${S3_KEY}..."
+  echo "[3/8] Uploading function.zip to s3://${ARTIFACT_BUCKET}/${S3_KEY}..."
   "$AWS_BIN" s3 cp "$PROJECT_DIR/function.zip" "s3://${ARTIFACT_BUCKET}/${S3_KEY}" --region "$AWS_REGION" --no-cli-pager
 elif [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
-  echo "[2/7] Skipping zip creation (DEPLOY_ZIP=false)."
-  echo "[3/7] Skipping S3 upload (DEPLOY_ZIP=false)."
+  echo "[2/8] Skipping zip creation (DEPLOY_ZIP=false)."
+  echo "[3/8] Skipping S3 upload (DEPLOY_ZIP=false)."
 elif [ "$DEPLOY_LAMBDA" = false ]; then
-  echo "[1/7] Skipping Lambda deployment (DEPLOY_LAMBDA=false)."
+  echo "[1/8] Skipping Lambda deployment (DEPLOY_LAMBDA=false)."
 fi
 
 # Upload nested route templates (split to stay under CloudFormation 500-resource limit)
 NESTED_TEMPLATE_KEY="${ARTIFACT_PREFIX}/apigw-explicit-routes-part1.yaml"
 NESTED_TEMPLATE_KEY_PART2="${ARTIFACT_PREFIX}/apigw-explicit-routes-part2.yaml"
-echo "[4/7] Uploading nested route templates to s3://${ARTIFACT_BUCKET}/..."
+echo "[4/8] Uploading nested route templates to s3://${ARTIFACT_BUCKET}/..."
 "$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part1.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
 "$AWS_BIN" s3 cp "$SCRIPT_DIR/apigw-explicit-routes-part2.yaml" "s3://${ARTIFACT_BUCKET}/${NESTED_TEMPLATE_KEY_PART2}" --region "$AWS_REGION" --no-cli-pager
 
@@ -215,7 +224,7 @@ TEMPLATE_URL_PART2="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${
 
 # Upload main template (required if >51.2KB)
 MAIN_TEMPLATE_KEY="${ARTIFACT_PREFIX}/cfn-backend.yaml"
-echo "[4/7] Uploading main template to s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}..."
+echo "[4/8] Uploading main template to s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}..."
 "$AWS_BIN" s3 cp "$SCRIPT_DIR/cfn-backend.yaml" "s3://${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
 
 MAIN_TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${ARTIFACT_BUCKET}/${MAIN_TEMPLATE_KEY}"
@@ -245,7 +254,7 @@ fi
 # -----------------------------------------------------------------------------
 # 5. Generate cfn-params.json from .env
 # -----------------------------------------------------------------------------
-echo "[5/7] Generating infra/cfn-params.json..."
+echo "[5/8] Generating infra/cfn-params.json..."
 cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
 [
   { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENVIRONMENT_NAME}" },
@@ -355,18 +364,35 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "CallIntelDefaultMeetingTime", "ParameterValue": "${CALL_INTEL_DEFAULT_MEETING_TIME:-11:00}" },
   { "ParameterKey": "CallIntelMaxUploadBytes", "ParameterValue": "${CALL_INTEL_MAX_UPLOAD_BYTES:-209715200}" },
   { "ParameterKey": "CallIntelUploadUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_UPLOAD_URL_TTL_SECONDS:-900}" },
-  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_PLAYBACK_URL_TTL_SECONDS:-3600}" }
+  { "ParameterKey": "CallIntelPlaybackUrlTtlSeconds", "ParameterValue": "${CALL_INTEL_PLAYBACK_URL_TTL_SECONDS:-3600}" },
+  { "ParameterKey": "AgentToolLoopEnabled", "ParameterValue": "${AGENT_TOOL_LOOP_ENABLED:-false}" },
+  { "ParameterKey": "AgentWebToolLoopBudgetMs", "ParameterValue": "${AGENT_WEB_TOOL_LOOP_BUDGET_MS:-18000}" },
+  { "ParameterKey": "CallIntelStalledAnalysisMs", "ParameterValue": "${CALL_INTEL_STALLED_ANALYSIS_MS:-900000}" },
+  { "ParameterKey": "CloudWatchNamespace", "ParameterValue": "${CLOUDWATCH_NAMESPACE:-RealEstateFlow/MVP}" },
+  { "ParameterKey": "FirebaseServiceAccountJson", "ParameterValue": "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" },
+  { "ParameterKey": "RazorpayPlanAiEmployee", "ParameterValue": "${RAZORPAY_PLAN_AI_EMPLOYEE:-plan_test_ai_employee}" },
+  { "ParameterKey": "ToolLogMaxResultChars", "ParameterValue": "${TOOL_LOG_MAX_RESULT_CHARS:-2000}" },
+  { "ParameterKey": "WhatsAppFallbackCategory", "ParameterValue": "${WHATSAPP_FALLBACK_CATEGORY:-admin}" }
 ]
 EOF
 
 # -----------------------------------------------------------------------------
-# 6. Check for dependent MCP OAuth tables
+# 6. Sync config to SSM Parameter Store
+# -----------------------------------------------------------------------------
+# Must run before the Lambda deploy below (step 8) — both Lambdas fetch their
+# config from SSM at cold start (config/ssmBootstrap.js), so the values need
+# to already be in place before either one starts running the new code.
+echo "[6/8] Syncing config to SSM Parameter Store..."
+"$SCRIPT_DIR/sync-ssm-params.sh" "$ENVIRONMENT_NAME"
+
+# -----------------------------------------------------------------------------
+# 7. Check for dependent MCP OAuth tables
 # -----------------------------------------------------------------------------
 OAUTH_CODES_TABLE="${OAUTH_CODES_TABLE_NAME:-realestate-flow-${ENVIRONMENT_NAME}-oauth-codes}"
 OAUTH_CONNECTIONS_TABLE="${OAUTH_CONNECTIONS_TABLE:-realestate-flow-${ENVIRONMENT_NAME}-oauth-connections}"
 
 if [ "$DEPLOY_CFN" = true ]; then
-  echo "[6/7] Checking for dependent MCP OAuth tables..."
+  echo "[7/8] Checking for dependent MCP OAuth tables..."
   if ! "$AWS_BIN" dynamodb describe-table --table-name "$OAUTH_CODES_TABLE" --region "$AWS_REGION" > /dev/null 2>&1; then
     echo "WARNING: OAuth codes table '$OAUTH_CODES_TABLE' does not exist. Deploy the MCP stack first or create the table manually."
   fi
@@ -503,7 +529,7 @@ route_split_migration_required() {
 }
 
 if [ "$DEPLOY_CFN" = true ]; then
-  echo "[7/7] Deploying CloudFormation stack: $STACK_NAME..."
+  echo "[8/8] Deploying CloudFormation stack: $STACK_NAME..."
 
   # Pre-check: ensure stack is in a stable state before deploying
   echo "  Checking stack status..."
@@ -525,8 +551,8 @@ if [ "$DEPLOY_CFN" = true ]; then
     cfn_deploy_with_retry
   fi
 elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
-  echo "[7/7] Updating Lambda function directly..."
+  echo "[8/8] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+  echo "[8/8] Updating Lambda function directly..."
   "$AWS_BIN" lambda update-function-code \
     --function-name "${ENVIRONMENT_NAME}-realestateflow-api" \
     --s3-bucket "${ARTIFACT_BUCKET}" \
@@ -538,7 +564,7 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
   # code-only deploy has to refresh it too or the two drift apart.
   CALL_RECORDING_WORKER_NAME="${ENVIRONMENT_NAME}-realestateflow-call-recording-worker"
   if "$AWS_BIN" lambda get-function --function-name "$CALL_RECORDING_WORKER_NAME" --region "$AWS_REGION" > /dev/null 2>&1; then
-    echo "[7/7] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
+    echo "[8/8] Updating call recording worker Lambda ($CALL_RECORDING_WORKER_NAME)..."
     "$AWS_BIN" lambda update-function-code \
       --function-name "$CALL_RECORDING_WORKER_NAME" \
       --s3-bucket "${ARTIFACT_BUCKET}" \
@@ -546,13 +572,13 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
       --region "$AWS_REGION" \
       --no-cli-pager
   else
-    echo "[7/7] Call recording worker Lambda not found ($CALL_RECORDING_WORKER_NAME); run a CloudFormation deploy to create it."
+    echo "[8/8] Call recording worker Lambda not found ($CALL_RECORDING_WORKER_NAME); run a CloudFormation deploy to create it."
   fi
 elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = false ]; then
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
-  echo "[7/7] Skipping Lambda update (DEPLOY_ZIP=false)."
+  echo "[8/8] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+  echo "[8/8] Skipping Lambda update (DEPLOY_ZIP=false)."
 else
-  echo "[7/7] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
+  echo "[8/8] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
 fi
 
 # Force API Gateway deployments

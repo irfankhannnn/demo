@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # =============================================================================
-# WhatsApp Platform — Single Entry-Point Deploy Script
+# WhatsApp Platform — Real Deploy Script (build + push + CFN)
+#
+# This is the actual packaging/CFN work — the delegate script that
+# cfn-templates-cicd/whatsapp-platform/deploy.sh calls for every deploy. Run
+# it directly for local/manual use; go through the CI/CD wrapper for anything
+# you want recorded as a numbered build (release tracking, rollback). See
+# cfn-templates-cicd/whatsapp-platform/README.md for that design.
 #
 # Usage:
 #   cd whatsapp-platform/infra
@@ -24,8 +30,18 @@
 #     auto-generated if left as placeholders, and saved to
 #     infra/.generated-<env>.env (gitignored) for reuse on redeploys.
 #
+# Every deploy is pushed under a unique, immutable image tag (git short SHA +
+# UTC timestamp) — never a floating "latest" — so a later deploy can never
+# silently overwrite the image an earlier one is still running, and the CI/CD
+# wrapper always has a concrete historical image to roll back to. The exact
+# tag/digest resolved is written to infra/.last-deploy-artifacts.json
+# (gitignored, a build artifact) for that wrapper to read back.
+#
 # Environment overrides (read from ../.env or shell):
-#   SKIP_BUILD=true    — skip Docker build + ECR push (re-deploy infra only)
+#   SKIP_BUILD=true    — skip Docker build + ECR push, reuse an existing
+#                        IMAGE_TAG (the wrapper's rollback-code uses this)
+#   IMAGE_TAG=...      — deploy this exact tag instead of generating a new one
+#                        (required together with SKIP_BUILD=true)
 #   SKIP_CFN=true      — skip CloudFormation deploy (build + push only)
 #   ALARM_EMAIL=...    — enable CloudWatch alarm and Spot interruption email notifications
 #   HOSTED_ZONE_ID=... — enable Route53 dynamic DNS for a stable hostname
@@ -36,9 +52,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# Convert a POSIX path to a Windows-style path when running under Git Bash/MSYS/Cygwin.
+# AWS CLI (a Windows process) cannot read /c/... paths, so file:// URLs need C:/... paths.
+# Same helper as server/infra/deploy.sh — see its comment for the full reasoning.
+winpath() {
+  if command -v cygpath >/dev/null 2>&1; then
+    cygpath -m "$1"
+  elif command -v wslpath >/dev/null 2>&1; then
+    wslpath -m "$1"
+  else
+    echo "$1"
+  fi
+}
+
 # ─── Parse command + env (supports old `deploy.sh [env]` shorthand) ───────────
-COMMAND="${1:-deploy}"
-ENV_NAME="${2:-dev}"
+# Both COMMAND and ENV_NAME are required — no silent "dev" default. A direct/
+# manual invocation with a missing or misspelled env argument fails loudly
+# instead of quietly targeting dev.
+COMMAND="${1:-}"
+ENV_NAME="${2:-}"
 case "${COMMAND}" in
   dev|staging|prod)
     ENV_NAME="${COMMAND}"
@@ -47,29 +79,95 @@ case "${COMMAND}" in
   deploy|start|stop|status|endpoint)
     ;;
   *)
-    echo "Unknown command: ${COMMAND}"
-    echo "Usage: bash deploy.sh [deploy|start|stop|status|endpoint] [dev|staging|prod]"
+    echo "Unknown command: '${COMMAND}'"
+    echo "Usage: bash deploy.sh [deploy|start|stop|status|endpoint] <dev|staging|prod>"
+    exit 1
+    ;;
+esac
+case "${ENV_NAME}" in
+  dev|staging|prod) ;;
+  *)
+    echo "ERROR: environment is required and must be dev, staging, or prod (got: '${ENV_NAME}')"
+    echo "Usage: bash deploy.sh [deploy|start|stop|status|endpoint] <dev|staging|prod>"
     exit 1
     ;;
 esac
 
 REGION="${AWS_REGION:-ap-south-1}"
-STACK_NAME="${ENV_NAME}-realestate-flow-whatsapp-platform"
+case "${ENV_NAME}" in
+  dev)
+    # Historical name — the live dev stack (dev-realestate-flow-whatsapp-
+    # platform, deployed 2026-07-04) predates the "${env}-realestateflow-*"
+    # naming convention now used by reality-flow-authentication/server.
+    # Changing this formula for dev would target a stack that doesn't exist
+    # instead of updating the running one — deliberately left as-is.
+    STACK_NAME="${ENV_NAME}-realestate-flow-whatsapp-platform"
+    ;;
+  *)
+    # New environments (staging/prod have no live stack yet) use the
+    # correct, repo-wide convention from the start.
+    STACK_NAME="${ENV_NAME}-realestateflow-whatsapp-platform"
+    ;;
+esac
+case "${STACK_NAME}" in
+  "${ENV_NAME}-"*) ;;
+  *)
+    echo "ERROR: STACK_NAME '${STACK_NAME}' does not start with '${ENV_NAME}-' — refusing to deploy under a name that doesn't match this environment."
+    exit 1
+    ;;
+esac
 CLUSTER_NAME="${ENV_NAME}-whatsapp-platform"
 SERVICE_NAME="${ENV_NAME}-whatsapp-platform"
-IMAGE_TAG="${IMAGE_TAG:-latest}"
 SKIP_BUILD="${SKIP_BUILD:-false}"
 SKIP_CFN="${SKIP_CFN:-false}"
 
-# Load .env if present (base config)
-if [ -f "${ROOT_DIR}/.env" ]; then
-  set -a; source "${ROOT_DIR}/.env"; set +a
+# Load the per-environment config file — NEVER the bare local-dev .env for a
+# real deploy target. `.env` itself stays reserved for pure local/non-AWS
+# runs (LOCAL_STORAGE=true, no ECS involved) — see whatsapp-platform/.env.sample.
+ENV_FILE="${ROOT_DIR}/.env.${ENV_NAME}"
+if [ -f "${ENV_FILE}" ]; then
+  set -a; source "${ENV_FILE}"; set +a
+elif [ "${COMMAND}" = "deploy" ]; then
+  echo "ERROR: ${ENV_FILE} not found — create it before deploying ${ENV_NAME} (see whatsapp-platform/.env.sample)."
+  exit 1
+else
+  echo "NOTE: ${ENV_FILE} not found — continuing with defaults for a '${COMMAND}' control command (no image/CFN changes need it)."
 fi
+# Re-assert from the CLI argument regardless of what the sourced file says —
+# a stale value inside .env.<env> can never cause a run to silently target
+# the wrong environment.
+ENV_NAME="${ENV_NAME}"
 
 # Load previously auto-generated secrets/infra values for this env, if any
 GENERATED_FILE="${SCRIPT_DIR}/.generated-${ENV_NAME}.env"
 if [ -f "${GENERATED_FILE}" ]; then
   set -a; source "${GENERATED_FILE}"; set +a
+fi
+
+# Environments with a real live audience must make deliberate choices here —
+# never silently inherit a dev-only value with real consequences (an
+# internet-open port, or a webhook URL that only resolves on a dev machine).
+if [ "${COMMAND}" = "deploy" ] && [ "${ENV_NAME}" != "dev" ]; then
+  # Only rejects BLANK — an unset var means "never actually decided this,"
+  # inheriting the CFN parameter's open 0.0.0.0/0 default by accident. A
+  # value of 0.0.0.0/0 written explicitly into .env.<env> is a deliberate
+  # choice (someone had to type it, presumably knowing this task has no
+  # ALB/TLS in front of it) and is allowed through unchanged.
+  if [ -z "${DIRECT_INGRESS_CIDR:-}" ]; then
+    echo "ERROR: DIRECT_INGRESS_CIDR must be set in ${ENV_FILE} for ${ENV_NAME} — not left blank."
+    echo "  This task has no ALB/TLS in front of it — DIRECT_INGRESS_CIDR is the only thing between port 3003 and the internet."
+    echo "  Use a restricted CIDR (office/VPN range) where possible; 0.0.0.0/0 is accepted if set explicitly and deliberately."
+    exit 1
+  fi
+  if [ "${USE_EVENTBRIDGE:-false}" != "true" ]; then
+    case "${CRM_WEBHOOK_URL:-}" in
+      ""|*localhost*|*127.0.0.1*)
+        echo "ERROR: CRM_WEBHOOK_URL is unset or points at localhost in ${ENV_FILE}, and USE_EVENTBRIDGE is not 'true'."
+        echo "  Set USE_EVENTBRIDGE=true, or set CRM_WEBHOOK_URL to a real endpoint reachable from ${ENV_NAME}, before deploying."
+        exit 1
+        ;;
+    esac
+  fi
 fi
 
 echo "============================================="
@@ -158,9 +256,23 @@ ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 ECR_REPO_NAME="${ENV_NAME}-whatsapp-platform"
 ECR_REPO="${ECR_REPO:-${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO_NAME}}"
 
+# ─── Resolve immutable image tag ──────────────────────────────────────────────
+# Each deploy gets a unique, never-reused tag (git short SHA + UTC timestamp)
+# by default, so ECR always has an addressable historical image to roll back
+# to — unlike a floating "latest" tag, which the next push silently
+# overwrites. A caller that needs a specific existing image (the CI/CD
+# wrapper's rollback-code, pointing back at an old build) sets IMAGE_TAG
+# explicitly and this default is skipped.
+GIT_SHA_SHORT="$(git -C "${ROOT_DIR}" rev-parse --short HEAD 2>/dev/null || echo local)"
+IMAGE_TAG="${IMAGE_TAG:-${GIT_SHA_SHORT}-$(date -u +%Y%m%d%H%M%S)}"
+
 # ─── Step 1: Build + push Docker image ────────────────────────────────────────
 if [ "${SKIP_BUILD}" = "true" ]; then
-  echo "[SKIP] Docker build/push (SKIP_BUILD=true)"
+  echo "[SKIP] Docker build/push (SKIP_BUILD=true) — reusing existing image tag: ${IMAGE_TAG}"
+  if ! aws ecr describe-images --repository-name "${ECR_REPO_NAME}" --image-ids imageTag="${IMAGE_TAG}" --region "${REGION}" >/dev/null 2>&1; then
+    echo "  ERROR: image tag '${IMAGE_TAG}' not found in ECR repo '${ECR_REPO_NAME}' — cannot deploy a build that was never pushed."
+    exit 1
+  fi
 else
   if ! aws ecr describe-repositories --repository-names "${ECR_REPO_NAME}" --region "${REGION}" >/dev/null 2>&1; then
     echo "[1/6] Creating ECR repository: ${ECR_REPO_NAME}"
@@ -168,13 +280,37 @@ else
   fi
 
   echo "[2/6] Building Docker image: ${ECR_REPO}:${IMAGE_TAG}"
-  docker build -t "${ECR_REPO}:${IMAGE_TAG}" "${ROOT_DIR}"
+  docker build -t "${ECR_REPO}:${IMAGE_TAG}" -t "${ECR_REPO}:latest" "${ROOT_DIR}"
 
   echo "[3/6] Pushing image to ECR"
   aws ecr get-login-password --region "${REGION}" | \
     docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
   docker push "${ECR_REPO}:${IMAGE_TAG}"
+  # "latest" is a convenience floating tag for manual pulls only — CFN's
+  # ContainerImageUri parameter (below) always deploys the immutable tag.
+  docker push "${ECR_REPO}:latest"
 fi
+
+# Record the exact image this run resolved to, for the CI/CD wrapper
+# (cfn-templates-cicd/whatsapp-platform/deploy.sh) to read afterward — it
+# needs the immutable tag+digest to build a release manifest and to point
+# rollback-code at a specific historical image. Written regardless of what
+# happens next (CFN deploy may still fail) — a build artifact, not source,
+# see .gitignore.
+IMAGE_DIGEST="$(aws ecr describe-images --repository-name "${ECR_REPO_NAME}" --image-ids imageTag="${IMAGE_TAG}" --region "${REGION}" --query 'imageDetails[0].imageDigest' --output text 2>/dev/null || echo unknown)"
+[ "${IMAGE_DIGEST}" = "None" ] && IMAGE_DIGEST="unknown"
+
+cat > "${SCRIPT_DIR}/.last-deploy-artifacts.json" <<EOF
+{
+  "ecrRepoName": "${ECR_REPO_NAME}",
+  "ecrRepo": "${ECR_REPO}",
+  "imageTag": "${IMAGE_TAG}",
+  "imageUri": "${ECR_REPO}:${IMAGE_TAG}",
+  "imageDigest": "${IMAGE_DIGEST}",
+  "region": "${REGION}",
+  "accountId": "${ACCOUNT_ID}"
+}
+EOF
 
 # ─── Step 2: Auto-detect VPC/subnets when not explicitly configured ───────────
 is_placeholder_vpc() { [ -z "${1:-}" ] || [ "${1}" = "vpc-xxxxxxxx" ]; }
@@ -381,9 +517,9 @@ if [ "${SKIP_CFN}" = "true" ]; then
 else
   echo "  Deploying CloudFormation stack: ${STACK_NAME}"
   aws cloudformation deploy \
-    --template-file "cfn-platform.yaml" \
+    --template-file "$(winpath "${SCRIPT_DIR}/cfn-platform.yaml")" \
     --stack-name "${STACK_NAME}" \
-    --parameter-overrides "file://cfn-params-${ENV_NAME}.json" \
+    --parameter-overrides "file://$(winpath "${PARAMS_FILE}")" \
     --capabilities CAPABILITY_NAMED_IAM \
     --region "${REGION}" \
     --no-fail-on-empty-changeset

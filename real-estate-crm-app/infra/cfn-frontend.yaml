@@ -11,10 +11,16 @@ Description: >
   certificate issued in us-east-1 — this is a hard CloudFront requirement
   regardless of which region this stack is deployed in.
 
+  Naming convention: every physical resource this stack creates is named
+  <dev|prod>-realestateflow-crm-frontend-<resource> (env first), matching
+  the convention already live on prod-realestateflow-networking-common.
+  infra/deploy.sh derives BucketName as ${EnvironmentName}-${SERVICE_NAME}
+  by default (SERVICE_NAME=realestateflow-crm-frontend) unless overridden.
+
 Parameters:
   EnvironmentName:
     Type: String
-    AllowedValues: [nonprod, prod]
+    AllowedValues: [dev, prod]
     Description: Deployment environment (matches the .env.<EnvironmentName> file used to build the app)
 
   BucketName:
@@ -107,13 +113,13 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Service
-          Value: crm-frontend
+          Value: realestateflow-crm-frontend
 
   OriginAccessControl:
     Type: AWS::CloudFront::OriginAccessControl
     Properties:
       OriginAccessControlConfig:
-        Name: !Sub "${EnvironmentName}-crm-frontend-oac"
+        Name: !Sub "${EnvironmentName}-realestateflow-crm-frontend-oac"
         OriginAccessControlOriginType: s3
         SigningBehavior: always
         SigningProtocol: sigv4
@@ -166,7 +172,7 @@ Resources:
         - Key: Environment
           Value: !Ref EnvironmentName
         - Key: Service
-          Value: crm-frontend
+          Value: realestateflow-crm-frontend
 
   FrontendBucketPolicy:
     Type: AWS::S3::BucketPolicy

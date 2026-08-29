@@ -87,23 +87,6 @@ Parameters:
     AllowedValues: [7, 14, 30, 60, 90, 180, 365]
     Description: CloudWatch Logs retention for VPC Flow Logs.
 
-  ArtifactBucketName:
-    Type: String
-    Description: >-
-      Name of the shared S3 bucket every service's deploy.sh uploads its
-      packaged Lambda artifact (function.zip) to. Bucket names are global
-      and NOT derived from EnvironmentName here — pass the exact existing
-      name (e.g. realestate-flow-lambda-packages-prod) so this resource can
-      be imported onto the bucket that already exists, rather than
-      colliding with it on a fresh create.
-
-  CfnTemplatesBucketName:
-    Type: String
-    Description: >-
-      Name of the shared S3 bucket deploy.sh scripts upload oversized/nested
-      CloudFormation templates to before `aws cloudformation deploy`. Same
-      import-compatibility note as ArtifactBucketName.
-
 Conditions:
   Use3Az: !Equals [!Ref AzCount, 3]
   OneNatPerAz: !Equals [!Ref NatGatewayStrategy, OnePerAz]
@@ -751,34 +734,32 @@ Resources:
       Description: Cache port reachable only from the App tier
 
   # =======================================================================
-  # Shared S3 buckets - deploy-time artifacts, used by every service's
-  # deploy.sh (not app runtime data, so no VPC/networking dependency; kept
-  # here because they're account-wide shared infra like everything else in
-  # this template).
+  # Shared S3 bucket - deploy-time artifacts, used by every service's
+  # deploy.sh for BOTH the packaged Lambda code (function.zip) and any
+  # oversized/nested CloudFormation templates uploaded before
+  # `aws cloudformation deploy` (not app runtime data, so no VPC/networking
+  # dependency; kept here because it's account-wide shared infra like
+  # everything else in this template). One bucket, not two — every
+  # deploy.sh in this repo (reality-flow-authentication, server) already
+  # uploads code and templates to the same bucket via a single
+  # LAMBDA_PACKAGES_BUCKET_NAME / ARTIFACT_BUCKET env var, so this mirrors
+  # actual usage instead of introducing a split nothing reads.
   #
-  # BOTH BUCKETS ALREADY EXIST in the prod account, created out-of-band
-  # before this template managed them. DeletionPolicy: Retain is required
-  # for CloudFormation Import (`aws cloudformation create-change-set
-  # --change-set-type IMPORT`) and is also just correct for a bucket holding
-  # deploy artifacts nobody wants deleted by an accidental stack replacement.
-  # Import must be done as a separate, explicit step — CFN refuses to import
-  # a resource whose declared properties don't match its current live state
-  # in the same operation, so VersioningConfiguration/LifecycleConfiguration/
-  # the bucket policy below can only be applied via a normal update AFTER
-  # the import completes, not as part of the import itself.
+  # Brand new resource (previous out-of-band buckets were manually deleted
+  # 2026-08-28) — created fresh by this stack, not imported. DeletionPolicy:
+  # Retain protects deploy artifacts from an accidental stack replacement.
   # =======================================================================
   ArtifactBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
-      BucketName: !Ref ArtifactBucketName
+      BucketName: !Sub "${EnvironmentName}-realestateflow-artifacts"
       VersioningConfiguration:
         Status: Enabled
       BucketEncryption:
         ServerSideEncryptionConfiguration:
-          - BucketKeyEnabled: true
-            ServerSideEncryptionByDefault:
+          - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
@@ -803,11 +784,10 @@ Resources:
             Status: Enabled
             Transitions:
               - StorageClass: INTELLIGENT_TIERING
-                TransitionInDays: 0
+                TransitionInDays: 1
               - StorageClass: DEEP_ARCHIVE
                 TransitionInDays: 60
-            Expiration:
-              Days: 365
+            ExpirationInDays: 365
           # Every prior build (superseded by a newer upload to the same
           # key) becomes a "noncurrent version" under S3 versioning. Kept
           # retrievable for 1 year for rollback purposes, moved to Deep
@@ -848,86 +828,6 @@ Resources:
             Resource:
               - !GetAtt ArtifactBucket.Arn
               - !Sub "${ArtifactBucket.Arn}/*"
-            Condition:
-              Bool:
-                aws:SecureTransport: "false"
-
-  CfnTemplatesBucket:
-    Type: AWS::S3::Bucket
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      BucketName: !Ref CfnTemplatesBucketName
-      VersioningConfiguration:
-        Status: Enabled
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - BucketKeyEnabled: true
-            ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      LifecycleConfiguration:
-        Rules:
-          # Live/current objects (each service's "latest" template) auto-tier
-          # by access pattern — no manual hot/cold tuning needed.
-          # Handles BOTH artifact-key schemes services use: a fixed key
-          # that gets overwritten on every deploy (reality-flow-authentication
-          # — old content is only reachable as a "noncurrent version", see
-          # the rule below) AND a unique per-deploy timestamped key that's
-          # never overwritten (server — there is no "noncurrent version" for
-          # a key nobody ever overwrites, so it must age out via its own
-          # object age instead). A frequently-overwritten key's "current
-          # version age" keeps resetting on every deploy, so the 60/365-day
-          # steps below are effectively a no-op for it in practice; for a
-          # never-overwritten key they're the only mechanism that applies.
-          - Id: TierAndArchiveCurrentVersions
-            Status: Enabled
-            Transitions:
-              - StorageClass: INTELLIGENT_TIERING
-                TransitionInDays: 0
-              - StorageClass: DEEP_ARCHIVE
-                TransitionInDays: 60
-            Expiration:
-              Days: 365
-          # Every prior template version kept retrievable for 1 year for
-          # rollback, moved to Deep Archive after the first 2 months. See
-          # the matching comment on ArtifactBucket for the retrieval-time
-          # tradeoff this implies (12-48h, no faster tier for Deep Archive).
-          - Id: ArchiveAndExpireOldVersions
-            Status: Enabled
-            NoncurrentVersionTransitions:
-              - StorageClass: DEEP_ARCHIVE
-                TransitionInDays: 60
-            NoncurrentVersionExpiration:
-              NoncurrentDays: 365
-          - Id: AbortIncompleteMultipartUploads
-            Status: Enabled
-            AbortIncompleteMultipartUpload:
-              DaysAfterInitiation: 7
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-cfn-templates"
-        - Key: Environment
-          Value: !Ref EnvironmentName
-
-  CfnTemplatesBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref CfnTemplatesBucket
-      PolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Sid: DenyInsecureTransport
-            Effect: Deny
-            Principal: "*"
-            Action: "s3:*"
-            Resource:
-              - !GetAtt CfnTemplatesBucket.Arn
-              - !Sub "${CfnTemplatesBucket.Arn}/*"
             Condition:
               Bool:
                 aws:SecureTransport: "false"
@@ -1000,11 +900,3 @@ Outputs:
   ArtifactBucketArn:
     Value: !GetAtt ArtifactBucket.Arn
     Export: { Name: !Sub "${EnvironmentName}-realestateflow-artifact-bucket-arn" }
-
-  CfnTemplatesBucketName:
-    Value: !Ref CfnTemplatesBucket
-    Export: { Name: !Sub "${EnvironmentName}-realestateflow-cfn-templates-bucket" }
-
-  CfnTemplatesBucketArn:
-    Value: !GetAtt CfnTemplatesBucket.Arn
-    Export: { Name: !Sub "${EnvironmentName}-realestateflow-cfn-templates-bucket-arn" }

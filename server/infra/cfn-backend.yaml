@@ -72,7 +72,7 @@ Parameters:
     Default: ''
     Description: >-
       Firebase service-account key as a single-line JSON string, used to send
-      push via FCM HTTP v1. Leave empty to disable push entirely — the API
+      push via FCM HTTP v1. Leave empty to disable push entirely - the API
       still accepts and stores device tokens, it just sends nothing.
 
   DevelopersTableName:
@@ -96,7 +96,7 @@ Parameters:
     Default: dev-realestateflow-grievances
     Description: >-
       Name of the DynamoDB table storing DPDP Act 2023 grievances. Must match
-      the table launch-tables-cfn.yaml creates for the same EnvironmentName —
+      the table launch-tables-cfn.yaml creates for the same EnvironmentName -
       this stack only references it, it does not own it, and deploy.sh does
       not currently override this parameter from cfn-params.json.
 
@@ -195,7 +195,7 @@ Parameters:
     Default: '2000'
     Description: >-
       Max characters of a CRM tool result written to CloudWatch. 0 means
-      uncapped — do not use 0 in a deployed environment; tool results contain
+      uncapped - do not use 0 in a deployed environment; tool results contain
       customer records.
 
   CloudWatchNamespace:
@@ -244,7 +244,7 @@ Parameters:
     Description: >
       RBAC category applied to a WhatsApp turn when the sender's principal
       (wa:<phone>) has no provisioned CATEGORY#USER row, which is every tenant
-      today. 'admin' reproduces the pre-existing behaviour exactly — the
+      today. 'admin' reproduces the pre-existing behaviour exactly - the
       permission check used to be skipped altogether on this channel. Set
       'whatsapp_bot' for a genuinely restricted bot on a shared number, but
       note it forbids property and buyer writes and so is NOT compatible with
@@ -463,11 +463,11 @@ Parameters:
     Default: dev-realestateflow-ai-employee-provisioning
     Description: >-
       DynamoDB table for AI Employee provisioning rows. This stack owns and
-      creates the table (see AiEmployeeProvisioningTable below) — do not
+      creates the table (see AiEmployeeProvisioningTable below) - do not
       also declare it in launch-tables-cfn.yaml, or a second stack will fail
       with "Table already exists" on whichever deploys second.
 
-  # ── Phase 2: AI Employee LLM & Observability ─────────────────────────────────
+  # -- Phase 2: AI Employee LLM & Observability ---------------------------------
   LlmProvider:
     Type: String
     Default: bedrock
@@ -547,7 +547,7 @@ Parameters:
     Default: 'realestate-flow-dev-oauth-codes'
     Description: >-
       DynamoDB table for OAuth authorization codes and sessions. Owned by
-      the reality-flow-mcp stack, not this one — must match the table that
+      the reality-flow-mcp stack, not this one - must match the table that
       stack actually created (its own naming convention predates this
       prefix change, so it does NOT use realestateflow-*). Deploy MCP first
       and confirm the live table name before deploying this stack.
@@ -716,7 +716,7 @@ Conditions:
   # which is only acceptable for throwaway dev stacks. Set the parameter.
   HasAllowedOrigins: !Not [!Equals [!Ref AllowedOrigins, '']]
   # Without an email the alerts topic is still created (alarms need a target)
-  # but has no subscriber — alarms fire silently into the console.
+  # but has no subscriber - alarms fire silently into the console.
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
 
 Resources:
@@ -727,6 +727,8 @@ Resources:
     Properties:
       TableName: !Ref DynamoDbTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -787,6 +789,8 @@ Resources:
     Properties:
       TableName: !Ref CrmDynamoDbTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -847,6 +851,8 @@ Resources:
     Properties:
       TableName: !Ref AgencyConfigTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: TenantId
@@ -982,6 +988,8 @@ Resources:
     Properties:
       TableName: !Ref AgentAuditTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: tenantId
           AttributeType: S
@@ -1019,6 +1027,8 @@ Resources:
     Properties:
       TableName: !Ref AiEmployeeProvisioningTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
       AttributeDefinitions:
         - AttributeName: tenantId
           AttributeType: S
@@ -1053,6 +1063,8 @@ Resources:
     Properties:
       TableName: !Ref AreasTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1087,6 +1099,8 @@ Resources:
     Properties:
       TableName: !Ref EnquiriesTableNameCloudberry
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1121,6 +1135,8 @@ Resources:
     Properties:
       TableName: !Ref B2BLeadsTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: leadId
@@ -1151,6 +1167,8 @@ Resources:
     Properties:
       TableName: !Ref KhataTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1198,6 +1216,8 @@ Resources:
     Properties:
       TableName: !Ref NotificationsTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1232,6 +1252,8 @@ Resources:
     Properties:
       TableName: !Ref PushTokensTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1280,6 +1302,8 @@ Resources:
     Properties:
       TableName: !Ref DevelopersTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1329,6 +1353,8 @@ Resources:
     Properties:
       TableName: !Ref RealEstateAreasTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1392,6 +1418,8 @@ Resources:
     Properties:
       TableName: !Ref ProjectsTableName
       BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
 
       AttributeDefinitions:
         - AttributeName: PK
@@ -1484,7 +1512,7 @@ Resources:
       BucketName: !Ref S3BucketName
       VersioningConfiguration:
         Status: Suspended
-      # This bucket holds call recordings, transcripts and analysis payloads —
+      # This bucket holds call recordings, transcripts and analysis payloads -
       # customer conversations, names and phone numbers. SSE-S3 (AES-256) is
       # applied server-side on every write, including the browser's pre-signed
       # PUT, and needs no client change. BucketKeyEnabled is harmless under
@@ -1499,7 +1527,7 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
-      # Storage hygiene only — deliberately NO expiration rule. Call recordings
+      # Storage hygiene only - deliberately NO expiration rule. Call recordings
       # and property documents are customer records; nothing here deletes them.
       # Object keys are tenant-prefixed (`<tenantId>/call-recordings/...`), and
       # S3 prefix filters cannot wildcard a leading segment, so these rules are
@@ -1750,6 +1778,27 @@ Resources:
                   - transcribe:GetTranscriptionJob
                   - transcribe:ListTranscriptionJobs
                 Resource: "*"
+              # Runtime config: both Lambdas fetch their env vars from SSM at
+              # cold start (config/ssmBootstrap.js) instead of carrying them
+              # directly, to stay under Lambda's 4KB env var limit. Scoped to
+              # this environment's own parameter namespace only.
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
+              # SecureString parameters are encrypted under the account's
+              # default SSM-managed KMS key (alias/aws/ssm) — this grants
+              # decrypt only when the call is made via the SSM service
+              # itself, not a general KMS grant.
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
 
   ApiLambdaFunction:
     Type: AWS::Lambda::Function
@@ -1765,111 +1814,20 @@ Resources:
       Timeout: !Ref LambdaTimeout
       Environment:
         Variables:
+          # Everything this Lambda used to get as a direct env var (~100
+          # values: table names, API keys, feature flags) now lives in SSM
+          # under this prefix instead, synced there by
+          # cfn-templates-cicd/server/deploy.sh — see config/ssmBootstrap.js.
+          # Kept here directly, not in SSM: NODE_ENV/LOG_LEVEL are needed
+          # before hydration can even run (bootstrap itself logs), and this
+          # is what tells the Lambda where to look.
           NODE_ENV: !Ref EnvironmentName
-          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
-          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
-          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
-          AREAS_DYNAMODB_TABLE_NAME: !Ref AreasTableName
-          ENQUIRIES_DYNAMODB_TABLE_NAME: !Ref EnquiriesTableNameCloudberry
-          B2B_LEADS_TABLE: !Ref B2BLeadsTableName
-          KHATA_TABLE_NAME: !Ref KhataTableName
-          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
-          PUSH_TOKENS_TABLE: !Ref PushTokensTableName
-          FIREBASE_SERVICE_ACCOUNT_JSON: !Ref FirebaseServiceAccountJson
-          DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
-          REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
-          PROJECTS_TABLE_NAME: !Ref ProjectsTableName
-          GRIEVANCES_TABLE_NAME: !Ref GrievancesTableName
-          NPS_TABLE: !Ref NpsResponsesTableName
-          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
-          CREDITS_TABLE_NAME: !Ref CreditsTableName
-          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
-          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
-          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
-          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
-          BAILEY_ENABLED: !Ref BaileyEnabled
-          BAILEY_MODE: !Ref BaileyMode
-          BAILEY_API_KEY: !Ref BaileyApiKey
-          BAILEY_WEBHOOK_SECRET: !Ref BaileyWebhookSecret
-          BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
-          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
-          AGENTS_ENABLED: !Ref AgentsEnabled
-          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
-          JWT_SECRET: !Ref JwtSecret
-          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
-          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
-          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
-          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
-          ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
-          WHATSAPP_FALLBACK_CATEGORY: !Ref WhatsAppFallbackCategory
-          AGENT_WEB_TOOL_LOOP_BUDGET_MS: !Ref AgentWebToolLoopBudgetMs
-          S3_BUCKET_NAME: !Ref S3BucketName
-          PUBLIC_API_BASE_PATH: !Ref PublicApiBasePath
-          CRM_API_BASE_PATH: !Ref CrmApiBasePath
-          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
-          ALLOWED_ORIGINS: !Ref AllowedOrigins
-          NPS_HMAC_SECRET: !Ref NpsHmacSecret
-          BREVO_API_KEY: !Ref BrevoApiKey
-          RAZORPAY_WEBHOOK_SECRET: !Ref RazorpayWebhookSecret
-          RAZORPAY_KEY_ID: !Ref RazorpayKeyId
-          RAZORPAY_KEY_SECRET: !Ref RazorpayKeySecret
-          BREVO_FROM_EMAIL: !Ref BrevoFromEmail
-          BREVO_FROM_NAME: !Ref BrevoFromName
-          HCAPTCHA_SECRET_KEY: !Ref HcaptchaSecretKey
-          POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
-          POSTHOG_HOST: !Ref PostHogHost
-          INTERNAL_API_KEY: !Ref InternalApiKey
-          AI_CALLING_INTERNAL_API_KEY: !Ref AiCallingInternalApiKey
-          AI_CALLING_SERVICE_URL: !Ref AiCallingServiceUrl
-          LLM_PROVIDER: !Ref LlmProvider
-          BEDROCK_MODEL_ID: !Ref BedrockModelId
-          GEMINI_API_KEY: !Ref GeminiApiKey
-          GEMINI_MODEL: !Ref GeminiModel
-          GEMINI_CLASSIFIER_MODEL: !Ref GeminiClassifierModel
-          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
-          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
-          # Cap tool-result logging. The code default is 0 = uncapped ("fine
-          # for dev"), but this var was never set in CFN, so production ran
-          # uncapped and wrote whole CRM payloads to CloudWatch.
-          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
-          GRIEVANCE_OFFICER_EMAIL: !Ref GrievanceOfficerEmail
-          SERVICE_ACCOUNT_USER: !Ref ServiceAccountUser
-          DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
-          APP_URL: !Ref AppUrl
           LOG_LEVEL: !Ref LogLevel
-          MCP_BASE_URL: !Ref McpBaseUrl
-          OAUTH_CODES_TABLE_NAME: !Ref OAuthCodesTableName
-          OAUTH_CONNECTIONS_TABLE: !Ref OAuthConnectionsTableName
-          OAUTH_CALLBACK_URL: !Ref OAuthCallbackUrl
-          FRONTEND_URL: !Ref FrontendUrl
-          WEBHOOK_LOG_TABLE: !Ref WebhookLogTableName
-          TENANT_API_KEYS_TABLE: !Ref TenantApiKeysTableName
-          FOUNDER_EMAIL: !Ref FounderEmail
-          BREVO_TRIAL_LIST_ID: !Ref BrevoTrialListId
-          BREVO_PAYMENT_FAILED_TEMPLATE_ID: !Ref BrevoPaymentFailedTemplateId
-          BREVO_AI_EMPLOYEE_PAID_TEMPLATE_ID: !Ref BrevoAiEmployeePaidTemplateId
-          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedFounderTemplateId
-          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedCustomerTemplateId
-          BAILEY_ADMIN_API_KEY: !Ref BaileyAdminApiKey
-          RAZORPAY_PLAN_AI_EMPLOYEE: !Ref RazorpayPlanAiEmployee
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # exists once CloudFormation creates the queue, so it can't be
+          # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
-          ASR_PROVIDER: !Ref AsrProvider
-          TRANSCRIBE_LANGUAGE_OPTIONS: !Ref TranscribeLanguageOptions
-          TRANSCRIBE_LANGUAGE_CODE: !Ref TranscribeLanguageCode
-          TRANSCRIBE_VOCABULARY_NAME: !Ref TranscribeVocabularyName
-          CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
-          CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
-          CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
-          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
-          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
-          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
-          CALL_INTEL_MAX_UPLOAD_BYTES: !Ref CallIntelMaxUploadBytes
-          CALL_INTEL_UPLOAD_URL_TTL_SECONDS: !Ref CallIntelUploadUrlTtlSeconds
-          CALL_INTEL_PLAYBACK_URL_TTL_SECONDS: !Ref CallIntelPlaybackUrlTtlSeconds
-          # Stall recovery is triggered by API reads (list/detail), so this only
-          # needs to reach the API Lambda.
-          CALL_INTEL_STALLED_ANALYSIS_MS: !Ref CallIntelStalledAnalysisMs
 
   # ============== Call Intelligence worker ==============
   # Same deployment package as the API Lambda, different handler. It reuses
@@ -1889,50 +1847,16 @@ Resources:
       Timeout: !Ref CallIntelWorkerTimeout
       Environment:
         Variables:
+          # Same SSM-hydration design as ApiLambdaFunction above — see the
+          # comment there. Same path prefix (both Lambdas share one config
+          # namespace per environment).
           NODE_ENV: !Ref EnvironmentName
-          DYNAMODB_TABLE_NAME: !Ref DynamoDbTableName
-          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
-          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
-          AREAS_DYNAMODB_TABLE_NAME: !Ref AreasTableName
-          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTableName
-          PUSH_TOKENS_TABLE: !Ref PushTokensTableName
-          FIREBASE_SERVICE_ACCOUNT_JSON: !Ref FirebaseServiceAccountJson
-          DEVELOPERS_TABLE_NAME: !Ref DevelopersTableName
-          REAL_ESTATE_AREAS_TABLE_NAME: !Ref RealEstateAreasTableName
-          PROJECTS_TABLE_NAME: !Ref ProjectsTableName
-          CREDITS_TABLE_NAME: !Ref CreditsTableName
-          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
-          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
-          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
-          ALLOW_USER_CATEGORY_DEFAULT_FALLBACK: !Ref AllowUserCategoryDefaultFallback
-          WHATSAPP_FALLBACK_CATEGORY: !Ref WhatsAppFallbackCategory
-          AGENT_WEB_TOOL_LOOP_BUDGET_MS: !Ref AgentWebToolLoopBudgetMs
-          S3_BUCKET_NAME: !Ref S3BucketName
-          LLM_PROVIDER: !Ref LlmProvider
-          BEDROCK_MODEL_ID: !Ref BedrockModelId
-          GEMINI_API_KEY: !Ref GeminiApiKey
-          GEMINI_MODEL: !Ref GeminiModel
-          GEMINI_CLASSIFIER_MODEL: !Ref GeminiClassifierModel
-          SERVICE_ACCOUNT_USER: !Ref ServiceAccountUser
-          DEFAULT_COUNTRY_CODE: !Ref DefaultCountryCode
           LOG_LEVEL: !Ref LogLevel
-          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
-          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
-          # Cap tool-result logging. The code default is 0 = uncapped ("fine
-          # for dev"), but this var was never set in CFN, so production ran
-          # uncapped and wrote whole CRM payloads to CloudWatch.
-          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # exists once CloudFormation creates the queue, so it can't be
+          # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
-          ASR_PROVIDER: !Ref AsrProvider
-          TRANSCRIBE_LANGUAGE_OPTIONS: !Ref TranscribeLanguageOptions
-          TRANSCRIBE_LANGUAGE_CODE: !Ref TranscribeLanguageCode
-          TRANSCRIBE_VOCABULARY_NAME: !Ref TranscribeVocabularyName
-          CALL_INTEL_AUTO_APPLY_NOTES: !Ref CallIntelAutoApplyNotes
-          CALL_INTEL_POLL_DELAY_SECONDS: !Ref CallIntelPollDelaySeconds
-          CALL_INTEL_MAX_POLL_ATTEMPTS: !Ref CallIntelMaxPollAttempts
-          CALL_INTEL_MAX_STAGE_ATTEMPTS: !Ref CallIntelMaxStageAttempts
-          CALL_INTEL_MAX_TRANSCRIPT_CHARS: !Ref CallIntelMaxTranscriptChars
-          CALL_INTEL_DEFAULT_MEETING_TIME: !Ref CallIntelDefaultMeetingTime
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -3077,8 +3001,8 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt WhatsAppProcessorRule.Arn
 
-  # ══════════════════════════════════════════════════════════════════════════
-  # OBSERVABILITY — alerting topic, alarms, dashboard
+  # ==========================================================================
+  # OBSERVABILITY - alerting topic, alarms, dashboard
   #
   # Before this, the stack had ZERO CloudWatch alarms, ZERO dashboards and no
   # SNS topic: a Lambda could fail every invocation and nothing would page.
@@ -3087,7 +3011,7 @@ Resources:
   # the custom metrics in server/observability/cloudwatch.js carry a TenantId
   # dimension, so an alarm on them would only ever watch ONE tenant. Those
   # belong on the dashboard (via SEARCH expressions), not on alarms.
-  # ══════════════════════════════════════════════════════════════════════════
+  # ==========================================================================
 
   AlertsTopic:
     Type: AWS::SNS::Topic
@@ -3103,7 +3027,7 @@ Resources:
       Protocol: email
       Endpoint: !Ref AlertEmail
 
-  # ── WhatsApp processor: the user-facing critical path ────────────────────
+  # -- WhatsApp processor: the user-facing critical path --------------------
   WhatsAppProcessorErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -3131,7 +3055,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-throttles"
-      AlarmDescription: WhatsApp processor is being throttled — inbound messages are queueing or dropping.
+      AlarmDescription: WhatsApp processor is being throttled - inbound messages are queueing or dropping.
       Namespace: AWS/Lambda
       MetricName: Throttles
       Dimensions:
@@ -3151,7 +3075,7 @@ Resources:
       AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-slow"
       AlarmDescription: >-
         p95 processing time is approaching the Lambda timeout. Watch this when
-        enabling AgentToolLoopEnabled — a multi-step turn is legitimately
+        enabling AgentToolLoopEnabled - a multi-step turn is legitimately
         slower than a single-shot one, and the loop's own wall-clock budget
         (AGENT_TOOL_LOOP_BUDGET_MS, default 25s) must stay below this timeout.
       Namespace: AWS/Lambda
@@ -3167,12 +3091,12 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertsTopic]
 
-  # ── Main API ──────────────────────────────────────────────────────────────
+  # -- Main API --------------------------------------------------------------
   ApiLambdaErrorsAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${EnvironmentName}-realestateflow-api-lambda-errors"
-      AlarmDescription: Main CRM API Lambda is erroring — the web app is degraded.
+      AlarmDescription: Main CRM API Lambda is erroring - the web app is degraded.
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -3187,7 +3111,7 @@ Resources:
       AlarmActions: [!Ref AlertsTopic]
       OKActions: [!Ref AlertsTopic]
 
-  # ── Call recording pipeline ───────────────────────────────────────────────
+  # -- Call recording pipeline -----------------------------------------------
   CallRecordingDlqDepthAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -3231,7 +3155,7 @@ Resources:
     Type: AWS::CloudWatch::Alarm
     Properties:
       AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-worker-errors"
-      AlarmDescription: Call recording worker is erroring — transcription/analysis is failing.
+      AlarmDescription: Call recording worker is erroring - transcription/analysis is failing.
       Namespace: AWS/Lambda
       MetricName: Errors
       Dimensions:
@@ -3245,7 +3169,7 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertsTopic]
 
-  # ── Data layer ────────────────────────────────────────────────────────────
+  # -- Data layer ------------------------------------------------------------
   CrmTableThrottleAlarm:
     Type: AWS::CloudWatch::Alarm
     Properties:
@@ -3253,7 +3177,7 @@ Resources:
       AlarmDescription: >-
         CrmTable requests are being throttled. Note this table is on-demand,
         so throttling usually means a hot partition or a burst past the
-        table's adaptive capacity — often a full-table Scan (several search
+        table's adaptive capacity - often a full-table Scan (several search
         paths still Scan; see the TODO(MED-1) in crmDynamodbService.js).
       Namespace: AWS/DynamoDB
       MetricName: ThrottledRequests
@@ -3268,7 +3192,7 @@ Resources:
       TreatMissingData: notBreaching
       AlarmActions: [!Ref AlertsTopic]
 
-  # ── Dashboard ─────────────────────────────────────────────────────────────
+  # -- Dashboard -------------------------------------------------------------
   OpsDashboard:
     Type: AWS::CloudWatch::Dashboard
     Properties:
@@ -3278,12 +3202,12 @@ Resources:
           "widgets": [
             {
               "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
-              "properties": { "markdown": "# RealEstateFlow — ${EnvironmentName}\n**WhatsApp** is the primary channel. If `whatsapp-processor-errors` is firing, users are not getting replies. Agent metrics are per-tenant (SEARCH expressions below)." }
+              "properties": { "markdown": "# RealEstateFlow - ${EnvironmentName}\n**WhatsApp** is the primary channel. If `whatsapp-processor-errors` is firing, users are not getting replies. Agent metrics are per-tenant (SEARCH expressions below)." }
             },
             {
               "type": "metric", "x": 0, "y": 2, "width": 12, "height": 6,
               "properties": {
-                "title": "WhatsApp processor — invocations / errors / throttles",
+                "title": "WhatsApp processor - invocations / errors / throttles",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ "AWS/Lambda", "Invocations", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "Sum" } ],
@@ -3296,7 +3220,7 @@ Resources:
             {
               "type": "metric", "x": 12, "y": 2, "width": 12, "height": 6,
               "properties": {
-                "title": "WhatsApp processor — duration (p50/p95/max) vs timeout",
+                "title": "WhatsApp processor - duration (p50/p95/max) vs timeout",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ "AWS/Lambda", "Duration", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "p50" } ],
@@ -3310,7 +3234,7 @@ Resources:
             {
               "type": "metric", "x": 0, "y": 8, "width": 12, "height": 6,
               "properties": {
-                "title": "Agent actions — invoked vs failed (all tenants)",
+                "title": "Agent actions - invoked vs failed (all tenants)",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId,Action} MetricName=\"agent.action.invoked\"', 'Sum', 300))", "label": "invoked", "id": "e1" } ],
@@ -3322,7 +3246,7 @@ Resources:
             {
               "type": "metric", "x": 12, "y": 8, "width": 12, "height": 6,
               "properties": {
-                "title": "Call recording pipeline — queue depth, DLQ, worker errors",
+                "title": "Call recording pipeline - queue depth, DLQ, worker errors",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${CallRecordingQueue.QueueName}", { "stat": "Maximum", "label": "queue depth" } ],
@@ -3335,7 +3259,7 @@ Resources:
             {
               "type": "metric", "x": 0, "y": 14, "width": 12, "height": 6,
               "properties": {
-                "title": "Main API Lambda — errors / duration",
+                "title": "Main API Lambda - errors / duration",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ "AWS/Lambda", "Errors", "FunctionName", "${ApiLambdaFunction}", { "stat": "Sum", "color": "#d62728" } ],
@@ -3347,7 +3271,7 @@ Resources:
             {
               "type": "metric", "x": 12, "y": 14, "width": 12, "height": 6,
               "properties": {
-                "title": "DynamoDB — CrmTable consumed capacity & throttles",
+                "title": "DynamoDB - CrmTable consumed capacity & throttles",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${CrmDynamoDbTableName}", { "stat": "Sum" } ],
@@ -3360,7 +3284,7 @@ Resources:
             {
               "type": "metric", "x": 0, "y": 20, "width": 24, "height": 6,
               "properties": {
-                "title": "Webhooks & credits — received / invalid signature / insufficient credits",
+                "title": "Webhooks & credits - received / invalid signature / insufficient credits",
                 "region": "${AWS::Region}",
                 "metrics": [
                   [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},Provider} MetricName=\"webhook.received\"', 'Sum', 300))", "label": "webhooks received", "id": "w1" } ],
