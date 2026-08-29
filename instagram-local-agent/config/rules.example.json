@@ -1,0 +1,31 @@
+{
+  "rules": [
+    {
+      "ruleId": "rule_price",
+      "keyword": "PRICE",
+      "matchType": "contains",
+      "publicReply": "DM kiya hai! Check karo 📩",
+      "dmMessage": "Hi! Aapne PRICE comment kiya tha. Is property ka detail bhej raha hoon. Aapka budget aur preferred area bata dijiye, main matching options bhejta hoon.",
+      "mediaScope": "all",
+      "enabled": true
+    },
+    {
+      "ruleId": "rule_details",
+      "keyword": "DETAILS",
+      "matchType": "contains",
+      "publicReply": "Details DM me bheje hain 📩",
+      "dmMessage": "Namaste! Property ki full details bhej raha hoon - carpet area, floor, parking aur possession. Aap buy kar rahe ho ya rent?",
+      "mediaScope": "all",
+      "enabled": true
+    },
+    {
+      "ruleId": "rule_visit",
+      "keyword": "VISIT",
+      "matchType": "contains",
+      "publicReply": "Site visit ke liye DM check karo 📩",
+      "dmMessage": "Site visit arrange kar dete hain! Weekday ya weekend - aapko kab convenient rahega?",
+      "mediaScope": "all",
+      "enabled": true
+    }
+  ]
+}

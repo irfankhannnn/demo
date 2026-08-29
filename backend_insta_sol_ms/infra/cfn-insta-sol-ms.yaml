@@ -1,0 +1,403 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Instagram Solution microservice (backend_insta_sol_ms) - API Gateway + Lambda +
+  DynamoDB. Ingests Instagram account, reel, DM-thread and enquiry data pushed by
+  the instagram-local-agent running on an agency owner's laptop, and serves the
+  frontend_insta_sol_ms web app.
+
+# =============================================================================
+# This stack is fully self-contained. It does NOT read or write any existing CRM
+# table (Leads, AgencyConfig, Buyers, ...) and shares no resource with
+# prod-realestateflow-backend. The only external dependency is the auth service
+# URL, called over HTTPS to validate a bearer token - the same pattern
+# server/middleware/validateToken.js uses. The Lambda's IAM role can reach
+# exactly two tables, so the isolation is enforced by IAM, not by convention.
+#
+# Naming convention: every physical resource is named
+# <dev|prod>-realestateflow-insta-<resource> (env FIRST), matching the convention
+# already live on prod-realestateflow-networking-common and
+# prod-realestateflow-auth-stack.
+#
+# No VpcConfig: every call this function makes is to a public AWS API endpoint
+# (DynamoDB) or an HTTPS URL (the auth service). Per the repo's CFN checklist,
+# pure AWS-API Lambdas do not belong in the VPC - it only adds ENI cold-start
+# latency and a NAT dependency for nothing.
+#
+# NOTE: keep this file plain ASCII. aws.exe (AWS CLI v2 on Windows) reads
+# --template-file using the system codepage (cp1252 here), so non-ASCII bytes in
+# comments cause an opaque "charmap codec can't decode byte" failure mid-deploy.
+# =============================================================================
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Deployment environment. Drives every resource name.
+
+  LambdaRuntime:
+    Type: String
+    Default: nodejs20.x
+    AllowedValues: [nodejs20.x]
+    Description: >
+      Pinned to nodejs20.x. 16.x is past AWS's function-create cutoff and 18.x is
+      on the deprecation track. Do not move to nodejs22.x without checking the
+      preinstalled AWS SDK v3 client set - it is incomplete there.
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    MinValue: 256
+    MaxValue: 3008
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 5
+    MaxValue: 300
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: Artifact bucket holding the function zip (e.g. prod-realestateflow-artifacts)
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key of the function zip uploaded by infra/deploy.sh
+
+  DataTableName:
+    Type: String
+    Description: Single-table store for devices, snapshots, media, enquiries, threads, rules
+
+  AuditTableName:
+    Type: String
+    Description: TTL-only table for the audit trail and HMAC replay nonces
+
+  AuthServiceUrl:
+    Type: String
+    Description: Base URL of the auth microservice; the token validator calls <url>/auth/me
+
+  AllowedOrigins:
+    Type: String
+    Description: Comma-separated CORS origins allowed to call this API
+
+  ApiStageName:
+    Type: String
+    Default: v1
+    AllowedPattern: "^[a-zA-Z0-9_-]+$"
+
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
+
+  DeviceClockSkewToleranceMs:
+    Type: Number
+    Default: 300000
+    Description: Max accepted clock skew on an HMAC-signed agent request (default 5 minutes)
+
+  KillSwitchEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >
+      When true the heartbeat endpoint tells every paired laptop agent to stop all
+      automation. A fleet-wide emergency brake, e.g. if Meta changes policy.
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB
+  # ---------------------------------------------------------------------------
+
+  # Holds user data (enquiries with names and phone numbers, DM thread metadata,
+  # historical metrics that Instagram itself deletes after ~90 days). Retain +
+  # PITR per the repo's CFN checklist - a stack delete must never take this with it.
+  InstaDataTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref DataTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: gsi1pk
+          AttributeType: S
+        - AttributeName: gsi1sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # Sparse index. Two jobs: (1) resolve a deviceId or pairing code to its
+        # tenant without scanning, since an agent request arrives with no tenant
+        # context; (2) list enquiries newest-first without a full partition scan.
+        - IndexName: gsi1-index
+          KeySchema:
+            - AttributeName: gsi1pk
+              KeyType: HASH
+            - AttributeName: gsi1sk
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        # Only pairing codes carry expiresAt. Everything else omits the attribute
+        # and is therefore never expired by TTL.
+        AttributeName: expiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-insta
+
+  # Audit trail + HMAC replay nonces. Genuinely ephemeral (everything here has a
+  # TTL), so the checklist's Retain/PITR requirement does not apply.
+  InstaAuditTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref AuditTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-insta
+
+  # ---------------------------------------------------------------------------
+  # Lambda
+  # ---------------------------------------------------------------------------
+
+  # Explicit log group so retention is managed here rather than defaulting to
+  # "never expire". Must exist before the function writes to it.
+  InstaLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EnvironmentName}-realestateflow-insta-lambda"
+      RetentionInDays: !Ref LogRetentionDays
+
+  InstaLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-insta-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: insta-lambda-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Scoped to this stack's own log group, not logs:* on everything.
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EnvironmentName}-realestateflow-insta-lambda:*"
+              # Scoped to exactly the two tables this service owns, plus their
+              # indexes. No CRM table is reachable from this role at all - that is
+              # the isolation guarantee, enforced by IAM rather than by convention.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt InstaDataTable.Arn
+                  - !Sub "${InstaDataTable.Arn}/index/*"
+                  - !GetAtt InstaAuditTable.Arn
+
+  InstaLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-insta-lambda"
+      Runtime: !Ref LambdaRuntime
+      Handler: lambda.handler
+      Role: !GetAtt InstaLambdaRole.Arn
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          NODE_ENV: production
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+          INSTA_DATA_TABLE_NAME: !Ref DataTableName
+          INSTA_AUDIT_TABLE_NAME: !Ref AuditTableName
+          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          LOG_LEVEL: !Ref LogLevel
+          DEVICE_CLOCK_SKEW_TOLERANCE_MS: !Ref DeviceClockSkewToleranceMs
+          KILL_SWITCH_ENABLED: !Ref KillSwitchEnabled
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-insta
+    DependsOn: InstaLambdaLogGroup
+
+  # ---------------------------------------------------------------------------
+  # API Gateway
+  # ---------------------------------------------------------------------------
+  # A single greedy {proxy+} route rather than one CFN resource per endpoint.
+  # The main backend stack had to be split into nested stacks to stay under
+  # CloudFormation's 500-resource limit precisely because it enumerates routes;
+  # Express already does the routing, so there is nothing to gain by repeating
+  # it here.
+
+  InstaRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-api"
+      Description: Instagram Solution microservice API
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      MinimumCompressionSize: 1024
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-insta
+
+  InstaProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref InstaRestApi
+      ParentId: !GetAtt InstaRestApi.RootResourceId
+      PathPart: "{proxy+}"
+
+  InstaProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref InstaRestApi
+      ResourceId: !Ref InstaProxyResource
+      HttpMethod: ANY
+      # Authorization is done inside the Lambda: JWT for browser routes, HMAC for
+      # agent routes. An API Gateway authorizer cannot express the HMAC scheme
+      # (it needs the raw request body), so both live in one place instead.
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InstaLambda.Arn}/invocations"
+
+  InstaRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref InstaRestApi
+      ResourceId: !GetAtt InstaRestApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${InstaLambda.Arn}/invocations"
+
+  InstaLambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt InstaLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${InstaRestApi}/*/*/*"
+
+  InstaApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - InstaProxyMethod
+      - InstaRootMethod
+    Properties:
+      RestApiId: !Ref InstaRestApi
+      Description: Deployed by backend_insta_sol_ms/infra/deploy.sh
+
+  InstaApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref InstaRestApi
+      DeploymentId: !Ref InstaApiDeployment
+      StageName: !Ref ApiStageName
+      TracingEnabled: true
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          # Agent uploads are batched and infrequent; the browser app is a handful
+          # of users per tenant. These caps are well above real usage and exist to
+          # bound the blast radius of a runaway agent loop.
+          ThrottlingBurstLimit: 200
+          ThrottlingRateLimit: 100
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-insta
+
+Outputs:
+  InstaApiEndpoint:
+    Description: Invoke URL for the Instagram Solution API
+    Value: !Sub "https://${InstaRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-api-endpoint"
+
+  InstaRestApiId:
+    Description: API Gateway REST API id (used by deploy.sh to force a stage deployment)
+    Value: !Ref InstaRestApi
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-api-id"
+
+  InstaDataTableName:
+    Value: !Ref InstaDataTable
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-data-table"
+
+  InstaDataTableArn:
+    Value: !GetAtt InstaDataTable.Arn
+
+  InstaAuditTableName:
+    Value: !Ref InstaAuditTable
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-audit-table"
+
+  InstaLambdaArn:
+    Value: !GetAtt InstaLambda.Arn
+
+  InstaLambdaName:
+    Value: !Ref InstaLambda
