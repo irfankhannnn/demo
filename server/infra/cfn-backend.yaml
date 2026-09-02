@@ -324,6 +324,19 @@ Parameters:
     Default: prod
     Description: Stage name for the CRM API Gateway
 
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'false' on a first deploy to a new account/region before the
+      AWS::ApiGateway::DomainName for PublicApiDomainName/CrmApiDomainName
+      has been created (this template doesn't manage that resource - it's
+      set up once, separately, e.g. via ACM cert + Route53). With it false,
+      BasePathMapping is skipped and the API is still reachable via its
+      default execute-api invoke URL (see the *ExecuteApiUrl outputs).
+      Flip to 'true' and redeploy once the custom domain exists.
+
   EnableBasePathStrip:
     Type: String
     Default: 'false'
@@ -426,10 +439,22 @@ Parameters:
     Description: Shared secret ai-calling-service must present (x-api-key) to call /api/internal/* routes (Lead Temperature qualification calls)
     NoEcho: true
 
+  AdapterInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret lead-source adapters must present (x-api-key) to call POST /api/internal/adapters/leads. Used by backend_insta_sol_ms to promote Instagram enquiries into CRM leads. Deliberately separate from AiCallingInternalApiKey so one service's compromise does not grant the other's access.
+    NoEcho: true
+
   AiCallingServiceUrl:
     Type: String
     Default: ''
     Description: Base URL of the ai-calling-service stack, used by POST /leads/:id/qualify-call to trigger on-demand qualification calls
+
+  CrmCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling ai-calling-service's /api/ai-calling/* management routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the ai-calling-service stack. Deliberately separate from AiCallingInternalApiKey, which is the inbound direction.
+    NoEcho: true
 
   FounderWhatsApp:
     Type: String
@@ -718,6 +743,7 @@ Conditions:
   # Without an email the alerts topic is still created (alarms need a target)
   # but has no subscriber - alarms fire silently into the console.
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
 
 Resources:
   PropertiesTable:
@@ -843,6 +869,55 @@ Resources:
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
+
+      # Semantic property matching. See
+      # docs/proposals/agent-channel-architecture/05-retrieval-and-vector-search.md
+      #
+      # Three things here are IMMUTABLE once created — changing any of them means
+      # delete + recreate + a full re-backfill of every embedding:
+      #   - DistanceFunction
+      #   - the Projection NonKeyAttributes set
+      #   - the vector dimension (fixed by EMBEDDING_DIMENSIONS on the app side)
+      #
+      # tenantId as the SearchSchema HASH is NOT optional and must never be
+      # removed. AWS requires the partition key value in every SearchVectors
+      # call, so tenant scoping becomes an API-level requirement that fails the
+      # call if omitted, rather than a convention a developer has to remember.
+      # Without it, one search would rank vectors from every agency in the
+      # system and return their data in the response body.
+      #
+      # NonKeyAttributes must carry every field used for post-search range
+      # filtering (price, bhk, status), because inline filters support equality
+      # only and the range predicates run in Lambda against whatever the index
+      # projected. Adding a field later is not possible without a rebuild.
+      VectorIndexes:
+        - IndexName: property-vector-index
+          VectorAttributeName: descriptionVector
+          Dimensions: 1024
+          DistanceFunction: COSINE
+          SearchSchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: EntityType
+              KeyType: INLINE_FILTER
+            - AttributeName: propertyType
+              KeyType: INLINE_FILTER
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - propertyId
+              - title
+              - description
+              - area
+              - city
+              - buildingName
+              - bhk
+              - furnishing
+              - status
+              - rentAmount
+              - price
+              - carpetArea
+              - amenities
 
   AgencyConfigTable:
     Type: AWS::DynamoDB::Table
@@ -1666,6 +1741,10 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:BatchWriteItem
                   - dynamodb:DescribeTable
+                  # New action for vector search — existing DynamoDB read
+                  # permissions do NOT grant it. Without this, writes and Query
+                  # keep working and only semantic search fails.
+                  - dynamodb:SearchVectors
                 Resource:
                   - !GetAtt PropertiesTable.Arn
                   - !GetAtt CrmTable.Arn
@@ -1789,7 +1868,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
               # SecureString parameters are encrypted under the account's
-              # default SSM-managed KMS key (alias/aws/ssm) — this grants
+              # default SSM-managed KMS key (alias/aws/ssm) - this grants
               # decrypt only when the call is made via the SSM service
               # itself, not a general KMS grant.
               - Effect: Allow
@@ -1817,14 +1896,14 @@ Resources:
           # Everything this Lambda used to get as a direct env var (~100
           # values: table names, API keys, feature flags) now lives in SSM
           # under this prefix instead, synced there by
-          # cfn-templates-cicd/server/deploy.sh — see config/ssmBootstrap.js.
+          # cfn-templates-cicd/server/deploy.sh - see config/ssmBootstrap.js.
           # Kept here directly, not in SSM: NODE_ENV/LOG_LEVEL are needed
           # before hydration can even run (bootstrap itself logs), and this
           # is what tells the Lambda where to look.
           NODE_ENV: !Ref EnvironmentName
           LOG_LEVEL: !Ref LogLevel
           SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
-          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
           # exists once CloudFormation creates the queue, so it can't be
           # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
@@ -1847,13 +1926,13 @@ Resources:
       Timeout: !Ref CallIntelWorkerTimeout
       Environment:
         Variables:
-          # Same SSM-hydration design as ApiLambdaFunction above — see the
+          # Same SSM-hydration design as ApiLambdaFunction above - see the
           # comment there. Same path prefix (both Lambdas share one config
           # namespace per environment).
           NODE_ENV: !Ref EnvironmentName
           LOG_LEVEL: !Ref LogLevel
           SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
-          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
           # exists once CloudFormation creates the queue, so it can't be
           # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
@@ -1942,6 +2021,7 @@ Resources:
 
   PublicApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
     DependsOn:
       - PublicApiDeployment
     Properties:
@@ -2038,6 +2118,7 @@ Resources:
 
   CrmApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
     DependsOn:
       - CrmApiDeployment
     Properties:
@@ -2415,6 +2496,7 @@ Resources:
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
           AUTH_SERVICE_URL: !Ref AuthServiceUrl
           INTERNAL_API_KEY: !Ref InternalApiKey
+          ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2524,6 +2606,104 @@ Resources:
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
       SourceArn: !GetAtt EscalationSchedule.Arn
+
+  # Drains notificationDynamodbService.js's SCHEDULED queue (meeting
+  # reminders, khata reminders) across every tenant. SSM-hydrated like the
+  # main API Lambda rather than given its own Environment.Variables list, so
+  # it reads the same NOTIFICATIONS_TABLE_NAME/PUSH_TOKENS_TABLE/SES/Brevo/
+  # Firebase config from one source of truth instead of a second copy that
+  # can drift from it.
+  MeetingReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: MeetingReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt NotificationsTable.Arn
+                  - !GetAtt PushTokensTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub "${PushTokensTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+              # Same SSM read as ApiLambdaRole — see its policy comment.
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  MeetingReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Runtime: nodejs20.x
+      Handler: scripts/meeting-reminder-cron.handler
+      Role: !GetAtt MeetingReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+
+  MeetingReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Description: 'Every 5 minutes  fire due meeting/khata reminders (push + email to assignee + agency owner)'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt MeetingReminderFunction.Arn
+          Id: MeetingReminderTarget
+
+  MeetingReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MeetingReminderFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MeetingReminderRule.Arn
 
   # --------------------------------------------------------------------------
   # 4. LEAD MANAGEMENT  Qualification, routing, follow-ups
@@ -3423,6 +3603,16 @@ Outputs:
     Value: !Sub "https://${CrmApiDomainName}/${CrmApiBasePath}"
     Export:
       Name: !Sub "${AWS::StackName}-CrmApiBaseUrl"
+
+  # Always work, regardless of EnableCustomDomainMapping - the *BaseUrlOutput
+  # values above route nowhere until the custom domain is actually set up.
+  PublicApiExecuteApiUrlOutput:
+    Description: Public API's default invoke URL - works immediately, no custom domain required
+    Value: !Sub "https://${RealEstatePublicRestApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStageName}"
+
+  CrmApiExecuteApiUrlOutput:
+    Description: CRM API's default invoke URL - works immediately, no custom domain required
+    Value: !Sub "https://${RealEstateCrmRestApi}.execute-api.${AWS::Region}.amazonaws.com/${CrmApiStageName}"
 
   # Real Estate Management Tables Outputs
   DevelopersTableNameOutput:

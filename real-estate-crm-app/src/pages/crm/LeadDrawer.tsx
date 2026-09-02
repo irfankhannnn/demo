@@ -945,9 +945,13 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                       <option value="qualified">Qualified</option>
 
+                      <option value="site_visit">Site Visit</option>
+
                       <option value="negotiating">Negotiating</option>
 
                       <option value="lost">Lost</option>
+
+                      <option value="spam">Spam</option>
 
                     </select>
 

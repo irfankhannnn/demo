@@ -28,6 +28,7 @@ import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 import { resolveRequestActor } from '../utils/requestActor.js';
 import { notifyNewLead, notifyLeadAssigned, notifyHotLead } from '../leadNotifications.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
+import { hasCreditForAiCall } from '../aiCallBilling.js';
 
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
@@ -498,9 +499,30 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
     }
 
     const aiCallingServiceUrl = process.env.AI_CALLING_SERVICE_URL;
-    if (!aiCallingServiceUrl) {
-      logger.warn('leads.qualifyCall.not_configured', { tenantId: req.tenantId });
+    // The service's management API authenticates this backend as a service and
+    // fails closed, so without the key every call would 401. Log presence only.
+    const aiCallingApiKey = process.env.CRM_CALLER_API_KEY;
+    if (!aiCallingServiceUrl || !aiCallingApiKey) {
+      logger.warn('leads.qualifyCall.not_configured', {
+        tenantId: req.tenantId,
+        hasBaseUrl: Boolean(aiCallingServiceUrl),
+        hasApiKey: Boolean(aiCallingApiKey),
+      });
       return res.status(503).json({ error: 'AI calling service not configured' });
+    }
+
+    // AI calls are billed per started minute once the call settles
+    // (aiCallBilling.js). Because that charge happens after the fact, this is
+    // the only point where we can refuse a call the tenant cannot pay for —
+    // require at least one minute's worth of credit before dialling.
+    const credit = await hasCreditForAiCall(req.tenantId);
+    if (!credit.ok) {
+      return res.status(402).json({
+        error: 'insufficient_credits',
+        balance: credit.balance,
+        required: credit.required,
+        message: 'Out of credits. Buy more to start an AI call.',
+      });
     }
 
     const response = await axios.post(
@@ -512,7 +534,10 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
         callPurpose: 'lead_qualification',
       },
       {
-        headers: { 'x-tenant-id': req.tenantId },
+        headers: {
+          'x-api-key': aiCallingApiKey,
+          'x-tenant-id': req.tenantId,
+        },
         timeout: parseInt(process.env.AI_CALLING_SERVICE_TIMEOUT_MS || '10000', 10),
       }
     );

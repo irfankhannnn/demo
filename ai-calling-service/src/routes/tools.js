@@ -5,42 +5,20 @@
 // model invents. See elevenlabs-agent-tools.md for the dashboard config that
 // must match these paths and headers.
 
-import crypto from 'node:crypto';
 import express from 'express';
 import * as tools from '../handlers/serverTools.js';
+import { requireApiKey } from '../middleware/internalAuth.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-/** Constant-time compare that tolerates unequal lengths. */
-function safeEqual(a, b) {
-  const bufA = Buffer.from(String(a || ''), 'utf8');
-  const bufB = Buffer.from(String(b || ''), 'utf8');
-  if (bufA.length !== bufB.length || bufA.length === 0) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
 /**
- * Authenticate the agent and establish tenant scope.
+ * Establish tenant scope from the `secret__` headers ElevenLabs populates.
  *
- * Fails closed: with no SERVER_TOOL_API_KEY configured, every tool call is
- * rejected rather than served unauthenticated.
+ * Only ever mounted behind requireApiKey — the key proves the caller is our
+ * configured agent, which is what makes these headers trustworthy.
  */
-function authenticateTool(req, res, next) {
-  const expected = process.env.SERVER_TOOL_API_KEY;
-  if (!expected) {
-    logger.error('SERVER_TOOL_API_KEY is not configured — rejecting tool call', null, {
-      path: req.path,
-    });
-    return res.status(503).json({ error: 'Tool endpoint not configured' });
-  }
-
-  const presented = req.headers['x-api-key'];
-  if (!safeEqual(presented, expected)) {
-    logger.warn('Rejected tool call with invalid API key', { path: req.path });
-    return res.status(401).json({ error: 'Unauthorized' });
-  }
-
+function establishToolScope(req, res, next) {
   const tenantId = req.headers['x-tenant-id'];
   if (!tenantId) {
     return res.status(400).json({ error: 'x-tenant-id header is required' });
@@ -54,7 +32,9 @@ function authenticateTool(req, res, next) {
   next();
 }
 
-router.use(authenticateTool);
+// Fails closed when SERVER_TOOL_API_KEY is unset — see internalAuth.js.
+router.use(requireApiKey('SERVER_TOOL_API_KEY', 'server-tool'));
+router.use(establishToolScope);
 
 /**
  * Wrap a tool so a failure returns speakable text instead of an error the

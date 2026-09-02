@@ -54,7 +54,41 @@ export async function searchProperties(scope, args = {}) {
     maxPrice: args.maxPrice,
   };
 
-  const properties = await crmApi.getAvailableProperties(scope.tenantId, filters);
+  // Hybrid retrieval. When the caller described what they want in their own
+  // words ("something quiet near the station, family ke liye"), match on meaning
+  // — substring filters cannot bridge Hinglish phrasing to an English listing,
+  // and on this product that is the common case, not the edge case.
+  //
+  // Falls back to exact filters when there is no description, and also when
+  // semantic matching returns nothing: an empty result on a live call means the
+  // agent tells a customer there is nothing available, so a degraded answer
+  // beats a wrong one.
+  let properties = null;
+
+  if (args.description || args.query) {
+    try {
+      properties = await crmApi.matchProperties(scope.tenantId, {
+        query: args.description || args.query,
+        propertyType: args.propertyType,
+        minPrice: args.minPrice,
+        maxPrice: args.maxPrice,
+        minBedrooms: args.bedrooms,
+        limit: 5,
+      });
+      if (!Array.isArray(properties) || properties.length === 0) properties = null;
+    } catch (error) {
+      logger.warn('serverTools.searchProperties.semanticFailed', {
+        tenantId: scope.tenantId,
+        error: error.message,
+      });
+      properties = null;
+    }
+  }
+
+  if (!properties) {
+    properties = await crmApi.getAvailableProperties(scope.tenantId, filters);
+  }
+
   const speech = responseNormalizer.normalizePropertyList(properties, args);
 
   await recordToolUse(scope, {

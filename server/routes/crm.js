@@ -95,6 +95,7 @@ import {
 } from '../validation/crmSchemas.js';
 import { propertyIsCurrentlyOwnedBy } from '../domain/crmDomainModel.js';
 import { withCreateActor, withUpdateActor, resolveRequestActor } from '../utils/requestActor.js';
+import { attachMeetingReminderRecipients } from '../meetingReminderRecipients.js';
 
 const router = express.Router();
 const upload = multer({
@@ -1791,6 +1792,19 @@ router.get('/meetings/:id/history', validateToken, extractTenantId, async (req, 
 router.post('/meetings', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(createMeetingSchema), async (req, res) => {
   try {
     const meeting = await createMeeting(req.tenantId, withCreateActor(req.user, req.body));
+
+    // Resolve the assignee + agency owner and attach them to the reminder
+    // scheduleMeetingReminder() already created, so the 15-minute-before
+    // push/email goes to them — never the customer. Awaited (not
+    // fire-and-forget) because Lambda can freeze the execution environment
+    // right after the response is sent, silently dropping any work still
+    // in flight; failures here are swallowed so they never fail the request.
+    try {
+      await attachMeetingReminderRecipients(req.tenantId, meeting);
+    } catch (err) {
+      logger.warn('crm.meetings.attach_recipients_failed', { tenantId: req.tenantId, meetingId: meeting.meetingId, error: err.message });
+    }
+
     res.status(201).json(meeting);
   } catch (error) {
     logger.error('crm.create_meeting_error_', { message: 'Create meeting error:', error: error?.message });
@@ -1802,6 +1816,18 @@ router.post('/meetings', validateToken, extractTenantId, requireCrmMemberOrAbove
 router.put('/meetings/:id', validateToken, extractTenantId, requireCrmMemberOrAbove, validateBody(updateMeetingSchema), async (req, res) => {
   try {
     const meeting = await updateMeeting(req.tenantId, req.params.id, withUpdateActor(req.user, req.body));
+
+    // A reschedule (date/time change) makes updateMeeting() re-create the
+    // scheduled reminder via cancelMeetingReminder+scheduleMeetingReminder —
+    // re-attach recipients so the new row keeps the resolved audience too.
+    // Awaited (not fire-and-forget) — see the POST /meetings comment above
+    // for why: Lambda can freeze right after the response is sent.
+    try {
+      await attachMeetingReminderRecipients(req.tenantId, meeting);
+    } catch (err) {
+      logger.warn('crm.meetings.attach_recipients_failed', { tenantId: req.tenantId, meetingId: meeting.meetingId, error: err.message });
+    }
+
     res.json(meeting);
   } catch (error) {
     logger.error('crm.update_meeting_error_', { message: 'Update meeting error:', error: error?.message });

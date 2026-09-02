@@ -55,6 +55,7 @@ behavioural, not technical):
 
 | Parameter | Type | Required | Description for the model |
 |---|---|---|---|
+| `description` | string | no | **What the customer said they want, in their own words** — e.g. "kuch shaant jagah chahiye station ke paas, family ke liye". Pass this whenever they described their needs in prose rather than exact numbers. Do not reduce it to keywords: the phrasing carries meaning the search uses. |
 | `location` | string | no | Area, locality or landmark the customer mentioned, e.g. "Whitefield" |
 | `bedrooms` | number | no | Number of bedrooms (the number in "3 BHK") |
 | `propertyType` | string | no | e.g. "apartment", "villa", "independent house" |
@@ -62,6 +63,18 @@ behavioural, not technical):
 | `minPrice` | number | no | Minimum budget in rupees, plain number |
 
 Returns `{ speech, count, properties[] }`.
+
+**How `description` changes the search.** With it, matching runs on *meaning*
+against property embeddings, so a listing written as "spacious flat, walking
+distance to the metro" matches a customer who said "bada ghar station ke paas" —
+no shared words at all. That Hinglish-to-English gap is the common case on these
+calls, not an edge case, and plain keyword filters cannot bridge it.
+
+Hard constraints (`maxPrice`, `bedrooms`) still apply exactly on top of the
+semantic ranking, so a budget is never merely "approximately" respected. If
+semantic matching returns nothing, the service falls back to exact filters
+automatically — an empty result mid-call would have the agent tell a customer
+there is nothing available, so a degraded answer is preferred to a wrong one.
 
 ---
 

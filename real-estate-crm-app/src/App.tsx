@@ -112,6 +112,7 @@ import AiEmployeePage from './pages/crm/AiEmployee';
 import WhatsAppInbox from './pages/crm/WhatsAppInbox';
 import AiIntegrations from './pages/crm/AiIntegrations';
 import CallRecordings from './pages/crm/CallRecordings';
+import AICalling from './pages/crm/AICalling';
 
 
 
@@ -471,6 +472,7 @@ function App() {
 
             {/* Call Intelligence */}
             <Route path="/crm/call-recordings" element={<ProtectedRoute authState={authState}><CallRecordings /></ProtectedRoute>} />
+            <Route path="/crm/ai-calling" element={<ProtectedRoute authState={authState}><AICalling /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />

@@ -14,6 +14,7 @@ import { logger } from './logger.js';
 import { deepHealthCheck } from './healthcheck.js';
 import authRoutes from './routes/auth.js';
 import crmRoutes from './routes/crm.js';
+import aiCallingRoutes from './routes/aiCalling.js';
 import contactsRoutes from './routes/contacts.js';
 import leadsRoutes from './routes/leads.js';
 import buyersRoutes from './routes/buyers.js';
@@ -42,6 +43,7 @@ import agentActivityRouter from './routes/agentActivity.js';
 import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import aiCallingInternalRoutes from './routes/aiCallingInternal.js';
+import adapterIngestionInternalRoutes from './routes/adapterIngestionInternal.js';
 import validateToken from './middleware/validateToken.js';
 // AI Integrations dashboard API (frontend uses this to list/disconnect OAuth clients)
 import aiIntegrationsRoutes from './routes/aiIntegrations.js';
@@ -147,6 +149,14 @@ app.use('/api/whatsapp', whatsappConversationsRoutes);
 logger.info('routes.mount', { basePath: '/api/ai-employee', router: 'aiEmployeeStatusRoutes' });
 app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 
+// Internal lead-adapter intake (x-api-key + x-tenant-id). MUST be mounted
+// before the '/api/internal' router below: that one applies its own API-key
+// check via router.use to every request passing through it, so a broader mount
+// first would reject adapter traffic with the AI-calling key before it ever
+// reached this route.
+logger.info('routes.mount', { basePath: '/api/internal/adapters', router: 'adapterIngestionInternalRoutes' });
+app.use('/api/internal/adapters', adapterIngestionInternalRoutes);
+
 // Internal, service-to-service only (x-api-key + x-tenant-id, no user JWT) —
 // called by ai-calling-service, never by the frontend. Re-enabled as part of
 // the Lead Temperature migration; see DISABLED_FEATURES.md for history.
@@ -166,6 +176,9 @@ app.use('/api/enquiries', enquiriesRoutes);
 // Mounted before crmRoutes so the sub-path is never swallowed by a param route.
 logger.info('routes.mount', { basePath: '/api/crm/call-recordings', router: 'callRecordingsRoutes' });
 app.use('/api/crm/call-recordings', callRecordingsRoutes);
+// Mounted before crmRoutes so the sub-path is never swallowed by a param route.
+logger.info('routes.mount', { basePath: '/api/crm/ai-calling', router: 'aiCallingRoutes' });
+app.use('/api/crm/ai-calling', aiCallingRoutes);
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });

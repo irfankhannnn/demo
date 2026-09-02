@@ -482,6 +482,26 @@ export const toolDefinitions = [
     ],
   },
   {
+    name: 'match_properties',
+    category: 'property',
+    readOnly: true,
+    descriptions: {
+      internal: 'Use this when the customer DESCRIBES what they want in their own words rather than giving exact filters. Triggers: "kuch acha 3BHK dikhao station ke paas", "something quiet with parking", "family ke liye badi jagah chahiye", "show me something like the last one". This searches by MEANING, so it finds a property described as "spacious flat close to the metro" even when the customer said "bada ghar station ke paas". Use search_properties instead when the user gives exact filters or a name/area lookup. Pass the customer\'s description verbatim as query — do not reduce it to keywords, the wording carries meaning.',
+      mcp: 'Semantically match properties against a natural-language description of what someone is looking for. Use when the requirement is described in prose; use search_properties for exact filters or name lookups.',
+    },
+    handler: 'matchProperties',
+    parameters: [
+      { name: 'query', type: 'string', required: true, description: 'The customer\'s description in their own words, e.g. "quiet 3BHK near the metro with parking for a family". Pass it verbatim.' },
+      { name: 'propertyType', type: 'string', required: false, enum: ['apartment', 'house', 'villa', 'office', 'land'], description: 'Filter by property type if the customer was explicit about it.' },
+      { name: 'minPrice', type: 'number', required: false, description: 'Minimum budget in rupees (e.g. 8000000 for 80 lakhs).' },
+      { name: 'maxPrice', type: 'number', required: false, description: 'Maximum budget in rupees (e.g. 8000000 for 80 lakhs).' },
+      { name: 'minBedrooms', type: 'number', required: false, description: 'Minimum bedrooms (the number in "3 BHK").' },
+      { name: 'maxBedrooms', type: 'number', required: false, description: 'Maximum bedrooms.' },
+      { name: 'status', type: 'string', required: false, enum: PROPERTY_STATUS_ENUM, description: 'Filter by property marketing status (lowercase).' },
+      { name: 'limit', type: 'number', required: false, description: 'Maximum results to return (default 5).' },
+    ],
+  },
+  {
     name: 'update_property',
     category: 'property',
     readOnly: false,

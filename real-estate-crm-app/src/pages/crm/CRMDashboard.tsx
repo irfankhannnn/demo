@@ -24,6 +24,7 @@ import {
   MessageCircle,
   Inbox,
   PhoneCall,
+  PhoneOutgoing,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
@@ -59,6 +60,7 @@ export default function CRMDashboard() {
   const profile = getUserProfile();
   const isAdmin = profile?.role === 'ADMIN' || profile?.role === 'FOUNDER' || profile?.role === 'OWNER';
   const baileyEnabled = import.meta.env.VITE_BAILEY_ENABLED === 'true';
+  const aiCallingEnabled = import.meta.env.VITE_AI_CALLING_ENABLED === 'true';
   const [metrics, setMetrics] = useState<CRMMetrics | null>(null);
   const [unifiedCounts, setUnifiedCounts] = useState<UnifiedCrmCounts>({
     buyers: 0,
@@ -922,19 +924,18 @@ export default function CRMDashboard() {
                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
               </button>
             )}
-            {/* AI Calling - DISABLED */}
-            {/*
-            <button 
-              onClick={() => navigate('/crm/ai-calling')} 
-              className="flex items-center justify-between px-3 py-2.5 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors group border border-green-200 bg-green-50"
-            >
-              <span className="flex items-center gap-2">
-                <PhoneCall className="w-4 h-4 text-green-500 group-hover:text-green-600" />
-                AI Calling
-              </span>
-              <ChevronRight className="w-4 h-4 text-green-300 group-hover:text-green-500" />
-            </button>
-            */}
+            {isAdmin && aiCallingEnabled && (
+              <button
+                onClick={() => navigate('/crm/ai-calling')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/70 hover:border-green-400/70 bg-white/50 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <PhoneOutgoing className="w-4 h-4 text-green-600 group-hover:text-green-700 transition-colors" />
+                  AI Calling
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-green-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
           </div>
         </div>
       </main>

@@ -101,6 +101,24 @@ export async function getAvailableProperties(tenantId, filters = {}) {
 }
 
 /**
+ * Semantically match properties against a spoken description.
+ *
+ * Returns [] rather than throwing: on a live call the caller decides whether to
+ * fall back to exact filters, and an exception here would end the turn in dead air.
+ */
+export async function matchProperties(tenantId, options = {}) {
+  try {
+    const response = await getClient().post('/api/internal/properties/match', options, {
+      headers: { 'x-tenant-id': tenantId },
+    });
+    return response.data?.properties || [];
+  } catch (error) {
+    logger.error('Failed to match properties semantically', error, { tenantId });
+    return [];
+  }
+}
+
+/**
  * Get property details
  */
 export async function getPropertyDetails(tenantId, propertyId) {
@@ -195,6 +213,7 @@ export async function searchProperties(tenantId, query) {
 export default {
   getLeadContext,
   getAvailableProperties,
+  matchProperties,
   getPropertyDetails,
   scheduleSiteVisit,
   updateLeadCallOutcome,

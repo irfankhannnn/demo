@@ -160,6 +160,19 @@ Parameters:
       booking). Configured as a secret header on the tool in the ElevenLabs
       dashboard.
 
+  CrmCallerApiKey:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Shared secret the CRM backend presents on /api/ai-calling/* management
+      routes. The browser never calls this service directly, so what these
+      routes authenticate is the CRM backend as a service, not an end user -
+      x-tenant-id is trusted only because the caller proved it holds this key.
+      That makes this a tenant-crossing credential: it belongs only in the CRM
+      backend's server-side config, never in a browser bundle or a webhook
+      registration. Deliberately distinct from CrmInternalApiKey, which this
+      service presents when calling in the other direction.
+
   # ---- Bedrock --------------------------------------------------------------
 
   BedrockKnowledgeBaseId:
@@ -419,7 +432,8 @@ Resources:
           "EXOTEL_SID": "${ExotelSid}",
           "ELEVENLABS_API_KEY": "${ElevenLabsApiKey}",
           "ELEVENLABS_WEBHOOK_SECRET": "${ElevenLabsWebhookSecret}",
-          "SERVER_TOOL_API_KEY": "${ServerToolApiKey}"
+          "SERVER_TOOL_API_KEY": "${ServerToolApiKey}",
+          "CRM_CALLER_API_KEY": "${CrmCallerApiKey}"
         }
       Tags:
         - Key: Environment

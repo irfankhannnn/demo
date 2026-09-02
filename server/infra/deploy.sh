@@ -185,7 +185,7 @@ if [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   cd "$PROJECT_DIR"
   # Use compression level 1 for fast packaging. Level 0 (store) is even faster but larger.
   # Excluding node_modules TypeScript sources, source maps, docs, and metadata saves ~60+ MB and thousands of files.
-  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ workers/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ \
+  zip -r -q -1 function.zip node_modules package.json *.js routes/ middleware/ utils/ validation/ public/ lib/ scripts/ shared/ normalizers/ services/ constants/ domain/ aiViewBuilders/ oauth/ workers/ bailey.js emailService.js creditConfig.js creditService.js razorpayOrders.js teamAnalyticsService.js skillInvoker.js dataQualityService.js whatsappAuditService.js agents/ observability/ config/ \
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "node_modules/**/*.ts" "node_modules/**/*.map" "node_modules/**/*.d.ts" \
        "node_modules/**/*.md" "node_modules/**/*.markdown" "node_modules/**/*.yml" "node_modules/**/*.yaml" \
@@ -288,6 +288,7 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "CrmApiDomainName", "ParameterValue": "${CRM_API_DOMAIN_NAME}" },
   { "ParameterKey": "CrmApiBasePath", "ParameterValue": "${CRM_API_BASE_PATH}" },
   { "ParameterKey": "CrmApiStageName", "ParameterValue": "${CRM_API_STAGE_NAME}" },
+  { "ParameterKey": "EnableCustomDomainMapping", "ParameterValue": "${ENABLE_CUSTOM_DOMAIN_MAPPING:-true}" },
   { "ParameterKey": "EnableBasePathStrip", "ParameterValue": "${ENABLE_BASE_PATH_STRIP:-false}" },
   { "ParameterKey": "AuthServiceUrl", "ParameterValue": "${AUTH_SERVICE_URL}" },
   { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS}" },
@@ -315,7 +316,9 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "PostHogHost", "ParameterValue": "${POSTHOG_HOST:-https://eu.i.posthog.com}" },
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AiCallingInternalApiKey", "ParameterValue": "${AI_CALLING_INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "AdapterInternalApiKey", "ParameterValue": "${ADAPTER_INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AiCallingServiceUrl", "ParameterValue": "${AI_CALLING_SERVICE_URL:-}" },
+  { "ParameterKey": "CrmCallerApiKey", "ParameterValue": "${CRM_CALLER_API_KEY:-}" },
   { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },
   { "ParameterKey": "AgentAuditTableName", "ParameterValue": "${AGENT_AUDIT_TABLE_NAME:-cloudberry-real-estate-agent-audit}" },
   { "ParameterKey": "JwtSecret", "ParameterValue": "${JWT_SECRET:-}" },

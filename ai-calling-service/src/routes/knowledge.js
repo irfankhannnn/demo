@@ -1,9 +1,16 @@
 // Knowledge Management Routes
+//
+// Called by the CRM backend only, never the browser. Authenticated as a
+// service with CRM_CALLER_API_KEY — see ../middleware/internalAuth.js for the
+// trust boundary. Note these routes mint presigned S3 upload URLs scoped to
+// the caller's tenant prefix, so unauthenticated access would have allowed
+// writing into any tenant's knowledge bucket path.
 
 import express from 'express';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as db from '../services/dynamodbService.js';
+import { authenticateCrmCaller } from '../middleware/internalAuth.js';
 import { logger } from '../utils/logger.js';
 import { KNOWLEDGE_CATEGORIES, DOCUMENT_STATUS } from '../config/constants.js';
 
@@ -17,18 +24,10 @@ const KNOWLEDGE_BUCKET = process.env.AI_CALLING_KNOWLEDGE_BUCKET;
 // upload with BadDigest. Default is 'WHEN_SUPPORTED' since SDK v3.729.
 const s3Client = new S3Client({ region: REGION, requestChecksumCalculation: 'WHEN_REQUIRED' });
 
-// Middleware to extract tenant ID
-const extractTenantId = (req, res, next) => {
-  const tenantId = req.headers['x-tenant-id'];
-  if (!tenantId) {
-    return res.status(400).json({ error: 'x-tenant-id header is required' });
-  }
-  req.tenantId = tenantId;
-  next();
-};
+router.use(authenticateCrmCaller);
 
 // Get upload URL for knowledge document
-router.post('/upload-url', extractTenantId, async (req, res) => {
+router.post('/upload-url', async (req, res) => {
   try {
     const { fileName, fileType, category } = req.body;
     
@@ -82,7 +81,7 @@ router.post('/upload-url', extractTenantId, async (req, res) => {
 });
 
 // Confirm document upload (triggers indexing)
-router.post('/:documentId/confirm', extractTenantId, async (req, res) => {
+router.post('/:documentId/confirm', async (req, res) => {
   try {
     const { fileSize } = req.body;
     
@@ -117,7 +116,7 @@ router.post('/:documentId/confirm', extractTenantId, async (req, res) => {
 });
 
 // List knowledge documents
-router.get('/', extractTenantId, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category } = req.query;
     
@@ -131,7 +130,7 @@ router.get('/', extractTenantId, async (req, res) => {
 });
 
 // Get document details
-router.get('/:documentId', extractTenantId, async (req, res) => {
+router.get('/:documentId', async (req, res) => {
   try {
     const document = await db.getKnowledgeDocument(req.tenantId, req.params.documentId);
     
@@ -147,7 +146,7 @@ router.get('/:documentId', extractTenantId, async (req, res) => {
 });
 
 // Delete document
-router.delete('/:documentId', extractTenantId, async (req, res) => {
+router.delete('/:documentId', async (req, res) => {
   try {
     const document = await db.getKnowledgeDocument(req.tenantId, req.params.documentId);
     

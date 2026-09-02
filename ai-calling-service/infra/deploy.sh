@@ -123,6 +123,7 @@ SECRET_VARS=(
   ELEVENLABS_API_KEY
   ELEVENLABS_WEBHOOK_SECRET
   SERVER_TOOL_API_KEY
+  CRM_CALLER_API_KEY
 )
 MISSING_SECRETS=()
 for var in "${SECRET_VARS[@]}"; do
@@ -143,6 +144,9 @@ Where each comes from:
   SERVER_TOOL_API_KEY        generate one, e.g. \`openssl rand -hex 32\`, and set the
                              same value as the server tool's secret header in the
                              ElevenLabs dashboard
+  CRM_CALLER_API_KEY         generate one, e.g. \`openssl rand -hex 32\`, and set the
+                             same value in server/.env.${DEPLOY_ENV} so the CRM
+                             backend can call this service's management routes
 
 These are never committed - $ENV_FILE is gitignored.
 EOF
@@ -309,6 +313,7 @@ node -e '
     ElevenLabsAgentPhoneNumberId: e.ELEVENLABS_AGENT_PHONE_NUMBER_ID,
     ElevenLabsWebhookSecret: e.ELEVENLABS_WEBHOOK_SECRET,
     ServerToolApiKey: e.SERVER_TOOL_API_KEY,
+  CrmCallerApiKey: e.CRM_CALLER_API_KEY,
     BedrockKnowledgeBaseId: e.BEDROCK_KNOWLEDGE_BASE_ID || "",
     ApiStageName: e.API_STAGE_NAME || "v1",
     AllowedOrigins: e.ALLOWED_ORIGINS,
