@@ -40,22 +40,28 @@ customer.
 
 | Area | State |
 |---|---|
-| App code rebuild | ✅ Done. 19/19 tests pass (`npm --prefix ai-calling-service test`) |
+| App code rebuild | ✅ Done. 27/27 tests pass (`npm --prefix ai-calling-service test`) |
 | Infra (CFN + deploy.sh) | ✅ Done, `infra/cfn-ai-calling.yaml`, passes readiness audit |
 | CI/CD wrapper | ✅ Done, `cfn-templates-cicd/ai-calling-service/deploy.sh dev\|prod` |
 | Leaked credentials | ✅ Purged from working tree (git history NOT rewritten — see §3) |
 | Dev ElevenLabs agent | ✅ Created & published — see §4 |
+| **Management API auth** | ✅ `src/middleware/internalAuth.js`, shared secret, fails closed |
+| **CRM proxy routes** | ✅ 8 routes under `/api/crm/ai-calling`, credit pre-check enforced |
+| **CRM frontend UI** | ✅ Built, gated behind `VITE_AI_CALLING_ENABLED` (currently `false`) |
+| **Semantic property search** | ✅ Built — DynamoDB Vector Search, all 3 channels. Needs backfill + index creation |
 | Credential rotation | ❌ **Pending — human only** |
 | Exotel phone number import | ❌ **Pending — human only** |
-| Dev deploy | ❌ Blocked (see §5) |
+| Prod ElevenLabs agent | ❌ Not created (dev one exists — do not reuse) |
+| Prod deploy | ❌ Blocked on credentials (see §5) |
 | Server tools + post-call webhook | ❌ Blocked until after deploy |
 | End-to-end test call | ❌ Not attempted |
-| Prod (agent, creds, deploy) | ❌ Not started |
-| CRM frontend UI | ❌ **Does not exist** (see §8) |
 
-**Nothing is committed.** The entire rebuild sits in the working tree. Consider
-committing a checkpoint before deploying so there's a rollback point. Repo rule:
-descriptive commits, **never force-push**.
+**Committed** as `bdff45e` (native Exotel rebuild) and `63a4982` (CRM UI,
+semantic search, API auth). Repo rule: descriptive commits, **never force-push**.
+
+Still uncommitted and deliberately left alone — unrelated in-progress work:
+`server/leadIngestion.js`, `server/meetingReminderRecipients.js`,
+`server/scripts/meeting-reminder-cron.js`.
 
 ---
 
@@ -112,12 +118,12 @@ server tools on each agent hardcode that environment's API Gateway URL.
 
 ## 5. Deploying to dev — blockers and sequence
 
-### Blocker A — the artifact bucket does not exist
+### Artifact buckets
 
-`aws s3api head-bucket --bucket dev-realestateflow-artifacts --profile cloudberry-main`
-returns **404**. `deploy.sh` needs it. Create it in account `730335176275`
-(`ap-south-1`) before the first deploy, matching however the prod bucket was set
-up (block public access, versioning consistent with the other services).
+- **prod** — `prod-realestateflow-artifacts` in `532404260898` ✅ **verified to exist**
+- **dev** — `dev-realestateflow-artifacts` in `730335176275` ❌ **does not exist**
+  (`head-bucket` returns 404). Only matters if you later deploy dev; create it
+  matching the prod bucket's settings.
 
 ### Blocker B — every credential in `.env.dev` is blank
 
@@ -132,6 +138,7 @@ up (block public access, versioning consistent with the other services).
 | `ELEVENLABS_AGENT_PHONE_NUMBER_ID` | From the Exotel import (§6) — **without this, no call has audio** |
 | `ELEVENLABS_WEBHOOK_SECRET` | Shown once when the post-call webhook is created (§7) |
 | `SERVER_TOOL_API_KEY` | Generate: `openssl rand -hex 32`. Same value goes in ElevenLabs as the tools' secret header |
+| `CRM_CALLER_API_KEY` | Generate: `openssl rand -hex 32`. **Same value required in both `ai-calling-service/.env.<env>` and `server/.env.<env>`** — it authenticates the CRM backend to the calling service's management API. Tenant-crossing credential, server-side only |
 | `EXOTEL_WEBHOOK_IPS` | Exotel's documented webhook IP ranges. Blank is allowed in dev (warns); **blocks prod deploy** |
 
 ### The deploy is a TWO-PASS sequence
@@ -198,20 +205,35 @@ Ranked by how likely they are to bite you.
 
 ### 🔴 Blocking a real end-to-end test
 
-1. **No CRM frontend for AI calling.** `real-estate-crm-app/src/pages/crm/CRMDashboard.tsx:925`
-   has the only reference, and it's commented out: `{/* AI Calling - DISABLED */}`.
-   It navigates to `/crm/ai-calling`, but **no such page or route exists** anywhere
-   in `src/`. There is no UI to start a call, view a transcript, or see call
-   history. **The first end-to-end test must be a direct `POST /api/ai-calling/calls/start`.**
-   Building the UI is an unstarted phase.
+1. **Two things must be switched on that currently are not.**
+   - `VITE_AI_CALLING_ENABLED` is `false` — the CRM nav entry stays hidden until
+     you flip it. Nothing ships visible by accident.
+   - `CRM_CALLER_API_KEY` must hold the **same value** in
+     `ai-calling-service/.env.<env>` and `server/.env.<env>`. If they disagree
+     or either is blank, every call from the UI fails: 503 from the CRM proxy,
+     401 from the service. The service fails closed by design.
 
-2. **No agent config row exists for any tenant.** `startAICall` calls
+2. **The vector index must be created and properties backfilled** before
+   semantic search returns anything. The index is defined in
+   `server/infra/cfn-backend.yaml`; existing properties need
+   `node server/scripts/backfill-property-embeddings.js --tenant <id> --dry-run`
+   first. See the prod-first risk note at the end of this section.
+
+3. **No agent config row exists for any tenant.** `startAICall` calls
    `db.getAgentConfig(tenantId)` and fails with "Agent configuration missing"
    if absent. The table is created by the stack, so after the first deploy you
    must seed a config via `PUT /api/ai-calling/config/agent` for tenant
    `85348a4e-b948-4588-9d5f-c638d2ca84e8` before any call will start.
 
-3. **Artifact bucket missing** — see §5 Blocker A.
+4. **Prod-first carries real cost for the vector index — an open decision.** The
+   design proposal explicitly gates this behind a non-prod spike. Going straight
+   to prod means adding the index triggers a **backfill on the live
+   `prod-realestateflow-crm` table** (search returns incomplete results until it
+   completes), and `DistanceFunction` plus the `NonKeyAttributes` projection are
+   **immutable** — getting them wrong means delete, recreate, full re-embed. All
+   range-filter fields (`rentAmount`, `price`, `bhk`, `status`) were projected
+   deliberately for that reason. Existing flows are unaffected either way:
+   `match_properties` is additive and `search_properties` is untouched.
 
 ### 🟠 Will misbehave, expect to fix
 

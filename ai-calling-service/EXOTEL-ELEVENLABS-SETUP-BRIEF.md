@@ -23,6 +23,8 @@ values into a chat transcript, a commit, or any file that isn't `.env.prod`.**
 | 8 | Prod agent id | `ELEVENLABS_AGENT_ID` | Created in step C |
 | 9 | Phone number id | `ELEVENLABS_AGENT_PHONE_NUMBER_ID` | Created in step D |
 | 10 | Webhook signing secret | `ELEVENLABS_WEBHOOK_SECRET` | Created **after** the prod deploy |
+| 11 | Server-tool key | `SERVER_TOOL_API_KEY` | Generate — step E |
+| 12 | CRM caller key | `CRM_CALLER_API_KEY` | Generate — step E. **Same value in BOTH `ai-calling-service/.env.prod` and `server/.env.prod`** |
 
 ⚠️ **Rotation is mandatory, not optional.** The previous Exotel API key/token and
 ElevenLabs API key were committed to this repo's git history (commit `21bacd4`).
@@ -101,14 +103,27 @@ ElevenLabs → **Phone Numbers → Import number → From Exotel**. Fields:
 On success, record the phone number id → `ELEVENLABS_AGENT_PHONE_NUMBER_ID`.
 **Without this, calls have no audio.**
 
-## Step E — generate the server-tool key
+## Step E — generate the two shared secrets
 
 ```bash
-openssl rand -hex 32
+openssl rand -hex 32   # SERVER_TOOL_API_KEY
+openssl rand -hex 32   # CRM_CALLER_API_KEY  (a DIFFERENT value)
 ```
 
-Put it in `.env.prod` as `SERVER_TOOL_API_KEY`. The same value goes into
-ElevenLabs later as the tools' secret header.
+- **`SERVER_TOOL_API_KEY`** → `ai-calling-service/.env.prod`. The same value goes
+  into ElevenLabs later as the server tools' secret header.
+- **`CRM_CALLER_API_KEY`** → the same value in **both**
+  `ai-calling-service/.env.prod` **and** `server/.env.prod`. This is what lets
+  the CRM backend call the calling service's management API. If the two sides
+  disagree, every call from the CRM UI fails — 503 on the CRM side, 401 on the
+  service side.
+
+  It is a **tenant-crossing credential**: anything holding it can act for any
+  tenant. Server-side config only — never a browser bundle, mobile app, or
+  webhook registration. Keep it distinct from `CRM_INTERNAL_API_KEY`, which is
+  the opposite direction (service → CRM).
+
+`deploy.sh` now refuses to deploy while either is blank.
 
 ---
 
