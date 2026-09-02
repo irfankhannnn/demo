@@ -7,9 +7,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "package": "node scripts/package-lambda.js",
-    "deploy": "aws cloudformation deploy --template-file cfn-template.yaml --stack-name ai-calling-service --capabilities CAPABILITY_NAMED_IAM",
-    "test": "node --test src/**/*.test.js"
+    "deploy:dev": "bash ../cfn-templates-cicd/ai-calling-service/deploy.sh dev",
+    "deploy:prod": "bash ../cfn-templates-cicd/ai-calling-service/deploy.sh prod",
+    "test": "node --test \"src/**/*.test.js\""
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.400.0",
@@ -24,8 +24,7 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "serverless-http": "^3.2.0",
-    "uuid": "^9.0.0",
-    "ws": "^8.14.0"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "archiver": "^6.0.1",

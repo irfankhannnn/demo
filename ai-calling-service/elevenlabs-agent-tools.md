@@ -1,0 +1,187 @@
+# ElevenLabs Agent — Server Tools
+
+Six webhook tools to add to the shared agent in the ElevenLabs dashboard
+(**Agent → Tools → Add tool → Webhook**). They replace the old
+"intent webhook → regex classifier → inject context" relay: the agent's own
+model now decides when it needs data.
+
+Implementations live in `src/handlers/serverTools.js`, routed in
+`src/routes/tools.js`.
+
+## Base URL
+
+```
+{WEBHOOK_BASE_URL}/api/ai-calling/tools
+```
+
+`WEBHOOK_BASE_URL` is the deployed API Gateway invoke URL. It does not exist
+until the stack is deployed, so these tools can only be configured after a
+first deploy.
+
+## Headers — required on all six tools
+
+Set these identically on every tool. They are what scopes a call to one tenant;
+without them the request is rejected.
+
+| Header | Value | Type |
+|---|---|---|
+| `x-api-key` | the `SERVER_TOOL_API_KEY` secret | Secret |
+| `x-tenant-id` | `{{secret__tenant_id}}` | Dynamic variable |
+| `x-lead-id` | `{{secret__lead_id}}` | Dynamic variable |
+| `x-call-session-id` | `{{secret__call_session_id}}` | Dynamic variable |
+
+**Tenant scope must come from these headers, never from a body parameter.**
+The model can write anything into a body parameter, including another tenant's
+id; it cannot alter a header bound to a `secret__` dynamic variable. Adding a
+`tenant_id` body parameter to any of these tools would reopen exactly the
+cross-tenant hole the old unauthenticated webhook had.
+
+Store the API key as a **Secret** in the ElevenLabs workspace, not as a plain
+header value.
+
+---
+
+## 1. `search_properties`
+
+**Description** (the model reads this to decide when to call it — keep it
+behavioural, not technical):
+
+> Search the agency's live property listings. Call this whenever the customer
+> describes what they are looking for — budget, area, number of bedrooms,
+> property type — or asks what is available. Always call this rather than
+> guessing what might be available.
+
+`POST /search-properties`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `location` | string | no | Area, locality or landmark the customer mentioned, e.g. "Whitefield" |
+| `bedrooms` | number | no | Number of bedrooms (the number in "3 BHK") |
+| `propertyType` | string | no | e.g. "apartment", "villa", "independent house" |
+| `maxPrice` | number | no | Maximum budget in rupees, as a plain number: 8000000 for 80 lakhs |
+| `minPrice` | number | no | Minimum budget in rupees, plain number |
+
+Returns `{ speech, count, properties[] }`.
+
+---
+
+## 2. `get_property_details`
+
+> Get full details of one specific property the customer is asking about —
+> amenities, size, furnishing, exact rent. Use the propertyId from a previous
+> search result.
+
+`POST /property-details`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `propertyId` | string | yes | The id from a previous search_properties result |
+
+Returns `{ speech, property }`.
+
+---
+
+## 3. `schedule_site_visit`
+
+> Book a site visit for the customer. Only call this once you have both a
+> specific property and a day they want to come. Do not invent a date — ask.
+
+`POST /schedule-site-visit`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `propertyId` | string | yes | Property they want to visit |
+| `preferredDate` | string | yes | Day as the customer said it, e.g. "tomorrow", "Saturday", "12 March" |
+| `preferredTime` | string | no | Rough time, e.g. "morning", "4pm" |
+
+Returns `{ speech, visit }`. The lead is taken from the header, not a
+parameter — the model never supplies who it is booking for.
+
+---
+
+## 4. `answer_policy_question`
+
+> Answer questions about agency policies, rental rules, deposits, paperwork,
+> agreements, or the agency itself, from the agency's own documents. Use this
+> instead of answering from memory — policies differ per agency.
+
+`POST /policy-answer`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `question` | string | yes | The customer's question, in your own words |
+| `category` | string | no | One of: `faq`, `policies`, `agency_info`, `pricing` |
+
+Returns `{ speech, answer, confidence }`.
+
+> **Note:** this tool is only as good as the knowledge base behind it. Document
+> ingestion is currently a stub (`routes/knowledge.js`) — uploaded documents
+> are marked indexed without being embedded, so this tool will return "I don't
+> have specific information about that" until real ingestion is built. See the
+> README's Known gaps.
+
+---
+
+## 5. `submit_qualification`
+
+> Record how ready this customer is to transact. Call this once on a
+> qualification call, as soon as you can tell. This is a silent background
+> note — never tell the customer their classification.
+
+`POST /qualification`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `temperature` | string | yes | Exactly one of: `HOT`, `WARM`, `COLD` |
+| `reasons` | array of strings | no | Short reasons for the classification |
+
+Returns `{ speech: "", recorded, temperature }` — deliberately empty speech so
+the agent carries on naturally instead of announcing the scoring.
+
+---
+
+## 6. `request_human_handoff`
+
+> Flag that this customer needs a person. Call this when they ask for a human,
+> get frustrated, raise something you cannot answer, or want to negotiate.
+
+`POST /human-handoff`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `reason` | string | no | Brief reason for the handoff |
+
+Returns `{ speech, recorded }`.
+
+---
+
+## Post-call webhook
+
+Separately from the tools, configure the workspace **post-call webhook**
+(Settings → Webhooks):
+
+- **URL:** `{WEBHOOK_BASE_URL}/webhooks/elevenlabs/post-call`
+- **Events:** post-call transcription
+- **Secret:** generate one, then store the same value as
+  `ELEVENLABS_WEBHOOK_SECRET` in the service's Secrets Manager secret
+
+The service verifies the `elevenlabs-signature` HMAC on every delivery and
+rejects unsigned or stale requests.
+
+> **Confirm on the first delivery.** ElevenLabs documents signature
+> verification through their SDK and does not publish the raw scheme, so
+> `verifyWebhookSignature()` implements the standard
+> `t=<timestamp>,v0=<hex-hmac-sha256>` over `${timestamp}.${rawBody}`. If the
+> first real delivery is rejected, CloudWatch logs the header's *shape* (values
+> redacted) — compare it against that assumption and adjust
+> `parseSignatureHeader()` if the format differs. Only that function and the
+> signed-payload line need to change.
+
+## Checklist
+
+- [ ] All six tools created, pointing at the deployed API Gateway URL
+- [ ] All four headers set identically on all six tools
+- [ ] `SERVER_TOOL_API_KEY` stored as a workspace Secret, matching the value in Secrets Manager
+- [ ] No tool has a `tenant_id` body parameter
+- [ ] Post-call webhook configured, secret matching `ELEVENLABS_WEBHOOK_SECRET`
+- [ ] Test conversation confirms tools fire and no `secret__` value is spoken

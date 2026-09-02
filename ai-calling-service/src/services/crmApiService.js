@@ -4,59 +4,71 @@ import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { API_TIMEOUT_MS } from '../config/constants.js';
 
-const CRM_API_URL = process.env.CRM_INTERNAL_API_URL;
-const CRM_API_KEY = process.env.CRM_INTERNAL_API_KEY;
+// Built lazily. CRM_INTERNAL_API_KEY arrives from Secrets Manager during
+// cold-start hydration, which happens after this module is imported — the
+// previous module-scope throw meant every route that transitively imported
+// this file crashed the container on import before hydration could run.
+let crmClient = null;
 
-if (!CRM_API_URL) {
-  throw new Error('Missing required environment variable CRM_INTERNAL_API_URL');
-}
-if (!CRM_API_KEY) {
-  throw new Error('Missing required environment variable CRM_INTERNAL_API_KEY');
-}
+function getClient() {
+  if (crmClient) return crmClient;
 
-const crmClient = axios.create({
-  baseURL: CRM_API_URL,
-  timeout: API_TIMEOUT_MS,
-  headers: {
-    'Content-Type': 'application/json',
-    'x-api-key': CRM_API_KEY,
-    'x-source': 'ai-calling-service',
-  },
-});
+  const baseURL = process.env.CRM_INTERNAL_API_URL;
+  const apiKey = process.env.CRM_INTERNAL_API_KEY;
 
-// Add request/response logging
-crmClient.interceptors.request.use((config) => {
-  logger.debug('CRM API Request', { 
-    method: config.method, 
-    url: config.url,
-    tenantId: config.headers['x-tenant-id'],
+  if (!baseURL) throw new Error('Missing required environment variable CRM_INTERNAL_API_URL');
+  if (!apiKey) throw new Error('Missing required secret CRM_INTERNAL_API_KEY');
+
+  crmClient = axios.create({
+    baseURL,
+    timeout: API_TIMEOUT_MS,
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'x-source': 'ai-calling-service',
+    },
   });
-  return config;
-});
 
-crmClient.interceptors.response.use(
-  (response) => {
-    logger.debug('CRM API Response', { 
-      status: response.status, 
-      url: response.config.url,
+  crmClient.interceptors.request.use((config) => {
+    logger.debug('CRM API Request', {
+      method: config.method,
+      url: config.url,
+      tenantId: config.headers['x-tenant-id'],
     });
-    return response;
-  },
-  (error) => {
-    logger.error('CRM API Error', error, { 
-      url: error.config?.url,
-      status: error.response?.status,
-    });
-    throw error;
-  }
-);
+    return config;
+  });
+
+  crmClient.interceptors.response.use(
+    (response) => {
+      logger.debug('CRM API Response', {
+        status: response.status,
+        url: response.config.url,
+      });
+      return response;
+    },
+    (error) => {
+      logger.error('CRM API Error', error, {
+        url: error.config?.url,
+        status: error.response?.status,
+      });
+      throw error;
+    }
+  );
+
+  return crmClient;
+}
+
+// Exposed for tests — lets a suite reset the memoized client between cases.
+export function resetClient() {
+  crmClient = null;
+}
 
 /**
  * Get lead context for AI call
  */
 export async function getLeadContext(tenantId, leadId) {
   try {
-    const response = await crmClient.get(`/api/internal/leads/${leadId}/context`, {
+    const response = await getClient().get(`/api/internal/leads/${leadId}/context`, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -78,7 +90,7 @@ export async function getAvailableProperties(tenantId, filters = {}) {
     if (filters.maxPrice) params.append('maxPrice', filters.maxPrice);
     if (filters.bedrooms) params.append('bedrooms', filters.bedrooms);
     
-    const response = await crmClient.get(`/api/internal/properties/available?${params}`, {
+    const response = await getClient().get(`/api/internal/properties/available?${params}`, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -93,7 +105,7 @@ export async function getAvailableProperties(tenantId, filters = {}) {
  */
 export async function getPropertyDetails(tenantId, propertyId) {
   try {
-    const response = await crmClient.get(`/api/internal/properties/${propertyId}/details`, {
+    const response = await getClient().get(`/api/internal/properties/${propertyId}/details`, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -108,7 +120,7 @@ export async function getPropertyDetails(tenantId, propertyId) {
  */
 export async function scheduleSiteVisit(tenantId, visitData) {
   try {
-    const response = await crmClient.post('/api/internal/site-visits', visitData, {
+    const response = await getClient().post('/api/internal/site-visits', visitData, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -123,7 +135,7 @@ export async function scheduleSiteVisit(tenantId, visitData) {
  */
 export async function updateLeadCallOutcome(tenantId, leadId, outcomeData) {
   try {
-    const response = await crmClient.patch(`/api/internal/leads/${leadId}/call-outcome`, outcomeData, {
+    const response = await getClient().patch(`/api/internal/leads/${leadId}/call-outcome`, outcomeData, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -139,7 +151,7 @@ export async function updateLeadCallOutcome(tenantId, leadId, outcomeData) {
  */
 export async function getBuyerDetails(tenantId, buyerId) {
   try {
-    const response = await crmClient.get(`/api/internal/buyers/${buyerId}`, {
+    const response = await getClient().get(`/api/internal/buyers/${buyerId}`, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -154,7 +166,7 @@ export async function getBuyerDetails(tenantId, buyerId) {
  */
 export async function getSellerDetails(tenantId, sellerId) {
   try {
-    const response = await crmClient.get(`/api/internal/sellers/${sellerId}`, {
+    const response = await getClient().get(`/api/internal/sellers/${sellerId}`, {
       headers: { 'x-tenant-id': tenantId },
     });
     return response.data;
@@ -169,7 +181,7 @@ export async function getSellerDetails(tenantId, sellerId) {
  */
 export async function searchProperties(tenantId, query) {
   try {
-    const response = await crmClient.get(`/api/internal/properties/search`, {
+    const response = await getClient().get(`/api/internal/properties/search`, {
       headers: { 'x-tenant-id': tenantId },
       params: { q: query },
     });

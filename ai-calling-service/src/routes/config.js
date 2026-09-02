@@ -43,6 +43,8 @@ router.put('/agent', extractTenantId, async (req, res) => {
   try {
     const {
       agencyName,
+      agentId,
+      agentPhoneNumberId,
       agentVoice,
       agentPersonality,
       greeting,
@@ -52,15 +54,15 @@ router.put('/agent', extractTenantId, async (req, res) => {
       enableRecording,
       escalationPhone,
     } = req.body;
-    
-    if (!agencyName || !exotelNumber) {
-      return res.status(400).json({ 
-        error: 'agencyName and exotelNumber are required' 
-      });
+
+    if (!agencyName) {
+      return res.status(400).json({ error: 'agencyName is required' });
     }
-    
+
     const config = await db.saveAgentConfig(req.tenantId, {
       agencyName,
+      agentId,
+      agentPhoneNumberId,
       agentVoice,
       agentPersonality,
       greeting,

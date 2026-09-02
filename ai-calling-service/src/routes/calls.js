@@ -21,11 +21,11 @@ const extractTenantId = (req, res, next) => {
 router.post('/start', extractTenantId, async (req, res) => {
   try {
     const { leadId, leadName, leadPhone, callPurpose } = req.body;
-    
+
     if (!leadPhone) {
       return res.status(400).json({ error: 'leadPhone is required' });
     }
-    
+
     const result = await callOrchestration.startAICall({
       tenantId: req.tenantId,
       leadId,
@@ -33,11 +33,17 @@ router.post('/start', extractTenantId, async (req, res) => {
       leadPhone,
       callPurpose,
     });
-    
+
     res.status(201).json(result);
   } catch (error) {
+    // Bad input (unparseable phone, unconfigured agent) is the caller's
+    // problem, not a server fault — answer 400 so the CRM can show the
+    // reason instead of a generic failure.
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     logger.error('Start call error', error);
-    res.status(500).json({ error: error.message || 'Failed to start call' });
+    res.status(500).json({ error: 'Failed to start call', details: error.message });
   }
 });
 
