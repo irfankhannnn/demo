@@ -123,17 +123,31 @@ export async function matchProperties(tenantId, options = {}) {
   const text = (query || '').trim();
   if (text.length < 2) return [];
 
-  const matches = await semanticSearch({
-    tenantId,
-    query: text,
-    indexName: PROPERTY_VECTOR_INDEX,
-    topK: limit,
-    // EntityType is essential: the CRM table is single-table, so without it one
-    // index would mix leads, contacts and properties into one vector space.
-    equalityFilters: { EntityType: 'PROPERTY', ...(propertyType ? { propertyType } : {}) },
-    postFilter: buildPostFilter({ minPrice, maxPrice, minBedrooms, maxBedrooms, status }),
-    scoreThreshold,
-  });
+  // Same contract as the write path's buildEmbeddingAttributesSafe: a Bedrock
+  // or index problem must not become an exception in a live conversation. The
+  // caller falls back to the plain filtered property lookup, which is a worse
+  // answer but still an answer.
+  let matches;
+  try {
+    matches = await semanticSearch({
+      tenantId,
+      query: text,
+      indexName: PROPERTY_VECTOR_INDEX,
+      topK: limit,
+      // EntityType is essential: the CRM table is single-table, so without it
+      // one index would mix leads, contacts and properties into one vector space.
+      equalityFilters: { EntityType: 'PROPERTY', ...(propertyType ? { propertyType } : {}) },
+      postFilter: buildPostFilter({ minPrice, maxPrice, minBedrooms, maxBedrooms, status }),
+      scoreThreshold,
+    });
+  } catch (error) {
+    logger.error('propertySearch.semantic.failed', {
+      tenantId,
+      error: error.message,
+      errorName: error.name,
+    });
+    return [];
+  }
 
   logger.info('propertySearch.semantic', {
     tenantId,

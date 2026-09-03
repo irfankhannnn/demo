@@ -78,15 +78,33 @@ export async function searchPolicies(tenantId, question, options = {}) {
   const requested = String(options.category || '').trim().toLowerCase();
   const category = requested ? normaliseCategory(requested) : null;
 
-  const matches = await semanticSearch({
-    tenantId,
-    query,
-    indexName: POLICY_VECTOR_INDEX,
-    tableName: table,
-    topK: options.limit || DEFAULT_LIMIT,
-    equalityFilters: category ? { category } : {},
-    scoreThreshold: options.scoreThreshold ?? POLICY_SCORE_THRESHOLD,
-  });
+  // Retrieval failures degrade to "no passages", never an exception.
+  //
+  // Every caller is a live conversation — a phone call, a WhatsApp reply, an
+  // SSE chat turn. A throw here surfaces to the voice agent as a broken tool
+  // mid-sentence; an empty result routes it down the path it already handles
+  // correctly, which is to say it does not know and offer a human. Bedrock
+  // being throttled or an index still backfilling must not sound like a fault
+  // to the customer on the line.
+  let matches;
+  try {
+    matches = await semanticSearch({
+      tenantId,
+      query,
+      indexName: POLICY_VECTOR_INDEX,
+      tableName: table,
+      topK: options.limit || DEFAULT_LIMIT,
+      equalityFilters: category ? { category } : {},
+      scoreThreshold: options.scoreThreshold ?? POLICY_SCORE_THRESHOLD,
+    });
+  } catch (error) {
+    logger.error('policySearch.failed', {
+      tenantId,
+      error: error.message,
+      errorName: error.name,
+    });
+    return [];
+  }
 
   return matches.map(({ score, item }) => ({
     chunkText: item.chunkText,

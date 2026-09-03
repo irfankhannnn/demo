@@ -314,6 +314,26 @@ describe('searchPolicies', () => {
     expect(mockDynamoSend.mock.calls[0][0].input.SearchConditionExpression).toContain('category');
   });
 
+  it('returns nothing rather than throwing when retrieval fails', async () => {
+    // Bedrock unavailable, index still backfilling, throttling. The caller is a
+    // live phone call: a throw becomes a broken tool mid-sentence, while an
+    // empty result routes the agent to "I don't know, let me connect you".
+    mockDynamoSend.mockRejectedValue(
+      Object.assign(new Error('Operation not allowed'), { name: 'ValidationException' })
+    );
+
+    await expect(searchPolicies('tenant-a', 'what is the deposit')).resolves.toEqual([]);
+  });
+
+  it('surfaces a retrieval failure as a null answer, not an empty one', async () => {
+    mockBedrockSend.mockRejectedValue(new Error('Bedrock throttled'));
+
+    const result = await answerPolicyQuestion('tenant-a', 'what is the deposit');
+
+    // null, not '' — the agent must say it does not know, never read out silence.
+    expect(result.answer).toBeNull();
+  });
+
   it('never returns the raw vector, which would otherwise reach an LLM prompt', async () => {
     searchReturns([chunk('Two months rent.', 0.2)]);
 
