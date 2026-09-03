@@ -16,7 +16,6 @@ import { INTENT_TYPES, KNOWLEDGE_CATEGORIES, QUALIFICATION_STATUS } from '../con
 import { logger } from '../utils/logger.js';
 import * as db from '../services/dynamodbService.js';
 import * as crmApi from '../services/crmApiService.js';
-import * as ragService from '../services/ragService.js';
 import * as responseNormalizer from '../utils/responseNormalizer.js';
 
 /**
@@ -162,7 +161,16 @@ export async function scheduleSiteVisit(scope, args = {}) {
 }
 
 /**
- * Answer a policy / FAQ / agency question from the tenant's knowledge base.
+ * Answer a policy / FAQ / agency question from the agency's own documents.
+ *
+ * Retrieval lives in the CRM (server/services/knowledge/), not here, because
+ * that is where the agency authors its policies and where the embeddings are
+ * written. This service only asks.
+ *
+ * The passages come back unsummarised and are handed to the agent's own model
+ * to phrase. Adding a generation step here would cost a second LLM round trip
+ * in the middle of a phone call for wording the agent is already better placed
+ * to choose, given it knows what was just said.
  */
 export async function answerPolicyQuestion(scope, args = {}) {
   const question = args.question || '';
@@ -174,7 +182,7 @@ export async function answerPolicyQuestion(scope, args = {}) {
     ? args.category
     : null;
 
-  const result = await ragService.queryKnowledgeBase(scope.tenantId, question, category);
+  const result = await crmApi.answerPolicyQuestion(scope.tenantId, question, category);
   const speech = responseNormalizer.normalizeFAQResponse(result?.answer, result?.sources);
 
   await recordToolUse(scope, {
@@ -183,7 +191,12 @@ export async function answerPolicyQuestion(scope, args = {}) {
     dataSource: 'VECTOR_DB',
   });
 
-  return { speech, answer: result?.answer || null, confidence: result?.confidence ?? 0 };
+  return {
+    speech,
+    answer: result?.answer || null,
+    sources: result?.sources || [],
+    confidence: result?.confidence ?? 0,
+  };
 }
 
 /**

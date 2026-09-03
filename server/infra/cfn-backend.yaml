@@ -36,6 +36,15 @@ Parameters:
     Default: dev-realestateflow-agencies
     Description: Name of the DynamoDB table storing per-agency admin configuration
 
+  KnowledgeChunksTableName:
+    Type: String
+    Default: dev-realestateflow-knowledge-chunks
+    Description: >-
+      Name of the DynamoDB table storing embedded chunks of each agency's policy
+      documents. Derived data, regenerable from the policies held on the agency
+      record; kept apart from the CRM table so that a change to the policy
+      vector index cannot force a rebuild of the property one.
+
   AreasTableName:
     Type: String
     Default: dev-realestateflow-areas
@@ -870,10 +879,30 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-      # Semantic property matching. See
-      # docs/proposals/agent-channel-architecture/05-retrieval-and-vector-search.md
+      # NOTE: the semantic-property-search vector index is deliberately NOT
+      # declared here. CloudFormation does not support DynamoDB vector indexes.
       #
-      # Three things here are IMMUTABLE once created — changing any of them means
+      # `VectorIndexes` is a real parameter — of the DynamoDB *CreateTable API*,
+      # not of AWS::DynamoDB::Table. Putting it in this template passes
+      # `aws cloudformation validate-template` (syntax only) and then fails every
+      # changeset with an opaque
+      #   "The following hook(s)/validation failed: [AWS::EarlyValidation::PropertyValidation]"
+      # that names no resource or property. That blocked all prod deploys of this
+      # stack on 2026-09-02. Same shape as the earlier LifecycleConfiguration
+      # `Expiration` vs `ExpirationInDays` bug: an API field that looks like a
+      # CFN property but isn't one.
+      #
+      # The index is created out-of-band instead, against the table this stack
+      # owns, by:
+      #     server/infra/create-vector-index.sh <dev|prod>
+      # which calls UpdateTable with --vector-index-updates. Run it after this
+      # stack has deployed. It is idempotent and safe to re-run.
+      #
+      # Design constraints that script encodes (kept here because they belong
+      # with the table definition, and see
+      # docs/proposals/agent-channel-architecture/05-retrieval-and-vector-search.md):
+      #
+      # Three things are IMMUTABLE once created — changing any of them means
       # delete + recreate + a full re-backfill of every embedding:
       #   - DistanceFunction
       #   - the Projection NonKeyAttributes set
@@ -890,34 +919,45 @@ Resources:
       # filtering (price, bhk, status), because inline filters support equality
       # only and the range predicates run in Lambda against whatever the index
       # projected. Adding a field later is not possible without a rebuild.
-      VectorIndexes:
-        - IndexName: property-vector-index
-          VectorAttributeName: descriptionVector
-          Dimensions: 1024
-          DistanceFunction: COSINE
-          SearchSchema:
-            - AttributeName: tenantId
-              KeyType: HASH
-            - AttributeName: EntityType
-              KeyType: INLINE_FILTER
-            - AttributeName: propertyType
-              KeyType: INLINE_FILTER
-          Projection:
-            ProjectionType: INCLUDE
-            NonKeyAttributes:
-              - propertyId
-              - title
-              - description
-              - area
-              - city
-              - buildingName
-              - bhk
-              - furnishing
-              - status
-              - rentAmount
-              - price
-              - carpetArea
-              - amenities
+
+  # Embedded chunks of each agency's policy documents, for the voice agent's
+  # answer_policy_question tool and the WhatsApp / web chat agents.
+  #
+  # Separate from CrmTable on purpose. A DynamoDB vector index's projection and
+  # distance function are immutable: changing either means delete, recreate and
+  # re-embed everything in the index. Sharing one index between policies and
+  # properties would make any future policy field a full re-embed of every
+  # property. Two tables, two indexes, two independent blast radii.
+  #
+  # The vector index itself is NOT declared here -- CloudFormation has no
+  # schema for it. It is created out of band by
+  # server/infra/create-vector-index.sh, which is idempotent.
+  KnowledgeChunksTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref KnowledgeChunksTableName
+      # On-demand is a hard requirement for vector indexes, not a preference.
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+
+      # PK: TENANT#<tenantId>#DOC#<policyId>, SK: CHUNK#<00000-padded index>.
+      # Every chunk of one document shares a partition, so re-indexing a
+      # document is a single Query plus a batched delete -- no scan, and no way
+      # to touch another tenant's chunks by accident.
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
 
   AgencyConfigTable:
     Type: AWS::DynamoDB::Table
@@ -1749,6 +1789,7 @@ Resources:
                   - !GetAtt PropertiesTable.Arn
                   - !GetAtt CrmTable.Arn
                   - !GetAtt AgencyConfigTable.Arn
+                  - !GetAtt KnowledgeChunksTable.Arn
                   - !GetAtt AreasTableCloudberry.Arn
                   - !GetAtt EnquiriesTableCloudberry.Arn
                   - !GetAtt B2BLeadsTable.Arn
@@ -1777,6 +1818,13 @@ Resources:
                 Action:
                   - dynamodb:Query
                   - dynamodb:Scan
+                  # SearchVectors is granted on the TABLE arn above as well,
+                  # but the call targets an index, and DynamoDB authorises
+                  # index-targeted actions against the index arn - which is
+                  # the whole reason this second statement exists for Query.
+                  # Omitting it here fails only at the first live semantic
+                  # search, long after the index is built and backfilled.
+                  - dynamodb:SearchVectors
                 Resource:
                   - !Sub "${PropertiesTable.Arn}/index/*"
                   - !Sub "${CrmTable.Arn}/index/*"
@@ -1794,6 +1842,7 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${WebhookLogTableName}/index/*"
                   - !Sub "${UserCategoriesTable.Arn}/index/*"
                   - !Sub "${AgencyConfigTable.Arn}/index/*"
+                  - !Sub "${KnowledgeChunksTable.Arn}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:TransactWriteItems
@@ -2785,6 +2834,7 @@ Resources:
           AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
 
 
   LeadQualifierRule:
@@ -2878,6 +2928,7 @@ Resources:
           AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
 
 
   LeadRouterRule:
@@ -3005,6 +3056,7 @@ Resources:
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
           # Phase 2: LLM & observability
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId
@@ -3144,6 +3196,7 @@ Resources:
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
           # Phase 2: LLM & observability
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId

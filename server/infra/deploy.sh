@@ -264,6 +264,7 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "DynamoDbTableName", "ParameterValue": "${DYNAMODB_TABLE_NAME}" },
   { "ParameterKey": "CrmDynamoDbTableName", "ParameterValue": "${CRM_DYNAMODB_TABLE_NAME}" },
   { "ParameterKey": "AgencyConfigTableName", "ParameterValue": "${AGENCY_CONFIG_DYNAMODB_TABLE_NAME}" },
+  { "ParameterKey": "KnowledgeChunksTableName", "ParameterValue": "${KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME}" },
   { "ParameterKey": "EnquiriesTableNameCloudberry", "ParameterValue": "${ENQUIRIES_DYNAMODB_TABLE_NAME}" },
   { "ParameterKey": "AreasTableName", "ParameterValue": "${AREAS_DYNAMODB_TABLE_NAME}" },
   { "ParameterKey": "B2BLeadsTableName", "ParameterValue": "${B2B_LEADS_TABLE}" },

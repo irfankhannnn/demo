@@ -28,6 +28,7 @@ import { chargeForAiCall } from '../aiCallBilling.js';
 import { logger } from '../logger.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { buildRubricContext } from '../utils/leadRubric.js';
+import { answerPolicyQuestion } from '../services/knowledge/policySearchService.js';
 
 const router = express.Router();
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -174,6 +175,42 @@ router.post('/properties/match', async (req, res) => {
       tenantId: req.tenantId,
     });
     res.status(500).json({ error: error.message || 'Failed to match properties' });
+  }
+});
+
+/**
+ * Policy question answering for the voice agent's `answer_policy_question` tool.
+ *
+ * Returns retrieved passages, not a generated answer. The voice agent's own
+ * model does the phrasing, which saves an LLM round trip inside the caller's
+ * silence — see server/services/knowledge/policySearchService.js.
+ *
+ * A miss returns 200 with `answer: null`, never 404. The caller is a live
+ * phone conversation: "nothing matched" is a normal outcome the agent handles
+ * by offering a human, and turning it into an error would make a routine event
+ * indistinguishable from a broken index.
+ */
+router.post('/policies/answer', async (req, res) => {
+  try {
+    const { question, category } = req.body || {};
+
+    if (!question || String(question).trim().length < 3) {
+      return res.status(400).json({ error: 'A question is required' });
+    }
+
+    const result = await answerPolicyQuestion(req.tenantId, String(question), category || null);
+
+    res.json({
+      answer: result.answer,
+      sources: result.sources,
+      confidence: result.confidence,
+    });
+  } catch (error) {
+    logger.error('aiCallingInternal.answerPolicy.error', {
+      error: error.message,
+      tenantId: req.tenantId,
+    });
+    res.status(500).json({ error: error.message || 'Failed to answer policy question' });
   }
 });
 

@@ -15,6 +15,7 @@ import { deepHealthCheck } from './healthcheck.js';
 import authRoutes from './routes/auth.js';
 import crmRoutes from './routes/crm.js';
 import aiCallingRoutes from './routes/aiCalling.js';
+import agencyPoliciesRoutes from './routes/agencyPolicies.js';
 import contactsRoutes from './routes/contacts.js';
 import leadsRoutes from './routes/leads.js';
 import buyersRoutes from './routes/buyers.js';
@@ -179,6 +180,10 @@ app.use('/api/crm/call-recordings', callRecordingsRoutes);
 // Mounted before crmRoutes so the sub-path is never swallowed by a param route.
 logger.info('routes.mount', { basePath: '/api/crm/ai-calling', router: 'aiCallingRoutes' });
 app.use('/api/crm/ai-calling', aiCallingRoutes);
+
+// Mounted before the generic /api/crm router so this specific path wins.
+logger.info('routes.mount', { basePath: '/api/crm/agency-policies', router: 'agencyPoliciesRoutes' });
+app.use('/api/crm/agency-policies', agencyPoliciesRoutes);
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });

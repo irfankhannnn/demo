@@ -127,11 +127,12 @@ parameter — the model never supplies who it is booking for.
 
 Returns `{ speech, answer, confidence }`.
 
-> **Note:** this tool is only as good as the knowledge base behind it. Document
-> ingestion is currently a stub (`routes/knowledge.js`) — uploaded documents
-> are marked indexed without being embedded, so this tool will return "I don't
-> have specific information about that" until real ingestion is built. See the
-> README's Known gaps.
+> **Note:** this tool answers only from what the agency has written in the CRM
+> under **Agency Policies**. That text is chunked one rule per paragraph,
+> embedded with Titan v2 and searched over DynamoDB vector search
+> (`server/services/knowledge/`). An agency with no policies saved gets "I
+> don't have specific information about that" every time — which is correct,
+> not a fault. Uploading a *file* is still not supported; that route returns 501.
 
 ---
 

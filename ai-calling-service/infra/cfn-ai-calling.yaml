@@ -173,15 +173,6 @@ Parameters:
       registration. Deliberately distinct from CrmInternalApiKey, which this
       service presents when calling in the other direction.
 
-  # ---- Bedrock --------------------------------------------------------------
-
-  BedrockKnowledgeBaseId:
-    Type: String
-    Default: ""
-    Description: >-
-      Bedrock Knowledge Base for FAQ/policy RAG. Blank disables the RAG path and
-      drops the Bedrock IAM grant entirely rather than leaving it open.
-
   # ---- API surface ----------------------------------------------------------
 
   ApiStageName:
@@ -260,7 +251,6 @@ Parameters:
 
 Conditions:
   CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
-  HasKnowledgeBase: !Not [!Equals [!Ref BedrockKnowledgeBaseId, ""]]
 
 Resources:
 
@@ -517,25 +507,10 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref AICallingSecrets
 
-              # Bedrock RAG, granted only when a knowledge base is configured.
-              # Retrieve is scoped to that one KB; InvokeModel cannot name a
-              # specific model up front, so it is scoped to foundation models in
-              # this region rather than "*" on all of Bedrock.
-              - !If
-                - HasKnowledgeBase
-                - Effect: Allow
-                  Action:
-                    - bedrock:Retrieve
-                    - bedrock:RetrieveAndGenerate
-                  Resource: !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${BedrockKnowledgeBaseId}"
-                - !Ref AWS::NoValue
-              - !If
-                - HasKnowledgeBase
-                - Effect: Allow
-                  Action:
-                    - bedrock:InvokeModel
-                  Resource: !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/*"
-                - !Ref AWS::NoValue
+              # No Bedrock grant here on purpose. Policy/FAQ retrieval moved
+              # to the CRM backend (server/services/knowledge/), which owns the
+              # embeddings and the vector index; this service reaches it over
+              # the existing internal API rather than calling Bedrock itself.
 
   AICallingLambda:
     Type: AWS::Lambda::Function
@@ -573,7 +548,6 @@ Resources:
           WEBHOOK_BASE_URL: !Ref WebhookBaseUrl
           API_BASE_PATH_PREFIX: !Ref AiCallingApiBasePath
           ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
-          BEDROCK_KNOWLEDGE_BASE_ID: !Ref BedrockKnowledgeBaseId
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           LOG_LEVEL: !Ref LogLevel
           SECRETS_ARN: !Ref AICallingSecrets

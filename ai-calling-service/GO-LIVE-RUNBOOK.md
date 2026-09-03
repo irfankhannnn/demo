@@ -245,18 +245,30 @@ Ranked by how likely they are to bite you.
    diagnosable — only `parseSignatureHeader()` and one signed-payload line need
    changing if the format differs.
 
-5. **`answer_policy_question` returns nothing useful.** Knowledge-base ingestion
-   (`routes/knowledge.js`) is a `setTimeout` stub that marks documents `INDEXED`
-   without extracting text, chunking, or embedding. Uploaded documents never
-   reach Bedrock. The other five tools work. Either build real ingestion or
-   accept that policy questions fall flat in testing.
+5. ~~**`answer_policy_question` returns nothing useful.**~~ **BUILT.** Policy
+   retrieval now runs on DynamoDB vector search, not Bedrock Knowledge Base —
+   no second retrieval stack and no always-on vector-store bill. Agencies write
+   their policies in the CRM under **Agency Policies**; the text is chunked one
+   rule per paragraph, embedded with Titan v2 and searched with the same
+   tenant-isolation guarantee as property search
+   (`server/services/knowledge/`).
+
+   Two things still to do before it answers anything:
+   - create the index: `./server/infra/create-vector-index.sh prod policy`
+   - have an agency save at least one policy document (or run
+     `node server/scripts/reindex-policies.js`)
+
+   File *upload* remains unimplemented and now returns 501 instead of falsely
+   reporting documents as indexed.
 
 ### 🟡 Design gaps worth knowing
 
-6. **There is no vector/semantic property search.** Property lookups are a plain
-   filtered REST call into the CRM (`GET /api/internal/properties/available`).
-   If someone expects embedding-based "find me something like X", it does not
-   exist in this service.
+6. ~~**There is no vector/semantic property search.**~~ **BUILT.** `match_properties`
+   runs DynamoDB vector search over Titan embeddings written on every property
+   create and update. Needs its index created once:
+   `./server/infra/create-vector-index.sh prod property`, then
+   `node server/scripts/backfill-property-embeddings.js` for pre-existing rows.
+   The plain filtered lookup stays for exact/structured queries.
 
 7. **`exotelNumber` is no longer required** in agent config — the number now
    lives in ElevenLabs as `agentPhoneNumberId`. Anything still calling

@@ -90,7 +90,7 @@ Isolation is enforced throughout:
 `EXOTEL_WEBHOOK_IPS`, `ELEVENLABS_AGENT_ID`,
 `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `WEBHOOK_BASE_URL`,
 `API_BASE_PATH_PREFIX`, `ENABLE_BASE_PATH_STRIP`, `ALLOWED_ORIGINS`,
-`BEDROCK_KNOWLEDGE_BASE_ID`, `LOG_LEVEL`, `SECRETS_ARN`
+`LOG_LEVEL`, `SECRETS_ARN`
 
 `AWS_REGION` is **not** set by the template — it's a reserved Lambda variable
 that CloudFormation rejects. The runtime provides it, so `process.env.AWS_REGION`
@@ -194,10 +194,13 @@ silent wrong answer would be expensive.
   rejection the header's *shape* is logged with values redacted, so a format
   mismatch is diagnosable in one pass. Only `parseSignatureHeader()` and the
   signed-payload line would need to change.
-- **Knowledge base ingestion is a stub.** `routes/knowledge.js` marks uploaded
-  documents `INDEXED` after a `setTimeout` without extracting, chunking or
-  embedding anything, so `answer_policy_question` has nothing to retrieve.
-  Predates this rewrite and is untouched by it.
+- **File upload for the knowledge base is not implemented.**
+  `routes/knowledge.js` stores an uploaded file and then returns 501 from
+  `/confirm`, because nothing extracts, chunks or embeds it. It previously
+  marked such documents `INDEXED` after a `setTimeout`, which made an empty
+  knowledge base look populated.
+  `answer_policy_question` does not depend on it: policy text is authored in
+  the CRM under Agency Policies and indexed by `server/services/knowledge/`.
 - **`/api/ai-calling/config/intents`** stores a per-tenant intent config that
   nothing reads any more, now that the agent's model does intent detection.
   Left in place rather than removing a CRM-facing endpoint unilaterally.

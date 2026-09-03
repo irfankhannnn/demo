@@ -210,6 +210,28 @@ export async function searchProperties(tenantId, query) {
   }
 }
 
+/**
+ * Ask the CRM for policy passages answering a customer's question.
+ *
+ * Returns `{ answer: null }` on any failure rather than throwing. This runs
+ * mid-call: a thrown error would surface to the agent as a broken tool, while
+ * a null answer routes it down the path it already handles well — say you do
+ * not know, offer a human.
+ */
+export async function answerPolicyQuestion(tenantId, question, category = null) {
+  try {
+    const response = await getClient().post(
+      '/api/internal/policies/answer',
+      { question, category },
+      { headers: { 'x-tenant-id': tenantId } }
+    );
+    return response.data || { answer: null, sources: [], confidence: 0 };
+  } catch (error) {
+    logger.error('Failed to answer policy question', error, { tenantId });
+    return { answer: null, sources: [], confidence: 0 };
+  }
+}
+
 export default {
   getLeadContext,
   getAvailableProperties,
@@ -220,4 +242,5 @@ export default {
   getBuyerDetails,
   getSellerDetails,
   searchProperties,
+  answerPolicyQuestion,
 };

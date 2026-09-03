@@ -314,7 +314,6 @@ node -e '
     ElevenLabsWebhookSecret: e.ELEVENLABS_WEBHOOK_SECRET,
     ServerToolApiKey: e.SERVER_TOOL_API_KEY,
   CrmCallerApiKey: e.CRM_CALLER_API_KEY,
-    BedrockKnowledgeBaseId: e.BEDROCK_KNOWLEDGE_BASE_ID || "",
     ApiStageName: e.API_STAGE_NAME || "v1",
     AllowedOrigins: e.ALLOWED_ORIGINS,
     AiCallingApiDomainName: e.AI_CALLING_API_DOMAIN_NAME || "",

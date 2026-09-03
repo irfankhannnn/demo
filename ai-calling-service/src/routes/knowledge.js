@@ -1,4 +1,16 @@
-// Knowledge Management Routes
+// Knowledge Management Routes — document upload (NOT the policy answer path).
+//
+// STATUS: the file-upload pipeline is not implemented. Text extraction,
+// chunking and embedding for uploaded FILES were never built, so `/confirm`
+// used to mark a document INDEXED after a five-second timer without embedding
+// anything. That made an empty knowledge base look populated, which is worse
+// than an obvious gap, so the write routes now fail loudly instead.
+//
+// The agent's `answer_policy_question` tool does NOT come through here. Policy
+// text is authored in the CRM (Agency Policies), embedded by
+// server/services/knowledge/, and searched over DynamoDB vector search. If you
+// are adding document upload, feed it into that same pipeline rather than
+// reviving a second one.
 //
 // Called by the CRM backend only, never the browser. Authenticated as a
 // service with CRM_CALLER_API_KEY — see ../middleware/internalAuth.js for the
@@ -90,25 +102,15 @@ router.post('/:documentId/confirm', async (req, res) => {
       fileSize: fileSize || 0,
     });
     
-    // Note: In production, this would trigger a Lambda function to:
-    // 1. Extract text from document
-    // 2. Chunk the text
-    // 3. Generate embeddings
-    // 4. Store in Bedrock Knowledge Base
-    
-    // For now, we simulate async processing
-    setTimeout(async () => {
-      try {
-        await db.updateKnowledgeDocument(req.tenantId, req.params.documentId, {
-          status: DOCUMENT_STATUS.INDEXED,
-          chunksCreated: Math.ceil((fileSize || 1000) / 1000),
-        });
-      } catch (err) {
-        logger.error('Failed to update document status', err);
-      }
-    }, 5000);
-    
-    res.json({ success: true, status: DOCUMENT_STATUS.PROCESSING });
+    // Deliberately does NOT mark the document indexed. Nothing extracts,
+    // chunks or embeds an uploaded file, so reporting INDEXED here would tell
+    // an agency its documents are answerable when the agent cannot see a word
+    // of them.
+    res.status(501).json({
+      error: 'Document ingestion is not implemented',
+      details:
+        'Uploaded files are stored but not indexed, so the AI agent cannot answer from them. Enter policy text in the CRM under Agency Policies instead — that path is indexed.',
+    });
   } catch (error) {
     logger.error('Confirm upload error', error);
     res.status(500).json({ error: error.message || 'Failed to confirm upload' });

@@ -113,6 +113,7 @@ import WhatsAppInbox from './pages/crm/WhatsAppInbox';
 import AiIntegrations from './pages/crm/AiIntegrations';
 import CallRecordings from './pages/crm/CallRecordings';
 import AICalling from './pages/crm/AICalling';
+import AgencyPolicies from './pages/crm/AgencyPolicies';
 
 
 
@@ -473,6 +474,7 @@ function App() {
             {/* Call Intelligence */}
             <Route path="/crm/call-recordings" element={<ProtectedRoute authState={authState}><CallRecordings /></ProtectedRoute>} />
             <Route path="/crm/ai-calling" element={<ProtectedRoute authState={authState}><AICalling /></ProtectedRoute>} />
+            <Route path="/crm/agency-policies" element={<ProtectedRoute authState={authState}><AgencyPolicies /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />
