@@ -13,7 +13,8 @@ export default {
     extend: {
       colors: {
         // RealEstateFlow brand palette (matches existing index.html config)
-        primary: '#22C55E',
+        primary: '#2563EB',
+        accent: '#22C55E',
         navy: '#0F3A66',
         dark: '#07111E',
       },
