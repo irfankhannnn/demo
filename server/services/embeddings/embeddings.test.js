@@ -129,7 +129,7 @@ describe('tenant isolation', () => {
   });
 
   it('always sends tenantId in the search condition', async () => {
-    mockDynamoSend.mockResolvedValue({ Items: [] });
+    mockDynamoSend.mockResolvedValue({ SearchResults: [] });
 
     await searchVectors({
       tenantId: 'tenant-a',
@@ -143,7 +143,7 @@ describe('tenant isolation', () => {
   });
 
   it('scopes the property search to PROPERTY items so one index cannot mix entities', async () => {
-    mockDynamoSend.mockResolvedValue({ Items: [] });
+    mockDynamoSend.mockResolvedValue({ SearchResults: [] });
 
     await matchProperties('tenant-a', { query: 'quiet 3bhk' });
 
@@ -163,7 +163,7 @@ describe('score thresholding and ordering', () => {
     // SearchVectors always returns topK, even when nothing matches — count
     // means nothing, only score does.
     mockDynamoSend.mockResolvedValue({
-      Items: [item('close', 0.1), item('far', 1.4), item('alsoFar', 1.9)],
+      SearchResults: [item('close', 0.1), item('far', 1.4), item('alsoFar', 1.9)],
     });
 
     const results = await searchVectors({
@@ -178,7 +178,7 @@ describe('score thresholding and ordering', () => {
 
   it('sorts ascending because COSINE here is a distance, not a similarity', async () => {
     mockDynamoSend.mockResolvedValue({
-      Items: [item('mid', 0.3), item('best', 0.05), item('worst', 0.5)],
+      SearchResults: [item('mid', 0.3), item('best', 0.05), item('worst', 0.5)],
     });
 
     const results = await searchVectors({
@@ -192,7 +192,7 @@ describe('score thresholding and ordering', () => {
 
   it('strips vector attributes so embeddings never reach an LLM prompt', async () => {
     mockDynamoSend.mockResolvedValue({
-      Items: [
+      SearchResults: [
         {
           Score: 0.1,
           Item: {
@@ -228,7 +228,7 @@ describe('range post-filtering', () => {
 
   it('applies budget ranges that inline filters cannot express', async () => {
     mockDynamoSend.mockResolvedValue({
-      Items: [
+      SearchResults: [
         propertyItem('cheap', 5000000, 3),
         propertyItem('affordable', 7500000, 3),
         propertyItem('tooExpensive', 12000000, 3),
@@ -244,7 +244,7 @@ describe('range post-filtering', () => {
   });
 
   it('over-fetches so range filtering does not under-fill the result set', async () => {
-    mockDynamoSend.mockResolvedValue({ Items: [] });
+    mockDynamoSend.mockResolvedValue({ SearchResults: [] });
 
     await matchProperties('tenant-a', { query: '3bhk', limit: 5, maxPrice: 8000000 });
 
@@ -254,7 +254,7 @@ describe('range post-filtering', () => {
 
   it('filters on bedrooms as a range', async () => {
     mockDynamoSend.mockResolvedValue({
-      Items: [propertyItem('small', 5000000, 1), propertyItem('right', 5000000, 3)],
+      SearchResults: [propertyItem('small', 5000000, 1), propertyItem('right', 5000000, 3)],
     });
 
     const results = await matchProperties('tenant-a', { query: 'flat', minBedrooms: 2 });

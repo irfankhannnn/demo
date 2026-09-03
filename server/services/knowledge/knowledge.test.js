@@ -262,7 +262,7 @@ describe('reindexTenantPolicies', () => {
 
 describe('searchPolicies', () => {
   function searchReturns(items) {
-    mockDynamoSend.mockResolvedValue({ Items: items });
+    mockDynamoSend.mockResolvedValue({ SearchResults: items });
   }
 
   const chunk = (text, score, title = 'Deposit Policy') => ({
@@ -326,7 +326,7 @@ describe('searchPolicies', () => {
 
 describe('answerPolicyQuestion', () => {
   function searchReturns(items) {
-    mockDynamoSend.mockResolvedValue({ Items: items });
+    mockDynamoSend.mockResolvedValue({ SearchResults: items });
   }
 
   it('returns a null answer on no match, so the agent offers a human', async () => {

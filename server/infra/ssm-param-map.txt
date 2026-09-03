@@ -18,6 +18,7 @@
 #
 # Format: ENV_VAR_NAME=CfnParameterName
 AGENCY_CONFIG_DYNAMODB_TABLE_NAME=AgencyConfigTableName
+KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME=KnowledgeChunksTableName
 AGENTS_ENABLED=AgentsEnabled
 AGENT_ACTION_CREDITS=AgentActionCredits
 AGENT_AUDIT_TABLE_NAME=AgentAuditTableName

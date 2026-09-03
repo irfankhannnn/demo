@@ -110,7 +110,9 @@ export async function searchVectors({
     })
   );
 
-  const matches = (response.Items || [])
+  // SearchVectors returns `SearchResults`, not `Items` — an easy one to get
+  // wrong, and it fails silently as "no matches" rather than as an error.
+  const matches = (response.SearchResults || [])
     .map((entry) => ({
       score: Number(entry.Score ?? entry.score ?? Number.POSITIVE_INFINITY),
       item: unmarshallShallow(entry.Item || entry),
@@ -123,7 +125,7 @@ export async function searchVectors({
     tenantId,
     indexName,
     requestedK,
-    returned: response.Items?.length || 0,
+    returned: response.SearchResults?.length || 0,
     keptAfterThreshold: matches.length,
     scoreThreshold,
   });
