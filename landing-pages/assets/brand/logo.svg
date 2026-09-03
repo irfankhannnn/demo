@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="64" viewBox="0 0 320 64" role="img" aria-label="RealEstateFlow">
+  <rect x="0" y="8" width="48" height="48" rx="12" fill="#2563EB"/>
+  <path d="M14 34 L24 22 L34 34 M18 32 V44 H30 V32" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="34" cy="20" r="3" fill="#22C55E"/>
+  <text x="60" y="40" font-family="Poppins, Arial, sans-serif" font-size="26" font-weight="700" fill="#0F3A66">RealEstateFlow</text>
+</svg>

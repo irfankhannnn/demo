@@ -7,6 +7,11 @@
 
 # === Pretty-URL rewrites (serve folder index.html) ===
 [[redirects]]
+  from = "/"
+  to = "/main/index.html"
+  status = 200
+
+[[redirects]]
   from = "/agency-owners"
   to = "/agency-owners/index.html"
   status = 200

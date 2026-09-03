@@ -7,7 +7,7 @@
  *   1. Expand `{{> partial-name}}` includes in every LP HTML page using the
  *      shared partials in `_partials/` (.hbs preferred, .html fallback).
  *   2. Inject build-time env vars (`{{GA4_ID}}`, `{{META_PIXEL_ID}}`, ...) from
- *      `creative/landing-pages/.env` (falls back to .env.example placeholders).
+ *      `landing-pages/.env` (falls back to .env.example placeholders).
  *   3. Copy the processed pages + SEO files (sitemap.xml, robots.txt, llms.txt)
  *      into `dist/`, mirroring the existing folder layout.
  *
@@ -21,22 +21,30 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve, join, relative } from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const LP_ROOT = resolve(__dirname, '../..'); // creative/landing-pages
+const LP_ROOT = resolve(__dirname, '../..'); // landing-pages
 const PARTIALS_DIR = join(LP_ROOT, '_partials');
 const DIST_DIR = join(LP_ROOT, 'dist');
 
 // Directories that are never treated as page sources.
-const IGNORE_DIRS = new Set(['build', 'dist', 'node_modules', '_partials', 'assets', '.git']);
+const IGNORE_DIRS = new Set(['build', 'dist', 'node_modules', '_partials', 'assets', '.git', 'realestateflow-directions']);
 
-// --- 1. Load env (real .env wins; otherwise .env.example placeholders) ---
+// --- 1. Load env: .env.example provides defaults, a local .env overrides
+//        them, and real CI/host env vars (e.g. set in the Netlify dashboard)
+//        win over both — that's how real secrets reach the build on Netlify,
+//        since no .env file is ever committed to the repo. ---
 const envPath = join(LP_ROOT, '.env');
 const envExamplePath = join(LP_ROOT, '.env.example');
 const env = {};
+if (existsSync(envExamplePath)) {
+  loadEnv({ path: envExamplePath, processEnv: env });
+}
 if (existsSync(envPath)) {
   loadEnv({ path: envPath, processEnv: env });
-} else if (existsSync(envExamplePath)) {
-  loadEnv({ path: envExamplePath, processEnv: env });
-  console.warn('[process-partials] No .env found — using .env.example placeholder values.');
+} else {
+  console.warn('[process-partials] No .env found — using .env.example placeholder values (overridden by any matching process.env vars).');
+}
+for (const key of Object.keys(env)) {
+  if (process.env[key]) env[key] = process.env[key];
 }
 
 // --- 2. Collect partials map: name -> rendered string ---
@@ -109,5 +117,22 @@ for (const f of ['sitemap.xml', 'robots.txt', 'llms.txt']) {
   const src = join(LP_ROOT, f);
   if (existsSync(src)) copyFileSync(src, join(DIST_DIR, f));
 }
+
+// --- 5. Copy static assets (images, fonts, logo) into dist/assets/,
+//        merging alongside the CSS Vite already wrote there. ---
+function copyDir(srcDir, destDir) {
+  mkdirSync(destDir, { recursive: true });
+  for (const entry of readdirSync(srcDir)) {
+    const srcPath = join(srcDir, entry);
+    const destPath = join(destDir, entry);
+    if (statSync(srcPath).isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      copyFileSync(srcPath, destPath);
+    }
+  }
+}
+const assetsSrc = join(LP_ROOT, 'assets');
+if (existsSync(assetsSrc)) copyDir(assetsSrc, join(DIST_DIR, 'assets'));
 
 console.log(`[process-partials] ${Object.keys(partials).length} partials, ${written} page(s) -> dist/`);

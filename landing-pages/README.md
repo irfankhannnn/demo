@@ -23,7 +23,7 @@ Complete marketing site for RealEstateFlow Real Estate OS. 5 standalone HTML pag
 ### Option 2: Netlify CLI
 ```bash
 npm install -g netlify-cli
-cd marketing-and-sales/creative/landing-pages
+cd landing-pages
 netlify deploy --prod
 ```
 

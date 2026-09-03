@@ -7,12 +7,12 @@ Tailwind CDN) and build-time env-var injection.
 ## Usage
 
 ```bash
-cd marketing-and-sales/creative/landing-pages/build
+cd landing-pages/build
 npm install
 npm run build:lps
 ```
 
-Output is written to `marketing-and-sales/creative/landing-pages/dist/`.
+Output is written to `landing-pages/dist/`.
 
 ## What `build:lps` does
 
