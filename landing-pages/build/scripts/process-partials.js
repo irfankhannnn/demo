@@ -7,7 +7,8 @@
  *   1. Expand `{{> partial-name}}` includes in every LP HTML page using the
  *      shared partials in `_partials/` (.hbs preferred, .html fallback).
  *   2. Inject build-time env vars (`{{GA4_ID}}`, `{{META_PIXEL_ID}}`, ...) from
- *      `landing-pages/.env` (falls back to .env.example placeholders).
+ *      `landing-pages/.env` (or `.env.<LP_ENV>` when infra/deploy.sh sets
+ *      LP_ENV=dev|prod), falling back to .env.example placeholders.
  *   3. Copy the processed pages + SEO files (sitemap.xml, robots.txt, llms.txt)
  *      into `dist/`, mirroring the existing folder layout.
  *
@@ -26,22 +27,31 @@ const PARTIALS_DIR = join(LP_ROOT, '_partials');
 const DIST_DIR = join(LP_ROOT, 'dist');
 
 // Directories that are never treated as page sources.
-const IGNORE_DIRS = new Set(['build', 'dist', 'node_modules', '_partials', 'assets', '.git', 'realestateflow-directions']);
+const IGNORE_DIRS = new Set(['build', 'dist', 'node_modules', '_partials', 'assets', '.git', 'realestateflow-directions', 'infra']);
 
-// --- 1. Load env: .env.example provides defaults, a local .env overrides
-//        them, and real CI/host env vars (e.g. set in the Netlify dashboard)
-//        win over both — that's how real secrets reach the build on Netlify,
-//        since no .env file is ever committed to the repo. ---
+// --- 1. Load env: .env.example provides defaults, then an env-specific file
+//        overrides them, and real CI/host env vars (e.g. set by infra/deploy.sh
+//        or a CI dashboard) win over both — that's how real secrets reach the
+//        build without ever being committed to the repo.
+//
+//        Which env-specific file gets loaded:
+//          - LP_ENV=dev|prod set (infra/deploy.sh sets this) -> .env.<LP_ENV>
+//            only. No fallback to plain .env, so a deploy can't silently pick
+//            up a stray local file meant for manual testing.
+//          - LP_ENV unset (plain `npm run build:lps`, e.g. local/manual
+//            builds) -> falls back to plain .env, as before. ---
 const envPath = join(LP_ROOT, '.env');
 const envExamplePath = join(LP_ROOT, '.env.example');
+const LP_ENV = process.env.LP_ENV || '';
+const envForModePath = LP_ENV ? join(LP_ROOT, `.env.${LP_ENV}`) : envPath;
 const env = {};
 if (existsSync(envExamplePath)) {
   loadEnv({ path: envExamplePath, processEnv: env });
 }
-if (existsSync(envPath)) {
-  loadEnv({ path: envPath, processEnv: env });
+if (existsSync(envForModePath)) {
+  loadEnv({ path: envForModePath, processEnv: env });
 } else {
-  console.warn('[process-partials] No .env found — using .env.example placeholder values (overridden by any matching process.env vars).');
+  console.warn(`[process-partials] No ${envForModePath.split(/[\\/]/).pop()} found — using .env.example placeholder values (overridden by any matching process.env vars).`);
 }
 for (const key of Object.keys(env)) {
   if (process.env[key]) env[key] = process.env[key];

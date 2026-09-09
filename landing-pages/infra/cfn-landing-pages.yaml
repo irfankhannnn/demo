@@ -1,0 +1,367 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  RealEstateFlow marketing site (landing-pages) - static hosting via S3 +
+  CloudFront. Multi-page static site, NOT a single-page app - routing is a
+  CloudFront Function, not the SPA 403/404-to-index.html trick used by
+  real-estate-crm-app/infra/cfn-frontend.yaml. Deploy in ap-south-1; if
+  CustomDomainName is set, AcmCertificateArn must be a us-east-1 cert. Naming:
+  <dev|prod>-realestateflow-landing-pages-<resource> (env first). See
+  landing-pages/infra/README.md for the full design notes.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Deployment environment (matches the .env.<EnvironmentName> file used to build the site)
+
+  BucketName:
+    Type: String
+    Description: S3 bucket name for the built site (must be globally unique)
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    ConstraintDescription: >
+      Bucket name must be lowercase, 3-63 characters, and can contain
+      letters, numbers, dots, and hyphens.
+
+  PriceClass:
+    Type: String
+    Default: PriceClass_200
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
+    Description: >
+      CloudFront price class. PriceClass_200 includes Asia/India edge
+      locations; PriceClass_100 (US/Canada/Europe only) excludes India.
+
+  CustomDomainName:
+    Type: String
+    Default: ''
+    Description: Optional apex domain for the distribution (e.g. realestateflow.in)
+
+  IncludeWwwAlias:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >
+      When CustomDomainName is set and this is 'true', also add
+      www.<CustomDomainName> as a second CloudFront alias on the SAME
+      distribution/cert (the ACM cert must cover both names as SANs). The
+      CloudFront Function below 301-redirects the www host to the apex host
+      so there is exactly one canonical URL per page - it does not serve
+      duplicate content from both hosts.
+
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: >
+      ACM certificate ARN covering CustomDomainName (and www.<CustomDomainName>
+      if IncludeWwwAlias=true). Must be issued in us-east-1. Required only
+      when CustomDomainName is set.
+
+  HostedZoneId:
+    Type: String
+    Default: ''
+    Description: >
+      Optional Route53 hosted zone ID to create alias records for
+      CustomDomainName (and its www alias, if enabled). Leave empty if the
+      domain's DNS is not managed in this AWS account - the distribution
+      still deploys fine, you just point the domain at
+      DistributionDomainName manually with your DNS provider.
+
+  WafWebAclArn:
+    Type: String
+    Default: ''
+    Description: Optional AWS WAF WebACL ARN (must be scope CLOUDFRONT, created in us-east-1)
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref CustomDomainName, '']]
+  HasWwwAlias: !And
+    - !Condition HasCustomDomain
+    - !Equals [!Ref IncludeWwwAlias, 'true']
+  HasHostedZone: !And
+    - !Condition HasCustomDomain
+    - !Not [!Equals [!Ref HostedZoneId, '']]
+  HasWaf: !Not [!Equals [!Ref WafWebAclArn, '']]
+
+Resources:
+  # Retain: this bucket is the deployed artifact for the site. Versioning is
+  # on so a bad deploy can be rolled back object-by-object, and the CI/CD
+  # wrapper also keeps a permanent per-build dist.tar.gz archive in the
+  # shared artifact bucket (see cfn-templates-cicd/landing-pages/deploy.sh).
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # No public access. CloudFront reaches it through Origin Access
+      # Control only.
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-landing-pages
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-landing-pages-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # This site is a plain multi-page static build (build/scripts/process-partials.js
+  # writes one index.html per page directory, mirroring the source layout) -
+  # there is no client-side router, so the SPA 403/404-to-index.html trick
+  # used by the CRM frontend does not apply here. Instead this function does,
+  # at the edge, exactly what landing-pages/netlify.toml's [[redirects]] block
+  # used to do at Netlify's edge:
+  #   - "/"            -> "/main/index.html"        (homepage lives in main/)
+  #   - "/legal"        -> 301 to "/legal/terms"      (convenience redirect)
+  #   - "www.<host>/*"  -> 301 to "https://<host>/*"  (one canonical host)
+  #   - any other extensionless path -> append "/index.html" (or "index.html"
+  #     if it already ends in "/") - covers every page directory
+  #     (/pricing, /agency-owners, /vs/sell-do, /legal/privacy, ...) without
+  #     needing one hardcoded rule per page the way netlify.toml did.
+  # Real assets (anything with a "." in the last path segment, e.g.
+  # /assets/main.css, /sitemap.xml) pass through untouched.
+  UrlRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-landing-pages-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Pretty-URL rewrite + www-to-apex redirect for the LP static site
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          var headers = request.headers;
+          var host = headers.host && headers.host.value;
+
+          if (host && host.indexOf('www.') === 0) {
+            return {
+              statusCode: 301,
+              statusDescription: 'Moved Permanently',
+              headers: {
+                location: { value: 'https://' + host.slice(4) + uri }
+              }
+            };
+          }
+
+          if (uri === '/legal' || uri === '/legal/') {
+            return {
+              statusCode: 301,
+              statusDescription: 'Moved Permanently',
+              headers: { location: { value: '/legal/terms' } }
+            };
+          }
+
+          if (uri === '/') {
+            request.uri = '/main/index.html';
+            return request;
+          }
+
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+            return request;
+          }
+
+          var lastSegment = uri.substring(uri.lastIndexOf('/') + 1);
+          if (lastSegment.indexOf('.') === -1) {
+            request.uri = uri + '/index.html';
+          }
+          return request;
+        }
+
+  # Mirrors netlify.toml's [[headers]] block. Structured per-header fields
+  # (rather than a raw CustomHeadersConfig) so CloudFront enforces the value
+  # shape and Override semantics for us.
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-landing-pages-security-headers"
+        Comment: Security headers matching the former netlify.toml [[headers]] block
+        SecurityHeadersConfig:
+          ContentSecurityPolicy:
+            Override: true
+            ContentSecurityPolicy: >-
+              default-src 'self'; script-src 'self' 'unsafe-inline'
+              https://cdn.tailwindcss.com https://cdn.jsdelivr.net
+              https://js.hcaptcha.com https://www.googletagmanager.com
+              https://connect.facebook.net https://snap.licdn.com
+              https://static.hotjar.com https://eu.posthog.com
+              https://eu.i.posthog.com https://eu-assets.i.posthog.com;
+              style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+              font-src 'self' https://fonts.gstatic.com; img-src 'self' data:
+              https:; connect-src 'self' https://eu.i.posthog.com
+              https://eu.posthog.com https://www.google-analytics.com
+              https://*.hotjar.com https://api.realestateflow.in
+              https://app.realestateflow.in;
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            Override: true
+            FrameOption: DENY
+          ReferrerPolicy:
+            Override: true
+            ReferrerPolicy: strict-origin-when-cross-origin
+          StrictTransportSecurity:
+            Override: true
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+          XSSProtection:
+            Override: true
+            Protection: true
+            ModeBlock: true
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${EnvironmentName} landing pages (realestateflow marketing site)"
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !Ref PriceClass
+        Aliases: !If
+          - HasCustomDomain
+          - !If
+            - HasWwwAlias
+            - [!Ref CustomDomainName, !Sub "www.${CustomDomainName}"]
+            - [!Ref CustomDomainName]
+          - !Ref "AWS::NoValue"
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        WebACLId: !If [HasWaf, !Ref WafWebAclArn, !Ref "AWS::NoValue"]
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          # Managed-CachingOptimized. Edge caching here is fine even though
+          # the S3-side Cache-Control headers set by infra/deploy.sh are
+          # short (see that script) - every deploy also runs a "/*"
+          # invalidation, so this policy only affects the window between
+          # deploys, not staleness across one.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt UrlRewriteFunction.FunctionARN
+        CustomErrorResponses:
+          # Genuine 404s, not an SPA fallback - the rewrite function already
+          # resolves every real page path, so anything CloudFront still
+          # can't find is actually missing. S3 returns 403 (not 404) for a
+          # key that doesn't exist behind OAC, since the bucket has no
+          # public ListBucket - so both codes are mapped here.
+          - ErrorCode: 403
+            ResponseCode: 404
+            ResponsePagePath: /404/index.html
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 404
+            ResponsePagePath: /404/index.html
+            ErrorCachingMinTTL: 10
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-landing-pages
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${SiteBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  DnsRecordApex:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref CustomDomainName
+      Type: A
+      AliasTarget:
+        # Fixed CloudFront alias hosted zone ID (same for every CloudFront distribution)
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+  DnsRecordWww:
+    Type: AWS::Route53::RecordSet
+    Condition: HasWwwAlias
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Sub "www.${CustomDomainName}"
+      Type: A
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+Outputs:
+  BucketName:
+    Description: S3 bucket holding the built landing-pages site
+    Value: !Ref SiteBucket
+
+  DistributionId:
+    Description: CloudFront distribution ID (used for cache invalidation)
+    Value: !Ref Distribution
+
+  DistributionDomainName:
+    Description: CloudFront default domain (*.cloudfront.net)
+    Value: !GetAtt Distribution.DomainName
+
+  WebsiteURL:
+    Description: Public URL for the deployed site
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${CustomDomainName}"
+      - !Sub "https://${Distribution.DomainName}"
