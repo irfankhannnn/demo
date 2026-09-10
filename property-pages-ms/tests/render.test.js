@@ -294,6 +294,27 @@ describe('booking submission', () => {
     assert.equal(submitted.length, 0);
   });
 
+  test('repeated honest mistakes still show the error, not a rate limit', async () => {
+    // A visitor fumbling their phone number several times in a row must keep
+    // getting "check your number". Re-rendering the form mints a new session,
+    // so without skipBurst the burst limiter would take over after a few
+    // attempts and tell a genuine customer to slow down — which reads as the
+    // site being broken at the exact moment they are trying to convert.
+    submitted.length = 0;
+    const clumsyIp = freshIp();
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const res = await bookOnce({ phone: '1234567890' }, clumsyIp);
+      assert.equal(res.status, 200, `attempt ${attempt + 1} should render the form, not 429`);
+      assert.ok(
+        (await res.text()).includes('valid 10-digit'),
+        `attempt ${attempt + 1} should show the phone error`,
+      );
+    }
+
+    assert.equal(submitted.length, 0);
+  });
+
   test('a forged session cannot book', async () => {
     submitted.length = 0;
     const res = await bookOnce({ session: 'forged.token' });

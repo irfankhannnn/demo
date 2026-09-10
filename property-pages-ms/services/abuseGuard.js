@@ -174,9 +174,21 @@ export async function checkPageView(ip) {
  * feature specifically calls for: a session is required to book, so capping
  * session creation caps booking attempts upstream of any write.
  */
-export async function checkSessionMint(ip) {
-  const burst = await hit('sess-burst', ip, config.limits.ipBurstWindowSeconds, config.limits.ipBurst, 'closed');
-  if (!burst.allowed) return { ...burst, scope: 'burst' };
+export async function checkSessionMint(ip, { skipBurst = false } = {}) {
+  // `skipBurst` is used only when re-rendering the form after a rejected
+  // submission. That path mints a fresh token, but the visitor's original
+  // intent was already counted when they first opened the form — charging the
+  // burst window again means someone who mistypes their phone number three
+  // times gets "please slow down" instead of "check your number", which reads
+  // as the site being broken.
+  //
+  // The hourly limit still applies, so a script looping bad submissions to
+  // harvest tokens is still bounded; and every rejection separately feeds the
+  // failure counter that turns the captcha on.
+  if (!skipBurst) {
+    const burst = await hit('sess-burst', ip, config.limits.ipBurstWindowSeconds, config.limits.ipBurst, 'closed');
+    if (!burst.allowed) return { ...burst, scope: 'burst' };
+  }
 
   const hourly = await hit('sess-hour', ip, 3600, config.limits.ipHourly, 'closed');
   if (!hourly.allowed) return { ...hourly, scope: 'hourly' };

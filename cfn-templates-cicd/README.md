@@ -18,7 +18,9 @@ cfn-templates-cicd/
 ├── real-estate-crm-app/           # Frontend static hosting (S3 + CloudFront)
 ├── reality-flow-authentication/   # Auth microservice (Cognito + Lambda)
 ├── reality-flow-mcp/              # MCP server (Claude/ChatGPT integration)
-└── whatsapp-platform/             # Baileys WhatsApp workers on ECS Fargate
+├── launch-tables/                 # Grievances/Subscriptions/NPS/BetaInvites/WebhookLog/TenantApiKeys DynamoDB tables (added 2026-09-10 — see Discrepancy 1, now resolved)
+├── whatsapp-platform/             # Baileys WhatsApp workers on ECS Fargate
+└── property-pages-ms/             # Public tenant-branded property pages (Lambda + API Gateway + optional CloudFront + guard table)
 ```
 
 Each subfolder's `deploy.sh` (or `deploy-lambda.ps1`) was moved here from `<service>/infra/` and had its internal path resolution updated to still find `.env`, source code, and the Docker/npm build context back in the real service directory two levels up. See the comment block at the top of each script for the exact resolution logic. Run each script from inside its own subfolder, e.g.:
@@ -129,3 +131,4 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 | reality-flow-authentication | `cd cfn-templates-cicd/reality-flow-authentication && ./deploy.sh` | Reads `.env` from `reality-flow-authentication/` |
 | reality-flow-mcp | `cd cfn-templates-cicd/reality-flow-mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `reality-flow-mcp/`; supports `--skip-package` / `--skip-cfn` |
 | whatsapp-platform | `cd cfn-templates-cicd/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `whatsapp-platform/infra/` |
+| property-pages-ms | `cd cfn-templates-cicd/property-pages-ms && ./deploy.sh <dev\|prod>` | Delegates to `property-pages-ms/infra/deploy.sh`; records a numbered build and invalidates CloudFront (`/*`) when the stack has a distribution. Reads `.env.<env>` from `property-pages-ms/`; `list`/`show`/`rollback-code`/`rollback-full` manage build history |

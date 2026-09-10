@@ -198,7 +198,7 @@ function externalRefFrom(query) {
   return Object.values(ref).some(Boolean) ? ref : null;
 }
 
-async function renderForm(req, res, { error = null, values = {} } = {}) {
+async function renderForm(req, res, { error = null, values = {}, afterRejection = false } = {}) {
   const h = hrefs(req);
   const propertyId = req.params.propertyId || null;
 
@@ -208,7 +208,7 @@ async function renderForm(req, res, { error = null, values = {} } = {}) {
   }
 
   const ip = getClientIp(req);
-  const mint = await checkSessionMint(ip);
+  const mint = await checkSessionMint(ip, { skipBurst: afterRejection });
   if (!mint.allowed) {
     logger.warn('visit.session_rate_limited', { tenantId: req.tenantId, scope: mint.scope });
     res.set('Retry-After', String(mint.retryAfter));
@@ -282,7 +282,7 @@ async function submitBooking(req, res, next) {
   const reject = async (reason, { countAsAbuse = false } = {}) => {
     if (countAsAbuse) await recordFailure(ip);
     logger.info('visit.rejected', { tenantId: req.tenantId, reason, countAsAbuse });
-    return renderForm(req, res, { error: reason, values });
+    return renderForm(req, res, { error: reason, values, afterRejection: true });
   };
 
   try {

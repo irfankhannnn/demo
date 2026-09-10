@@ -7,8 +7,17 @@ build/
 # secret). Only .env.sample is committed.
 .env
 .env.*
+# Templates are committed; only files holding real values are not. The
+# negations must be listed explicitly — `.env.*` above would otherwise swallow
+# every *.sample too.
 !.env.sample
+!.env.dev.sample
+!.env.prod.sample
 
 # Build tracking written by the CI/CD wrapper.
 deploy-versions/
 cfn-params.json
+
+# Written by infra/deploy.sh on every run to record what it uploaded.
+.last-deploy-artifacts.json
+infra/.last-deploy-artifacts.json
