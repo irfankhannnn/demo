@@ -6,9 +6,8 @@ import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { logger } from '../logger.js';
 import { webhookRateLimit } from '../middleware/rateLimiter.js';
 import { normalizeWhatsAppPhone } from '../utils/whatsapp.js';
-import { createLead } from '../crmDynamodbService.js';
 import { getTenantIdByInstagramWebhookToken } from '../agencyConfigService.js';
-import { notifyNewLead } from '../leadNotifications.js';
+import { ingestLead, intentToLeadType, parseBudgetBracket } from '../leadIngestion.js';
 
 const router = express.Router();
 
@@ -243,7 +242,18 @@ router.post('/whatsapp', webhookRateLimit, async (req, res) => {
 router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
   try {
     const { webhookToken } = req.params;
-    const body = req.body || {};
+
+    // The router is mounted with express.raw({ type: 'application/json' })
+    // (see server.js), so req.body arrives as a Buffer here, same as the
+    // /whatsapp route above — it must be parsed explicitly.
+    let body;
+    try {
+      const rawBody = req.body;
+      body = rawBody && rawBody.length ? JSON.parse(rawBody.toString()) : {};
+    } catch {
+      logger.warn('webhooks.instagram.invalid_json');
+      return res.status(200).json({ ok: true, skipped: true, reason: 'invalid_json' });
+    }
 
     logger.info('webhooks.instagram.received', { hasBody: !!body });
 
@@ -264,78 +274,43 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
       return res.status(200).json({ ok: true, duplicate: true });
     }
 
-    const name = (body.name || '').trim();
-    const phone = (body.phone || '').trim();
-    if (!name || !phone) {
-      logger.warn('webhooks.instagram.missing_fields', { tenantId, hasName: !!name, hasPhone: !!phone });
-      return res.status(200).json({ ok: true, skipped: true, reason: 'missing_name_or_phone' });
-    }
-
+    // ManyChat's requirement vocabulary maps to a CRM leadType. Anything the
+    // flow doesn't recognise falls back to 'buy' (a buyer lead), which is what
+    // this route has always done for unlabelled ManyChat traffic.
     const requirementRaw = String(body.requirement || '').toLowerCase();
-    const requirementLabel = requirementRaw === 'rent'
-      ? 'rent'
-      : requirementRaw === 'heavy_deposit_ok'
-        ? 'heavy_deposit_ok'
-        : 'buy';
+    const requirementLabel = ['rent', 'heavy_deposit_ok', 'sell', 'buy'].includes(requirementRaw)
+      ? requirementRaw
+      : 'buy';
 
-    const budget = parseBudgetBracket(body.budgetBracket || body.budget);
+    const result = await ingestLead(
+      tenantId,
+      {
+        name: body.name,
+        phone: body.phone,
+        leadType: intentToLeadType(requirementLabel),
+        requirement: {
+          requirement: requirementLabel,
+          budget: parseBudgetBracket(body.budgetBracket || body.budget) ?? undefined,
+          preferredArea: body.preferredArea || body.area || undefined,
+        },
+        source: 'Instagram',
+        sourceAdapter: 'manychat',
+        reelRef: (body.postId || body.permalink)
+          ? { postId: body.postId || null, permalink: body.permalink || null }
+          : null,
+        createdBy: 'ManyChat (Instagram)',
+      },
+      // Idempotency was already established above on the ManyChat subscriber id,
+      // so no second dedupeKey is needed here.
+    );
 
-    // A rental enquiry is a TENANT lead, not a buyer lead. This used to
-    // hardcode leadType 'buyer' for every Instagram lead, so someone who
-    // picked "rent" (or "heavy deposit", which is a rental arrangement) was
-    // filed as a buyer: they showed up in buyer-lead lists, never in
-    // "tenant leads dikhao", and their budget landed in buyerRequirement
-    // instead of tenantRequirement. The requirement value already told us
-    // which one it was; it just wasn't used.
-    const isRental = requirementLabel === 'rent' || requirementLabel === 'heavy_deposit_ok';
-    const requirementPayload = {
-      requirement: requirementLabel,
-      budget: budget ?? undefined,
-      preferredArea: body.preferredArea || body.area || undefined,
-    };
-
-    const leadData = {
-      name,
-      phone,
-      leadType: isRental ? 'tenant' : 'buyer',
-      source: 'Instagram',
-      ...(isRental
-        ? { tenantRequirement: requirementPayload }
-        : { buyerRequirement: requirementPayload }),
-      reelRef: (body.postId || body.permalink)
-        ? { postId: body.postId || null, permalink: body.permalink || null }
-        : null,
-      createdBy: 'ManyChat (Instagram)',
-    };
-
-    const lead = await createLead(tenantId, leadData);
-    logger.info('webhooks.instagram.lead_created', { tenantId, leadId: lead.leadId });
-
-    await notifyNewLead(tenantId, lead);
-
-    if (process.env.AGENTS_ENABLED === 'true') {
-      try {
-        await eventBridge.send(new PutEventsCommand({
-          Entries: [{
-            Source: 'crm.leads',
-            DetailType: 'lead.created',
-            Detail: JSON.stringify({
-              tenantId,
-              leadId: lead.leadId,
-              leadType: lead.leadType,
-              name: lead.name,
-              phone: lead.phone,
-              createdAt: lead.createdAt,
-            }),
-          }],
-        }));
-        logger.info('lead.created.event.published', { tenantId, leadId: lead.leadId, source: 'instagram' });
-      } catch (ebErr) {
-        logger.warn('lead.created.event.publish.failed', { tenantId, leadId: lead.leadId, error: ebErr.message });
-      }
+    if (result.skipped) {
+      logger.warn('webhooks.instagram.skipped', { tenantId, reason: result.reason });
+      return res.status(200).json({ ok: true, skipped: true, reason: result.reason });
     }
 
-    return res.status(200).json({ ok: true, leadId: lead.leadId });
+    logger.info('webhooks.instagram.lead_created', { tenantId, leadId: result.lead.leadId });
+    return res.status(200).json({ ok: true, leadId: result.lead.leadId });
   } catch (err) {
     logger.error('webhooks.instagram.error', { error: err.message, stack: err.stack });
     // 200 even on failure — same policy as the WhatsApp webhook — so ManyChat
@@ -343,39 +318,5 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
     return res.status(200).json({ ok: true, error: 'processing_failed' });
   }
 });
-
-// Maps a bucketed budget reply (e.g. "80L-1Cr", "<50L", "1Cr+") to a
-// representative numeric value in rupees, since buyerRequirement.budget is a
-// single number. Uses the bracket's lower bound — conservative, and stable
-// regardless of how wide a bracket the ManyChat flow offers.
-function parseBudgetBracket(raw) {
-  if (raw === undefined || raw === null || raw === '') return null;
-  if (typeof raw === 'number') return raw;
-
-  const s = String(raw).trim().toLowerCase();
-  const lakh = 100000;
-  const crore = 10000000;
-
-  if (s.startsWith('<')) {
-    const n = parseFloat(s.slice(1));
-    return isNaN(n) ? null : Math.max(0, n * lakh - lakh);
-  }
-  if (s.endsWith('+')) {
-    const n = parseFloat(s);
-    if (!isNaN(n)) return s.includes('cr') ? n * crore : n * lakh;
-  }
-
-  const rangeMatch = s.match(/([\d.]+)\s*(l|cr)?\s*-\s*([\d.]+)\s*(l|cr)?/);
-  if (rangeMatch) {
-    const lowValue = parseFloat(rangeMatch[1]);
-    const lowUnit = rangeMatch[2] || rangeMatch[4] || 'l';
-    if (!isNaN(lowValue)) {
-      return lowUnit === 'cr' ? lowValue * crore : lowValue * lakh;
-    }
-  }
-
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n;
-}
 
 export default router;
