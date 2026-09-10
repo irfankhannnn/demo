@@ -1,0 +1,14 @@
+node_modules/
+dist/
+build/
+*.zip
+
+# Real environment files carry live secrets (CRM internal key, session signing
+# secret). Only .env.sample is committed.
+.env
+.env.*
+!.env.sample
+
+# Build tracking written by the CI/CD wrapper.
+deploy-versions/
+cfn-params.json
