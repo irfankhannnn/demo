@@ -26,6 +26,7 @@ import {
   PhoneCall,
   PhoneOutgoing,
   BookText,
+  Globe,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMMetrics } from '../../types/crm';
@@ -947,6 +948,18 @@ export default function CRMDashboard() {
                   Agency Policies
                 </span>
                 <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/crm/settings/public-pages')}
+                className="flex items-center justify-between px-3 py-2.5 text-sm text-slate-600 hover:bg-white/50 rounded-xl transition-all duration-200 group border border-slate-200/70 hover:border-blue-400/70 bg-white/50 font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <Globe className="w-4 h-4 text-blue-600 group-hover:text-blue-700 transition-colors" />
+                  Public Pages
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-blue-500 group-hover:translate-x-0.5 transition-all" />
               </button>
             )}
           </div>

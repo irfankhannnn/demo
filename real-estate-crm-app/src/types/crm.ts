@@ -256,6 +256,14 @@ export interface CRMProperty {
   listingStatus?: 'active' | 'inactive' | string | null;
   /** Active Listing entity id when listed */
   activeListingId?: string | null;
+  /**
+   * Whether this listing is marked to appear on the agency's public property
+   * pages site. Only actually visible there when ALSO `status` is one of
+   * available/for-sale/for-rent — see server/publicListingService.js.
+   */
+  publicVisibility?: 'public' | 'private' | null;
+  /** Set the first time publicVisibility was switched to 'public'. */
+  publishedAt?: string | null;
   agreementStatus: 'pending' | 'done';
   verificationStatus: 'pending' | 'done' | 'not_done';
   tenantMoveInDate?: string;
@@ -479,6 +487,7 @@ export interface UpdatePropertyData {
   featured?: boolean;
   verified?: boolean;
   ownerSnapshot?: { name?: string | null; phone?: string | null };
+  publicVisibility?: 'public' | 'private';
 }
 
 // Agreement Data Types

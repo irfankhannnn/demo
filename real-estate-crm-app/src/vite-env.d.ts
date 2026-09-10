@@ -20,6 +20,9 @@ interface ImportMetaEnv {
   // Base URL of the hosted legal documents (privacy, terms, cookies, refund).
   // Defaults to https://realestateflow.in/legal.
   readonly VITE_LEGAL_BASE_URL?: string;
+  // Base URL of the property-pages-ms fallback path routing (<base>/t/<slug>/...).
+  // Used to build the shareable public-listing link; the link is hidden when unset.
+  readonly VITE_PUBLIC_PAGES_BASE_URL?: string;
 
   // Auth configuration
   readonly VITE_AUTH_API_URL: string;
