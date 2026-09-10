@@ -77,7 +77,19 @@ export async function logEventIfNotProcessed(webhookEventId, eventType, tenantId
         webhookEventId,
         processedAt: now,
         eventType,
-        tenantId: tenantId || null,
+        // OMIT tenantId when absent — never write null.
+        //
+        // This table's tenantId-processedAt-index has tenantId as its hash
+        // key, and DynamoDB rejects the whole write with "Type mismatch for
+        // Index Key tenantId Expected: S Actual: NULL". Writing null therefore
+        // did not merely skip the index, it failed every idempotency write
+        // whose caller had no tenant — which is all three of them today
+        // (leadIngestion, the Bailey webhook, the ManyChat webhook), silently
+        // taking out duplicate protection on the paths that most need it.
+        //
+        // Leaving the attribute off makes the GSI sparse, which is the correct
+        // semantic anyway: an event with no tenant cannot be queried by tenant.
+        ...(tenantId ? { tenantId } : {}),
         ttl,
       },
       ConditionExpression: 'attribute_not_exists(webhookEventId)',

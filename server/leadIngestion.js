@@ -289,7 +289,9 @@ export async function ingestLead(tenantId, input = {}, options = {}) {
 
   const { dedupeKey } = options;
   if (dedupeKey) {
-    const idempotency = await logEventIfNotProcessed(dedupeKey, 'lead.ingest', null);
+    // Pass the real tenant rather than null: we have it, and it makes the
+    // idempotency log queryable per tenant on tenantId-processedAt-index.
+    const idempotency = await logEventIfNotProcessed(dedupeKey, 'lead.ingest', tenantId);
     if (idempotency.isDuplicate) {
       return { ok: true, duplicate: true, reason: 'already_ingested' };
     }
