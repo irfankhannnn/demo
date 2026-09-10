@@ -36,12 +36,13 @@ Parameters:
 
   LambdaTimeout:
     Type: Number
-    Default: 15
+    Default: 20
     MinValue: 5
     MaxValue: 60
     Description: >
-      Comfortably above the 6s CRM timeout plus a captcha verify, so the Lambda
-      never dies mid-render and hides the real upstream error.
+      Must stay above CrmTimeoutMs plus a captcha verify, or the Lambda dies
+      mid-render and the real upstream error never surfaces. 20 = 12s CRM +
+      5s captcha + headroom.
 
   LambdaCodeS3Bucket:
     Type: String
@@ -97,6 +98,84 @@ Parameters:
       Backstop on AI-qualification spend. Every booking creates a lead that can
       trigger a billable AI call, so this bounds a tenant's worst-case daily
       exposure to an attack.
+
+  # ── Tunables ───────────────────────────────────────────────────────────
+  # Every one of these is read by config/env.js at runtime. They were
+  # documented in .env.sample as configurable while never actually being
+  # passed to the Lambda, so all twelve silently used their code defaults —
+  # including the abuse limits. Wired through explicitly now.
+
+  CrmTimeoutMs:
+    Type: Number
+    Default: 12000
+    Description: >-
+      Timeout for calls to the CRM internal API. Must stay comfortably under LambdaTimeout. 6000 was measured to be too tight for a cold CRM Lambda, which hydrates ~100 config values from SSM at startup.
+
+  VisitSessionTtlSeconds:
+    Type: Number
+    Default: 1800
+    Description: >-
+      How long a rendered booking form stays valid before the visitor must reload.
+
+  VisitMinFillSeconds:
+    Type: Number
+    Default: 3
+    Description: >-
+      A form submitted faster than this was not typed by a person. 0 disables the check.
+
+  LimitIpBurst:
+    Type: Number
+    Default: 5
+    Description: >-
+      Booking sessions one IP may mint per burst window. This is the 'many sessions from one IP within a second' control.
+
+  LimitIpBurstWindowSeconds:
+    Type: Number
+    Default: 10
+    Description: >-
+      Width of the burst window in seconds.
+
+  LimitIpHourly:
+    Type: Number
+    Default: 40
+    Description: >-
+      Booking sessions one IP may mint per hour.
+
+  LimitIpBookingsDaily:
+    Type: Number
+    Default: 6
+    Description: >-
+      Completed bookings per IP per day.
+
+  LimitPhoneBookingsDaily:
+    Type: Number
+    Default: 3
+    Description: >-
+      Completed bookings per phone number per day.
+
+  LimitCaptchaTrigger:
+    Type: Number
+    Default: 3
+    Description: >-
+      Failed attempts from one IP before a captcha is demanded.
+
+  HcaptchaVerifyTimeoutMs:
+    Type: Number
+    Default: 5000
+    Description: >-
+      Timeout for the hCaptcha siteverify call.
+
+  AssetCacheSeconds:
+    Type: Number
+    Default: 300
+    Description: >-
+      Edge cache for image/document redirects. MUST stay well under the 900s presigned URL lifetime, or a cached redirect outlives its signature and images break.
+
+  PageCacheSeconds:
+    Type: Number
+    Default: 60
+    Description: >-
+      Edge cache for rendered HTML.
 
   ApiStageName:
     Type: String
@@ -229,6 +308,18 @@ Resources:
           HCAPTCHA_SECRET_KEY: !Ref HcaptchaSecretKey
           GOOGLE_MAPS_EMBED_API_KEY: !Ref GoogleMapsEmbedApiKey
           LIMIT_TENANT_BOOKINGS_DAILY: !Ref LimitTenantBookingsDaily
+          CRM_TIMEOUT_MS: !Ref CrmTimeoutMs
+          VISIT_SESSION_TTL_SECONDS: !Ref VisitSessionTtlSeconds
+          VISIT_MIN_FILL_SECONDS: !Ref VisitMinFillSeconds
+          LIMIT_IP_BURST: !Ref LimitIpBurst
+          LIMIT_IP_BURST_WINDOW_SECONDS: !Ref LimitIpBurstWindowSeconds
+          LIMIT_IP_HOURLY: !Ref LimitIpHourly
+          LIMIT_IP_BOOKINGS_DAILY: !Ref LimitIpBookingsDaily
+          LIMIT_PHONE_BOOKINGS_DAILY: !Ref LimitPhoneBookingsDaily
+          LIMIT_CAPTCHA_TRIGGER: !Ref LimitCaptchaTrigger
+          HCAPTCHA_VERIFY_TIMEOUT_MS: !Ref HcaptchaVerifyTimeoutMs
+          ASSET_CACHE_SECONDS: !Ref AssetCacheSeconds
+          PAGE_CACHE_SECONDS: !Ref PageCacheSeconds
           PAGES_API_BASE_PATH: !Ref PagesApiBasePath
           ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
       Tags:
