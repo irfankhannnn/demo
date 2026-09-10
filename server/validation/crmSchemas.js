@@ -97,6 +97,20 @@ export const createPropertySchema = z.object({
   images: z.array(z.any()).optional(),
   videos: z.array(z.any()).optional(),
   views: z.number().optional(),
+
+  // Public shareable page. Declared explicitly rather than relying on
+  // .passthrough(), so publishing a listing to the open internet is a
+  // validated, enumerated action rather than an arbitrary attribute that
+  // happens to survive. Only these two values exist — anything else is a bug
+  // in the caller, and defaulting it to 'public' would be the wrong bug.
+  publicVisibility: z.enum(['public', 'private']).optional(),
+  publicSlug: z.string().max(80).optional().nullable(),
+
+  // Marketing documents shown on the public page. Deliberately separate from
+  // titleDeed / occupancyCertificate / propertyTaxReceipt, which are legal
+  // documents and must never be publicly reachable.
+  brochureS3Key: z.string().max(500).optional().nullable(),
+  floorPlanS3Keys: z.array(z.string().max(500)).max(6).optional(),
 }).passthrough();
 
 export const updatePropertySchema = createPropertySchema.partial().passthrough();

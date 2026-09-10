@@ -64,7 +64,17 @@ export function slugFromHost(hostHeader) {
  * `req.urlPrefix`; otherwise renders the unknown-agency page.
  */
 export async function resolveTenant(req, res, next) {
-  let slug = slugFromHost(req.headers.host);
+  // Behind CloudFront the Host header is rewritten to the API Gateway origin,
+  // which would erase the tenant. A CloudFront Function copies the viewer's
+  // original host into X-Forwarded-Host, so prefer that when present.
+  //
+  // Trusting a client-supplied header would normally be a vulnerability, but
+  // it cannot escalate anything here: the value only ever selects which
+  // agency's PUBLIC listings to render, and every one of those is already
+  // world-readable. There is no per-tenant authorisation to bypass.
+  const viewerHost = req.headers['x-forwarded-host'] || req.headers.host;
+
+  let slug = slugFromHost(viewerHost);
   let urlPrefix = '';
 
   if (!slug && config.pathTenantFallback) {
@@ -96,7 +106,7 @@ export async function resolveTenant(req, res, next) {
     req.urlPrefix = urlPrefix;
     // Absolute origin, needed for canonical URLs and og:image, which must be
     // absolute to be usable by a crawler or a chat app's link unfurler.
-    req.pageOrigin = `${req.protocol}://${req.headers.host}${urlPrefix}`;
+    req.pageOrigin = `${req.protocol}://${viewerHost}${urlPrefix}`;
     return next();
   } catch (err) {
     logger.error('resolveTenant.failed', { slug, error: err.message });

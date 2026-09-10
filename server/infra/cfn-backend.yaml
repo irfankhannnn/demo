@@ -850,6 +850,10 @@ Resources:
           AttributeType: S
         - AttributeName: GSI3SK
           AttributeType: S
+        - AttributeName: GSI4PK
+          AttributeType: S
+        - AttributeName: GSI4SK
+          AttributeType: S
 
       KeySchema:
         - AttributeName: PK
@@ -881,6 +885,33 @@ Resources:
             - AttributeName: GSI3PK
               KeyType: HASH
             - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # Cross-tenant marketplace index (properties.realestateflow.in).
+        #
+        # Every other index here is partitioned by TENANT#, which is exactly
+        # right for the CRM and exactly wrong for a consumer marketplace that
+        # has to answer "3BHK in Bangalore under 1.5Cr" across every agency at
+        # once. Fanning that out as one Query per tenant would get slower with
+        # every customer we sign.
+        #
+        # Partitioned by city rather than one PUBLIC# bucket: a single
+        # partition holding every listing in the country would be the hottest
+        # key in the table and is capped at 3000 RCU. Cities are a natural,
+        # enumerable shard, and city is the first thing a buyer filters on
+        # anyway, so it becomes a key condition instead of a filter.
+        #
+        # SPARSE BY DESIGN: only listings an agency has opted into the
+        # marketplace carry GSI4PK at all. Unpublishing must REMOVE the
+        # attribute, not blank it — see setMarketplaceIndexKeys in
+        # crmDynamodbService.js.
+        - IndexName: marketplace-index
+          KeySchema:
+            - AttributeName: GSI4PK
+              KeyType: HASH
+            - AttributeName: GSI4SK
               KeyType: RANGE
           Projection:
             ProjectionType: ALL
