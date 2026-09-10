@@ -183,8 +183,10 @@ function schemaFor(property, agency, canonical, ogImage) {
   };
 }
 
-export function renderPropertyPage({ property, agency, origin, imageUrlFor, docUrlFor, mapsKey, visitHref, homeHref, nonce = '' }) {
-  const canonical = `${origin}/property/${encodeURIComponent(property.slug)}/${encodeURIComponent(property.propertyId)}`;
+export function renderPropertyPage({ property, agency, origin, canonicalPath, imageUrlFor, docUrlFor, mapsKey, visitHref, homeHref, nonce = '' }) {
+  // `origin` is scheme+host only; every path already carries the tenant
+  // prefix from the href helpers. Concatenating exactly once is the rule.
+  const canonical = `${origin}${canonicalPath}`;
   const ogImage = property.imageCount > 0 ? `${origin}${imageUrlFor(0)}` : null;
   const title = `${property.title} — ${formatPrice(property.pricing.amount)} | ${agency.name}`;
   const rentSuffix = property.pricing.mode === 'rent' ? '<span class="muted" style="font-size:15px;font-weight:600">/month</span>' : '';

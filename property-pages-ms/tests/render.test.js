@@ -89,6 +89,8 @@ function stubCrm() {
       new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
     if (path === '/agency/by-slug/demo-agency') return json({ agency: AGENCY });
+    // Simulates the CRM being down rather than the agency being absent.
+    if (path === '/agency/by-slug/crm-is-down') return json({ error: 'boom' }, 500);
     if (path.startsWith('/agency/by-slug/')) return json({ error: 'Not found' }, 404);
     if (path === '/properties') return json({ items: [PROPERTY], nextCursor: null });
     if (path === '/properties/prop-1') return json({ property: PROPERTY });
@@ -170,6 +172,27 @@ describe('property detail page', () => {
     const match = html.match(/<meta property="og:image" content="([^"]+)"/);
     assert.ok(match, 'og:image must be present');
     assert.ok(match[1].startsWith('http'), `og:image must be absolute, got ${match[1]}`);
+  });
+
+  test('absolute URLs contain the tenant prefix exactly once', async () => {
+    // Regression: pageOrigin used to include the tenant prefix while the href
+    // helpers added it again, producing /t/slug/t/slug/i/0. Every shared link
+    // then previewed with a broken image — invisible in the page itself, and
+    // the single thing this feature exists to get right.
+    const html = await (await get('/property/3bhk-whitefield/prop-1')).text();
+
+    for (const tag of ['og:image', 'og:url']) {
+      const m = html.match(new RegExp(`<meta property="${tag}" content="([^"]+)"`));
+      if (!m) continue;
+      const occurrences = m[1].split('/t/demo-agency').length - 1;
+      assert.equal(occurrences, 1, `${tag} should carry the prefix once, got: ${m[1]}`);
+    }
+
+    const canonical = html.match(/<link rel="canonical" href="([^"]+)"/);
+    assert.ok(canonical, 'canonical must be present');
+    assert.equal(canonical[1].split('/t/demo-agency').length - 1, 1,
+      `canonical prefix duplicated: ${canonical[1]}`);
+    assert.ok(canonical[1].includes('/property/3bhk-whitefield/prop-1'));
   });
 
   test('emits RealEstateListing structured data with the price', async () => {
@@ -336,6 +359,28 @@ describe('tenant resolution', () => {
     for (const leak of ['disabled', 'not enabled', 'no such tenant', 'tenant']) {
       assert.ok(!visible.toLowerCase().includes(leak), `404 page must not mention "${leak}"`);
     }
+  });
+});
+
+describe('upstream failure', () => {
+  test('a CRM outage renders 503, never 404', async () => {
+    // A 404 tells crawlers the page does not exist, and Google acts on that —
+    // a transient CRM timeout would deindex a paying agency's whole site.
+    // These two conditions used to collapse into the same null return.
+    const res = await fetch(`${base}/t/crm-is-down/`, {
+      headers: { 'x-forwarded-for': freshIp() },
+    });
+    assert.equal(res.status, 503, 'upstream failure must not present as 404');
+    assert.match(res.headers.get('cache-control') || '', /no-store/,
+      'a failure must not be cached and re-served after recovery');
+    assert.ok(res.headers.get('retry-after'), 'should tell the client to come back');
+  });
+
+  test('a genuinely unknown agency still renders 404', async () => {
+    const res = await fetch(`${base}/t/no-such-agency/`, {
+      headers: { 'x-forwarded-for': freshIp() },
+    });
+    assert.equal(res.status, 404);
   });
 });
 

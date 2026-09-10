@@ -79,16 +79,35 @@ async function crmFetch(path, { tenantId = null, method = 'GET', body = null } =
   }
 }
 
+/**
+ * Raised when the CRM could not be reached or answered with an error.
+ *
+ * Distinct from "no such agency" on purpose. Both used to collapse into null,
+ * which meant a six-second CRM timeout rendered a 404 — telling every crawler
+ * that a real, paying agency's site does not exist. Google acts on that. An
+ * upstream failure has to surface as a retryable 5xx instead.
+ */
+export class CrmUnavailableError extends Error {
+  constructor(status) {
+    super(`CRM unavailable (${status})`);
+    this.name = 'CrmUnavailableError';
+    this.status = status;
+  }
+}
+
 export async function resolveAgencyBySlug(slug) {
   const cacheKey = `agency-slug:${slug}`;
   const hit = cacheGet(cacheKey);
   if (hit !== null) return hit;
 
   const result = await crmFetch(`/agency/by-slug/${encodeURIComponent(slug)}`);
+  if (result.error) throw new CrmUnavailableError(result.status);
+
   // Cache the miss too, briefly: a crawler hammering a nonexistent subdomain
-  // should not turn into one CRM lookup per request.
+  // should not turn into one CRM lookup per request. Only a genuine 404 is
+  // cached this way — an error never reaches here.
   const value = result.data?.agency || null;
-  if (!result.error) cacheSet(cacheKey, value, value ? 120 : 30);
+  cacheSet(cacheKey, value, value ? 120 : 30);
   return value;
 }
 

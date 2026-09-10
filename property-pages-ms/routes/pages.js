@@ -122,6 +122,7 @@ router.get('/property/:slug/:propertyId', async (req, res, next) => {
       property,
       agency: req.agency,
       origin: req.pageOrigin,
+      canonicalPath: h.property(property),
       imageUrlFor: (i) => h.image(property.propertyId, i),
       docUrlFor: (i) => h.doc(property.propertyId, i),
       mapsKey: config.mapsEmbedApiKey,

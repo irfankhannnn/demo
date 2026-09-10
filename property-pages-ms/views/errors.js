@@ -67,6 +67,23 @@ export function renderRateLimited({ retryAfter = 60 } = {}) {
   });
 }
 
+/**
+ * Upstream (CRM) unavailable.
+ *
+ * Deliberately NOT a 404. A 404 tells a crawler the page does not exist, and
+ * Google will drop a real agency's listings from the index over what was
+ * actually a transient timeout. A 503 with Retry-After says "come back", which
+ * is both true and safe.
+ */
+export function renderTemporarilyUnavailable() {
+  return shell({
+    status: 503,
+    title: 'Temporarily unavailable',
+    heading: 'We could not load this right now',
+    message: 'This is a temporary problem on our side. Please refresh in a moment.',
+  });
+}
+
 export function renderServerError() {
   return shell({
     status: 500,

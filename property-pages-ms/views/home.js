@@ -45,6 +45,7 @@ function card(property, { imageUrlFor, hrefFor }) {
 }
 
 export function renderHomePage({ agency, properties, nextCursor, origin, imageUrlFor, hrefFor, homeHref, nonce = '' }) {
+  const canonical = `${origin}${homeHref}`;
   const count = properties.length;
   const title = `${agency.name} — Properties for sale and rent`;
   const description = agency.about
@@ -55,7 +56,7 @@ export function renderHomePage({ agency, properties, nextCursor, origin, imageUr
     '@context': 'https://schema.org',
     '@type': 'RealEstateAgent',
     name: agency.name,
-    url: `${origin}/`,
+    url: canonical,
     ...(agency.publicPhone ? { telephone: agency.publicPhone } : {}),
     ...(agency.publicEmail ? { email: agency.publicEmail } : {}),
     ...(agency.publicAddress ? {
@@ -93,7 +94,7 @@ ${footer(agency)}`;
   return page({
     title,
     description,
-    canonical: `${origin}/`,
+    canonical,
     agency,
     body,
     nonce,

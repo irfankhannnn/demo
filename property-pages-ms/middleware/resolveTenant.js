@@ -19,8 +19,8 @@
  */
 
 import { config } from '../config/env.js';
-import { resolveAgencyBySlug } from '../services/crmClient.js';
-import { renderUnknownAgency } from '../views/errors.js';
+import { resolveAgencyBySlug, CrmUnavailableError } from '../services/crmClient.js';
+import { renderUnknownAgency, renderTemporarilyUnavailable } from '../views/errors.js';
 import { logger } from '../logger.js';
 
 /**
@@ -104,11 +104,25 @@ export async function resolveTenant(req, res, next) {
     req.tenantId = agency.tenantId;
     req.agencySlug = slug;
     req.urlPrefix = urlPrefix;
-    // Absolute origin, needed for canonical URLs and og:image, which must be
-    // absolute to be usable by a crawler or a chat app's link unfurler.
-    req.pageOrigin = `${req.protocol}://${viewerHost}${urlPrefix}`;
+    // Scheme + host ONLY — deliberately without urlPrefix.
+    //
+    // Every path in the views is built by the href helpers, which already add
+    // the prefix. Including it here too produced
+    // `/t/slug/t/slug/i/0` in og:image, silently breaking the preview image on
+    // every shared link — the one thing this whole feature exists to get right.
+    // Absolute URLs are still required: a crawler or chat unfurler cannot
+    // resolve a relative og:image.
+    req.pageOrigin = `${req.protocol}://${viewerHost}`;
     return next();
   } catch (err) {
+    if (err instanceof CrmUnavailableError) {
+      logger.error('resolveTenant.crm_unavailable', { slug, status: err.status });
+      // no-store so neither CloudFront nor the browser can hold onto a
+      // failure and keep serving it after the CRM recovers.
+      res.set('Cache-Control', 'no-store');
+      res.set('Retry-After', '15');
+      return res.status(503).type('html').send(renderTemporarilyUnavailable());
+    }
     logger.error('resolveTenant.failed', { slug, error: err.message });
     return next(err);
   }
