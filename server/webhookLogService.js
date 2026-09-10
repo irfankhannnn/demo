@@ -46,7 +46,9 @@ export async function logEvent(webhookEventId, eventType, tenantId) {
       webhookEventId,
       processedAt: now,
       eventType,
-      tenantId: tenantId || null,
+      // Same reason as logEventIfNotProcessed below: a null tenantId is
+      // rejected outright by tenantId-processedAt-index, so omit it instead.
+      ...(tenantId ? { tenantId } : {}),
       ttl,
     },
   }));
