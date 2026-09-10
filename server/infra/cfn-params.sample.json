@@ -67,6 +67,7 @@
   { "ParameterKey": "AgentAuditTableName", "ParameterValue": "__AGENT_AUDIT_TABLE_NAME__" },
   { "ParameterKey": "AgentActionCredits", "ParameterValue": "__AGENT_ACTION_CREDITS__" },
   { "ParameterKey": "AdapterInternalApiKey", "ParameterValue": "__ADAPTER_INTERNAL_API_KEY__" },
+  { "ParameterKey": "PublicPagesInternalApiKey", "ParameterValue": "__PUBLIC_PAGES_INTERNAL_API_KEY__" },
   { "ParameterKey": "AiEmployeeRolloutPercentage", "ParameterValue": "__AI_EMPLOYEE_ROLLOUT_PERCENTAGE__" },
   { "ParameterKey": "AiEmployeeProvisioningTableName", "ParameterValue": "__AI_EMPLOYEE_PROVISIONING_TABLE__" },
   { "ParameterKey": "JwtSecret", "ParameterValue": "__JWT_SECRET__" },

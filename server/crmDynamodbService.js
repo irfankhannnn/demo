@@ -1198,6 +1198,22 @@ export async function createProperty(tenantId, data) {
     rentalHistory: data.rentalHistory || [],
     // [{ tenantId, tenantName, leaseStartDate, leaseEndDate, monthlyRent, securityDeposit }]
     
+    // ── Public shareable page ────────────────────────────────────────────
+    // Off by default, and deliberately separate from `listingStatus`: that
+    // flag means "we are marketing this", which is an internal CRM state and
+    // is true for plenty of properties an agency would not want on the open
+    // internet. Publishing to a public URL is its own explicit decision.
+    // Read by server/publicListingService.js — see the allowlist rule there.
+    publicVisibility: data.publicVisibility === 'public' ? 'public' : 'private',
+    publicSlug: data.publicSlug || null,
+    publishedAt: data.publicVisibility === 'public' ? new Date().toISOString() : null,
+
+    // Marketing documents, safe to show a prospective buyer. Kept apart from
+    // the legal documents below (title deed / occupancy certificate / tax
+    // receipt), which must never reach a public page.
+    brochureS3Key: data.brochureS3Key || null,
+    floorPlanS3Keys: Array.isArray(data.floorPlanS3Keys) ? data.floorPlanS3Keys : [],
+
     // Property Documents
     titleDeedS3Key: data.titleDeedS3Key || null,
     titleDeedUrl: data.titleDeedUrl || null,
@@ -1592,6 +1608,18 @@ export async function updateProperty(tenantId, propertyId, data) {
         throw new Error(`Invalid property status transition: cannot change from '${currentProperty.status}' to '${data.status}'`);
       }
       data.GSI2PK = `TENANT#${tenantId}#PROPERTY_STATUS#${data.status}`;
+    }
+  }
+
+  // Stamp publishedAt on the transition into 'public' only, so it records
+  // when a listing first went live rather than the last time anything on it
+  // was edited. Unpublishing clears it: a later republish is a new publish.
+  if ('publicVisibility' in data && currentProperty) {
+    data.publicVisibility = data.publicVisibility === 'public' ? 'public' : 'private';
+    if (data.publicVisibility === 'public' && currentProperty.publicVisibility !== 'public') {
+      data.publishedAt = new Date().toISOString();
+    } else if (data.publicVisibility === 'private') {
+      data.publishedAt = null;
     }
   }
 

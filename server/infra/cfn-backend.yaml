@@ -158,7 +158,7 @@ Parameters:
 
   SesFromEmail:
     Type: String
-    Default: noreply@realestateflow.in
+    Default: info@realestateflow.in
 
   EmailProviderPrimary:
     Type: String
@@ -410,7 +410,7 @@ Parameters:
 
   BrevoFromEmail:
     Type: String
-    Default: 'no-reply@realestateflow.in'
+    Default: 'info@realestateflow.in'
     Description: Sender email address for Brevo transactional emails
 
   BrevoFromName:
@@ -452,6 +452,12 @@ Parameters:
     Type: String
     Default: ''
     Description: Shared secret lead-source adapters must present (x-api-key) to call POST /api/internal/adapters/leads. Used by backend_insta_sol_ms to promote Instagram enquiries into CRM leads. Deliberately separate from AiCallingInternalApiKey so one service's compromise does not grant the other's access.
+    NoEcho: true
+
+  PublicPagesInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret the public property-pages microservice must present (x-api-key) to call /api/internal/public-pages/*. Its own key, separate from AdapterInternalApiKey, so compromising the internet-facing pages service does not also grant lead-ingestion access.
     NoEcho: true
 
   AiCallingServiceUrl:
@@ -976,6 +982,8 @@ Resources:
           AttributeType: S
         - AttributeName: instagramWebhookToken
           AttributeType: S
+        - AttributeName: agencySlug
+          AttributeType: S
 
       KeySchema:
         - AttributeName: TenantId
@@ -1002,6 +1010,20 @@ Resources:
         - IndexName: instagramWebhookToken-index
           KeySchema:
             - AttributeName: instagramWebhookToken
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # Resolves tenantId from the public-pages subdomain label
+        # (server/publicListingService.js:getTenantIdByAgencySlug). This runs on
+        # every anonymous page render, crawlers included, so a Scan here would
+        # be both the hottest and the most expensive read in the system.
+        # Only agencies that have claimed a slug carry the attribute, so the
+        # index holds just those items.
+        - IndexName: agencySlug-index
+          KeySchema:
+            - AttributeName: agencySlug
               KeyType: HASH
           Projection:
             ProjectionType: INCLUDE

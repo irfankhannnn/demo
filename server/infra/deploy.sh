@@ -318,6 +318,7 @@ ${LAMBDA_CODE_PARAMETER_JSON}
   { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AiCallingInternalApiKey", "ParameterValue": "${AI_CALLING_INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AdapterInternalApiKey", "ParameterValue": "${ADAPTER_INTERNAL_API_KEY:-}" },
+  { "ParameterKey": "PublicPagesInternalApiKey", "ParameterValue": "${PUBLIC_PAGES_INTERNAL_API_KEY:-}" },
   { "ParameterKey": "AiCallingServiceUrl", "ParameterValue": "${AI_CALLING_SERVICE_URL:-}" },
   { "ParameterKey": "CrmCallerApiKey", "ParameterValue": "${CRM_CALLER_API_KEY:-}" },
   { "ParameterKey": "FounderWhatsApp", "ParameterValue": "${FOUNDER_WHATSAPP:-}" },

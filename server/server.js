@@ -45,6 +45,7 @@ import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import aiCallingInternalRoutes from './routes/aiCallingInternal.js';
 import adapterIngestionInternalRoutes from './routes/adapterIngestionInternal.js';
+import publicPagesInternalRoutes from './routes/publicPagesInternal.js';
 import validateToken from './middleware/validateToken.js';
 // AI Integrations dashboard API (frontend uses this to list/disconnect OAuth clients)
 import aiIntegrationsRoutes from './routes/aiIntegrations.js';
@@ -157,6 +158,11 @@ app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // reached this route.
 logger.info('routes.mount', { basePath: '/api/internal/adapters', router: 'adapterIngestionInternalRoutes' });
 app.use('/api/internal/adapters', adapterIngestionInternalRoutes);
+
+// Internal read/write API for property-pages-ms (x-api-key + x-tenant-id).
+// Same mount-order requirement as the adapter route above.
+logger.info('routes.mount', { basePath: '/api/internal/public-pages', router: 'publicPagesInternalRoutes' });
+app.use('/api/internal/public-pages', publicPagesInternalRoutes);
 
 // Internal, service-to-service only (x-api-key + x-tenant-id, no user JWT) —
 // called by ai-calling-service, never by the frontend. Re-enabled as part of
