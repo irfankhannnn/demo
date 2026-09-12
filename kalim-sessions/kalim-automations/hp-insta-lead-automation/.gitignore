@@ -1,0 +1,7 @@
+# Private personal data: real names, phone numbers and DM content.
+# Never commit any of this.
+master/
+parsed/
+analysis/
+*.xlsx
+~$*.xlsx
