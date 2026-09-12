@@ -26,6 +26,10 @@ analysis/<name>.analysis.json  summary, next action, reply, score, type
         |  scripts/upsert_leads_excel.py       deterministic merge
         v
 master/hp-insta-leads.xlsx  7 sheets, source of truth
+        |
+        |  scripts/build_dashboard_data.py      export for the browser
+        v
+lead-dashboard.html         standalone read-only UI, no server needed
 ```
 
 The split matters. Anything a machine can decide exactly (handles, dates,
@@ -270,18 +274,56 @@ with `deal_type: heavy_deposit`.
 
 ---
 
-## 6. Files
+## 6. The dashboard
+
+`lead-dashboard.html` is a standalone read-only view of the same data, built for
+people who will not open Excel. Double-click it, no server and no build step.
+It follows the CRM app's design tokens, so it sits next to the product visually.
+
+```bash
+python scripts/build_dashboard_data.py     # run after every upsert
+```
+
+That reads the workbook and writes `lead-dashboard-data.js`, which the page loads
+with a plain script tag. A script tag is used rather than `fetch` because `fetch`
+is blocked on `file://` while a script tag is not.
+
+Four tabs:
+
+| Tab | What it holds |
+|-----|---------------|
+| Pipeline | One row per lead, hottest first, with search and filters for score, has-mobile, ready-to-close, meeting set, needs-review and quiet 14+ days. Clicking a row opens the full detail, including the reconstructed conversation and a copy button on the drafted reply. |
+| Activity | The datewise bar chart and the weekwise table, plus the Overview counters. |
+| Change history | The run log and every field change, showing the old value struck through next to the new one. |
+| Data guide | How the data is produced, then every field with its type, allowed values, origin and meaning, followed by the rules worth knowing before trusting a number. |
+
+Context is built into the page rather than left to this document. Every field
+label carries an info marker giving its type and meaning, the message timeline
+marks messages whose sender could not be proven, and a lead that cannot be closed
+shows exactly what is missing.
+
+The page is a snapshot of the workbook at the moment the data file was generated.
+The Excel file always wins. `lead-dashboard-data.js` carries real names and phone
+numbers and is gitignored for that reason.
+
+---
+
+## 7. Files
 
 ```
 hp-insta-lead-automation/
 ├── README.md                        this document
 ├── .gitignore                       keeps the private data out of git
 ├── sample-dm-file.txt               the reference export format
+├── lead-dashboard.html              standalone read-only UI
+├── lead-dashboard.css               its stylesheet, CRM design tokens
+├── lead-dashboard-data.js           generated from the workbook, gitignored
 ├── config/
 │   └── business-phrases.json        which lines are ours, editable, no code change
 ├── scripts/
 │   ├── parse_dm_export.py           stage 1, deterministic
-│   └── upsert_leads_excel.py        stage 3, deterministic
+│   ├── upsert_leads_excel.py        stage 3, deterministic
+│   └── build_dashboard_data.py      workbook to dashboard data file
 ├── parsed/                          stage 1 output, gitignored
 ├── analysis/                        stage 2 output, gitignored
 └── master/
@@ -309,7 +351,7 @@ empty summary. Nothing is written when validation fails.
 
 ---
 
-## 7. Known limits
+## 8. Known limits
 
 - **Direction is partial.** 81 of 193 messages on the sample. The activity
   sheet's `from_lead` and `from_us` columns undercount by design and
@@ -327,7 +369,7 @@ empty summary. Nothing is written when validation fails.
   6 to 9, with `91`, `091` or `0` prefixes stripped. Landlines are not picked
   up.
 
-## 8. Privacy
+## 9. Privacy
 
 The workbook holds real names, mobile numbers and private message content.
 `master/`, `parsed/` and `analysis/` are gitignored, and this whole folder sits

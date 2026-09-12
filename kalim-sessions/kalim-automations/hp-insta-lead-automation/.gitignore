@@ -5,3 +5,6 @@ parsed/
 analysis/
 *.xlsx
 ~$*.xlsx
+
+# Generated from the workbook, so it carries the same lead data.
+lead-dashboard-data.js
