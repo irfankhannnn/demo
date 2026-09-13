@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X, Search, RefreshCw } from 'lucide-react';
 import { getUserProfile } from '../../utils/authStorage';
+import { CRM_API_URL } from '../../config/apiConfig';
 
 /**
  * Admin grievance triage. Founder/admin only — non-admins see an access notice.
  * Reads from GET /api/admin/grievances and updates via PATCH /api/admin/grievances/:id.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = CRM_API_URL;
 
 interface Grievance {
   grievanceId: string;

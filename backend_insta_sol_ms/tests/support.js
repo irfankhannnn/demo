@@ -12,7 +12,7 @@ export const OTHER_TENANT = 'tenant-xyz';
 
 // getConfig() reads process.env on every call, so setting these once at import
 // time is enough for every test file.
-process.env.AUTH_SERVICE_URL ||= 'http://auth.test';
+process.env.AUTH_SERVICE_DOMAIN_NAME ||= 'http://auth.test';
 process.env.INSTA_DATA_TABLE_NAME ||= 'test-realestateflow-insta-data';
 process.env.INSTA_AUDIT_TABLE_NAME ||= 'test-realestateflow-insta-audit';
 process.env.LOG_LEVEL ||= 'error';

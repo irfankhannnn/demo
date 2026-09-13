@@ -21,6 +21,10 @@ function.zip
 # real secret values pulled from .env.<env>, so neither is ever committed.
 infra/cfn-params.json
 infra/.last-deploy-artifacts.json
+infra/.last-config-diff.json
+infra/.last-config-params.json
+infra/.config-deploy-desired.json
 
 # Local CI/CD build/release index (S3 is the durable source of truth).
 deploy-versions/
+config-versions/

@@ -1,5 +1,8 @@
+import os
 import urllib.request
 import json
+
+MCP_BASE_URL = 'https://' + os.environ.get('MCP_API_DOMAIN_NAME', 'services-api.cloudberrysolutions.in') + '/' + os.environ.get('MCP_API_BASE_PATH', 'devrealestatemcp')
 
 body = json.dumps({
     'jsonrpc': '2.0',
@@ -16,7 +19,7 @@ body = json.dumps({
 }).encode()
 
 req = urllib.request.Request(
-    'https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/mcp',
+    MCP_BASE_URL + '/mcp',
     data=body,
     headers={
         'Content-Type': 'application/json',

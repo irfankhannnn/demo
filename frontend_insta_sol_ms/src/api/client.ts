@@ -10,20 +10,15 @@
  */
 
 import type { ApiErrorBody } from './types';
+import { CRM_URL, INSTA_API_BASE_URL, INSTA_API_CONFIG_ERROR } from '../config';
+
+export { CRM_URL };
 
 /** The exact key real-estate-crm-app/src/services/api.ts reads and writes. */
 export const TOKEN_STORAGE_KEY = 'auth_id_token';
 
-const RAW_API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '').trim();
-const RAW_CRM_URL = (import.meta.env.VITE_CRM_URL ?? '').trim();
-
-const stripTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-
-/** `${VITE_API_BASE_URL}/api/insta` per the contract, section 4. */
-export const API_ROOT = `${stripTrailingSlash(RAW_API_BASE)}/api/insta`;
-
-/** Origin of the CRM app, for the shell's "Back to CRM" link. */
-export const CRM_URL = stripTrailingSlash(RAW_CRM_URL);
+/** `https://<domain>/<base path>/api/insta` — the app prefix lives in code, not in env. */
+export const API_ROOT = `${INSTA_API_BASE_URL}/api/insta`;
 
 /** Thrown for any non-2xx response. `status` lets callers special-case 401/403. */
 export class ApiError extends Error {
@@ -134,11 +129,11 @@ interface RequestOptions {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', query, body, signal } = options;
 
-  if (!RAW_API_BASE) {
+  if (INSTA_API_CONFIG_ERROR) {
     throw new ApiError(
       0,
-      'VITE_API_BASE_URL is not configured',
-      'Copy .env.sample to .env and set the API origin before starting the app.',
+      INSTA_API_CONFIG_ERROR,
+      'Copy .env.sample to .env and set VITE_INSTA_API_DOMAIN_NAME / VITE_INSTA_API_BASE_PATH before starting the app.',
     );
   }
 

@@ -49,9 +49,20 @@ Parameters:
   LambdaCodeS3Key:
     Type: String
 
-  CrmInternalApiUrl:
+  CrmInternalApiDomainName:
     Type: String
-    Description: Full base URL of the CRM's /api/internal/public-pages route, no trailing slash
+    Description: >-
+      API Gateway custom domain the CRM API is mapped on (services-api.cloudberrysolutions.in
+      for dev, services-api.realestateflow.in for prod). Host only - no scheme, no path.
+      Raw execute-api hosts are rejected by the Lambda at cold start.
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+
+  CrmInternalApiBasePath:
+    Type: String
+    Description: >-
+      The CRM API's base path on that domain (devrealestatecrm / prodrealestatecrm).
+      The /api/internal/public-pages route prefix is appended in code.
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
 
   PublicPagesInternalApiKey:
     Type: String
@@ -189,13 +200,40 @@ Parameters:
       CloudFront is required for the wildcard tenant subdomain and for caching.
       Set false to deploy API Gateway only (faster, useful when iterating).
 
+  PagesApiDomainName:
+    Type: String
+    Default: ""
+    Description: >-
+      Existing API Gateway custom domain to map this API onto
+      (services-api.cloudberrysolutions.in for dev, services-api.realestateflow.in
+      for prod). This template does not create the domain itself. Host only.
+    AllowedPattern: "^[A-Za-z0-9.-]*$"
+
   PagesApiBasePath:
     Type: String
     Default: ""
+    Description: >-
+      Single-segment base path for this API on PagesApiDomainName
+      (devrealestatepages / prodrealestatepages). Also handed to the Lambda so it
+      can strip the segment, and used as the CloudFront OriginPath.
+    AllowedPattern: "^[A-Za-z0-9_-]*$"
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Creates the BasePathMapping. Required whenever EnableCloudFront is true,
+      because the distribution's origin is the custom domain, not execute-api.
+
   EnableBasePathStrip:
     Type: String
     Default: "false"
     AllowedValues: ["true", "false"]
+    Description: >-
+      Must be true when EnableCustomDomainMapping is true. API Gateway's base path
+      mapping only selects the API; for a Lambda proxy integration the base path is
+      still present in event.path, so lambda.js strips it.
 
   LogLevel:
     Type: String
@@ -206,8 +244,27 @@ Parameters:
     Type: Number
     Default: 30
 
+Rules:
+  # CloudFront's origin is the custom domain + base path, so a distribution
+  # without the mapping would 403 on every request.
+  CloudFrontRequiresCustomDomain:
+    RuleCondition: !Equals [!Ref EnableCloudFront, "true"]
+    Assertions:
+      - Assert: !Equals [!Ref EnableCustomDomainMapping, "true"]
+        AssertDescription: EnableCloudFront=true requires EnableCustomDomainMapping=true (the CloudFront origin is the custom domain).
+  CustomDomainMappingIsComplete:
+    RuleCondition: !Equals [!Ref EnableCustomDomainMapping, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref PagesApiDomainName, ""]]
+        AssertDescription: EnableCustomDomainMapping=true requires PagesApiDomainName.
+      - Assert: !Not [!Equals [!Ref PagesApiBasePath, ""]]
+        AssertDescription: EnableCustomDomainMapping=true requires PagesApiBasePath.
+      - Assert: !Equals [!Ref EnableBasePathStrip, "true"]
+        AssertDescription: EnableCustomDomainMapping=true requires EnableBasePathStrip=true, or every route 404s.
+
 Conditions:
   CloudFrontEnabled: !Equals [!Ref EnableCloudFront, "true"]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, "true"]
 
 Resources:
   # ---------------------------------------------------------------------------
@@ -299,7 +356,8 @@ Resources:
           ENVIRONMENT_NAME: !Ref EnvironmentName
           LOG_LEVEL: !Ref LogLevel
           GUARD_TABLE_NAME: !Ref GuardTable
-          CRM_INTERNAL_API_URL: !Ref CrmInternalApiUrl
+          CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
+          CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
           PUBLIC_PAGES_INTERNAL_API_KEY: !Ref PublicPagesInternalApiKey
           VISIT_SESSION_SECRET: !Ref VisitSessionSecret
           PUBLIC_PAGES_BASE_DOMAIN: !Ref PublicPagesBaseDomain
@@ -427,6 +485,20 @@ Resources:
         - Key: Service
           Value: realestateflow-pages
 
+  # Maps this API onto the shared custom domain. The domain itself is created
+  # once, outside this stack. API Gateway uses the base path only to pick the
+  # API; the Lambda strips it from event.path (EnableBasePathStrip).
+  PagesApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - PagesApiStage
+    Properties:
+      DomainName: !Ref PagesApiDomainName
+      RestApiId: !Ref PagesRestApi
+      Stage: !Ref ApiStageName
+      BasePath: !Ref PagesApiBasePath
+
   # ---------------------------------------------------------------------------
   # CloudFront
   # ---------------------------------------------------------------------------
@@ -488,8 +560,10 @@ Resources:
         Name: !Sub "${EnvironmentName}-realestateflow-pages-origin"
         Comment: Forwards the viewer host and client IP to the origin
         HeadersConfig:
-          # Host is deliberately absent: forwarding the viewer's Host to an
-          # API Gateway origin makes it reject the request outright.
+          # Host is deliberately absent (equivalent to the managed
+          # AllViewerExceptHostHeader policy for this purpose): the origin is an
+          # API Gateway custom domain, which routes by Host. CloudFront must send
+          # Host = the origin domain, or API Gateway rejects the request.
           HeaderBehavior: whitelist
           Headers:
             - X-Forwarded-Host
@@ -512,9 +586,14 @@ Resources:
         IPV6Enabled: true
         PriceClass: PriceClass_100
         Origins:
+          # Custom domain + base path, never the execute-api host. CloudFront
+          # prepends OriginPath, so the Lambda sees /<basePath>/t/<slug>/... and
+          # lambda.js strips the base path back to /t/<slug>/... - the same path
+          # the raw /<stage> origin used to deliver. The Rules section guarantees
+          # the mapping exists whenever this distribution does.
           - Id: pages-api
-            DomainName: !Sub "${PagesRestApi}.execute-api.${AWS::Region}.amazonaws.com"
-            OriginPath: !Sub "/${ApiStageName}"
+            DomainName: !Ref PagesApiDomainName
+            OriginPath: !Sub "/${PagesApiBasePath}"
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
@@ -538,11 +617,12 @@ Resources:
           Value: realestateflow-pages
 
 Outputs:
-  PagesApiEndpoint:
-    Description: Direct API Gateway URL (bypasses CloudFront; useful for debugging)
-    Value: !Sub "https://${PagesRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
+  PagesApiBaseUrl:
+    Condition: CustomDomainMappingEnabled
+    Description: API Gateway custom domain + base path (bypasses CloudFront; useful for debugging)
+    Value: !Sub "https://${PagesApiDomainName}/${PagesApiBasePath}"
     Export:
-      Name: !Sub "${EnvironmentName}-realestateflow-pages-api-endpoint"
+      Name: !Sub "${EnvironmentName}-realestateflow-pages-api-base-url"
 
   PagesRestApiId:
     Value: !Ref PagesRestApi

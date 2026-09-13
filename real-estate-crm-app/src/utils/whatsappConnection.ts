@@ -1,6 +1,7 @@
 import { getIdToken } from './authStorage';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 export const CONNECTED_PHONE_KEY = 'connectedWhatsAppPhone';
 
 const WHATSAPP_STATUS_TIMEOUT_MS = 10000; // 10s timeout for network issues

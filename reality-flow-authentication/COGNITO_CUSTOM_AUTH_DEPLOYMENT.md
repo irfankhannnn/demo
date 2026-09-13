@@ -204,10 +204,10 @@ curl -X POST http://localhost:3002/auth/phone/confirm \
 
 ### Production Testing
 
-Use the API Gateway endpoint from CloudFormation outputs:
+Use the custom-domain base URL from the stack's `AuthApiBaseUrlOutput` output (raw execute-api URLs are not used):
 
 ```bash
-API_ENDPOINT="https://b09qqvjgfe.execute-api.ap-south-1.amazonaws.com/dev"
+API_ENDPOINT="https://services-api.cloudberrysolutions.in/devrealestateauth"
 
 # Start
 curl -X POST $API_ENDPOINT/auth/phone/start \

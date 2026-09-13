@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { getIdToken } from '../utils/authStorage';
 import { trackEvent } from '../lib/analytics';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 const NPS_LAST_ASKED_KEY = 'nps_last_asked';
 const NPS_DISMISSED_KEY = 'nps_dismissed_at';
 const NPS_THROTTLE_DAYS = 90;

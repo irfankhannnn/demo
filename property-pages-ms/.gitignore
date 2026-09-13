@@ -21,3 +21,7 @@ cfn-params.json
 # Written by infra/deploy.sh on every run to record what it uploaded.
 .last-deploy-artifacts.json
 infra/.last-deploy-artifacts.json
+
+# Written by infra/config-deploy.sh — may carry real parameter values.
+infra/.last-config-diff.json
+infra/.last-config-params.json

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Bot, Clock, CheckCircle, AlertTriangle, ExternalLink, MessageCircle } from 'lucide-react';
 import { getIdToken } from '../../utils/authStorage';
+import { CRM_API_URL } from '../../config/apiConfig';
 
 interface ProvisioningData {
   tenantId: string;
@@ -14,7 +15,7 @@ interface ProvisioningData {
   contactPhone: string | null;
 }
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 export default function AIEmployeeStatus() {
   const navigate = useNavigate();

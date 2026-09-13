@@ -52,25 +52,21 @@ Resources:
       ResourceId: !Ref HealthResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth ==============
   AuthResource:
@@ -119,25 +115,21 @@ Resources:
       ResourceId: !Ref AuthPhoneStartResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/phone/confirm ==============
   AuthPhoneConfirmResource:
@@ -170,25 +162,21 @@ Resources:
       ResourceId: !Ref AuthPhoneConfirmResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/phone/onboard (PROTECTED) ==============
   AuthPhoneOnboardResource:
@@ -218,25 +206,21 @@ Resources:
       ResourceId: !Ref AuthPhoneOnboardResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/google ==============
   AuthGoogleResource:
@@ -273,25 +257,21 @@ Resources:
       ResourceId: !Ref AuthGoogleUrlResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/token ==============
   AuthTokenResource:
@@ -324,25 +304,21 @@ Resources:
       ResourceId: !Ref AuthTokenResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/refresh ==============
   AuthRefreshResource:
@@ -375,25 +351,21 @@ Resources:
       ResourceId: !Ref AuthRefreshResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/bootstrap (PROTECTED) ==============
   AuthBootstrapResource:
@@ -423,25 +395,21 @@ Resources:
       ResourceId: !Ref AuthBootstrapResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/me (PROTECTED) ==============
   AuthMeResource:
@@ -471,25 +439,21 @@ Resources:
       ResourceId: !Ref AuthMeResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/profile (PROTECTED) ==============
   AuthProfileResource:
@@ -519,25 +483,21 @@ Resources:
       ResourceId: !Ref AuthProfileResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/agency (PROTECTED) ==============
   AuthAgencyResource:
@@ -567,25 +527,21 @@ Resources:
       ResourceId: !Ref AuthAgencyResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/check-invite (PROTECTED) ==============
   AuthCheckInviteResource:
@@ -615,25 +571,21 @@ Resources:
       ResourceId: !Ref AuthCheckInviteResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/accept-invite (PROTECTED) ==============
   AuthAcceptInviteResource:
@@ -663,25 +615,21 @@ Resources:
       ResourceId: !Ref AuthAcceptInviteResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/register-admin (PROTECTED) ==============
   AuthRegisterAdminResource:
@@ -711,25 +659,21 @@ Resources:
       ResourceId: !Ref AuthRegisterAdminResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/profile/contact ==============
   AuthProfileContactResource:
@@ -775,25 +719,21 @@ Resources:
       ResourceId: !Ref AuthProfileContactEmailStartResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/profile/contact/phone ==============
   AuthProfileContactPhoneResource:
@@ -831,25 +771,21 @@ Resources:
       ResourceId: !Ref AuthProfileContactPhoneStartResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /auth/profile/contact/phone/verify (PROTECTED) ==============
   AuthProfileContactPhoneVerifyResource:
@@ -879,25 +815,21 @@ Resources:
       ResourceId: !Ref AuthProfileContactPhoneVerifyResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /users (PROTECTED) ==============
   UsersResource:
@@ -927,25 +859,21 @@ Resources:
       ResourceId: !Ref UsersResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
   # ============== /invites (PROTECTED) ==============
   InvitesResource:
@@ -988,25 +916,104 @@ Resources:
       ResourceId: !Ref InvitesResource
       HttpMethod: OPTIONS
       AuthorizationType: NONE
+      # Routed to the Lambda (AWS_PROXY) instead of a MOCK integration.
+      # API Gateway's MOCK integration rejects `method.request.header.origin`
+      # as an IntegrationResponses mapping expression outright (confirmed
+      # live: "Invalid mapping expression specified" on every OPTIONS method
+      # during an actual deploy) - there is no MOCK-integration way to
+      # dynamically echo the request's Origin header for multi-origin CORS
+      # with credentials (Access-Control-Allow-Origin: '*' is invalid
+      # alongside Access-Control-Allow-Credentials: true). Delegating to the
+      # Lambda means Express's own cors() middleware (src/app.ts, driven by
+      # the same ALLOWED_ORIGINS array as every real request) handles
+      # preflight too - one correct implementation instead of two.
       Integration:
-        Type: MOCK
-        PassthroughBehavior: NEVER
-        RequestTemplates:
-          application/json: '{"statusCode": 200}'
-        IntegrationResponses:
-          - StatusCode: 200
-            ResponseParameters:
-              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
-              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
-              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
-              method.response.header.Access-Control-Allow-Credentials: "'true'"
-      MethodResponses:
-        - StatusCode: 200
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Headers: true
-            method.response.header.Access-Control-Allow-Methods: true
-            method.response.header.Access-Control-Allow-Origin: true
-            method.response.header.Access-Control-Allow-Credentials: true
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+
+  # ============== /internal (service-to-service, x-internal-api-key auth) ==============
+  # Never called from a browser — no CORS/OPTIONS methods needed. Auth is
+  # enforced at the app layer (src/routes/internal.ts's requireInternalApiKey),
+  # not via the Cognito authorizer, so every method here is AuthorizationType
+  # NONE at the API Gateway level. These three routes existed in the Express
+  # app (internal.ts) but had no API Gateway resource at all until now — every
+  # call 403'd with API Gateway's own "Missing Authentication Token" before
+  # ever reaching the Lambda, since this template deliberately has no ANY/
+  # proxy+ catch-all (see the file header).
+  InternalResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref RootResourceId
+      PathPart: internal
+
+  InternalUsersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref InternalResource
+      PathPart: users
+
+  # ============== /internal/users/count ==============
+  InternalUsersCountResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref InternalUsersResource
+      PathPart: count
+
+  InternalUsersCountGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref InternalUsersCountResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+
+  # ============== /internal/users/by-whatsapp ==============
+  InternalUsersByWhatsappResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref InternalUsersResource
+      PathPart: by-whatsapp
+
+  InternalUsersByWhatsappGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref InternalUsersByWhatsappResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+
+  # ============== /internal/users/list ==============
+  InternalUsersListResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref InternalUsersResource
+      PathPart: list
+
+  InternalUsersListGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref InternalUsersListResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
 
 Outputs:
   HealthResourceId:

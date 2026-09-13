@@ -33,6 +33,7 @@ import { getLead } from '../crmDynamodbService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { hasCreditForAiCall } from '../aiCallBilling.js';
 import { logger } from '../logger.js';
+import { getAiCallingServiceBaseUrl } from '../config/serviceUrls.js';
 
 const router = express.Router();
 
@@ -43,7 +44,14 @@ const router = express.Router();
  * value captured at import would always be undefined in AWS.
  */
 function requireServiceConfigured(req, res, next) {
-  const baseUrl = process.env.AI_CALLING_SERVICE_URL;
+  let baseUrl;
+  try {
+    // Custom domain + base path + /api/ai-calling; null when not configured.
+    baseUrl = getAiCallingServiceBaseUrl();
+  } catch (configError) {
+    logger.error('aiCalling.misconfigured', { tenantId: req.tenantId, error: configError.message });
+    return res.status(503).json({ error: 'AI calling service not configured' });
+  }
   const apiKey = process.env.CRM_CALLER_API_KEY;
 
   if (!baseUrl || !apiKey) {

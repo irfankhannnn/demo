@@ -26,6 +26,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/custom-domain-guard.sh"
 TEMPLATE_FILE="$SCRIPT_DIR/cfn-ai-calling.yaml"
 
 # -----------------------------------------------------------------------------
@@ -97,10 +100,12 @@ REQUIRED_VARS=(
   AI_CALLING_TABLE_NAME
   AI_CALLING_KNOWLEDGE_BUCKET
   AI_CALLING_RECORDINGS_BUCKET
-  CRM_INTERNAL_API_URL
+  CRM_INTERNAL_API_DOMAIN_NAME
+  CRM_INTERNAL_API_BASE_PATH
+  AI_CALLING_API_DOMAIN_NAME
+  AI_CALLING_API_BASE_PATH
   ALLOWED_ORIGINS
   ELEVENLABS_AGENT_ID
-  ELEVENLABS_AGENT_PHONE_NUMBER_ID
 )
 MISSING=()
 for var in "${REQUIRED_VARS[@]}"; do
@@ -168,16 +173,20 @@ done
 
 # The custom domain differs per environment and getting it backwards points a
 # prod service at the nonprod domain. Check it rather than trusting the file.
-if [ -n "${AI_CALLING_API_DOMAIN_NAME:-}" ]; then
-  if [ "$ENVIRONMENT_NAME" = "prod" ] && [ "$AI_CALLING_API_DOMAIN_NAME" != "services-api.realestateflow.in" ]; then
-    echo "ERROR: prod must use services-api.realestateflow.in (got '$AI_CALLING_API_DOMAIN_NAME')"
-    exit 1
-  fi
-  if [ "$ENVIRONMENT_NAME" = "dev" ] && [ "$AI_CALLING_API_DOMAIN_NAME" != "services-api.cloudberrysolutions.in" ]; then
-    echo "ERROR: dev must use services-api.cloudberrysolutions.in (got '$AI_CALLING_API_DOMAIN_NAME')"
-    exit 1
-  fi
+if ! validate_custom_domain_vars; then
+  echo "Fix the custom-domain settings in $ENV_FILE."
+  exit 1
 fi
+for var in AI_CALLING_API_DOMAIN_NAME CRM_INTERNAL_API_DOMAIN_NAME; do
+  if [ "$ENVIRONMENT_NAME" = "prod" ] && [ "${!var}" != "services-api.realestateflow.in" ]; then
+    echo "ERROR: prod $var must be services-api.realestateflow.in (got '${!var}')"
+    exit 1
+  fi
+  if [ "$ENVIRONMENT_NAME" = "dev" ] && [ "${!var}" != "services-api.cloudberrysolutions.in" ]; then
+    echo "ERROR: dev $var must be services-api.cloudberrysolutions.in (got '${!var}')"
+    exit 1
+  fi
+done
 
 # Exotel does not sign its webhooks, so the source-IP allowlist is the only
 # thing standing between /webhooks/exotel/status and a forged call-status event.
@@ -193,13 +202,31 @@ if [ "$ENVIRONMENT_NAME" = "prod" ] && [ -z "${EXOTEL_WEBHOOK_IPS:-}" ]; then
   exit 1
 fi
 
-# The base path mapping only changes routing selection - the Lambda must strip
-# the base path itself or every request 404s once the mapping is live.
-if [ "${ENABLE_CUSTOM_DOMAIN_MAPPING:-false}" = "true" ] && [ "${ENABLE_BASE_PATH_STRIP:-false}" != "true" ]; then
-  echo "ERROR: ENABLE_CUSTOM_DOMAIN_MAPPING=true requires ENABLE_BASE_PATH_STRIP=true."
-  echo "       API Gateway does not strip the base path from a Lambda proxy event;"
-  echo "       without the strip every request 404s behind the custom domain."
+# ElevenLabsAgentPhoneNumberId can only be obtained by importing the Exotel
+# ExoPhone in the ElevenLabs dashboard (Conversational AI -> Phone Numbers ->
+# Import number -> From Exotel), which itself requires Exotel's "Voicebot
+# Applet" feature to be enabled on the account first (external Exotel support
+# ticket, not something this repo/AWS side can unblock). Blank here means the
+# stack deploys with everything except actual outbound calling - POST
+# /v1/convai/exotel/outbound-call will fail at runtime until it's filled in
+# and the stack redeployed, but every other resource (API Gateway, DynamoDB,
+# S3, the Lambda itself, webhooks) comes up fine, so it's not worth blocking
+# a non-prod deploy on. It fails closed in prod - shipping a paid, live
+# environment with no working call path is not "deployed", it's broken.
+if [ "$ENVIRONMENT_NAME" = "prod" ] && [ -z "${ELEVENLABS_AGENT_PHONE_NUMBER_ID:-}" ]; then
+  echo "ERROR: ELEVENLABS_AGENT_PHONE_NUMBER_ID is empty in $ENV_FILE."
+  echo "       Required in prod - without it POST /v1/convai/exotel/outbound-call"
+  echo "       has no phone number to bridge audio through, so no call can ever be"
+  echo "       placed. Import the Exotel ExoPhone in the ElevenLabs dashboard"
+  echo "       (Conversational AI -> Phone Numbers -> Import number -> From Exotel)"
+  echo "       and set the resulting id here, then deploy again."
   exit 1
+fi
+if [ -z "${ELEVENLABS_AGENT_PHONE_NUMBER_ID:-}" ]; then
+  echo "WARNING: ELEVENLABS_AGENT_PHONE_NUMBER_ID is empty - proceeding anyway"
+  echo "         (allowed outside prod). Every resource will deploy, but"
+  echo "         POST /v1/convai/exotel/outbound-call will fail at runtime until"
+  echo "         this is filled in and the stack redeployed."
 fi
 
 AWS_ARGS=(--region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager)
@@ -211,7 +238,8 @@ echo "Stack:          $STACK_NAME"
 echo "Table:          $AI_CALLING_TABLE_NAME"
 echo "Knowledge:      $AI_CALLING_KNOWLEDGE_BUCKET"
 echo "Recordings:     $AI_CALLING_RECORDINGS_BUCKET"
-echo "CRM API:        $CRM_INTERNAL_API_URL"
+echo "CRM API:        https://${CRM_INTERNAL_API_DOMAIN_NAME}/${CRM_INTERNAL_API_BASE_PATH}"
+echo "Public API:     https://${AI_CALLING_API_DOMAIN_NAME}/${AI_CALLING_API_BASE_PATH} (WEBHOOK_BASE_URL)"
 echo "ElevenLabs:     agent=$ELEVENLABS_AGENT_ID phone=$ELEVENLABS_AGENT_PHONE_NUMBER_ID"
 echo ""
 
@@ -285,54 +313,9 @@ EOF
 echo "[4/6] Generating infra/cfn-params.json..."
 PARAMS_FILE="$SCRIPT_DIR/cfn-params.json"
 # Written via node so secret values are JSON-escaped rather than pasted raw into
-# a heredoc, where a quote or backslash would produce invalid JSON.
-CFN_ENVIRONMENT_NAME="$ENVIRONMENT_NAME" \
-CFN_S3_KEY="$S3_KEY" \
-node -e '
-  const fs = require("fs");
-  const e = process.env;
-  const params = {
-    EnvironmentName: e.CFN_ENVIRONMENT_NAME,
-    LambdaRuntime: e.LAMBDA_RUNTIME || "nodejs20.x",
-    LambdaMemorySize: e.LAMBDA_MEMORY_SIZE || "512",
-    LambdaTimeout: e.LAMBDA_TIMEOUT || "30",
-    LambdaCodeS3Bucket: e.ARTIFACT_BUCKET,
-    LambdaCodeS3Key: e.CFN_S3_KEY,
-    AICallingTableName: e.AI_CALLING_TABLE_NAME,
-    AICallingKnowledgeBucket: e.AI_CALLING_KNOWLEDGE_BUCKET,
-    AICallingRecordingsBucket: e.AI_CALLING_RECORDINGS_BUCKET,
-    CrmInternalApiUrl: e.CRM_INTERNAL_API_URL,
-    CrmInternalApiKey: e.CRM_INTERNAL_API_KEY,
-    ExotelSubdomain: e.EXOTEL_SUBDOMAIN || "api.exotel.com",
-    ExotelApiKey: e.EXOTEL_API_KEY,
-    ExotelApiToken: e.EXOTEL_API_TOKEN,
-    ExotelSid: e.EXOTEL_SID,
-    ExotelWebhookIps: e.EXOTEL_WEBHOOK_IPS || "",
-    ElevenLabsApiKey: e.ELEVENLABS_API_KEY,
-    ElevenLabsAgentId: e.ELEVENLABS_AGENT_ID,
-    ElevenLabsAgentPhoneNumberId: e.ELEVENLABS_AGENT_PHONE_NUMBER_ID,
-    ElevenLabsWebhookSecret: e.ELEVENLABS_WEBHOOK_SECRET,
-    ServerToolApiKey: e.SERVER_TOOL_API_KEY,
-  CrmCallerApiKey: e.CRM_CALLER_API_KEY,
-    ApiStageName: e.API_STAGE_NAME || "v1",
-    AllowedOrigins: e.ALLOWED_ORIGINS,
-    AiCallingApiDomainName: e.AI_CALLING_API_DOMAIN_NAME || "",
-    AiCallingApiBasePath: e.AI_CALLING_API_BASE_PATH || "devrealestateagencyai",
-    EnableCustomDomainMapping: e.ENABLE_CUSTOM_DOMAIN_MAPPING || "false",
-    EnableBasePathStrip: e.ENABLE_BASE_PATH_STRIP || "false",
-    WebhookBaseUrl: e.WEBHOOK_BASE_URL || "",
-    LogLevel: e.LOG_LEVEL || "info",
-    LogRetentionDays: e.LOG_RETENTION_DAYS || "30",
-    RecordingRetentionDays: e.RECORDING_RETENTION_DAYS || "90",
-  };
-  const out = Object.entries(params).map(([ParameterKey, ParameterValue]) => ({
-    ParameterKey, ParameterValue: String(ParameterValue),
-  }));
-  fs.writeFileSync(process.argv[1], JSON.stringify(out, null, 2) + "\n");
-' "$PARAMS_FILE"
-
-# cfn-params.json holds real secrets - make sure it is not group/world readable.
-chmod 600 "$PARAMS_FILE" 2>/dev/null || true
+# a heredoc, where a quote or backslash would produce invalid JSON. Shared with
+# infra/config-deploy.sh — see lib/generate-cfn-params.js's header comment.
+node "$SCRIPT_DIR/lib/generate-cfn-params.js" "$PARAMS_FILE" "$ENVIRONMENT_NAME" "$S3_KEY"
 
 # Every template Parameter must appear above, or it silently falls back to its
 # Default and the env file cannot override it. Check it rather than trusting it.
@@ -341,8 +324,8 @@ node -e '
   const fs = require("fs");
   const tpl = fs.readFileSync(process.argv[1], "utf8");
   const params = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).map(p => p.ParameterKey);
-  const section = tpl.split(/^Resources:/m)[0].split(/^Parameters:/m)[1] || "";
-  const declared = [...section.matchAll(/^  ([A-Za-z0-9]+):$/gm)].map(m => m[1]);
+  const section = tpl.split(/^(?:Rules|Conditions|Resources):/m)[0].split(/^Parameters:/m)[1] || "";
+  const declared = [...section.matchAll(/^  ([A-Za-z0-9]+):\r?$/gm)].map(m => m[1]);
   const missing = declared.filter(d => !params.includes(d));
   const extra = params.filter(p => !declared.includes(p));
   if (extra.length) {
@@ -401,15 +384,13 @@ echo "============================================="
 "$AWS_BIN" cloudformation describe-stacks --stack-name "$STACK_NAME" "${AWS_ARGS[@]}" \
   --query "Stacks[0].Outputs" --output table
 
-if [ -z "${WEBHOOK_BASE_URL:-}" ]; then
-  cat <<EOF
+cat <<EOF
 
-NOTE: WEBHOOK_BASE_URL is still blank in $(basename "$ENV_FILE").
-      ElevenLabs cannot reach this service's webhook or server-tool endpoints
-      until it is set. Copy the ApiEndpoint (or CustomApiUrl) value from the
-      table above into $(basename "$ENV_FILE") and deploy again.
+WEBHOOK_BASE_URL (set on the Lambda by the stack) is
+  https://${AI_CALLING_API_DOMAIN_NAME}/${AI_CALLING_API_BASE_PATH}
+Register ElevenLabs server tools / post-call webhook and Exotel callbacks
+against that URL (see elevenlabs-agent-tools.md).
 EOF
-fi
 
 echo ""
 echo "Cleaning up function.zip..."

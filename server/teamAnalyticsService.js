@@ -1,15 +1,14 @@
 import axios from 'axios';
 import { getLeads } from './crmDynamodbService.js';
 import { logger } from './logger.js';
+import { getAuthServiceBaseUrl } from './config/serviceUrls.js';
 
 /**
  * Fetch team members from auth service using forwarded admin token.
  */
 async function fetchTeamMembers(authHeader) {
-  const authServiceUrl = process.env.AUTH_SERVICE_URL;
-  if (!authServiceUrl) {
-    throw new Error('AUTH_SERVICE_URL not configured');
-  }
+  // Throws ServiceUrlConfigError when AUTH_SERVICE_DOMAIN_NAME is unset.
+  const authServiceUrl = getAuthServiceBaseUrl();
   const response = await axios.get(`${authServiceUrl}/users`, {
     headers: { Authorization: authHeader },
     timeout: parseInt(process.env.AUTH_SERVICE_TIMEOUT_MS || '5000', 10),

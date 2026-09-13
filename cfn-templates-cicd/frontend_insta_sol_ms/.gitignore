@@ -2,3 +2,4 @@
 # this folder is a local index plus instant-access template/param snapshots for
 # rollback, and is rebuilt from S3 on demand.
 deploy-versions/
+config-versions/

@@ -20,6 +20,7 @@ import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import axios from 'axios';
 import { logger } from '../logger.js';
+import { getMcpApiBaseUrl } from '../config/serviceUrls.js';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -145,6 +146,22 @@ async function storeDcrClientMapping(tenantId, clientId, dcrClientId, callbackUr
   }
 }
 
+const MCP_NOT_CONFIGURED = 'MCP API not configured (set MCP_API_DOMAIN_NAME and MCP_API_BASE_PATH)';
+
+/**
+ * MCP base URL (custom domain + base path, no trailing slash), or null when
+ * MCP is not configured for this environment. A misconfigured value (e.g. a
+ * raw execute-api host) is logged and treated as not configured.
+ */
+function resolveMcpBaseUrl() {
+  try {
+    return getMcpApiBaseUrl();
+  } catch (err) {
+    logger.error('ai_integrations.mcp_base_url_invalid', { error: err.message });
+    return null;
+  }
+}
+
 /**
  * Register a new DCR client with the MCP server via POST /oauth/register.
  * Returns the generated client_id (dcr_xxx).
@@ -153,9 +170,9 @@ async function storeDcrClientMapping(tenantId, clientId, dcrClientId, callbackUr
  * the MCP server with unused registrations every time the user clicks Connect.
  */
 async function registerDcrClient(clientId, callbackUrl, tenantId) {
-  const mcpBaseUrl = (process.env.MCP_BASE_URL || '').replace(/\/$/, '');
+  const mcpBaseUrl = resolveMcpBaseUrl();
   if (!mcpBaseUrl) {
-    throw new Error('MCP_BASE_URL environment variable is not configured');
+    throw new Error(MCP_NOT_CONFIGURED);
   }
 
   // Reuse an existing DCR client when possible
@@ -271,9 +288,9 @@ router.post('/connect', async (req, res) => {
       return res.status(401).json({ error: 'User ID not found in token' });
     }
 
-    const mcpBaseUrl = (process.env.MCP_BASE_URL || '').replace(/\/$/, '');
+    const mcpBaseUrl = resolveMcpBaseUrl();
     if (!mcpBaseUrl) {
-      return res.status(500).json({ error: 'MCP_BASE_URL environment variable is not configured' });
+      return res.status(500).json({ error: MCP_NOT_CONFIGURED });
     }
 
     // Determine the callback URL for this environment
@@ -411,11 +428,12 @@ router.post('/desktop-session', async (req, res) => {
       return res.status(400).json({ error: 'oauthCallbackUrl is not a valid URL' });
     }
 
-    const mcpBaseUrl = (process.env.MCP_BASE_URL || '').replace(/\/$/, '');
+    const mcpBaseUrl = resolveMcpBaseUrl();
     if (!mcpBaseUrl) {
-      return res.status(500).json({ error: 'MCP_BASE_URL environment variable is not configured' });
+      return res.status(500).json({ error: MCP_NOT_CONFIGURED });
     }
-    const mcpHost = new URL(mcpBaseUrl).hostname;
+    const mcpUrl = new URL(mcpBaseUrl);
+    const mcpHost = mcpUrl.hostname;
     const requestedHost = parsedUrl.hostname;
     if (requestedHost !== mcpHost && requestedHost !== 'localhost' && requestedHost !== '127.0.0.1') {
       logger.warn('ai_integrations.desktop_session.untrusted_host', {
@@ -425,9 +443,17 @@ router.post('/desktop-session', async (req, res) => {
       return res.status(400).json({ error: 'oauthCallbackUrl must point to the MCP server' });
     }
 
-    // The URL must be exactly the /oauth/authorize endpoint (no subpaths or fragments)
-    if (parsedUrl.pathname !== '/oauth/authorize') {
-      return res.status(400).json({ error: 'oauthCallbackUrl must be /oauth/authorize' });
+    // The URL must be exactly the MCP /oauth/authorize endpoint (no subpaths or
+    // fragments). On the shared custom domain that endpoint sits under MCP's
+    // base path (e.g. /devrealestatemcp/oauth/authorize) — the base path is
+    // what distinguishes MCP from every other API on the same host. A local
+    // MCP server (localhost) has no base path.
+    const expectedAuthorizePath = `${mcpUrl.pathname.replace(/\/+$/, '')}/oauth/authorize`;
+    const isLocalHost = requestedHost === 'localhost' || requestedHost === '127.0.0.1';
+    const pathOk = parsedUrl.pathname === expectedAuthorizePath
+      || (isLocalHost && parsedUrl.pathname === '/oauth/authorize');
+    if (!pathOk) {
+      return res.status(400).json({ error: `oauthCallbackUrl must be ${expectedAuthorizePath}` });
     }
     if (parsedUrl.hash) {
       return res.status(400).json({ error: 'oauthCallbackUrl must not contain a fragment' });

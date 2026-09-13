@@ -10,3 +10,5 @@ node_modules/
 # CFN deploy artifact — regenerated fresh by infra/deploy.sh on every run,
 # never hand-edited. See reality-flow-authentication/.gitignore, server/.gitignore.
 infra/cfn-params.json
+infra/.last-config-diff.json
+infra/.last-config-params.json

@@ -12,6 +12,7 @@
   status = 200
 
 # Environment variables reminder (set these in Netlify Dashboard > Site Settings > Environment Variables):
-# - VITE_API_URL: Your backend API URL (e.g., https://your-api.execute-api.region.amazonaws.com/prod/api)
+# - VITE_CRM_API_DOMAIN_NAME / VITE_CRM_API_BASE_PATH: CRM API custom domain + base path
+# - VITE_AUTH_API_DOMAIN_NAME / VITE_AUTH_API_BASE_PATH: auth API custom domain + base path
 # - VITE_TENANT_ID: Your tenant ID for multi-tenancy
 # - VITE_GOOGLE_MAPS_API_KEY: Google Maps API key (REQUIRED for location picker to work)

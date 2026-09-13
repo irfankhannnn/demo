@@ -8,6 +8,7 @@ import { invokeAgent } from '../agents/agentRuntime.js';
 import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { logger } from '../logger.js';
+import { getAuthServiceBaseUrl } from '../config/serviceUrls.js';
 import { shutdownPostHog } from '../lib/posthog.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -17,14 +18,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 async function getTeamMembers(tenantId) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
+    const response = await fetch(`${getAuthServiceBaseUrl()}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
       headers: { 'x-internal-api-key': INTERNAL_API_KEY },
       signal: controller.signal,
     });

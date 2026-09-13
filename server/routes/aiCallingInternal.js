@@ -150,7 +150,13 @@ router.post('/properties/match', async (req, res) => {
       maxPrice: maxPrice != null ? Number(maxPrice) : undefined,
       minBedrooms: minBedrooms != null ? Number(minBedrooms) : undefined,
       maxBedrooms: maxBedrooms != null ? Number(maxBedrooms) : undefined,
-      status: 'available',
+      // 'available' is a legacy default status createProperty falls back to
+      // when nothing was specified; real listings are actively marketed as
+      // 'for-sale' or 'for-rent' (see the status enum in crmDynamodbService.js
+      // createProperty, and the same three-value "listable" check used by
+      // routes/crm.js and the AI view builders). Filtering on 'available'
+      // alone hid every real listing from the voice agent.
+      status: ['available', 'for-sale', 'for-rent'],
       limit: limit != null ? Number(limit) : 5,
     });
 

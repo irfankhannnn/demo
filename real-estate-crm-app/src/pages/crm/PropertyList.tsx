@@ -15,6 +15,7 @@ import {
 import { api } from '../../services/api';
 import { CRMProperty } from '../../types/crm';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
+import Toast from '../../components/Toast';
 import { formatPropertyMarketPrice } from '../../utils/propertyPricing';
 
 export default function PropertyList() {
@@ -22,6 +23,8 @@ export default function PropertyList() {
   const [properties, setProperties] = useState<CRMProperty[]>([]);
   const [filteredProperties, setFilteredProperties] = useState<CRMProperty[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [bhkFilter, setBhkFilter] = useState<string>('all');
@@ -43,15 +46,21 @@ export default function PropertyList() {
   const loadProperties = async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const status = statusFilter !== 'all' ? statusFilter : undefined;
       const data = await api.getCRMProperties(status);
       setProperties(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error loading properties:', error);
-      setProperties([]);
       if (error instanceof Error && error.message.includes('token')) {
+        // Session expired — ApiService already cleared tokens and fired
+        // auth-changed; just move on instead of also flashing an error toast.
         navigate('/login');
+        return;
       }
+      const message = error instanceof Error ? error.message : 'Failed to load properties';
+      setLoadError(message);
+      setToast({ message: `Couldn't load properties: ${message}`, type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -384,6 +393,22 @@ export default function PropertyList() {
           </div>
         </div>
 
+        {/* Load error banner — kept visible (unlike the toast) until a retry succeeds */}
+        {loadError && (
+          <div className="mb-4 sm:mb-6 flex items-center justify-between gap-3 rounded-xl sm:rounded-2xl border border-rose-200/60 bg-rose-50/80 px-4 py-3">
+            <p className="text-sm font-medium text-rose-700">
+              Couldn't load properties: {loadError}
+            </p>
+            <button
+              onClick={loadProperties}
+              disabled={loading}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-semibold hover:bg-rose-700 transition-colors disabled:opacity-50"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Properties Table */}
         <GlassDataTable
           data={filteredProperties}
@@ -394,12 +419,22 @@ export default function PropertyList() {
           searchValue={searchQuery}
           onSearchChange={setSearchQuery}
           loading={loading}
-          emptyMessage={searchQuery || statusFilter !== 'all' ? 'No properties match your search' : 'No properties yet'}
+          emptyMessage={
+            loadError
+              ? 'Properties failed to load — see above'
+              : searchQuery || statusFilter !== 'all'
+                ? 'No properties match your search'
+                : 'No properties yet'
+          }
           filters={filterContent}
           showFilters={showFilters}
           onToggleFilters={() => setShowFilters(!showFilters)}
         />
       </main>
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+      )}
     </div>
   );
 }

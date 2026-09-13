@@ -12,8 +12,8 @@ import { ArrowLeft, Smartphone, Shield, AlertCircle } from 'lucide-react';
 import PhoneInput from '../components/PhoneInput';
 import OTPInput from '../components/OTPInput';
 import { getAccessToken, getIdToken, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
+import { AUTH_API_URL } from '../config/apiConfig';
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 type Step = 'phone' | 'otp' | 'details' | 'uninvited';
 

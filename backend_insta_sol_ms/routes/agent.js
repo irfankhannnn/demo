@@ -22,6 +22,7 @@ import {
 import { getConfig } from '../config/env.js';
 import { logger } from '../logger.js';
 import * as defaultDb from '../services/dynamoService.js';
+import * as defaultCrm from '../services/crmBridge.js';
 
 const log = logger.child({ module: 'routes/agent' });
 
@@ -36,7 +37,7 @@ function overBatchLimit(...arrays) {
   return total > max ? max : 0;
 }
 
-export function createAgentRouter({ db = defaultDb, deviceAuth } = {}) {
+export function createAgentRouter({ db = defaultDb, crm = defaultCrm, deviceAuth } = {}) {
   const router = express.Router();
 
   if (typeof deviceAuth !== 'function') {
@@ -212,7 +213,28 @@ export function createAgentRouter({ db = defaultDb, deviceAuth } = {}) {
         // Masked, never the full number.
         sample: rows[0] ? maskPhone(rows[0].phone) : null,
       });
-      return res.json({ ok: true, written, rejected });
+
+      // Promote to CRM leads so an Instagram enquiry gets the same treatment as
+      // a lead from any other channel. The local write above stays the agent's
+      // durable record; this is the hand-off into the shared lead pipeline.
+      //
+      // A forwarding failure returns 502 so the agent's upload queue retries the
+      // batch — safe because each enquiry carries its enquiryId as a dedupeKey
+      // and the CRM drops repeats.
+      let promotion = null;
+      if (getConfig().promoteEnquiriesToLeads) {
+        promotion = await crm.forwardEnquiriesToCrm(req.tenantId, rows);
+        if (!promotion.forwarded && promotion.reason !== 'not_configured') {
+          return res.status(502).json({
+            error: 'Bad Gateway',
+            details: 'Enquiries stored but lead promotion failed; retry the batch',
+            written,
+            promotion,
+          });
+        }
+      }
+
+      return res.json({ ok: true, written, rejected, promotion });
     } catch (err) {
       log.error('agent.enquiries.failed', { message: err.message, deviceId: req.device.deviceId });
       return res.status(500).json({ error: 'Internal Server Error', details: 'Enquiry upload failed' });

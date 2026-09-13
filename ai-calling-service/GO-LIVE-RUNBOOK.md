@@ -141,18 +141,17 @@ server tools on each agent hardcode that environment's API Gateway URL.
 | `CRM_CALLER_API_KEY` | Generate: `openssl rand -hex 32`. **Same value required in both `ai-calling-service/.env.<env>` and `server/.env.<env>`** — it authenticates the CRM backend to the calling service's management API. Tenant-crossing credential, server-side only |
 | `EXOTEL_WEBHOOK_IPS` | Exotel's documented webhook IP ranges. Blank is allowed in dev (warns); **blocks prod deploy** |
 
-### The deploy is a TWO-PASS sequence
+### The deploy is a single pass
 
-`WEBHOOK_BASE_URL` cannot be known until the stack exists.
+`WEBHOOK_BASE_URL` is derived by the stack from the custom domain + base path
+(`https://<AI_CALLING_API_DOMAIN_NAME>/<AI_CALLING_API_BASE_PATH>`, stack output
+`AiCallingApiBaseUrl`), so it is known before the first deploy. There is no raw
+execute-api URL to copy.
 
 ```bash
 cd cfn-templates-cicd/ai-calling-service
-./deploy.sh dev                      # 1st pass
-# copy the ApiEndpoint stack output into ai-calling-service/.env.dev as WEBHOOK_BASE_URL
-./deploy.sh dev                      # 2nd pass
+./deploy.sh dev
 ```
-
-The script prints a reminder while `WEBHOOK_BASE_URL` is blank.
 
 ---
 
@@ -180,7 +179,7 @@ aren't gated before spending time here.
 
 ## 7. Post-deploy: server tools + webhook
 
-Only possible once `WEBHOOK_BASE_URL` is real. Follow `elevenlabs-agent-tools.md`
+Only possible once the stack (and its base path mapping) is deployed. Follow `elevenlabs-agent-tools.md`
 exactly. Six webhook tools at `{WEBHOOK_BASE_URL}/api/ai-calling/tools`:
 `search_properties`, `get_property_details`, `schedule_site_visit`,
 `answer_policy_question`, `submit_qualification`, `request_human_handoff`.

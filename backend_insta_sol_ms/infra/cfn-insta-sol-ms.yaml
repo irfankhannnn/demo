@@ -71,9 +71,47 @@ Parameters:
     Type: String
     Description: TTL-only table for the audit trail and HMAC replay nonces
 
-  AuthServiceUrl:
+  AuthServiceDomainName:
     Type: String
-    Description: Base URL of the auth microservice; the token validator calls <url>/auth/me
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+    ConstraintDescription: A bare hostname (no scheme, no path). Raw execute-api hosts are rejected by the Lambda at boot.
+    Description: >-
+      API Gateway custom domain of the auth microservice
+      (services-api.cloudberrysolutions.in for dev, services-api.realestateflow.in
+      for prod). The token validator calls https://<domain>/<AuthServiceBasePath>/auth/me.
+
+  AuthServiceBasePath:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+    Description: Base path mapping of the auth API on AuthServiceDomainName (devrealestateauth / prodrealestateauth)
+
+  CrmInternalApiDomainName:
+    Type: String
+    Default: ''
+    AllowedPattern: "^[A-Za-z0-9.-]*$"
+    Description: >-
+      API Gateway custom domain of the CRM API. Captured Instagram enquiries are
+      forwarded to https://<domain>/<CrmInternalApiBasePath>/api/internal/adapters/leads
+      so they become CRM leads and get the same AI qualification as every other
+      source. Blank disables promotion.
+
+  CrmInternalApiBasePath:
+    Type: String
+    Default: ''
+    AllowedPattern: "^[A-Za-z0-9_-]*$"
+    Description: Base path mapping of the CRM API on CrmInternalApiDomainName (devrealestatecrm / prodrealestatecrm)
+
+  AdapterInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret presented as x-api-key when forwarding enquiries to the CRM. Must match the CRM stack's AdapterInternalApiKey.
+    NoEcho: true
+
+  PromoteEnquiriesToLeads:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Kill switch for enquiry-to-lead promotion without redeploying the CRM or unsetting credentials.
 
   AllowedOrigins:
     Type: String
@@ -83,6 +121,41 @@ Parameters:
     Type: String
     Default: v1
     AllowedPattern: "^[a-zA-Z0-9_-]+$"
+
+  InstaApiDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      Custom domain already registered in API Gateway to map this API's base
+      path onto (services-api.realestateflow.in for prod,
+      services-api.cloudberrysolutions.in for dev/nonprod).
+
+  InstaApiBasePath:
+    Type: String
+    Default: insta
+    Description: Base path for this API's mapping on the custom domain
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'false' until the AWS::ApiGateway::DomainName named by
+      InstaApiDomainName actually exists (this template doesn't manage that
+      resource - it's set up once, separately). With it false,
+      BasePathMapping is skipped and the API has no supported public URL.
+      Both dev and prod domains exist, so both env files set this to 'true'.
+
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'true' once EnableCustomDomainMapping is 'true'. API Gateway's
+      base path mapping only affects routing selection - it does not strip
+      the base path from the event.path a Lambda proxy integration receives
+      - so the Lambda strips it itself (see lambda.js). Mirrors
+      server/infra/cfn-backend.yaml's identical flag.
 
   LogLevel:
     Type: String
@@ -106,6 +179,9 @@ Parameters:
     Description: >
       When true the heartbeat endpoint tells every paired laptop agent to stop all
       automation. A fleet-wide emergency brake, e.g. if Meta changes policy.
+
+Conditions:
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
 
 Resources:
 
@@ -261,11 +337,20 @@ Resources:
           ENVIRONMENT_NAME: !Ref EnvironmentName
           INSTA_DATA_TABLE_NAME: !Ref DataTableName
           INSTA_AUDIT_TABLE_NAME: !Ref AuditTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           LOG_LEVEL: !Ref LogLevel
           DEVICE_CLOCK_SKEW_TOLERANCE_MS: !Ref DeviceClockSkewToleranceMs
           KILL_SWITCH_ENABLED: !Ref KillSwitchEnabled
+          INSTA_API_BASE_PATH: !Ref InstaApiBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
+          # CRM lead-pipeline bridge. Both blank = enquiries stay local and are
+          # never promoted to CRM leads (the pre-bridge behaviour).
+          CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
+          CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
+          ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
+          INSTA_PROMOTE_ENQUIRIES_TO_LEADS: !Ref PromoteEnquiriesToLeads
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -370,12 +455,33 @@ Resources:
         - Key: Service
           Value: realestateflow-insta
 
+  InstaApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - InstaApiStage
+    Properties:
+      DomainName: !Ref InstaApiDomainName
+      RestApiId: !Ref InstaRestApi
+      Stage: !Ref ApiStageName
+      BasePath: !Ref InstaApiBasePath
+
 Outputs:
-  InstaApiEndpoint:
-    Description: Invoke URL for the Instagram Solution API
-    Value: !Sub "https://${InstaRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
+  # No raw execute-api invoke URL output on purpose: every client reaches this
+  # API through InstaApiBaseUrlOutput (custom domain + base path). The old
+  # InstaApiEndpoint export was verified unimported in both accounts before it
+  # was removed.
+  InstaApiDomainOutput:
+    Description: Custom domain name for the Instagram Solution API
+    Value: !Ref InstaApiDomainName
     Export:
-      Name: !Sub "${EnvironmentName}-realestateflow-insta-api-endpoint"
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-api-domain"
+
+  InstaApiBaseUrlOutput:
+    Description: Base URL for the Instagram Solution API via custom domain (frontend VITE_INSTA_API_DOMAIN_NAME + VITE_INSTA_API_BASE_PATH; the frontend appends /api/insta itself)
+    Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}"
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-api-base-url"
 
   InstaRestApiId:
     Description: API Gateway REST API id (used by deploy.sh to force a stage deployment)

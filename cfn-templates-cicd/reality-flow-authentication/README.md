@@ -23,10 +23,71 @@ cd cfn-templates-cicd/reality-flow-authentication
 ./deploy.sh show 0003                  # print one build's manifest.json
 ./deploy.sh rollback-code prod 0007    # fast: point the Lambda at old code
 ./deploy.sh rollback-full prod 0007    # full: redeploy that build's CFN + code
+
+./deploy.sh config-deploy dev          # config-only deploy — CFN params only,
+                                        # no npm/zip/upload/update-function-code
+./deploy.sh list-config                # list every recorded config revision
+./deploy.sh show-config 0002           # print one config revision's manifest.json
+./deploy.sh rollback-config prod 0002  # reapply an old config revision's params
 ```
 
 `dev`/`prod` is required for a deploy — the script refuses to run without
 it.
+
+## Config-only deploy (`config-deploy` / `config-versions/`)
+
+See `docs/proposals/config-only-deploy/context.md` for the full design
+rationale. Short version: a change to an env var that's purely a CFN
+parameter passed through to the Lambda's `Environment.Variables` (or to a
+Cognito/API Gateway resource property) — `ALLOWED_ORIGINS`,
+`IDENTITY_CALLBACK_URL`, `GOOGLE_CLIENT_ID`, `TEST_OTP_ENABLED`, etc. —
+never needs `npm ci`, `npm run build`, a fresh zip, an S3 upload, or a
+`lambda update-function-code` call. `infra/config-deploy.sh` (delegated to
+by `./deploy.sh config-deploy <env>`) skips straight to
+`aws cloudformation deploy` with just the parameters that actually changed.
+
+**Safety model — read before touching `infra/config-only-allowed-params.json`:**
+
+- `infra/config-only-allowed-params.json` is an **allowlist**, not a
+  denylist — fail-closed by design. A parameter not named there can never
+  be changed via config-only mode; `config-deploy.sh` refuses to run at all
+  if a live `.env.$ENV` value differs from the deployed stack for any
+  non-allowlisted key (`ServiceName`, `Env`, `LambdaPackagesBucketName`,
+  `ApiGatewayRoutesTemplateUrl`, the unused `Database*` placeholders), and
+  tells you to run a full deploy instead.
+- The diff is always computed against the **live stack's actual current
+  parameters** (`describe-stacks`), never against a local file — so it
+  reflects deployed reality even if `.env.$ENV` and the stack have drifted
+  for reasons unrelated to this one change.
+- `ApiGatewayRoutesTemplateUrl` is never touched by config-only mode —
+  it's always carried forward from the live stack, since only a real
+  deploy (which uploads a freshly content-hashed `auth-explicit-routes.yaml`)
+  can produce a legitimate new value for it.
+- `infra/lib/params.sh` is the **single source of truth** for "what CFN
+  parameter value does this env var produce" — both `infra/deploy.sh` (full)
+  and `infra/config-deploy.sh` (config-only) source it, so the two paths
+  can never silently diverge on how a key maps to a parameter.
+
+**Config revisions live on their own numbering track** —
+`config-versions/0001, 0002, ...` — separate from `deploy-versions/`, for
+the same reason build numbers matter on their own: "config revision #4,
+applied on top of build #27" answers "what's actually running" in an
+incident; conflating the two counters would lose that. Each
+`config-versions/<N>/manifest.json` records `appliedToBuild` (the build
+number `latest_build_for_env` found live for that env at deploy time),
+`changedParams` (the from/to diff — the only real content of a config
+revision, there's no code archive alongside it), and a full
+`params-snapshot.json` of every parameter's post-deploy value (used by
+`rollback-config`, not shown in the manifest itself).
+
+**`rollback-config <env> <N>`** reapplies revision `N`'s allowlisted
+parameter values on top of **whatever code build is currently live** — it
+deliberately does not also roll code back to whatever build `N` happened to
+be paired with; config and code rollback are independent concerns by
+default (this matches `docs/proposals/config-only-deploy/context.md`'s
+recommendation). Like `rollback-code`/`rollback-full`, it's recorded as a
+**new** config revision (`rollbackOf: "<N>"`), never an edit to history, and
+`verify_config_env` refuses to roll back the wrong environment with it.
 
 ## Build numbers are global, not per-environment
 
@@ -169,6 +230,8 @@ e.g. `prod-realestateflow-auth-lambda` — matching the
 | `IDENTITY_CALLBACK_URL` / `IDENTITY_LOGOUT_URL` | `localhost:3000` | `https://app.realestateflow.in` | Must match the frontend's actual origin |
 | `ALLOWED_ORIGINS` | includes `localhost` | prod domain only | CORS — never include `localhost` in prod |
 | `LAMBDA_PACKAGES_BUCKET_NAME` | `dev-realestateflow-artifacts` | `prod-realestateflow-artifacts` | Separate bucket per environment, both CFN-managed (not imported/out-of-band) |
+| `AUTH_API_DOMAIN_NAME` / `AUTH_API_BASE_PATH` | `services-api.cloudberrysolutions.in` / `devrealestateauth` | `services-api.realestateflow.in` / `prodrealestateauth` | The ONLY way this API is reached (`https://<domain>/<basePath>`, CFN output `AuthApiBaseUrlOutput`). `infra/deploy.sh` and `infra/config-deploy.sh` refuse an empty domain, a domain with `://`, a raw `execute-api`/`amazonaws.com` host, or an empty base path. The raw `AuthApiEndpoint` output no longer exists |
+| `ENABLE_CUSTOM_DOMAIN_MAPPING` / `ENABLE_BASE_PATH_STRIP` | `true` / `true` | `true` / `true` | Keep in lockstep: the BasePathMapping only affects routing, the Lambda (`src/index.ts` `stripBasePath`) must strip the segment itself |
 | `SUBNET_IDS` / `SECURITY_GROUP_IDS` | blank (no VPC) | private app subnets + app SG from `prod-realestateflow-networking-common` | Only the main auth Lambda is VPC-placed — the 3 Cognito trigger Lambdas deliberately are not |
 
 Everything else (`LAMBDA_MEMORY_SIZE`, `LOG_RETENTION_IN_DAYS`, etc.) can

@@ -19,6 +19,7 @@
 import { Router } from 'express';
 import axios from 'axios';
 import { logger } from '../logger.js';
+import { getMcpApiBaseUrl } from '../config/serviceUrls.js';
 import {
   DynamoDBDocumentClient,
   PutCommand,
@@ -116,7 +117,13 @@ router.get('/callback', async (req, res) => {
 
   const { dcrClientId, codeVerifier, callbackUrl, tenantId, userId, clientId } = pending;
 
-  const mcpBaseUrl = (process.env.MCP_BASE_URL || '').replace(/\/$/, '');
+  let mcpBaseUrl = null;
+  try {
+    // Custom domain + base path; null when MCP is not configured.
+    mcpBaseUrl = getMcpApiBaseUrl();
+  } catch (err) {
+    logger.error('ai_integrations.callback.mcp_base_url_invalid', { error: err.message });
+  }
   if (!mcpBaseUrl) {
     logger.error('ai_integrations.callback.no_mcp_base_url');
     return redirectError(res, returnUrl, 'Server configuration error. Please contact support.');

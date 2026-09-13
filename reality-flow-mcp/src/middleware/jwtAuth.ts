@@ -12,6 +12,7 @@ import { validateAccessToken } from '../services/tokenService';
 import { DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { logger } from '../utils/logger';
+import { getMcpPublicBaseUrl } from '../config/config';
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
@@ -48,7 +49,7 @@ function extractBearerToken(authorization: string | undefined): string | null {
 }
 
 export async function mcpJwtAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const baseUrl = process.env.OAUTH_BASE_URL || '';
+  const baseUrl = getMcpPublicBaseUrl();
 
   const authHeader = req.headers.authorization as string | undefined;
   const token = extractBearerToken(authHeader);

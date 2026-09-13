@@ -1,5 +1,5 @@
 {
-  "tokenProvider": "devmode",
+  "tokenProvider": "dev",
   "meta": {
     "appId": "REPLACE_WITH_INSTAGRAM_APP_ID",
     "appSecret": "REPLACE_WITH_INSTAGRAM_APP_SECRET",
@@ -13,8 +13,8 @@
     ]
   },
   "cloud": {
-    "baseUrl": "REPLACE_WITH_INSTA_API_BASE_URL",
-    "basePath": "/api/insta",
+    "domainName": "services-api.cloudberrysolutions.in",
+    "basePath": "devrealestateinsta",
     "timeoutMs": 15000
   },
   "console": {

@@ -3,6 +3,7 @@
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
 import { API_TIMEOUT_MS } from '../config/constants.js';
+import { getCrmInternalApiBaseUrl } from '../config/serviceUrls.js';
 
 // Built lazily. CRM_INTERNAL_API_KEY arrives from Secrets Manager during
 // cold-start hydration, which happens after this module is imported — the
@@ -13,10 +14,11 @@ let crmClient = null;
 function getClient() {
   if (crmClient) return crmClient;
 
-  const baseURL = process.env.CRM_INTERNAL_API_URL;
+  // https://<CRM_INTERNAL_API_DOMAIN_NAME>/<CRM_INTERNAL_API_BASE_PATH>; throws
+  // on a missing domain or a raw execute-api host.
+  const baseURL = getCrmInternalApiBaseUrl();
   const apiKey = process.env.CRM_INTERNAL_API_KEY;
 
-  if (!baseURL) throw new Error('Missing required environment variable CRM_INTERNAL_API_URL');
   if (!apiKey) throw new Error('Missing required secret CRM_INTERNAL_API_KEY');
 
   crmClient = axios.create({

@@ -1,8 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { getIdToken } from '../utils/authStorage';
 import { getTenantHeaders } from '../config/tenant';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 interface CreditsState {
   balance: number;

@@ -40,9 +40,13 @@ function isValidPhone(phone) {
 
 /**
  * Onboard a new tenant (agency) into the auth system.
- * This creates an agency record in dev-reality-flow-auth-agency-config.
- * The admin can then login via Google (email) or Phone OTP (phone).
- * 
+ * This creates an agency record in the AGENCY_CONFIG_DYNAMODB_TABLE_NAME table
+ * (see ddb.js for the current table-naming convention).
+ * The admin can then login via Google (email) or Phone OTP (phone) — first
+ * login auto-provisions the admin user, per
+ * reality-flow-authentication/src/utils/resolveUser.ts step 4b. No password
+ * is created or stored here; there is no password-based login path anymore.
+ *
  * @param {Object} params
  * @param {string} params.agencyName - Required agency name
  * @param {string} [params.adminEmail] - Optional admin email (for Google login)
@@ -86,11 +90,21 @@ export async function onboardTenant({
   const tenantId = `${prefix}-${randomHash(10)}`;
   const now = new Date().toISOString();
 
-  // Build item for auth agency table
+  // Build item for auth agency table. Shape matches
+  // reality-flow-authentication/src/models/agencyConfigModel.ts's
+  // createAgencyConfig() exactly, including the notificationSettings
+  // defaults every other code path assumes exist.
   const item = {
     TenantId: tenantId,
     agencyName: String(agencyName).trim(),
     status: 'ACTIVE',
+    notificationSettings: {
+      rentedExpiryThresholdDays: 30,
+      meetingReminderMinutes: 15,
+      enableRentExpiryNotifications: true,
+      enableMeetingReminders: true,
+      enableKhataReminders: true,
+    },
     createdAt: now,
     updatedAt: now,
   };

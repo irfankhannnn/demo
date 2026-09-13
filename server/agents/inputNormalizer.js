@@ -185,7 +185,7 @@ export function normalizePhone(value) {
   return null;
 }
 
-const LEAD_STATUS_VALUES = new Set(['new', 'contacted', 'qualified', 'negotiating', 'lost', 'converted']);
+const LEAD_STATUS_VALUES = new Set(['new', 'contacted', 'qualified', 'site_visit', 'negotiating', 'lost', 'converted', 'spam']);
 const LEAD_TYPE_VALUES = new Set(['buyer', 'seller', 'tenant', 'owner']);
 const LEAD_PRIORITY_VALUES = new Set(['low', 'medium', 'high']); // Buyer entity only — Lead uses LEAD_TEMPERATURE_VALUES
 const LEAD_TEMPERATURE_VALUES = new Set(['hot', 'warm', 'cold']);

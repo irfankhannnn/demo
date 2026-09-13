@@ -10,37 +10,18 @@
 
 import { Router, Request, Response } from 'express';
 import { OAUTH_SCOPES } from '../services/oauthProviders';
-import { logger } from '../utils/logger';
+import { getMcpPublicBaseUrl } from '../config/config';
 
 const router = Router();
 
 /**
- * Determine the canonical base URL for this authorization server.
- * In production behind API Gateway, the base URL is provided explicitly via
- * the OAUTH_BASE_URL environment variable (set in CloudFormation). This
- * prevents header spoofing from X-Forwarded-Host/Proto headers.
+ * Canonical base URL for this authorization server / protected resource:
+ * https://<MCP_API_DOMAIN_NAME>/<MCP_API_BASE_PATH>, composed in the config
+ * module. Never derived from Host / X-Forwarded-* headers (spoofable) and
+ * never a raw execute-api URL.
  */
-function getBaseUrl(req: Request): string {
-  const configuredBaseUrl = process.env.OAUTH_BASE_URL || process.env.MCP_BASE_URL;
-
-  if (configuredBaseUrl && configuredBaseUrl.startsWith('https://')) {
-    return configuredBaseUrl.replace(/\/$/, '');
-  }
-
-  // Fallback for local/dev: only accept localhost/127.0.0.1 from the Host header
-  const forwardedHost = req.headers['x-forwarded-host'];
-  const hostHeader = Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost;
-  const host = hostHeader || req.get('host') || 'localhost';
-  if (host !== 'localhost' && !host.startsWith('127.0.0.1') && !host.startsWith('localhost:')) {
-    logger.warn('wellKnown.untrusted_host', { host });
-    // Return a safe default; the real fix is to configure OAUTH_BASE_URL in production
-    return 'https://localhost';
-  }
-
-  const forwardedProto = req.headers['x-forwarded-proto'];
-  const protoHeader = Array.isArray(forwardedProto) ? forwardedProto[0] : forwardedProto;
-  const proto = protoHeader || req.protocol || 'https';
-  return `${proto}://${host}`;
+function getBaseUrl(_req: Request): string {
+  return getMcpPublicBaseUrl();
 }
 
 router.get('/oauth-authorization-server', (req: Request, res: Response) => {

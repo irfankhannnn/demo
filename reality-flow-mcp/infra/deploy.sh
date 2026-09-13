@@ -20,6 +20,11 @@ set -euo pipefail
 #                    Skip the direct Lambda code update call after S3 upload.
 #                    By default the script forces a Lambda code update after
 #                    uploading the zip; use this to rely solely on CFN.
+#   --config-only    Config-only deploy — delegates to infra/config-deploy.sh,
+#                    which is --skip-package PLUS a safety gate: refuses
+#                    outright (no CFN call at all) if a changed parameter
+#                    isn't on infra/config-only-allowed-params.json's
+#                    allowlist. See docs/proposals/config-only-deploy/context.md.
 #   -h, --help       Show this help message.
 #
 # Examples:
@@ -27,12 +32,27 @@ set -euo pipefail
 #   ./infra/deploy.sh --skip-package        # CFN only (no build/zip/upload)
 #   ./infra/deploy.sh --skip-cfn            # Package only (no CFN deploy)
 #   ./infra/deploy.sh prod --skip-package   # CFN only, env=prod
+#   ./infra/deploy.sh prod --config-only    # CFN only, gated by the allowlist
 #
 # Prerequisites: .env file, AWS CLI, Node.js 20.x, zip
 # =============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# -----------------------------------------------------------------------------
+# --config-only — intercepted here, before the normal flag loop below. See
+# infra/config-deploy.sh's own header comment for the full rationale.
+# -----------------------------------------------------------------------------
+for arg in "$@"; do
+  if [ "$arg" = "--config-only" ]; then
+    REMAINING_ARGS=()
+    for a in "$@"; do
+      [ "$a" = "--config-only" ] || REMAINING_ARGS+=("$a")
+    done
+    exec "$SCRIPT_DIR/config-deploy.sh" "${REMAINING_ARGS[@]}"
+  fi
+done
 
 # -----------------------------------------------------------------------------
 # Parse flags
@@ -136,6 +156,37 @@ LAMBDA_CODE_S3_KEY="${SERVICE_NAME}/function.zip"
 STACK_NAME="${ENV}-${SERVICE_NAME}-stack"
 CFN_TEMPLATE="$SCRIPT_DIR/cfn-backend.yaml"
 
+# -----------------------------------------------------------------------------
+# Custom-domain guard (repo-wide contract): every API this stack exposes or
+# calls is reached via https://<*_DOMAIN_NAME>/<*_BASE_PATH>, never a raw
+# execute-api URL. Fail before any build/upload/CFN work.
+# -----------------------------------------------------------------------------
+require_custom_domain_pair() {
+  local domain_var="$1" base_path_var="$2"
+  local domain="${!domain_var:-}" base_path="${!base_path_var:-}"
+  if [ -z "$domain" ]; then
+    echo "ERROR: $domain_var is empty — set it to the API Gateway custom domain host"; exit 1
+  fi
+  if [[ "$domain" == *"://"* ]]; then
+    echo "ERROR: $domain_var ('$domain') must be a bare host name (no scheme)"; exit 1
+  fi
+  if [[ "$domain" == *execute-api* ]] || [[ "$domain" == *amazonaws.com* ]]; then
+    echo "ERROR: $domain_var ('$domain'): raw API Gateway URLs are not allowed; use the custom domain"; exit 1
+  fi
+  if [ -z "$base_path" ]; then
+    echo "ERROR: $base_path_var is empty"; exit 1
+  fi
+  # This service loads ONE .env for every env (ENV comes from the CLI), so
+  # also refuse a base path belonging to a different environment
+  # (e.g. devrealestatecrm on a prod deploy).
+  if { [ "$ENV" = "dev" ] || [ "$ENV" = "prod" ]; } && [[ "$base_path" != "${ENV}"* ]]; then
+    echo "ERROR: $base_path_var ('$base_path') does not belong to env '$ENV' (expected ${ENV}realestate...)"; exit 1
+  fi
+}
+require_custom_domain_pair MCP_API_DOMAIN_NAME MCP_API_BASE_PATH
+require_custom_domain_pair CRM_API_DOMAIN_NAME CRM_API_BASE_PATH
+require_custom_domain_pair AUTH_SERVICE_DOMAIN_NAME AUTH_SERVICE_BASE_PATH
+
 echo "============================================="
 echo " RealtyFlow MCP — Deploy"
 echo "============================================="
@@ -209,12 +260,17 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
   { "ParameterKey": "OAuthConnectionsTableName", "ParameterValue": "${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}" },
   { "ParameterKey": "JWTSecret", "ParameterValue": "${JWT_SECRET}" },
   { "ParameterKey": "JWTRefreshSecret", "ParameterValue": "${JWT_REFRESH_SECRET}" },
-  { "ParameterKey": "CrmApiUrl", "ParameterValue": "${CRM_API_URL}" },
+  { "ParameterKey": "CrmApiDomainName", "ParameterValue": "${CRM_API_DOMAIN_NAME}" },
+  { "ParameterKey": "CrmApiBasePath", "ParameterValue": "${CRM_API_BASE_PATH}" },
   { "ParameterKey": "CrmApiInternalKey", "ParameterValue": "${CRM_API_INTERNAL_KEY:-}" },
-  { "ParameterKey": "AuthServiceUrl", "ParameterValue": "${AUTH_SERVICE_URL:-}" },
+  { "ParameterKey": "AuthServiceDomainName", "ParameterValue": "${AUTH_SERVICE_DOMAIN_NAME}" },
+  { "ParameterKey": "AuthServiceBasePath", "ParameterValue": "${AUTH_SERVICE_BASE_PATH}" },
   { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}" },
   { "ParameterKey": "FrontendUrl", "ParameterValue": "${FRONTEND_URL:-http://localhost:3000}" },
-  { "ParameterKey": "DomainName", "ParameterValue": "${DOMAIN_NAME:-}" }
+  { "ParameterKey": "McpApiDomainName", "ParameterValue": "${MCP_API_DOMAIN_NAME}" },
+  { "ParameterKey": "McpApiBasePath", "ParameterValue": "${MCP_API_BASE_PATH}" },
+  { "ParameterKey": "EnableCustomDomainMapping", "ParameterValue": "${ENABLE_CUSTOM_DOMAIN_MAPPING:-false}" },
+  { "ParameterKey": "EnableBasePathStrip", "ParameterValue": "${ENABLE_BASE_PATH_STRIP:-false}" }
 ]
 EOF
 
@@ -231,12 +287,17 @@ PARAM_OVERRIDES=(
   "OAuthConnectionsTableName=${OAUTH_CONNECTIONS_TABLE:-realtyflow-oauth-connections}"
   "JWTSecret=${JWT_SECRET}"
   "JWTRefreshSecret=${JWT_REFRESH_SECRET}"
-  "CrmApiUrl=${CRM_API_URL}"
+  "CrmApiDomainName=${CRM_API_DOMAIN_NAME}"
+  "CrmApiBasePath=${CRM_API_BASE_PATH}"
   "CrmApiInternalKey=${CRM_API_INTERNAL_KEY:-}"
-  "AuthServiceUrl=${AUTH_SERVICE_URL:-}"
+  "AuthServiceDomainName=${AUTH_SERVICE_DOMAIN_NAME}"
+  "AuthServiceBasePath=${AUTH_SERVICE_BASE_PATH}"
   "AllowedOrigins=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}"
   "FrontendUrl=${FRONTEND_URL:-http://localhost:3000}"
-  "DomainName=${DOMAIN_NAME:-}"
+  "McpApiDomainName=${MCP_API_DOMAIN_NAME}"
+  "McpApiBasePath=${MCP_API_BASE_PATH}"
+  "EnableCustomDomainMapping=${ENABLE_CUSTOM_DOMAIN_MAPPING:-false}"
+  "EnableBasePathStrip=${ENABLE_BASE_PATH_STRIP:-false}"
 )
 
 # -----------------------------------------------------------------------------
@@ -351,32 +412,12 @@ if [ "$SKIP_CFN" = true ]; then
 else
   echo ""
   echo "Retrieving stack outputs..."
-  MCP_API_URL=$("$AWS_BIN" cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$REGION" \
-    --query 'Stacks[0].Outputs[?OutputKey==`McpApiUrl`].OutputValue' \
-    --output text 2>/dev/null || echo "N/A")
-  OAUTH_AUTHORIZE_URL=$("$AWS_BIN" cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$REGION" \
-    --query 'Stacks[0].Outputs[?OutputKey==`OAuthAuthorizeUrl`].OutputValue' \
-    --output text 2>/dev/null || echo "N/A")
-  OAUTH_TOKEN_URL=$("$AWS_BIN" cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$REGION" \
-    --query 'Stacks[0].Outputs[?OutputKey==`OAuthTokenUrl`].OutputValue' \
-    --output text 2>/dev/null || echo "N/A")
-  OAUTH_REGISTER_URL=$("$AWS_BIN" cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$REGION" \
-    --query 'Stacks[0].Outputs[?OutputKey==`OAuthRegisterUrl`].OutputValue' \
-    --output text 2>/dev/null || echo "N/A")
-  OAUTH_METADATA_URL=$("$AWS_BIN" cloudformation describe-stacks \
-    --stack-name "$STACK_NAME" \
-    --region "$REGION" \
-    --query 'Stacks[0].Outputs[?OutputKey==`OAuthMetadataUrl`].OutputValue' \
-    --output text 2>/dev/null || echo "N/A")
-
+  MCP_API_BASE_URL=$("$AWS_BIN" cloudformation describe-stacks     --stack-name "$STACK_NAME"     --region "$REGION"     --query 'Stacks[0].Outputs[?OutputKey==`McpApiBaseUrl`].OutputValue'     --output text 2>/dev/null || echo "N/A")
+  MCP_API_URL="${MCP_API_BASE_URL}/mcp"
+  OAUTH_AUTHORIZE_URL="${MCP_API_BASE_URL}/oauth/authorize"
+  OAUTH_TOKEN_URL="${MCP_API_BASE_URL}/oauth/token"
+  OAUTH_REGISTER_URL="${MCP_API_BASE_URL}/oauth/register"
+  OAUTH_METADATA_URL="${MCP_API_BASE_URL}/.well-known/oauth-authorization-server"
   echo ""
   echo "============================================="
   echo "Deployment Complete!"

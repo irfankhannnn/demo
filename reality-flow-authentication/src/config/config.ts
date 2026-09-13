@@ -41,6 +41,12 @@ const envSchema = z.object({
   // Internal API key for service-to-service auth
   INTERNAL_API_KEY: z.string().min(1, 'INTERNAL_API_KEY is required'),
 
+  // Invite emails. Optional: if AWS_SES_FROM_EMAIL is unset, invite creation
+  // still succeeds (email send is best-effort, see inviteController.ts) —
+  // the invite record itself, not the email, is the source of truth.
+  AWS_SES_FROM_EMAIL: z.string().optional(),
+  FRONTEND_LOGIN_URL: z.string().default('https://app.realestateflow.in/login'),
+
   // Local dev
   PORT: z.string().default('3002').transform(Number),
 });

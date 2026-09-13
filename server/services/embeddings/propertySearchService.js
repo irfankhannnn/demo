@@ -47,7 +47,7 @@ export function propertyEmbeddingFields(property = {}) {
     ['Amenities', property.amenities],
     ['Status', property.status],
     ['Expected rent', rentalInfo.expectedRent || property.rentAmount],
-    ['Expected price', saleInfo.expectedPrice || property.price],
+    ['Expected price', saleInfo.listedPrice || property.price],
   ];
 }
 
@@ -73,9 +73,13 @@ function buildPostFilter({ minPrice, maxPrice, minBedrooms, maxBedrooms, status 
     minPrice != null || maxPrice != null || minBedrooms != null || maxBedrooms != null || status;
   if (!hasAny) return null;
 
+  const allowedStatuses = status
+    ? new Set((Array.isArray(status) ? status : [status]).map((s) => String(s).toLowerCase()))
+    : null;
+
   return (item) => {
     const price =
-      item.rentAmount ?? item.price ?? item.rentalInfo?.expectedRent ?? item.saleInfo?.expectedPrice ?? null;
+      item.rentAmount ?? item.price ?? item.rentalInfo?.expectedRent ?? item.saleInfo?.listedPrice ?? null;
 
     if (minPrice != null && (price == null || price < minPrice)) return false;
     if (maxPrice != null && (price == null || price > maxPrice)) return false;
@@ -84,7 +88,7 @@ function buildPostFilter({ minPrice, maxPrice, minBedrooms, maxBedrooms, status 
     if (minBedrooms != null && (bhk == null || bhk < minBedrooms)) return false;
     if (maxBedrooms != null && (bhk == null || bhk > maxBedrooms)) return false;
 
-    if (status && String(item.status || '').toLowerCase() !== String(status).toLowerCase()) return false;
+    if (allowedStatuses && !allowedStatuses.has(String(item.status || '').toLowerCase())) return false;
 
     return true;
   };
@@ -101,7 +105,7 @@ function buildPostFilter({ minPrice, maxPrice, minBedrooms, maxBedrooms, status 
  * @param {number} [options.maxPrice]
  * @param {number} [options.minBedrooms]
  * @param {number} [options.maxBedrooms]
- * @param {string} [options.status]
+ * @param {string|string[]} [options.status]  post-filtered; one status or a list of allowed statuses
  * @param {number} [options.limit]
  * @returns {Promise<Array<object>>} properties, best match first, each with _score
  */

@@ -12,8 +12,9 @@
  */
 
 import { getTenantHeaders } from '../config/tenant';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = CRM_API_URL;
 
 export interface PublicPagesSettings {
   tenantId: string;

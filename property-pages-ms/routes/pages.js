@@ -391,14 +391,17 @@ router.get('/robots.txt', (req, res) => {
     `Disallow: ${p}/i/`,
     `Disallow: ${p}/d/`,
     '',
-    `Sitemap: ${req.protocol}://${req.headers.host}${p}/sitemap.xml`,
+    // pageOrigin is the VIEWER host (X-Forwarded-Host behind CloudFront). The
+    // raw Host header there is the API Gateway origin, which must never be
+    // published to crawlers.
+    `Sitemap: ${req.pageOrigin}${p}/sitemap.xml`,
   ].join('\n'));
 });
 
 router.get('/sitemap.xml', async (req, res, next) => {
   try {
     const h = hrefs(req);
-    const origin = `${req.protocol}://${req.headers.host}`;
+    const origin = req.pageOrigin;
     const { items } = await crm.listProperties(req.tenantId, { limit: 50 });
 
     const urls = [

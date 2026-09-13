@@ -4,6 +4,9 @@ dist/
 .env.*
 !sample.env
 infra/cfn-params.json
+infra/.last-deploy-artifacts.json
+infra/.last-config-diff.json
+infra/.last-config-params.json
 function.zip
 *.js.map
 *.d.ts

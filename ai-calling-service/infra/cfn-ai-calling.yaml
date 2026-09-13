@@ -75,11 +75,21 @@ Parameters:
 
   # ---- CRM integration ------------------------------------------------------
 
-  CrmInternalApiUrl:
+  CrmInternalApiDomainName:
     Type: String
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
     Description: >-
-      Base URL of the CRM's internal API, used for lead context, property
-      lookups and writing call outcomes back onto the lead.
+      API Gateway custom domain the CRM API is mapped on (host only):
+      services-api.cloudberrysolutions.in for dev, services-api.realestateflow.in
+      for prod. Used for lead context, property lookups and writing call
+      outcomes back onto the lead. Raw execute-api hosts are rejected.
+
+  CrmInternalApiBasePath:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+    Description: >-
+      The CRM API's base path on that domain (devrealestatecrm /
+      prodrealestatecrm). Route prefixes (/api/internal/...) are added in code.
 
   CrmInternalApiKey:
     Type: String
@@ -189,7 +199,7 @@ Parameters:
 
   AiCallingApiDomainName:
     Type: String
-    Default: ""
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
     Description: >-
       Shared API Gateway custom domain: services-api.realestateflow.in for prod,
       services-api.cloudberrysolutions.in for dev. This template does not manage
@@ -197,7 +207,7 @@ Parameters:
 
   AiCallingApiBasePath:
     Type: String
-    Default: devrealestateagencyai
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
     Description: >-
       Single base path segment on that domain - prodrealestateagencyai /
       devrealestateagencyai.
@@ -207,9 +217,9 @@ Parameters:
     Default: 'false'
     AllowedValues: ['true', 'false']
     Description: >-
-      Keep 'false' until the AWS::ApiGateway::DomainName named above exists.
-      False skips the BasePathMapping and leaves the API reachable on its
-      execute-api invoke URL.
+      Creates the BasePathMapping onto AiCallingApiDomainName. Must be 'true'
+      in dev and prod: ElevenLabs and Exotel are pointed at
+      https://<domain>/<basePath>, never the execute-api invoke URL.
 
   EnableBasePathStrip:
     Type: String
@@ -221,14 +231,6 @@ Parameters:
       path from the event.path a Lambda proxy integration receives, so
       lambda-handler.js strips it itself. Without this every request 404s once
       the mapping goes live.
-
-  WebhookBaseUrl:
-    Type: String
-    Default: ""
-    Description: >-
-      Public base URL ElevenLabs calls back into (post-call webhook + server
-      tools). Blank on the very first deploy - the API does not exist yet. Fill
-      it in from the stack's ApiEndpoint/CustomApiUrl output and redeploy.
 
   # ---- Operations -----------------------------------------------------------
 
@@ -248,6 +250,18 @@ Parameters:
     Type: Number
     Default: 90
     Description: How long call recordings are kept before deletion
+
+Rules:
+  CustomDomainMappingRequired:
+    Assertions:
+      - Assert: !Equals [!Ref EnableCustomDomainMapping, 'true']
+        AssertDescription: >-
+          EnableCustomDomainMapping must be 'true'. WEBHOOK_BASE_URL is derived
+          from the custom domain + base path, so the mapping has to exist.
+      - Assert: !Equals [!Ref EnableBasePathStrip, 'true']
+        AssertDescription: >-
+          EnableBasePathStrip must be 'true' with the mapping on, or every
+          request 404s.
 
 Conditions:
   CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
@@ -540,12 +554,15 @@ Resources:
           AI_CALLING_TABLE_NAME: !Ref AICallingTableName
           AI_CALLING_KNOWLEDGE_BUCKET: !Ref AICallingKnowledgeBucket
           AI_CALLING_RECORDINGS_BUCKET: !Ref AICallingRecordingsBucket
-          CRM_INTERNAL_API_URL: !Ref CrmInternalApiUrl
+          CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
+          CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
           EXOTEL_SUBDOMAIN: !Ref ExotelSubdomain
           EXOTEL_WEBHOOK_IPS: !Ref ExotelWebhookIps
           ELEVENLABS_AGENT_ID: !Ref ElevenLabsAgentId
           ELEVENLABS_AGENT_PHONE_NUMBER_ID: !Ref ElevenLabsAgentPhoneNumberId
-          WEBHOOK_BASE_URL: !Ref WebhookBaseUrl
+          # Public root ElevenLabs/Exotel call back into. Derived, never pasted:
+          # it is known before the stack exists, so there is no two-phase deploy.
+          WEBHOOK_BASE_URL: !Sub "https://${AiCallingApiDomainName}/${AiCallingApiBasePath}"
           API_BASE_PATH_PREFIX: !Ref AiCallingApiBasePath
           ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
           ALLOWED_ORIGINS: !Ref AllowedOrigins
@@ -701,20 +718,15 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-ApiId"
 
-  ApiEndpoint:
-    Description: >-
-      Raw execute-api invoke URL. This is the value to use for WEBHOOK_BASE_URL
-      until the custom domain mapping is enabled.
-    Value: !Sub "https://${AICallingApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${ApiStageName}"
-    Export:
-      Name: !Sub "${AWS::StackName}-ApiEndpoint"
-
-  CustomApiUrl:
+  AiCallingApiBaseUrl:
     Condition: CustomDomainMappingEnabled
-    Description: Public URL once the base path mapping is live
+    Description: >-
+      Public base URL (custom domain + base path). Equals the Lambda's
+      WEBHOOK_BASE_URL; register ElevenLabs tools/webhooks and Exotel
+      callbacks against it.
     Value: !Sub "https://${AiCallingApiDomainName}/${AiCallingApiBasePath}"
     Export:
-      Name: !Sub "${AWS::StackName}-CustomApiUrl"
+      Name: !Sub "${AWS::StackName}-AiCallingApiBaseUrl"
 
   LambdaArn:
     Description: AI calling Lambda ARN

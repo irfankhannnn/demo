@@ -42,7 +42,7 @@ export async function makeCtx({ config = {} } = {}) {
   fs.writeFileSync(process.env.IG_AGENT_CONFIG, JSON.stringify({
     tokenProvider: 'devmode',
     meta: { appId: 'test-app', appSecret: 'test-secret', apiVersion: 'v23.0' },
-    cloud: { baseUrl: 'https://example.invalid', basePath: '/api/insta' },
+    cloud: { domainName: 'example.invalid', basePath: 'devrealestateinsta' },
     console: { host: '127.0.0.1', port: 0 },
     ...config,
   }));

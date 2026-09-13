@@ -17,6 +17,7 @@ import {
 } from '../models/invitesModel';
 import { validateAndFormatIndianPhone } from '../utils/phoneValidation';
 import { logger } from '../utils/logger';
+import { sendInviteEmail } from '../utils/emailService';
 
 // --- Zod Schemas ---
 
@@ -130,6 +131,21 @@ export async function createInviteHandler(req: Request, res: Response): Promise<
     });
 
     const agency = await getAgencyConfig(user.TenantId);
+
+    // Best-effort: the invite record above is the source of truth (the
+    // invitee can always be discovered via GET /auth/check-invite on login),
+    // so a failed send here must not fail invite creation itself.
+    if (invite.inviteeEmail) {
+      try {
+        await sendInviteEmail(invite.inviteeEmail, agency?.agencyName || 'RealtyFlow');
+      } catch (emailError) {
+        logger.error('createInvite.emailSend.failed', {
+          error: emailError,
+          tenantId: user.TenantId,
+          inviteeEmail: invite.inviteeEmail,
+        });
+      }
+    }
 
     ok(res, {
       success: true,

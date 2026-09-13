@@ -5,8 +5,9 @@ import { getTenantHeaders } from '../config/tenant';
 import { openCheckout } from '../lib/razorpay';
 import { useCredits } from '../hooks/useCredits';
 import { isNativeApp } from '../lib/platform';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 interface BuyCreditsModalProps {
   forceOpen?: boolean;

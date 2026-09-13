@@ -15,6 +15,20 @@ set -euo pipefail
 #   ./deploy.sh start|stop|status|endpoint <env>
 #                                             Pure ECS service control, no build
 #                                             recorded — passthrough to infra/deploy.sh
+#   ./deploy.sh config-deploy <dev|staging|prod>
+#                                             Config-only deploy — skips the Docker
+#                                             build/ECR push, pins the image tag to
+#                                             whatever is live, applies only
+#                                             allowlisted CFN parameter changes. See
+#                                             infra/config-deploy.sh and
+#                                             docs/proposals/config-only-deploy/
+#                                             context.md.
+#   ./deploy.sh list-config [env]            List recorded config revisions
+#   ./deploy.sh show-config <config-version> Print one config revision's manifest.json
+#   ./deploy.sh rollback-config <env> <config-version>
+#                                             Reapply an old config revision's
+#                                             allowlisted parameter values on top
+#                                             of whatever image build is live
 #
 # Every deploy call delegates the actual build/packaging/CFN work to the real
 # script: whatsapp-platform/infra/deploy.sh. This wrapper's only job is
@@ -68,6 +82,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_DIR="$(cd "$SCRIPT_DIR/../../whatsapp-platform" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VERSIONS_DIR="$SCRIPT_DIR/deploy-versions"
+CONFIG_VERSIONS_DIR="$SCRIPT_DIR/config-versions"
 
 OS_UNAME="$(uname -s || echo '')"
 AWS_BIN="aws"
@@ -111,6 +126,12 @@ Usage:
   ./deploy.sh stop <env>                    Set ECS desired count to 0 (no build recorded)
   ./deploy.sh status <env>                  Show current service status (no build recorded)
   ./deploy.sh endpoint <env>                Show current task public IP (no build recorded)
+  ./deploy.sh config-deploy <dev|staging|prod>
+                                             Config-only deploy (skip Docker build/push)
+  ./deploy.sh list-config [env]             List recorded config revisions
+  ./deploy.sh show-config <config-version>  Print one config revision's manifest.json
+  ./deploy.sh rollback-config <env> <config-version>
+                                             Reapply an old config revision's params
 USAGE
 }
 
@@ -130,6 +151,14 @@ require_build_arg() {
   local b="${1:-}"
   if ! [[ "$b" =~ ^[0-9]{4}$ ]]; then
     echo "ERROR: build number must be 4 digits, e.g. 0007 (got: '${b}')"
+    exit 1
+  fi
+}
+
+require_config_version_arg() {
+  local c="${1:-}"
+  if ! [[ "$c" =~ ^[0-9]{4}$ ]]; then
+    echo "ERROR: config version must be 4 digits, e.g. 0007 (got: '${c}')"
     exit 1
   fi
 }
@@ -188,6 +217,66 @@ next_build_number() {
   done
   shopt -u nullglob
   printf "%04d" "$((max + 1))"
+}
+
+# ---- config-version counter — SEPARATE track from the build counter above,
+# also global across all envs, mirroring reality-flow-authentication/server's
+# identical design for the same reasons -------------------------------------
+next_config_version() {
+  mkdir -p "$CONFIG_VERSIONS_DIR"
+  local max=0
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d")"
+    n=$((10#$n))
+    if [ "$n" -gt "$max" ]; then max=$n; fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$((max + 1))"
+}
+
+# latest_build_for_env <env> — highest-numbered successfully-deployed build
+# recorded for that specific env.
+latest_build_for_env() {
+  local env="$1"
+  local max=0
+  shopt -s nullglob
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    local e s n
+    e="$(json_read "$d/manifest.json" env 2>/dev/null || echo '')"
+    s="$(json_read "$d/manifest.json" status 2>/dev/null || echo '')"
+    if [ "$e" = "$env" ] && [ "$s" = "deployed" ]; then
+      n="$(basename "$d")"
+      n=$((10#$n))
+      if [ "$n" -gt "$max" ]; then max=$n; fi
+    fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$max"
+}
+
+# write_config_manifest <out-file> <configVersion> <appliedToBuild> <env> <status> <rollbackOf|null> <changedParamsFile> <commit> <commitShort> <branch> <dirty> <deployer> <deployDate>
+write_config_manifest() {
+  node -e "
+    const fs = require('fs');
+    const [ , out, configVersion, appliedToBuild, env, status, rollbackOf, changedParamsFile,
+            commit, commitShort, branch, dirty, deployer, deployDate ] = process.argv;
+    const changedParams = JSON.parse(fs.readFileSync(changedParamsFile, 'utf8'));
+    const manifest = {
+      configVersion, appliedToBuild, env, status,
+      timestamp: new Date().toISOString(),
+      deployDate,
+      git: { commit, commitShort, branch, dirty: dirty === 'true' },
+      deployer,
+      changedParams,
+      rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
+    };
+    fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/../history.jsonl', JSON.stringify(manifest) + '\n');
+  " "$@"
 }
 
 write_manifest() {
@@ -295,6 +384,202 @@ cmd_deploy() {
   fi
 
   record_build "$build" "$build_dir" "$env" "$status" "null" "null"
+}
+
+# =============================================================================
+# config-deploy — delegates to infra/config-deploy.sh, records a config
+# revision on its OWN numbering track (config-versions/, not deploy-versions/)
+# =============================================================================
+cmd_config_deploy() {
+  local env="$1"
+  require_env_arg "$env"
+
+  echo "============================================="
+  echo " Config-only deploy ($env) — starting"
+  echo " commit: $GIT_COMMIT_SHORT  branch: $GIT_BRANCH  dirty: $GIT_DIRTY  by: $DEPLOYER"
+  echo "============================================="
+
+  local diff_file="$SERVICE_DIR/infra/.last-config-diff.json"
+  rm -f "$diff_file"
+
+  if ! ( cd "$SERVICE_DIR" && bash infra/config-deploy.sh "$env" ); then
+    echo ""
+    echo "Config-only deploy failed or was refused — see output above. No config revision recorded."
+    exit 1
+  fi
+
+  if [ ! -f "$diff_file" ] || [ "$(cat "$diff_file")" = "{}" ]; then
+    echo ""
+    echo "No allowlisted parameter actually differed from the live stack — no config revision recorded."
+    return 0
+  fi
+
+  local build
+  build="$(latest_build_for_env "$env")"
+
+  local cfg
+  cfg="$(next_config_version)"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  mkdir -p "$cfg_dir"
+  cp "$diff_file" "$cfg_dir/changed-params.json"
+  if [ -f "$SERVICE_DIR/infra/.last-config-params.json" ]; then
+    cp "$SERVICE_DIR/infra/.last-config-params.json" "$cfg_dir/params-snapshot.json"
+    chmod 600 "$cfg_dir/params-snapshot.json" 2>/dev/null || true
+  fi
+
+  write_config_manifest "$cfg_dir/manifest.json" \
+    "$cfg" "$build" "$env" "applied" "null" "$cfg_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+  echo ""
+  echo "Config revision #$cfg recorded (env: $env, applied to build #$build): $cfg_dir/manifest.json"
+}
+
+# =============================================================================
+# list-config / show-config
+# =============================================================================
+cmd_list_config() {
+  local filter_env="${1:-}"
+  if [ ! -d "$CONFIG_VERSIONS_DIR" ]; then
+    echo "No config revisions recorded yet."
+    return 0
+  fi
+
+  printf "%-9s %-8s %-11s %-9s %-21s %-9s %-20s %-11s\n" "CONFIG_V" "ENV" "APPLIED_TO" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    node -e "
+      const fs = require('fs');
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const filterEnv = process.argv[2];
+      if (filterEnv && m.env !== filterEnv) process.exit(0);
+      const row = [m.configVersion, m.env, 'build#' + m.appliedToBuild, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([9,8,11,9,21,9,20,11][i])).join(' '));
+    " "$d/manifest.json" "$filter_env"
+  done
+  shopt -u nullglob
+  echo ""
+  echo "Latest config revision (any env): $(cat "$CONFIG_VERSIONS_DIR/LATEST" 2>/dev/null || echo none)"
+}
+
+cmd_show_config() {
+  local cfg="$1"
+  require_config_version_arg "$cfg"
+  local m="$CONFIG_VERSIONS_DIR/$cfg/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no config revision manifest at $m"
+    exit 1
+  fi
+  cat "$m"
+}
+
+verify_config_env() {
+  local cfg="$1" env="$2" m="$3"
+  local actual_env
+  actual_env="$(json_read "$m" env)"
+  if [ "$actual_env" != "$env" ]; then
+    echo "ERROR: config revision #$cfg was applied to '$actual_env', not '$env' — refusing to roll back the wrong environment with it."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# rollback-config — reapply an old config revision's ALLOWLISTED parameter
+# values on top of whatever image build is CURRENTLY live (never rolls the
+# image back — config and code rollback are independent concerns by
+# default, per docs/proposals/config-only-deploy/context.md). Recorded as a
+# new forward config revision.
+# =============================================================================
+cmd_rollback_config() {
+  local env="$1" cfg="$2"
+  require_env_arg "$env"
+  require_config_version_arg "$cfg"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  local m="$cfg_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded config revision #$cfg"
+    exit 1
+  fi
+  verify_config_env "$cfg" "$env" "$m"
+  if [ ! -f "$cfg_dir/params-snapshot.json" ]; then
+    echo "ERROR: config revision #$cfg has no params-snapshot.json — cannot roll back to it."
+    exit 1
+  fi
+
+  local stack_name
+  stack_name="$(stack_name_for_env "$env")"
+
+  echo "Rolling back config to revision #$cfg ($env) — reapplying its allowlisted parameter"
+  echo "values on top of whatever image build is currently live."
+
+  local allowlist_file="$SERVICE_DIR/infra/config-only-allowed-params.json"
+  local live_params_json
+  if ! live_params_json="$("$AWS_BIN" cloudformation describe-stacks \
+        --stack-name "$stack_name" \
+        --region "${AWS_REGION:-ap-south-1}" --no-cli-pager \
+        --query "Stacks[0].Parameters" --output json 2>/dev/null)"; then
+    echo "ERROR: stack $stack_name does not exist (or isn't reachable)."
+    exit 1
+  fi
+
+  local overrides_file="$cfg_dir/.rollback-overrides.json"
+  node -e "
+    const fs = require('fs');
+    const live = JSON.parse(process.argv[1]);
+    const liveMap = {};
+    for (const p of live) liveMap[p.ParameterKey] = p.ParameterValue;
+    const snapshot = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+    const snapshotMap = {};
+    for (const p of snapshot) snapshotMap[p.ParameterKey] = p.ParameterValue;
+    const allowed = new Set(JSON.parse(fs.readFileSync(process.argv[3], 'utf8')).allowedParams);
+    const out = [];
+    for (const key of Object.keys(liveMap)) {
+      if (allowed.has(key) && key in snapshotMap) { out.push(key + '=' + snapshotMap[key]); continue; }
+      if (liveMap[key] === '****') continue;
+      out.push(key + '=' + liveMap[key]);
+    }
+    fs.writeFileSync(process.argv[4], JSON.stringify(out));
+  " "$live_params_json" "$cfg_dir/params-snapshot.json" "$allowlist_file" "$overrides_file"
+
+  mapfile -t PARAM_OVERRIDES < <(node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).forEach(x=>console.log(x))" "$overrides_file")
+  rm -f "$overrides_file"
+
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$(winpath "$SERVICE_DIR/infra/cfn-platform.yaml")" \
+    --stack-name "$stack_name" \
+    --parameter-overrides "${PARAM_OVERRIDES[@]}" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region "${AWS_REGION:-ap-south-1}" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+
+  local build
+  build="$(latest_build_for_env "$env")"
+  local new_cfg
+  new_cfg="$(next_config_version)"
+  local new_dir="$CONFIG_VERSIONS_DIR/$new_cfg"
+  mkdir -p "$new_dir"
+  cp "$cfg_dir/params-snapshot.json" "$new_dir/params-snapshot.json"
+  chmod 600 "$new_dir/params-snapshot.json" 2>/dev/null || true
+
+  node -e "
+    const fs = require('fs');
+    const snapshot = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+    const allowed = new Set(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).allowedParams);
+    const changed = {};
+    for (const p of snapshot) if (allowed.has(p.ParameterKey)) changed[p.ParameterKey] = { from: null, to: p.ParameterValue, note: 'restored via rollback-config from #${cfg}' };
+    fs.writeFileSync(process.argv[3], JSON.stringify(changed, null, 2) + '\n');
+  " "$cfg_dir/params-snapshot.json" "$allowlist_file" "$new_dir/changed-params.json"
+
+  write_config_manifest "$new_dir/manifest.json" \
+    "$new_cfg" "$build" "$env" "applied" "$cfg" "$new_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$new_cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+  echo ""
+  echo "Rolled back to config revision #$cfg's parameter values. Recorded as new config revision #$new_cfg (rollbackOf: #$cfg)."
 }
 
 # =============================================================================
@@ -460,7 +745,7 @@ cmd_passthrough() {
 # =============================================================================
 # dispatch
 # =============================================================================
-mkdir -p "$VERSIONS_DIR"
+mkdir -p "$VERSIONS_DIR" "$CONFIG_VERSIONS_DIR"
 
 case "${1:-}" in
   list)
@@ -474,6 +759,18 @@ case "${1:-}" in
     ;;
   rollback-full)
     cmd_rollback_full "${2:-}" "${3:-}"
+    ;;
+  config-deploy)
+    cmd_config_deploy "${2:-}"
+    ;;
+  list-config)
+    cmd_list_config "${2:-}"
+    ;;
+  show-config)
+    cmd_show_config "${2:-}"
+    ;;
+  rollback-config)
+    cmd_rollback_config "${2:-}" "${3:-}"
     ;;
   start|stop|status|endpoint)
     cmd_passthrough "$1" "${2:-}"

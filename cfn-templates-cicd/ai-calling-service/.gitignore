@@ -5,3 +5,4 @@
 # It also holds cfn-params.json snapshots, which carry real Exotel/ElevenLabs/CRM
 # secret values -- another reason this never gets committed.
 deploy-versions/
+config-versions/

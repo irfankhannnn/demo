@@ -29,7 +29,7 @@ import { createInsightsRouter } from './routes/insights.js';
 
 const BASE = '/api/insta';
 
-export function createApp({ db = defaultDb, authMiddleware, deviceAuthMiddleware } = {}) {
+export function createApp({ db = defaultDb, crm, authMiddleware, deviceAuthMiddleware } = {}) {
   const cfg = getConfig();
   const app = express();
 
@@ -62,6 +62,20 @@ export function createApp({ db = defaultDb, authMiddleware, deviceAuthMiddleware
     })
   );
 
+  // Terminate every preflight here, before any auth middleware. cors answers an
+  // allowed-origin preflight itself (204 + Access-Control-Allow-* headers), but
+  // for a disallowed origin its callback(null, false) path just calls next()
+  // without responding — the OPTIONS then fell through to the JWT middleware
+  // and came back as a 401 with no CORS headers, which the browser reports as a
+  // CORS failure and hides the real cause. A disallowed origin now gets a bare
+  // 204 with no Access-Control-Allow-Origin, so the browser still blocks the
+  // real request, and no preflight ever reaches auth.
+  app.use((req, res, next) => {
+    if (req.method !== 'OPTIONS') return next();
+    res.vary('Origin');
+    res.status(204).end();
+  });
+
   // The raw body is captured here, not re-derived later: the agent's HMAC
   // covers sha256(rawBody), and re-serialising req.body would change key order
   // and unicode escaping, breaking every signature.
@@ -91,7 +105,7 @@ export function createApp({ db = defaultDb, authMiddleware, deviceAuthMiddleware
   // 2. HMAC device auth. Applied inside the router rather than at the mount
   // point because /agent/register is authenticated by the pairing code instead
   // — contract section 2b.
-  app.use(`${BASE}/agent`, createAgentRouter({ db, deviceAuth }));
+  app.use(`${BASE}/agent`, createAgentRouter({ db, crm, deviceAuth }));
 
   // 3. Everything else: browser JWT. Grouped under one sub-router so the token
   // is validated exactly once per request rather than once per mount point.

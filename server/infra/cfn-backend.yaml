@@ -342,9 +342,11 @@ Parameters:
       AWS::ApiGateway::DomainName for PublicApiDomainName/CrmApiDomainName
       has been created (this template doesn't manage that resource - it's
       set up once, separately, e.g. via ACM cert + Route53). With it false,
-      BasePathMapping is skipped and the API is still reachable via its
-      default execute-api invoke URL (see the *ExecuteApiUrl outputs).
-      Flip to 'true' and redeploy once the custom domain exists.
+      BasePathMapping is skipped and the API has no supported public URL
+      (clients must only ever use https://<domain>/<base path>, never the
+      execute-api invoke URL). Flip to 'true' and redeploy once the custom
+      domain exists. Keep it 'true' on any stack whose mappings already
+      exist - flipping it to 'false' makes CloudFormation DELETE them.
 
   EnableBasePathStrip:
     Type: String
@@ -355,9 +357,18 @@ Parameters:
       (e.g., /devrealestatecrm/api/...). The Lambda handler will strip that
       base path so Express routes (mounted at /api/...) match correctly.
 
-  AuthServiceUrl:
+  AuthServiceDomainName:
     Type: String
-    Description: URL of the authentication microservice for token validation (e.g., https://auth-api.example.com)
+    Description: >-
+      API Gateway custom domain of reality-flow-authentication (bare host, no
+      scheme), e.g. services-api.cloudberrysolutions.in. Never an execute-api
+      host. Composed with AuthServiceBasePath by server/config/serviceUrls.js.
+
+  AuthServiceBasePath:
+    Type: String
+    Description: >-
+      Base path mapping of reality-flow-authentication on AuthServiceDomainName
+      (single segment), e.g. devrealestateauth / prodrealestateauth.
 
   AllowedOrigins:
     Type: String
@@ -460,10 +471,20 @@ Parameters:
     Description: Shared secret the public property-pages microservice must present (x-api-key) to call /api/internal/public-pages/*. Its own key, separate from AdapterInternalApiKey, so compromising the internet-facing pages service does not also grant lead-ingestion access.
     NoEcho: true
 
-  AiCallingServiceUrl:
+  AiCallingServiceDomainName:
     Type: String
     Default: ''
-    Description: Base URL of the ai-calling-service stack, used by POST /leads/:id/qualify-call to trigger on-demand qualification calls
+    Description: >-
+      API Gateway custom domain of the ai-calling-service stack (bare host, no
+      scheme), used by POST /leads/:id/qualify-call and /api/crm/ai-calling/*.
+      Leave empty until that stack is deployed (feature returns 503).
+
+  AiCallingServiceBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of ai-calling-service on AiCallingServiceDomainName
+      (single segment). The /api/ai-calling route prefix is appended in code.
 
   CrmCallerApiKey:
     Type: String
@@ -529,12 +550,12 @@ Parameters:
 
   GeminiModel:
     Type: String
-    Default: gemini-2.5-flash
+    Default: gemini-3.8-flash
     Description: Gemini model name (used only if LlmProvider=gemini)
 
   GeminiClassifierModel:
     Type: String
-    Default: gemini-2.5-flash
+    Default: gemini-3.1-flash-lite
     Description: Gemini classifier model name (used for lead classification)
 
   CloudwatchMetricsEnabled:
@@ -577,10 +598,20 @@ Parameters:
     Default: 'info'
     Description: Application log level
 
-  McpBaseUrl:
+  McpApiDomainName:
     Type: String
-    Default: 'https://mcp.realtyflow.com'
-    Description: MCP service base URL for OAuth redirects
+    Default: ''
+    Description: >-
+      API Gateway custom domain of reality-flow-mcp (bare host, no scheme),
+      used for OAuth client registration/authorize/token. Empty means MCP is
+      not configured in this environment (AI integrations return 500).
+
+  McpApiBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of reality-flow-mcp on McpApiDomainName (single
+      segment), e.g. devrealestatemcp. /oauth/* suffixes are appended in code.
 
   OAuthCodesTableName:
     Type: String
@@ -1015,6 +1046,10 @@ Resources:
           AttributeType: S
         - AttributeName: agencySlug
           AttributeType: S
+        - AttributeName: adminEmail
+          AttributeType: S
+        - AttributeName: adminPhone
+          AttributeType: S
 
       KeySchema:
         - AttributeName: TenantId
@@ -1060,6 +1095,30 @@ Resources:
             ProjectionType: INCLUDE
             NonKeyAttributes:
               - TenantId
+        # adminEmail-index / adminPhone-index: reality-flow-authentication reads
+        # this same table directly (see AgencyConfigTableArn param on that stack)
+        # to resolve a pre-onboarded admin by email/phone at login time, mirroring
+        # the AdminEmailIndex/AdminPhoneIndex GSIs that service used to keep on
+        # its own separate, now-retired AgencyConfig table. Single source of
+        # truth for agency config lives here — see docs/proposals/
+        # agency-config-single-source/ for why the two tables existed and why
+        # they were consolidated.
+        - IndexName: adminEmail-index
+          KeySchema:
+            - AttributeName: adminEmail
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        # Added in a separate deploy from adminEmail-index above — DynamoDB
+        # rejects a stack update with "Cannot perform more than one GSI
+        # creation or deletion in a single update" (confirmed live 2026-09-12).
+        # This one was deployed once adminEmail-index reported ACTIVE.
+        - IndexName: adminPhone-index
+          KeySchema:
+            - AttributeName: adminPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   CreditsTable:
     Type: AWS::DynamoDB::Table
@@ -2438,7 +2497,8 @@ Resources:
         Variables:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2515,7 +2575,8 @@ Resources:
         Variables:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2596,7 +2657,8 @@ Resources:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           INTERNAL_API_KEY: !Ref InternalApiKey
           ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
           BAILEY_ENABLED: !Ref BaileyEnabled
@@ -3709,16 +3771,6 @@ Outputs:
     Value: !Sub "https://${CrmApiDomainName}/${CrmApiBasePath}"
     Export:
       Name: !Sub "${AWS::StackName}-CrmApiBaseUrl"
-
-  # Always work, regardless of EnableCustomDomainMapping - the *BaseUrlOutput
-  # values above route nowhere until the custom domain is actually set up.
-  PublicApiExecuteApiUrlOutput:
-    Description: Public API's default invoke URL - works immediately, no custom domain required
-    Value: !Sub "https://${RealEstatePublicRestApi}.execute-api.${AWS::Region}.amazonaws.com/${PublicApiStageName}"
-
-  CrmApiExecuteApiUrlOutput:
-    Description: CRM API's default invoke URL - works immediately, no custom domain required
-    Value: !Sub "https://${RealEstateCrmRestApi}.execute-api.${AWS::Region}.amazonaws.com/${CrmApiStageName}"
 
   # Real Estate Management Tables Outputs
   DevelopersTableNameOutput:

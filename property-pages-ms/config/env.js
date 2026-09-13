@@ -25,13 +25,59 @@ function num(raw, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/**
+ * Compose a service base URL from an API Gateway custom domain + base path.
+ *
+ * Every API in this repo is reached through a custom domain
+ * (services-api.cloudberrysolutions.in / services-api.realestateflow.in) plus a
+ * single-segment base path mapping. Raw execute-api invoke URLs are refused
+ * outright: they bypass the mapping, differ per stack rebuild, and are what
+ * leaked into env files before.
+ *
+ * `domainName` may carry a scheme only for local development
+ * (e.g. http://localhost:4000); otherwise https:// is assumed.
+ */
+export function buildServiceBaseUrl(domainName, basePath, domainVar = 'domainName') {
+  const domain = String(domainName ?? '').trim();
+  if (!domain) {
+    throw new Error(`${domainVar} is required`);
+  }
+  const origin = (domain.includes('://') ? domain : `https://${domain}`).replace(/\/+$/, '');
+  if (/execute-api\.|\.amazonaws\.com/i.test(origin)) {
+    throw new Error(`${domainVar}: raw API Gateway URLs are not allowed; use the custom domain`);
+  }
+  const bp = String(basePath ?? '').trim().replace(/^\/+|\/+$/g, '');
+  return bp ? `${origin}/${bp}` : origin;
+}
+
+/** Route prefix of the CRM's internal public-pages API. Lives in code, never in env. */
+export const CRM_PUBLIC_PAGES_PATH = '/api/internal/public-pages';
+
+/**
+ * Resolved once at load. A bad value is recorded rather than thrown here so
+ * that assertEnv() reports it alongside every other missing setting, with the
+ * env var named.
+ */
+let crmInternalApiUrl = '';
+let crmInternalApiUrlError = null;
+try {
+  crmInternalApiUrl = `${buildServiceBaseUrl(
+    process.env.CRM_INTERNAL_API_DOMAIN_NAME,
+    process.env.CRM_INTERNAL_API_BASE_PATH,
+    'CRM_INTERNAL_API_DOMAIN_NAME',
+  )}${CRM_PUBLIC_PAGES_PATH}`;
+} catch (err) {
+  crmInternalApiUrlError = err.message;
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: num(process.env.PORT, 3005),
   region: process.env.AWS_REGION || 'ap-south-1',
 
   // ── CRM internal API ──────────────────────────────────────────────────
-  crmInternalApiUrl: process.env.CRM_INTERNAL_API_URL || '',
+  // https://<CRM_INTERNAL_API_DOMAIN_NAME>/<CRM_INTERNAL_API_BASE_PATH>/api/internal/public-pages
+  crmInternalApiUrl,
   crmInternalApiKey: process.env.PUBLIC_PAGES_INTERNAL_API_KEY || '',
   crmTimeoutMs: num(process.env.CRM_TIMEOUT_MS, 6000),
 
@@ -82,13 +128,22 @@ export const config = {
  * the health check rather than blocking a deploy.
  */
 const REQUIRED = [
-  ['CRM_INTERNAL_API_URL', config.crmInternalApiUrl],
   ['PUBLIC_PAGES_INTERNAL_API_KEY', config.crmInternalApiKey],
   ['GUARD_TABLE_NAME', config.guardTableName],
   ['VISIT_SESSION_SECRET', config.sessionSecret],
 ];
 
 export function assertEnv() {
+  if (crmInternalApiUrlError) {
+    throw new Error(`property-pages-ms is misconfigured. ${crmInternalApiUrlError}`);
+  }
+  // Only meaningful with the stage mapped to a base path; without one the CRM
+  // route would be requested at the domain root and 403 at API Gateway.
+  if (!String(process.env.CRM_INTERNAL_API_BASE_PATH || '').trim()
+      && !String(process.env.CRM_INTERNAL_API_DOMAIN_NAME || '').includes('://')) {
+    throw new Error('property-pages-ms is misconfigured. Missing: CRM_INTERNAL_API_BASE_PATH');
+  }
+
   const missing = REQUIRED.filter(([, value]) => !value).map(([name]) => name);
   if (missing.length > 0) {
     throw new Error(`property-pages-ms is misconfigured. Missing: ${missing.join(', ')}`);

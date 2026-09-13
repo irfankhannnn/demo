@@ -56,23 +56,18 @@ deliberately blank -- `infra/deploy.sh` refuses to run and names each missing
 one until they are supplied. See `ai-calling-service/.env.example` for where
 each value comes from.
 
-## First deploy is a two-pass sequence
+## Custom domain only, single-pass deploy
 
-The service's public URL doesn't exist until the stack does, and ElevenLabs
-needs that URL to call back into:
-
-1. Deploy with `WEBHOOK_BASE_URL` blank. The stack comes up; note the
-   `ApiEndpoint` output.
-2. Put that value in `.env.<env>` as `WEBHOOK_BASE_URL`, then deploy again.
-
-`infra/deploy.sh` prints a reminder after any deploy where it is still blank.
-
-Enabling the custom domain (`services-api.realestateflow.in` for prod,
-`services-api.cloudberrysolutions.in` for dev) is a third pass: set
-`ENABLE_CUSTOM_DOMAIN_MAPPING=true` **and** `ENABLE_BASE_PATH_STRIP=true`
-together -- API Gateway does not strip the base path from a Lambda proxy event,
-so the handler does it, and enabling one without the other 404s every request.
-`infra/deploy.sh` rejects that combination rather than letting it deploy.
+The API is reached only via its custom domain (`services-api.realestateflow.in`
+for prod, `services-api.cloudberrysolutions.in` for dev) + base path. The stack
+derives the Lambda's `WEBHOOK_BASE_URL` (and the `AiCallingApiBaseUrl` output)
+as `https://<AI_CALLING_API_DOMAIN_NAME>/<AI_CALLING_API_BASE_PATH>`, so one
+deploy is enough. `ENABLE_CUSTOM_DOMAIN_MAPPING=true` **and**
+`ENABLE_BASE_PATH_STRIP=true` are both required -- API Gateway does not strip
+the base path from a Lambda proxy event, so the handler does it.
+`infra/deploy.sh` (and the template's Rules) refuse anything else, and reject
+empty or raw execute-api values in `CRM_INTERNAL_API_DOMAIN_NAME` /
+`AI_CALLING_API_DOMAIN_NAME`.
 
 ## Secrets
 

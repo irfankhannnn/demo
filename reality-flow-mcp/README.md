@@ -109,7 +109,7 @@ reality-flow-mcp/
 ```bash
 # Copy sample env
 cp sample.env .env
-# Fill in the values (especially CRM_API_URL and JWT_SECRET)
+# Fill in the values (especially the *_DOMAIN_NAME/*_BASE_PATH pairs and JWT_SECRET)
 
 # Install dependencies
 npm install
@@ -135,8 +135,9 @@ See `sample.env` for all required variables. Key ones:
 |----------|-------------|
 | `JWT_SECRET` | Shared with CRM backend for token signing |
 | `JWT_REFRESH_SECRET` | For refresh token signing |
-| `CRM_API_URL` | CRM backend API Gateway URL |
+| `CRM_API_DOMAIN_NAME` / `CRM_API_BASE_PATH` | server's CRM API custom domain + base path (`devrealestatecrm`); code appends `/api/crm/agent/tool` |
 | `OAUTH_CODES_TABLE_NAME` | DynamoDB table for OAuth codes |
 | `OAUTH_CONNECTIONS_TABLE` | DynamoDB table for OAuth connections |
-| `AUTH_SERVICE_URL` | Auth microservice URL (for /oauth/authorize) |
-| `OAUTH_BASE_URL` | OAuth base URL (local dev; auto-computed in CloudFormation) |
+| `AUTH_SERVICE_DOMAIN_NAME` / `AUTH_SERVICE_BASE_PATH` | Auth API custom domain + base path (`devrealestateauth`); code appends `/auth/me` |
+| `MCP_API_DOMAIN_NAME` / `MCP_API_BASE_PATH` | This server's public base URL `https://<domain>/<basePath>` (OAuth issuer, well-known metadata). Local dev: `http://localhost:4001` + empty base path. Raw execute-api hosts are rejected at startup |
+| `ENABLE_CUSTOM_DOMAIN_MAPPING` / `ENABLE_BASE_PATH_STRIP` | Create the BasePathMapping / strip the base path in the Lambda — keep both `true` |

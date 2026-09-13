@@ -183,6 +183,16 @@ node -e "
   console.log('Unchanged, skipped: ' + unchanged);
   console.log('');
 
+  // Key NAMES only, never values — this script deliberately never prints or
+  // writes SSM values anywhere (many are real secrets), and this plan file
+  // (read by infra/config-deploy.sh to know whether anything actually
+  // changed, and by the CI/CD wrapper for its config revision manifest)
+  // keeps that guarantee.
+  fs.writeFileSync(
+    process.argv[6],
+    JSON.stringify({ created: toCreate, updated: toUpdate, deleted: toDelete }, null, 2) + '\n'
+  );
+
   for (const key of [...toCreate, ...toUpdate]) {
     const value = desired.get(key);
     const name = prefix + key;
@@ -209,6 +219,6 @@ node -e "
   }
 
   console.log('SSM sync complete: ' + toCreate.length + ' created, ' + toUpdate.length + ' updated, ' + toDelete.length + ' deleted, ' + unchanged + ' unchanged.');
-" "$(winpath "$DESIRED_FILE")" "$(winpath "$EXISTING_FILE")" "$PREFIX" "$REGION" "$AWS_BIN"
+" "$(winpath "$DESIRED_FILE")" "$(winpath "$EXISTING_FILE")" "$PREFIX" "$REGION" "$AWS_BIN" "$(winpath "$SCRIPT_DIR/.last-ssm-sync-plan.json")"
 
 rm -f "$DESIRED_FILE" "$EXISTING_FILE"

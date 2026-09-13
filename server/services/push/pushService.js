@@ -252,6 +252,24 @@ export async function dispatchPushForNotification(tenantId, notification) {
     },
   };
 
+  // A notification aimed at a specific set of team members (e.g. a meeting
+  // reminder's assignee + agency owner) should reach exactly that set —
+  // never the whole tenant, and never the customer, who has no device
+  // registration in this table to begin with.
+  if (Array.isArray(notification.targetUserIds) && notification.targetUserIds.length > 0) {
+    const results = await Promise.all(
+      notification.targetUserIds.map((userId) => sendPushToUser(tenantId, userId, payload))
+    );
+    return results.reduce(
+      (acc, r) => ({
+        sent: acc.sent + (r.sent || 0),
+        failed: acc.failed + (r.failed || 0),
+        pruned: acc.pruned + (r.pruned || 0),
+      }),
+      { sent: 0, failed: 0, pruned: 0 }
+    );
+  }
+
   // A notification aimed at one team member (a lead assignment) should not
   // buzz the whole agency; everything else is genuinely agency-wide.
   return notification.targetUserId

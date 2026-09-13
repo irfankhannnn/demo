@@ -20,8 +20,8 @@ named `<env>-realestateflow-pages-<resource>` (e.g.
 `dev-realestateflow-pages-lambda`). The artifact bucket is
 `<env>-realestateflow-artifacts`.
 
-Key stack outputs: `PagesRestApiId`, `PagesApiEndpoint` (direct API Gateway
-URL, bypasses CloudFront), `PagesDistributionDomain` / `PagesDistributionId`
+Key stack outputs: `PagesRestApiId`, `PagesApiBaseUrl` (custom domain + base
+path, bypasses CloudFront; present when `EnableCustomDomainMapping=true`), `PagesDistributionDomain` / `PagesDistributionId`
 (only present when `EnableCloudFront=true`), `GuardTableName`,
 `LambdaFunctionName`.
 
@@ -69,7 +69,11 @@ stays auditable rather than vanishing.
 - `property-pages-ms/.env.dev` and/or `.env.prod`, copied from
   `property-pages-ms/.env.sample` and filled in — in particular
   `AWS_REGION`, `AWS_PROFILE`, `STACK_NAME`, `ARTIFACT_BUCKET`,
-  `ARTIFACT_PREFIX`, `CRM_INTERNAL_API_URL`, `PUBLIC_PAGES_INTERNAL_API_KEY`,
+  `ARTIFACT_PREFIX`, `CRM_INTERNAL_API_DOMAIN_NAME` + `CRM_INTERNAL_API_BASE_PATH`,
+  `PAGES_API_DOMAIN_NAME` + `PAGES_API_BASE_PATH` (with
+  `ENABLE_CUSTOM_DOMAIN_MAPPING=true` and `ENABLE_BASE_PATH_STRIP=true`; the
+  delegate script rejects empty values and raw execute-api hosts),
+  `PUBLIC_PAGES_INTERNAL_API_KEY`,
   and a 32+ character `VISIT_SESSION_SECRET` (the delegate script refuses to
   run without these; see `.env.sample` for the full annotated list)
 - An AWS profile with permission to deploy the stack's Lambda, API Gateway,

@@ -28,7 +28,8 @@ good reason and a matching change to the docs.
 
 ```bash
 npm install
-cp .env.sample .env          # fill in CRM_INTERNAL_API_URL + the two secrets
+cp .env.sample .env          # fill in CRM_INTERNAL_API_DOMAIN_NAME/_BASE_PATH + the two secrets
+                             # (locally the domain may be http://localhost:4000 with an empty base path)
 npm run dev                  # http://localhost:3005
 ```
 

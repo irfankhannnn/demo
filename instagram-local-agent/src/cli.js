@@ -22,6 +22,7 @@ import { driverName } from './store/db.js';
 import { connectAccount } from './auth/oauth.js';
 import { tokenHealth } from './auth/vault.js';
 import { UplinkClient, loadDevice, isPaired } from './uplink/client.js';
+import { cloudConfigured, resolveCloudBaseUrl } from './util/serviceUrl.js';
 import * as killSwitch from './runtime/killSwitch.js';
 import { syncProfile } from './collectors/profile.js';
 import { syncMedia } from './collectors/media.js';
@@ -74,8 +75,10 @@ async function cmdPair(code) {
     return;
   }
   const config = loadConfig();
-  if (!config.cloud?.baseUrl || String(config.cloud.baseUrl).startsWith('REPLACE')) {
-    out('ERROR: cloud.baseUrl is not configured. Set it in ' + configPath());
+  try {
+    resolveCloudBaseUrl(config.cloud);
+  } catch (err) {
+    out(`ERROR: ${err.message}. Set cloud.domainName + cloud.basePath in ${configPath()}`);
     process.exitCode = 1;
     return;
   }
@@ -192,8 +195,8 @@ async function cmdDoctor() {
     'Meta app id configured', `Meta app id missing - edit ${configPath()}`);
   check(cfg.meta?.appSecret && !String(cfg.meta.appSecret).startsWith('REPLACE'),
     'Meta app secret configured', `Meta app secret missing - edit ${configPath()}`);
-  check(cfg.cloud?.baseUrl && !String(cfg.cloud.baseUrl).startsWith('REPLACE'),
-    'Cloud base URL configured', `cloud.baseUrl missing - edit ${configPath()}`);
+  check(cloudConfigured(cfg.cloud) && Boolean(String(cfg.cloud.basePath ?? '').trim()),
+    'Cloud API domain + base path configured', `cloud.domainName / cloud.basePath missing - edit ${configPath()}`);
 
   const accounts = listAccounts(ctx.db);
   check(accounts.length > 0, `${accounts.length} account(s) connected`,

@@ -15,7 +15,8 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.VISIT_SESSION_SECRET = 'test-secret-that-is-long-enough-to-pass-validation';
-process.env.CRM_INTERNAL_API_URL = 'https://crm.test/api/internal/public-pages';
+process.env.CRM_INTERNAL_API_DOMAIN_NAME = 'crm.test';
+process.env.CRM_INTERNAL_API_BASE_PATH = 'devrealestatecrm';
 process.env.PUBLIC_PAGES_INTERNAL_API_KEY = 'test-key';
 process.env.GUARD_TABLE_NAME = 'test-guard';
 process.env.PUBLIC_PAGES_BASE_DOMAIN = 'pages.realestateflow.in';
@@ -84,7 +85,13 @@ function stubCrm() {
     const parsed = new URL(String(url));
     if (parsed.hostname !== 'crm.test') return realFetch(url, opts);
 
-    const path = parsed.pathname.replace('/api/internal/public-pages', '');
+    // The client must compose https://<domain>/<basePath>/api/internal/public-pages;
+    // anything else is a 404 so a broken composition fails every test.
+    const prefix = '/devrealestatecrm/api/internal/public-pages';
+    if (parsed.protocol !== 'https:' || !parsed.pathname.startsWith(prefix)) {
+      return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 });
+    }
+    const path = parsed.pathname.slice(prefix.length);
     const json = (body, status = 200) =>
       new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 

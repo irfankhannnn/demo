@@ -21,16 +21,18 @@ import {
   updateScheduledNotification,
 } from './notificationDynamodbService.js';
 import { logger } from './logger.js';
+import { getAuthServiceBaseUrl } from './config/serviceUrls.js';
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 /** Same internal (non-JWT) route leadNotifications.js uses for team lookups. */
 async function listTenantUsers(tenantId) {
+  let authServiceUrl = null;
   try {
+    authServiceUrl = getAuthServiceBaseUrl();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
+    const response = await fetch(`${authServiceUrl}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
       headers: { 'x-internal-api-key': INTERNAL_API_KEY },
       signal: controller.signal,
     });
@@ -39,7 +41,7 @@ async function listTenantUsers(tenantId) {
       logger.warn('meetingReminderRecipients.listTenantUsers.non_ok', {
         tenantId,
         status: response.status,
-        authServiceUrl: AUTH_SERVICE_URL,
+        authServiceUrl,
       });
       return [];
     }
@@ -51,7 +53,7 @@ async function listTenantUsers(tenantId) {
     logger.warn('meetingReminderRecipients.listTenantUsers.failed', {
       tenantId,
       error: err.message,
-      authServiceUrl: AUTH_SERVICE_URL,
+      authServiceUrl,
     });
     return [];
   }

@@ -16,8 +16,9 @@ import {
   WHATSAPP_QR_POLL_TIMEOUT_MS,
   type WhatsappStatusResult,
 } from '../../utils/whatsappConnection';
+import { CRM_API_URL } from '../../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 const BAILEY_ENABLED = import.meta.env.VITE_BAILEY_ENABLED === 'true';
 
 type Provider = 'bailey' | 'meta';

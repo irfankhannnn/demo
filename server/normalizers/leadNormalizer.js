@@ -68,7 +68,7 @@ function normalizePhone(phone) {
 function normalizeStatus(status) {
   if (!status) return null;
   const normalized = String(status).toLowerCase();
-  const valid = ['new', 'contacted', 'qualified', 'negotiating', 'converted', 'lost', 'inactive'];
+  const valid = ['new', 'contacted', 'qualified', 'site_visit', 'negotiating', 'converted', 'lost', 'spam', 'inactive'];
   return valid.includes(normalized) ? normalized : status;
 }
 

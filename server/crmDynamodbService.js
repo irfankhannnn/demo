@@ -1260,6 +1260,14 @@ export async function createProperty(tenantId, data) {
     GSI3SK: `PROPERTY#${(data.title || '').toLowerCase()}#${(data.area || '').toLowerCase()}#${(data.buildingName || '').toLowerCase()}`,
   };
 
+  // Flat mirrors of rentalInfo.expectedRent / saleInfo.listedPrice. The
+  // property-vector-index projects these two flat attribute names (see
+  // infra/create-vector-index.mjs) and that Projection is immutable once
+  // created — without these, semantic search returns every match with no
+  // price at all and price range filters reject every row.
+  property.rentAmount = property.rentalInfo?.expectedRent ?? null;
+  property.price = property.saleInfo?.listedPrice ?? null;
+
   // Semantic search vector, generated in the same write so the item is
   // searchable-by-meaning the moment it exists. Returns null (and logs) if
   // Bedrock is unavailable — a property must never fail to save because its
@@ -1656,6 +1664,11 @@ export async function updateProperty(tenantId, propertyId, data) {
     const merged = { ...currentProperty, ...data };
     const propertyEmbedding = await buildPropertyEmbedding(merged, currentProperty.embeddingSourceHash);
     if (propertyEmbedding) Object.assign(data, propertyEmbedding);
+
+    // Keep the vector index's flat rentAmount/price mirrors in sync with
+    // rentalInfo/saleInfo — see the matching comment in createProperty.
+    data.rentAmount = merged.rentalInfo?.expectedRent ?? null;
+    data.price = merged.saleInfo?.listedPrice ?? null;
   }
 
   Object.keys(data).forEach((key, index) => {

@@ -61,7 +61,8 @@ function send({ method = 'GET', url, body = {}, query = {} }) {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  process.env.AI_CALLING_SERVICE_URL = 'https://ai-calling.example.com';
+  process.env.AI_CALLING_SERVICE_DOMAIN_NAME = 'ai-calling.example.com';
+  process.env.AI_CALLING_SERVICE_BASE_PATH = 'devrealestatecalling';
   process.env.CRM_CALLER_API_KEY = 'test-shared-secret';
   getLead.mockResolvedValue({ leadId: 'lead-1', name: 'Asha', phone: '+919876543210' });
   getAgencyConfig.mockResolvedValue({ aiEmployeeEnabled: true });
@@ -70,7 +71,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  delete process.env.AI_CALLING_SERVICE_URL;
+  delete process.env.AI_CALLING_SERVICE_DOMAIN_NAME;
+  delete process.env.AI_CALLING_SERVICE_BASE_PATH;
   delete process.env.CRM_CALLER_API_KEY;
 });
 
@@ -82,8 +84,15 @@ describe('service configuration', () => {
     expect(axiosFn).not.toHaveBeenCalled();
   });
 
-  test('returns 503 when the service base URL is unset', async () => {
-    delete process.env.AI_CALLING_SERVICE_URL;
+  test('returns 503 when the service domain is unset', async () => {
+    delete process.env.AI_CALLING_SERVICE_DOMAIN_NAME;
+    const res = await send({ method: 'GET', url: '/calls' });
+    expect(res.status).toBe(503);
+    expect(axiosFn).not.toHaveBeenCalled();
+  });
+
+  test('refuses a raw API Gateway invoke host instead of calling it', async () => {
+    process.env.AI_CALLING_SERVICE_DOMAIN_NAME = 'abc123.execute-api.ap-south-1.amazonaws.com';
     const res = await send({ method: 'GET', url: '/calls' });
     expect(res.status).toBe(503);
     expect(axiosFn).not.toHaveBeenCalled();
@@ -167,19 +176,19 @@ describe('routing', () => {
   test('metrics/summary is not swallowed by the :callSessionId param route', async () => {
     axiosFn.mockResolvedValue({ data: { totalCalls: 3 } });
     await send({ method: 'GET', url: '/calls/metrics/summary' });
-    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/calls/metrics/summary');
+    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/devrealestatecalling/api/ai-calling/calls/metrics/summary');
   });
 
   test('transcript path is forwarded with the session id encoded', async () => {
     axiosFn.mockResolvedValue({ data: [] });
     await send({ method: 'GET', url: '/calls/cs%201/transcript' });
-    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/calls/cs%201/transcript');
+    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/devrealestatecalling/api/ai-calling/calls/cs%201/transcript');
   });
 
-  test('a trailing slash on the base URL does not produce a double slash', async () => {
-    process.env.AI_CALLING_SERVICE_URL = 'https://ai-calling.example.com/';
+  test('slashes around the base path do not produce a double slash', async () => {
+    process.env.AI_CALLING_SERVICE_BASE_PATH = '/devrealestatecalling/';
     await send({ method: 'GET', url: '/calls' });
-    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/calls');
+    expect(axiosFn.mock.calls[0][0].url).toBe('https://ai-calling.example.com/devrealestatecalling/api/ai-calling/calls');
   });
 });
 

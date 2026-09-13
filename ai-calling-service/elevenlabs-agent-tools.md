@@ -14,9 +14,10 @@ Implementations live in `src/handlers/serverTools.js`, routed in
 {WEBHOOK_BASE_URL}/api/ai-calling/tools
 ```
 
-`WEBHOOK_BASE_URL` is the deployed API Gateway invoke URL. It does not exist
-until the stack is deployed, so these tools can only be configured after a
-first deploy.
+`WEBHOOK_BASE_URL` is `https://<AI_CALLING_API_DOMAIN_NAME>/<AI_CALLING_API_BASE_PATH>`
+(stack output `AiCallingApiBaseUrl`) — the API Gateway custom domain + base
+path, never an execute-api invoke URL. The tools only respond once the stack is
+deployed.
 
 ## Headers — required on all six tools
 

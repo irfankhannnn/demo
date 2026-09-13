@@ -20,6 +20,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/params.sh"
+
 # Windows Git Bash compatibility (same approach as server/infra/deploy.sh)
 OS_UNAME="$(uname -s || echo '')"
 NPM_BIN="npm"
@@ -80,7 +83,8 @@ REQUIRED_VARS=(
   STACK_NAME
   ARTIFACT_BUCKET
   ARTIFACT_PREFIX
-  CRM_INTERNAL_API_URL
+  CRM_INTERNAL_API_DOMAIN_NAME
+  CRM_INTERNAL_API_BASE_PATH
   PUBLIC_PAGES_INTERNAL_API_KEY
   VISIT_SESSION_SECRET
 )
@@ -93,6 +97,12 @@ done
 
 # Naming convention guard — catches a copy-pasted env file before it creates a
 # stack that matches nothing else in the account.
+# Custom domain + base path only; raw execute-api hosts are refused.
+if ! validate_custom_domain_vars; then
+  echo "Fix the custom-domain settings in $ENV_FILE."
+  exit 1
+fi
+
 if [[ "$STACK_NAME" != "${ENVIRONMENT_NAME}-realestateflow-"* ]]; then
   echo "ERROR: STACK_NAME ('$STACK_NAME') must start with '${ENVIRONMENT_NAME}-realestateflow-'"
   exit 1
@@ -121,7 +131,8 @@ echo "Deploy target:  $DEPLOY_ENV (env file: $(basename "$ENV_FILE"))"
 echo "Region:         $AWS_REGION"
 echo "Profile:        $AWS_PROFILE"
 echo "Stack:          $STACK_NAME"
-echo "CRM API:        $CRM_INTERNAL_API_URL"
+echo "CRM API:        https://${CRM_INTERNAL_API_DOMAIN_NAME}/${CRM_INTERNAL_API_BASE_PATH}/api/internal/public-pages"
+echo "Pages API:      https://${PAGES_API_DOMAIN_NAME}/${PAGES_API_BASE_PATH}"
 echo "Base domain:    ${PUBLIC_PAGES_BASE_DOMAIN:-<none, path fallback only>}"
 echo "CloudFront:     ${ENABLE_CLOUDFRONT:-true}"
 echo ""
@@ -194,43 +205,8 @@ EOF
 # 5. Generate cfn-params.json (build artifact - regenerated every run)
 # -----------------------------------------------------------------------------
 echo "[5/7] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENVIRONMENT_NAME}" },
-  { "ParameterKey": "LambdaRuntime", "ParameterValue": "${LAMBDA_RUNTIME:-nodejs20.x}" },
-  { "ParameterKey": "LambdaMemorySize", "ParameterValue": "${LAMBDA_MEMORY_SIZE:-512}" },
-  { "ParameterKey": "LambdaTimeout", "ParameterValue": "${LAMBDA_TIMEOUT:-15}" },
-  { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "${ARTIFACT_BUCKET}" },
-  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "${S3_KEY}" },
-  { "ParameterKey": "CrmInternalApiUrl", "ParameterValue": "${CRM_INTERNAL_API_URL}" },
-  { "ParameterKey": "PublicPagesInternalApiKey", "ParameterValue": "${PUBLIC_PAGES_INTERNAL_API_KEY}" },
-  { "ParameterKey": "VisitSessionSecret", "ParameterValue": "${VISIT_SESSION_SECRET}" },
-  { "ParameterKey": "PublicPagesBaseDomain", "ParameterValue": "${PUBLIC_PAGES_BASE_DOMAIN:-}" },
-  { "ParameterKey": "PathTenantFallback", "ParameterValue": "${PATH_TENANT_FALLBACK:-true}" },
-  { "ParameterKey": "HcaptchaSiteKey", "ParameterValue": "${HCAPTCHA_SITE_KEY:-}" },
-  { "ParameterKey": "HcaptchaSecretKey", "ParameterValue": "${HCAPTCHA_SECRET_KEY:-}" },
-  { "ParameterKey": "GoogleMapsEmbedApiKey", "ParameterValue": "${GOOGLE_MAPS_EMBED_API_KEY:-}" },
-  { "ParameterKey": "LimitTenantBookingsDaily", "ParameterValue": "${LIMIT_TENANT_BOOKINGS_DAILY:-200}" },
-  { "ParameterKey": "CrmTimeoutMs", "ParameterValue": "${CRM_TIMEOUT_MS:-12000}" },
-  { "ParameterKey": "VisitSessionTtlSeconds", "ParameterValue": "${VISIT_SESSION_TTL_SECONDS:-1800}" },
-  { "ParameterKey": "VisitMinFillSeconds", "ParameterValue": "${VISIT_MIN_FILL_SECONDS:-3}" },
-  { "ParameterKey": "LimitIpBurst", "ParameterValue": "${LIMIT_IP_BURST:-5}" },
-  { "ParameterKey": "LimitIpBurstWindowSeconds", "ParameterValue": "${LIMIT_IP_BURST_WINDOW_SECONDS:-10}" },
-  { "ParameterKey": "LimitIpHourly", "ParameterValue": "${LIMIT_IP_HOURLY:-40}" },
-  { "ParameterKey": "LimitIpBookingsDaily", "ParameterValue": "${LIMIT_IP_BOOKINGS_DAILY:-6}" },
-  { "ParameterKey": "LimitPhoneBookingsDaily", "ParameterValue": "${LIMIT_PHONE_BOOKINGS_DAILY:-3}" },
-  { "ParameterKey": "LimitCaptchaTrigger", "ParameterValue": "${LIMIT_CAPTCHA_TRIGGER:-3}" },
-  { "ParameterKey": "HcaptchaVerifyTimeoutMs", "ParameterValue": "${HCAPTCHA_VERIFY_TIMEOUT_MS:-5000}" },
-  { "ParameterKey": "AssetCacheSeconds", "ParameterValue": "${ASSET_CACHE_SECONDS:-300}" },
-  { "ParameterKey": "PageCacheSeconds", "ParameterValue": "${PAGE_CACHE_SECONDS:-60}" },
-  { "ParameterKey": "ApiStageName", "ParameterValue": "${API_STAGE_NAME:-v1}" },
-  { "ParameterKey": "EnableCloudFront", "ParameterValue": "${ENABLE_CLOUDFRONT:-true}" },
-  { "ParameterKey": "PagesApiBasePath", "ParameterValue": "${PAGES_API_BASE_PATH:-}" },
-  { "ParameterKey": "EnableBasePathStrip", "ParameterValue": "${ENABLE_BASE_PATH_STRIP:-false}" },
-  { "ParameterKey": "LogLevel", "ParameterValue": "${LOG_LEVEL:-info}" },
-  { "ParameterKey": "LogRetentionDays", "ParameterValue": "${LOG_RETENTION_DAYS:-30}" }
-]
-EOF
+compute_param_values "$S3_KEY"
+write_cfn_params_json "$SCRIPT_DIR/cfn-params.json"
 
 # Every template Parameter must appear above, or it silently falls back to its
 # Default and the env file cannot override it. Check rather than trust.
@@ -239,8 +215,8 @@ node -e '
   const fs = require("fs");
   const tpl = fs.readFileSync(process.argv[1], "utf8");
   const params = JSON.parse(fs.readFileSync(process.argv[2], "utf8")).map(p => p.ParameterKey);
-  const section = tpl.split(/^Resources:/m)[0].split(/^Parameters:/m)[1] || "";
-  const declared = [...section.matchAll(/^  ([A-Za-z0-9]+):$/gm)].map(m => m[1]);
+  const section = tpl.split(/^(?:Rules|Conditions|Resources):/m)[0].split(/^Parameters:/m)[1] || "";
+  const declared = [...section.matchAll(/^  ([A-Za-z0-9]+):\r?$/gm)].map(m => m[1]);
   const missing = declared.filter(d => !params.includes(d));
   const extra = params.filter(p => !declared.includes(p));
   if (extra.length) {

@@ -15,12 +15,10 @@ import type { ConversationSummary, WhatsAppConversation } from '../types/whatsap
 import type { UploadUrlResponse } from '../types/callIntelligence';
 import { setTokens, type AuthTokens } from '../utils/authStorage';
 import { refreshTokens } from '../utils/cognitoAuth';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
-
-if (!API_BASE_URL) {
-  throw new Error('VITE_API_URL (or VITE_API_BASE_URL) is not defined. Set it in your frontend .env file.');
-}
+// Validated (and the raw execute-api form rejected) in config/apiConfig.
+const API_BASE_URL = CRM_API_URL;
 
 class ApiService {
   private isRefreshing = false;

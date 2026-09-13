@@ -1,3 +1,6 @@
+# Personal terminal/session launcher (local machine only, not shared)
+kalim-sessions/
+
 # Playwright artifacts (when run from root before config was moved)
 test-results/
 
@@ -73,14 +76,19 @@ instagram-local-agent/.env.*
 # Build artifacts, regenerated on every deploy - never hand-edited, never committed
 backend_insta_sol_ms/infra/cfn-params.json
 backend_insta_sol_ms/infra/.last-deploy-artifacts.json
+backend_insta_sol_ms/infra/.last-config-diff.json
+backend_insta_sol_ms/infra/.last-config-params.json
 backend_insta_sol_ms/function.zip
 frontend_insta_sol_ms/infra/cfn-params.json
 frontend_insta_sol_ms/infra/.last-deploy-artifacts.json
+frontend_insta_sol_ms/infra/.last-config-diff.json
 frontend_insta_sol_ms/dist/
 
 # Local build/release index - S3 is the durable source of truth
 cfn-templates-cicd/backend_insta_sol_ms/deploy-versions/
+cfn-templates-cicd/backend_insta_sol_ms/config-versions/
 cfn-templates-cicd/frontend_insta_sol_ms/deploy-versions/
+cfn-templates-cicd/frontend_insta_sol_ms/config-versions/
 
 # Laptop agent local state - SQLite DB, tokens, machine key. Never commit.
 instagram-local-agent/.ig-agent/

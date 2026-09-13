@@ -4,6 +4,7 @@ import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge
 import { verifyBaileySignature, isBaileyEnabled } from '../bailey.js';
 import { logEventIfNotProcessed } from '../webhookLogService.js';
 import { logger } from '../logger.js';
+import { getAuthServiceBaseUrl } from '../config/serviceUrls.js';
 import { webhookRateLimit } from '../middleware/rateLimiter.js';
 import { normalizeWhatsAppPhone } from '../utils/whatsapp.js';
 import { getTenantIdByInstagramWebhookToken } from '../agencyConfigService.js';
@@ -87,9 +88,11 @@ async function resolveTenantByWhatsAppNumber(toNumber) {
   }
 
   // 3. Auth service lookup
-  const authServiceUrl = process.env.AUTH_SERVICE_URL;
-  if (!authServiceUrl) {
-    logger.warn('webhooks.whatsapp.auth_service_url_not_configured', { toNumber, normalized });
+  let authServiceUrl;
+  try {
+    authServiceUrl = getAuthServiceBaseUrl();
+  } catch (configError) {
+    logger.warn('webhooks.whatsapp.auth_service_url_not_configured', { toNumber, normalized, error: configError.message });
     return null;
   }
   const internalKey = process.env.INTERNAL_API_KEY || '';

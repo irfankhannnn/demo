@@ -132,12 +132,10 @@ openssl rand -hex 32   # CRM_CALLER_API_KEY  (a DIFFERENT value)
 Steps below are **not** part of this browser session — they need the prod deploy
 to have happened first, because everything depends on the API Gateway URL.
 
-1. Fill `.env.prod`, then deploy prod **twice** (the URL doesn't exist until the
-   stack does):
+1. Fill `.env.prod`, then deploy prod once. `WEBHOOK_BASE_URL` is derived from
+   the custom domain + base path (stack output `AiCallingApiBaseUrl`):
    ```bash
    cd cfn-templates-cicd/ai-calling-service
-   ./deploy.sh prod
-   # copy the ApiEndpoint output into .env.prod as WEBHOOK_BASE_URL
    ./deploy.sh prod
    ```
 2. Add the **six server tools** to the prod agent per

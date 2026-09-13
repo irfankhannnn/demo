@@ -1,0 +1,8 @@
+# Local build/release index. There is no separate durable S3 archive for
+# this service's template/params the way auth/server have (see this
+# wrapper's own deploy.sh header comment) — this local snapshot IS the only
+# historical copy, so never delete it if you might need rollback-full or
+# rollback-config later. Never commit it — it's per-machine deploy history,
+# not project source, and may carry real parameter values.
+deploy-versions/
+config-versions/

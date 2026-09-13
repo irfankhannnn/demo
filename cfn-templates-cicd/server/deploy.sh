@@ -12,6 +12,23 @@ set -euo pipefail
 #                                             code (fast, code only — no CFN change)
 #   ./deploy.sh rollback-full <env> <build>  Redeploy that build's saved CFN
 #                                             template(s) + params, then its code
+#   ./deploy.sh config-deploy <dev|prod>     Config-only deploy — SSM Parameter
+#                                             Store sync + Lambda cold-start
+#                                             touch only, no CFN/build/zip. See
+#                                             server/infra/config-deploy.sh and
+#                                             docs/proposals/config-only-deploy/
+#                                             context.md.
+#   ./deploy.sh list-config [dev|prod]       List recorded config revisions
+#   ./deploy.sh show-config <config-version> Print one config revision's manifest.json
+#   ./deploy.sh rollback-config <env> <config-version>
+#                                             Restore that revision's SSM keys to
+#                                             their value immediately before it,
+#                                             using SSM's own parameter version
+#                                             history (this repo's manifests
+#                                             never store actual SSM values —
+#                                             most are real secrets — only key
+#                                             names and timestamps; SSM already
+#                                             keeps every value it ever held).
 #
 # Every deploy call delegates the actual packaging/CFN work to the real
 # script: server/infra/deploy.sh. This wrapper's only job is release
@@ -71,6 +88,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_DIR="$(cd "$SCRIPT_DIR/../../server" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VERSIONS_DIR="$SCRIPT_DIR/deploy-versions"
+CONFIG_VERSIONS_DIR="$SCRIPT_DIR/config-versions"
 
 OS_UNAME="$(uname -s || echo '')"
 AWS_BIN="aws"
@@ -97,6 +115,12 @@ Usage:
   ./deploy.sh show <build>                 Print one build's manifest.json
   ./deploy.sh rollback-code <env> <build>  Roll back code only (fast, both Lambdas)
   ./deploy.sh rollback-full <env> <build>  Roll back CFN template(s)+params, then code
+  ./deploy.sh config-deploy <dev|prod>     Config-only deploy (SSM sync, no build)
+  ./deploy.sh list-config [dev|prod]       List recorded config revisions
+  ./deploy.sh show-config <config-version> Print one config revision's manifest.json
+  ./deploy.sh rollback-config <env> <config-version>
+                                            Restore that revision's SSM keys via
+                                            SSM's own version history
 USAGE
 }
 
@@ -113,6 +137,29 @@ require_build_arg() {
   local b="${1:-}"
   if ! [[ "$b" =~ ^[0-9]{4}$ ]]; then
     echo "ERROR: build number must be 4 digits, e.g. 0007 (got: '${b}')"
+    exit 1
+  fi
+}
+
+require_config_version_arg() {
+  local c="${1:-}"
+  if ! [[ "$c" =~ ^[0-9]{4}$ ]]; then
+    echo "ERROR: config version must be 4 digits, e.g. 0007 (got: '${c}')"
+    exit 1
+  fi
+}
+
+# require_custom_domain_endpoints <env> — caller must already have sourced
+# server/.env.<env>. Every API endpoint server owns or calls must be an API
+# Gateway custom domain + base path pair (<STEM>_DOMAIN_NAME +
+# <STEM>_BASE_PATH), never a raw execute-api URL. Shared with
+# server/infra/deploy.sh and config-deploy.sh.
+require_custom_domain_endpoints() {
+  local env="$1"
+  # shellcheck disable=SC1091
+  source "$SERVICE_DIR/infra/lib/validate-service-endpoints.sh"
+  if ! validate_service_endpoints "server/.env.$env"; then
+    echo "Refusing to deploy: fix the custom-domain settings in server/.env.$env first."
     exit 1
   fi
 }
@@ -156,6 +203,73 @@ next_build_number() {
   done
   shopt -u nullglob
   printf "%04d" "$((max + 1))"
+}
+
+# ---- config-version counter — SEPARATE track from the build counter above,
+# also global across dev/prod, mirroring cfn-templates-cicd/reality-flow-
+# authentication's identical design for the same reasons -------------------
+next_config_version() {
+  mkdir -p "$CONFIG_VERSIONS_DIR"
+  local max=0
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d")"
+    n=$((10#$n))
+    if [ "$n" -gt "$max" ]; then max=$n; fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$((max + 1))"
+}
+
+# latest_build_for_env <env> — highest-numbered successfully-deployed build
+# recorded for that specific env (build numbers are global, so this scans
+# and filters rather than trusting deploy-versions/LATEST, which tracks the
+# latest build across BOTH envs).
+latest_build_for_env() {
+  local env="$1"
+  local max=0
+  shopt -s nullglob
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    local e s n
+    e="$(json_read "$d/manifest.json" env 2>/dev/null || echo '')"
+    s="$(json_read "$d/manifest.json" status 2>/dev/null || echo '')"
+    if [ "$e" = "$env" ] && [ "$s" = "deployed" ]; then
+      n="$(basename "$d")"
+      n=$((10#$n))
+      if [ "$n" -gt "$max" ]; then max=$n; fi
+    fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$max"
+}
+
+# write_config_manifest <out-file> <configVersion> <appliedToBuild> <env> <status> <rollbackOf|null> <changedParamsFile> <commit> <commitShort> <branch> <dirty> <deployer> <deployDate>
+write_config_manifest() {
+  node -e "
+    const fs = require('fs');
+    const [ , out, configVersion, appliedToBuild, env, status, rollbackOf, changedParamsFile,
+            commit, commitShort, branch, dirty, deployer, deployDate ] = process.argv;
+    const changedParams = JSON.parse(fs.readFileSync(changedParamsFile, 'utf8'));
+    const manifest = {
+      configVersion, appliedToBuild, env, status,
+      timestamp: new Date().toISOString(),
+      deployDate,
+      git: { commit, commitShort, branch, dirty: dirty === 'true' },
+      deployer,
+      // Key NAMES only (created/updated/deleted, or restored on a
+      // rollback) — never values. Most of this service's ~100 SSM-synced
+      // keys are real secrets; SSM itself already keeps every value it
+      // ever held (see rollback-config, which restores from SSM's own
+      // parameter version history instead of from this file).
+      changedParams,
+      rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
+    };
+    fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/../history.jsonl', JSON.stringify(manifest) + '\n');
+  " "$@"
 }
 
 tag_object() {
@@ -223,6 +337,10 @@ cmd_deploy() {
   source "$SERVICE_DIR/.env.$env"
   set +a
   ENVIRONMENT_NAME="$env"
+
+  # Fail before recording a build if any API endpoint is not a custom domain
+  # + base path pair (same guard server/infra/deploy.sh runs again itself).
+  require_custom_domain_endpoints "$env"
 
   local build
   build="$(next_build_number)"
@@ -319,6 +437,247 @@ cmd_deploy() {
     echo "Deploy failed — see output above. This build is recorded as 'failed' and is not a valid rollback target."
     exit 1
   fi
+}
+
+# =============================================================================
+# config-deploy — delegates to infra/config-deploy.sh, records a config
+# revision on its OWN numbering track (config-versions/, not deploy-versions/)
+# =============================================================================
+cmd_config_deploy() {
+  local env="$1"
+  require_env_arg "$env"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENVIRONMENT_NAME="$env"
+
+  require_custom_domain_endpoints "$env"
+
+  echo "============================================="
+  echo " Config-only deploy ($env) — starting"
+  echo " commit: $GIT_COMMIT_SHORT  branch: $GIT_BRANCH  dirty: $GIT_DIRTY  by: $DEPLOYER"
+  echo "============================================="
+
+  local plan_file="$SERVICE_DIR/infra/.last-ssm-sync-plan.json"
+  rm -f "$plan_file"
+
+  if ! "$SERVICE_DIR/infra/config-deploy.sh" "$env"; then
+    echo ""
+    echo "Config-only deploy failed or was refused — see output above. No config revision recorded."
+    exit 1
+  fi
+
+  if [ ! -f "$plan_file" ]; then
+    echo ""
+    echo "No SSM parameter actually changed — no config revision recorded."
+    return 0
+  fi
+
+  local changed_count
+  changed_count="$(node -e "
+    const p = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+    process.stdout.write(String(p.created.length + p.updated.length + p.deleted.length));
+  " "$plan_file")"
+  if [ "$changed_count" -eq 0 ]; then
+    echo ""
+    echo "No SSM parameter actually changed — no config revision recorded."
+    return 0
+  fi
+
+  local build
+  build="$(latest_build_for_env "$env")"
+
+  local cfg
+  cfg="$(next_config_version)"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  mkdir -p "$cfg_dir"
+  cp "$plan_file" "$cfg_dir/changed-params.json"
+
+  write_config_manifest "$cfg_dir/manifest.json" \
+    "$cfg" "$build" "$env" "applied" "null" "$cfg_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+
+  echo ""
+  echo "Config revision #$cfg recorded (env: $env, applied to build #$build): $cfg_dir/manifest.json"
+}
+
+# =============================================================================
+# list-config / show-config
+# =============================================================================
+cmd_list_config() {
+  local filter_env="${1:-}"
+  if [ ! -d "$CONFIG_VERSIONS_DIR" ]; then
+    echo "No config revisions recorded yet."
+    return 0
+  fi
+
+  printf "%-9s %-6s %-11s %-9s %-21s %-9s %-20s %-11s\n" "CONFIG_V" "ENV" "APPLIED_TO" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    node -e "
+      const fs = require('fs');
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const filterEnv = process.argv[2];
+      if (filterEnv && m.env !== filterEnv) process.exit(0);
+      const row = [m.configVersion, m.env, 'build#' + m.appliedToBuild, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([9,6,11,9,21,9,20,11][i])).join(' '));
+    " "$d/manifest.json" "$filter_env"
+  done
+  shopt -u nullglob
+  echo ""
+  echo "Latest config revision (any env): $(cat "$CONFIG_VERSIONS_DIR/LATEST" 2>/dev/null || echo none)"
+}
+
+cmd_show_config() {
+  local cfg="$1"
+  require_config_version_arg "$cfg"
+  local m="$CONFIG_VERSIONS_DIR/$cfg/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no config revision manifest at $m"
+    exit 1
+  fi
+  cat "$m"
+}
+
+# verify_config_env <configVersion> <env> <manifest-path>
+verify_config_env() {
+  local cfg="$1" env="$2" m="$3"
+  local actual_env
+  actual_env="$(json_read "$m" env)"
+  if [ "$actual_env" != "$env" ]; then
+    echo "ERROR: config revision #$cfg was applied to '$actual_env', not '$env' — refusing to roll back the wrong environment with it."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# rollback-config — restore a prior config revision's SSM keys to whatever
+# value they held immediately before that revision, using SSM's OWN
+# parameter version history (get-parameter-history) rather than any value
+# this repo stores itself (changed-params.json only ever holds key NAMES —
+# most of these ~100 keys are real secrets, and SSM already keeps every
+# value it ever held, which is a strictly better rollback source: no risk of
+# this repo's own records going stale or leaking a secret onto disk here).
+# A key the target revision CREATED (no prior version to restore) is
+# deleted instead. Recorded as a new forward config revision, same
+# principle rollback-code/rollback-full already use for the build track.
+# =============================================================================
+cmd_rollback_config() {
+  local env="$1" cfg="$2"
+  require_env_arg "$env"
+  require_config_version_arg "$cfg"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  local m="$cfg_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded config revision #$cfg"
+    exit 1
+  fi
+  verify_config_env "$cfg" "$env" "$m"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENVIRONMENT_NAME="$env"
+
+  local before_timestamp
+  before_timestamp="$(json_read "$m" timestamp)"
+  local prefix="/${env}/realestateflow/server/"
+
+  echo "Rolling back config revision #$cfg's SSM keys to their value immediately before ${before_timestamp}..."
+
+  local RESTORED_KEYS_FILE="$cfg_dir/.rollback-restored.json"
+  node -e "console.log(JSON.stringify([]))" > "$RESTORED_KEYS_FILE"
+
+  restore_one_key() {
+    local key="$1"
+    local name="${prefix}${key}"
+    local history_json
+    history_json="$("$AWS_BIN" ssm get-parameter-history \
+      --name "$name" --with-decryption --region "$AWS_REGION" \
+      --query "Parameters[].[Version,LastModifiedDate,Value]" \
+      --output json --no-cli-pager 2>/dev/null || echo '[]')"
+
+    local prior_value
+    prior_value="$(node -e "
+      const rows = JSON.parse(process.argv[1]);
+      const cutoff = new Date(process.argv[2]).getTime();
+      let best = null;
+      for (const [version, lastModified, value] of rows) {
+        const t = new Date(lastModified).getTime();
+        if (t < cutoff && (best === null || t > best.t)) best = { t, value };
+      }
+      if (best) process.stdout.write(JSON.stringify(best.value));
+    " "$history_json" "$before_timestamp")"
+
+    if [ -z "$prior_value" ]; then
+      echo "  $key: no version before this revision — deleting (it did not exist prior to #${cfg})."
+      "$AWS_BIN" ssm delete-parameter --name "$name" --region "$AWS_REGION" --no-cli-pager 2>/dev/null || true
+    else
+      local real_value
+      real_value="$(node -e "process.stdout.write(JSON.parse(process.argv[1]))" "$prior_value")"
+      echo "  $key: restoring version prior to #${cfg}."
+      "$AWS_BIN" ssm put-parameter --name "$name" --value "$real_value" --type SecureString --overwrite --region "$AWS_REGION" --no-cli-pager
+    fi
+    node -e "
+      const fs = require('fs');
+      const arr = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      arr.push(process.argv[2]);
+      fs.writeFileSync(process.argv[1], JSON.stringify(arr));
+    " "$RESTORED_KEYS_FILE" "$key"
+  }
+
+  for key in $(node -e "
+    const m = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8'));
+    const c = m.changedParams || {};
+    [...(c.created||[]), ...(c.updated||[]), ...(c.deleted||[])].forEach(k => console.log(k));
+  " "$m"); do
+    restore_one_key "$key"
+  done
+
+  echo "Forcing fresh execution environments..."
+  for fn in "${ENVIRONMENT_NAME}-realestateflow-api" "${ENVIRONMENT_NAME}-realestateflow-call-recording-worker" "${ENVIRONMENT_NAME}-realestateflow-meeting-reminder"; do
+    local current_env
+    if ! current_env="$("$AWS_BIN" lambda get-function-configuration --function-name "$fn" --region "$AWS_REGION" --query "Environment.Variables" --output json --no-cli-pager 2>/dev/null)"; then
+      echo "  Skipping $fn (not found)."
+      continue
+    fi
+    local merged
+    merged="$(node -e "
+      const vars = JSON.parse(process.argv[1] === 'null' ? '{}' : process.argv[1]);
+      vars.CONFIG_APPLIED_AT = new Date().toISOString();
+      process.stdout.write(JSON.stringify({ Variables: vars }));
+    " "$current_env")"
+    echo "  Touching $fn..."
+    "$AWS_BIN" lambda update-function-configuration --function-name "$fn" --environment "$merged" --region "$AWS_REGION" --no-cli-pager >/dev/null
+  done
+
+  local build
+  build="$(latest_build_for_env "$env")"
+  local new_cfg
+  new_cfg="$(next_config_version)"
+  local new_dir="$CONFIG_VERSIONS_DIR/$new_cfg"
+  mkdir -p "$new_dir"
+
+  node -e "
+    const fs = require('fs');
+    const restored = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+    fs.writeFileSync(process.argv[2], JSON.stringify({ restored }, null, 2) + '\n');
+  " "$RESTORED_KEYS_FILE" "$new_dir/changed-params.json"
+  rm -f "$RESTORED_KEYS_FILE"
+
+  write_config_manifest "$new_dir/manifest.json" \
+    "$new_cfg" "$build" "$env" "applied" "$cfg" "$new_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$new_cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+  echo ""
+  echo "Rolled back config revision #$cfg. Recorded as new config revision #$new_cfg (rollbackOf: #$cfg)."
 }
 
 # =============================================================================
@@ -542,7 +901,7 @@ cmd_rollback_full() {
 # =============================================================================
 # dispatch
 # =============================================================================
-mkdir -p "$VERSIONS_DIR"
+mkdir -p "$VERSIONS_DIR" "$CONFIG_VERSIONS_DIR"
 
 case "${1:-}" in
   list)
@@ -556,6 +915,18 @@ case "${1:-}" in
     ;;
   rollback-full)
     cmd_rollback_full "${2:-}" "${3:-}"
+    ;;
+  config-deploy)
+    cmd_config_deploy "${2:-}"
+    ;;
+  list-config)
+    cmd_list_config "${2:-}"
+    ;;
+  show-config)
+    cmd_show_config "${2:-}"
+    ;;
+  rollback-config)
+    cmd_rollback_config "${2:-}" "${3:-}"
     ;;
   dev|prod)
     cmd_deploy "$1"

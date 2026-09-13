@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { logger } from '../logger.js';
+import { getAuthServiceBaseUrl } from '../config/serviceUrls.js';
 
 // In-memory cache for validated tokens (reduces auth-service load; tune via env)
 const tokenCache = new Map();
@@ -36,7 +37,7 @@ function decodeJWT(token) {
 
 /**
  * Middleware to validate Cognito tokens via auth microservice
- * Calls AUTH_SERVICE_URL/auth/me to verify token and get user context
+ * Calls <auth service base URL>/auth/me (config/serviceUrls.js) to verify token and get user context
  * Caches results (default 60s) to reduce latency.
  *
  * Note: CORS is handled centrally by the cors middleware in server.js.
@@ -77,9 +78,12 @@ async function validateToken(req, res, next) {
     }
 
     // Call auth microservice to validate token
-    const authServiceUrl = process.env.AUTH_SERVICE_URL;
-    if (!authServiceUrl) {
-      return res.status(500).json({ error: 'AUTH_SERVICE_URL not configured' });
+    let authServiceUrl;
+    try {
+      authServiceUrl = getAuthServiceBaseUrl();
+    } catch (configError) {
+      logger.error('[validateToken] Auth service URL misconfigured', { error: configError.message });
+      return res.status(500).json({ error: 'Auth service not configured', details: configError.message });
     }
     const requestId = req.headers['x-request-id'] || req.id;
     const response = await axios.get(`${authServiceUrl}/auth/me`, {

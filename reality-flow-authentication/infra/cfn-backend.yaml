@@ -70,6 +70,49 @@ Parameters:
     Default: ''
     Description: Optional custom domain for API Gateway
 
+  AuthApiDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      Custom domain already registered in API Gateway to map this API's base
+      path onto (services-api.realestateflow.in for prod,
+      services-api.cloudberrysolutions.in for dev/nonprod).
+
+  AuthApiBasePath:
+    Type: String
+    Default: auth
+    Description: Base path for this API's mapping on the custom domain
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Creates the BasePathMapping on AuthApiDomainName (managed outside this
+      template). Both env domains exist, so .env.dev/.env.prod set 'true'.
+
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'true' once EnableCustomDomainMapping is 'true'. API Gateway's
+      base path mapping only affects routing selection - it does not strip
+      the base path from the event.path/rawPath a Lambda proxy integration
+      receives - so the Lambda strips it itself (see src/index.ts). Mirrors
+      server/infra/cfn-backend.yaml's identical flag.
+
+  # --- Invite email params (see src/utils/emailService.ts) ---
+  AwsSesFromEmail:
+    Type: String
+    Default: ''
+    Description: Verified SES sender for invite emails; blank skips sending (invite record stays the source of truth)
+
+  FrontendLoginUrl:
+    Type: String
+    Default: https://app.realestateflow.in/login
+    Description: Login URL linked from invite emails (invites are identity-matched at login, not token links)
+
   # --- Auth-service-specific params ---
   GoogleClientId:
     Type: String
@@ -88,12 +131,17 @@ Parameters:
   IdentityCallbackURL:
     Type: String
     Default: http://localhost:3000/auth/callback
-    Description: Frontend redirect URL after Cognito authentication
+    Description: >-
+      Comma-separated list of allowed frontend redirect URLs after Cognito
+      authentication (e.g. the real prod domain plus http://localhost:3000
+      for local dev testing against this stack).
 
   IdentityLogoutURL:
     Type: String
     Default: http://localhost:3000/logout
-    Description: Frontend redirect URL after Cognito logout
+    Description: >-
+      Comma-separated list of allowed post-logout redirect URLs, same
+      convention as IdentityCallbackURL.
 
   TestOtpEnabled:
     Type: String
@@ -138,10 +186,19 @@ Parameters:
     Default: ''
     Description: >-
       Optional name of the server stack (e.g. dev-realestateflow-backend)
-      that exports SubscriptionsTableName and SubscriptionsTableArn. Leave
-      blank until that stack has been deployed at least once — setting this
-      before the export exists fails the deploy. If provided, its exports
-      are used instead of the SubscriptionsTableName parameter.
+      that exports SubscriptionsTableName/SubscriptionsTableArn and
+      AgencyConfigTableName/AgencyConfigTableArn. Leave blank until that stack
+      has been deployed at least once — setting this before the export exists
+      fails the deploy. If provided, its exports are used instead of the
+      SubscriptionsTableName/AgencyConfigTableName parameters.
+
+  AgencyConfigTableName:
+    Type: String
+    Default: dev-realestateflow-agencies
+    AllowedPattern: '^[a-zA-Z0-9_.-]+$'
+    Description: >-
+      Name of server's AgencyConfig table (single source of truth). Used only
+      when ServerStackName is not provided.
 
 # =============================================================================
 # Conditions
@@ -152,6 +209,10 @@ Conditions:
 
   UseServerStackExport:
     !Not [!Equals [!Ref ServerStackName, '']]
+
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
+
+  HasSesFromEmail: !Not [!Equals [!Ref AwsSesFromEmail, '']]
 
 # =============================================================================
 # Resources
@@ -402,10 +463,8 @@ Resources:
       SupportedIdentityProviders:
         - COGNITO
         - Google
-      CallbackURLs:
-        - !Ref IdentityCallbackURL
-      LogoutURLs:
-        - !Ref IdentityLogoutURL
+      CallbackURLs: !Split [',', !Ref IdentityCallbackURL]
+      LogoutURLs: !Split [',', !Ref IdentityLogoutURL]
       TokenValidityUnits:
         AccessToken: hours
         IdToken: hours
@@ -515,39 +574,10 @@ Resources:
 
   # ===========================================================================
   # 7. DynamoDB — Agency Config Table
-  # ===========================================================================
-  AgencyConfigTable:
-    Type: AWS::DynamoDB::Table
-    DeletionPolicy: Retain
-    UpdateReplacePolicy: Retain
-    Properties:
-      TableName: !Sub '${Env}-${ServiceName}-agency-config'
-      BillingMode: PAY_PER_REQUEST
-      PointInTimeRecoverySpecification:
-        PointInTimeRecoveryEnabled: true
-      AttributeDefinitions:
-        - AttributeName: TenantId
-          AttributeType: S
-        - AttributeName: adminEmail
-          AttributeType: S
-        - AttributeName: adminPhone
-          AttributeType: S
-      KeySchema:
-        - AttributeName: TenantId
-          KeyType: HASH
-      GlobalSecondaryIndexes:
-        - IndexName: AdminEmailIndex
-          KeySchema:
-            - AttributeName: adminEmail
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-        - IndexName: AdminPhoneIndex
-          KeySchema:
-            - AttributeName: adminPhone
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
+  # NOTE: AgencyConfigTable used to be a resource here (orphaned, not deleted,
+  # DeletionPolicy Retain). server's table is now the single source of truth
+  # — see AgencyConfigTableName param above and docs/proposals/
+  # agency-config-single-source/.
 
   # ===========================================================================
   # 7b. DynamoDB — Auth Identities Table
@@ -933,9 +963,13 @@ Resources:
                   - dynamodb:Scan
                 Resource:
                   - !GetAtt UsersTable.Arn
-                  - !GetAtt AgencyConfigTable.Arn
                   - !GetAtt OtpTable.Arn
                   - !GetAtt AuthIdentitiesTable.Arn
+                  - !If
+                    - UseServerStackExport
+                    - Fn::ImportValue:
+                        Fn::Sub: '${ServerStackName}-AgencyConfigTableArn'
+                    - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}'
               - Effect: Allow
                 Action:
                   - dynamodb:Query
@@ -943,9 +977,22 @@ Resources:
                   - !Sub '${UsersTable.Arn}/index/UserIdIndex'
                   - !Sub '${UsersTable.Arn}/index/EmailIndex'
                   - !Sub '${UsersTable.Arn}/index/PhoneIndex'
-                  - !GetAtt AgencyConfigTable.Arn
-                  - !Sub '${AgencyConfigTable.Arn}/index/AdminEmailIndex'
-                  - !Sub '${AgencyConfigTable.Arn}/index/AdminPhoneIndex'
+                  - !If
+                    - UseServerStackExport
+                    - Fn::Sub:
+                        - '${TableArn}/index/adminEmail-index'
+                        - TableArn:
+                            Fn::ImportValue:
+                              Fn::Sub: '${ServerStackName}-AgencyConfigTableArn'
+                    - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/index/adminEmail-index'
+                  - !If
+                    - UseServerStackExport
+                    - Fn::Sub:
+                        - '${TableArn}/index/adminPhone-index'
+                        - TableArn:
+                            Fn::ImportValue:
+                              Fn::Sub: '${ServerStackName}-AgencyConfigTableArn'
+                    - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/index/adminPhone-index'
         - PolicyName: SNSPublish
           PolicyDocument:
             Version: '2012-10-17'
@@ -980,6 +1027,28 @@ Resources:
                     - Fn::ImportValue:
                         Fn::Sub: '${ServerStackName}-SubscriptionsTableArn'
                     - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+        - PolicyName: SesSendAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                # Scoped to the SES domain identity behind AwsSesFromEmail;
+                # falls back to '*' only while that param is blank (dev).
+                Resource:
+                  !If
+                    - HasSesFromEmail
+                    - !Join
+                      - ''
+                      - - 'arn:aws:ses:'
+                        - !Ref 'AWS::Region'
+                        - ':'
+                        - !Ref 'AWS::AccountId'
+                        - ':identity/'
+                        - !Select [1, !Split ['@', !Ref AwsSesFromEmail]]
+                    - '*'
 
   # ===========================================================================
   # 11. Lambda Function
@@ -1011,7 +1080,12 @@ Resources:
         Variables:
           USERS_TABLE: !Ref UsersTable
           AUTH_IDENTITIES_TABLE: !Ref AuthIdentitiesTable
-          AGENCY_CONFIG_TABLE: !Ref AgencyConfigTable
+          AGENCY_CONFIG_TABLE:
+            !If
+              - UseServerStackExport
+              - Fn::ImportValue:
+                  Fn::Sub: '${ServerStackName}-AgencyConfigTableName'
+              - !Ref AgencyConfigTableName
           COGNITO_USER_POOL_ID: !Ref CognitoUserPoolV2
           COGNITO_CLIENT_ID: !Ref UserPoolClientV2
           COGNITO_HOSTED_UI_DOMAIN: !Sub 'https://${UserPoolDomainV2}.auth.${AWS::Region}.amazoncognito.com'
@@ -1026,6 +1100,10 @@ Resources:
               - !Ref SubscriptionsTableName
           INTERNAL_API_KEY: !Ref InternalApiKey
           ALLOWED_ORIGINS: !Ref AllowedOrigins
+          AUTH_API_BASE_PATH: !Ref AuthApiBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
+          AWS_SES_FROM_EMAIL: !Ref AwsSesFromEmail
+          FRONTEND_LOGIN_URL: !Ref FrontendLoginUrl
       Code:
         S3Bucket: !Ref LambdaPackagesBucketName
         S3Key: !Sub '${ServiceName}/function.zip'
@@ -1156,6 +1234,20 @@ Resources:
       - ApiGatewayRoutesStack
     Properties:
       RestApiId: !Ref AuthApiGateway
+      # Deliberately just RestApiId - two attempts at forcing CloudFormation
+      # to replace this resource on content-only changes (a content-derived
+      # Description; DeploymentCanarySettings) each hit a real, live AWS
+      # limitation: Description isn't create-only in this account/region
+      # (PATCHed in place, no new snapshot), and DeploymentCanarySettings IS
+      # create-only but requires a non-empty StageName at creation time,
+      # which conflicts with this template's separate ApiStage resource
+      # (confirmed live: "Non null and non empty stageName must be provided
+      # for canary deployment"). infra/deploy.sh now explicitly runs
+      # `aws apigateway create-deployment` after every `cloudformation
+      # deploy` instead - the standard workaround for this well-known
+      # CloudFormation/API-Gateway limitation, and the only one that reliably
+      # works given this template's structure.
+      Description: 'Initial deployment - see infra/deploy.sh for the real per-deploy publish step'
 
   ApiStage:
     Type: AWS::ApiGateway::Stage
@@ -1165,16 +1257,34 @@ Resources:
       DeploymentId: !Ref ApiDeployment
       AccessLogSetting:
         DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+
+  AuthApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - ApiStage
+    Properties:
+      DomainName: !Ref AuthApiDomainName
+      RestApiId: !Ref AuthApiGateway
+      Stage: !Ref Env
+      BasePath: !Ref AuthApiBasePath
 # Outputs
 # =============================================================================
 Outputs:
-  # V1 outputs removed - resources deprecated
+  # V1 outputs removed. Raw execute-api AuthApiEndpoint removed (unused,
+  # export not imported in dev/prod) - use AuthApiBaseUrlOutput.
 
-  AuthApiEndpoint:
-    Description: Auth API Gateway Endpoint URL
-    Value: !Sub 'https://${AuthApiGateway}.execute-api.${AWS::Region}.amazonaws.com/${Env}'
+  AuthApiDomainOutput:
+    Description: Custom domain name for the Auth API
+    Value: !Ref AuthApiDomainName
     Export:
-      Name: !Sub '${AWS::StackName}-AuthApiEndpoint'
+      Name: !Sub '${AWS::StackName}-AuthApiDomainName'
+
+  AuthApiBaseUrlOutput:
+    Description: Auth API base URL via custom domain
+    Value: !Sub 'https://${AuthApiDomainName}/${AuthApiBasePath}'
+    Export:
+      Name: !Sub '${AWS::StackName}-AuthApiBaseUrl'
 
   AuthApiGatewayId:
     Description: Auth API Gateway ID
@@ -1211,18 +1321,6 @@ Outputs:
     Value: !GetAtt AuthIdentitiesTable.Arn
     Export:
       Name: !Sub '${AWS::StackName}-AuthIdentitiesTableArn'
-
-  AgencyConfigTableName:
-    Description: DynamoDB Agency Config Table Name
-    Value: !Ref AgencyConfigTable
-    Export:
-      Name: !Sub '${AWS::StackName}-AgencyConfigTableName'
-
-  AgencyConfigTableArn:
-    Description: DynamoDB Agency Config Table ARN
-    Value: !GetAtt AgencyConfigTable.Arn
-    Export:
-      Name: !Sub '${AWS::StackName}-AgencyConfigTableArn'
 
   OtpTableName:
     Description: DynamoDB OTP Table Name

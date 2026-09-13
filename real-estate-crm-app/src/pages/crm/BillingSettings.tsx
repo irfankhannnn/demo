@@ -10,8 +10,9 @@ import CreditBalanceCard from '../../components/CreditBalanceCard';
 import BuyCreditsModal from '../../components/BuyCreditsModal';
 import AgentActivityLog from '../../components/AgentActivityLog';
 import { isNativeApp } from '../../lib/platform';
+import { CRM_API_URL } from '../../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 interface SubscriptionDetails {
   plan: string;

@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
+import { getAuthServiceBaseUrl, getAiCallingServiceBaseUrl } from '../config/serviceUrls.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
@@ -37,8 +38,8 @@ const router = express.Router();
 async function fetchTeamMemberMap(req) {
   const map = {};
   try {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL;
-    if (!authServiceUrl) return map;
+    if (!process.env.AUTH_SERVICE_DOMAIN_NAME) return map;
+    const authServiceUrl = getAuthServiceBaseUrl();
 
     const response = await axios.get(`${authServiceUrl}/users`, {
       headers: { Authorization: req.headers.authorization },
@@ -119,9 +120,11 @@ router.get('/search', validateToken, extractTenantId, async (req, res) => {
 // Get available agents for assignedTo dropdown
 router.get('/agents', validateToken, extractTenantId, async (req, res) => {
   try {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL;
-    if (!authServiceUrl) {
-      return res.status(500).json({ error: 'AUTH_SERVICE_URL not configured' });
+    let authServiceUrl;
+    try {
+      authServiceUrl = getAuthServiceBaseUrl();
+    } catch (configError) {
+      return res.status(500).json({ error: 'Auth service not configured', details: configError.message });
     }
     const authHeader = req.headers.authorization;
 
@@ -498,7 +501,8 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
       return res.status(409).json({ error: 'AI calling not enabled for this tenant' });
     }
 
-    const aiCallingServiceUrl = process.env.AI_CALLING_SERVICE_URL;
+    // Includes ai-calling-service's /api/ai-calling prefix; null when unset.
+    const aiCallingServiceUrl = getAiCallingServiceBaseUrl();
     // The service's management API authenticates this backend as a service and
     // fails closed, so without the key every call would 401. Log presence only.
     const aiCallingApiKey = process.env.CRM_CALLER_API_KEY;

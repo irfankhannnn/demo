@@ -3,8 +3,9 @@ import { Bot, RefreshCw, ChevronDown, ChevronUp, ExternalLink, Calendar, Downloa
 import { getIdToken } from '../utils/authStorage';
 import { getTenantHeaders } from '../config/tenant';
 import { exportTextFile } from '../lib/fileExport';
+import { CRM_API_URL } from '../config/apiConfig';
 
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 export interface AgentLogItem {
   id: string;

@@ -22,6 +22,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/params.sh"
+
 # -----------------------------------------------------------------------------
 # Windows Git Bash compatibility
 # -----------------------------------------------------------------------------
@@ -51,6 +54,11 @@ if ! command -v "$AWS_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v node >/dev/null 2>&1; then
+  echo "ERROR: node not found in PATH (used here only for safe JSON read/write)"
+  exit 1
+fi
+
 echo "============================================="
 echo " RealEstateFlow Landing Pages — Deploy"
 echo "============================================="
@@ -58,9 +66,27 @@ echo "============================================="
 # -----------------------------------------------------------------------------
 # 0. Require an explicit dev|prod argument and load the matching env file
 # -----------------------------------------------------------------------------
-DEPLOY_ENV="${1:-}"
+# --skip-build / --skip-cfn: same independent-axes design as
+# real-estate-crm-app/infra/deploy.sh — see infra/config-deploy.sh and
+# infra/content-deploy.sh for the gated entry points that use these.
+SKIP_BUILD=false
+SKIP_CFN=false
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=true ;;
+    --skip-cfn) SKIP_CFN=true ;;
+    *) POSITIONAL_ARGS+=("$arg") ;;
+  esac
+done
+if [ "$SKIP_BUILD" = true ] && [ "$SKIP_CFN" = true ]; then
+  echo "ERROR: --skip-build and --skip-cfn together would do nothing — pick at most one."
+  exit 1
+fi
+
+DEPLOY_ENV="${POSITIONAL_ARGS[0]:-}"
 if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
-  echo "ERROR: Usage: $0 <dev|prod>"
+  echo "ERROR: Usage: $0 <dev|prod> [--skip-build|--skip-cfn]"
   echo "  e.g. ./infra/deploy.sh dev"
   echo "       ./infra/deploy.sh prod"
   exit 1
@@ -116,6 +142,7 @@ STACK_NAME="${ENV}-${SERVICE_NAME}-stack"
 PRICE_CLASS="${FRONTEND_PRICE_CLASS:-PriceClass_200}"
 CUSTOM_DOMAIN_NAME="${FRONTEND_CUSTOM_DOMAIN_NAME:-}"
 INCLUDE_WWW_ALIAS="${FRONTEND_INCLUDE_WWW_ALIAS:-true}"
+WWW_IS_CANONICAL="${FRONTEND_WWW_IS_CANONICAL:-false}"
 ACM_CERTIFICATE_ARN="${FRONTEND_ACM_CERTIFICATE_ARN:-}"
 HOSTED_ZONE_ID="${FRONTEND_HOSTED_ZONE_ID:-}"
 WAF_WEB_ACL_ARN="${FRONTEND_WAF_WEB_ACL_ARN:-}"
@@ -136,18 +163,23 @@ echo ""
 # 2. Install dependencies and build (LP_ENV selects .env.<ENV> for the
 #    {{TOKEN}} content substitutions — see build/scripts/process-partials.js)
 # -----------------------------------------------------------------------------
-echo "[1/6] Installing build dependencies..."
-cd "$PROJECT_DIR/build"
-"$NPM_BIN" ci
-
-echo "[2/6] Building landing pages (LP_ENV=$ENV)..."
 DIST_DIR="$PROJECT_DIR/dist"
-rm -rf "$DIST_DIR"
-LP_ENV="$ENV" "$NPM_BIN" run build:lps
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[1/6] Skipping npm ci (--skip-build)"
+  echo "[2/6] Skipping build (--skip-build)"
+else
+  echo "[1/6] Installing build dependencies..."
+  cd "$PROJECT_DIR/build"
+  "$NPM_BIN" ci
 
-if [ ! -d "$DIST_DIR" ]; then
-  echo "ERROR: build output not found at $DIST_DIR"
-  exit 1
+  echo "[2/6] Building landing pages (LP_ENV=$ENV)..."
+  rm -rf "$DIST_DIR"
+  LP_ENV="$ENV" "$NPM_BIN" run build:lps
+
+  if [ ! -d "$DIST_DIR" ]; then
+    echo "ERROR: build output not found at $DIST_DIR"
+    exit 1
+  fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -156,40 +188,28 @@ fi
 #    never hand-edited and is regenerated fresh on every run)
 # -----------------------------------------------------------------------------
 echo "[3/6] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENV}" },
-  { "ParameterKey": "BucketName", "ParameterValue": "${BUCKET_NAME}" },
-  { "ParameterKey": "PriceClass", "ParameterValue": "${PRICE_CLASS}" },
-  { "ParameterKey": "CustomDomainName", "ParameterValue": "${CUSTOM_DOMAIN_NAME}" },
-  { "ParameterKey": "IncludeWwwAlias", "ParameterValue": "${INCLUDE_WWW_ALIAS}" },
-  { "ParameterKey": "AcmCertificateArn", "ParameterValue": "${ACM_CERTIFICATE_ARN}" },
-  { "ParameterKey": "HostedZoneId", "ParameterValue": "${HOSTED_ZONE_ID}" },
-  { "ParameterKey": "WafWebAclArn", "ParameterValue": "${WAF_WEB_ACL_ARN}" }
-]
-EOF
+compute_param_values
+write_cfn_params_json "$SCRIPT_DIR/cfn-params.json"
 
 # -----------------------------------------------------------------------------
 # 4. Deploy CloudFormation stack (S3 + CloudFront)
 # -----------------------------------------------------------------------------
-echo "[4/6] Deploying CloudFormation stack: $STACK_NAME..."
-PARAM_OVERRIDES=(
-  "EnvironmentName=${ENV}"
-  "BucketName=${BUCKET_NAME}"
-  "PriceClass=${PRICE_CLASS}"
-  "CustomDomainName=${CUSTOM_DOMAIN_NAME}"
-  "IncludeWwwAlias=${INCLUDE_WWW_ALIAS}"
-  "AcmCertificateArn=${ACM_CERTIFICATE_ARN}"
-  "HostedZoneId=${HOSTED_ZONE_ID}"
-  "WafWebAclArn=${WAF_WEB_ACL_ARN}"
-)
-"$AWS_BIN" cloudformation deploy \
-  --template-file "$SCRIPT_DIR/cfn-landing-pages.yaml" \
-  --stack-name "$STACK_NAME" \
-  --parameter-overrides "${PARAM_OVERRIDES[@]}" \
-  --region "$AWS_REGION" \
-  --no-cli-pager \
-  --no-fail-on-empty-changeset
+PARAM_OVERRIDES=()
+for key in "${PARAM_KEYS[@]}"; do
+  PARAM_OVERRIDES+=("${key}=${PARAM_VALUES[$key]}")
+done
+if [ "$SKIP_CFN" = true ]; then
+  echo "[4/6] Skipping CloudFormation deploy (--skip-cfn)"
+else
+  echo "[4/6] Deploying CloudFormation stack: $STACK_NAME..."
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$SCRIPT_DIR/cfn-landing-pages.yaml" \
+    --stack-name "$STACK_NAME" \
+    --parameter-overrides "${PARAM_OVERRIDES[@]}" \
+    --region "$AWS_REGION" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+fi
 
 # -----------------------------------------------------------------------------
 # 5. Resolve stack outputs and sync dist/ to S3
@@ -203,47 +223,54 @@ if [ -z "$RESOLVED_BUCKET" ] || [ "$RESOLVED_BUCKET" = "None" ]; then
   RESOLVED_BUCKET="$BUCKET_NAME"
 fi
 
-echo "Syncing dist/ to s3://${RESOLVED_BUCKET}..."
-# Unlike a hashed-asset SPA bundle, this build's asset filenames are fixed
-# (assets/main.css never changes name — see build/vite.config.js), so they
-# can't be cached "immutable, 1 year" the way real-estate-crm-app's build
-# is: a browser holding a 1-year cache would never see a CSS/logo update.
-# Every deploy already runs a CloudFront invalidation below, which clears
-# the CDN edge cache; this Cache-Control governs the *browser's* cache on
-# top of that, so it's kept short instead.
-"$AWS_BIN" s3 sync "$DIST_DIR" "s3://${RESOLVED_BUCKET}" \
-  --region "$AWS_REGION" \
-  --delete \
-  --cache-control "public,max-age=3600,must-revalidate" \
-  --exclude "*.html" \
-  --exclude "sitemap.xml" \
-  --exclude "robots.txt" \
-  --exclude "llms.txt" \
-  --no-cli-pager
-
-# HTML pages + SEO files: never cache, so a new deploy is visible immediately
-# and the pretty-URL routing (CloudFront Function) never serves a stale page.
-HTML_CACHE_CONTROL="public,max-age=0,must-revalidate"
-find "$DIST_DIR" -name "*.html" | while IFS= read -r f; do
-  rel="${f#"$DIST_DIR"/}"
-  "$AWS_BIN" s3 cp "$f" "s3://${RESOLVED_BUCKET}/${rel}" \
+if [ "$SKIP_BUILD" = true ]; then
+  echo "Skipping dist/ sync (--skip-build) — no content changed."
+else
+  echo "Syncing dist/ to s3://${RESOLVED_BUCKET}..."
+  # Unlike a hashed-asset SPA bundle, this build's asset filenames are fixed
+  # (assets/main.css never changes name — see build/vite.config.js), so they
+  # can't be cached "immutable, 1 year" the way real-estate-crm-app's build
+  # is: a browser holding a 1-year cache would never see a CSS/logo update.
+  # Every deploy already runs a CloudFront invalidation below, which clears
+  # the CDN edge cache; this Cache-Control governs the *browser's* cache on
+  # top of that, so it's kept short instead.
+  "$AWS_BIN" s3 sync "$DIST_DIR" "s3://${RESOLVED_BUCKET}" \
     --region "$AWS_REGION" \
-    --cache-control "$HTML_CACHE_CONTROL" \
+    --delete \
+    --cache-control "public,max-age=3600,must-revalidate" \
+    --exclude "*.html" \
+    --exclude "sitemap.xml" \
+    --exclude "robots.txt" \
+    --exclude "llms.txt" \
     --no-cli-pager
-done
-for f in sitemap.xml robots.txt llms.txt; do
-  if [ -f "$DIST_DIR/$f" ]; then
-    "$AWS_BIN" s3 cp "$DIST_DIR/$f" "s3://${RESOLVED_BUCKET}/${f}" \
+
+  # HTML pages + SEO files: never cache, so a new deploy is visible immediately
+  # and the pretty-URL routing (CloudFront Function) never serves a stale page.
+  HTML_CACHE_CONTROL="public,max-age=0,must-revalidate"
+  find "$DIST_DIR" -name "*.html" | while IFS= read -r f; do
+    rel="${f#"$DIST_DIR"/}"
+    "$AWS_BIN" s3 cp "$f" "s3://${RESOLVED_BUCKET}/${rel}" \
       --region "$AWS_REGION" \
       --cache-control "$HTML_CACHE_CONTROL" \
       --no-cli-pager
-  fi
-done
+  done
+  for f in sitemap.xml robots.txt llms.txt; do
+    if [ -f "$DIST_DIR/$f" ]; then
+      "$AWS_BIN" s3 cp "$DIST_DIR/$f" "s3://${RESOLVED_BUCKET}/${f}" \
+        --region "$AWS_REGION" \
+        --cache-control "$HTML_CACHE_CONTROL" \
+        --no-cli-pager
+    fi
+  done
+fi
 
 # -----------------------------------------------------------------------------
-# 6. Invalidate CloudFront cache
+# 6. Invalidate CloudFront cache — only meaningful when content actually
+#    changed (skipped under --skip-build, where dist/ was never re-synced).
 # -----------------------------------------------------------------------------
-if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[6/6] Skipping CloudFront invalidation (--skip-build, no content changed)"
+elif [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
   echo "[6/6] Invalidating CloudFront distribution $DISTRIBUTION_ID..."
   "$AWS_BIN" cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" --no-cli-pager >/dev/null
 fi

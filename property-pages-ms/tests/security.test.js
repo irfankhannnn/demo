@@ -14,7 +14,8 @@ import crypto from 'node:crypto';
 // Config is read at module load by the units under test, so it has to be
 // populated before they are imported.
 process.env.VISIT_SESSION_SECRET = 'test-secret-that-is-long-enough-to-pass-validation';
-process.env.CRM_INTERNAL_API_URL = 'http://localhost:9999';
+process.env.CRM_INTERNAL_API_DOMAIN_NAME = 'http://localhost:9999';
+process.env.CRM_INTERNAL_API_BASE_PATH = '';
 process.env.PUBLIC_PAGES_INTERNAL_API_KEY = 'test-key';
 process.env.GUARD_TABLE_NAME = 'test-guard';
 process.env.PUBLIC_PAGES_BASE_DOMAIN = 'pages.realestateflow.in';
@@ -24,6 +25,29 @@ const { esc, jsonScript, formatPrice } = await import('../views/layout.js');
 const { issueSession, verifySession } = await import('../services/sessionToken.js');
 const { slugFromHost } = await import('../middleware/resolveTenant.js');
 const { normaliseIndianMobile } = await import('../routes/pages.js');
+const { buildServiceBaseUrl } = await import('../config/env.js');
+
+describe('buildServiceBaseUrl', () => {
+  test('composes https + domain + base path', () => {
+    assert.equal(
+      buildServiceBaseUrl('services-api.cloudberrysolutions.in', '/devrealestatecrm/'),
+      'https://services-api.cloudberrysolutions.in/devrealestatecrm',
+    );
+  });
+
+  test('keeps an explicit scheme for local development and drops trailing slashes', () => {
+    assert.equal(buildServiceBaseUrl('http://localhost:4000/', ''), 'http://localhost:4000');
+  });
+
+  test('refuses an empty domain, naming the variable', () => {
+    assert.throws(() => buildServiceBaseUrl('  ', 'x', 'CRM_INTERNAL_API_DOMAIN_NAME'), /CRM_INTERNAL_API_DOMAIN_NAME/);
+  });
+
+  test('refuses raw API Gateway hosts', () => {
+    assert.throws(() => buildServiceBaseUrl('see5j61tuh.execute-api.ap-south-1.amazonaws.com', 'dev'), /raw API Gateway/);
+    assert.throws(() => buildServiceBaseUrl('https://abc.execute-api.ap-south-1.amazonaws.com/dev', ''), /raw API Gateway/);
+  });
+});
 
 describe('esc', () => {
   test('neutralises a script tag in a property title', () => {
