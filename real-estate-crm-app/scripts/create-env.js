@@ -20,25 +20,35 @@ async function main() {
   console.log('\n🚀 Real Estate CRM - Environment Setup\n');
   console.log('This CRM app uses the SHARED backend from ../server\n');
   
-  const defaultApiUrl = 'https://api.example.com/prod';
+  const defaultApiDomain = 'http://localhost:4000';
+  const defaultApiBasePath = '';
   const defaultTenantId = 'happy_propertiesA3F9C0B2';
   const defaultPort = '8085';
-  
-  const apiUrlInput = await question(
-    `Enter your backend API base URL (API Gateway custom domain + base path mapping) (default: ${defaultApiUrl}): `
+
+  const apiDomainInput = await question(
+    `Enter the CRM API custom domain host, or a full http://localhost origin for local dev (default: ${defaultApiDomain}): `
+  );
+  const apiBasePathInput = await question(
+    `Enter the CRM API base path mapping, e.g. devrealestatecrm (blank for local dev): `
   );
   const tenantIdInput = await question(`Enter your Tenant ID (default: ${defaultTenantId}): `);
   const portInput = await question(`Enter CRM dev server port (default: ${defaultPort}): `);
-  
-  const apiUrl = apiUrlInput.trim() || defaultApiUrl;
+
+  const apiDomain = apiDomainInput.trim() || defaultApiDomain;
+  const apiBasePath = apiBasePathInput.trim() || defaultApiBasePath;
+  const apiUrl = `${apiDomain}${apiBasePath ? `/${apiBasePath}` : ''} (+ /api)`;
   const finalTenantId = tenantIdInput.trim() || defaultTenantId;
   const finalPort = portInput.trim() || defaultPort;
   
   const envContent = `# CRM Frontend Environment
 # Points to the SHARED backend in ../server
 
-# Backend API URL
-VITE_API_URL=${apiUrl}
+# CRM API: custom domain + base path (the app appends /api itself)
+VITE_CRM_API_DOMAIN_NAME=${apiDomain}
+VITE_CRM_API_BASE_PATH=${apiBasePath}
+# Auth API: custom domain + base path
+VITE_AUTH_API_DOMAIN_NAME=http://localhost:3002
+VITE_AUTH_API_BASE_PATH=
 
 # Tenant ID - Each organization has a unique ID for data isolation
 VITE_TENANT_ID=${finalTenantId}

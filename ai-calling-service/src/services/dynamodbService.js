@@ -10,8 +10,9 @@ import {
   DeleteCommand,
   ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
+import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { CALL_STATUS, DOCUMENT_STATUS } from '../config/constants.js';
+import { CALL_STATUS, CALL_STATUS_RANK, DOCUMENT_STATUS } from '../config/constants.js';
 import { logger } from '../utils/logger.js';
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
@@ -59,8 +60,17 @@ export async function createCallSession(tenantId, data) {
     leadPhone: data.leadPhone,
     callPurpose: data.callPurpose,
     status: CALL_STATUS.INITIATED,
+    // Monotonic rank of `status`, stored so an out-of-order carrier webhook
+    // can be rejected by a ConditionExpression instead of silently
+    // overwriting a later state. See updateCallSession().
+    statusRank: CALL_STATUS_RANK[CALL_STATUS.INITIATED],
     exotelCallSid: null,
-    elevenLabsSessionId: null,
+    elevenLabsConversationId: null,
+    qualificationStatus: data.callPurpose === 'lead_qualification'
+      ? 'pending'
+      : 'not_applicable',
+    qualificationTemperature: null,
+    qualificationReasons: null,
     startedAt: null,
     endedAt: null,
     duration: 0,
@@ -105,17 +115,34 @@ export async function getCallSession(tenantId, callSessionId) {
   return result.Item || null;
 }
 
+/**
+ * Update a call session.
+ *
+ * Telephony webhooks are not delivered in order, so a status update is
+ * applied under a ConditionExpression on the stored statusRank: a status that
+ * ranks at or below the one already recorded is rejected rather than allowed
+ * to stomp a later state (e.g. a retried `ringing` arriving after
+ * `in-progress`, or after `completed`). Non-status updates are unconditional.
+ *
+ * A rejected status update is not an error — it means a newer state already
+ * won the race — so it resolves to the current session rather than throwing.
+ *
+ * @param {string} tenantId
+ * @param {string} callSessionId
+ * @param {object} updates
+ * @returns {Promise<object|null>} the session after the write
+ */
 export async function updateCallSession(tenantId, callSessionId, updates) {
   if (!tenantId) throw new Error('Tenant ID is required');
-  
+
   const timestamp = new Date().toISOString();
   const updateData = { ...updates, updatedAt: timestamp };
-  
+
   // Build update expression
   const updateExpressions = [];
   const attributeNames = {};
   const attributeValues = {};
-  
+
   Object.keys(updateData).forEach((key, index) => {
     const attrName = `#attr${index}`;
     const attrValue = `:val${index}`;
@@ -123,25 +150,49 @@ export async function updateCallSession(tenantId, callSessionId, updates) {
     attributeNames[attrName] = key;
     attributeValues[attrValue] = updateData[key];
   });
-  
-  // Update GSI1 if status changed
+
+  let conditionExpression;
+
+  // Update GSI1 and the ordering guard if status changed
   if (updates.status) {
     updateExpressions.push('#gsi1pk = :gsi1pk');
     attributeNames['#gsi1pk'] = 'GSI1PK';
     attributeValues[':gsi1pk'] = `TENANT#${tenantId}#STATUS#${updates.status}`;
+
+    const newRank = CALL_STATUS_RANK[updates.status] ?? 0;
+    updateExpressions.push('#statusRank = :newRank');
+    attributeNames['#statusRank'] = 'statusRank';
+    attributeValues[':newRank'] = newRank;
+
+    // Sessions written before statusRank existed have no attribute — let
+    // those through rather than blocking every update on legacy rows.
+    conditionExpression = 'attribute_not_exists(#statusRank) OR #statusRank < :newRank';
   }
-  
-  await docClient.send(new UpdateCommand({
-    TableName: TABLE_NAME,
-    Key: {
-      PK: `TENANT#${tenantId}#CALL#${callSessionId}`,
-      SK: 'SESSION',
-    },
-    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: attributeNames,
-    ExpressionAttributeValues: attributeValues,
-  }));
-  
+
+  try {
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: {
+        PK: `TENANT#${tenantId}#CALL#${callSessionId}`,
+        SK: 'SESSION',
+      },
+      UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+      ...(conditionExpression && { ConditionExpression: conditionExpression }),
+    }));
+  } catch (error) {
+    if (error instanceof ConditionalCheckFailedException) {
+      logger.info('Skipped out-of-order call session status update', {
+        tenantId,
+        callSessionId,
+        attemptedStatus: updates.status,
+      });
+      return getCallSession(tenantId, callSessionId);
+    }
+    throw error;
+  }
+
   return getCallSession(tenantId, callSessionId);
 }
 
@@ -392,6 +443,11 @@ export async function saveAgentConfig(tenantId, agentConfig) {
     EntityType: 'AGENT_CONFIG',
     tenantId,
     agencyName: agentConfig.agencyName,
+    // Optional per-tenant overrides. Left null, calls use the shared
+    // ELEVENLABS_AGENT_ID / ELEVENLABS_AGENT_PHONE_NUMBER_ID — one agent
+    // serves every tenant, personalized via dynamic variables.
+    agentId: agentConfig.agentId || null,
+    agentPhoneNumberId: agentConfig.agentPhoneNumberId || null,
     agentVoice: agentConfig.agentVoice || 'default',
     agentPersonality: agentConfig.agentPersonality || 'professional',
     greeting: agentConfig.greeting,

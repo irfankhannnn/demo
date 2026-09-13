@@ -90,7 +90,7 @@ export async function getAgencyConfig(tenantId: string): Promise<AgencyConfigIte
 }
 
 /**
- * Find agency by admin email (uses AdminEmailIndex GSI).
+ * Find agency by admin email (uses server's adminEmail-index GSI).
  * Used to check if an admin is pre-onboarded during login.
  */
 export async function findAgencyByAdminEmail(email: string): Promise<AgencyConfigItem | null> {
@@ -99,7 +99,10 @@ export async function findAgencyByAdminEmail(email: string): Promise<AgencyConfi
   const result = await dynamodb
     .query({
       TableName: AGENCY_CONFIG_TABLE,
-      IndexName: 'AdminEmailIndex',
+      // Matches server/infra/cfn-backend.yaml's AgencyConfigTable GSI name —
+      // this table is server's, not this service's own anymore (see the note
+      // where this service's own AgencyConfigTable resource used to be).
+      IndexName: 'adminEmail-index',
       KeyConditionExpression: 'adminEmail = :email',
       ExpressionAttributeValues: {
         ':email': email.toLowerCase().trim(),
@@ -112,7 +115,7 @@ export async function findAgencyByAdminEmail(email: string): Promise<AgencyConfi
 }
 
 /**
- * Find agency by admin phone (uses AdminPhoneIndex GSI).
+ * Find agency by admin phone (uses server's adminPhone-index GSI).
  * Used to check if an admin is pre-onboarded during phone login.
  */
 export async function findAgencyByAdminPhone(phone: string): Promise<AgencyConfigItem | null> {
@@ -121,7 +124,7 @@ export async function findAgencyByAdminPhone(phone: string): Promise<AgencyConfi
   const result = await dynamodb
     .query({
       TableName: AGENCY_CONFIG_TABLE,
-      IndexName: 'AdminPhoneIndex',
+      IndexName: 'adminPhone-index',
       KeyConditionExpression: 'adminPhone = :phone',
       ExpressionAttributeValues: {
         ':phone': phone.trim(),

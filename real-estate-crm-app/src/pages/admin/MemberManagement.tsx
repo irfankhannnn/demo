@@ -4,6 +4,7 @@ import { ArrowLeft, Trash2, Users, User, Mail, Phone, Plus, CheckCircle, Clock }
 import { getIdToken, getUserProfile } from '../../utils/authStorage';
 import { adminStartEmailLink, adminStartPhoneLink } from '../../services/contactLinkApi';
 import SeatCounter from '../../components/SeatCounter';
+import { AUTH_API_URL } from '../../config/apiConfig';
 
 type Role = 'ADMIN' | 'MEMBER';
 type Status = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
@@ -25,7 +26,6 @@ interface Member {
   pendingPhoneNumber?: string;
 }
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 export default function MemberManagement() {
   const navigate = useNavigate();

@@ -5,7 +5,7 @@ import { openAuthBrowser } from '../../lib/nativeAuth';
 
 /**
  * Canonical home of the legal documents. They live on the marketing site
- * (marketing-and-sales/creative/landing-pages/legal/) and are deployed
+ * (landing-pages/legal/) and are deployed
  * separately, so the app points at them rather than keeping a second copy that
  * would quietly drift out of sync with the lawyer-reviewed version.
  */

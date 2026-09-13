@@ -1,0 +1,759 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  AI Calling Service - outbound AI voice calling for the RealtyFlow CRM.
+  Places calls through ElevenLabs' native Exotel integration and serves the
+  server-tool + webhook endpoints that agent calls back into during a call.
+
+# =============================================================================
+# Naming: every physical resource is <env>-realestateflow-aicalling-<resource>
+# (env FIRST), matching prod-realestateflow-networking-common and the other
+# services in this account. Nothing here is hardcoded to an environment.
+# =============================================================================
+
+Parameters:
+
+  EnvironmentName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: >-
+      Deployment environment. Forced from deploy.sh's CLI argument, never read
+      from whatever the .env file happens to say.
+
+  # ---- Lambda packaging -----------------------------------------------------
+
+  LambdaRuntime:
+    Type: String
+    Default: nodejs20.x
+    AllowedValues: [nodejs20.x, nodejs22.x]
+    Description: >-
+      nodejs20.x preinstalls the full AWS SDK v3 client set this service needs
+      (DynamoDB, S3, SecretsManager, Bedrock Agent Runtime). nodejs22.x does not
+      ship all of them - do not switch without bundling the missing clients.
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    MinValue: 256
+    MaxValue: 3008
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+    MinValue: 10
+    MaxValue: 900
+    Description: >-
+      Request timeout. Calls themselves run inside ElevenLabs, not inside this
+      Lambda, so requests here are short CRM/API round-trips.
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: Artifact bucket holding the Lambda deployment package
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 key of the Lambda deployment package (set fresh every deploy)
+
+  # ---- Data stores ----------------------------------------------------------
+
+  AICallingTableName:
+    Type: String
+    Description: >-
+      DynamoDB table for call sessions and transcripts. Must be
+      <env>-realestateflow-aicalling-data - deploy.sh enforces the prefix.
+
+  AICallingKnowledgeBucket:
+    Type: String
+    Description: >-
+      S3 bucket for uploaded knowledge documents (FAQ/policy). Globally unique;
+      pass the env-scoped name so dev and prod can never collide.
+
+  AICallingRecordingsBucket:
+    Type: String
+    Description: >-
+      S3 bucket for call recordings. Explicit parameter rather than derived from
+      the knowledge bucket name, so the two can be renamed independently.
+
+  # ---- CRM integration ------------------------------------------------------
+
+  CrmInternalApiDomainName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+    Description: >-
+      API Gateway custom domain the CRM API is mapped on (host only):
+      services-api.cloudberrysolutions.in for dev, services-api.realestateflow.in
+      for prod. Used for lead context, property lookups and writing call
+      outcomes back onto the lead. Raw execute-api hosts are rejected.
+
+  CrmInternalApiBasePath:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+    Description: >-
+      The CRM API's base path on that domain (devrealestatecrm /
+      prodrealestatecrm). Route prefixes (/api/internal/...) are added in code.
+
+  CrmInternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Shared secret this service presents as x-api-key to the CRM's
+      /api/internal/* routes. Must equal server/.env.<env>'s
+      AI_CALLING_INTERNAL_API_KEY (server template parameter
+      AiCallingInternalApiKey) or every CRM lookup 401s.
+
+  # ---- Exotel ---------------------------------------------------------------
+
+  ExotelSubdomain:
+    Type: String
+    Default: api.exotel.com
+    Description: Exotel API subdomain (region-specific for some accounts)
+
+  ExotelApiKey:
+    Type: String
+    NoEcho: true
+
+  ExotelApiToken:
+    Type: String
+    NoEcho: true
+
+  ExotelSid:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Exotel account SID. NoEcho even though it is not strictly a secret - it is
+      half of the Exotel basic-auth pair and there is no reason to echo it.
+
+  ExotelWebhookIps:
+    Type: String
+    Default: ""
+    Description: >-
+      Comma-separated allowlist of Exotel's webhook source IPs. Exotel does not
+      sign its webhooks, so a source-IP check is the only available way to tell a
+      real call-status event from a forged one. The Lambda fails closed on this
+      in prod and warns-but-allows in non-prod, so blank is survivable in dev but
+      rejects every Exotel webhook in prod - deploy.sh blocks a blank value there
+      rather than shipping a stack that silently drops all call-status updates.
+
+  # ---- ElevenLabs -----------------------------------------------------------
+
+  ElevenLabsApiKey:
+    Type: String
+    NoEcho: true
+
+  ElevenLabsAgentId:
+    Type: String
+    Description: >-
+      The ONE shared Conversational AI agent used for every tenant. Per-tenant
+      personalisation is passed as dynamic variables at call start, not by
+      creating an agent per agency.
+
+  ElevenLabsAgentPhoneNumberId:
+    Type: String
+    Description: >-
+      ElevenLabs' id for the imported Exotel ExoPhone. Required by
+      POST /v1/convai/exotel/outbound-call - this is what bridges call audio to
+      the agent. Obtained from the ElevenLabs dashboard after importing the number.
+
+  ElevenLabsWebhookSecret:
+    Type: String
+    NoEcho: true
+    Description: >-
+      HMAC signing secret ElevenLabs uses on post-call webhooks. The Lambda
+      verifies every webhook against this - /webhooks/* is publicly reachable,
+      so this signature is the only thing separating a real event from a forged one.
+
+  ServerToolApiKey:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Bearer token the ElevenLabs agent presents when calling this service's
+      server-tool endpoints mid-conversation (property lookup, site-visit
+      booking). Configured as a secret header on the tool in the ElevenLabs
+      dashboard.
+
+  CrmCallerApiKey:
+    Type: String
+    NoEcho: true
+    Description: >-
+      Shared secret the CRM backend presents on /api/ai-calling/* management
+      routes. The browser never calls this service directly, so what these
+      routes authenticate is the CRM backend as a service, not an end user -
+      x-tenant-id is trusted only because the caller proved it holds this key.
+      That makes this a tenant-crossing credential: it belongs only in the CRM
+      backend's server-side config, never in a browser bundle or a webhook
+      registration. Deliberately distinct from CrmInternalApiKey, which this
+      service presents when calling in the other direction.
+
+  # ---- API surface ----------------------------------------------------------
+
+  ApiStageName:
+    Type: String
+    Default: v1
+    Description: API Gateway stage name
+
+  AllowedOrigins:
+    Type: String
+    Description: >-
+      Comma-separated CORS allowlist for the CRM frontend. The first entry is
+      used for API Gateway's own 4XX/5XX gateway responses, which accept only a
+      single literal origin; the Lambda enforces the full list per request.
+
+  AiCallingApiDomainName:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+    Description: >-
+      Shared API Gateway custom domain: services-api.realestateflow.in for prod,
+      services-api.cloudberrysolutions.in for dev. This template does not manage
+      the domain, only its own base path mapping onto it.
+
+  AiCallingApiBasePath:
+    Type: String
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+    Description: >-
+      Single base path segment on that domain - prodrealestateagencyai /
+      devrealestateagencyai.
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Creates the BasePathMapping onto AiCallingApiDomainName. Must be 'true'
+      in dev and prod: ElevenLabs and Exotel are pointed at
+      https://<domain>/<basePath>, never the execute-api invoke URL.
+
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Flip to 'true' together with EnableCustomDomainMapping. API Gateway's base
+      path mapping affects routing selection only - it does NOT strip the base
+      path from the event.path a Lambda proxy integration receives, so
+      lambda-handler.js strips it itself. Without this every request 404s once
+      the mapping goes live.
+
+  # ---- Operations -----------------------------------------------------------
+
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+    Description: >-
+      Call transcripts can surface in logs at debug level - do not raise this
+      without checking what is actually being logged.
+
+  RecordingRetentionDays:
+    Type: Number
+    Default: 90
+    Description: How long call recordings are kept before deletion
+
+Rules:
+  CustomDomainMappingRequired:
+    Assertions:
+      - Assert: !Equals [!Ref EnableCustomDomainMapping, 'true']
+        AssertDescription: >-
+          EnableCustomDomainMapping must be 'true'. WEBHOOK_BASE_URL is derived
+          from the custom domain + base path, so the mapping has to exist.
+      - Assert: !Equals [!Ref EnableBasePathStrip, 'true']
+        AssertDescription: >-
+          EnableBasePathStrip must be 'true' with the mapping on, or every
+          request 404s.
+
+Conditions:
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # DynamoDB
+  # ---------------------------------------------------------------------------
+
+  # Call sessions, transcripts and per-tenant agent config. Holds customer
+  # phone numbers and full conversation transcripts, so Retain + PITR + SSE per
+  # the repo's CFN checklist - a stack delete must never take this with it.
+  AICallingTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AICallingTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # Calls for one tenant filtered by status - the CRM's call list view.
+        - IndexName: tenant-status-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # Calls for one tenant newest-first - metrics and the daily summary.
+        - IndexName: tenant-date-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  # ---------------------------------------------------------------------------
+  # S3
+  # ---------------------------------------------------------------------------
+
+  KnowledgeBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref AICallingKnowledgeBucket
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        # Browser PUTs go straight to S3 on a presigned URL, so the CRM origin
+        # needs to be allowed here - but scoped to that origin, not "*".
+        CorsRules:
+          - AllowedOrigins: !Split [",", !Ref AllowedOrigins]
+            AllowedMethods: [GET, PUT, POST]
+            AllowedHeaders: ["*"]
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  RecordingsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref AICallingRecordingsBucket
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionToIA
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+          # NOTE: CFN's schema for Expiration is the FLAT ExpirationInDays on the
+          # rule, not the nested {Days: N} object the raw S3 REST API uses. The
+          # nested form passes validate-template and then fails changeset
+          # creation with an opaque PropertyValidation error.
+          - Id: ExpireRecordings
+            Status: Enabled
+            ExpirationInDays: !Ref RecordingRetentionDays
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  # ---------------------------------------------------------------------------
+  # Secrets Manager
+  # ---------------------------------------------------------------------------
+
+  # The Lambda resolves this at cold start via GetSecretValue on SECRETS_ARN and
+  # merges the JSON into its own config. Keys are the exact env-var names the
+  # app reads, so there is no mapping layer to drift.
+  AICallingSecrets:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-aicalling-credentials"
+      Description: Exotel / ElevenLabs / CRM credentials for the AI calling service
+      SecretString: !Sub |
+        {
+          "CRM_INTERNAL_API_KEY": "${CrmInternalApiKey}",
+          "EXOTEL_API_KEY": "${ExotelApiKey}",
+          "EXOTEL_API_TOKEN": "${ExotelApiToken}",
+          "EXOTEL_SID": "${ExotelSid}",
+          "ELEVENLABS_API_KEY": "${ElevenLabsApiKey}",
+          "ELEVENLABS_WEBHOOK_SECRET": "${ElevenLabsWebhookSecret}",
+          "SERVER_TOOL_API_KEY": "${ServerToolApiKey}",
+          "CRM_CALLER_API_KEY": "${CrmCallerApiKey}"
+        }
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  # ---------------------------------------------------------------------------
+  # Lambda
+  # ---------------------------------------------------------------------------
+
+  # Declared explicitly so retention is managed here instead of defaulting to
+  # "never expire". Must exist before the function first writes to it.
+  AICallingLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EnvironmentName}-realestateflow-aicalling-lambda"
+      RetentionInDays: !Ref LogRetentionDays
+
+  AICallingLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-aicalling-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+      Policies:
+        - PolicyName: aicalling-lambda-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              # Scoped to this function's own log group rather than logs:* on
+              # everything (which is what AWSLambdaBasicExecutionRole grants).
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EnvironmentName}-realestateflow-aicalling-lambda:*"
+
+              # Exactly this service's own table. No CRM table is reachable from
+              # this role - CRM data is fetched over the internal API with an
+              # api key, never by direct table access.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchGetItem
+                  - dynamodb:BatchWriteItem
+                Resource:
+                  - !GetAtt AICallingTable.Arn
+                  - !Sub "${AICallingTable.Arn}/index/*"
+
+              # Object-level access on the two buckets, and ListBucket on the
+              # buckets themselves - split because the ARN shapes differ.
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${KnowledgeBucket.Arn}/*"
+                  - !Sub "${RecordingsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt KnowledgeBucket.Arn
+                  - !GetAtt RecordingsBucket.Arn
+
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref AICallingSecrets
+
+              # No Bedrock grant here on purpose. Policy/FAQ retrieval moved
+              # to the CRM backend (server/services/knowledge/), which owns the
+              # embeddings and the vector index; this service reaches it over
+              # the existing internal API rather than calling Bedrock itself.
+
+  AICallingLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: AICallingLogGroup
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-aicalling-lambda"
+      Runtime: !Ref LambdaRuntime
+      Handler: src/lambda-handler.handler
+      Role: !GetAtt AICallingLambdaRole.Arn
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      TracingConfig:
+        Mode: Active
+      Environment:
+        # Secrets are deliberately NOT here - they live in Secrets Manager and
+        # are resolved at cold start via SECRETS_ARN. Anything in this block is
+        # readable by anyone with lambda:GetFunctionConfiguration.
+        #
+        # AWS_REGION is intentionally absent: it is a reserved Lambda env var
+        # that CloudFormation rejects, and the runtime already provides it.
+        Variables:
+          NODE_ENV: production
+          ENVIRONMENT: !Ref EnvironmentName
+          AI_CALLING_TABLE_NAME: !Ref AICallingTableName
+          AI_CALLING_KNOWLEDGE_BUCKET: !Ref AICallingKnowledgeBucket
+          AI_CALLING_RECORDINGS_BUCKET: !Ref AICallingRecordingsBucket
+          CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
+          CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
+          EXOTEL_SUBDOMAIN: !Ref ExotelSubdomain
+          EXOTEL_WEBHOOK_IPS: !Ref ExotelWebhookIps
+          ELEVENLABS_AGENT_ID: !Ref ElevenLabsAgentId
+          ELEVENLABS_AGENT_PHONE_NUMBER_ID: !Ref ElevenLabsAgentPhoneNumberId
+          # Public root ElevenLabs/Exotel call back into. Derived, never pasted:
+          # it is known before the stack exists, so there is no two-phase deploy.
+          WEBHOOK_BASE_URL: !Sub "https://${AiCallingApiDomainName}/${AiCallingApiBasePath}"
+          API_BASE_PATH_PREFIX: !Ref AiCallingApiBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          LOG_LEVEL: !Ref LogLevel
+          SECRETS_ARN: !Ref AICallingSecrets
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  # ---------------------------------------------------------------------------
+  # API Gateway
+  # ---------------------------------------------------------------------------
+  # One greedy {proxy+} route - Express already does the routing, so enumerating
+  # endpoints as CFN resources would only burn against the 500-resource limit.
+
+  AICallingApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-aicalling-api"
+      Description: AI Calling Service API
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      MinimumCompressionSize: 1024
+
+  # A single literal origin - this header cannot carry a list, and "*" on an API
+  # that places real phone calls is worth avoiding even on error responses.
+  ApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub
+          - "'${FirstOrigin}'"
+          - FirstOrigin: !Select [0, !Split [",", !Ref AllowedOrigins]]
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,x-tenant-id,x-api-key,elevenlabs-signature'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  ApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: !Sub
+          - "'${FirstOrigin}'"
+          - FirstOrigin: !Select [0, !Split [",", !Ref AllowedOrigins]]
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,x-tenant-id,x-api-key,elevenlabs-signature'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  ApiProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ParentId: !GetAtt AICallingApi.RootResourceId
+      PathPart: "{proxy+}"
+
+  # Authorization is enforced inside the Lambda, not at the gateway, and this is
+  # deliberate - the same call the insta service makes for the same reason.
+  # Three different schemes share this one API:
+  #   /api/ai-calling/*   CRM bearer JWT
+  #   /webhooks/*         ElevenLabs HMAC over the RAW request body
+  #   /tools/*            server-tool bearer key
+  # An API Gateway authorizer cannot see the raw body, so it cannot express the
+  # HMAC scheme; splitting auth across two layers would mean two places to get
+  # it wrong. NONE here means "no gateway-level auth", never "no auth".
+  ApiRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResourceId: !GetAtt AICallingApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AICallingLambda.Arn}/invocations"
+
+  ApiProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref AICallingApi
+      ResourceId: !Ref ApiProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AICallingLambda.Arn}/invocations"
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ApiRootMethod
+      - ApiProxyMethod
+    Properties:
+      RestApiId: !Ref AICallingApi
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref AICallingApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref ApiStageName
+      TracingEnabled: true
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          MetricsEnabled: true
+          # Never ON: request/response logging would put call transcripts and
+          # customer phone numbers into CloudWatch in full.
+          DataTraceEnabled: false
+          LoggingLevel: ERROR
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-aicalling
+
+  AiCallingApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn: ApiStage
+    Properties:
+      DomainName: !Ref AiCallingApiDomainName
+      RestApiId: !Ref AICallingApi
+      BasePath: !Ref AiCallingApiBasePath
+      Stage: !Ref ApiStageName
+
+  ApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AICallingLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${AICallingApi}/*/*/*"
+
+Outputs:
+
+  AICallingTableNameOutput:
+    Description: AI calling DynamoDB table name
+    Value: !Ref AICallingTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-TableName"
+
+  AICallingApiId:
+    Description: REST API id (deploy.sh uses this to force a stage deployment)
+    Value: !Ref AICallingApi
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiId"
+
+  AiCallingApiBaseUrl:
+    Condition: CustomDomainMappingEnabled
+    Description: >-
+      Public base URL (custom domain + base path). Equals the Lambda's
+      WEBHOOK_BASE_URL; register ElevenLabs tools/webhooks and Exotel
+      callbacks against it.
+    Value: !Sub "https://${AiCallingApiDomainName}/${AiCallingApiBasePath}"
+    Export:
+      Name: !Sub "${AWS::StackName}-AiCallingApiBaseUrl"
+
+  LambdaArn:
+    Description: AI calling Lambda ARN
+    Value: !GetAtt AICallingLambda.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaArn"
+
+  LambdaName:
+    Description: AI calling Lambda function name (used by rollback-code)
+    Value: !Ref AICallingLambda
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaName"
+
+  SecretsArn:
+    Description: Secrets Manager ARN the Lambda resolves at cold start
+    Value: !Ref AICallingSecrets
+    Export:
+      Name: !Sub "${AWS::StackName}-SecretsArn"
+
+  KnowledgeBucketName:
+    Description: Knowledge documents bucket
+    Value: !Ref AICallingKnowledgeBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-KnowledgeBucket"
+
+  RecordingsBucketName:
+    Description: Call recordings bucket
+    Value: !Ref AICallingRecordingsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-RecordingsBucket"

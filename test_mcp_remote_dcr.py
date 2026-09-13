@@ -1,5 +1,8 @@
+import os
 import urllib.request
 import json
+
+MCP_BASE_URL = 'https://' + os.environ.get('MCP_API_DOMAIN_NAME', 'services-api.cloudberrysolutions.in') + '/' + os.environ.get('MCP_API_BASE_PATH', 'devrealestatemcp')
 
 body = json.dumps({
     "redirect_uris": ["http://localhost:9547/oauth/callback"],
@@ -14,7 +17,7 @@ body = json.dumps({
 }).encode()
 
 req = urllib.request.Request(
-    'https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/oauth/register',
+    MCP_BASE_URL + '/oauth/register',
     data=body,
     headers={'Content-Type': 'application/json'},
     method='POST'

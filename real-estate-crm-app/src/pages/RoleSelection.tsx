@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIdToken } from '../utils/authStorage';
 import { trackEvent } from '../lib/analytics';
+import { AUTH_API_URL } from '../config/apiConfig';
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 export default function RoleSelection() {
   const [loading, setLoading] = useState(false);

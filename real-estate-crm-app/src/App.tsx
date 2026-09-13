@@ -112,6 +112,9 @@ import AiEmployeePage from './pages/crm/AiEmployee';
 import WhatsAppInbox from './pages/crm/WhatsAppInbox';
 import AiIntegrations from './pages/crm/AiIntegrations';
 import CallRecordings from './pages/crm/CallRecordings';
+import AICalling from './pages/crm/AICalling';
+import AgencyPolicies from './pages/crm/AgencyPolicies';
+import PublicPagesSettings from './pages/crm/PublicPagesSettings';
 
 
 
@@ -461,6 +464,7 @@ function App() {
 
             {/* Lead Routes */}
             <Route path="/crm/settings/billing" element={<ProtectedRoute authState={authState}><BillingSettings /></ProtectedRoute>} />
+            <Route path="/crm/settings/public-pages" element={<ProtectedRoute authState={authState}><PublicPagesSettings /></ProtectedRoute>} />
             <Route path="/crm/leads" element={<ProtectedRoute authState={authState}><LeadList /></ProtectedRoute>} />
             <Route path="/crm/leads/new" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
             <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
@@ -471,6 +475,8 @@ function App() {
 
             {/* Call Intelligence */}
             <Route path="/crm/call-recordings" element={<ProtectedRoute authState={authState}><CallRecordings /></ProtectedRoute>} />
+            <Route path="/crm/ai-calling" element={<ProtectedRoute authState={authState}><AICalling /></ProtectedRoute>} />
+            <Route path="/crm/agency-policies" element={<ProtectedRoute authState={authState}><AgencyPolicies /></ProtectedRoute>} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />

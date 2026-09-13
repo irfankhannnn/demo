@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Film, Phone, Users } from 'lucide-react';
+import { ExternalLink, Film, Phone, Users } from 'lucide-react';
 import { getEnquiries, patchEnquiry } from '../api/insta';
-import { ApiError } from '../api/client';
+import { ApiError, CRM_URL } from '../api/client';
 import {
   ENQUIRY_STATUSES,
   TEMPERATURES,
@@ -227,9 +227,20 @@ export default function Enquiries() {
     <div>
       <PageHeader
         title="Enquiries"
-        description="Every lead the agent extracted from Instagram DMs and comments. Change a status here and it saves straight away."
+        description="Every lead the agent extracted from Instagram DMs and comments, as it was captured. Anyone with a name and phone number is also created as a lead in the CRM, where the AI qualification call and the rest of the pipeline run."
         onRefresh={reload}
         refreshing={loading}
+        actions={
+          CRM_URL ? (
+            <a
+              href={`${CRM_URL}/crm/leads?source=Instagram`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Open in CRM
+            </a>
+          ) : null
+        }
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3">

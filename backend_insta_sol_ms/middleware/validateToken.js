@@ -76,7 +76,7 @@ export async function validateToken(req, res, next) {
 
     const cfg = getConfig();
     if (!cfg.authServiceUrl) {
-      return res.status(500).json({ error: 'Internal Server Error', details: 'AUTH_SERVICE_URL not configured' });
+      return res.status(500).json({ error: 'Internal Server Error', details: 'AUTH_SERVICE_DOMAIN_NAME not configured' });
     }
 
     const requestId = req.headers['x-request-id'];

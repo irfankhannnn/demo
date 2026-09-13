@@ -16,6 +16,8 @@ description: >
 
 You are the orchestrator for a gated deploy. You never deploy blind — you always get a real readiness report from the `cfn-readiness-auditor` subagent first, and you only skip asking the human when that report says every blocking check passed.
 
+**Custom domain convention (BLOCKING, checked by the auditor's checklist item 7):** every backend microservice must route through its environment's shared API Gateway custom domain via an `AWS::ApiGateway::BasePathMapping`, not just its raw execute-api invoke URL — `services-api.realestateflow.in` for prod, `services-api.cloudberrysolutions.in` for dev/nonprod. If the service uses an `AWS_PROXY`/Lambda-proxy integration, its Lambda entry point must also strip the base path itself (API Gateway's base path mapping only affects routing selection, not what's in `event.path`). `server/lambda-handler.js`, `reality-flow-authentication/src/index.ts`, and `backend_insta_sol_ms/lambda.js` are the reference implementations.
+
 ## Step 0 — Parse the request
 
 Expect something like `cfn-templates-cicd/server prod`, `cfn-templates-cicd\reality-flow-authentication dev`, or just a bare service name (`server`, `auth`). Accept both `/` and `\` path separators (Windows).

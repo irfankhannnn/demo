@@ -7,14 +7,15 @@
 import { createNotification, NotificationCategory } from './notificationDynamodbService.js';
 import { sendEmail } from './emailService.js';
 import { logger } from './logger.js';
+import { getAuthServiceBaseUrl } from './config/serviceUrls.js';
 
 export const LeadNotificationType = {
   NEW_LEAD: 'NEW_LEAD',
   LEAD_ASSIGNED: 'LEAD_ASSIGNED',
   LEAD_HOT: 'LEAD_HOT',
+  SITE_VISIT_BOOKED: 'SITE_VISIT_BOOKED',
 };
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 /**
@@ -27,7 +28,7 @@ async function getTeamMemberEmail(tenantId, userId) {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
+    const response = await fetch(`${getAuthServiceBaseUrl()}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
       headers: { 'x-internal-api-key': INTERNAL_API_KEY },
       signal: controller.signal,
     });
@@ -103,6 +104,48 @@ export async function notifyLeadAssigned(tenantId, lead, assigneeUserId) {
       html: `<p>${lead.name || 'A lead'} (${lead.phone || 'no phone'}) has been assigned to you.</p>`,
       text: `${lead.name || 'A lead'} (${lead.phone || 'no phone'}) has been assigned to you.`,
     });
+  }
+}
+
+/**
+ * Someone booked a site visit from a public property page.
+ *
+ * This exists as its own notification rather than relying on `notifyNewLead`
+ * because `ingestLead()` deliberately stays silent when an enquiry matches an
+ * existing lead — correct for a repeat enquiry, wrong here. A booked visit is
+ * a calendar commitment someone has to turn up for, so it must reach the
+ * agency whether or not the person was already in the CRM.
+ *
+ * Fires in addition to the meeting's own 15-minute reminder: the reminder
+ * tells you a visit is imminent, this tells you one was booked at all.
+ */
+export async function notifySiteVisitBooked(tenantId, { lead, meeting, propertyTitle }) {
+  const when = `${meeting.meetingDate} at ${meeting.meetingTime}`;
+  const where = propertyTitle ? ` for ${propertyTitle}` : '';
+
+  await safeCreateNotification(tenantId, {
+    category: NotificationCategory.LEADS || 'LEADS',
+    type: LeadNotificationType.SITE_VISIT_BOOKED,
+    title: 'Site visit booked',
+    message: `${lead.name || 'Someone'} booked a site visit${where} on ${when}.`,
+    deepLink: `/crm/leads/${lead.leadId}`,
+    entityRef: { entityType: 'lead', entityId: lead.leadId },
+    // Keyed on the meeting, not the lead: one person booking two different
+    // visits must produce two notifications, and a retried request for the
+    // same booking must produce one.
+    dedupeKey: `site_visit_booked:${meeting.meetingId}`,
+  });
+
+  if (lead.assignedTo) {
+    const email = await getTeamMemberEmail(tenantId, lead.assignedTo);
+    if (email) {
+      await safeSendEmail({
+        to: email,
+        subject: `Site visit booked: ${lead.name || 'a visitor'} on ${when}`,
+        html: `<p><strong>${lead.name || 'A visitor'}</strong> (${lead.phone || 'no phone'}) booked a site visit${where}.</p><p>When: <strong>${when}</strong></p>`,
+        text: `${lead.name || 'A visitor'} (${lead.phone || 'no phone'}) booked a site visit${where} on ${when}.`,
+      });
+    }
   }
 }
 

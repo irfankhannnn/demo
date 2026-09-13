@@ -9,6 +9,7 @@ import { clearAuthSilently, getUserProfile, setUserProfile } from '../utils/auth
 import { redirectToLogout, callMe } from '../utils/cognitoAuth';
 import { getAgencyMembershipDescription } from '../utils/rbac';
 import { startEmailLink, startPhoneLink, verifyPhoneLink } from '../services/contactLinkApi';
+import { AUTH_API_URL } from '../config/apiConfig';
 
 interface ProfileData {
   displayName: string;
@@ -110,7 +111,7 @@ export default function Profile() {
       // itself, so the request fails, and Android blocks cleartext HTTP by
       // default anyway. Fail with a clear message instead of a confusing
       // network error.
-      const authApiUrl = import.meta.env.VITE_AUTH_API_URL;
+      const authApiUrl = AUTH_API_URL;
       if (!authApiUrl) {
         setError('Authentication service is not configured. Please contact support.');
         return;

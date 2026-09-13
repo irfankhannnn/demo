@@ -3,6 +3,7 @@ import { handleMcpRequest } from '../controllers/mcpController';
 import { mcpRateLimiter } from '../middleware/rateLimiter';
 import { mcpJwtAuth } from '../middleware/jwtAuth';
 import { logger } from '../utils/logger';
+import { getMcpPublicBaseUrl } from '../config/config';
 
 const router = Router();
 
@@ -38,7 +39,7 @@ router.use('/mcp', mcpRateLimiter);
  * return 401 with the resource metadata pointer, not a generic 403.
  */
 router.get('/mcp', (_req, res) => {
-  const baseUrl = process.env.OAUTH_BASE_URL || '';
+  const baseUrl = getMcpPublicBaseUrl();
   if (baseUrl) {
     res.setHeader('WWW-Authenticate', `Bearer resource_metadata="${baseUrl}/.well-known/oauth-protected-resource"`);
   }

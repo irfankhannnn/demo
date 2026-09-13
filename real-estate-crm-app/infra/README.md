@@ -35,6 +35,17 @@ required so requests are actually served from Indian edge locations.
    from the file — it's forced from the `dev|prod` argument you pass on the
    command line, so a stale file can't silently deploy the wrong environment.
 
+   API endpoints are configured per API as a bare custom-domain host + a
+   single-segment base path — `VITE_CRM_API_DOMAIN_NAME`/`VITE_CRM_API_BASE_PATH`,
+   `VITE_AUTH_API_DOMAIN_NAME`/`VITE_AUTH_API_BASE_PATH`, and the optional
+   `VITE_MCP_API_DOMAIN_NAME`/`VITE_MCP_API_BASE_PATH` (dev:
+   `services-api.cloudberrysolutions.in` + `devrealestatecrm`/`devrealestateauth`/
+   `devrealestatemcp`; prod: `services-api.realestateflow.in` + `prod…`).
+   `src/config/apiConfig.ts` appends `/api` and `/mcp`. Every deploy script
+   runs `lib/api-domain-guard.sh`, which refuses an empty domain or base path,
+   a raw `execute-api`/`amazonaws.com` host, a value containing `://`, and the
+   removed `VITE_API_URL`/`VITE_API_BASE_URL`/`VITE_AUTH_API_URL` vars.
+
 2. `FRONTEND_S3_BUCKET_NAME` is optional — leave it blank and `deploy.sh`
    derives it as `${ENV}-${SERVICE_NAME}` (e.g. `dev-realestateflow-crm-frontend`),
    which must be globally unique across all of S3. Only set it explicitly if

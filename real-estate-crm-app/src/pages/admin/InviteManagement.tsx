@@ -5,6 +5,7 @@ import { getIdToken } from '../../utils/authStorage';
 import { trackEvent } from '../../lib/analytics';
 import SeatCounter from '../../components/SeatCounter';
 import SeatUpgradeModal from '../../components/SeatUpgradeModal';
+import { AUTH_API_URL, CRM_API_URL } from '../../config/apiConfig';
 
 interface Invite {
   inviteCode: string;
@@ -16,7 +17,6 @@ interface Invite {
   acceptedAt?: string;
 }
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 export default function InviteManagement() {
   const navigate = useNavigate();
@@ -173,7 +173,7 @@ export default function InviteManagement() {
       }
 
       // PR-H: Pre-invite seat availability check
-      const API_URL = import.meta.env.VITE_API_URL as string;
+      const API_URL = CRM_API_URL;
       if (API_URL) {
         try {
           const seatCheck = await fetch(`${API_URL}/subscriptions/check-seat`, {

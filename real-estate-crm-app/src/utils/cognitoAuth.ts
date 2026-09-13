@@ -18,6 +18,7 @@ import {
   SECURE_KEY_REFRESH_TOKEN,
 } from '../lib/secureStore';
 import { openAuthBrowser, closeAuthBrowser } from '../lib/nativeAuth';
+import { AUTH_API_URL } from '../config/apiConfig';
 
 /**
  * Marks a request as coming from the native app.
@@ -36,7 +37,6 @@ const COGNITO_DOMAIN = import.meta.env.VITE_COGNITO_DOMAIN as string;
 const CLIENT_ID = import.meta.env.VITE_COGNITO_CLIENT_ID as string;
 const REDIRECT_URI = import.meta.env.VITE_AUTH_REDIRECT_URI as string;
 const LOGOUT_URI = import.meta.env.VITE_AUTH_LOGOUT_URI as string;
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 // --- Public helpers ---
 
@@ -374,7 +374,7 @@ export async function refreshTokens(): Promise<AuthTokens> {
   // Ensure AUTH_API_URL is configured
   if (!AUTH_API_URL) {
     throw new Error(
-      'AUTH_API_URL is not configured. Please set VITE_AUTH_API_URL in your environment variables.'
+      'AUTH_API_URL is not configured. Please set VITE_AUTH_API_DOMAIN_NAME and VITE_AUTH_API_BASE_PATH in your environment variables.'
     );
   }
 

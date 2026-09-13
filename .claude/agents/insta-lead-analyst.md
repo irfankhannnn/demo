@@ -30,8 +30,25 @@ conversation_start_date, conversation_end_date, message_count,
 messages[] -> { date, time, date_source, direction, direction_basis, text }
 ```
 
-`direction` is `lead`, `business` or `unknown`. The export does not label most
-messages, so infer the rest from content and flow. Our team's messages look
+The file comes from one of two sources, named in its top-level `source_kind`:
+
+- **`instagram_dom_fetch`** (the scheduled automation, the normal case). Every
+  message was read from Instagram web together with Instagram's own sender
+  label, so `direction` is exact: `business` is our account, `lead` is the
+  other person, `unknown` is a third participant in a group thread. Do not
+  re-infer direction from content. Extra fields per lead: `inbox_tab`
+  (`primary`, `general`, `requests`), `message_request` (true when the thread
+  is still an unaccepted request, so we have not replied yet and they cannot
+  see that we read it), `other_participants`, and `reply_context` on a message
+  that quotes an earlier one. Messages may include history already stored in
+  the workbook, marked `direction_basis: "stored in workbook"`; read the whole
+  thread either way.
+- **A pasted text export** (`parse_dm_export.py`, no `source_kind`). Most
+  messages are unlabelled there, so infer the rest from content and flow as
+  described below.
+
+`direction` is `lead`, `business` or `unknown`. For a text export, infer the
+unlabelled ones from content and flow. Our team's messages look
 like qualifying scripts ("Do you have any property requirement", "Your contact
 number please"), price quotes ("Rent 50k", "40k rent and 1lac deposit") and
 availability answers ("Heavy pe ek bhi nhi h filhal"). The lead's messages ask
@@ -56,7 +73,10 @@ stage and blocks the whole run.
       "deal_type": "rent | buy | heavy_deposit | \"\"",
       "property_type": "1 BHK | 2 BHK | ... | \"\"",
       "locality": "free text, \"\" if never stated",
+      "city": "free text, e.g. Mumbai, Thane, Navi Mumbai, \"\" if never stated",
+      "building_name": "society, building or project name, \"\" if never stated",
       "budget": "free text as the lead said it, \"\" if never stated",
+      "units_required": "how many properties/units they want, as stated, e.g. \"2\", \"\" if never stated or clearly one",
       "possession_timeline": "free text, \"\" if never stated",
       "mobile_number": "only numbers you found that the parser missed, else \"\"",
       "whatsapp_available": "yes | no | not_mentioned",
@@ -73,9 +93,26 @@ stage and blocks the whole run.
 ```
 
 Leave a field as `""` when the conversation never said it. Never invent a
-budget, a locality or a phone number. An empty string is preserved by the
-upsert stage, so a blank today can be filled by a later export without losing
-anything.
+budget, a locality, a city, a building name or a phone number.
+
+**Our own numbers are never the lead's.** A number inside a `business`
+message ("Call on 9594191916") is the team giving out its contact, not the
+lead sharing theirs. The numbers in `business_phone_numbers` in
+`config/business-phrases.json` are ours wherever they appear. Only put a
+number in `mobile_number` when the lead sent it. A contact card
+(`[contact card] ...`) belongs to whoever sent that message. An empty
+string is preserved by the upsert stage, so a blank today can be filled by a
+later export without losing anything.
+
+`city` and `building_name` are split out of `locality` on purpose: `locality`
+stays exactly what the lead said (which is often already an area, e.g. "Kurla
+West"), `city` is the city that area sits in only if the lead or the thread
+actually names it (do not infer "Mumbai" just because the agency is Mumbai-
+based), and `building_name` is only for an actual society/project/building
+name mentioned by either side, not a generic phrase like "a good building."
+These three feed a demand-aggregation view (how many people want what, where),
+so a wrong guess pollutes counts a human will act on — leave it blank rather
+than guess.
 
 ## How to write each judgement field
 
@@ -97,8 +134,8 @@ generic greeting. Leave it `""` only for `not_a_lead`.
 
 **lead_score**
 - `very_hot` — a mobile number is on record with a real requirement, or a
-  meeting or site visit is fixed. An explicit "call me on <number>" is
-  `very_hot` on its own.
+  meeting or site visit is fixed. An explicit "call me on <number>" from the
+  lead is `very_hot` on its own. Us telling them to call our number is not.
 - `hot` — a clear requirement (at least two of deal type, configuration,
   locality, budget) with recent activity, but no number.
 - `cold` — vague or one-line threads, dead negotiations, stale conversations
@@ -117,7 +154,7 @@ for example "Office visit committed for 6 Sep 2026 around 4pm". A vague "will
 visit tomorrow" belongs here too, with the ambiguity stated.
 
 **needs_review** — `yes` when your reading could be wrong: ambiguous message
-direction, an unclear budget unit (lakh versus thousand), a thread with no
+direction (text exports only, a DOM fetch has none), an unclear budget unit (lakh versus thousand), a thread with no
 timestamps, or a lead who may be handled by another team member. Everything
 else is `no`.
 

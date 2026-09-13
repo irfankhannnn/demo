@@ -1,0 +1,192 @@
+<!--
+  LP Cookie Consent Banner (DPDP-compliant) — vanilla HTML + inline CSS + inline JS.
+  Injected at the end of <body> on every landing page.
+
+  Gates all 5 LP trackers via 4 toggles (Essential locked, Functional, Analytics, Marketing).
+  Shares the `cookieConsent` localStorage key + schema (version 1) with the CRM banner
+  (01-SHARED-CONTRACTS §3.5). On save it dispatches a `cookie-consent-done` event that
+  head-analytics.hbs (PR-E) listens to. Exposes window.openCookiePreferences() for the
+  footer "Cookie preferences" link.
+-->
+<style>
+  #cc-banner, #cc-modal { box-sizing: border-box; font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  #cc-banner *, #cc-modal * { box-sizing: border-box; }
+  #cc-banner {
+    position: fixed; inset: auto 0 0 0; z-index: 9999;
+    background: #1C1512; color: #fff;
+    border-top: 1px solid #1e293b;
+    padding: 16px 20px;
+    display: none;
+  }
+  #cc-banner.cc-show { display: block; }
+  .cc-inner { max-width: 1080px; margin: 0 auto; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .cc-text { font-size: 14px; line-height: 1.5; color: #e2e8f0; flex: 1 1 320px; margin: 0; }
+  .cc-text a { color: #fff; text-decoration: underline; }
+  .cc-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .cc-btn { font-size: 14px; font-weight: 600; border-radius: 6px; padding: 10px 16px; cursor: pointer; border: 1px solid transparent; }
+  .cc-btn:focus-visible { outline: 2px solid #22C55E; outline-offset: 2px; }
+  .cc-accept { background: #22C55E; color: #1C1512; border-color: #22C55E; }
+  .cc-accept:hover { background: #16A34A; }
+  .cc-reject { background: transparent; color: #fff; border-color: #64748b; }
+  .cc-reject:hover { background: #1e293b; }
+  .cc-customize { background: transparent; color: #cbd5e1; text-decoration: underline; font-weight: 500; border: none; padding: 10px 8px; }
+  .cc-customize:hover { color: #fff; }
+
+  #cc-modal {
+    position: fixed; inset: 0; z-index: 10000;
+    background: rgba(2, 6, 14, 0.7);
+    display: none; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  #cc-modal.cc-show { display: flex; }
+  .cc-card { background: #241D17; color: #fff; border: 1px solid #1e293b; border-radius: 12px; max-width: 560px; width: 100%; max-height: 90vh; overflow-y: auto; padding: 24px; }
+  .cc-card h2 { margin: 0 0 4px; font-size: 18px; }
+  .cc-card p.cc-sub { margin: 0 0 16px; font-size: 14px; color: #94a3b8; }
+  .cc-row { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; border: 1px solid #1e293b; background: rgba(15,23,42,0.4); border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+  .cc-row h3 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+  .cc-row p { margin: 0; font-size: 12px; color: #94a3b8; }
+  .cc-locked { font-size: 12px; font-weight: 500; color: #cbd5e1; background: #334155; border-radius: 4px; padding: 4px 8px; white-space: nowrap; }
+  .cc-row input[type="checkbox"] { width: 20px; height: 20px; margin-top: 2px; accent-color: #22C55E; flex: 0 0 auto; }
+  .cc-modal-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 16px; }
+  @media (max-width: 640px) {
+    .cc-inner { flex-direction: column; align-items: stretch; }
+    .cc-actions { width: 100%; flex-direction: column; }
+    .cc-actions .cc-btn, .cc-actions .cc-customize { width: 100%; text-align: center; }
+    .cc-modal-actions .cc-btn { width: 100%; }
+  }
+</style>
+
+<div id="cc-banner" role="dialog" aria-label="Cookie consent" aria-live="polite">
+  <div class="cc-inner">
+    <p class="cc-text">
+      We use cookies to run this site and, with your consent, to measure performance and show
+      relevant ads. See our <a href="/legal/privacy">Privacy Policy</a>.
+    </p>
+    <div class="cc-actions">
+      <button type="button" class="cc-btn cc-reject" id="cc-reject">Reject non-essential</button>
+      <button type="button" class="cc-customize" id="cc-customize">Customize</button>
+      <button type="button" class="cc-btn cc-accept" id="cc-accept">Accept all</button>
+    </div>
+  </div>
+</div>
+
+<div id="cc-modal" role="dialog" aria-modal="true" aria-label="Cookie preferences">
+  <div class="cc-card">
+    <h2>Cookie preferences</h2>
+    <p class="cc-sub">Choose which cookies you allow. You can change this anytime.</p>
+
+    <div class="cc-row">
+      <div>
+        <h3>Essential</h3>
+        <p>Required for the site to work — auth, preferences, security.</p>
+      </div>
+      <span class="cc-locked">Always on</span>
+    </div>
+
+    <label class="cc-row">
+      <div>
+        <h3>Functional</h3>
+        <p>Hotjar session recording — helps us improve UX.</p>
+      </div>
+      <input type="checkbox" id="cc-functional" aria-label="Functional" />
+    </label>
+
+    <label class="cc-row">
+      <div>
+        <h3>Analytics</h3>
+        <p>PostHog + Google Analytics — how we measure funnel performance.</p>
+      </div>
+      <input type="checkbox" id="cc-analytics" aria-label="Analytics" />
+    </label>
+
+    <label class="cc-row">
+      <div>
+        <h3>Marketing</h3>
+        <p>Meta Pixel + LinkedIn — measures which ads brought you here.</p>
+      </div>
+      <input type="checkbox" id="cc-marketing" aria-label="Marketing" />
+    </label>
+
+    <div class="cc-modal-actions">
+      <button type="button" class="cc-btn cc-reject" id="cc-modal-reject">Reject non-essential</button>
+      <button type="button" class="cc-btn cc-accept" id="cc-modal-save">Save preferences</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var CONSENT_KEY = 'cookieConsent';
+  var CONSENT_VERSION = 1;
+
+  var banner = document.getElementById('cc-banner');
+  var modal = document.getElementById('cc-modal');
+  var fnEl = document.getElementById('cc-functional');
+  var anEl = document.getElementById('cc-analytics');
+  var mkEl = document.getElementById('cc-marketing');
+
+  function readConsent() {
+    try { return JSON.parse(localStorage.getItem(CONSENT_KEY) || 'null'); }
+    catch (e) { return null; }
+  }
+
+  function save(consent) {
+    try { localStorage.setItem(CONSENT_KEY, JSON.stringify(consent)); } catch (e) {}
+    window.dispatchEvent(new CustomEvent('cookie-consent-done', { detail: consent }));
+    hideBanner();
+    hideModal();
+  }
+
+  function build(functional, analytics, marketing) {
+    return {
+      essential: true,
+      analytics: !!analytics,
+      marketing: !!marketing,
+      functional: !!functional,
+      version: CONSENT_VERSION,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  function showBanner() { banner.classList.add('cc-show'); }
+  function hideBanner() { banner.classList.remove('cc-show'); }
+  function showModal() {
+    var c = readConsent() || {};
+    fnEl.checked = !!c.functional;
+    anEl.checked = !!c.analytics;
+    mkEl.checked = !!c.marketing;
+    modal.classList.add('cc-show');
+    anEl.focus();
+  }
+  function hideModal() { modal.classList.remove('cc-show'); }
+
+  document.getElementById('cc-accept').addEventListener('click', function () {
+    save(build(true, true, true));
+  });
+  document.getElementById('cc-reject').addEventListener('click', function () {
+    save(build(false, false, false));
+  });
+  document.getElementById('cc-modal-reject').addEventListener('click', function () {
+    save(build(false, false, false));
+  });
+  document.getElementById('cc-customize').addEventListener('click', showModal);
+  document.getElementById('cc-modal-save').addEventListener('click', function () {
+    save(build(fnEl.checked, anEl.checked, mkEl.checked));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal.classList.contains('cc-show')) {
+      hideModal();
+    }
+  });
+
+  // Footer "Cookie preferences" link calls this.
+  window.openCookiePreferences = function () { showModal(); };
+
+  // First visit OR schema version bump → prompt.
+  var stored = readConsent();
+  if (!stored || stored.version !== CONSENT_VERSION) {
+    showBanner();
+  }
+})();
+</script>

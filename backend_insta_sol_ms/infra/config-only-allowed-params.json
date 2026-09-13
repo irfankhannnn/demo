@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "ALLOWLIST, not a denylist — fail-closed by design (see",
+    "docs/proposals/config-only-deploy/context.md and",
+    "reality-flow-authentication/infra/config-only-allowed-params.json for the",
+    "full rationale). A parameter not named here is unsafe-by-default:",
+    "config-deploy.sh refuses to proceed if a local .env change would touch",
+    "it, always falling back to the live stack's current value instead.",
+    "",
+    "Deliberately NOT listed, and why:",
+    "  EnvironmentName            — identity of the stack itself.",
+    "  LambdaRuntime              — changing the Node runtime without a real",
+    "                                rebuild against it is not something to",
+    "                                allow via a shortcut path.",
+    "  LambdaCodeS3Bucket/Key     — LambdaCodeS3Key is a freshly timestamped",
+    "                                key only a real deploy's upload produces;",
+    "                                config-only mode never uploads anything,",
+    "                                so this must always carry forward the",
+    "                                live stack's current value."
+  ],
+  "allowedParams": [
+    "LambdaMemorySize",
+    "LambdaTimeout",
+    "DataTableName",
+    "AuditTableName",
+    "AuthServiceDomainName",
+    "AuthServiceBasePath",
+    "AllowedOrigins",
+    "ApiStageName",
+    "InstaApiDomainName",
+    "InstaApiBasePath",
+    "EnableCustomDomainMapping",
+    "EnableBasePathStrip",
+    "LogLevel",
+    "LogRetentionDays",
+    "DeviceClockSkewToleranceMs",
+    "KillSwitchEnabled",
+    "CrmInternalApiDomainName",
+    "CrmInternalApiBasePath",
+    "AdapterInternalApiKey",
+    "PromoteEnquiriesToLeads"
+  ]
+}

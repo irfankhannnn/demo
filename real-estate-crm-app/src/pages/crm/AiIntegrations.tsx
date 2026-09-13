@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Bot, Trash2, CheckCircle, Clock, Monitor, AlertCircle, X } from 'lucide-react';
 import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { MCP_API_HOSTNAME, MCP_SERVER_URL } from '../../config/apiConfig';
 
 interface ConnectedApp {
   clientId: string;
@@ -41,15 +42,14 @@ const AVAILABLE_APPS: AvailableApp[] = [
 ];
 
 // Hostnames that are allowed as OAuth redirect targets.
-// This list includes the MCP API Gateway domain so the frontend can safely
-// redirect to the MCP /oauth/authorize page.
+// This list includes the MCP server's custom domain (from config/apiConfig)
+// so the frontend can safely redirect to the MCP /oauth/authorize page.
 const ALLOWED_REDIRECT_HOSTS = [
   'claude.ai',
   'chatgpt.com',
   'api.openai.com',
   'localhost',
-  // AWS API Gateway execute-api domain (MCP server)
-  'execute-api.ap-south-1.amazonaws.com',
+  ...(MCP_API_HOSTNAME ? [MCP_API_HOSTNAME] : []),
 ];
 
 export default function AiIntegrations() {
@@ -426,30 +426,32 @@ export default function AiIntegrations() {
             <Monitor className="w-6 h-6 text-slate-600" />
             <h2 className="text-xl font-semibold text-slate-900">Claude Desktop Setup</h2>
           </div>
-          <p className="text-sm text-slate-600 mb-4">
-            To connect Claude Desktop (the native app), add the following to your{' '}
-            <code className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 text-xs font-mono">
-              claude_desktop_config.json
-            </code>
-            :
-          </p>
-          <pre className="bg-slate-900 text-slate-100 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre">
-{`{
-  "mcpServers": {
-    "realtyflow": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev/mcp"
-      ]
-    }
-  }
-}`}
-          </pre>
-          <p className="text-xs text-slate-500 mt-3">
-            After saving, restart Claude Desktop. A browser window will open — log in to RealtyFlow
-            if prompted, then approve the connection on this page.
-          </p>
+          {MCP_SERVER_URL ? (
+            <>
+              <p className="text-sm text-slate-600 mb-4">
+                To connect Claude Desktop (the native app), add the following to your{' '}
+                <code className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 text-xs font-mono">
+                  claude_desktop_config.json
+                </code>
+                :
+              </p>
+              <pre className="bg-slate-900 text-slate-100 rounded-lg p-4 text-xs font-mono overflow-x-auto whitespace-pre">
+{JSON.stringify(
+  { mcpServers: { realtyflow: { command: 'npx', args: ['mcp-remote', MCP_SERVER_URL] } } },
+  null,
+  2,
+)}
+              </pre>
+              <p className="text-xs text-slate-500 mt-3">
+                After saving, restart Claude Desktop. A browser window will open — log in to RealtyFlow
+                if prompted, then approve the connection on this page.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-slate-600">
+              The Claude Desktop connector isn&apos;t available on this deployment yet.
+            </p>
+          )}
         </div>
 
       </div>

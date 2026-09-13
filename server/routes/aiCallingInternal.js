@@ -18,14 +18,17 @@ import {
   getProperties,
   getProperty,
   getPropertiesByStatus,
+  matchProperties,
   createMeeting,
   getOwner,
   getOwners,
 } from '../crmDynamodbService.js';
 import { notifyHotLead } from '../leadNotifications.js';
+import { chargeForAiCall } from '../aiCallBilling.js';
 import { logger } from '../logger.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { buildRubricContext } from '../utils/leadRubric.js';
+import { answerPolicyQuestion } from '../services/knowledge/policySearchService.js';
 
 const router = express.Router();
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -123,6 +126,99 @@ router.get('/leads/:leadId/context', async (req, res) => {
 });
 
 // ============== Properties ==============
+
+/**
+ * Semantic property matching for the voice agent.
+ *
+ * Separate from /properties/available because it costs a Bedrock round trip
+ * before DynamoDB is touched, and a phone call has a latency budget. The agent
+ * picks this when the caller describes what they want in prose; the exact-filter
+ * endpoint stays for structured lookups.
+ */
+router.post('/properties/match', async (req, res) => {
+  try {
+    const { query, propertyType, minPrice, maxPrice, minBedrooms, maxBedrooms, limit } = req.body || {};
+
+    if (!query || String(query).trim().length < 2) {
+      return res.status(400).json({ error: 'A description to match against is required' });
+    }
+
+    const properties = await matchProperties(req.tenantId, {
+      query: String(query),
+      propertyType,
+      minPrice: minPrice != null ? Number(minPrice) : undefined,
+      maxPrice: maxPrice != null ? Number(maxPrice) : undefined,
+      minBedrooms: minBedrooms != null ? Number(minBedrooms) : undefined,
+      maxBedrooms: maxBedrooms != null ? Number(maxBedrooms) : undefined,
+      // 'available' is a legacy default status createProperty falls back to
+      // when nothing was specified; real listings are actively marketed as
+      // 'for-sale' or 'for-rent' (see the status enum in crmDynamodbService.js
+      // createProperty, and the same three-value "listable" check used by
+      // routes/crm.js and the AI view builders). Filtering on 'available'
+      // alone hid every real listing from the voice agent.
+      status: ['available', 'for-sale', 'for-rent'],
+      limit: limit != null ? Number(limit) : 5,
+    });
+
+    const simplified = properties.map(p => ({
+      propertyId: p.propertyId,
+      propertyType: p.propertyType,
+      bedrooms: p.bhk,
+      area: p.area,
+      city: p.city,
+      buildingName: p.buildingName,
+      rent: p.rentAmount || p.price,
+      squareFeet: p.carpetArea,
+      furnishing: p.furnishing,
+      amenities: Array.isArray(p.amenities) ? p.amenities.slice(0, 5) : undefined,
+      matchScore: p._score,
+    }));
+
+    res.json({ properties: simplified, count: simplified.length });
+  } catch (error) {
+    logger.error('aiCallingInternal.matchProperties.error', {
+      error: error.message,
+      tenantId: req.tenantId,
+    });
+    res.status(500).json({ error: error.message || 'Failed to match properties' });
+  }
+});
+
+/**
+ * Policy question answering for the voice agent's `answer_policy_question` tool.
+ *
+ * Returns retrieved passages, not a generated answer. The voice agent's own
+ * model does the phrasing, which saves an LLM round trip inside the caller's
+ * silence — see server/services/knowledge/policySearchService.js.
+ *
+ * A miss returns 200 with `answer: null`, never 404. The caller is a live
+ * phone conversation: "nothing matched" is a normal outcome the agent handles
+ * by offering a human, and turning it into an error would make a routine event
+ * indistinguishable from a broken index.
+ */
+router.post('/policies/answer', async (req, res) => {
+  try {
+    const { question, category } = req.body || {};
+
+    if (!question || String(question).trim().length < 3) {
+      return res.status(400).json({ error: 'A question is required' });
+    }
+
+    const result = await answerPolicyQuestion(req.tenantId, String(question), category || null);
+
+    res.json({
+      answer: result.answer,
+      sources: result.sources,
+      confidence: result.confidence,
+    });
+  } catch (error) {
+    logger.error('aiCallingInternal.answerPolicy.error', {
+      error: error.message,
+      tenantId: req.tenantId,
+    });
+    res.status(500).json({ error: error.message || 'Failed to answer policy question' });
+  }
+});
 
 router.get('/properties/available', async (req, res) => {
   try {
@@ -365,6 +461,19 @@ router.patch('/leads/:leadId/call-outcome', async (req, res) => {
 
     const updatedLead = await updateLead(req.tenantId, req.params.leadId, updateData);
 
+    // Bill the call once it has settled. Deliberately after the lead write and
+    // deliberately non-throwing: the outcome of the call is worth more than the
+    // charge for it, so a billing problem must never cost us the score. Charging
+    // is deduplicated on callSessionId because Exotel's status webhook and
+    // ElevenLabs' post-call webhook can both deliver a duration for one call.
+    const billing = await chargeForAiCall({
+      tenantId: req.tenantId,
+      callSessionId,
+      durationSecs: duration,
+      leadId: req.params.leadId,
+      callPurpose,
+    });
+
     if (willFireQualified) {
       try {
         await eventBridge.send(new PutEventsCommand({
@@ -392,7 +501,12 @@ router.patch('/leads/:leadId/call-outcome', async (req, res) => {
       }
     }
 
-    res.json({ success: true, score: updatedLead.score || null, assignedTo: updatedLead.assignedTo || null });
+    res.json({
+      success: true,
+      score: updatedLead.score || null,
+      assignedTo: updatedLead.assignedTo || null,
+      billing: { charged: billing.charged, credits: billing.credits ?? 0, minutes: billing.minutes ?? 0 },
+    });
   } catch (error) {
     logger.error('aiCallingInternal.callOutcome.error', { error: error.message, tenantId: req.tenantId, leadId: req.params.leadId });
     res.status(500).json({ error: error.message || 'Failed to update lead' });

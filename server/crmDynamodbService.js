@@ -1,6 +1,13 @@
-﻿// TODO(MED-1): Replace ScanCommand + FilterExpression with QueryCommand on a
-// 'tenant-index' GSI (PK=tenantId, SK=EntityType) once the GSI is added via CFN.
-// This applies to all list/getAll functions below that currently scan the full table.
+﻿// TODO(MED-1): Replace ScanCommand + FilterExpression with a Query on a
+// tenant-scoped index. This applies to the list/getAll functions below that
+// still scan the full table.
+//
+// `getLeads` is already done — it queries the existing search-index (GSI3)
+// partition TENANT#<id>#SEARCH with a begins_with(GSI3SK, 'LEAD#') condition,
+// which needed no new GSI because every LEAD item has always written GSI3.
+// The same trick works for any entity type whose items already populate GSI3
+// (CUSTOMER#, OWNER#, BUYER#, PROPERTY#, CONTACT#); the remaining scans are
+// over item types that don't, and those do still need a new GSI.
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
@@ -35,6 +42,10 @@ import {
   CONVERSION_SYSTEM_KEYS,
   deepClone,
 } from './services/leadConversionService.js';
+import {
+  buildPropertyEmbedding,
+  matchProperties as matchPropertiesSemantic,
+} from './services/embeddings/propertySearchService.js';
 import { normalizeOwnerProperty, normalizeSellerProperty } from './normalizers/leadPropertyNormalizer.js';
 import { normalizeLeadTextFields } from './normalizers/leadTextNormalizer.js';
 import { ALLOWED_LEAD_BHK } from './constants/leadBhkOptions.js';
@@ -1187,6 +1198,22 @@ export async function createProperty(tenantId, data) {
     rentalHistory: data.rentalHistory || [],
     // [{ tenantId, tenantName, leaseStartDate, leaseEndDate, monthlyRent, securityDeposit }]
     
+    // ── Public shareable page ────────────────────────────────────────────
+    // Off by default, and deliberately separate from `listingStatus`: that
+    // flag means "we are marketing this", which is an internal CRM state and
+    // is true for plenty of properties an agency would not want on the open
+    // internet. Publishing to a public URL is its own explicit decision.
+    // Read by server/publicListingService.js — see the allowlist rule there.
+    publicVisibility: data.publicVisibility === 'public' ? 'public' : 'private',
+    publicSlug: data.publicSlug || null,
+    publishedAt: data.publicVisibility === 'public' ? new Date().toISOString() : null,
+
+    // Marketing documents, safe to show a prospective buyer. Kept apart from
+    // the legal documents below (title deed / occupancy certificate / tax
+    // receipt), which must never reach a public page.
+    brochureS3Key: data.brochureS3Key || null,
+    floorPlanS3Keys: Array.isArray(data.floorPlanS3Keys) ? data.floorPlanS3Keys : [],
+
     // Property Documents
     titleDeedS3Key: data.titleDeedS3Key || null,
     titleDeedUrl: data.titleDeedUrl || null,
@@ -1232,6 +1259,21 @@ export async function createProperty(tenantId, data) {
     GSI3PK: `TENANT#${tenantId}#SEARCH`,
     GSI3SK: `PROPERTY#${(data.title || '').toLowerCase()}#${(data.area || '').toLowerCase()}#${(data.buildingName || '').toLowerCase()}`,
   };
+
+  // Flat mirrors of rentalInfo.expectedRent / saleInfo.listedPrice. The
+  // property-vector-index projects these two flat attribute names (see
+  // infra/create-vector-index.mjs) and that Projection is immutable once
+  // created — without these, semantic search returns every match with no
+  // price at all and price range filters reject every row.
+  property.rentAmount = property.rentalInfo?.expectedRent ?? null;
+  property.price = property.saleInfo?.listedPrice ?? null;
+
+  // Semantic search vector, generated in the same write so the item is
+  // searchable-by-meaning the moment it exists. Returns null (and logs) if
+  // Bedrock is unavailable — a property must never fail to save because its
+  // embedding could not be generated; the backfill job will catch it later.
+  const propertyEmbedding = await buildPropertyEmbedding(property);
+  if (propertyEmbedding) Object.assign(property, propertyEmbedding);
 
   await docClient.send(new PutCommand({
     TableName: CRM_TABLE_NAME,
@@ -1577,6 +1619,18 @@ export async function updateProperty(tenantId, propertyId, data) {
     }
   }
 
+  // Stamp publishedAt on the transition into 'public' only, so it records
+  // when a listing first went live rather than the last time anything on it
+  // was edited. Unpublishing clears it: a later republish is a new publish.
+  if ('publicVisibility' in data && currentProperty) {
+    data.publicVisibility = data.publicVisibility === 'public' ? 'public' : 'private';
+    if (data.publicVisibility === 'public' && currentProperty.publicVisibility !== 'public') {
+      data.publishedAt = new Date().toISOString();
+    } else if (data.publicVisibility === 'private') {
+      data.publishedAt = null;
+    }
+  }
+
   // Handle owner change for GSI1 (supports null/unassigned owner)
   // Prefer CONTACT# when currentOwnerContactId is set
   if ('currentOwnerContactId' in data && currentProperty) {
@@ -1599,6 +1653,22 @@ export async function updateProperty(tenantId, propertyId, data) {
     const area = data.area || currentProperty.area || '';
     const buildingName = data.buildingName || '';
     data.GSI3SK = `PROPERTY#${title.toLowerCase()}#${area.toLowerCase()}#${buildingName.toLowerCase()}`;
+  }
+
+  // Regenerate the semantic search vector when the meaningful content changed.
+  // DynamoDB keeps the vector index in sync with the item but does NOT
+  // regenerate embeddings, so skipping this would leave the index silently
+  // stale — semantically wrong results with no error anywhere. The source hash
+  // makes this a no-op when only bookkeeping fields moved.
+  if (currentProperty) {
+    const merged = { ...currentProperty, ...data };
+    const propertyEmbedding = await buildPropertyEmbedding(merged, currentProperty.embeddingSourceHash);
+    if (propertyEmbedding) Object.assign(data, propertyEmbedding);
+
+    // Keep the vector index's flat rentAmount/price mirrors in sync with
+    // rentalInfo/saleInfo — see the matching comment in createProperty.
+    data.rentAmount = merged.rentalInfo?.expectedRent ?? null;
+    data.price = merged.saleInfo?.listedPrice ?? null;
   }
 
   Object.keys(data).forEach((key, index) => {
@@ -2931,7 +3001,10 @@ export async function getMeetingMetrics(tenantId) {
 /**
  * Normalize phone number for consistent matching
  */
-function normalizePhone(phone) {
+// Exported because lead ingestion keys its phone-dedupe index on exactly this
+// value. A second implementation there would eventually drift from the one
+// createLead writes, and dedupe would silently stop matching.
+export function normalizePhone(phone) {
   if (!phone) return '';
   const digits = String(phone).replace(/[^0-9]/g, '');
   const withoutPrefix = digits.startsWith('91') && digits.length === 12
@@ -3689,7 +3762,7 @@ export async function createLead(tenantId, data) {
     normalizedPhone,
     // Lead details
     source: data.source || '', // referral, website, walk-in, etc.
-    status: data.status || 'new', // new, contacted, qualified, negotiating, converted, lost
+    status: data.status || 'new', // new, contacted, qualified, site_visit, negotiating, converted, lost, spam
     // Temperature (Hot/Warm/Cold) replaces the old manual `priority` field.
     // Set by an AI qualification call, the LLM fallback, or a human override —
     // never by createLead() itself. null until the lead is actually qualified.
@@ -3701,6 +3774,19 @@ export async function createLead(tenantId, data) {
     // Instagram-sourced leads carry a reference to the triggering post so a
     // human can see which reel/listing prompted the DM.
     reelRef: data.reelRef || null,
+    // Which intake adapter produced this lead — 'manychat', 'insta-agent',
+    // 'bailey', 'website', or null for a human typing it in. `source` stays the
+    // coarse, user-facing channel ('Instagram'); this is the finer-grained
+    // provenance, so two Instagram intake paths stay tellable apart without
+    // splitting the `source` filter the UI already exposes.
+    sourceAdapter: data.sourceAdapter || null,
+    // Channel-native identifiers, kept in one blob rather than as loose columns
+    // so a new adapter can carry its own ids without another schema change.
+    // e.g. { igUsername, igSenderId, sourceMediaId, conversationRef }
+    externalRef: data.externalRef || null,
+    // Stable per-source key (e.g. an Instagram enquiryId) used to make repeated
+    // deliveries of the same enquiry idempotent. See leadIngestion.js.
+    dedupeKey: data.dedupeKey || null,
     assignedTo: data.assignedTo || null,
     lostReason: data.status === 'lost' ? (data.lostReason || null) : null,
     lostAt: data.status === 'lost' ? (data.lostAt || new Date().toISOString()) : null,
@@ -3813,6 +3899,75 @@ export function applyLeadBudgetRangeFilter(leads, filters = {}) {
 }
 
 /**
+ * All of a tenant's leads, keyed by normalized phone — one Query, for callers
+ * that need to check many phones at once (a batched adapter upload).
+ *
+ * Leads whose phone could not be normalized are deliberately excluded.
+ * `normalizePhone` returns '' for anything that is not a valid 10-digit Indian
+ * mobile, so keying those would collapse every unparseable number into a single
+ * bucket and merge unrelated people.
+ *
+ * Converted leads are excluded too: conversion deletes the LEAD row, so a match
+ * against one would be a stale residual, and updateLead refuses them anyway.
+ *
+ * Where two leads share a phone (possible for rows created before dedupe
+ * existed), the most recently created wins — that is the one a human is most
+ * likely looking at.
+ */
+export async function buildLeadPhoneIndex(tenantId) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+
+  const items = await collectAllPages(docClient, QueryCommand, {
+    TableName: CRM_TABLE_NAME,
+    IndexName: 'search-index',
+    KeyConditionExpression: 'GSI3PK = :pk AND begins_with(GSI3SK, :leadPrefix)',
+    ExpressionAttributeValues: {
+      ':pk': `TENANT#${tenantId}#SEARCH`,
+      ':leadPrefix': 'LEAD#',
+    },
+  }, { maxPages: 100 });
+
+  const index = new Map();
+  for (const lead of items) {
+    if (!lead.normalizedPhone || isLeadConverted(lead)) continue;
+    const existing = index.get(lead.normalizedPhone);
+    if (!existing || String(lead.createdAt || '') > String(existing.createdAt || '')) {
+      index.set(lead.normalizedPhone, lead);
+    }
+  }
+  return index;
+}
+
+/**
+ * Find a tenant's existing, unconverted lead for a phone number.
+ * Returns null when the phone cannot be normalized — see buildLeadPhoneIndex.
+ */
+export async function findLeadByPhone(tenantId, phone) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+
+  const normalized = normalizePhone(phone);
+  if (!normalized) return null;
+
+  const items = await collectAllPages(docClient, QueryCommand, {
+    TableName: CRM_TABLE_NAME,
+    IndexName: 'search-index',
+    KeyConditionExpression: 'GSI3PK = :pk AND begins_with(GSI3SK, :leadPrefix)',
+    FilterExpression: 'normalizedPhone = :phone',
+    ExpressionAttributeValues: {
+      ':pk': `TENANT#${tenantId}#SEARCH`,
+      ':leadPrefix': 'LEAD#',
+      ':phone': normalized,
+    },
+  }, { maxPages: 100 });
+
+  const candidates = items
+    .filter((lead) => !isLeadConverted(lead))
+    .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+
+  return candidates[0] || null;
+}
+
+/**
  * Get all leads for a tenant
  */
 export async function getLeads(tenantId, filters = {}) {
@@ -3820,12 +3975,22 @@ export async function getLeads(tenantId, filters = {}) {
     throw new Error('Tenant ID is required');
   }
 
-  const items = await collectAllPages(docClient, ScanCommand, {
+  // Queries search-index (GSI3) instead of scanning the whole table. Every LEAD
+  // item has carried GSI3PK/GSI3SK since createLead was first written (they were
+  // added in the same commit), and the only other LEAD writer — the demo seeder —
+  // sets them too, so no lead can exist outside this index.
+  //
+  // The GSI3 partition TENANT#<id>#SEARCH is shared with CUSTOMER/OWNER/BUYER/
+  // PROPERTY/CONTACT items, which is why the LEAD# sort-key prefix is required
+  // rather than optional. This replaced a full-table Scan (every tenant's lead
+  // list read every item of every entity type) — see TODO(MED-1) in the header.
+  const items = await collectAllPages(docClient, QueryCommand, {
     TableName: CRM_TABLE_NAME,
-    FilterExpression: 'EntityType = :type AND tenantId = :tenantId',
+    IndexName: 'search-index',
+    KeyConditionExpression: 'GSI3PK = :pk AND begins_with(GSI3SK, :leadPrefix)',
     ExpressionAttributeValues: {
-      ':type': 'LEAD',
-      ':tenantId': tenantId,
+      ':pk': `TENANT#${tenantId}#SEARCH`,
+      ':leadPrefix': 'LEAD#',
     },
   }, { maxPages: 100 });
 
@@ -6240,6 +6405,35 @@ export async function searchProperties(tenantId, query, filters = {}) {
 }
 
 /**
+ * Semantic property matching — meaning-based, unlike searchProperties above
+ * which is substring matching over a full table load.
+ *
+ * Kept as a distinct tool rather than folded into searchProperties because it
+ * costs a Bedrock round trip before DynamoDB is touched, and the WhatsApp flow
+ * has a latency budget. The agent chooses it deliberately when a customer
+ * describes what they want in prose; searchProperties stays for name/area lookups.
+ *
+ * Handler for the `match_properties` tool — see server/shared/toolDefinitions.js.
+ */
+export async function matchProperties(tenantId, args = {}) {
+  if (!tenantId) throw new Error('Tenant ID is required');
+
+  // Dynamic dispatch may hand us the whole arg object as the second parameter.
+  const options = typeof args === 'string' ? { query: args } : (args || {});
+
+  return matchPropertiesSemantic(tenantId, {
+    query: options.query,
+    propertyType: options.propertyType,
+    minPrice: options.minPrice != null ? Number(options.minPrice) : undefined,
+    maxPrice: options.maxPrice != null ? Number(options.maxPrice) : undefined,
+    minBedrooms: options.minBedrooms != null ? Number(options.minBedrooms) : undefined,
+    maxBedrooms: options.maxBedrooms != null ? Number(options.maxBedrooms) : undefined,
+    status: options.status,
+    limit: options.limit != null ? Number(options.limit) : 5,
+  });
+}
+
+/**
  * Search buyers by name or phone
  */
 export async function searchBuyers(tenantId, query, filters = {}) {
@@ -7111,8 +7305,11 @@ export async function logContactActivity(tenantId, data) {
 // Each returns a plain object; skillInvoker wraps it as { ok, data }.
 // ════════════════════════════════════════════════════════════════════════════════
 
-const LEAD_ACTIVE_STATUSES = ['new', 'contacted', 'qualified', 'negotiating'];
-const LEAD_CLOSED_STATUSES = ['converted', 'lost'];
+// `site_visit` sits between qualified and negotiating and counts as active
+// pipeline. `spam` is closed and deliberately NOT in the active set — a spam
+// lead must never be picked up by follow-up crons or AI qualification.
+const LEAD_ACTIVE_STATUSES = ['new', 'contacted', 'qualified', 'site_visit', 'negotiating'];
+const LEAD_CLOSED_STATUSES = ['converted', 'lost', 'spam'];
 
 function _leadBudget(lead) {
   return Number(

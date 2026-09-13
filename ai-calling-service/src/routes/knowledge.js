@@ -1,9 +1,28 @@
-// Knowledge Management Routes
+// Knowledge Management Routes — document upload (NOT the policy answer path).
+//
+// STATUS: the file-upload pipeline is not implemented. Text extraction,
+// chunking and embedding for uploaded FILES were never built, so `/confirm`
+// used to mark a document INDEXED after a five-second timer without embedding
+// anything. That made an empty knowledge base look populated, which is worse
+// than an obvious gap, so the write routes now fail loudly instead.
+//
+// The agent's `answer_policy_question` tool does NOT come through here. Policy
+// text is authored in the CRM (Agency Policies), embedded by
+// server/services/knowledge/, and searched over DynamoDB vector search. If you
+// are adding document upload, feed it into that same pipeline rather than
+// reviving a second one.
+//
+// Called by the CRM backend only, never the browser. Authenticated as a
+// service with CRM_CALLER_API_KEY — see ../middleware/internalAuth.js for the
+// trust boundary. Note these routes mint presigned S3 upload URLs scoped to
+// the caller's tenant prefix, so unauthenticated access would have allowed
+// writing into any tenant's knowledge bucket path.
 
 import express from 'express';
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as db from '../services/dynamodbService.js';
+import { authenticateCrmCaller } from '../middleware/internalAuth.js';
 import { logger } from '../utils/logger.js';
 import { KNOWLEDGE_CATEGORIES, DOCUMENT_STATUS } from '../config/constants.js';
 
@@ -17,18 +36,10 @@ const KNOWLEDGE_BUCKET = process.env.AI_CALLING_KNOWLEDGE_BUCKET;
 // upload with BadDigest. Default is 'WHEN_SUPPORTED' since SDK v3.729.
 const s3Client = new S3Client({ region: REGION, requestChecksumCalculation: 'WHEN_REQUIRED' });
 
-// Middleware to extract tenant ID
-const extractTenantId = (req, res, next) => {
-  const tenantId = req.headers['x-tenant-id'];
-  if (!tenantId) {
-    return res.status(400).json({ error: 'x-tenant-id header is required' });
-  }
-  req.tenantId = tenantId;
-  next();
-};
+router.use(authenticateCrmCaller);
 
 // Get upload URL for knowledge document
-router.post('/upload-url', extractTenantId, async (req, res) => {
+router.post('/upload-url', async (req, res) => {
   try {
     const { fileName, fileType, category } = req.body;
     
@@ -82,7 +93,7 @@ router.post('/upload-url', extractTenantId, async (req, res) => {
 });
 
 // Confirm document upload (triggers indexing)
-router.post('/:documentId/confirm', extractTenantId, async (req, res) => {
+router.post('/:documentId/confirm', async (req, res) => {
   try {
     const { fileSize } = req.body;
     
@@ -91,25 +102,15 @@ router.post('/:documentId/confirm', extractTenantId, async (req, res) => {
       fileSize: fileSize || 0,
     });
     
-    // Note: In production, this would trigger a Lambda function to:
-    // 1. Extract text from document
-    // 2. Chunk the text
-    // 3. Generate embeddings
-    // 4. Store in Bedrock Knowledge Base
-    
-    // For now, we simulate async processing
-    setTimeout(async () => {
-      try {
-        await db.updateKnowledgeDocument(req.tenantId, req.params.documentId, {
-          status: DOCUMENT_STATUS.INDEXED,
-          chunksCreated: Math.ceil((fileSize || 1000) / 1000),
-        });
-      } catch (err) {
-        logger.error('Failed to update document status', err);
-      }
-    }, 5000);
-    
-    res.json({ success: true, status: DOCUMENT_STATUS.PROCESSING });
+    // Deliberately does NOT mark the document indexed. Nothing extracts,
+    // chunks or embeds an uploaded file, so reporting INDEXED here would tell
+    // an agency its documents are answerable when the agent cannot see a word
+    // of them.
+    res.status(501).json({
+      error: 'Document ingestion is not implemented',
+      details:
+        'Uploaded files are stored but not indexed, so the AI agent cannot answer from them. Enter policy text in the CRM under Agency Policies instead — that path is indexed.',
+    });
   } catch (error) {
     logger.error('Confirm upload error', error);
     res.status(500).json({ error: error.message || 'Failed to confirm upload' });
@@ -117,7 +118,7 @@ router.post('/:documentId/confirm', extractTenantId, async (req, res) => {
 });
 
 // List knowledge documents
-router.get('/', extractTenantId, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { category } = req.query;
     
@@ -131,7 +132,7 @@ router.get('/', extractTenantId, async (req, res) => {
 });
 
 // Get document details
-router.get('/:documentId', extractTenantId, async (req, res) => {
+router.get('/:documentId', async (req, res) => {
   try {
     const document = await db.getKnowledgeDocument(req.tenantId, req.params.documentId);
     
@@ -147,7 +148,7 @@ router.get('/:documentId', extractTenantId, async (req, res) => {
 });
 
 // Delete document
-router.delete('/:documentId', extractTenantId, async (req, res) => {
+router.delete('/:documentId', async (req, res) => {
   try {
     const document = await db.getKnowledgeDocument(req.tenantId, req.params.documentId);
     

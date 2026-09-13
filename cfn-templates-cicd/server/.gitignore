@@ -3,3 +3,4 @@
 # instant-access template/param snapshots for rollback. Never commit it —
 # it's per-machine deploy history, not project source.
 deploy-versions/
+config-versions/

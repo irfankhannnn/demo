@@ -169,7 +169,7 @@
             <div class="kpiBox">
               <div class="kpiTitle">DynamoDB write</div>
               <div class="small">
-                Writes to auth agency table (<b>dev-reality-flow-auth-agency-config</b>) with TenantId, adminEmail, adminPhone.
+                Writes to the consolidated AgencyConfig table configured via <code>AGENCY_CONFIG_DYNAMODB_TABLE_NAME</code> in <code>onboarding-page/.env</code> (currently <b>prod-realestateflow-agencies</b>) with TenantId, agencyName, notificationSettings, adminEmail, adminPhone.
               </div>
             </div>
             <div class="kpiBox">
@@ -197,6 +197,13 @@
         btn.textContent = 'Creating...';
 
         const data = Object.fromEntries(new FormData(form).entries());
+
+        // Default to +91 (India) if a bare number was typed without a country
+        // code — the API requires strict E.164 (+<countrycode><digits>).
+        if (data.adminPhone) {
+          const digitsOnly = data.adminPhone.trim().replace(/[\s-()]/g, '');
+          data.adminPhone = digitsOnly.startsWith('+') ? digitsOnly : `+91${digitsOnly.replace(/^0+/, '')}`;
+        }
 
         try {
           // Client-side validation: at least one of email or phone required

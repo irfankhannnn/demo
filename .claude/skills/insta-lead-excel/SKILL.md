@@ -1,8 +1,11 @@
 ---
 name: insta-lead-excel
 description: >
-  Turn a raw Instagram DM export (.txt) into rows in the master lead
-  workbook at kalim-sessions/kalim-automations/hp-insta-lead-automation.
+  Run or operate the Instagram lead automation for @happyproperties99 at
+  kalim-sessions/kalim-automations/hp-insta-lead-automation. The normal path
+  is the scheduled pipeline (scripts/run_pipeline.py) that reads DMs from
+  instagram.com in its own Chrome profile every 6 hours; the fallback path
+  turns a raw pasted DM export (.txt) into rows in the master lead workbook.
   Parses the export into one record per Instagram handle, has the
   insta-lead-analyst agent write the summary, next action, Hinglish reply
   draft, lead score and lead type for each, then upserts into the Excel by
@@ -14,6 +17,43 @@ description: >
 ---
 
 # Instagram DM to lead Excel
+
+## 0. The automated path (use this first)
+
+A Windows scheduled task, "HP Insta Lead Automation", runs
+`scripts/run_pipeline.cmd` every 6 hours. It reads the inbox (Primary,
+General, Requests) from instagram.com in a dedicated Chrome profile, opens
+only threads that changed since the last successful run, reads every message
+with Instagram's own sender label, has the `insta-lead-analyst` agent analyse
+the changed leads through `claude -p`, upserts the workbook and rebuilds the
+dashboard. State lives in `state/fetch-state.json`; each run leaves
+`runs/<run_id>/` and one line in `logs/runs.jsonl`.
+
+| Want to | Do |
+|---------|----|
+| Run it now | `python scripts/run_pipeline.py` |
+| Reload the last N days | `python scripts/run_pipeline.py --backfill-days 30` |
+| Smoke test one thread, no state change | `python scripts/run_pipeline.py --max-threads 1 --tabs primary --no-state` |
+| Re-analyse a saved fetch | `python scripts/run_pipeline.py --skip-fetch --fetched runs/<id>/fetched.json` |
+| Fix "not logged in" (exit 4) | `python scripts/fetch_instagram_dms.py --login`, the user logs in in that window |
+| See what happened | last lines of `logs/runs.jsonl`, then `runs/<id>/pipeline.log` |
+| Change schedule | `powershell -ExecutionPolicy Bypass -File scripts/register_schedule.ps1 -Hours 6` |
+
+Rules that protect the account and the data:
+
+- The fetcher is read-only. Never add typing, sending, reacting, or clicks on
+  Accept/Delete. Keep the pacing in `config/fetch-config.json`.
+- `open_unread_threads` stays `false` unless the user says otherwise: opening
+  an unread thread shows the lead "Seen".
+- Exit 3 means Excel had the workbook open. The run is parked and applied by
+  the next run; do not re-run the analysis by hand.
+- Exit 6 means Instagram changed its markup. Inspect the page with
+  claude-in-chrome and fix `scripts/dom_thread_list.js` or
+  `scripts/dom_extract_thread.js`; never fall back to guessing senders.
+
+The rest of this skill is the manual path for a pasted text export. Text
+copies lose which side of the chat each bubble is on, so prefer the automated
+path whenever the Chrome profile is logged in.
 
 Three stages. Stage 1 and 3 are deterministic Python, stage 2 is judgement.
 Never do stage 1 or 3 by hand, and never hand-edit the workbook to apply an

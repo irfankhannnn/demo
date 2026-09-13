@@ -6,12 +6,17 @@ dotenv.config();
 
 const REGION = process.env.AWS_REGION || 'ap-south-1';
 
-// Points to auth agency table (dev-reality-flow-auth-agency-config)
-// This is the source of truth for tenant provisioning
+// Points to server's consolidated AgencyConfig table — the single source of
+// truth for tenant provisioning shared by reality-flow-authentication and
+// server (see docs/proposals/agency-config-single-source/report.md):
+//   prod-realestateflow-agencies
+//   dev-realestateflow-agencies
+// (NOT the old, retired "*-auth-agency-config" table that
+// reality-flow-authentication used to own separately.)
 const TABLE = process.env.AGENCY_CONFIG_DYNAMODB_TABLE_NAME;
 
 if (!TABLE) {
-  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env (should be dev-reality-flow-auth-agency-config)');
+  throw new Error('AGENCY_CONFIG_DYNAMODB_TABLE_NAME is required in onboarding-page/.env (e.g. prod-realestateflow-agencies)');
 }
 
 // Uses AWS SDK default credential provider chain.

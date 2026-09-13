@@ -1,397 +1,361 @@
-// Call Orchestration Handler - Main brain coordinating the call flow
+// Call Orchestration Handler - coordinates the call lifecycle.
+//
+// ElevenLabs' native Exotel integration places the call and bridges the audio
+// in one request, so this handler no longer creates a conversation and dials a
+// phone as two separate, unconnected operations. During the call the agent
+// fetches its own data through server tools (see handlers/serverTools.js);
+// afterwards a signed post-call webhook delivers the transcript.
 
-import { v4 as uuidv4 } from 'uuid';
-import { CALL_STATUS, CALL_PURPOSE, INTENT_TYPES } from '../config/constants.js';
+import {
+  CALL_STATUS,
+  CALL_PURPOSE,
+  QUALIFICATION_STATUS,
+  MAX_CALL_DURATION_MS,
+} from '../config/constants.js';
 import { logger } from '../utils/logger.js';
 import * as db from '../services/dynamodbService.js';
 import * as exotel from '../services/exotelService.js';
 import * as elevenlabs from '../services/elevenlabsService.js';
 import * as crmApi from '../services/crmApiService.js';
-import * as intentService from '../services/intentService.js';
+
+/** Qualification calls are deliberately short — a few questions, not a tour. */
+const QUALIFICATION_MAX_DURATION_SECONDS = 180;
 
 /**
- * Start an AI call to a lead
- * @param {object} request - Call request data
- * @returns {Promise<{callSessionId: string, status: string}>}
+ * Start an AI call to a lead.
+ *
+ * Validation is fail-fast and happens before any external call or DB write, so
+ * a bad phone number or unconfigured agent surfaces as a clear 4xx instead of
+ * a half-created session and an opaque provider error.
+ *
+ * @param {object} request
+ * @returns {Promise<{callSessionId: string, status: string, conversationId: string|null}>}
  */
 export async function startAICall(request) {
   const { tenantId, leadId, leadName, leadPhone, callPurpose, agentConfig } = request;
-  
-  if (!tenantId || !leadPhone) {
-    throw new Error('Tenant ID and lead phone are required');
+
+  if (!tenantId) throw new ValidationError('Tenant ID is required');
+  if (!leadPhone) throw new ValidationError('Lead phone number is required');
+
+  const phone = exotel.toE164India(leadPhone);
+  if (!phone.valid) throw new ValidationError(phone.reason);
+
+  const config = agentConfig || (await db.getAgentConfig(tenantId));
+  if (!config) {
+    throw new ValidationError('Agent is not configured for this tenant');
   }
-  
+
+  const agentId = config.agentId || process.env.ELEVENLABS_AGENT_ID;
+  const agentPhoneNumberId =
+    config.agentPhoneNumberId || process.env.ELEVENLABS_AGENT_PHONE_NUMBER_ID;
+
+  if (!agentId) {
+    throw new ValidationError(
+      'No ElevenLabs agent configured (set ELEVENLABS_AGENT_ID or a per-tenant agentId)'
+    );
+  }
+  if (!agentPhoneNumberId) {
+    throw new ValidationError(
+      'No ElevenLabs phone number configured (set ELEVENLABS_AGENT_PHONE_NUMBER_ID or a per-tenant agentPhoneNumberId)'
+    );
+  }
+
+  const isQualificationCall = callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION;
+
+  // 1. Create the call session up front so the conversation, once it exists,
+  //    always has somewhere to correlate back to.
+  const session = await db.createCallSession(tenantId, {
+    leadId,
+    leadName,
+    leadPhone: phone.e164,
+    callPurpose: callPurpose || CALL_PURPOSE.LEAD_FOLLOWUP,
+  });
+  const callSessionId = session.callSessionId;
+
+  logger.callEvent('CALL_INITIATED', callSessionId, tenantId, {
+    leadId,
+    callPurpose,
+  });
+
   try {
-    // 1. Create call session in DynamoDB
-    const session = await db.createCallSession(tenantId, {
-      leadId,
-      leadName,
-      leadPhone,
-      callPurpose: callPurpose || CALL_PURPOSE.LEAD_FOLLOWUP,
-    });
-    
-    const callSessionId = session.callSessionId;
-    
-    logger.callEvent('CALL_INITIATED', callSessionId, tenantId, {
-      leadId,
-      leadPhone,
-      callPurpose,
-    });
-    
-    // 2. Get agent configuration
-    const config = agentConfig || await db.getAgentConfig(tenantId);
-    if (!config || !config.exotelNumber) {
-      await db.updateCallSession(tenantId, callSessionId, {
-        status: CALL_STATUS.FAILED,
-        outcome: 'Agent not configured',
-      });
-      throw new Error('Agent configuration missing or incomplete');
-    }
-    
-    // 3. Get lead context from CRM
+    // 2. Lead context, best-effort — a CRM hiccup shouldn't block the call,
+    //    the agent just runs with less background.
     let leadContext = null;
     if (leadId) {
       leadContext = await crmApi.getLeadContext(tenantId, leadId);
     }
 
-    const isQualificationCall = callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION;
-    const defaultGreeting = isQualificationCall
-      ? `Hi${leadName ? ` ${leadName}` : ''}, this is ${config.agencyName} — thanks for your interest! I just have a couple of quick questions so we can help you faster.`
-      : `Hello${leadName ? ` ${leadName}` : ''}, this is ${config.agencyName}. How can I help you with your property search today?`;
-
-    // 4. Initialize ElevenLabs conversation session
-    const elevenLabsSession = await elevenlabs.initializeConversation(callSessionId, {
+    // 3. Personalization travels as dynamic variables against one shared
+    //    agent prompt template, not as a system prompt rebuilt per call.
+    const dynamicVariables = elevenlabs.buildDynamicVariables({
       tenantId,
       leadId,
+      callSessionId,
       leadName,
-      agentId: config.agentId,
+      callPurpose: callPurpose || CALL_PURPOSE.LEAD_FOLLOWUP,
       agencyName: config.agencyName,
-      greeting: config.greeting || defaultGreeting,
-      callPurpose,
+      greeting: config.greeting,
+      escalationPhone: config.escalationPhone,
       leadContext: leadContext?.summary,
       rubricContext: leadContext?.rubricContext,
-      maxDuration: isQualificationCall ? Math.min(config.maxCallDuration || 600, 180) : config.maxCallDuration,
     });
-    
-    // 5. Initiate Exotel call
-    const exotelCall = await exotel.initiateOutboundCall(
+
+    const maxDurationSeconds = isQualificationCall
+      ? Math.min(config.maxCallDuration || 600, QUALIFICATION_MAX_DURATION_SECONDS)
+      : config.maxCallDuration || Math.floor(MAX_CALL_DURATION_MS / 1000);
+
+    // 4. One request: dials the customer AND bridges them to the agent.
+    const call = await elevenlabs.initiateOutboundCall({
+      agentId,
+      agentPhoneNumberId,
+      toNumber: phone.e164,
+      dynamicVariables,
+      maxDurationSeconds,
+      recordingEnabled: config.enableRecording !== false,
+      callSessionId,
       tenantId,
-      leadPhone,
-      config.exotelNumber,
-      callSessionId
-    );
-    
-    // 6. Update session with external IDs
+    });
+
     await db.updateCallSession(tenantId, callSessionId, {
       status: CALL_STATUS.RINGING,
-      exotelCallSid: exotelCall.callSid,
-      elevenLabsSessionId: elevenLabsSession.sessionId,
+      elevenLabsConversationId: call.conversationId,
+      exotelCallSid: call.callSid,
     });
-    
+
     logger.callEvent('CALL_RINGING', callSessionId, tenantId, {
-      exotelCallSid: exotelCall.callSid,
-      elevenLabsSessionId: elevenLabsSession.sessionId,
+      conversationId: call.conversationId,
+      callSid: call.callSid,
     });
-    
+
     return {
       callSessionId,
       status: CALL_STATUS.RINGING,
-      exotelCallSid: exotelCall.callSid,
+      conversationId: call.conversationId,
+      callSid: call.callSid,
     };
   } catch (error) {
-    logger.error('Failed to start AI call', error, { tenantId, leadId });
+    // The session exists but the call never got off the ground — record that
+    // rather than leaving it stuck at `initiated` forever.
+    await db.updateCallSession(tenantId, callSessionId, {
+      status: CALL_STATUS.FAILED,
+      outcome: 'call_initiation_failed',
+      endedAt: new Date().toISOString(),
+      ...(isQualificationCall && { qualificationStatus: QUALIFICATION_STATUS.FAILED }),
+    }).catch(() => {});
+
+    logger.error('Failed to start AI call', error, { tenantId, leadId, callSessionId });
     throw error;
   }
 }
 
+const EXOTEL_STATUS_MAP = {
+  'initiated': CALL_STATUS.INITIATED,
+  'ringing': CALL_STATUS.RINGING,
+  'in-progress': CALL_STATUS.IN_PROGRESS,
+  'completed': CALL_STATUS.COMPLETED,
+  'failed': CALL_STATUS.FAILED,
+  'busy': CALL_STATUS.BUSY,
+  'no-answer': CALL_STATUS.NO_ANSWER,
+};
+
+const TERMINAL_EXOTEL_STATUSES = ['completed', 'failed', 'busy', 'no-answer'];
+
 /**
- * Handle Exotel webhook events
+ * Handle Exotel call-status webhooks (ringing / answered / hung up).
+ *
+ * Status writes are ordering-guarded inside updateCallSession, so a retried or
+ * late event can't roll a session back to an earlier state.
  */
 export async function handleExotelWebhook(webhookData) {
   const parsed = exotel.parseWebhookPayload(webhookData);
   const { tenantId, callSessionId, status, duration, recordingUrl } = parsed;
-  
-  if (!callSessionId) {
-    logger.warn('Exotel webhook missing callSessionId', { callSid: parsed.callSid });
+
+  if (!callSessionId || !tenantId) {
+    logger.warn('Exotel webhook missing correlation ids', { callSid: parsed.callSid });
     return { success: false };
   }
-  
-  logger.callEvent('EXOTEL_WEBHOOK', callSessionId, tenantId, {
-    status,
-    duration,
-  });
-  
+
   const session = await db.getCallSession(tenantId, callSessionId);
   if (!session) {
-    logger.error('Call session not found for webhook', null, { callSessionId });
+    logger.error('Call session not found for Exotel webhook', null, { callSessionId, tenantId });
     return { success: false };
   }
-  
-  // Map Exotel status to our status
-  const statusMap = {
-    'ringing': CALL_STATUS.RINGING,
-    'in-progress': CALL_STATUS.IN_PROGRESS,
-    'completed': CALL_STATUS.COMPLETED,
-    'failed': CALL_STATUS.FAILED,
-    'busy': CALL_STATUS.BUSY,
-    'no-answer': CALL_STATUS.NO_ANSWER,
-  };
-  
-  const newStatus = statusMap[status] || status;
-  
-  const updates = {
-    status: newStatus,
-  };
-  
+
+  const newStatus = EXOTEL_STATUS_MAP[status] || status;
+  const updates = { status: newStatus };
+
   if (status === 'in-progress' && !session.startedAt) {
     updates.startedAt = new Date().toISOString();
   }
-  
-  if (['completed', 'failed', 'busy', 'no-answer'].includes(status)) {
+
+  if (TERMINAL_EXOTEL_STATUSES.includes(status)) {
     updates.endedAt = new Date().toISOString();
     updates.duration = duration || 0;
-    
-    if (recordingUrl) {
-      updates.recordingUrl = recordingUrl;
-    }
-    
-    // End ElevenLabs session
-    let qualificationResult = null;
-    if (session.elevenLabsSessionId) {
-      if (session.callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION && newStatus === CALL_STATUS.COMPLETED) {
-        // Fetch the full transcript before ending the session, so we can pull
-        // the agent's [QUALIFICATION_RESULT: ...] marker out of it.
-        const transcript = await elevenlabs.getTranscript(session.elevenLabsSessionId);
-        qualificationResult = elevenlabs.extractQualificationResult(transcript);
-        if (!qualificationResult) {
-          logger.warn('Qualification call ended without a parseable result', { callSessionId, tenantId });
-        }
-      }
-      await elevenlabs.endConversation(session.elevenLabsSessionId);
-    }
-
-    // Update lead status in CRM
-    if (session.leadId) {
-      await crmApi.updateLeadCallOutcome(tenantId, session.leadId, {
-        callSessionId,
-        status: newStatus,
-        duration: duration || 0,
-        outcome: session.outcome,
-        transcriptSummary: session.transcriptSummary,
-        callPurpose: session.callPurpose,
-        ...(qualificationResult ? {
-          temperature: qualificationResult.temperature,
-          scoreReasons: qualificationResult.reasons,
-        } : {}),
-      });
-    }
-    
-    logger.callEvent('CALL_ENDED', callSessionId, tenantId, {
-      status: newStatus,
-      duration,
-      outcome: session.outcome,
-    });
+    if (recordingUrl) updates.recordingUrl = recordingUrl;
   }
-  
+
   await db.updateCallSession(tenantId, callSessionId, updates);
-  
+
+  logger.callEvent('EXOTEL_WEBHOOK', callSessionId, tenantId, { status: newStatus, duration });
+
   return { success: true, status: newStatus };
 }
 
 /**
- * Handle ElevenLabs intent webhook
- * This is called when ElevenLabs detects the customer needs data
+ * Handle the ElevenLabs post-call webhook.
+ *
+ * This is where the transcript lands and where the lead's CRM record is
+ * updated. Qualification is normally already recorded by the
+ * submit_qualification server tool during the call; the transcript marker is
+ * only a fallback, and if neither produced a verdict the call is explicitly
+ * marked FAILED so the CRM can tell "we tried and got nothing" apart from
+ * "this was never a qualification call".
  */
-export async function handleElevenLabsIntentWebhook(webhookData) {
-  const parsed = elevenlabs.parseIntentWebhook(webhookData);
-  const { tenantId, callSessionId, transcript, detectedIntent, entities } = parsed;
-  
-  if (!callSessionId) {
-    logger.warn('ElevenLabs webhook missing callSessionId');
-    return { success: false };
-  }
-  
-  logger.callEvent('INTENT_DETECTED', callSessionId, tenantId, {
-    transcript: transcript?.slice(0, 100),
-    detectedIntent,
-  });
-  
-  const session = await db.getCallSession(tenantId, callSessionId);
-  if (!session) {
-    logger.error('Call session not found', null, { callSessionId });
-    return { success: false };
-  }
-  
-  // Log transcript entry
-  await db.addTranscriptEntry(tenantId, callSessionId, {
-    speaker: 'customer',
-    text: transcript,
-    intent: detectedIntent,
-  });
-  
-  // Classify intent if not already detected
-  let intent = detectedIntent;
-  let intentEntities = entities || {};
-  
-  if (!intent || intent === 'UNKNOWN') {
-    const classification = await intentService.classifyIntent(transcript, {
-      leadId: session.leadId,
-      lastTranscript: transcript,
-    });
-    intent = classification.intent;
-    intentEntities = classification.entities;
-  }
-  
-  // Check if we need to fetch data
-  if (!intentService.shouldFetchData(intent)) {
-    // No data needed, let ElevenLabs handle it
-    return { 
-      success: true, 
-      action: 'continue',
-      responseText: null,
-    };
-  }
-  
-  // Fetch data based on intent
-  const context = {
-    leadId: session.leadId,
-    lastTranscript: transcript,
-    lastMentionedPropertyId: session.lastMentionedPropertyId,
-  };
-  
-  const dataResult = await intentService.routeAndFetchData(
-    tenantId,
-    intent,
-    intentEntities,
-    context
-  );
-  
-  // Log AI response
-  await db.addTranscriptEntry(tenantId, callSessionId, {
-    speaker: 'ai',
-    text: dataResult.text,
-    intent,
-    dataSource: dataResult.source,
-  });
-  
-  // Update session with detected intents
-  const intentsDetected = [...(session.intentsDetected || [])];
-  if (!intentsDetected.includes(intent)) {
-    intentsDetected.push(intent);
-  }
-  
-  const sessionUpdates = { intentsDetected };
-  
-  // Track property mentions for context
-  if (dataResult.data?.propertyId) {
-    sessionUpdates.lastMentionedPropertyId = dataResult.data.propertyId;
-  } else if (Array.isArray(dataResult.data) && dataResult.data.length === 1) {
-    sessionUpdates.lastMentionedPropertyId = dataResult.data[0].propertyId;
-  }
-  
-  // Track actions performed
-  if (intent === INTENT_TYPES.SCHEDULE_SITE_VISIT && dataResult.data?.visitId) {
-    const actionsPerformed = [...(session.actionsPerformed || [])];
-    actionsPerformed.push({
-      action: 'SITE_VISIT_SCHEDULED',
-      data: dataResult.data,
-      timestamp: new Date().toISOString(),
-    });
-    sessionUpdates.actionsPerformed = actionsPerformed;
-  }
-  
-  await db.updateCallSession(tenantId, callSessionId, sessionUpdates);
-  
-  // Inject response back to ElevenLabs
-  if (dataResult.text && session.elevenLabsSessionId) {
-    await elevenlabs.injectContext(session.elevenLabsSessionId, dataResult.text);
-  }
-  
-  // Handle special intents
-  if (intent === INTENT_TYPES.HANDOFF_HUMAN) {
-    return {
-      success: true,
-      action: 'handoff',
-      responseText: "Let me connect you with one of our agents. Please hold for a moment.",
-    };
-  }
-  
-  if (intent === INTENT_TYPES.CALL_END) {
-    return {
-      success: true,
-      action: 'end',
-      responseText: "Thank you for calling. Have a great day!",
-    };
-  }
-  
-  return {
-    success: true,
-    action: 'continue',
-    responseText: dataResult.text,
-    data: dataResult.data,
-  };
-}
+export async function handleElevenLabsPostCall(body) {
+  const parsed = elevenlabs.parsePostCallWebhook(body);
 
-/**
- * End an active call
- */
-export async function endCall(tenantId, callSessionId, reason = 'user_ended') {
+  if (parsed.type && parsed.type !== 'post_call_transcription') {
+    logger.info('Ignoring non-transcription post-call webhook', { type: parsed.type });
+    return { success: true, ignored: parsed.type };
+  }
+
+  const { tenantId, callSessionId, conversationId } = parsed;
+  if (!tenantId || !callSessionId) {
+    logger.warn('ElevenLabs post-call webhook missing correlation ids', { conversationId });
+    return { success: false };
+  }
+
   const session = await db.getCallSession(tenantId, callSessionId);
-  
   if (!session) {
-    throw new Error('Call session not found');
+    logger.error('Call session not found for post-call webhook', null, { callSessionId, tenantId });
+    return { success: false };
   }
-  
-  // End Exotel call
-  if (session.exotelCallSid) {
-    await exotel.endCall(session.exotelCallSid);
+
+  // Persist the transcript turns the agent and customer actually exchanged.
+  const transcript = elevenlabs.normalizeTranscript({ transcript: parsed.transcript });
+  for (const turn of transcript) {
+    await db.addTranscriptEntry(tenantId, callSessionId, {
+      speaker: turn.speaker,
+      text: turn.text,
+    });
   }
-  
-  // End ElevenLabs session
-  if (session.elevenLabsSessionId) {
-    await elevenlabs.endConversation(session.elevenLabsSessionId);
+
+  const isQualificationCall = session.callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION;
+
+  // The tool may already have recorded a verdict mid-call.
+  let temperature = session.qualificationTemperature || null;
+  let reasons = session.qualificationReasons || null;
+  let qualificationStatus = session.qualificationStatus;
+
+  if (isQualificationCall && !temperature) {
+    const fallback = elevenlabs.extractQualificationResult(transcript);
+    if (fallback) {
+      temperature = fallback.temperature;
+      reasons = fallback.reasons;
+      qualificationStatus = QUALIFICATION_STATUS.SUCCEEDED;
+      logger.info('Qualification recovered from transcript marker', { callSessionId, tenantId });
+    } else {
+      qualificationStatus = QUALIFICATION_STATUS.FAILED;
+      logger.warn('Qualification call produced no verdict', {
+        callSessionId,
+        tenantId,
+        turnCount: transcript.length,
+      });
+    }
   }
-  
-  // Update session
-  await db.updateCallSession(tenantId, callSessionId, {
+
+  const updates = {
     status: CALL_STATUS.COMPLETED,
     endedAt: new Date().toISOString(),
-    outcome: reason,
+    elevenLabsConversationId: conversationId || session.elevenLabsConversationId,
+    transcriptSummary: parsed.analysis?.transcript_summary || session.transcriptSummary || null,
+    ...(parsed.callDurationSecs != null && { duration: parsed.callDurationSecs }),
+    ...(isQualificationCall && {
+      qualificationStatus,
+      qualificationTemperature: temperature,
+      qualificationReasons: reasons,
+    }),
+  };
+
+  await db.updateCallSession(tenantId, callSessionId, updates);
+
+  // Push the outcome back to the CRM lead.
+  if (session.leadId) {
+    await crmApi.updateLeadCallOutcome(tenantId, session.leadId, {
+      callSessionId,
+      status: CALL_STATUS.COMPLETED,
+      duration: parsed.callDurationSecs || session.duration || 0,
+      outcome: session.outcome,
+      transcriptSummary: updates.transcriptSummary,
+      callPurpose: session.callPurpose,
+      ...(isQualificationCall && {
+        qualificationStatus,
+        ...(temperature && { temperature, scoreReasons: reasons }),
+      }),
+    });
+  }
+
+  logger.callEvent('CALL_ENDED', callSessionId, tenantId, {
+    conversationId,
+    duration: parsed.callDurationSecs,
+    qualificationStatus: isQualificationCall ? qualificationStatus : undefined,
   });
-  
-  logger.callEvent('CALL_ENDED_MANUAL', callSessionId, tenantId, { reason });
-  
+
   return { success: true };
 }
 
 /**
- * Get call status
+ * End an active call.
+ */
+export async function endCall(tenantId, callSessionId, reason = 'user_ended') {
+  const session = await db.getCallSession(tenantId, callSessionId);
+  if (!session) throw new ValidationError('Call session not found');
+
+  if (session.exotelCallSid) {
+    await exotel.endCall(session.exotelCallSid);
+  }
+
+  await db.updateCallSession(tenantId, callSessionId, {
+    status: CALL_STATUS.COMPLETED,
+    endedAt: new Date().toISOString(),
+    outcome: reason,
+    ...(session.callPurpose === CALL_PURPOSE.LEAD_QUALIFICATION &&
+      session.qualificationStatus === QUALIFICATION_STATUS.PENDING && {
+        qualificationStatus: QUALIFICATION_STATUS.FAILED,
+      }),
+  });
+
+  logger.callEvent('CALL_ENDED_MANUAL', callSessionId, tenantId, { reason });
+
+  return { success: true };
+}
+
+/**
+ * Get call status.
  */
 export async function getCallStatus(tenantId, callSessionId) {
   const session = await db.getCallSession(tenantId, callSessionId);
-  
-  if (!session) {
-    return null;
-  }
-  
+  if (!session) return null;
+
   return {
     callSessionId: session.callSessionId,
     status: session.status,
     duration: session.duration,
     startedAt: session.startedAt,
     endedAt: session.endedAt,
-    intentsDetected: session.intentsDetected,
+    qualificationStatus: session.qualificationStatus,
+    qualificationTemperature: session.qualificationTemperature,
     actionsPerformed: session.actionsPerformed,
   };
 }
 
 /**
- * Get call transcript
+ * Get call transcript.
  */
 export async function getCallTranscript(tenantId, callSessionId) {
   const entries = await db.getTranscript(tenantId, callSessionId);
-  
-  return entries.map(entry => ({
+
+  return entries.map((entry) => ({
     speaker: entry.speaker,
     text: entry.text,
     timestamp: entry.timestamp,
@@ -400,11 +364,23 @@ export async function getCallTranscript(tenantId, callSessionId) {
   }));
 }
 
+/**
+ * Caller-error marker so routes can answer 400 instead of 500 for bad input.
+ */
+export class ValidationError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ValidationError';
+    this.statusCode = 400;
+  }
+}
+
 export default {
   startAICall,
   handleExotelWebhook,
-  handleElevenLabsIntentWebhook,
+  handleElevenLabsPostCall,
   endCall,
   getCallStatus,
   getCallTranscript,
+  ValidationError,
 };

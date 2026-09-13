@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { logger } from './logger.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
 import { dispatchPushForNotification } from './services/push/pushService.js';
+import { sendEmail } from './emailService.js';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 import path from 'path';
@@ -69,6 +70,7 @@ export const NotificationType = {
   NEW_LEAD: 'NEW_LEAD',
   LEAD_ASSIGNED: 'LEAD_ASSIGNED',
   LEAD_HOT: 'LEAD_HOT',
+  SITE_VISIT_BOOKED: 'SITE_VISIT_BOOKED',
 };
 
 // ============== Inbox Notification Operations ==============
@@ -100,6 +102,11 @@ export async function createNotification(tenantId, data) {
     // Optional: narrows the push audience to one team member. The inbox itself
     // stays tenant-wide, so this only affects who gets buzzed on their phone.
     targetUserId: data.targetUserId || null,
+    // Optional: narrows the push audience to a specific set of team members
+    // (e.g. a lead's assignee + the agency owner, never the customer) rather
+    // than either "one person" or "the whole tenant". Takes priority over
+    // targetUserId when present — see dispatchPushForNotification.
+    targetUserIds: Array.isArray(data.targetUserIds) && data.targetUserIds.length ? data.targetUserIds : null,
     readAt: null,
     createdAt,
     // GSI for unread notifications
@@ -470,7 +477,15 @@ export async function getPendingScheduledNotifications(tenantId) {
 }
 
 /**
- * Get scheduled notification by dedupeKey
+ * Get the current PENDING scheduled notification for a dedupeKey. A
+ * dedupeKey accumulates one row per reschedule (cancel+recreate, never an
+ * in-place update), so old fired/cancelled rows for the same dedupeKey stay
+ * in the table indefinitely. Without the status filter and descending sort
+ * below, this query's default ascending-by-SK order returns whichever row
+ * has the EARLIEST dueAt — almost always a stale fired/cancelled one once a
+ * meeting's been rescheduled even once — silently starving every caller
+ * (attachMeetingReminderRecipients, cancelScheduledNotificationByDedupeKey)
+ * of the actually-pending row they're looking for.
  */
 export async function getScheduledNotificationByDedupeKey(tenantId, dedupeKey) {
   if (!tenantId || !dedupeKey) {
@@ -480,12 +495,15 @@ export async function getScheduledNotificationByDedupeKey(tenantId, dedupeKey) {
   const params = {
     TableName: NOTIFICATIONS_TABLE_NAME,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-    FilterExpression: 'dedupeKey = :dedupeKey',
+    FilterExpression: 'dedupeKey = :dedupeKey AND #status = :pending',
+    ExpressionAttributeNames: { '#status': 'status' },
     ExpressionAttributeValues: {
       ':pk': `TENANT#${tenantId}#SCHEDULED`,
       ':sk': 'DUE#',
       ':dedupeKey': dedupeKey,
+      ':pending': 'pending',
     },
+    ScanIndexForward: false,
   };
 
   const result = await docClient.send(new QueryCommand(params));
@@ -535,9 +553,12 @@ export async function updateScheduledNotification(tenantId, scheduledId, data) {
     return newScheduled;
   }
 
+  const attributeNames = {};
+
   if (data.status !== undefined) {
     updateExpressions.push('#status = :status');
     attributeValues[':status'] = data.status;
+    attributeNames['#status'] = 'status';
   }
 
   if (data.payload !== undefined) {
@@ -552,7 +573,11 @@ export async function updateScheduledNotification(tenantId, scheduledId, data) {
     TableName: NOTIFICATIONS_TABLE_NAME,
     Key: { PK: scheduled.PK, SK: scheduled.SK },
     UpdateExpression: `SET ${updateExpressions.join(', ')}`,
-    ExpressionAttributeNames: { '#status': 'status' },
+    // Only pass #status when the update expression actually references it —
+    // DynamoDB rejects declared-but-unused ExpressionAttributeNames, and a
+    // payload-only update (attachMeetingReminderRecipients's call, which
+    // never touches status) previously always hit that error unconditionally.
+    ExpressionAttributeNames: Object.keys(attributeNames).length ? attributeNames : undefined,
     ExpressionAttributeValues: attributeValues,
   }));
 
@@ -575,6 +600,30 @@ export async function cancelScheduledNotificationByDedupeKey(tenantId, dedupeKey
     return await cancelScheduledNotification(tenantId, scheduled.scheduledId);
   }
   return null;
+}
+
+/**
+ * Email the resolved recipients for a fired meeting reminder. Never throws —
+ * push can be silently unconfigured (Firebase not set up yet), so email is
+ * currently the one channel guaranteed to actually reach the assignee and
+ * agency owner, and one bad address must not stop the others from being sent.
+ */
+async function sendMeetingReminderEmails(recipientEmails, payload) {
+  const results = await Promise.allSettled(
+    recipientEmails.map((to) =>
+      sendEmail({
+        to,
+        subject: payload.title || 'Meeting reminder',
+        html: `<p>${payload.message}</p>`,
+        text: payload.message,
+      })
+    )
+  );
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      logger.warn('meetingReminder.email.failed', { to: recipientEmails[index], error: result.reason?.message });
+    }
+  });
 }
 
 /**
@@ -601,6 +650,13 @@ export async function fireScheduledNotification(tenantId, scheduledId) {
 
   // Mark as fired
   await updateScheduledNotification(tenantId, scheduledId, { status: 'fired' });
+
+  // Meeting reminders also go out by email, to whatever recipients were
+  // resolved at schedule time (see meetingReminderRecipients.js) — the
+  // assignee + agency owner, never the customer/lead.
+  if (scheduled.payload.type === NotificationType.MEETING_REMINDER_15M && scheduled.payload.recipientEmails?.length) {
+    await sendMeetingReminderEmails(scheduled.payload.recipientEmails, scheduled.payload);
+  }
 
   logger.info('scheduledNotification.fired', { tenantId, scheduledId, notificationId: notification.notificationId });
   return notification;
@@ -720,8 +776,12 @@ export async function scheduleMeetingReminder(tenantId, meeting, reminderMinutes
     throw new Error('Meeting date and time are required');
   }
 
-  // Calculate reminder time (15 minutes before meeting)
-  const meetingDateTime = new Date(`${meeting.meetingDate}T${meeting.meetingTime}:00`);
+  // Calculate reminder time (15 minutes before meeting). meetingDate/meetingTime
+  // are naive wall-clock values with no timezone of their own — every agency
+  // using this product is in India, so they mean IST. Without the explicit
+  // +05:30 offset, Date() parses them in the Lambda's own local timezone
+  // (UTC), which silently shifts every reminder 5.5 hours late.
+  const meetingDateTime = new Date(`${meeting.meetingDate}T${meeting.meetingTime}:00+05:30`);
   const reminderTime = new Date(meetingDateTime.getTime() - (reminderMinutes * 60 * 1000));
 
   // Don't schedule if reminder time is in the past

@@ -26,6 +26,7 @@ import Toast from '../../components/Toast';
 import NumericInput from '../../components/NumericInput';
 import FullscreenMediaViewer from '../../components/FullscreenMediaViewer';
 import { PermissionGuard } from '../../components/PermissionGuard';
+import PropertyPublishControl from '../../components/PropertyPublishControl';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
@@ -1083,6 +1084,19 @@ export default function PropertyDetails() {
                       </p>
                     )}
                   </div>
+
+                  {/* Publish to public site — only meaningful once the property exists */}
+                  {isEditing && property && id && (
+                    <PropertyPublishControl
+                      propertyId={id}
+                      title={property.title || formData.title}
+                      status={property.status}
+                      publicVisibility={property.publicVisibility}
+                      onVisibilityChange={(next) =>
+                        setProperty((prev) => (prev ? { ...prev, publicVisibility: next } : prev))
+                      }
+                    />
+                  )}
 
                   {/* Title */}
                   <div>

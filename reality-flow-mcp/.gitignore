@@ -6,5 +6,6 @@ infra/cfn-params.json
 infra/cfn-params.dev.json
 infra/cfn-params.test.json
 infra/cfn-params.prod.json
+infra/.last-config-diff.json
 *.log
 .DS_Store

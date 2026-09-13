@@ -48,9 +48,29 @@ echo "============================================="
 echo " Instagram Solution frontend - Deploy"
 echo "============================================="
 
-DEPLOY_ENV="${1:-}"
+# --skip-build / --skip-cfn — same independent-axes design as
+# real-estate-crm-app/infra/deploy.sh: a pure CFN parameter change
+# (CrmDistributionId) never needs npm ci/vite build/s3 sync, and a pure
+# VITE_*-only change never needs a CFN update. infra/config-deploy.sh and
+# infra/content-deploy.sh are the gated entry points for each.
+SKIP_BUILD=false
+SKIP_CFN=false
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=true ;;
+    --skip-cfn) SKIP_CFN=true ;;
+    *) POSITIONAL_ARGS+=("$arg") ;;
+  esac
+done
+if [ "$SKIP_BUILD" = true ] && [ "$SKIP_CFN" = true ]; then
+  echo "ERROR: --skip-build and --skip-cfn together would do nothing — pick at most one."
+  exit 1
+fi
+
+DEPLOY_ENV="${POSITIONAL_ARGS[0]:-}"
 if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
-  echo "ERROR: Usage: $0 <dev|prod>"
+  echo "ERROR: Usage: $0 <dev|prod> [--skip-build|--skip-cfn]"
   exit 1
 fi
 
@@ -68,13 +88,17 @@ set +a
 
 ENVIRONMENT_NAME="$DEPLOY_ENV"
 
-REQUIRED_VARS=(AWS_REGION AWS_PROFILE STACK_NAME BUCKET_NAME VITE_API_BASE_URL VITE_CRM_URL)
+REQUIRED_VARS=(AWS_REGION AWS_PROFILE STACK_NAME BUCKET_NAME VITE_INSTA_API_DOMAIN_NAME VITE_INSTA_API_BASE_PATH VITE_CRM_URL)
 for var in "${REQUIRED_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then
     echo "ERROR: Required env var $var is not set in $ENV_FILE"
     exit 1
   fi
 done
+
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/api-domain-guard.sh"
+assert_frontend_api_domain_vars
 
 if [[ "$STACK_NAME" != "${ENVIRONMENT_NAME}-realestateflow-"* ]]; then
   echo "ERROR: STACK_NAME ('$STACK_NAME') must start with '${ENVIRONMENT_NAME}-realestateflow-'"
@@ -92,7 +116,7 @@ echo "Deploy target: $DEPLOY_ENV"
 echo "AWS account:   $CALLER_ACCOUNT"
 echo "Stack:         $STACK_NAME"
 echo "Bucket:        $BUCKET_NAME"
-echo "API base:      $VITE_API_BASE_URL"
+echo "Insta API:     https://$VITE_INSTA_API_DOMAIN_NAME/$VITE_INSTA_API_BASE_PATH"
 echo "CRM URL:       $VITE_CRM_URL"
 echo ""
 
@@ -101,23 +125,28 @@ TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
 # -----------------------------------------------------------------------------
 # 1. Build
 # -----------------------------------------------------------------------------
-echo "[1/5] Installing dependencies..."
-cd "$PROJECT_DIR"
-"$NPM_BIN" ci --no-audit --no-fund 2>/dev/null || "$NPM_BIN" install --no-audit --no-fund
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[1/5] Skipping npm install (--skip-build)"
+  echo "[2/5] Skipping vite build (--skip-build)"
+else
+  echo "[1/5] Installing dependencies..."
+  cd "$PROJECT_DIR"
+  "$NPM_BIN" ci --no-audit --no-fund 2>/dev/null || "$NPM_BIN" install --no-audit --no-fund
 
-echo "[2/5] Building (vite, mode=$DEPLOY_ENV)..."
-rm -rf "$PROJECT_DIR/dist"
-"$NPM_BIN" run build
+  echo "[2/5] Building (vite, mode=$DEPLOY_ENV)..."
+  rm -rf "$PROJECT_DIR/dist"
+  "$NPM_BIN" run build
 
-if [ ! -f "$PROJECT_DIR/dist/index.html" ]; then
-  echo "ERROR: build produced no dist/index.html"
-  exit 1
+  if [ ! -f "$PROJECT_DIR/dist/index.html" ]; then
+    echo "ERROR: build produced no dist/index.html"
+    exit 1
+  fi
 fi
 
 # -----------------------------------------------------------------------------
 # 2. Deploy the bucket stack
 # -----------------------------------------------------------------------------
-echo "[3/5] Generating infra/cfn-params.json and deploying $STACK_NAME..."
+echo "[3/5] Generating infra/cfn-params.json..."
 cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
 [
   { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENVIRONMENT_NAME}" },
@@ -126,49 +155,60 @@ cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
 ]
 EOF
 
-"$AWS_BIN" cloudformation deploy \
-  --template-file "$(winpath "$SCRIPT_DIR/cfn-insta-frontend.yaml")" \
-  --stack-name "$STACK_NAME" \
-  --no-fail-on-empty-changeset \
-  --tags Environment="$ENVIRONMENT_NAME" Service=realestateflow-insta-frontend \
-  --parameter-overrides \
-    EnvironmentName="$ENVIRONMENT_NAME" \
-    BucketName="$BUCKET_NAME" \
-    CrmDistributionId="${CRM_DISTRIBUTION_ID:-}" \
-  "${AWS_ARGS[@]}"
+if [ "$SKIP_CFN" = true ]; then
+  echo "      Skipping CloudFormation deploy (--skip-cfn)"
+else
+  echo "      Deploying $STACK_NAME..."
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$(winpath "$SCRIPT_DIR/cfn-insta-frontend.yaml")" \
+    --stack-name "$STACK_NAME" \
+    --no-fail-on-empty-changeset \
+    --tags Environment="$ENVIRONMENT_NAME" Service=realestateflow-insta-frontend \
+    --parameter-overrides \
+      EnvironmentName="$ENVIRONMENT_NAME" \
+      BucketName="$BUCKET_NAME" \
+      CrmDistributionId="${CRM_DISTRIBUTION_ID:-}" \
+    "${AWS_ARGS[@]}"
 
-if [ -z "${CRM_DISTRIBUTION_ID:-}" ]; then
-  echo ""
-  echo "      NOTE: CRM_DISTRIBUTION_ID is empty, so no bucket policy was attached."
-  echo "      The bucket is private and CloudFront cannot read it yet. That is the"
-  echo "      expected state until the CRM frontend stack is deployed with"
-  echo "      InstaFrontendBucketDomainName set. See"
-  echo "      docs/insta-sol-ms-docs/09-CLOUDFRONT-INTEGRATION.md"
-  echo ""
+  if [ -z "${CRM_DISTRIBUTION_ID:-}" ]; then
+    echo ""
+    echo "      NOTE: CRM_DISTRIBUTION_ID is empty, so no bucket policy was attached."
+    echo "      The bucket is private and CloudFront cannot read it yet. That is the"
+    echo "      expected state until the CRM frontend stack is deployed with"
+    echo "      InstaFrontendBucketDomainName set. See"
+    echo "      docs/insta-sol-ms-docs/09-CLOUDFRONT-INTEGRATION.md"
+    echo ""
+  fi
 fi
 
 # -----------------------------------------------------------------------------
 # 3. Sync content under the insta/ prefix
 # -----------------------------------------------------------------------------
-echo "[4/5] Syncing dist/ to s3://${BUCKET_NAME}/insta/ ..."
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[4/5] Skipping dist/ sync (--skip-build) — no content changed."
+else
+  echo "[4/5] Syncing dist/ to s3://${BUCKET_NAME}/insta/ ..."
 
-# Hashed assets are immutable - cache them hard. index.html must never be cached
-# at the edge or a deploy would not be visible until the TTL expired.
-"$AWS_BIN" s3 sync "$PROJECT_DIR/dist/" "s3://${BUCKET_NAME}/insta/" \
-  --delete \
-  --exclude "index.html" \
-  --cache-control "public,max-age=31536000,immutable" \
-  "${AWS_ARGS[@]}"
+  # Hashed assets are immutable - cache them hard. index.html must never be cached
+  # at the edge or a deploy would not be visible until the TTL expired.
+  "$AWS_BIN" s3 sync "$PROJECT_DIR/dist/" "s3://${BUCKET_NAME}/insta/" \
+    --delete \
+    --exclude "index.html" \
+    --cache-control "public,max-age=31536000,immutable" \
+    "${AWS_ARGS[@]}"
 
-"$AWS_BIN" s3 cp "$PROJECT_DIR/dist/index.html" "s3://${BUCKET_NAME}/insta/index.html" \
-  --cache-control "no-cache,no-store,must-revalidate" \
-  --content-type "text/html" \
-  "${AWS_ARGS[@]}"
+  "$AWS_BIN" s3 cp "$PROJECT_DIR/dist/index.html" "s3://${BUCKET_NAME}/insta/index.html" \
+    --cache-control "no-cache,no-store,must-revalidate" \
+    --content-type "text/html" \
+    "${AWS_ARGS[@]}"
+fi
 
 # -----------------------------------------------------------------------------
-# 4. Invalidate
+# 4. Invalidate — only meaningful when content actually changed.
 # -----------------------------------------------------------------------------
-if [ -n "${CRM_DISTRIBUTION_ID:-}" ]; then
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[5/5] Skipping CloudFront invalidation (--skip-build, no content changed)"
+elif [ -n "${CRM_DISTRIBUTION_ID:-}" ]; then
   echo "[5/5] Invalidating /insta/* on distribution ${CRM_DISTRIBUTION_ID}..."
   INVALIDATION_ID="$("$AWS_BIN" cloudfront create-invalidation \
     --distribution-id "$CRM_DISTRIBUTION_ID" \

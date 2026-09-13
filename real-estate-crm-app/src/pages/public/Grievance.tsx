@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CheckCircle2, ShieldCheck, Mail, Clock } from 'lucide-react';
+import { CRM_API_URL } from '../../config/apiConfig';
 
 /**
  * Public DPDP Act 2023 grievance portal.
@@ -9,7 +10,7 @@ import { CheckCircle2, ShieldCheck, Mail, Clock } from 'lucide-react';
  * `POST /api/grievance` endpoint (rate-limited + hCaptcha + honeypot server-side).
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE_URL = CRM_API_URL;
 const HCAPTCHA_SITE_KEY = import.meta.env.VITE_HCAPTCHA_SITE_KEY || '';
 
 const CATEGORIES: { value: string; label: string }[] = [

@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { getIdToken } from '../utils/authStorage';
 import { callMe } from '../utils/cognitoAuth';
 import { setUserProfile } from '../utils/authStorage';
+import { AUTH_API_URL } from '../config/apiConfig';
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
 
 interface Invite {
   inviteCode: string;

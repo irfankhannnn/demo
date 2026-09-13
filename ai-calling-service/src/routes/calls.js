@@ -1,31 +1,29 @@
 // Call Management Routes
+//
+// Called by the CRM backend only, never the browser. Authenticated as a
+// service with CRM_CALLER_API_KEY; req.tenantId comes from the header the
+// authenticated CRM sets from its own validated session. See
+// ../middleware/internalAuth.js for the trust boundary.
 
 import express from 'express';
 import * as callOrchestration from '../handlers/callOrchestration.js';
 import * as db from '../services/dynamodbService.js';
+import { authenticateCrmCaller } from '../middleware/internalAuth.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-// Middleware to extract tenant ID
-const extractTenantId = (req, res, next) => {
-  const tenantId = req.headers['x-tenant-id'];
-  if (!tenantId) {
-    return res.status(400).json({ error: 'x-tenant-id header is required' });
-  }
-  req.tenantId = tenantId;
-  next();
-};
+router.use(authenticateCrmCaller);
 
 // Start a new AI call
-router.post('/start', extractTenantId, async (req, res) => {
+router.post('/start', async (req, res) => {
   try {
     const { leadId, leadName, leadPhone, callPurpose } = req.body;
-    
+
     if (!leadPhone) {
       return res.status(400).json({ error: 'leadPhone is required' });
     }
-    
+
     const result = await callOrchestration.startAICall({
       tenantId: req.tenantId,
       leadId,
@@ -33,16 +31,22 @@ router.post('/start', extractTenantId, async (req, res) => {
       leadPhone,
       callPurpose,
     });
-    
+
     res.status(201).json(result);
   } catch (error) {
+    // Bad input (unparseable phone, unconfigured agent) is the caller's
+    // problem, not a server fault — answer 400 so the CRM can show the
+    // reason instead of a generic failure.
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
     logger.error('Start call error', error);
-    res.status(500).json({ error: error.message || 'Failed to start call' });
+    res.status(500).json({ error: 'Failed to start call', details: error.message });
   }
 });
 
 // Get call status
-router.get('/:callSessionId/status', extractTenantId, async (req, res) => {
+router.get('/:callSessionId/status', async (req, res) => {
   try {
     const status = await callOrchestration.getCallStatus(
       req.tenantId,
@@ -61,7 +65,7 @@ router.get('/:callSessionId/status', extractTenantId, async (req, res) => {
 });
 
 // Get call transcript
-router.get('/:callSessionId/transcript', extractTenantId, async (req, res) => {
+router.get('/:callSessionId/transcript', async (req, res) => {
   try {
     const transcript = await callOrchestration.getCallTranscript(
       req.tenantId,
@@ -76,7 +80,7 @@ router.get('/:callSessionId/transcript', extractTenantId, async (req, res) => {
 });
 
 // End a call
-router.post('/:callSessionId/end', extractTenantId, async (req, res) => {
+router.post('/:callSessionId/end', async (req, res) => {
   try {
     const { reason } = req.body;
     
@@ -94,7 +98,7 @@ router.post('/:callSessionId/end', extractTenantId, async (req, res) => {
 });
 
 // Get call history
-router.get('/', extractTenantId, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { status, limit = 50 } = req.query;
     
@@ -113,7 +117,7 @@ router.get('/', extractTenantId, async (req, res) => {
 });
 
 // Get call details
-router.get('/:callSessionId', extractTenantId, async (req, res) => {
+router.get('/:callSessionId', async (req, res) => {
   try {
     const session = await db.getCallSession(req.tenantId, req.params.callSessionId);
     
@@ -129,7 +133,7 @@ router.get('/:callSessionId', extractTenantId, async (req, res) => {
 });
 
 // Get call metrics
-router.get('/metrics/summary', extractTenantId, async (req, res) => {
+router.get('/metrics/summary', async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     

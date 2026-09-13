@@ -36,6 +36,14 @@ cd cfn-templates-cicd/real-estate-crm-app
 `dev`/`prod` is required for a deploy — the script refuses to run without
 it.
 
+Before allocating a build number, `deploy`/`content-deploy` run
+`real-estate-crm-app/infra/lib/api-domain-guard.sh` against `.env.<env>`:
+`VITE_CRM_API_DOMAIN_NAME`, `VITE_CRM_API_BASE_PATH`, `VITE_AUTH_API_DOMAIN_NAME`
+and `VITE_AUTH_API_BASE_PATH` are required (plus `VITE_MCP_API_BASE_PATH` when
+`VITE_MCP_API_DOMAIN_NAME` is set); a raw `execute-api`/`amazonaws.com` host or a
+value containing `://` fails the deploy. Rollbacks re-ship an archived bundle
+and are not re-checked.
+
 ## Build numbers are global, not per-environment
 
 One counter across dev **and** prod — build #7 is unambiguous by itself.

@@ -256,6 +256,14 @@ export interface CRMProperty {
   listingStatus?: 'active' | 'inactive' | string | null;
   /** Active Listing entity id when listed */
   activeListingId?: string | null;
+  /**
+   * Whether this listing is marked to appear on the agency's public property
+   * pages site. Only actually visible there when ALSO `status` is one of
+   * available/for-sale/for-rent — see server/publicListingService.js.
+   */
+  publicVisibility?: 'public' | 'private' | null;
+  /** Set the first time publicVisibility was switched to 'public'. */
+  publishedAt?: string | null;
   agreementStatus: 'pending' | 'done';
   verificationStatus: 'pending' | 'done' | 'not_done';
   tenantMoveInDate?: string;
@@ -479,6 +487,7 @@ export interface UpdatePropertyData {
   featured?: boolean;
   verified?: boolean;
   ownerSnapshot?: { name?: string | null; phone?: string | null };
+  publicVisibility?: 'public' | 'private';
 }
 
 // Agreement Data Types
@@ -747,7 +756,15 @@ export interface UpdateContactData {
 // ============== Lead Types ==============
 
 export type LeadType = 'buyer' | 'seller' | 'tenant' | 'owner';
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
+// `site_visit` is an active pipeline stage between qualified and negotiating.
+// `spam` is terminal and, unlike `lost`, marks a lead that was never real —
+// it is excluded from follow-up crons and AI qualification server-side.
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'site_visit' | 'negotiating' | 'converted' | 'lost' | 'spam';
+
+// Intake adapters that can create a lead. Every one funnels through the same
+// server-side ingestLead() entry point, so a lead's downstream treatment
+// (AI qualification, scoring, closure) does not depend on which one it was.
+export type LeadSourceAdapter = 'manychat' | 'insta-agent' | 'bailey' | 'website';
 // LeadPriority (low/medium/high) is retired on the Lead entity — see
 // LeadTemperature. Buyer/Customer/Tenant/B2B-Lead entities keep their own
 // separate `priority` field, untouched by this migration.
@@ -847,6 +864,15 @@ export interface CRMLead {
   assignedTo?: string;
   // Instagram-sourced leads carry a reference to the triggering post.
   reelRef?: LeadReelRef | null;
+  // Which intake adapter produced this lead. `source` is the coarse channel
+  // shown to users ('Instagram'); this distinguishes the paths within it —
+  // 'manychat' (ManyChat cloud bot) vs 'insta-agent' (self-hosted laptop agent).
+  // null for a lead a human typed in.
+  sourceAdapter?: LeadSourceAdapter | null;
+  // Channel-native identifiers, e.g. { igUsername, igSenderId, sourceMediaId }.
+  externalRef?: Record<string, string | null> | null;
+  // Stable per-source id used to make repeated deliveries idempotent.
+  dedupeKey?: string | null;
   // Type-specific data
   buyerRequirement?: BuyerRequirement | null;
   sellerProperty?: SellerProperty | null;
@@ -924,6 +950,9 @@ export interface LeadMetrics {
     new: number;
     contacted: number;
     qualified: number;
+    // Optional: older API responses predate these statuses and omit them.
+    site_visit?: number;
+    spam?: number;
     negotiating: number;
     converted: number;
     lost: number;

@@ -36,6 +36,15 @@ Parameters:
     Default: dev-realestateflow-agencies
     Description: Name of the DynamoDB table storing per-agency admin configuration
 
+  KnowledgeChunksTableName:
+    Type: String
+    Default: dev-realestateflow-knowledge-chunks
+    Description: >-
+      Name of the DynamoDB table storing embedded chunks of each agency's policy
+      documents. Derived data, regenerable from the policies held on the agency
+      record; kept apart from the CRM table so that a change to the policy
+      vector index cannot force a rebuild of the property one.
+
   AreasTableName:
     Type: String
     Default: dev-realestateflow-areas
@@ -149,7 +158,7 @@ Parameters:
 
   SesFromEmail:
     Type: String
-    Default: noreply@realestateflow.in
+    Default: info@realestateflow.in
 
   EmailProviderPrimary:
     Type: String
@@ -324,6 +333,21 @@ Parameters:
     Default: prod
     Description: Stage name for the CRM API Gateway
 
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'false' on a first deploy to a new account/region before the
+      AWS::ApiGateway::DomainName for PublicApiDomainName/CrmApiDomainName
+      has been created (this template doesn't manage that resource - it's
+      set up once, separately, e.g. via ACM cert + Route53). With it false,
+      BasePathMapping is skipped and the API has no supported public URL
+      (clients must only ever use https://<domain>/<base path>, never the
+      execute-api invoke URL). Flip to 'true' and redeploy once the custom
+      domain exists. Keep it 'true' on any stack whose mappings already
+      exist - flipping it to 'false' makes CloudFormation DELETE them.
+
   EnableBasePathStrip:
     Type: String
     Default: 'false'
@@ -333,9 +357,18 @@ Parameters:
       (e.g., /devrealestatecrm/api/...). The Lambda handler will strip that
       base path so Express routes (mounted at /api/...) match correctly.
 
-  AuthServiceUrl:
+  AuthServiceDomainName:
     Type: String
-    Description: URL of the authentication microservice for token validation (e.g., https://auth-api.example.com)
+    Description: >-
+      API Gateway custom domain of reality-flow-authentication (bare host, no
+      scheme), e.g. services-api.cloudberrysolutions.in. Never an execute-api
+      host. Composed with AuthServiceBasePath by server/config/serviceUrls.js.
+
+  AuthServiceBasePath:
+    Type: String
+    Description: >-
+      Base path mapping of reality-flow-authentication on AuthServiceDomainName
+      (single segment), e.g. devrealestateauth / prodrealestateauth.
 
   AllowedOrigins:
     Type: String
@@ -388,7 +421,7 @@ Parameters:
 
   BrevoFromEmail:
     Type: String
-    Default: 'no-reply@realestateflow.in'
+    Default: 'info@realestateflow.in'
     Description: Sender email address for Brevo transactional emails
 
   BrevoFromName:
@@ -426,10 +459,38 @@ Parameters:
     Description: Shared secret ai-calling-service must present (x-api-key) to call /api/internal/* routes (Lead Temperature qualification calls)
     NoEcho: true
 
-  AiCallingServiceUrl:
+  AdapterInternalApiKey:
     Type: String
     Default: ''
-    Description: Base URL of the ai-calling-service stack, used by POST /leads/:id/qualify-call to trigger on-demand qualification calls
+    Description: Shared secret lead-source adapters must present (x-api-key) to call POST /api/internal/adapters/leads. Used by backend_insta_sol_ms to promote Instagram enquiries into CRM leads. Deliberately separate from AiCallingInternalApiKey so one service's compromise does not grant the other's access.
+    NoEcho: true
+
+  PublicPagesInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret the public property-pages microservice must present (x-api-key) to call /api/internal/public-pages/*. Its own key, separate from AdapterInternalApiKey, so compromising the internet-facing pages service does not also grant lead-ingestion access.
+    NoEcho: true
+
+  AiCallingServiceDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain of the ai-calling-service stack (bare host, no
+      scheme), used by POST /leads/:id/qualify-call and /api/crm/ai-calling/*.
+      Leave empty until that stack is deployed (feature returns 503).
+
+  AiCallingServiceBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of ai-calling-service on AiCallingServiceDomainName
+      (single segment). The /api/ai-calling route prefix is appended in code.
+
+  CrmCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling ai-calling-service's /api/ai-calling/* management routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the ai-calling-service stack. Deliberately separate from AiCallingInternalApiKey, which is the inbound direction.
+    NoEcho: true
 
   FounderWhatsApp:
     Type: String
@@ -489,12 +550,12 @@ Parameters:
 
   GeminiModel:
     Type: String
-    Default: gemini-2.5-flash
+    Default: gemini-3.8-flash
     Description: Gemini model name (used only if LlmProvider=gemini)
 
   GeminiClassifierModel:
     Type: String
-    Default: gemini-2.5-flash
+    Default: gemini-3.1-flash-lite
     Description: Gemini classifier model name (used for lead classification)
 
   CloudwatchMetricsEnabled:
@@ -537,10 +598,20 @@ Parameters:
     Default: 'info'
     Description: Application log level
 
-  McpBaseUrl:
+  McpApiDomainName:
     Type: String
-    Default: 'https://mcp.realtyflow.com'
-    Description: MCP service base URL for OAuth redirects
+    Default: ''
+    Description: >-
+      API Gateway custom domain of reality-flow-mcp (bare host, no scheme),
+      used for OAuth client registration/authorize/token. Empty means MCP is
+      not configured in this environment (AI integrations return 500).
+
+  McpApiBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of reality-flow-mcp on McpApiDomainName (single
+      segment), e.g. devrealestatemcp. /oauth/* suffixes are appended in code.
 
   OAuthCodesTableName:
     Type: String
@@ -718,6 +789,7 @@ Conditions:
   # Without an email the alerts topic is still created (alarms need a target)
   # but has no subscriber - alarms fire silently into the console.
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
 
 Resources:
   PropertiesTable:
@@ -809,6 +881,10 @@ Resources:
           AttributeType: S
         - AttributeName: GSI3SK
           AttributeType: S
+        - AttributeName: GSI4PK
+          AttributeType: S
+        - AttributeName: GSI4SK
+          AttributeType: S
 
       KeySchema:
         - AttributeName: PK
@@ -844,6 +920,113 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+        # Cross-tenant marketplace index (properties.realestateflow.in).
+        #
+        # Every other index here is partitioned by TENANT#, which is exactly
+        # right for the CRM and exactly wrong for a consumer marketplace that
+        # has to answer "3BHK in Bangalore under 1.5Cr" across every agency at
+        # once. Fanning that out as one Query per tenant would get slower with
+        # every customer we sign.
+        #
+        # Partitioned by city rather than one PUBLIC# bucket: a single
+        # partition holding every listing in the country would be the hottest
+        # key in the table and is capped at 3000 RCU. Cities are a natural,
+        # enumerable shard, and city is the first thing a buyer filters on
+        # anyway, so it becomes a key condition instead of a filter.
+        #
+        # SPARSE BY DESIGN: only listings an agency has opted into the
+        # marketplace carry GSI4PK at all. Unpublishing must REMOVE the
+        # attribute, not blank it — see setMarketplaceIndexKeys in
+        # crmDynamodbService.js.
+        - IndexName: marketplace-index
+          KeySchema:
+            - AttributeName: GSI4PK
+              KeyType: HASH
+            - AttributeName: GSI4SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+      # NOTE: the semantic-property-search vector index is deliberately NOT
+      # declared here. CloudFormation does not support DynamoDB vector indexes.
+      #
+      # `VectorIndexes` is a real parameter — of the DynamoDB *CreateTable API*,
+      # not of AWS::DynamoDB::Table. Putting it in this template passes
+      # `aws cloudformation validate-template` (syntax only) and then fails every
+      # changeset with an opaque
+      #   "The following hook(s)/validation failed: [AWS::EarlyValidation::PropertyValidation]"
+      # that names no resource or property. That blocked all prod deploys of this
+      # stack on 2026-09-02. Same shape as the earlier LifecycleConfiguration
+      # `Expiration` vs `ExpirationInDays` bug: an API field that looks like a
+      # CFN property but isn't one.
+      #
+      # The index is created out-of-band instead, against the table this stack
+      # owns, by:
+      #     server/infra/create-vector-index.sh <dev|prod>
+      # which calls UpdateTable with --vector-index-updates. Run it after this
+      # stack has deployed. It is idempotent and safe to re-run.
+      #
+      # Design constraints that script encodes (kept here because they belong
+      # with the table definition, and see
+      # docs/proposals/agent-channel-architecture/05-retrieval-and-vector-search.md):
+      #
+      # Three things are IMMUTABLE once created — changing any of them means
+      # delete + recreate + a full re-backfill of every embedding:
+      #   - DistanceFunction
+      #   - the Projection NonKeyAttributes set
+      #   - the vector dimension (fixed by EMBEDDING_DIMENSIONS on the app side)
+      #
+      # tenantId as the SearchSchema HASH is NOT optional and must never be
+      # removed. AWS requires the partition key value in every SearchVectors
+      # call, so tenant scoping becomes an API-level requirement that fails the
+      # call if omitted, rather than a convention a developer has to remember.
+      # Without it, one search would rank vectors from every agency in the
+      # system and return their data in the response body.
+      #
+      # NonKeyAttributes must carry every field used for post-search range
+      # filtering (price, bhk, status), because inline filters support equality
+      # only and the range predicates run in Lambda against whatever the index
+      # projected. Adding a field later is not possible without a rebuild.
+
+  # Embedded chunks of each agency's policy documents, for the voice agent's
+  # answer_policy_question tool and the WhatsApp / web chat agents.
+  #
+  # Separate from CrmTable on purpose. A DynamoDB vector index's projection and
+  # distance function are immutable: changing either means delete, recreate and
+  # re-embed everything in the index. Sharing one index between policies and
+  # properties would make any future policy field a full re-embed of every
+  # property. Two tables, two indexes, two independent blast radii.
+  #
+  # The vector index itself is NOT declared here -- CloudFormation has no
+  # schema for it. It is created out of band by
+  # server/infra/create-vector-index.sh, which is idempotent.
+  KnowledgeChunksTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref KnowledgeChunksTableName
+      # On-demand is a hard requirement for vector indexes, not a preference.
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+
+      # PK: TENANT#<tenantId>#DOC#<policyId>, SK: CHUNK#<00000-padded index>.
+      # Every chunk of one document shares a partition, so re-indexing a
+      # document is a single Query plus a batched delete -- no scan, and no way
+      # to touch another tenant's chunks by accident.
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
   AgencyConfigTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -860,6 +1043,12 @@ Resources:
         - AttributeName: connectedWhatsAppPhone
           AttributeType: S
         - AttributeName: instagramWebhookToken
+          AttributeType: S
+        - AttributeName: agencySlug
+          AttributeType: S
+        - AttributeName: adminEmail
+          AttributeType: S
+        - AttributeName: adminPhone
           AttributeType: S
 
       KeySchema:
@@ -892,6 +1081,44 @@ Resources:
             ProjectionType: INCLUDE
             NonKeyAttributes:
               - TenantId
+        # Resolves tenantId from the public-pages subdomain label
+        # (server/publicListingService.js:getTenantIdByAgencySlug). This runs on
+        # every anonymous page render, crawlers included, so a Scan here would
+        # be both the hottest and the most expensive read in the system.
+        # Only agencies that have claimed a slug carry the attribute, so the
+        # index holds just those items.
+        - IndexName: agencySlug-index
+          KeySchema:
+            - AttributeName: agencySlug
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # adminEmail-index / adminPhone-index: reality-flow-authentication reads
+        # this same table directly (see AgencyConfigTableArn param on that stack)
+        # to resolve a pre-onboarded admin by email/phone at login time, mirroring
+        # the AdminEmailIndex/AdminPhoneIndex GSIs that service used to keep on
+        # its own separate, now-retired AgencyConfig table. Single source of
+        # truth for agency config lives here — see docs/proposals/
+        # agency-config-single-source/ for why the two tables existed and why
+        # they were consolidated.
+        - IndexName: adminEmail-index
+          KeySchema:
+            - AttributeName: adminEmail
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        # Added in a separate deploy from adminEmail-index above — DynamoDB
+        # rejects a stack update with "Cannot perform more than one GSI
+        # creation or deletion in a single update" (confirmed live 2026-09-12).
+        # This one was deployed once adminEmail-index reported ACTIVE.
+        - IndexName: adminPhone-index
+          KeySchema:
+            - AttributeName: adminPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
 
   CreditsTable:
     Type: AWS::DynamoDB::Table
@@ -1666,10 +1893,15 @@ Resources:
                   - dynamodb:Scan
                   - dynamodb:BatchWriteItem
                   - dynamodb:DescribeTable
+                  # New action for vector search — existing DynamoDB read
+                  # permissions do NOT grant it. Without this, writes and Query
+                  # keep working and only semantic search fails.
+                  - dynamodb:SearchVectors
                 Resource:
                   - !GetAtt PropertiesTable.Arn
                   - !GetAtt CrmTable.Arn
                   - !GetAtt AgencyConfigTable.Arn
+                  - !GetAtt KnowledgeChunksTable.Arn
                   - !GetAtt AreasTableCloudberry.Arn
                   - !GetAtt EnquiriesTableCloudberry.Arn
                   - !GetAtt B2BLeadsTable.Arn
@@ -1698,6 +1930,13 @@ Resources:
                 Action:
                   - dynamodb:Query
                   - dynamodb:Scan
+                  # SearchVectors is granted on the TABLE arn above as well,
+                  # but the call targets an index, and DynamoDB authorises
+                  # index-targeted actions against the index arn - which is
+                  # the whole reason this second statement exists for Query.
+                  # Omitting it here fails only at the first live semantic
+                  # search, long after the index is built and backfilled.
+                  - dynamodb:SearchVectors
                 Resource:
                   - !Sub "${PropertiesTable.Arn}/index/*"
                   - !Sub "${CrmTable.Arn}/index/*"
@@ -1715,6 +1954,7 @@ Resources:
                   - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${WebhookLogTableName}/index/*"
                   - !Sub "${UserCategoriesTable.Arn}/index/*"
                   - !Sub "${AgencyConfigTable.Arn}/index/*"
+                  - !Sub "${KnowledgeChunksTable.Arn}/index/*"
               - Effect: Allow
                 Action:
                   - dynamodb:TransactWriteItems
@@ -1789,7 +2029,7 @@ Resources:
                 Resource:
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
               # SecureString parameters are encrypted under the account's
-              # default SSM-managed KMS key (alias/aws/ssm) — this grants
+              # default SSM-managed KMS key (alias/aws/ssm) - this grants
               # decrypt only when the call is made via the SSM service
               # itself, not a general KMS grant.
               - Effect: Allow
@@ -1817,14 +2057,14 @@ Resources:
           # Everything this Lambda used to get as a direct env var (~100
           # values: table names, API keys, feature flags) now lives in SSM
           # under this prefix instead, synced there by
-          # cfn-templates-cicd/server/deploy.sh — see config/ssmBootstrap.js.
+          # cfn-templates-cicd/server/deploy.sh - see config/ssmBootstrap.js.
           # Kept here directly, not in SSM: NODE_ENV/LOG_LEVEL are needed
           # before hydration can even run (bootstrap itself logs), and this
           # is what tells the Lambda where to look.
           NODE_ENV: !Ref EnvironmentName
           LOG_LEVEL: !Ref LogLevel
           SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
-          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
           # exists once CloudFormation creates the queue, so it can't be
           # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
@@ -1847,13 +2087,13 @@ Resources:
       Timeout: !Ref CallIntelWorkerTimeout
       Environment:
         Variables:
-          # Same SSM-hydration design as ApiLambdaFunction above — see the
+          # Same SSM-hydration design as ApiLambdaFunction above - see the
           # comment there. Same path prefix (both Lambdas share one config
           # namespace per environment).
           NODE_ENV: !Ref EnvironmentName
           LOG_LEVEL: !Ref LogLevel
           SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
-          # A CFN resource !Ref (the SQS queue's URL), not a Parameter — only
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
           # exists once CloudFormation creates the queue, so it can't be
           # pre-synced to SSM. Stays direct, same as before this migration.
           CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
@@ -1942,6 +2182,7 @@ Resources:
 
   PublicApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
     DependsOn:
       - PublicApiDeployment
     Properties:
@@ -2038,6 +2279,7 @@ Resources:
 
   CrmApiBasePathMapping:
     Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
     DependsOn:
       - CrmApiDeployment
     Properties:
@@ -2255,7 +2497,8 @@ Resources:
         Variables:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2332,7 +2575,8 @@ Resources:
         Variables:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2413,8 +2657,10 @@ Resources:
           CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
           CREDITS_TABLE_NAME: !Ref CreditsTableName
           CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
-          AUTH_SERVICE_URL: !Ref AuthServiceUrl
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           INTERNAL_API_KEY: !Ref InternalApiKey
+          ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
           BAILEY_ENABLED: !Ref BaileyEnabled
           BAILEY_MODE: !Ref BaileyMode
           BAILEY_API_KEY: !Ref BaileyApiKey
@@ -2525,6 +2771,104 @@ Resources:
       Principal: events.amazonaws.com
       SourceArn: !GetAtt EscalationSchedule.Arn
 
+  # Drains notificationDynamodbService.js's SCHEDULED queue (meeting
+  # reminders, khata reminders) across every tenant. SSM-hydrated like the
+  # main API Lambda rather than given its own Environment.Variables list, so
+  # it reads the same NOTIFICATIONS_TABLE_NAME/PUSH_TOKENS_TABLE/SES/Brevo/
+  # Firebase config from one source of truth instead of a second copy that
+  # can drift from it.
+  MeetingReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: MeetingReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt NotificationsTable.Arn
+                  - !GetAtt PushTokensTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub "${PushTokensTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+              # Same SSM read as ApiLambdaRole — see its policy comment.
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  MeetingReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Runtime: nodejs20.x
+      Handler: scripts/meeting-reminder-cron.handler
+      Role: !GetAtt MeetingReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+
+  MeetingReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Description: 'Every 5 minutes  fire due meeting/khata reminders (push + email to assignee + agency owner)'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt MeetingReminderFunction.Arn
+          Id: MeetingReminderTarget
+
+  MeetingReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MeetingReminderFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MeetingReminderRule.Arn
+
   # --------------------------------------------------------------------------
   # 4. LEAD MANAGEMENT  Qualification, routing, follow-ups
   # --------------------------------------------------------------------------
@@ -2605,6 +2949,7 @@ Resources:
           AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
 
 
   LeadQualifierRule:
@@ -2698,6 +3043,7 @@ Resources:
           AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
 
 
   LeadRouterRule:
@@ -2825,6 +3171,7 @@ Resources:
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
           # Phase 2: LLM & observability
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId
@@ -2964,6 +3311,7 @@ Resources:
           AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
           AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
           # Phase 2: LLM & observability
           LLM_PROVIDER: !Ref LlmProvider
           BEDROCK_MODEL_ID: !Ref BedrockModelId

@@ -1,3 +1,4 @@
+import os
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -7,7 +8,9 @@ import hashlib
 import secrets
 import time
 
-BASE_URL = "https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev"
+MCP_BASE_URL = 'https://' + os.environ.get('MCP_API_DOMAIN_NAME', 'services-api.cloudberrysolutions.in') + '/' + os.environ.get('MCP_API_BASE_PATH', 'devrealestatemcp')
+
+BASE_URL = MCP_BASE_URL
 REDIRECT_URI = "http://localhost:9547/oauth/callback"
 
 def b64url_encode(data: bytes) -> str:

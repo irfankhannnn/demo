@@ -1,4 +1,5 @@
 import { logger } from './logger.js';
+import { getAuthServiceBaseUrl } from './config/serviceUrls.js';
 
 /**
  * Deep health check — validates all external dependencies.
@@ -22,7 +23,7 @@ export async function deepHealthCheck(req, res) {
 
   // Check Auth Service
   try {
-    const authUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
+    const authUrl = getAuthServiceBaseUrl();
     const response = await fetch(`${authUrl}/health`, { signal: AbortSignal.timeout(3000) });
     checks.authService = response.ok;
   } catch (err) {

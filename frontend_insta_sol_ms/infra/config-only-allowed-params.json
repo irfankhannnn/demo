@@ -1,0 +1,23 @@
+{
+  "_comment": [
+    "ALLOWLIST, not a denylist — fail-closed by design (see",
+    "docs/proposals/config-only-deploy/context.md and",
+    "reality-flow-authentication/infra/config-only-allowed-params.json for the",
+    "full rationale).",
+    "",
+    "This service only has 3 CFN parameters total, so there's no shared",
+    "infra/lib/params.sh here (same call as reality-flow-mcp/infra/",
+    "config-deploy.sh's — too small a set for a separate file to pay for",
+    "itself) — infra/config-deploy.sh and infra/content-deploy.sh each",
+    "compute the 3 values inline, matching infra/deploy.sh's own heredoc.",
+    "",
+    "Deliberately NOT listed, and why:",
+    "  EnvironmentName  — identity of the stack itself.",
+    "  BucketName       — the PHYSICAL resource name of the S3 bucket this",
+    "                      template creates — changing it makes CloudFormation",
+    "                      try to REPLACE the bucket, not a config tweak."
+  ],
+  "allowedParams": [
+    "CrmDistributionId"
+  ]
+}

@@ -18,10 +18,10 @@
 import { Request, Response, NextFunction } from 'express';
 import axios from 'axios';
 import { logger } from '../utils/logger';
+import { getAuthServiceBaseUrl, getMcpPublicBaseUrl } from '../config/config';
 import { DynamoDBDocumentClient, GetCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || '';
 const AWS_REGION = process.env.AWS_REGION || 'ap-south-1';
 const OAUTH_TABLE = process.env.OAUTH_CODES_TABLE_NAME || 'realtyflow-oauth-codes';
 
@@ -52,13 +52,8 @@ declare global {
  * Validate a Cognito JWT token by calling the auth microservice.
  */
 async function validateCognitoToken(token: string): Promise<AuthenticatedUser | null> {
-  if (!AUTH_SERVICE_URL) {
-    logger.warn('validateToken.no_auth_service_url');
-    return null;
-  }
-
   try {
-    const response = await axios.get(`${AUTH_SERVICE_URL}/auth/me`, {
+    const response = await axios.get(`${getAuthServiceBaseUrl()}/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
       timeout: 5000,
     });
@@ -93,9 +88,8 @@ function buildLoginRedirectUrl(req: Request): string | null {
   }
 
   // Reconstruct the full OAuth authorize URL as seen by the browser.
-  // OAUTH_BASE_URL is set in CloudFormation to the API Gateway invoke URL.
-  const oauthBaseUrl = (process.env.OAUTH_BASE_URL || '').replace(/\/$/, '');
-  if (!oauthBaseUrl) return null;
+  // This server's public custom-domain base URL (https://<domain>/<basePath>).
+  const oauthBaseUrl = getMcpPublicBaseUrl();
 
   const params = new URLSearchParams(req.query as Record<string, string>);
   const fullOAuthUrl = `${oauthBaseUrl}/oauth/authorize?${params.toString()}`;

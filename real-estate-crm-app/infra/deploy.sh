@@ -21,6 +21,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/params.sh"
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/api-domain-guard.sh"
+
 # -----------------------------------------------------------------------------
 # Windows Git Bash compatibility
 # -----------------------------------------------------------------------------
@@ -57,9 +62,32 @@ echo "============================================="
 # -----------------------------------------------------------------------------
 # 0. Require an explicit dev|prod argument and load the matching env file
 # -----------------------------------------------------------------------------
-DEPLOY_ENV="${1:-}"
+# --skip-build / --skip-cfn: this is a static site with two independent
+# "expensive step" axes (see docs/proposals/config-only-deploy/context.md's
+# category 1 vs category 3) — a pure CFN parameter change (custom domain,
+# price class, WAF) never needs npm ci/vite build/s3 sync, and a pure
+# VITE_*-only change (baked into the JS bundle at build time) never needs a
+# CFN update. infra/config-deploy.sh and infra/content-deploy.sh are the
+# gated entry points for each; this script itself stays the source of truth
+# for both step sequences so neither has to duplicate them.
+SKIP_BUILD=false
+SKIP_CFN=false
+POSITIONAL_ARGS=()
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build) SKIP_BUILD=true ;;
+    --skip-cfn) SKIP_CFN=true ;;
+    *) POSITIONAL_ARGS+=("$arg") ;;
+  esac
+done
+if [ "$SKIP_BUILD" = true ] && [ "$SKIP_CFN" = true ]; then
+  echo "ERROR: --skip-build and --skip-cfn together would do nothing — pick at most one."
+  exit 1
+fi
+
+DEPLOY_ENV="${POSITIONAL_ARGS[0]:-}"
 if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
-  echo "ERROR: Usage: $0 <dev|prod>"
+  echo "ERROR: Usage: $0 <dev|prod> [--skip-build|--skip-cfn]"
   echo "  e.g. ./infra/deploy.sh dev"
   echo "       ./infra/deploy.sh prod"
   exit 1
@@ -106,6 +134,10 @@ if [[ "$SERVICE_NAME" != realestateflow-* ]]; then
   exit 1
 fi
 
+# API endpoints baked into the bundle must be custom domain + base path —
+# never a raw execute-api URL (see lib/api-domain-guard.sh).
+validate_api_domain_vars "$ENV_FILE"
+
 # BucketName: derived from the env-first convention by default
 # (<env>-realestateflow-crm-frontend), overridable via FRONTEND_S3_BUCKET_NAME
 # for a one-off/legacy bucket name — but the default is what every new
@@ -117,6 +149,12 @@ CUSTOM_DOMAIN_NAME="${FRONTEND_CUSTOM_DOMAIN_NAME:-}"
 ACM_CERTIFICATE_ARN="${FRONTEND_ACM_CERTIFICATE_ARN:-}"
 HOSTED_ZONE_ID="${FRONTEND_HOSTED_ZONE_ID:-}"
 WAF_WEB_ACL_ARN="${FRONTEND_WAF_WEB_ACL_ARN:-}"
+# Optional — wires up the /insta/* CloudFront behavior. Set to the
+# InstaFrontendBucketRegionalDomainName output of the
+# <env>-realestateflow-insta-frontend stack (step 1 of the 3-step deploy
+# order documented in cfn-insta-frontend.yaml). Leave blank if the insta
+# frontend isn't deployed / doesn't need to be wired into this distribution.
+INSTA_FRONTEND_BUCKET_DOMAIN_NAME="${INSTA_FRONTEND_BUCKET_DOMAIN_NAME:-}"
 
 if [ -n "$CUSTOM_DOMAIN_NAME" ] && [ -z "$ACM_CERTIFICATE_ARN" ]; then
   echo "ERROR: FRONTEND_CUSTOM_DOMAIN_NAME is set but FRONTEND_ACM_CERTIFICATE_ARN is missing in $ENV_FILE (cert must be issued in us-east-1)"
@@ -133,18 +171,23 @@ echo ""
 # -----------------------------------------------------------------------------
 # 2. Install dependencies and build (vite loads .env.<ENV> automatically via --mode)
 # -----------------------------------------------------------------------------
-echo "[1/6] Installing dependencies..."
-cd "$PROJECT_DIR"
-"$NPM_BIN" ci
-
-echo "[2/6] Building frontend (vite build --mode $ENV)..."
 DIST_DIR="$PROJECT_DIR/dist"
-rm -rf "$DIST_DIR"
-npx vite build --mode "$ENV"
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[1/6] Skipping npm ci (--skip-build)"
+  echo "[2/6] Skipping vite build (--skip-build)"
+else
+  echo "[1/6] Installing dependencies..."
+  cd "$PROJECT_DIR"
+  "$NPM_BIN" ci
 
-if [ ! -d "$DIST_DIR" ]; then
-  echo "ERROR: build output not found at $DIST_DIR"
-  exit 1
+  echo "[2/6] Building frontend (vite build --mode $ENV)..."
+  rm -rf "$DIST_DIR"
+  npx vite build --mode "$ENV"
+
+  if [ ! -d "$DIST_DIR" ]; then
+    echo "ERROR: build output not found at $DIST_DIR"
+    exit 1
+  fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -153,38 +196,28 @@ fi
 #    never hand-edited and is regenerated fresh on every run)
 # -----------------------------------------------------------------------------
 echo "[3/6] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENV}" },
-  { "ParameterKey": "BucketName", "ParameterValue": "${BUCKET_NAME}" },
-  { "ParameterKey": "PriceClass", "ParameterValue": "${PRICE_CLASS}" },
-  { "ParameterKey": "CustomDomainName", "ParameterValue": "${CUSTOM_DOMAIN_NAME}" },
-  { "ParameterKey": "AcmCertificateArn", "ParameterValue": "${ACM_CERTIFICATE_ARN}" },
-  { "ParameterKey": "HostedZoneId", "ParameterValue": "${HOSTED_ZONE_ID}" },
-  { "ParameterKey": "WafWebAclArn", "ParameterValue": "${WAF_WEB_ACL_ARN}" }
-]
-EOF
+compute_param_values
+write_cfn_params_json "$SCRIPT_DIR/cfn-params.json"
 
 # -----------------------------------------------------------------------------
 # 4. Deploy CloudFormation stack (S3 + CloudFront)
 # -----------------------------------------------------------------------------
-echo "[4/6] Deploying CloudFormation stack: $STACK_NAME..."
-PARAM_OVERRIDES=(
-  "EnvironmentName=${ENV}"
-  "BucketName=${BUCKET_NAME}"
-  "PriceClass=${PRICE_CLASS}"
-  "CustomDomainName=${CUSTOM_DOMAIN_NAME}"
-  "AcmCertificateArn=${ACM_CERTIFICATE_ARN}"
-  "HostedZoneId=${HOSTED_ZONE_ID}"
-  "WafWebAclArn=${WAF_WEB_ACL_ARN}"
-)
-"$AWS_BIN" cloudformation deploy \
-  --template-file "$SCRIPT_DIR/cfn-frontend.yaml" \
-  --stack-name "$STACK_NAME" \
-  --parameter-overrides "${PARAM_OVERRIDES[@]}" \
-  --region "$AWS_REGION" \
-  --no-cli-pager \
-  --no-fail-on-empty-changeset
+PARAM_OVERRIDES=()
+for key in "${PARAM_KEYS[@]}"; do
+  PARAM_OVERRIDES+=("${key}=${PARAM_VALUES[$key]}")
+done
+if [ "$SKIP_CFN" = true ]; then
+  echo "[4/6] Skipping CloudFormation deploy (--skip-cfn)"
+else
+  echo "[4/6] Deploying CloudFormation stack: $STACK_NAME..."
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$SCRIPT_DIR/cfn-frontend.yaml" \
+    --stack-name "$STACK_NAME" \
+    --parameter-overrides "${PARAM_OVERRIDES[@]}" \
+    --region "$AWS_REGION" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+fi
 
 # -----------------------------------------------------------------------------
 # 5. Resolve stack outputs and sync dist/ to S3
@@ -198,27 +231,35 @@ if [ -z "$RESOLVED_BUCKET" ] || [ "$RESOLVED_BUCKET" = "None" ]; then
   RESOLVED_BUCKET="$BUCKET_NAME"
 fi
 
-echo "Syncing dist/ to s3://${RESOLVED_BUCKET}..."
-# Hashed, immutable build assets: cache aggressively
-"$AWS_BIN" s3 sync "$DIST_DIR" "s3://${RESOLVED_BUCKET}" \
-  --region "$AWS_REGION" \
-  --delete \
-  --cache-control "public,max-age=31536000,immutable" \
-  --exclude "index.html" \
-  --no-cli-pager
-
-# index.html: never cache, so a new deploy is visible immediately
-if [ -f "$DIST_DIR/index.html" ]; then
-  "$AWS_BIN" s3 cp "$DIST_DIR/index.html" "s3://${RESOLVED_BUCKET}/index.html" \
+if [ "$SKIP_BUILD" = true ]; then
+  echo "Skipping dist/ sync (--skip-build) — no content changed."
+else
+  echo "Syncing dist/ to s3://${RESOLVED_BUCKET}..."
+  # Hashed, immutable build assets: cache aggressively
+  "$AWS_BIN" s3 sync "$DIST_DIR" "s3://${RESOLVED_BUCKET}" \
     --region "$AWS_REGION" \
-    --cache-control "public,max-age=0,must-revalidate" \
+    --delete \
+    --cache-control "public,max-age=31536000,immutable" \
+    --exclude "index.html" \
     --no-cli-pager
+
+  # index.html: never cache, so a new deploy is visible immediately
+  if [ -f "$DIST_DIR/index.html" ]; then
+    "$AWS_BIN" s3 cp "$DIST_DIR/index.html" "s3://${RESOLVED_BUCKET}/index.html" \
+      --region "$AWS_REGION" \
+      --cache-control "public,max-age=0,must-revalidate" \
+      --no-cli-pager
+  fi
 fi
 
 # -----------------------------------------------------------------------------
-# 6. Invalidate CloudFront cache
+# 6. Invalidate CloudFront cache — only meaningful when content actually
+#    changed (skipped entirely under --skip-build, where dist/ was never
+#    re-synced, so there's nothing stale in the edge cache to bust).
 # -----------------------------------------------------------------------------
-if [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
+if [ "$SKIP_BUILD" = true ]; then
+  echo "[6/6] Skipping CloudFront invalidation (--skip-build, no content changed)"
+elif [ -n "$DISTRIBUTION_ID" ] && [ "$DISTRIBUTION_ID" != "None" ]; then
   echo "[6/6] Invalidating CloudFront distribution $DISTRIBUTION_ID..."
   "$AWS_BIN" cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" --no-cli-pager >/dev/null
 fi

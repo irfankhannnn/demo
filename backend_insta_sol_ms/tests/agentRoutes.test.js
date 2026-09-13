@@ -254,3 +254,108 @@ test('heartbeat records lastSeenAt and echoes the kill switch', async () => {
     delete process.env.INSTA_KILL_SWITCH;
   }
 });
+
+// ---------------------------------------------------------------------------
+// enquiry -> CRM lead promotion
+//
+// The local write and the promotion are deliberately not atomic: the enquiry is
+// stored first so the agent's data is never lost, then handed to the CRM. What
+// matters is that a promotion failure is *reported* rather than swallowed, so
+// the agent's upload queue retries it — which is safe because every enquiry
+// carries its enquiryId as a dedupeKey on the CRM side.
+// ---------------------------------------------------------------------------
+
+async function withAppAndCrm(db, crm, fn) {
+  const app = await startApp({ db, crm });
+  try {
+    return await fn(app);
+  } finally {
+    await app.close();
+  }
+}
+
+test('a stored enquiry is forwarded to the CRM and the outcome is reported back', async () => {
+  const db = makeFakeDb({ getDeviceById: async () => ACTIVE_DEVICE });
+  const forwarded = [];
+  const crm = {
+    forwardEnquiriesToCrm: async (tenantId, rows) => {
+      forwarded.push({ tenantId, rows });
+      return { forwarded: true, created: 1, skipped: 0, duplicates: 0, failed: 0 };
+    },
+  };
+
+  await withAppAndCrm(db, crm, async (app) => {
+    const res = await post(app, '/api/insta/agent/enquiries', {
+      enquiries: [{ enquiryId: 'e1', name: 'Rahul', phone: '9876543210', intent: 'buy' }],
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 1);
+    assert.equal(res.body.promotion.created, 1);
+
+    // The CRM must receive the *normalised* rows, not the raw upload.
+    assert.equal(forwarded.length, 1);
+    assert.equal(forwarded[0].tenantId, TENANT);
+    assert.equal(forwarded[0].rows[0].phone, '+919876543210');
+  });
+});
+
+test('a promotion failure returns 502 so the agent retries the batch', async () => {
+  const db = makeFakeDb({ getDeviceById: async () => ACTIVE_DEVICE });
+  const crm = {
+    forwardEnquiriesToCrm: async () => ({
+      forwarded: false, created: 0, skipped: 0, duplicates: 0, failed: 0, reason: 'network_error',
+    }),
+  };
+
+  await withAppAndCrm(db, crm, async (app) => {
+    const res = await post(app, '/api/insta/agent/enquiries', {
+      enquiries: [{ enquiryId: 'e1', name: 'Rahul', phone: '9876543210' }],
+    });
+
+    assert.equal(res.status, 502);
+    assert.equal(res.body.promotion.reason, 'network_error');
+    // The enquiry is still stored — the retry is about promotion, not storage.
+    assert.ok(db.calls.some((c) => c.name === 'putEnquiries'));
+  });
+});
+
+test('an unconfigured CRM leaves the upload succeeding, feature runs standalone', async () => {
+  const db = makeFakeDb({ getDeviceById: async () => ACTIVE_DEVICE });
+  const crm = {
+    forwardEnquiriesToCrm: async () => ({
+      forwarded: false, created: 0, skipped: 0, duplicates: 0, failed: 0, reason: 'not_configured',
+    }),
+  };
+
+  await withAppAndCrm(db, crm, async (app) => {
+    const res = await post(app, '/api/insta/agent/enquiries', {
+      enquiries: [{ enquiryId: 'e1', name: 'Rahul', phone: '9876543210' }],
+    });
+
+    // Not a failure: this is exactly the pre-bridge behaviour.
+    assert.equal(res.status, 200);
+    assert.equal(res.body.written, 1);
+  });
+});
+
+test('the kill switch stops promotion without affecting storage', async () => {
+  process.env.INSTA_PROMOTE_ENQUIRIES_TO_LEADS = 'false';
+  try {
+    const db = makeFakeDb({ getDeviceById: async () => ACTIVE_DEVICE });
+    let called = false;
+    const crm = { forwardEnquiriesToCrm: async () => { called = true; return { forwarded: true }; } };
+
+    await withAppAndCrm(db, crm, async (app) => {
+      const res = await post(app, '/api/insta/agent/enquiries', {
+        enquiries: [{ enquiryId: 'e1', name: 'Rahul', phone: '9876543210' }],
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.written, 1);
+      assert.equal(called, false, 'promotion must not run when the kill switch is off');
+    });
+  } finally {
+    delete process.env.INSTA_PROMOTE_ENQUIRIES_TO_LEADS;
+  }
+});

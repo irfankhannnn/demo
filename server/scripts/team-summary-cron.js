@@ -4,11 +4,11 @@ import { getLeads } from '../crmDynamodbService.js';
 import { sendWhatsAppMessage, isBaileyEnabled } from '../bailey.js';
 import { sendEmail } from '../emailService.js';
 import { logger } from '../logger.js';
+import { getAuthServiceBaseUrl } from '../config/serviceUrls.js';
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const docClient = DynamoDBDocumentClient.from(client);
 const SUBSCRIPTIONS_TABLE = process.env.SUBSCRIPTIONS_TABLE || 'Subscriptions';
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
 const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
 
 async function listActiveTenants() {
@@ -30,7 +30,7 @@ async function fetchTeamMembers(tenantId) {
   if (!INTERNAL_API_KEY) return [];
   try {
     const res = await fetch(
-      `${AUTH_SERVICE_URL}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`,
+      `${getAuthServiceBaseUrl()}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`,
       {
         headers: { 'x-internal-api-key': INTERNAL_API_KEY },
         signal: AbortSignal.timeout(4000),

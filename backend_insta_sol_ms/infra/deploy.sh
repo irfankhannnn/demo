@@ -21,6 +21,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/params.sh"
+
 # -----------------------------------------------------------------------------
 # Windows Git Bash compatibility (same approach as server/infra/deploy.sh)
 # -----------------------------------------------------------------------------
@@ -84,7 +87,8 @@ REQUIRED_VARS=(
   STACK_NAME
   ARTIFACT_BUCKET
   ARTIFACT_PREFIX
-  AUTH_SERVICE_URL
+  AUTH_SERVICE_DOMAIN_NAME
+  AUTH_SERVICE_BASE_PATH
   INSTA_DATA_TABLE_NAME
   INSTA_AUDIT_TABLE_NAME
   ALLOWED_ORIGINS
@@ -109,6 +113,8 @@ for tbl_var in INSTA_DATA_TABLE_NAME INSTA_AUDIT_TABLE_NAME; do
   fi
 done
 
+assert_custom_domain_vars
+
 AWS_ARGS=(--region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager)
 
 echo "Deploy target: $DEPLOY_ENV (env file: $(basename "$ENV_FILE"))"
@@ -117,7 +123,9 @@ echo "Profile:       $AWS_PROFILE"
 echo "Stack:         $STACK_NAME"
 echo "Data table:    $INSTA_DATA_TABLE_NAME"
 echo "Audit table:   $INSTA_AUDIT_TABLE_NAME"
-echo "Auth URL:      $AUTH_SERVICE_URL"
+echo "Auth API:      https://$AUTH_SERVICE_DOMAIN_NAME/$AUTH_SERVICE_BASE_PATH"
+echo "CRM API:       https://$CRM_INTERNAL_API_DOMAIN_NAME/$CRM_INTERNAL_API_BASE_PATH"
+echo "Insta API:     https://$INSTA_API_DOMAIN_NAME/$INSTA_API_BASE_PATH (mapping=${ENABLE_CUSTOM_DOMAIN_MAPPING:-false}, strip=${ENABLE_BASE_PATH_STRIP:-false})"
 echo ""
 
 # Confirm which account we are actually about to deploy into. This repo has
@@ -181,25 +189,8 @@ EOF
 # 4. Generate cfn-params.json (build artifact - regenerated every run)
 # -----------------------------------------------------------------------------
 echo "[4/6] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "EnvironmentName", "ParameterValue": "${ENVIRONMENT_NAME}" },
-  { "ParameterKey": "LambdaRuntime", "ParameterValue": "${LAMBDA_RUNTIME:-nodejs20.x}" },
-  { "ParameterKey": "LambdaMemorySize", "ParameterValue": "${LAMBDA_MEMORY_SIZE:-512}" },
-  { "ParameterKey": "LambdaTimeout", "ParameterValue": "${LAMBDA_TIMEOUT:-30}" },
-  { "ParameterKey": "LambdaCodeS3Bucket", "ParameterValue": "${ARTIFACT_BUCKET}" },
-  { "ParameterKey": "LambdaCodeS3Key", "ParameterValue": "${S3_KEY}" },
-  { "ParameterKey": "DataTableName", "ParameterValue": "${INSTA_DATA_TABLE_NAME}" },
-  { "ParameterKey": "AuditTableName", "ParameterValue": "${INSTA_AUDIT_TABLE_NAME}" },
-  { "ParameterKey": "AuthServiceUrl", "ParameterValue": "${AUTH_SERVICE_URL}" },
-  { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS}" },
-  { "ParameterKey": "ApiStageName", "ParameterValue": "${API_STAGE_NAME:-v1}" },
-  { "ParameterKey": "LogLevel", "ParameterValue": "${LOG_LEVEL:-info}" },
-  { "ParameterKey": "LogRetentionDays", "ParameterValue": "${LOG_RETENTION_DAYS:-30}" },
-  { "ParameterKey": "DeviceClockSkewToleranceMs", "ParameterValue": "${DEVICE_CLOCK_SKEW_TOLERANCE_MS:-300000}" },
-  { "ParameterKey": "KillSwitchEnabled", "ParameterValue": "${KILL_SWITCH_ENABLED:-false}" }
-]
-EOF
+compute_param_values "$S3_KEY"
+write_cfn_params_json "$SCRIPT_DIR/cfn-params.json"
 
 # Every template Parameter must appear above, or it silently falls back to its
 # Default and the env file cannot override it. Check it rather than trusting it.

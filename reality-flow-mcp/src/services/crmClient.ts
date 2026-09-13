@@ -12,13 +12,9 @@
 import axios from 'axios';
 import { logger } from '../utils/logger';
 import { generateServiceToken } from './tokenService';
+import { getCrmApiBaseUrl } from '../config/config';
 
-const CRM_API_URL = process.env.CRM_API_URL;
 const CRM_API_INTERNAL_KEY = process.env.CRM_API_INTERNAL_KEY;
-
-if (!CRM_API_URL) {
-  logger.warn('crmClient.missing_url', { CRM_API_URL: null });
-}
 
 export interface ToolInvocationResult {
   ok: boolean;
@@ -42,10 +38,6 @@ export async function invokeTool(
   input: Record<string, any> = {},
   context: { userId?: string; source?: string } = {}
 ): Promise<ToolInvocationResult> {
-  if (!CRM_API_URL) {
-    throw new Error('CRM_API_URL is not configured');
-  }
-
   // Default search tools to summary mode to avoid oversized responses from Claude
   if (toolName.startsWith('search_') && !input.responseMode) {
     input.responseMode = 'summary';
@@ -54,7 +46,8 @@ export async function invokeTool(
   // Generate a short-lived service JWT for authenticating with the CRM backend
   const serviceToken = generateServiceToken(tenantId);
 
-  const url = `${CRM_API_URL}/api/crm/agent/tool`;
+  // Throws if CRM_API_DOMAIN_NAME is missing or a raw API Gateway host.
+  const url = `${getCrmApiBaseUrl()}/api/crm/agent/tool`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${serviceToken}`,

@@ -31,7 +31,7 @@ These features were disabled before launch to reduce surface area. The code is p
   `aiCallingApi.ts` or `VITE_AI_CALLING_*` env vars needed. `services/api.ts`
   gained one method, `triggerQualifyCall(leadId)`, which calls the CRM's own
   `POST /crm/leads/:id/qualify-call`; the CRM server proxies to
-  ai-calling-service using `AI_CALLING_SERVICE_URL` server-side. The original
+  ai-calling-service using `AI_CALLING_SERVICE_DOMAIN_NAME` + `AI_CALLING_SERVICE_BASE_PATH` server-side. The original
   full AI Calling page set (`src/pages/crm/AICalling/`) remains deleted and
   out of scope — the qualification flow lives inside the existing Lead
   Drawer/Lead Details pages instead of standalone pages, with no live
@@ -42,9 +42,9 @@ These features were disabled before launch to reduce surface area. The code is p
      — note its `WEBHOOK_BASE_URL` env var isn't wired in that template yet;
      add it before relying on live intent webhooks (pre-existing gap, not
      introduced by this migration).
-  2. Set the new `AiCallingInternalApiKey` / `AiCallingServiceUrl` CFN
+  2. Set the new `AiCallingInternalApiKey` / `AiCallingServiceDomainName` + `AiCallingServiceBasePath` CFN
      parameters (`server/infra/cfn-backend.yaml`) — or `AI_CALLING_INTERNAL_API_KEY`
-     / `AI_CALLING_SERVICE_URL` in `server/.env` for local dev
+     / `AI_CALLING_SERVICE_DOMAIN_NAME` + `AI_CALLING_SERVICE_BASE_PATH` in `server/.env` for local dev
   3. Turn on `agencyConfig.aiEmployeeEnabled` for the tenant
 
 ## Notes

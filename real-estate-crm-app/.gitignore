@@ -36,6 +36,8 @@ dist-ssr
 # infra/deploy.sh run (ACM cert ARN, hosted zone ID, WAF ARN, custom
 # domain). Never hand-edit or commit it.
 infra/cfn-params.json
+infra/.last-config-diff.json
+infra/.last-config-params.json
 
 # Capacitor
 # The android/ and ios/ projects ARE tracked. They hold AndroidManifest.xml,

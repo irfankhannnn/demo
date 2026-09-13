@@ -38,55 +38,39 @@ export const INTENT_TYPES = {
   UNKNOWN: 'UNKNOWN',
 };
 
-export const DATA_SOURCE = {
-  CRM_API: 'CRM_API',
-  VECTOR_DB: 'VECTOR_DB',
-  HYBRID: 'HYBRID',
-  STATIC: 'STATIC',
-  NONE: 'NONE',
+/**
+ * Monotonic ordering of call statuses, stored on the session as `statusRank`.
+ *
+ * Telephony webhooks arrive out of order and are retried, so status writes are
+ * guarded by a ConditionExpression that only lets a strictly higher rank
+ * through — see dynamodbService.updateCallSession. Terminal states share the
+ * top rank because whichever lands first is the real outcome.
+ */
+export const CALL_STATUS_RANK = {
+  [CALL_STATUS.INITIATED]: 0,
+  [CALL_STATUS.RINGING]: 1,
+  [CALL_STATUS.CONNECTED]: 2,
+  [CALL_STATUS.IN_PROGRESS]: 3,
+  [CALL_STATUS.COMPLETED]: 4,
+  [CALL_STATUS.FAILED]: 4,
+  [CALL_STATUS.NO_ANSWER]: 4,
+  [CALL_STATUS.BUSY]: 4,
+  [CALL_STATUS.CANCELLED]: 4,
 };
 
-export const INTENT_CONFIG = {
-  [INTENT_TYPES.PROPERTY_AVAILABILITY]: {
-    source: DATA_SOURCE.CRM_API,
-    endpoint: '/api/internal/properties/available',
-    requiresParams: ['propertyType', 'location'],
-  },
-  [INTENT_TYPES.PROPERTY_DETAILS]: {
-    source: DATA_SOURCE.CRM_API,
-    endpoint: '/api/internal/properties/:propertyId/details',
-    requiresParams: ['propertyId'],
-  },
-  [INTENT_TYPES.SCHEDULE_SITE_VISIT]: {
-    source: DATA_SOURCE.CRM_API,
-    endpoint: '/api/internal/site-visits',
-    method: 'POST',
-    requiresParams: ['leadId', 'propertyId', 'dateTime'],
-  },
-  [INTENT_TYPES.FAQ_POLICY]: {
-    source: DATA_SOURCE.VECTOR_DB,
-    category: 'faq',
-  },
-  [INTENT_TYPES.AGENCY_INFO]: {
-    source: DATA_SOURCE.VECTOR_DB,
-    category: 'agency_info',
-  },
-  [INTENT_TYPES.PRICING_INFO]: {
-    source: DATA_SOURCE.HYBRID,
-    crmEndpoint: '/api/internal/properties/pricing',
-    vectorCategory: 'pricing_policies',
-  },
-  [INTENT_TYPES.SMALL_TALK]: {
-    source: DATA_SOURCE.NONE,
-  },
-  [INTENT_TYPES.HANDOFF_HUMAN]: {
-    source: DATA_SOURCE.NONE,
-    action: 'escalate',
-  },
-  [INTENT_TYPES.CALL_END]: {
-    source: DATA_SOURCE.NONE,
-    action: 'terminate',
-  },
+/**
+ * Outcome of a lead-qualification call.
+ *
+ * `failed` is deliberately distinct from `not_applicable`: a qualification
+ * call that ended without a usable result is a data-quality problem the CRM
+ * should surface, not silently indistinguishable from a call that was never
+ * meant to qualify anyone.
+ */
+export const QUALIFICATION_STATUS = {
+  NOT_APPLICABLE: 'not_applicable',
+  PENDING: 'pending',
+  SUCCEEDED: 'succeeded',
+  FAILED: 'failed',
 };
 
 export const KNOWLEDGE_CATEGORIES = {

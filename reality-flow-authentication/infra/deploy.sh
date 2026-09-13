@@ -14,6 +14,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/lib/params.sh"
+
 # -----------------------------------------------------------------------------
 # Windows Git Bash compatibility
 # -----------------------------------------------------------------------------
@@ -95,6 +98,7 @@ REQUIRED_VARS=(
   LAMBDA_PACKAGES_BUCKET_NAME
   IDENTITY_CALLBACK_URL
   IDENTITY_LOGOUT_URL
+  INTERNAL_API_KEY
 )
 
 for var in "${REQUIRED_VARS[@]}"; do
@@ -108,6 +112,8 @@ if [[ "$SERVICE_NAME" != realestateflow-* ]]; then
   echo "ERROR: SERVICE_NAME ('$SERVICE_NAME') must start with 'realestateflow-' — set it in $ENV_FILE"
   exit 1
 fi
+
+validate_custom_domain_vars
 
 STACK_NAME="${ENV}-${SERVICE_NAME}-stack"
 
@@ -151,8 +157,23 @@ LAMBDA_NAME="${ENV}-${SERVICE_NAME}-lambda"
   --region "$AWS_REGION" \
   --no-cli-pager || echo "Note: Lambda may not exist yet (first deploy)"
 
-# Upload nested template for explicit API Gateway routes
-NESTED_TEMPLATE_KEY="${SERVICE_NAME}/auth-explicit-routes.yaml"
+# Upload nested template for explicit API Gateway routes.
+#
+# The S3 key includes a content hash so TemplateURL's *string value* changes
+# whenever auth-explicit-routes.yaml changes. This is load-bearing, not
+# cosmetic: CloudFormation only re-evaluates a nested AWS::CloudFormation::Stack
+# when its TemplateURL string or its Parameters block changes textually — it
+# never diffs the bytes behind an unchanged URL. A prior static key
+# (${SERVICE_NAME}/auth-explicit-routes.yaml, no hash) meant every content-only
+# change to this file silently never reached the live nested stack across
+# three separate "successful" deploys (builds #0001-#0003, confirmed live via
+# `aws cloudformation describe-stacks` on the nested stack's own physical ID
+# showing LastUpdatedTime null since its 2026-08-27 creation) — this looked
+# like a successful deploy every time because the PARENT stack's own
+# top-level resources did update correctly; only this one nested stack's
+# content was silently stale.
+NESTED_TEMPLATE_HASH="$(node -e "const fs=require('fs');const crypto=require('crypto');process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex').slice(0,12))" "$SCRIPT_DIR/auth-explicit-routes.yaml")"
+NESTED_TEMPLATE_KEY="${SERVICE_NAME}/auth-explicit-routes-${NESTED_TEMPLATE_HASH}.yaml"
 echo "[4c/6] Uploading nested template to s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${NESTED_TEMPLATE_KEY}..."
 "$AWS_BIN" s3 cp "$SCRIPT_DIR/auth-explicit-routes.yaml" "s3://${LAMBDA_PACKAGES_BUCKET_NAME}/${NESTED_TEMPLATE_KEY}" --region "$AWS_REGION" --no-cli-pager
 
@@ -162,69 +183,17 @@ TEMPLATE_URL="https://s3.${AWS_REGION}.amazonaws.com/${LAMBDA_PACKAGES_BUCKET_NA
 # 5. Generate cfn-params.json from .env
 # -----------------------------------------------------------------------------
 echo "[5/6] Generating infra/cfn-params.json..."
-cat > "$SCRIPT_DIR/cfn-params.json" <<EOF
-[
-  { "ParameterKey": "ServiceName", "ParameterValue": "${SERVICE_NAME}" },
-  { "ParameterKey": "Env", "ParameterValue": "${ENV}" },
-  { "ParameterKey": "LambdaMemorySize", "ParameterValue": "${LAMBDA_MEMORY_SIZE:-256}" },
-  { "ParameterKey": "LambdaTimeout", "ParameterValue": "${LAMBDA_TIMEOUT:-30}" },
-  { "ParameterKey": "LogRetentionInDays", "ParameterValue": "${LOG_RETENTION_IN_DAYS:-14}" },
-  { "ParameterKey": "SubnetIds", "ParameterValue": "${SUBNET_IDS:-}" },
-  { "ParameterKey": "SecurityGroupIds", "ParameterValue": "${SECURITY_GROUP_IDS:-}" },
-  { "ParameterKey": "LambdaPackagesBucketName", "ParameterValue": "${LAMBDA_PACKAGES_BUCKET_NAME}" },
-  { "ParameterKey": "DatabaseHost", "ParameterValue": "" },
-  { "ParameterKey": "DatabasePort", "ParameterValue": "" },
-  { "ParameterKey": "DatabaseName", "ParameterValue": "" },
-  { "ParameterKey": "DatabaseUsername", "ParameterValue": "" },
-  { "ParameterKey": "DatabasePassword", "ParameterValue": "" },
-  { "ParameterKey": "DomainName", "ParameterValue": "${DOMAIN_NAME:-}" },
-  { "ParameterKey": "GoogleClientId", "ParameterValue": "${GOOGLE_CLIENT_ID}" },
-  { "ParameterKey": "GoogleClientSecret", "ParameterValue": "${GOOGLE_CLIENT_SECRET}" },
-  { "ParameterKey": "CognitoDomainPrefixV2", "ParameterValue": "${COGNITO_DOMAIN_PREFIX_V2}" },
-  { "ParameterKey": "IdentityCallbackURL", "ParameterValue": "${IDENTITY_CALLBACK_URL}" },
-  { "ParameterKey": "IdentityLogoutURL", "ParameterValue": "${IDENTITY_LOGOUT_URL}" },
-  { "ParameterKey": "TestOtpEnabled", "ParameterValue": "${TEST_OTP_ENABLED:-false}" },
-  { "ParameterKey": "TestOtpValue", "ParameterValue": "${TEST_OTP_VALUE:-123456}" },
-  { "ParameterKey": "ApiGatewayRoutesTemplateUrl", "ParameterValue": "${TEMPLATE_URL}" },
-  { "ParameterKey": "InternalApiKey", "ParameterValue": "${INTERNAL_API_KEY:-}" },
-  { "ParameterKey": "AllowedOrigins", "ParameterValue": "${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}" },
-  { "ParameterKey": "SubscriptionsTableName", "ParameterValue": "${SUBSCRIPTIONS_TABLE:-${ENV}-realestateflow-subscriptions}" },
-  { "ParameterKey": "ServerStackName", "ParameterValue": "${SERVER_STACK_NAME:-}" }
-]
-EOF
+compute_param_values "$TEMPLATE_URL"
+write_cfn_params_json "$SCRIPT_DIR/cfn-params.json"
 
 # -----------------------------------------------------------------------------
 # 6. Deploy CloudFormation stack
 # -----------------------------------------------------------------------------
 echo "[6/6] Deploying CloudFormation stack: $STACK_NAME..."
-PARAM_OVERRIDES=(
-  "ServiceName=${SERVICE_NAME}"
-  "Env=${ENV}"
-  "LambdaMemorySize=${LAMBDA_MEMORY_SIZE:-256}"
-  "LambdaTimeout=${LAMBDA_TIMEOUT:-30}"
-  "LogRetentionInDays=${LOG_RETENTION_IN_DAYS:-14}"
-  "SubnetIds=${SUBNET_IDS:-}"
-  "SecurityGroupIds=${SECURITY_GROUP_IDS:-}"
-  "LambdaPackagesBucketName=${LAMBDA_PACKAGES_BUCKET_NAME}"
-  "DatabaseHost="
-  "DatabasePort="
-  "DatabaseName="
-  "DatabaseUsername="
-  "DatabasePassword="
-  "DomainName=${DOMAIN_NAME:-}"
-  "GoogleClientId=${GOOGLE_CLIENT_ID}"
-  "GoogleClientSecret=${GOOGLE_CLIENT_SECRET}"
-  "CognitoDomainPrefixV2=${COGNITO_DOMAIN_PREFIX_V2}"
-  "IdentityCallbackURL=${IDENTITY_CALLBACK_URL}"
-  "IdentityLogoutURL=${IDENTITY_LOGOUT_URL}"
-  "TestOtpEnabled=${TEST_OTP_ENABLED:-false}"
-  "TestOtpValue=${TEST_OTP_VALUE:-123456}"
-  "ApiGatewayRoutesTemplateUrl=${TEMPLATE_URL}"
-  "InternalApiKey=${INTERNAL_API_KEY:-}"
-  "AllowedOrigins=${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}"
-  "SubscriptionsTableName=${SUBSCRIPTIONS_TABLE:-${ENV}-realestateflow-subscriptions}"
-  "ServerStackName=${SERVER_STACK_NAME:-}"
-)
+PARAM_OVERRIDES=()
+for key in "${PARAM_KEYS[@]}"; do
+  PARAM_OVERRIDES+=("${key}=${PARAM_VALUES[$key]}")
+done
 "$AWS_BIN" cloudformation deploy \
   --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
   --stack-name "$STACK_NAME" \
@@ -233,6 +202,26 @@ PARAM_OVERRIDES=(
   --region "$AWS_REGION" \
   --no-cli-pager \
   --no-fail-on-empty-changeset
+
+# CloudFormation's AWS::ApiGateway::Deployment resource does not reliably
+# republish on content-only changes underneath it (a well-known CFN/API
+# Gateway limitation - see the Description comment on ApiDeployment in
+# cfn-backend.yaml for the two force-replacement approaches that were tried
+# and failed live). So every deploy explicitly publishes a fresh deployment
+# and repoints the stage at it directly via the API, regardless of whether
+# CloudFormation itself thinks anything about ApiDeployment changed.
+REST_API_ID="$("$AWS_BIN" cloudformation describe-stacks \
+  --stack-name "$STACK_NAME" \
+  --region "$AWS_REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='AuthApiGatewayId'].OutputValue" \
+  --output text --no-cli-pager)"
+echo "[6b/6] Publishing fresh API Gateway deployment to stage '$ENV' (rest api $REST_API_ID)..."
+"$AWS_BIN" apigateway create-deployment \
+  --rest-api-id "$REST_API_ID" \
+  --stage-name "$ENV" \
+  --description "infra/deploy.sh — routes=${TEMPLATE_URL}" \
+  --region "$AWS_REGION" \
+  --no-cli-pager
 
 echo ""
 echo "============================================="

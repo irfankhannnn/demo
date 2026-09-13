@@ -1,23 +1,20 @@
 // Agent Configuration Routes
+//
+// Called by the CRM backend only, never the browser. Authenticated as a
+// service with CRM_CALLER_API_KEY — see ../middleware/internalAuth.js for the
+// trust boundary.
 
 import express from 'express';
 import * as db from '../services/dynamodbService.js';
+import { authenticateCrmCaller } from '../middleware/internalAuth.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
 
-// Middleware to extract tenant ID
-const extractTenantId = (req, res, next) => {
-  const tenantId = req.headers['x-tenant-id'];
-  if (!tenantId) {
-    return res.status(400).json({ error: 'x-tenant-id header is required' });
-  }
-  req.tenantId = tenantId;
-  next();
-};
+router.use(authenticateCrmCaller);
 
 // Get agent configuration
-router.get('/agent', extractTenantId, async (req, res) => {
+router.get('/agent', async (req, res) => {
   try {
     const config = await db.getAgentConfig(req.tenantId);
     
@@ -39,10 +36,12 @@ router.get('/agent', extractTenantId, async (req, res) => {
 });
 
 // Save agent configuration
-router.put('/agent', extractTenantId, async (req, res) => {
+router.put('/agent', async (req, res) => {
   try {
     const {
       agencyName,
+      agentId,
+      agentPhoneNumberId,
       agentVoice,
       agentPersonality,
       greeting,
@@ -52,15 +51,15 @@ router.put('/agent', extractTenantId, async (req, res) => {
       enableRecording,
       escalationPhone,
     } = req.body;
-    
-    if (!agencyName || !exotelNumber) {
-      return res.status(400).json({ 
-        error: 'agencyName and exotelNumber are required' 
-      });
+
+    if (!agencyName) {
+      return res.status(400).json({ error: 'agencyName is required' });
     }
-    
+
     const config = await db.saveAgentConfig(req.tenantId, {
       agencyName,
+      agentId,
+      agentPhoneNumberId,
       agentVoice,
       agentPersonality,
       greeting,
@@ -79,7 +78,7 @@ router.put('/agent', extractTenantId, async (req, res) => {
 });
 
 // Get intent configuration
-router.get('/intents', extractTenantId, async (req, res) => {
+router.get('/intents', async (req, res) => {
   try {
     const config = await db.getIntentConfig(req.tenantId);
     
@@ -91,7 +90,7 @@ router.get('/intents', extractTenantId, async (req, res) => {
 });
 
 // Save intent configuration
-router.put('/intents', extractTenantId, async (req, res) => {
+router.put('/intents', async (req, res) => {
   try {
     const { intents } = req.body;
     

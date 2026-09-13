@@ -1,6 +1,7 @@
 import express from 'express';
 import axios from 'axios';
 import validateToken from '../middleware/validateToken.js';
+import { getAuthServiceBaseUrl, getAiCallingServiceBaseUrl } from '../config/serviceUrls.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { requireAdminOrManager, requireCrmMemberOrAbove } from '../middleware/requireRole.js';
 import {
@@ -28,6 +29,7 @@ import { SERVICE_ACCOUNT_USER } from '../utils/serviceAccount.js';
 import { resolveRequestActor } from '../utils/requestActor.js';
 import { notifyNewLead, notifyLeadAssigned, notifyHotLead } from '../leadNotifications.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
+import { hasCreditForAiCall } from '../aiCallBilling.js';
 
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
@@ -36,8 +38,8 @@ const router = express.Router();
 async function fetchTeamMemberMap(req) {
   const map = {};
   try {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL;
-    if (!authServiceUrl) return map;
+    if (!process.env.AUTH_SERVICE_DOMAIN_NAME) return map;
+    const authServiceUrl = getAuthServiceBaseUrl();
 
     const response = await axios.get(`${authServiceUrl}/users`, {
       headers: { Authorization: req.headers.authorization },
@@ -118,9 +120,11 @@ router.get('/search', validateToken, extractTenantId, async (req, res) => {
 // Get available agents for assignedTo dropdown
 router.get('/agents', validateToken, extractTenantId, async (req, res) => {
   try {
-    const authServiceUrl = process.env.AUTH_SERVICE_URL;
-    if (!authServiceUrl) {
-      return res.status(500).json({ error: 'AUTH_SERVICE_URL not configured' });
+    let authServiceUrl;
+    try {
+      authServiceUrl = getAuthServiceBaseUrl();
+    } catch (configError) {
+      return res.status(500).json({ error: 'Auth service not configured', details: configError.message });
     }
     const authHeader = req.headers.authorization;
 
@@ -497,10 +501,32 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
       return res.status(409).json({ error: 'AI calling not enabled for this tenant' });
     }
 
-    const aiCallingServiceUrl = process.env.AI_CALLING_SERVICE_URL;
-    if (!aiCallingServiceUrl) {
-      logger.warn('leads.qualifyCall.not_configured', { tenantId: req.tenantId });
+    // Includes ai-calling-service's /api/ai-calling prefix; null when unset.
+    const aiCallingServiceUrl = getAiCallingServiceBaseUrl();
+    // The service's management API authenticates this backend as a service and
+    // fails closed, so without the key every call would 401. Log presence only.
+    const aiCallingApiKey = process.env.CRM_CALLER_API_KEY;
+    if (!aiCallingServiceUrl || !aiCallingApiKey) {
+      logger.warn('leads.qualifyCall.not_configured', {
+        tenantId: req.tenantId,
+        hasBaseUrl: Boolean(aiCallingServiceUrl),
+        hasApiKey: Boolean(aiCallingApiKey),
+      });
       return res.status(503).json({ error: 'AI calling service not configured' });
+    }
+
+    // AI calls are billed per started minute once the call settles
+    // (aiCallBilling.js). Because that charge happens after the fact, this is
+    // the only point where we can refuse a call the tenant cannot pay for —
+    // require at least one minute's worth of credit before dialling.
+    const credit = await hasCreditForAiCall(req.tenantId);
+    if (!credit.ok) {
+      return res.status(402).json({
+        error: 'insufficient_credits',
+        balance: credit.balance,
+        required: credit.required,
+        message: 'Out of credits. Buy more to start an AI call.',
+      });
     }
 
     const response = await axios.post(
@@ -512,7 +538,10 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
         callPurpose: 'lead_qualification',
       },
       {
-        headers: { 'x-tenant-id': req.tenantId },
+        headers: {
+          'x-api-key': aiCallingApiKey,
+          'x-tenant-id': req.tenantId,
+        },
         timeout: parseInt(process.env.AI_CALLING_SERVICE_TIMEOUT_MS || '10000', 10),
       }
     );

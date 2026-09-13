@@ -5,6 +5,8 @@ node_modules/
 .env
 .env.*
 !.env.sample
+!.env.launch-tables.dev.sample
+!.env.launch-tables.prod.sample
 
 # Database
 *.db
@@ -24,6 +26,8 @@ Thumbs.db
 function.zip
 infra/cfn-params.json
 infra/.last-deploy-artifacts.json
+infra/.last-launch-tables-deploy-artifacts.json
+infra/.last-ssm-sync-plan.json
 
 # Demo seeder runtime trace
 scripts/node-trace.json

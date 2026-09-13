@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import { logger } from './logger.js';
+import { getAuthServiceBaseUrl } from './config/serviceUrls.js';
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'ap-south-1',
@@ -66,11 +67,11 @@ export async function decrementSeatsPaid(tenantId, by = 1) {
  * falling back to the stored seatsUsed value.
  */
 export async function recomputeSeatsUsed(tenantId) {
-  const authServiceUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:3002';
   const internalKey = process.env.INTERNAL_API_KEY || '';
 
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
+      const authServiceUrl = getAuthServiceBaseUrl();
       const response = await fetch(`${authServiceUrl}/internal/users/count?tenantId=${tenantId}`, {
         headers: { 'x-internal-api-key': internalKey },
         signal: AbortSignal.timeout(3000),

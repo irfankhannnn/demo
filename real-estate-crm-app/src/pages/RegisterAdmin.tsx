@@ -4,9 +4,9 @@ import { getIdToken } from '../utils/authStorage';
 import { callMe } from '../utils/cognitoAuth';
 import { setUserProfile } from '../utils/authStorage';
 import { trackEvent } from '../lib/analytics';
+import { AUTH_API_URL, CRM_API_URL } from '../config/apiConfig';
 
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
-const API_URL = import.meta.env.VITE_API_URL as string;
+const API_URL = CRM_API_URL;
 
 export default function RegisterAdmin() {
   const [formData, setFormData] = useState({

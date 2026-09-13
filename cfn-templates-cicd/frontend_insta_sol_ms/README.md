@@ -41,9 +41,18 @@ stack at the wrong data.
 
 ## Environment
 
-Reads `frontend_insta_sol_ms/.env.<env>`. `.env.prod` is filled in with values
-verified live against account `532404260898`. `.env.dev` is placeholders: no dev
-environment exists in this account yet.
+Reads `frontend_insta_sol_ms/.env.<env>`. `.env.prod` targets account
+`532404260898` (`cloudberry-prod-new`); `.env.dev` targets `730335176275`
+(`cloudberry-main`).
+
+The bundle calls the Instagram API at
+`https://<VITE_INSTA_API_DOMAIN_NAME>/<VITE_INSTA_API_BASE_PATH>/api/insta`
+(dev: services-api.cloudberrysolutions.in / devrealestateinsta; prod:
+services-api.realestateflow.in / prodrealestateinsta). `VITE_API_BASE_URL` no
+longer exists. `infra/lib/api-domain-guard.sh` makes `deploy.sh`,
+`config-deploy.sh` and `content-deploy.sh` fail if the domain is empty, has a
+scheme, or is a raw execute-api / amazonaws.com host, or if the base path is
+empty. The app code rejects raw API Gateway hosts as well (`src/lib/serviceUrl.ts`).
 
 `deploy-versions/` is gitignored.
 

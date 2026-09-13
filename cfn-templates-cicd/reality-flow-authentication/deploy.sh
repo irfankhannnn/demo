@@ -12,11 +12,34 @@ set -euo pipefail
 #                                                  code (fast, code only — no CFN change)
 #   ./deploy.sh rollback-full <env> <build>       Redeploy that build's saved CFN
 #                                                  template + params, then its code
+#   ./deploy.sh config-deploy <dev|prod>          Config-only deploy — CFN parameter
+#                                                  update only, no npm/zip/upload/
+#                                                  lambda update-function-code. See
+#                                                  infra/config-deploy.sh and
+#                                                  docs/proposals/config-only-deploy/
+#                                                  context.md for the full design.
+#   ./deploy.sh list-config [dev|prod]            List recorded config revisions
+#   ./deploy.sh show-config <config-version>      Print one config revision's manifest.json
+#   ./deploy.sh rollback-config <env> <config-version>
+#                                                  Reapply an old config revision's
+#                                                  allowlisted parameter values on top
+#                                                  of whatever code build is currently
+#                                                  live (never rolls code back)
 #
 # Every deploy call delegates the actual packaging/CFN work to the real
-# script: reality-flow-authentication/infra/deploy.sh. This wrapper's only
-# job is release bookkeeping — see README.md in this folder for the full
-# design.
+# script: reality-flow-authentication/infra/deploy.sh (full) or
+# reality-flow-authentication/infra/config-deploy.sh (config-only). This
+# wrapper's only job is release bookkeeping — see README.md in this folder
+# for the full design.
+#
+# Config revisions live on a SEPARATE numbering track from builds
+# (config-versions/0001, 0002, ... vs deploy-versions/0001, 0002, ...) —
+# conflating "build #27" with "config revision #4 applied on top of build
+# #27" would lose exactly the information needed to answer "what is
+# actually running right now" during an incident. Each config-versions/<N>/
+# manifest.json records which build it was appliedToBuild, plus the actual
+# changedParams diff (its only content — there's no zip/dist archive
+# alongside a config revision to fall back on for "what did this change").
 #
 # Build numbers are GLOBAL (one counter across dev AND prod, not one per
 # env) — "build #7" is unambiguous on its own; which env it targeted is
@@ -25,10 +48,18 @@ set -euo pipefail
 # S3 layout under the artifact bucket (dev-realestateflow-artifacts /
 # prod-realestateflow-artifacts — one bucket per environment already, per
 # cfn-templates-cicd/common-infra/vpc-networking.yaml):
-#   ${SERVICE_NAME}/function.zip                       "latest" — the ONE
-#   ${SERVICE_NAME}/auth-explicit-routes.yaml           key Lambda/CFN
-#                                                        actually read; every
-#                                                        deploy overwrites it
+#   ${SERVICE_NAME}/function.zip                       "latest" code key —
+#                                                        the one Lambda reads
+#   ${SERVICE_NAME}/auth-explicit-routes-<hash>.yaml    content-hashed, one
+#                                                        new key per deploy
+#                                                        (no "latest" key for
+#                                                        this file — see
+#                                                        infra/deploy.sh's own
+#                                                        comment on why: a
+#                                                        static key meant
+#                                                        CloudFormation never
+#                                                        detected nested-stack
+#                                                        content changes)
 #   ${SERVICE_NAME}/builds/<build>/<env>/cfn-backend.yaml
 #   ${SERVICE_NAME}/builds/<build>/<env>/auth-explicit-routes.yaml
 #   ${SERVICE_NAME}/builds/<build>/<env>/code/function.zip
@@ -53,6 +84,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_DIR="$(cd "$SCRIPT_DIR/../../reality-flow-authentication" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 VERSIONS_DIR="$SCRIPT_DIR/deploy-versions"
+CONFIG_VERSIONS_DIR="$SCRIPT_DIR/config-versions"
 
 OS_UNAME="$(uname -s || echo '')"
 AWS_BIN="aws"
@@ -79,6 +111,11 @@ Usage:
   ./deploy.sh show <build>                 Print one build's manifest.json
   ./deploy.sh rollback-code <env> <build>  Roll back code only (fast)
   ./deploy.sh rollback-full <env> <build>  Roll back CFN template+params, then code
+  ./deploy.sh config-deploy <dev|prod>     Config-only deploy (CFN params only, no build)
+  ./deploy.sh list-config [dev|prod]       List recorded config revisions
+  ./deploy.sh show-config <config-version> Print one config revision's manifest.json
+  ./deploy.sh rollback-config <env> <config-version>
+                                            Reapply an old config revision's params
 USAGE
 }
 
@@ -95,6 +132,14 @@ require_build_arg() {
   local b="${1:-}"
   if ! [[ "$b" =~ ^[0-9]{4}$ ]]; then
     echo "ERROR: build number must be 4 digits, e.g. 0007 (got: '${b}')"
+    exit 1
+  fi
+}
+
+require_config_version_arg() {
+  local c="${1:-}"
+  if ! [[ "$c" =~ ^[0-9]{4}$ ]]; then
+    echo "ERROR: config version must be 4 digits, e.g. 0007 (got: '${c}')"
     exit 1
   fi
 }
@@ -139,6 +184,67 @@ next_build_number() {
   done
   shopt -u nullglob
   printf "%04d" "$((max + 1))"
+}
+
+# ---- config-version counter — SEPARATE track from the build counter above,
+# also global across dev/prod, mirroring it exactly for the same reasons ---
+next_config_version() {
+  mkdir -p "$CONFIG_VERSIONS_DIR"
+  local max=0
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -d "$d" ] || continue
+    local n
+    n="$(basename "$d")"
+    n=$((10#$n))
+    if [ "$n" -gt "$max" ]; then max=$n; fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$((max + 1))"
+}
+
+# latest_build_for_env <env> — the highest-numbered successfully-deployed
+# build recorded for that specific env (build numbers are global, so this
+# scans and filters rather than just taking deploy-versions/LATEST, which
+# tracks the latest build across BOTH envs).
+latest_build_for_env() {
+  local env="$1"
+  local max=0
+  shopt -s nullglob
+  for d in "$VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    local e s n
+    e="$(json_read "$d/manifest.json" env 2>/dev/null || echo '')"
+    s="$(json_read "$d/manifest.json" status 2>/dev/null || echo '')"
+    if [ "$e" = "$env" ] && [ "$s" = "deployed" ]; then
+      n="$(basename "$d")"
+      n=$((10#$n))
+      if [ "$n" -gt "$max" ]; then max=$n; fi
+    fi
+  done
+  shopt -u nullglob
+  printf "%04d" "$max"
+}
+
+# write_config_manifest <out-file> <configVersion> <appliedToBuild> <env> <status> <rollbackOf|null> <changedParamsFile> <commit> <commitShort> <branch> <dirty> <deployer> <deployDate>
+write_config_manifest() {
+  node -e "
+    const fs = require('fs');
+    const [ , out, configVersion, appliedToBuild, env, status, rollbackOf, changedParamsFile,
+            commit, commitShort, branch, dirty, deployer, deployDate ] = process.argv;
+    const changedParams = JSON.parse(fs.readFileSync(changedParamsFile, 'utf8'));
+    const manifest = {
+      configVersion, appliedToBuild, env, status,
+      timestamp: new Date().toISOString(),
+      deployDate,
+      git: { commit, commitShort, branch, dirty: dirty === 'true' },
+      deployer,
+      changedParams,
+      rollbackOf: rollbackOf === 'null' ? null : rollbackOf,
+    };
+    fs.writeFileSync(out, JSON.stringify(manifest, null, 2) + '\n');
+    fs.appendFileSync(require('path').dirname(out) + '/../history.jsonl', JSON.stringify(manifest) + '\n');
+  " "$@"
 }
 
 # tag_object <bucket> <key> <status> — applies Branch/DeployDate/Status/CommitId.
@@ -224,7 +330,7 @@ cmd_deploy() {
 
   local bucket="${LAMBDA_PACKAGES_BUCKET_NAME:-unknown}"
   local code_key="${SERVICE_NAME}/function.zip"
-  local routes_key="${SERVICE_NAME}/auth-explicit-routes.yaml"
+  local routes_key="unknown"
   local code_version="unknown"
   local routes_version="unknown"
   local code_storage_class="STANDARD"
@@ -235,24 +341,34 @@ cmd_deploy() {
 
   if [ "$status" = "deployed" ]; then
     code_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$code_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
-    routes_version="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$routes_key" --region "$AWS_REGION" --query VersionId --output text 2>/dev/null || echo unknown)"
     # AWS CLI prints the literal string "None" (not empty, not an error) when
     # the bucket doesn't have versioning enabled — normalize both that and a
     # query failure to the same "unknown" sentinel.
     [ "$code_version" = "None" ] && code_version="unknown"
-    [ "$routes_version" = "None" ] && routes_version="unknown"
     code_storage_class="$("$AWS_BIN" s3api head-object --bucket "$bucket" --key "$code_key" --region "$AWS_REGION" --query StorageClass --output text 2>/dev/null || echo STANDARD)"
     [ "$code_storage_class" = "None" ] && code_storage_class="STANDARD"
 
+    # infra/deploy.sh names its own S3 upload for this file after a content
+    # hash unique per deploy (no single "latest" key exists for it anymore —
+    # see that script's own comment on why), so there's nothing to head-object
+    # or copy-from here. Record the same hash directly (used as
+    # "routesTemplateVersionId" below, in place of an S3 VersionId) and
+    # upload straight from this build's local snapshot instead.
+    if [ -f "$build_dir/auth-explicit-routes.yaml" ]; then
+      routes_version="$(node -e "const fs=require('fs');const crypto=require('crypto');process.stdout.write(crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex').slice(0,12))" "$build_dir/auth-explicit-routes.yaml")"
+      routes_key="${SERVICE_NAME}/auth-explicit-routes-${routes_version}.yaml"
+    fi
+
     # Permanent build+env archive copies (server-side copy where possible —
     # cfn-backend.yaml is a fresh upload since infra/deploy.sh never puts it
-    # in S3 itself, it's only inline-deployed since it's under 51.2KB).
+    # in S3 itself, it's only inline-deployed since it's under 51.2KB. The
+    # routes template is likewise uploaded fresh from this build's local
+    # snapshot rather than copied from a "latest" S3 key, for the same reason).
     "$AWS_BIN" s3 cp "s3://${bucket}/${code_key}" "s3://${bucket}/${build_code_key}" --region "$AWS_REGION" --no-cli-pager
-    "$AWS_BIN" s3 cp "s3://${bucket}/${routes_key}" "s3://${bucket}/${build_routes_key}" --region "$AWS_REGION" --no-cli-pager
+    "$AWS_BIN" s3 cp "$build_dir/auth-explicit-routes.yaml" "s3://${bucket}/${build_routes_key}" --region "$AWS_REGION" --no-cli-pager
     "$AWS_BIN" s3 cp "$build_dir/cfn-backend.yaml" "s3://${bucket}/${build_template_key}" --region "$AWS_REGION" --no-cli-pager
 
     tag_object "$bucket" "$code_key" "$status"
-    tag_object "$bucket" "$routes_key" "$status"
     tag_object "$bucket" "$build_code_key" "$status"
     tag_object "$bucket" "$build_routes_key" "$status"
     tag_object "$bucket" "$build_template_key" "$status"
@@ -277,6 +393,234 @@ cmd_deploy() {
     echo "Deploy failed — see output above. This build is recorded as 'failed' and is not a valid rollback target."
     exit 1
   fi
+}
+
+# =============================================================================
+# config-deploy — delegates to infra/config-deploy.sh, records a config
+# revision on its OWN numbering track (config-versions/, not deploy-versions/)
+# =============================================================================
+cmd_config_deploy() {
+  local env="$1"
+  require_env_arg "$env"
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENV="$env"
+
+  echo "============================================="
+  echo " Config-only deploy ($env) — starting"
+  echo " commit: $GIT_COMMIT_SHORT  branch: $GIT_BRANCH  dirty: $GIT_DIRTY  by: $DEPLOYER"
+  echo "============================================="
+
+  local diff_file="$SERVICE_DIR/infra/.last-config-diff.json"
+  local params_file="$SERVICE_DIR/infra/.last-config-params.json"
+  rm -f "$diff_file" "$params_file"
+
+  if ! "$SERVICE_DIR/infra/config-deploy.sh" "$env"; then
+    echo ""
+    echo "Config-only deploy failed or was refused — see output above. No config revision recorded."
+    exit 1
+  fi
+
+  if [ ! -f "$diff_file" ]; then
+    echo "WARNING: infra/config-deploy.sh exited 0 but left no diff file at $diff_file — nothing recorded."
+    return 0
+  fi
+
+  if [ "$(cat "$diff_file")" = "{}" ]; then
+    echo ""
+    echo "No allowlisted parameter actually differed from the live stack — no config revision recorded."
+    return 0
+  fi
+
+  local build
+  build="$(latest_build_for_env "$env")"
+
+  local cfg
+  cfg="$(next_config_version)"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  mkdir -p "$cfg_dir"
+  cp "$diff_file" "$cfg_dir/changed-params.json"
+  if [ -f "$params_file" ]; then
+    cp "$params_file" "$cfg_dir/params-snapshot.json"
+  fi
+
+  write_config_manifest "$cfg_dir/manifest.json" \
+    "$cfg" "$build" "$env" "applied" "null" "$cfg_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+
+  echo ""
+  echo "Config revision #$cfg recorded (env: $env, applied to build #$build): $cfg_dir/manifest.json"
+}
+
+# =============================================================================
+# list-config / show-config
+# =============================================================================
+cmd_list_config() {
+  local filter_env="${1:-}"
+  if [ ! -d "$CONFIG_VERSIONS_DIR" ]; then
+    echo "No config revisions recorded yet."
+    return 0
+  fi
+
+  printf "%-9s %-6s %-11s %-9s %-21s %-9s %-20s %-11s\n" "CONFIG_V" "ENV" "APPLIED_TO" "STATUS" "TIMESTAMP" "COMMIT" "BRANCH" "ROLLBACK_OF"
+  shopt -s nullglob
+  for d in "$CONFIG_VERSIONS_DIR"/[0-9][0-9][0-9][0-9]; do
+    [ -f "$d/manifest.json" ] || continue
+    node -e "
+      const fs = require('fs');
+      const m = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+      const filterEnv = process.argv[2];
+      if (filterEnv && m.env !== filterEnv) process.exit(0);
+      const row = [m.configVersion, m.env, 'build#' + m.appliedToBuild, m.status, m.timestamp, m.git.commitShort, m.git.branch, m.rollbackOf || '-'];
+      console.log(row.map((v,i)=>String(v).padEnd([9,6,11,9,21,9,20,11][i])).join(' '));
+    " "$d/manifest.json" "$filter_env"
+  done
+  shopt -u nullglob
+  echo ""
+  echo "Latest config revision (any env): $(cat "$CONFIG_VERSIONS_DIR/LATEST" 2>/dev/null || echo none)"
+}
+
+cmd_show_config() {
+  local cfg="$1"
+  require_config_version_arg "$cfg"
+  local m="$CONFIG_VERSIONS_DIR/$cfg/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no config revision manifest at $m"
+    exit 1
+  fi
+  cat "$m"
+}
+
+# verify_config_env <configVersion> <env> <manifest-path> — same safety
+# guard as verify_build_env, for the separate config-versions track.
+verify_config_env() {
+  local cfg="$1" env="$2" m="$3"
+  local actual_env
+  actual_env="$(json_read "$m" env)"
+  if [ "$actual_env" != "$env" ]; then
+    echo "ERROR: config revision #$cfg was applied to '$actual_env', not '$env' — refusing to roll back the wrong environment with it."
+    exit 1
+  fi
+}
+
+# =============================================================================
+# rollback-config — reapply an old config revision's ALLOWLISTED parameter
+# values on top of whatever code build is CURRENTLY live. Deliberately does
+# NOT roll code back to whatever build that old revision was paired with —
+# config and code rollback are independent concerns by default (see
+# docs/proposals/config-only-deploy/context.md's "Versioning" section for
+# the reasoning). Recorded as a new forward config revision, same principle
+# rollback-code already uses for the build track.
+# =============================================================================
+cmd_rollback_config() {
+  local env="$1" cfg="$2"
+  require_env_arg "$env"
+  require_config_version_arg "$cfg"
+  local cfg_dir="$CONFIG_VERSIONS_DIR/$cfg"
+  local m="$cfg_dir/manifest.json"
+  if [ ! -f "$m" ]; then
+    echo "ERROR: no recorded config revision #$cfg"
+    exit 1
+  fi
+  verify_config_env "$cfg" "$env" "$m"
+  if [ ! -f "$cfg_dir/params-snapshot.json" ]; then
+    echo "ERROR: config revision #$cfg has no params-snapshot.json — cannot roll back to it."
+    echo "(Revisions recorded before this snapshot was introduced only have changed-params.json.)"
+    exit 1
+  fi
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$SERVICE_DIR/.env.$env"
+  set +a
+  ENV="$env"
+
+  echo "Rolling back config to revision #$cfg ($env) — reapplying its allowlisted parameter"
+  echo "values on top of whatever code build is currently live."
+
+  local stack_name="${ENV}-${SERVICE_NAME}-stack"
+  local allowlist_file="$SERVICE_DIR/infra/config-only-allowed-params.json"
+
+  local live_params_json
+  if ! live_params_json="$("$AWS_BIN" cloudformation describe-stacks \
+        --stack-name "$stack_name" \
+        --region "$AWS_REGION" \
+        --query "Stacks[0].Parameters" \
+        --output json --no-cli-pager 2>/dev/null)"; then
+    echo "ERROR: stack $stack_name does not exist (or isn't reachable)."
+    exit 1
+  fi
+
+  local overrides_file="$cfg_dir/.rollback-overrides.json"
+  node -e "
+    const fs = require('fs');
+    const live = JSON.parse(process.argv[1]);
+    const liveMap = {};
+    for (const p of live) liveMap[p.ParameterKey] = p.ParameterValue;
+    const snapshot = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+    const snapshotMap = {};
+    for (const p of snapshot) snapshotMap[p.ParameterKey] = p.ParameterValue;
+    const allowed = new Set(JSON.parse(fs.readFileSync(process.argv[3], 'utf8')).allowedParams);
+    const out = [];
+    for (const key of Object.keys(liveMap)) {
+      // Only allowlisted keys are ever restored from history — every other
+      // key (identity, code-location, secrets we can't verify) always keeps
+      // whatever the live stack currently has, never the historical snapshot.
+      if (allowed.has(key) && key in snapshotMap) {
+        out.push(key + '=' + snapshotMap[key]);
+        continue;
+      }
+      // describe-stacks masks NoEcho parameters as the literal '****' — that
+      // is never a real value to resend. Omit the key entirely instead;
+      // 'aws cloudformation deploy' falls back to the stack's actual current
+      // value for any parameter left out of --parameter-overrides.
+      if (liveMap[key] === '****') continue;
+      out.push(key + '=' + liveMap[key]);
+    }
+    fs.writeFileSync(process.argv[4], JSON.stringify(out));
+  " "$live_params_json" "$cfg_dir/params-snapshot.json" "$allowlist_file" "$overrides_file"
+
+  mapfile -t PARAM_OVERRIDES < <(node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')).forEach(x=>console.log(x))" "$overrides_file")
+  rm -f "$overrides_file"
+
+  "$AWS_BIN" cloudformation deploy \
+    --template-file "$SERVICE_DIR/infra/cfn-backend.yaml" \
+    --stack-name "$stack_name" \
+    --parameter-overrides "${PARAM_OVERRIDES[@]}" \
+    --capabilities CAPABILITY_NAMED_IAM \
+    --region "$AWS_REGION" \
+    --no-cli-pager \
+    --no-fail-on-empty-changeset
+
+  local build
+  build="$(latest_build_for_env "$env")"
+  local new_cfg
+  new_cfg="$(next_config_version)"
+  local new_dir="$CONFIG_VERSIONS_DIR/$new_cfg"
+  mkdir -p "$new_dir"
+  cp "$cfg_dir/params-snapshot.json" "$new_dir/params-snapshot.json"
+
+  node -e "
+    const fs = require('fs');
+    const snapshot = JSON.parse(fs.readFileSync(process.argv[1], 'utf8'));
+    const allowed = new Set(JSON.parse(fs.readFileSync(process.argv[2], 'utf8')).allowedParams);
+    const changed = {};
+    for (const p of snapshot) if (allowed.has(p.ParameterKey)) changed[p.ParameterKey] = { from: null, to: p.ParameterValue, note: 'restored via rollback-config from #${cfg}' };
+    fs.writeFileSync(process.argv[3], JSON.stringify(changed, null, 2) + '\n');
+  " "$cfg_dir/params-snapshot.json" "$allowlist_file" "$new_dir/changed-params.json"
+
+  write_config_manifest "$new_dir/manifest.json" \
+    "$new_cfg" "$build" "$env" "applied" "$cfg" "$new_dir/changed-params.json" \
+    "$GIT_COMMIT" "$GIT_COMMIT_SHORT" "$GIT_BRANCH" "$GIT_DIRTY" "$DEPLOYER" "$DEPLOY_DATE"
+
+  echo "$new_cfg" > "$CONFIG_VERSIONS_DIR/LATEST"
+  echo ""
+  echo "Rolled back to config revision #$cfg's parameter values. Recorded as new config revision #$new_cfg (rollbackOf: #$cfg)."
 }
 
 # =============================================================================
@@ -451,14 +795,12 @@ cmd_rollback_full() {
   local bucket
   bucket="$(json_read "$m" artifact.bucket)"
 
-  if [ -f "$build_dir/auth-explicit-routes.yaml" ]; then
-    local routes_key="${SERVICE_NAME}/auth-explicit-routes.yaml"
-    # Re-upload from the LOCAL snapshot, not from S3 — the S3 copy may have
-    # moved to Deep Archive by now and take hours to restore; the local
-    # snapshot is instant and identical content.
-    "$AWS_BIN" s3 cp "$build_dir/auth-explicit-routes.yaml" "s3://$bucket/$routes_key" --region "$AWS_REGION" --no-cli-pager
-    tag_object "$bucket" "$routes_key" "deployed"
-  fi
+  # No re-upload needed here: $build_dir/cfn-params.json (used below) already
+  # carries that build's ApiGatewayRoutesTemplateUrl, pointing at its own
+  # content-hashed, permanent S3 key (infra/deploy.sh never overwrites these —
+  # each deploy gets a uniquely-named object) — so the historical routes
+  # template this rollback needs is already sitting exactly where the params
+  # file says it is.
 
   "$AWS_BIN" cloudformation deploy \
     --template-file "$build_dir/cfn-backend.yaml" \
@@ -476,7 +818,7 @@ cmd_rollback_full() {
 # =============================================================================
 # dispatch
 # =============================================================================
-mkdir -p "$VERSIONS_DIR"
+mkdir -p "$VERSIONS_DIR" "$CONFIG_VERSIONS_DIR"
 
 case "${1:-}" in
   list)
@@ -490,6 +832,18 @@ case "${1:-}" in
     ;;
   rollback-full)
     cmd_rollback_full "${2:-}" "${3:-}"
+    ;;
+  config-deploy)
+    cmd_config_deploy "${2:-}"
+    ;;
+  list-config)
+    cmd_list_config "${2:-}"
+    ;;
+  show-config)
+    cmd_show_config "${2:-}"
+    ;;
+  rollback-config)
+    cmd_rollback_config "${2:-}" "${3:-}"
     ;;
   dev|prod)
     cmd_deploy "$1"

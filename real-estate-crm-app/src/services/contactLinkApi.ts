@@ -1,4 +1,4 @@
-const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL as string;
+import { AUTH_API_URL } from '../config/apiConfig';
 
 function getAuthHeaders(): Record<string, string> {
   const token = localStorage.getItem('auth_id_token');

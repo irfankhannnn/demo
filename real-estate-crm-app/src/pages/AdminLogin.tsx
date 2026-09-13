@@ -20,6 +20,8 @@ export default function AdminLogin() {
     try {
       await redirectToLogin();
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[AdminLogin] Google redirect failed', err);
       setLoading(false);
     }
   };

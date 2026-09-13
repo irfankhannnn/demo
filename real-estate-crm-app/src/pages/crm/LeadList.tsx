@@ -28,7 +28,7 @@ import Toast from '../../components/Toast';
 import { readFlashToast } from '../../utils/flashToast';
 
 type LeadTypeFilter = 'all' | 'buyer' | 'seller' | 'tenant' | 'owner';
-type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'negotiating' | 'converted' | 'lost';
+type StatusFilter = 'all' | 'new' | 'contacted' | 'qualified' | 'site_visit' | 'negotiating' | 'converted' | 'lost' | 'spam';
 type AssignmentFilter = 'all' | 'my' | 'unassigned' | `agent:${string}`;
 type TemperatureFilter = 'all' | 'hot' | 'warm' | 'cold' | 'unscored';
 type ViewMode = 'active' | 'converted' | 'all';
@@ -331,13 +331,18 @@ export default function LeadList() {
           new: 'bg-blue-50/80 text-blue-700 ring-1 ring-blue-200',
           contacted: 'bg-amber-50/80 text-amber-700 ring-1 ring-amber-200',
           qualified: 'bg-indigo-50/80 text-indigo-700 ring-1 ring-indigo-200',
+          site_visit: 'bg-violet-50/80 text-violet-700 ring-1 ring-violet-200',
           negotiating: 'bg-orange-50/80 text-orange-700 ring-1 ring-orange-200',
+          spam: 'bg-slate-100 text-slate-500 ring-1 ring-slate-200',
           converted: 'bg-emerald-50/80 text-emerald-700 ring-1 ring-emerald-200',
           lost: 'bg-rose-50/80 text-rose-700 ring-1 ring-rose-200',
         };
+        // Multi-word statuses are stored snake_case; render them as words so the
+        // badge reads "Site Visit" rather than "site_visit".
+        const statusLabel = String(lead.status || '').replace(/_/g, ' ');
         return (
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${statusStyles[lead.status] || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
-            {lead.status}
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold capitalize ${statusStyles[lead.status] || 'bg-slate-100 text-slate-700 ring-1 ring-slate-200'}`}>
+            {statusLabel}
           </span>
         );
       },
@@ -417,6 +422,7 @@ export default function LeadList() {
           <option value="new">New</option>
           <option value="contacted">Contacted</option>
           <option value="qualified">Qualified</option>
+          <option value="site_visit">Site Visit</option>
           <option value="negotiating">Negotiating</option>
           <option value="converted">Converted</option>
           <option value="lost">Lost</option>

@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import { devicePath } from '../util/paths.js';
 import { loadConfig } from '../util/config.js';
 import { logger } from '../util/logger.js';
+import { INSTA_API_PREFIX, resolveCloudBaseUrl } from '../util/serviceUrl.js';
 
 const log = logger('uplink/client');
 
@@ -95,11 +96,23 @@ export class UplinkError extends Error {
 
 export class UplinkClient {
   constructor({ config = loadConfig(), device = loadDevice(), fetchImpl = null } = {}) {
-    this.baseUrl = String(config.cloud?.baseUrl ?? '').replace(/\/+$/, '');
-    this.basePath = config.cloud?.basePath ?? '/api/insta';
+    this.cloud = config.cloud ?? {};
+    // The insta API's own route prefix. The API Gateway base path is part of
+    // baseUrl and is NOT signed: the Lambda strips it, so the server's
+    // req.path starts at /api/insta.
+    this.basePath = INSTA_API_PREFIX;
     this.timeoutMs = config.cloud?.timeoutMs ?? 15000;
     this.device = device;
     this.fetch = fetchImpl ?? globalThis.fetch;
+  }
+
+  /** https://<cloud.domainName>/<cloud.basePath>; throws UplinkError if unset or a raw execute-api host. */
+  get baseUrl() {
+    try {
+      return resolveCloudBaseUrl(this.cloud);
+    } catch (err) {
+      throw new UplinkError(err.message);
+    }
   }
 
   get paired() {
@@ -131,7 +144,7 @@ export class UplinkClient {
 
   async request(method, path, body = null) {
     if (!this.paired) throw new UplinkError('laptop is not paired - run: ig-agent pair <code>');
-    if (!this.baseUrl) throw new UplinkError('cloud.baseUrl is not configured');
+    const baseUrl = this.baseUrl;
 
     const fullPath = `${this.basePath}${path}`;
     const rawBody = body == null ? '' : JSON.stringify(body);
@@ -150,7 +163,7 @@ export class UplinkClient {
       rawBody,
     });
 
-    return this.#fetchJson(`${this.baseUrl}${fullPath}`, {
+    return this.#fetchJson(`${baseUrl}${fullPath}`, {
       method,
       headers: {
         'content-type': 'application/json',

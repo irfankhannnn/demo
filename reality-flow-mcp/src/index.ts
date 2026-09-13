@@ -8,7 +8,53 @@ loadConfig();
 const app = createApp();
 const serverlessExpressInstance = serverlessExpress({ app });
 
+// API Gateway's custom-domain base path mapping only affects routing
+// selection - it does not strip the base path from the event.path/rawPath a
+// Lambda proxy integration receives, so we strip it ourselves. Same shape as
+// reality-flow-authentication/src/index.ts's stripBasePath. Only strips when
+// the path is exactly /<basePath> or starts with /<basePath>/, so raw invoke
+// URLs keep working during rollout.
+function stripBasePath(pathValue: unknown): unknown {
+  if (typeof pathValue !== 'string') {
+    return pathValue;
+  }
+  const basePath = (process.env.MCP_API_BASE_PATH || '').replace(/^\/+|\/+$/g, '');
+  if (!basePath) {
+    return pathValue;
+  }
+  const normalized = `/${basePath}`;
+  if (pathValue === normalized) {
+    return '/';
+  }
+  if (pathValue.startsWith(`${normalized}/`)) {
+    return pathValue.slice(normalized.length) || '/';
+  }
+  return pathValue;
+}
+
+function normalizeEventPath(event: any): void {
+  if (!event || typeof event !== 'object') {
+    return;
+  }
+  if (typeof event.path === 'string') {
+    event.path = stripBasePath(event.path);
+  }
+  if (typeof event.rawPath === 'string') {
+    event.rawPath = stripBasePath(event.rawPath);
+  }
+  if (event.requestContext?.path) {
+    event.requestContext.path = stripBasePath(event.requestContext.path);
+  }
+  if (event.requestContext?.http?.path) {
+    event.requestContext.http.path = stripBasePath(event.requestContext.http.path);
+  }
+}
+
 export const handler = (event: any, context: any) => {
+  if (process.env.ENABLE_BASE_PATH_STRIP === 'true') {
+    normalizeEventPath(event);
+  }
+
   console.log('MCP Lambda invoked:', JSON.stringify({
     path: event.path,
     httpMethod: event.httpMethod,
