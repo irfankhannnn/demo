@@ -15,12 +15,12 @@ Create visual asset specifications for Cloudberry marketing. Brief: $ARGUMENTS
 
 ## Brand System
 
-### Colors
-Primary: #2563EB (Royal Blue) | Secondary: #10B981 (Emerald) | Accent: #F59E0B (Amber)
-Dark: #1E293B | Light: #F8FAFC | Error: #EF4444 | Success: #22C55E
+### Colors — "Bazaar Signal" (v3)
+Ink: #1C1512 | Paper: #FBF2E4 | Marigold: #FF7A1A | Gulal: #FF3D7F (once per screen)
+Tulsi: #1FAA59 (sparing — verified only) | Error: #EF4444
 
 ### Typography
-Headlines: Inter Bold 600-700 | Body: Inter Regular 400 | Accents: Inter Medium 500
+Headlines: Unbounded ExtraBold/Black 800-900 | Body: Manrope Regular 400 | CTAs: Manrope Bold 700-800
 
 ## Workflow
 
