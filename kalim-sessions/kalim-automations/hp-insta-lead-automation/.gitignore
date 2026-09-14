@@ -1,0 +1,23 @@
+# Private personal data: real names, phone numbers and DM content.
+# Never commit any of this.
+master/
+parsed/
+analysis/
+*.xlsx
+~$*.xlsx
+
+# Generated from the workbook, so it carries the same lead data.
+lead-dashboard-data.js
+
+# Local credentials for the lead desk runner.
+.env
+__pycache__/
+
+# Automated fetch runs: fetched DMs, per-run parsed/analysis files, logs, state.
+runs/
+state/
+logs/
+archive/
+
+# Raw DM exports carry real names and mobile numbers.
+sample-dm-file*.txt

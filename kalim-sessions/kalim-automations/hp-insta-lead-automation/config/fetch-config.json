@@ -1,0 +1,35 @@
+{
+  "_comment": "Settings for scripts/fetch_instagram_dms.py and scripts/run_pipeline.py. Read at run time, no code change needed.",
+  "our_account": "happyproperties99",
+  "chrome_path": "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  "_chrome_profile_comment": "A Chrome profile used only by this automation. Lives outside the repo because it holds the Instagram login cookie.",
+  "chrome_profile_dir": "%LOCALAPPDATA%/hp-insta-lead-automation/chrome-profile",
+  "devtools_port": 9333,
+  "window_size": "1280,900",
+
+  "tabs": ["primary", "general", "requests"],
+  "_open_unread_comment": "false = never open a thread Instagram shows as unread, so the lead never sees 'Seen' from the automation. The thread is picked up on a later run once someone has read it. Requests are always safe to open: Instagram does not tell the sender until you accept.",
+  "open_unread_threads": false,
+  "ignore_handles": [],
+
+  "first_run_backfill_days": 30,
+  "history_days_per_thread": 60,
+  "incremental_slack_hours": 2,
+  "max_threads_per_run": 40,
+  "max_threads_backfill": 150,
+  "max_list_scrolls": 40,
+  "max_history_scrolls": 8,
+  "stop_after_unchanged_rows": 3,
+
+  "_pacing_comment": "Seconds, randomised inside each range. Human pace is the main protection against the account being flagged.",
+  "pacing_seconds": {
+    "thread": [4, 9],
+    "long_break": [40, 90]
+  },
+  "long_break_every": 12,
+
+  "analysis_batch_size": 12,
+  "analysis_model": "",
+  "analysis_timeout_seconds": 1500,
+  "schedule_every_hours": 6
+}
