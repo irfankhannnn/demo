@@ -13,6 +13,7 @@ import PhoneInput from '../components/PhoneInput';
 import OTPInput from '../components/OTPInput';
 import { getAccessToken, getIdToken, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
 import { AUTH_API_URL } from '../config/apiConfig';
+import { goToReturnPath, takeReturnPath } from '../utils/returnPath';
 
 
 type Step = 'phone' | 'otp' | 'details' | 'uninvited';
@@ -185,7 +186,9 @@ export default function PhoneLogin() {
           createdAt: new Date().toISOString(),
           lastLoginAt: new Date().toISOString(),
         });
-        navigate('/crm');
+        const returnTo = takeReturnPath();
+        if (returnTo) goToReturnPath(returnTo, navigate);
+        else navigate('/crm');
       }
     } catch (err) {
       setOnboardingSession(false);
