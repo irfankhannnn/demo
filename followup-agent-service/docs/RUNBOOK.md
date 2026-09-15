@@ -42,10 +42,10 @@ Deploy `real-estate-crm-app` as usual. Members now see masked numbers and a Call
 ## Smoke test
 
 1. Create a lead with a real test phone, then `POST /api/crm/leads/:id/followup-call`.
-2. Within 5 minutes the worker places the call (CloudWatch: `CALL_PLACED`). Do not answer.
+2. Within 5 minutes the worker places the call (CloudWatch `/aws/lambda/dev-realestateflow-followup-worker-lambda`: `CALL_PLACED`; if not, the `dispatch result` line says why). Do not answer.
 3. Expect `JOB_RETRY_SCHEDULED` (45 min) then, after the second miss, `JOB_ESCALATED` and a notification to the assignee/admin.
 4. Answer the second call, ask for a human: expect `JOB_NEEDS_HUMAN` and an escalation with reason `callback_requested`.
-5. Mark a site-visit meeting completed: expect a `post_visit_feedback` job due ~2 h later.
+5. Mark a meeting whose title contains "Site visit" (or has `meetingType: site_visit`) completed: expect a `post_visit_feedback` job due ~2 h later.
 
 ## Rollback
 

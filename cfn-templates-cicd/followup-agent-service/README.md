@@ -66,5 +66,5 @@ local copies under `deploy-versions/` and `config-versions/` are gitignored.
 ## Troubleshooting
 
 - Worker errors / DLQ depth: alarms fire on `ALERTS_TOPIC_ARN` when set. Replay a DLQ message by invoking the worker with the original event JSON.
-- Calls never placed: check the tenant's `followupCallsEnabled` and `aiEmployeeEnabled`, then the worker logs for `outside_business_hours` or `crm_unavailable`.
+- Calls never placed: check the tenant's `followupCallsEnabled` and `aiEmployeeEnabled`, then the worker log's `dispatch result` lines (`result: outside_business_hours`, `followup_calls_disabled`, `crm_unavailable`, `lead_has_no_phone`).
 - 401 from the CRM: `CRM_INTERNAL_API_KEY` must equal the CRM's `FOLLOWUP_INTERNAL_API_KEY`.

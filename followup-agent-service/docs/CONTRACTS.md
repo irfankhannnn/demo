@@ -20,13 +20,13 @@ Every service touching the follow-up flow implements exactly these shapes. Field
 ```json
 {
   "tenantId": "t-123", "meetingId": "uuid", "status": "completed",
-  "meetingType": "site_visit | meeting | null", "meetingDate": "2026-09-06", "meetingTime": "16:00",
+  "meetingType": "site_visit | meeting | null", "title": "Site visit - Lodha Park", "meetingDate": "2026-09-06", "meetingTime": "16:00",
   "relatedEntityType": "LEAD", "relatedEntityId": "lead-uuid", "relatedEntityName": "Rahul",
   "propertyId": "prop-uuid | null", "propertyName": "2 BHK in Andheri West | null",
   "outcome": "free text | null", "completedBy": "user id or name", "completedAt": "iso"
 }
 ```
-The follow-up service creates a `post_visit_feedback` job only when `relatedEntityType === 'LEAD'` and (`meetingType === 'site_visit'` or the title contains "site visit").
+The follow-up service creates a `post_visit_feedback` job only when `relatedEntityType === 'LEAD'` and (`meetingType === 'site_visit'` or the title contains "site visit"). The CRM meeting scheduler has no type picker, so meetings booked by a person are recognised by title; `meetingType`/`propertyId` are set when the AI agent books the visit.
 
 ### 1.3 `aicalling.calls` / `call.ended` (new, emitted by ai-calling-service)
 Emitted once per terminal outcome: from the ElevenLabs post-call webhook (`post_call_transcription`, `call_initiation_failure`), from Exotel terminal statuses (`completed|failed|busy|no-answer`), and from `startAICall` initiation failure. Consumers must be idempotent on `callSessionId` (the same session may emit twice, e.g. Exotel `completed` then ElevenLabs transcript; the later event carries more data).
@@ -117,7 +117,7 @@ Appends a lead note (createdBy `AI Follow-up Agent`) and a contact activity. Ret
 
 ## 4. followup-agent-service HTTP (auth: `x-api-key: FOLLOWUP_CALLER_API_KEY`, `x-tenant-id`)
 
-- `POST /api/followup/jobs` `{ leadId, jobType: "site_visit_confirmation|post_visit_feedback", dueAt?: iso, context?: { meetingId?, propertyId?, meetingSchedule?, propertyHint?, note? }, requestedBy?: "user id or 'system'" }` → `201 { job }`. Returns `200 { job, duplicate: true }` if an open job with the same dedupe key exists.
+- `POST /api/followup/jobs` `{ leadId, jobType: "site_visit_confirmation|post_visit_feedback", dueAt?: iso, context?: { meetingId?, propertyId?, meetingSchedule?, propertyHint?, note? }, requestedBy?: "user id or 'system'" }` → `201 { job }`. Returns `200 { job, duplicate: true }` if an open job with the same dedupe key exists; `409 { error: "ai_employee_disabled" | "followup_calls_disabled" }` when the tenant has the feature off; `404 { error: "lead_not_found" }`.
 - `GET /api/followup/jobs?leadId=&status=&limit=` → `{ jobs: [...] }`
 - `GET /api/followup/jobs/:jobId` → `{ job, attempts: [...] }`
 - `POST /api/followup/jobs/:jobId/cancel` → `{ job }`
@@ -135,10 +135,10 @@ Job shape:
 - `POST /api/crm/leads/:id/followup-call` `{ jobType?: "site_visit_confirmation", note? }` → proxied to 4 with `requestedBy = req.user.userId`.
 - `GET /api/crm/leads/:id/followups` → `{ jobs }`
 - `POST /api/crm/followups/:jobId/cancel`
-- `POST /api/crm/calls/click-to-call` `{ entityType: "lead|buyer|owner|customer|contact|property", entityId }` → resolves callee phone server-side, caller = `req.user.phoneNumber`; `400 { error: "caller_phone_missing" }` if the user has no phone; `503` if not configured.
+- `POST /api/crm/calls/click-to-call` `{ entityType: "lead|buyer|owner|customer|contact|property", entityId }` → resolves callee phone server-side, caller = `req.user.phoneNumber`; → `202 { callSessionId, callSid, status }`. `400 { error: "caller_phone_missing" }` if the user has no phone; `404 { error: "entity_phone_missing" }` if the record has none; `503 { error: "click_to_call_not_configured" }` if `EXOTEL_CALLER_ID` is blank.
 
 ## 6. Agency config keys (AgencyConfig item, via `GET/PATCH /api/crm/config/ai-employee`)
 `followupCallsEnabled` (bool, default true when aiEmployeeEnabled), `followupCallOnNewInstagramLead` (bool, default false), `followupMaxAttempts` (int 1..5, default 2), `followupRetryGapMinutes` (int 10..240, default 45), `followupPostVisitDelayMinutes` (int 0..1440, default 120), `followupEscalationUserIds` (string[]). Existing `businessHoursStart/End`, `timezone` are reused for the calling window.
 
 ## 7. Phone masking
-Roles that see full numbers: `ADMIN`, `FOUNDER`, `OWNER`. Everyone else gets masked values on every `/api/crm/*` JSON response. Masked keys (case-sensitive, any depth): `phone`, `mobile`, `mobileNumber`, `alternatePhone`, `normalizedPhone`, `contactNumber`, `ownerPhone`, `attendeePhone`, `relatedEntityPhone`, `whatsapp`, `whatsappNumber`, `phoneNumber`, `tenantPhone`, `buyerPhone`, `sellerPhone`. Format: keep the country code if present and the last 4 digits, replace the rest with `*`: `+919812345678` → `+91 ******5678`; `9812345678` → `******5678`. Each object that had a masked key gets `phoneMasked: true`. Internal (`/api/internal/*`) routes are never masked.
+Roles that see full numbers: `ADMIN`, `FOUNDER`, `OWNER`. Everyone else gets masked values on every `/api/crm/*` JSON response. Masked keys (case-sensitive, any depth): `phone`, `mobile`, `mobileNumber`, `alternatePhone`, `normalizedPhone`, `contactNumber`, `ownerPhone`, `attendeePhone`, `relatedEntityPhone`, `whatsapp`, `whatsappNumber`, `phoneNumber`, `tenantPhone`, `buyerPhone`, `sellerPhone`. Format: keep the country code if present and the last 4 digits, replace the rest with `*`: `+919812345678` → `+91 ******5678`; `9812345678` → `******5678`. Each object that had a masked key gets `phoneMasked: true`; the response also carries the header `X-Phone-Masked: true`. Internal (`/api/internal/*`) routes are never masked. Inbound: any masked-shaped phone value and any `phoneMasked` key in a `/api/crm/*` request body is dropped before the route runs (role-independent; a masked value is never valid input).

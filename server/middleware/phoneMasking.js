@@ -11,6 +11,9 @@
  *      9812345678    -> "******5678"
  *  - Every object that had at least one key masked gets `phoneMasked: true`.
  *  - `/api/internal/*` is never masked (service-to-service traffic).
+ *  - Inbound: a masked-shaped phone value ("+91 ******5678") or a `phoneMasked`
+ *    key in a `/api/crm/*` request body is dropped before the route sees it,
+ *    so a masked user's save can never overwrite a real number with stars.
  *
  * How it is wired (see docs/PHONE-MASKING-AND-CLICK-TO-CALL.md):
  *
@@ -181,6 +184,56 @@ export function maskPhonesForUser(user, payload) {
   return maskPhonesDeep(payload);
 }
 
+// Our own mask shape (see maskPhone): optional "+CC ", two or more stars, then
+// the visible tail. Also matches the shorter "****5678" used by some status
+// views. Nothing a user could legitimately type looks like this.
+const MASKED_PHONE_SHAPE = /^\s*(\+\d{1,3}\s?)?\*{2,}\d{0,4}\s*$/;
+
+/** True when a value is a masked phone string rather than a real number. */
+export function isMaskedPhoneValue(value) {
+  return typeof value === 'string' && MASKED_PHONE_SHAPE.test(value);
+}
+
+/**
+ * Remove masked phone values (under the contract keys, any depth, arrays
+ * included) and every `phoneMasked` flag from an inbound body, in place.
+ *
+ * A masked value is never valid input: the browser only holds it because the
+ * caller's role hides real numbers, so persisting it would overwrite the real
+ * number with stars. Deleting the key leaves the stored value untouched on a
+ * partial update. `phoneMasked` is stripped because it is a response-only
+ * marker: stored on a record it would hide the number from admins too.
+ *
+ * @param {unknown} body - parsed request body (mutated)
+ * @param {Set<string>} [keys=PHONE_KEYS]
+ * @returns {string[]} dotted paths of the keys that were removed
+ */
+export function stripMaskedPhoneInput(body, keys = PHONE_KEYS, path = '', removed = []) {
+  if (body === null || typeof body !== 'object') return removed;
+
+  if (Array.isArray(body)) {
+    body.forEach((item, i) => stripMaskedPhoneInput(item, keys, `${path}[${i}]`, removed));
+    return removed;
+  }
+
+  if (!isPlainObject(body)) return removed;
+
+  for (const key of Object.keys(body)) {
+    const value = body[key];
+    const here = path ? `${path}.${key}` : key;
+    if (key === 'phoneMasked') {
+      delete body[key];
+      removed.push(here);
+    } else if (keys.has(key) && isMaskedPhoneValue(value)) {
+      delete body[key];
+      removed.push(here);
+    } else if (value && typeof value === 'object') {
+      stripMaskedPhoneInput(value, keys, here, removed);
+    }
+  }
+  return removed;
+}
+
 function isInternalPath(req) {
   const url = req.originalUrl || req.url || '';
   return url.startsWith('/api/internal');
@@ -202,6 +255,13 @@ function isCrmPath(req) {
 export default function phoneMaskingMiddleware() {
   return function phoneMasking(req, res, next) {
     if (isInternalPath(req) || !isCrmPath(req)) return next();
+
+    // Inbound guard, role-independent: a masked value is never a real number,
+    // whoever sent it. Runs after express.json() (mounted earlier in server.js).
+    if (req.body && typeof req.body === 'object') {
+      const removed = stripMaskedPhoneInput(req.body);
+      if (removed.length) req.strippedMaskedPhoneFields = removed;
+    }
 
     const originalJson = res.json;
     res.json = function maskedJson(payload) {

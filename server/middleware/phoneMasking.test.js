@@ -15,6 +15,8 @@ import phoneMaskingMiddleware, {
   maskPhone,
   maskPhonesDeep,
   maskPhonesForUser,
+  isMaskedPhoneValue,
+  stripMaskedPhoneInput,
 } from './phoneMasking.js';
 
 const isJest = Boolean(process.env.JEST_WORKER_ID);
@@ -175,6 +177,63 @@ describe('maskPhonesDeep', () => {
   });
 });
 
+describe('isMaskedPhoneValue', () => {
+  test('recognises every shape maskPhone produces, plus the short status form', () => {
+    assert.equal(isMaskedPhoneValue('+91 ******5678'), true);
+    assert.equal(isMaskedPhoneValue('******5678'), true);
+    assert.equal(isMaskedPhoneValue('***5678'), true);
+    assert.equal(isMaskedPhoneValue('****5678'), true);
+    assert.equal(isMaskedPhoneValue(maskPhone('+919812345678')), true);
+  });
+
+  test('never matches a real number or other input', () => {
+    assert.equal(isMaskedPhoneValue('+919812345678'), false);
+    assert.equal(isMaskedPhoneValue('9812345678'), false);
+    assert.equal(isMaskedPhoneValue(''), false);
+    assert.equal(isMaskedPhoneValue('N/A'), false);
+    assert.equal(isMaskedPhoneValue(9812345678), false);
+    assert.equal(isMaskedPhoneValue(null), false);
+  });
+});
+
+describe('stripMaskedPhoneInput', () => {
+  test('drops masked phone keys at any depth and every phoneMasked flag, keeps real numbers', () => {
+    const body = {
+      name: 'Rahul',
+      phone: '+91 ******5678',
+      alternatePhone: '+919812340000',
+      phoneMasked: true,
+      ownerSnapshot: { name: 'Owner', phone: '******1234', phoneMasked: true, email: 'o@x.in' },
+      attendees: [{ attendeePhone: '****4321', phoneMasked: true }, { attendeePhone: '9812344321' }],
+      notes: 'call ******5678 later',
+    };
+    const removed = stripMaskedPhoneInput(body);
+    assert.deepEqual(body, {
+      name: 'Rahul',
+      alternatePhone: '+919812340000',
+      ownerSnapshot: { name: 'Owner', email: 'o@x.in' },
+      attendees: [{}, { attendeePhone: '9812344321' }],
+      notes: 'call ******5678 later',
+    });
+    assert.deepEqual(removed.sort(), [
+      'attendees[0].attendeePhone',
+      'attendees[0].phoneMasked',
+      'ownerSnapshot.phone',
+      'ownerSnapshot.phoneMasked',
+      'phone',
+      'phoneMasked',
+    ]);
+  });
+
+  test('leaves a clean body alone and tolerates non-object input', () => {
+    const body = { phone: '+919812345678', nested: { ownerPhone: '9812345678' } };
+    assert.deepEqual(stripMaskedPhoneInput(body), []);
+    assert.deepEqual(body, { phone: '+919812345678', nested: { ownerPhone: '9812345678' } });
+    assert.deepEqual(stripMaskedPhoneInput(null), []);
+    assert.deepEqual(stripMaskedPhoneInput('string'), []);
+  });
+});
+
 describe('role gating', () => {
   test('ADMIN, FOUNDER and OWNER see full numbers (case-insensitive)', () => {
     assert.deepEqual(FULL_PHONE_ROLES, ['ADMIN', 'FOUNDER', 'OWNER']);
@@ -267,6 +326,22 @@ describe('phoneMaskingMiddleware (res.json wrapper)', () => {
     const res = run({ user: { role: 'MEMBER' }, payload });
     assert.equal(res.sent, payload);
     assert.equal(res.headers[PHONE_MASKED_HEADER], undefined);
+  });
+
+  test('strips masked phone values from the request body for every role', () => {
+    for (const role of ['MEMBER', 'ADMIN']) {
+      const req = { originalUrl: '/api/crm/leads/1', method: 'PUT', body: { name: 'R', phone: '+91 ******5678', phoneMasked: true } };
+      const res = fakeRes();
+      phoneMaskingMiddleware()(req, res, () => {});
+      assert.deepEqual(req.body, { name: 'R' }, role);
+      assert.deepEqual(req.strippedMaskedPhoneFields, ['phone', 'phoneMasked']);
+    }
+  });
+
+  test('leaves /api/internal request bodies untouched', () => {
+    const req = { originalUrl: '/api/internal/followups/notes', body: { phone: '+91 ******5678' } };
+    phoneMaskingMiddleware()(req, fakeRes(), () => {});
+    assert.deepEqual(req.body, { phone: '+91 ******5678' });
   });
 
   test('handles primitive and empty payloads without walking', () => {

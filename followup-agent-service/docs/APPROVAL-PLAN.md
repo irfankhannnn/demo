@@ -154,7 +154,7 @@ Physical prefix `<env>-realestateflow-followup-`; base path `devrealestatefollow
 4. New `routes/followupInternal.js` (key `FOLLOWUP_INTERNAL_API_KEY`): `GET /api/internal/followups/leads/:leadId/snapshot` (lead, assignee, upcoming or last site-visit meeting, property, agency follow-up settings, escalation contacts), `POST /api/internal/followups/escalations`, `POST /api/internal/followups/notes`. `PATCH /api/internal/meetings/:id` is added to `aiCallingInternal.js` for the agent tool.
 5. Proxy routes for the UI: `POST /api/crm/leads/:id/followup-call`, `GET /api/crm/leads/:id/followups`, `POST /api/crm/followups/:jobId/cancel` (member or above; the phone never leaves the server). API Gateway route entries added.
 6. Agency config gains `followupCallsEnabled`, `followupCallOnNewInstagramLead` (default false), `followupMaxAttempts` (2), `followupRetryGapMinutes` (45), `followupPostVisitDelayMinutes` (120), `followupEscalationUserIds` on `GET/PATCH /api/crm/config/ai-employee`.
-7. Config plumbing: `FOLLOWUP_SERVICE_DOMAIN_NAME`, `FOLLOWUP_SERVICE_BASE_PATH`, `FOLLOWUP_CALLER_API_KEY`, `FOLLOWUP_INTERNAL_API_KEY` in `cfn-backend.yaml`, `ssm-param-map.txt`, `config/serviceUrls.js`, `.env.example`.
+7. Config plumbing: `FOLLOWUP_SERVICE_DOMAIN_NAME`, `FOLLOWUP_SERVICE_BASE_PATH`, `FOLLOWUP_CALLER_API_KEY`, `FOLLOWUP_INTERNAL_API_KEY` in `cfn-backend.yaml`, `ssm-param-map.txt`, `config/serviceUrls.js`, `.env.sample`.
 8. Phone masking (3.5) and Exotel click-to-call (3.6).
 
 ### 3.4 Instagram Excel pipeline (`hp-insta-lead-automation`)
@@ -166,6 +166,7 @@ Physical prefix `<env>-realestateflow-followup-`; base path `devrealestatefollow
 
 - Server-side masking on every `/api/crm/*` JSON response for any role other than `ADMIN | FOUNDER | OWNER`: fields `phone`, `mobile`, `alternatePhone`, `normalizedPhone`, `contactNumber`, `ownerPhone`, `attendeePhone`, `relatedEntityPhone`, `whatsapp`, `phoneNumber` (nested objects and arrays included) become `+91 ******1234` and a `phoneMasked: true` flag is set on each masked object. Implemented once as a `res.json` wrapper middleware, so all ~35 response sites are covered without editing each route.
 - By-phone lookup routes keep working (a member who already has a number can search by it) but return masked records. CSV/exports for masked roles omit phone columns.
+- Inbound guard in the same middleware: a masked-shaped phone value or a `phoneMasked` flag in any `/api/crm/*` request body is dropped before the route runs, so a masked user's save cannot overwrite a real number (added 2026-09-15 after verification found pages without the frontend strip).
 - Frontend shows the masked value and replaces `tel:` links with a "Call" button (3.6).
 
 ### 3.6 Exotel click-to-call (CRM plus calling service)
@@ -176,7 +177,7 @@ Physical prefix `<env>-realestateflow-followup-`; base path `devrealestatefollow
 ### 3.7 Frontend (`real-estate-crm-app/`), kept minimal
 
 - Lead detail: "Schedule AI follow-up call" button and a follow-up timeline (attempts, outcome, escalation).
-- Masked phone display plus a "Call" (Exotel) button on lead, buyer, seller, owner, tenant and property cards and detail pages; the two `tel:` links replaced.
+- Masked phone display plus a "Call" (Exotel) button on lead, buyer, seller, owner, tenant and property cards and detail pages; the calendar `tel:` link replaced, the enquiry one gated on the full-phone role (that page is not routed on this branch).
 - Settings → AI Employee: follow-up call toggles and escalation contacts.
 
 ---
@@ -228,16 +229,18 @@ Physical prefix `<env>-realestateflow-followup-`; base path `devrealestatefollow
 
 ---
 
-## 9. Implementation status (2026-09-14, end of build session)
+## 9. Implementation status (updated 2026-09-15)
 
-Everything in Section 4 is implemented on this branch and uncommitted. Nothing is deployed.
+Everything in Section 4 is implemented and committed on `nabi-app-git-bkp` / `feat/property-pages-ms` (feature `1a09e07`, docs `14a002b`, verification fixes on top). Nothing is deployed and nothing is pushed to origin. On 2026-09-15 every claim in the four docs was re-checked against this branch's code; the corrections are in the docs and in the two small code changes listed below.
 
 | Area | State | Verification |
 |---|---|---|
 | `followup-agent-service/` + `cfn-templates-cicd/followup-agent-service/` | Complete | 42 unit tests pass; `aws cloudformation validate-template` OK; `cfn-readiness-auditor` verdict READY_TO_DEPLOY (secrets blank by design) |
 | `ai-calling-service/` (purposes, context, 3 tools, `call.ended` events, `/calls/connect`, `EXOTEL_CALLER_ID`, docs) | Complete | 54 tests pass |
-| `server/` (bugs A to D, meeting events, follow-up internal + proxy routes, adapter `followUp`, agency config, phone masking, click-to-call, SSM/CFN/API Gateway plumbing) | Complete | 102 tests across the new files pass; 12 pre-existing jest suites fail locally for unrelated missing SDK modules |
-| `real-estate-crm-app/` (PhoneNumber component, Call button, AI follow-up card, settings) | Complete | typecheck: no new errors (87 pre-existing) |
-| `hp-insta-lead-automation/` (`push_leads_to_crm.py`, analyst fields, workbook columns) | Complete | 30 unittest cases pass; files need `git add -f` (folder is gitignored at repo root) |
+| `server/` (bugs A to D, meeting events, follow-up internal + proxy routes, adapter `followUp`, agency config, phone masking incl. inbound guard, click-to-call, SSM/CFN/API Gateway plumbing) | Complete | 122 tests across the 10 server test files the feature touched pass; 12 pre-existing jest suites fail locally for unrelated missing SDK modules |
+| `real-estate-crm-app/` (PhoneNumber component, Call button, AI follow-up card, settings) | Complete | typecheck: no new errors (84 pre-existing on this branch) |
+| `hp-insta-lead-automation/` (`push_leads_to_crm.py`, analyst fields, workbook columns) | Complete | 30 unittest cases pass; the folder is tracked in this repo |
+
+Verification fixes (2026-09-15): (1) `server/middleware/phoneMasking.js` now strips masked phone values and `phoneMasked` from inbound `/api/crm` bodies (property/developer/customer pages had no frontend strip); (2) `followup-agent-service/src/handlers/worker.js` logs a `dispatch result` line per due job and an `event handled` line per event so the test brief's log checks are real. Known UI limits found: the meeting scheduler has no meeting-type or property picker (site visits are recognised by title), the calendar shows no AI-confirmation badge, and the enquiries page is not routed.
 
 Still needed before anything goes live (see `docs/RUNBOOK.md`): your answers to Section 6, the three shared secrets in `.env.dev`, deploys in the order ai-calling → followup → server → frontend, and the ElevenLabs dashboard prompt/tool updates.

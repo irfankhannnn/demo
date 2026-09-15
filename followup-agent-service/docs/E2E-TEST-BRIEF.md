@@ -2,7 +2,7 @@
 
 Written for a browser-automation test agent. Everything it needs is in this file; the deeper contracts are in `CONTRACTS.md`, the deploy order in `RUNBOOK.md`, the design in `APPROVAL-PLAN.md`.
 
-Repo: `nabi-app-git-bkp`, branch `feat/property-pages-ms`. Nothing on it is deployed as of 2026-09-15. **Sections 2 to 4 can only run once the dev stacks are deployed** (see section 1). Section 5 lists what a browser cannot test and how to cover it instead.
+Repo: `nabi-app-git-bkp`, branch `feat/property-pages-ms`. Nothing on it is deployed as of 2026-09-15. Every statement below was re-checked against that branch's code on 2026-09-15. **Sections 2 to 4 can only run once the dev stacks are deployed** (see section 1). Section 5 lists what a browser cannot test and how to cover it instead.
 
 ---
 
@@ -67,7 +67,7 @@ Optional for backend verification: AWS CLI profile `cloudberry-main` and CloudWa
 ## 2. Phone masking and click-to-call (pure browser, no calls needed except T2.6)
 
 ### T2.1 Admin sees full numbers
-1. Log in as ADMIN. Open `/crm/leads`, `/crm/buyers`, `/crm/owners`, `/crm/tenants`, `/crm/contacts`, `/crm/properties`, `/crm/calendar`, `/crm/enquiries`.
+1. Log in as ADMIN. Open `/crm/leads`, `/crm/buyers`, `/crm/owners`, `/crm/tenants`, `/crm/contacts`, `/crm/properties`, `/crm/calendar`, `/crm/b2b-leads`. (There is no enquiries route on this branch; `EnquiryList.tsx` is not mounted.)
 2. Expect: full numbers rendered as text; on detail pages a `tel:` link where `linkWhenVisible` is used. No `******`.
 3. Network check: any `/api/crm/leads` response has **no** `X-Phone-Masked` header and objects carry no `phoneMasked` field.
 
@@ -79,13 +79,14 @@ Optional for backend verification: AWS CLI profile `cloudberry-main` and CloudWa
 
 ### T2.3 Member cannot overwrite a real number with the mask
 1. As MEMBER open a lead detail page, edit an unrelated field (e.g. notes or budget), Save.
-2. Log in as ADMIN, open the same lead. Expect: the real number is intact (the frontend strips masked values before PUT; the server also ignores `***` values).
-3. Repeat once for a meeting created by the member via **Schedule Meeting** on a lead (`relatedEntityPhone`/`attendeePhone` must not be `***` on the admin's calendar).
+2. Log in as ADMIN, open the same lead. Expect: the real number is intact. Two guards: the lead/buyer/owner/tenant/contact pages strip masked values before PUT, and the CRM server drops any masked-shaped phone value (`+91 ******5678`, `******5678`) and every `phoneMasked` flag from every `/api/crm/*` request body before the route runs, so pages without the frontend guard (property, developer) cannot overwrite a number either.
+3. As MEMBER open `/crm/properties/:id` for a property that has an owner phone, change the description, Save. As ADMIN: `ownerPhone` and `ownerSnapshot.phone` are intact.
+4. Repeat once for a meeting created by the member via **Schedule Meeting** on a lead (`relatedEntityPhone`/`attendeePhone` must not be `***` on the admin's calendar).
 
 ### T2.4 Member sees the Call button, admin sees it too
 1. As MEMBER on a lead list row and lead detail: a green **Call** button (icon-only in dense rows, `aria-label="Call"`) sits next to the masked number. Same on buyer/owner/tenant/contact rows and property detail (calls the owner).
 2. Rows that navigate on click: clicking **Call** must **not** open the record (event is stopped).
-3. Enquiries and B2B leads: masked number, **no** Call button (server cannot resolve a phone for those entity types).
+3. B2B leads (`/crm/b2b-leads`): masked number, **no** Call button (the server cannot resolve a phone for that entity type).
 
 ### T2.5 Click-to-call error states (no real call placed)
 1. Temporarily remove the phone from the member's profile (or use a second member without one). Click **Call** on a lead. Expect the inline text "Add your mobile number to your profile to place calls" with an **Add it in Profile** link to `/profile`. HTTP 400 `caller_phone_missing`.
@@ -118,15 +119,15 @@ Setup for each scenario: as ADMIN create a lead "E2E Followup <timestamp>" with 
 3. Second call within the next dispatch after `Due`. Do not answer.
 4. Expect: pill **Escalated**, red line "Escalated <time> · max attempts exhausted".
 5. Verify the escalation landed:
-   - Bell/notifications for MEMBER (assignee) **and** ADMIN: type `FOLLOWUP_ESCALATION`, mentions the lead and "2 attempts".
+   - Bell/notifications for MEMBER (assignee) **and** ADMIN: type `FOLLOWUP_ESCALATION`, title "AI follow-up needs you", message `<lead name>: site visit confirmation — could not reach them after the configured attempts.`
    - Lead notes: a note by "AI Follow-up Agent" summarising the escalation.
    - Email to both users (and WhatsApp if the tenant has it configured; best-effort).
 6. Backend markers in the worker log, in order: `CALL_PLACED`, `JOB_RETRY_SCHEDULED`, `CALL_PLACED`, `JOB_ESCALATED`.
 
 ### T3.3 Lead answers and confirms the visit
-1. Before scheduling, create a meeting on the lead via **Schedule Meeting** with type **Site Visit**, tomorrow 16:00, pick a property.
+1. Before scheduling, create a meeting on the lead via **Schedule Meeting**, tomorrow 16:00, and put the words **Site visit** in the title (e.g. "Site visit – Lodha Park"). The scheduler has no meeting-type or property picker: the follow-up service treats a meeting as a site visit when `meetingType = site_visit` **or** the title contains "site visit". Property details on the call come from the lead's requirement summary; a `propertyId` is only set when the AI agent itself booked the visit.
 2. Schedule the AI follow-up. Answer LEAD_PHONE. The agent should greet by name, mention the agency, the property and "tomorrow at 4 pm", and ask to confirm. Say "yes, confirmed".
-3. Expect: pill **Done**, `Last outcome: site visit confirmed`, attempt row with duration and summary. On `/crm/calendar` the meeting shows `confirmedVia: ai_call` (confirmed badge). No retry scheduled.
+3. Expect: pill **Done**, `Last outcome: Site visit confirmed`, attempt row with duration and summary. The calendar has no confirmation badge; verify as ADMIN with `GET /api/crm/meetings/:id` → `confirmedVia: "ai_call"` and `confirmedAt` set, plus a lead note by "AI Calling Agent". No retry scheduled.
 
 ### T3.4 Lead asks a question the agent answers from inventory
 1. During the call ask "do you have any 3 BHK in <area you have properties in>?" The agent must answer from live CRM inventory (`get_available_properties` tool), not invent listings. Ask for something you have none of: it must say it has none and offer a callback.
@@ -141,26 +142,28 @@ Setup for each scenario: as ADMIN create a lead "E2E Followup <timestamp>" with 
 
 ### T3.7 Outside business hours
 1. Set the tenant business hours to a window that excludes now. Schedule a job.
-2. Expect: it stays **Scheduled** with `Due` moved to the next window start (worker log `outside_business_hours`). Restore the hours.
+2. Expect: it stays **Scheduled** with `Due` moved to the next window start and `Last outcome: Outside business hours`; worker log line `dispatch result` with `result: outside_business_hours`. Restore the hours.
 
 ### T3.8 Meeting cancelled → job cancelled
 1. With a Scheduled job that has a `meetingId` in its context (from T3.3 setup), cancel the meeting on `/crm/calendar`.
 2. Expect: the job row flips to **Cancelled** within one dispatch.
 
 ### T3.9 Kill switch
-1. Settings → **AI follow-up calls OFF**. Schedule a job (or wait for a due one).
-2. Expect: no call is placed; the job ends **Cancelled** (worker log `followup_disabled`). Turn it back on.
+1. Settings → **AI follow-up calls OFF**. Click **Schedule AI follow-up call**.
+2. Expect: error toast (HTTP 409 `followup_calls_disabled`), no row added.
+3. Turn it ON, schedule a job, turn it OFF again before the next dispatch (up to 5 min).
+4. Expect: no call is placed; the job ends **Cancelled** with `Last outcome: Followup calls disabled`; worker log `dispatch result` with `result: followup_calls_disabled`. Turn it back on.
 
 ---
 
 ## 4. AI follow-up: post-visit feedback (real call)
 
 ### T4.1 Completed site visit triggers the feedback call
-1. Lead with a **Site Visit** meeting (T3.3). On `/crm/calendar` (or the lead's meetings list) mark it **Completed**.
+1. Lead with a meeting whose title contains "Site visit" (T3.3). On `/crm/calendar` mark it **Completed**.
 2. Within a minute the lead page shows a new row **Post-visit feedback**, **Scheduled**, `Due` = completion time + post-visit delay (0 in P5), `via event:meeting.completed`.
-3. A meeting of type **Meeting** (not site visit) marked Completed must **not** create a job.
+3. A meeting whose title does not contain "site visit" (e.g. the default "Meeting with <name>") marked Completed must **not** create a job.
 4. Answer the call: the agent asks about the visited property, issues, anything unclear, and when they want to proceed with the token. Say: liked it, parking is a problem, unclear about maintenance charges, token next week.
-5. Expect: pill **Done**, `Last outcome: feedback recorded`; a lead note "visit feedback" listing liked/issues/clarifications/token timeline; because there are open issues an escalation **open actions** notification goes to assignee + admins.
+5. Expect: pill **Done**, `Last outcome: Feedback recorded`; a lead note "visit feedback" listing liked/issues/clarifications/token timeline; because there are open issues an escalation **open actions** notification goes to assignee + admins.
 
 ---
 
@@ -170,10 +173,10 @@ Setup for each scenario: as ADMIN create a lead "E2E Followup <timestamp>" with 
 |---|---|---|
 | Instagram DM → auto job | needs the Excel pipeline or ManyChat | `POST /api/internal/adapters/leads` with header `x-api-key: ADAPTER_INTERNAL_API_KEY` and a body containing `followUp: {type:"site_visit_confirmation", meetingSchedule:"Sat 4pm"}` → a job appears on the new lead. Or run `python scripts/push_leads_to_crm.py --dry-run` in `kalim-sessions/kalim-automations/hp-insta-lead-automation`. |
 | Auto-call every new Instagram lead | tenant opt-in | Settings → **Call every new Instagram lead ON**, then the adapter POST above **without** `followUp`: a job must still appear. With it OFF: no job. |
-| Watchdog (call stuck in `calling` > 20 min) | needs a lost `call.ended` | disable the `dev-realestateflow-followup-callended` rule, place a call, re-enable after 25 min → job goes to retry. |
-| Duplicate `call.ended` (Exotel then ElevenLabs) | timing | check the worker log shows one `CALL_ENDED_DUPLICATE_IGNORED` per call and the job status did not regress. |
+| Watchdog (call stuck in `calling` > 20 min) | needs a lost `call.ended` | disable the `dev-realestateflow-followup-call-ended` EventBridge rule, place a call, re-enable after 25 min → worker log `CALL_WATCHDOG_TIMEOUT`, job goes to retry. |
+| Duplicate `call.ended` (Exotel then ElevenLabs) | timing | the worker logs `event handled` for both; the second carries `ignored: already_handled` (or `stale_session` / `job_not_calling`) and the job status does not regress. |
 | Direct service API | not user-facing | `curl -H "x-api-key: $FOLLOWUP_CALLER_API_KEY" -H "x-tenant-id: $TENANT" https://services-api.cloudberrysolutions.in/devrealestatefollowup/api/followup/jobs?leadId=...` → `{jobs:[...]}`; wrong key → 401; missing tenant → 400. |
-| Unit/integration coverage already green | | `npm test` in `followup-agent-service` (42), `ai-calling-service` (54); server new-file tests (102); `pytest` in the Excel pipeline (30). |
+| Unit/integration coverage already green | | `npm test` in `followup-agent-service` (42), `ai-calling-service` (54); server tests for the files this feature touched (122, run with `jest <those files>`); `python -m unittest` in the Excel pipeline (30). |
 
 ---
 
@@ -188,3 +191,4 @@ Setup for each scenario: as ADMIN create a lead "E2E Followup <timestamp>" with 
 - **Internal routes are never masked** (`/api/internal/*`); the test agent must not treat that as a leak.
 - **Do not save a record as MEMBER and expect the number to change**: masked values are deliberately dropped on save.
 - 12 server jest suites fail locally from missing SDK modules; that predates this work and is not a regression.
+- **Worker log lines to grep** (`/aws/lambda/dev-realestateflow-followup-worker-lambda`): `JOB_CREATED`, `CALL_PLACED`, `CALL_INITIATION_FAILED`, `JOB_RETRY_SCHEDULED`, `JOB_DONE`, `JOB_NEEDS_HUMAN`, `JOB_ESCALATED`, `ESCALATION_SENT`, `JOB_CANCELLED`, `CALL_WATCHDOG_TIMEOUT`, plus `dispatch result` (one per due job, with `result`) and `event handled` (one per EventBridge event).

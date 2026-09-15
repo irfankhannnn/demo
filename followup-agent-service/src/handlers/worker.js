@@ -20,6 +20,9 @@ function parseDetail(event) {
 /** Dispatcher tick: place due calls, then sweep stuck ones. */
 export async function tick(now = new Date()) {
   const dispatched = await engine.dispatchDueJobs(now);
+  // One line per job touched, so a tester can see *why* a due job was not
+  // called (outside_business_hours, followup_calls_disabled, crm_unavailable, ...).
+  for (const entry of dispatched) logger.info('dispatch result', entry);
   const watchdog = await engine.runWatchdog(now);
   logger.info('tick complete', {
     dispatched: dispatched.length,
@@ -39,22 +42,26 @@ export async function route(event = {}) {
   }
 
   const detail = parseDetail(event);
+  const handler = pickHandler(source, detailType);
 
-  if (source === EVENTS.LEAD_SOURCE && detailType === EVENTS.LEAD_CREATED) {
-    return events.onLeadCreated(detail);
-  }
-  if (source === EVENTS.MEETING_SOURCE && detailType === EVENTS.MEETING_COMPLETED) {
-    return events.onMeetingCompleted(detail);
-  }
-  if (source === EVENTS.MEETING_SOURCE && detailType === EVENTS.MEETING_CANCELLED) {
-    return events.onMeetingCancelled(detail);
-  }
-  if (source === EVENTS.CALL_SOURCE && detailType === EVENTS.CALL_ENDED) {
-    return events.onCallEnded(detail);
+  if (!handler) {
+    logger.warn('unhandled event', { source, detailType });
+    return { ignored: true, source, detailType };
   }
 
-  logger.warn('unhandled event', { source, detailType });
-  return { ignored: true, source, detailType };
+  const result = await handler(detail);
+  // Logged for every event, including the ones deliberately ignored
+  // (duplicate call.ended -> `ignored: already_handled`, etc.).
+  logger.info('event handled', { source, detailType, ...(result && typeof result === 'object' ? result : { result }) });
+  return result;
+}
+
+function pickHandler(source, detailType) {
+  if (source === EVENTS.LEAD_SOURCE && detailType === EVENTS.LEAD_CREATED) return events.onLeadCreated;
+  if (source === EVENTS.MEETING_SOURCE && detailType === EVENTS.MEETING_COMPLETED) return events.onMeetingCompleted;
+  if (source === EVENTS.MEETING_SOURCE && detailType === EVENTS.MEETING_CANCELLED) return events.onMeetingCancelled;
+  if (source === EVENTS.CALL_SOURCE && detailType === EVENTS.CALL_ENDED) return events.onCallEnded;
+  return null;
 }
 
 export default { route, tick };
