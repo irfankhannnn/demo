@@ -553,7 +553,7 @@ what sets `direction`.
 Windows Task Scheduler, every 6 h
   scripts/run_pipeline.cmd -> scripts/run_pipeline.py
     1. apply any run parked because Excel had the workbook open
-    2. scripts/fetch_instagram_dms.py      Chrome, own profile, read-only
+    2. scripts/fetch_instagram_dms.py      your own Chrome via the extension, read-only
          reads Primary, General, Requests lists
          opens only changed threads, reads messages + sender from the DOM
          -> runs/<id>/fetched.json
@@ -595,25 +595,49 @@ is simply redone next time.
 - **Human pace.** 4 to 9 seconds between threads, a 40 to 90 second break every
   12 threads, at most 40 threads per 6-hour run (150 on a backfill). All in
   `config/fetch-config.json`.
-- **A normal Chrome.** Chrome is started by the script with its own profile in
-  `%LOCALAPPDATA%\hp-insta-lead-automation\chrome-profile` and controlled over
-  its DevTools port. It is not a headless or test browser.
+- **Your own Chrome, your own login.** The fetch runs inside the Chrome you
+  already use, through the unpacked extension in `chrome-extension/`
+  ("HP Insta Lead Reader"). A run opens one minimised window on
+  instagram.com/direct, reads, and closes it. No second login, no test browser.
+- **The extension can only read.** While a run is active the pipeline serves
+  commands on 127.0.0.1 (port `bridge_port`, 8947) and the extension polls it
+  with a token from `chrome-extension/bridge-config.js`. Commands are a fixed
+  list of named helpers (read list, read thread, scroll, click a tab or a
+  thread row) and navigation is limited to `instagram.com/direct`. No free-form
+  code is ever sent.
 
 This keeps the risk low, not zero: Instagram's terms do not allow automated
 collection. Keep the pacing as it is.
 
 ### Setup, once
 
+1. In Chrome open `chrome://extensions`, turn on **Developer mode**, click
+   **Load unpacked** and pick this folder's `chrome-extension/`. Keep it enabled.
+   Chrome must be logged in to Instagram as happyproperties99.
+2. Then:
+
 ```bash
-python scripts/fetch_instagram_dms.py --login --wait-minutes 30
-#   log in as happyproperties99 in the window that opens
-python scripts/run_pipeline.py --max-threads 1 --tabs primary --no-state   # smoke test
+python scripts/chrome_bridge.py --check        # extension connected + inbox visible?
+python scripts/run_pipeline.py --max-threads 1 --tabs primary --no-state --workbook runs/smoke/test.xlsx   # smoke test
 python scripts/run_pipeline.py                                              # first run = 30 day backfill
 powershell -ExecutionPolicy Bypass -File scripts/register_schedule.ps1      # every 6 hours
 ```
 
 The task runs only while the user is logged on to Windows, because Chrome
-needs the desktop. Sleep or hibernate pauses it; a missed run starts as soon
+needs the desktop. If Chrome is closed, the run starts it with no window
+(`--no-startup-window`) so the extension wakes up.
+
+Why an extension rather than attaching to Chrome over DevTools: Chrome 136+
+refuses `--remote-debugging-port` on the default profile, so the only ways to
+drive the logged-in Chrome are an extension or a second profile with its own
+login. The second-profile path still exists as `browser_mode: "cdp"`
+(`python scripts/fetch_instagram_dms.py --login --browser cdp` once).
+
+`chrome-extension/page_lib.js` is generated from `scripts/dom_helpers.js`,
+`dom_thread_list.js` and `dom_extract_thread.js` at the start of every fetch,
+so a fix to those files reaches the extension without reinstalling it. A
+change to `background.js` or `manifest.json` needs the reload button on the
+extension in `chrome://extensions`. Sleep or hibernate pauses it; a missed run starts as soon
 as the laptop is awake.
 
 ### Operating it
@@ -621,7 +645,9 @@ as the laptop is awake.
 | Symptom | Meaning | Fix |
 |---------|---------|-----|
 | `logs/runs.jsonl` status `ok` / `ok_nothing_new` | fine | none |
-| `fetch_failed_exit_4` | Instagram logged the profile out | `python scripts/fetch_instagram_dms.py --login` |
+| `fetch_failed_exit_4` | Instagram is logged out in Chrome, or logged in as another account | log in as happyproperties99 in Chrome; the next run catches up |
+| `fetch_failed_exit_7` | Chrome closed or the extension is missing/disabled | enable HP Insta Lead Reader in `chrome://extensions`; check with `python scripts/chrome_bridge.py --check` |
+| scripts or config suddenly missing | a `git checkout` of a branch that does not track this folder removed them | switch back, or restore them from the branch that has them |
 | `fetch_failed_exit_6` | no thread rows recognised, Instagram changed its page | fix `scripts/dom_thread_list.js` / `dom_extract_thread.js` |
 | `parked_excel_open` | workbook was open in Excel | close Excel, the next run applies it |
 | `analysis_incomplete` | the analyst skipped a lead twice | look in `runs/<id>/batches/`, re-run with `--skip-fetch --fetched runs/<id>/fetched.json` |
@@ -636,7 +662,9 @@ each `runs/<id>/pipeline.log`.
 |------|------|
 | `config/fetch-config.json` | account, tabs, pacing, caps, backfill days, batch size |
 | `config/business-phrases.json` | `business_phone_numbers`: our numbers, never a lead's |
-| `scripts/dom_thread_list.js`, `scripts/dom_extract_thread.js` | the only code that knows Instagram's markup |
+| `scripts/dom_thread_list.js`, `scripts/dom_extract_thread.js`, `scripts/dom_helpers.js` | the only code that knows Instagram's markup |
+| `scripts/chrome_bridge.py` | the two browser drivers (extension, cdp), extension build and `--check` |
+| `chrome-extension/` | the unpacked extension; `bridge-config.js` (token) and `page_lib.js` are generated and gitignored |
 | `state/fetch-state.json` | incremental state |
 | `runs/<run_id>/` | fetched, parsed, analysis, batches, pipeline.log per run |
 | `logs/runs.jsonl`, `logs/scheduler.log` | one line per run; raw scheduler output |

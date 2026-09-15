@@ -5,6 +5,7 @@ import { openCheckout } from '../lib/razorpay';
 import { trackEvent } from '../lib/analytics';
 import { isNativeApp } from '../lib/platform';
 import { clearAuth } from '../utils/authStorage';
+import { PLAN_TIERS, planPrice } from '../lib/plans';
 
 /** Support contact. The link is hidden entirely when this is not configured. */
 const SUPPORT_WHATSAPP = import.meta.env.VITE_SUPPORT_WHATSAPP || '';
@@ -14,33 +15,6 @@ const DATA_SAFETY_COPY =
   'your account is read-only for 30 days. Data is never deleted without explicit request.';
 
 const PAYWALL_WHITELIST = ['/profile', '/crm/settings/billing', '/legal', '/grievance', '/integrations/ai-employee'];
-
-const TIERS = [
-  {
-    id: 'solo',
-    name: 'Solo',
-    monthly: 999,
-    features: ['1 member', 'Unlimited properties', 'Full CRM + Khata', 'GST invoicing', 'Free onboarding'],
-    cta: 'Start Solo',
-    popular: false,
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    monthly: 1999,
-    features: ['Up to 3 members', 'Everything in Solo', 'Multi-agent hierarchy', 'Shared Khata', 'Member reports'],
-    cta: 'Start Team',
-    popular: true,
-  },
-  {
-    id: 'teamplus',
-    name: 'Team+',
-    monthly: 4999,
-    features: ['Up to 10 members', 'Everything in Team', 'Dedicated CSM', 'Priority support', 'Custom onboarding'],
-    cta: 'Start Team+',
-    popular: false,
-  },
-];
 
 interface PaywallModalProps {
   forceOpen?: boolean;
@@ -112,10 +86,7 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
 
   if (isNativeApp()) return <NativeTrialEndedNotice onClose={onClose} />;
 
-  const getPrice = (monthly: number) => {
-    if (billingCycle === 'annual') return Math.round(monthly * 0.8);
-    return monthly;
-  };
+  const getPrice = (monthly: number) => planPrice(monthly, billingCycle);
 
   const handleCheckout = async (tierId: string) => {
     setCheckoutLoading(tierId);
@@ -197,7 +168,7 @@ export default function PaywallModal({ forceOpen, onClose }: PaywallModalProps) 
 
         {/* Tier cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-8">
-          {TIERS.map((tier) => (
+          {PLAN_TIERS.map((tier) => (
             <div
               key={tier.id}
               className={`rounded-2xl p-6 ${

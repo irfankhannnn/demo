@@ -1,7 +1,8 @@
 """
 End-to-end Instagram lead run. This is what the Windows scheduled task calls.
 
-    fetch changed threads from instagram.com   (fetch_instagram_dms.py)
+    fetch changed threads from instagram.com   (fetch_instagram_dms.py, in your own Chrome
+                                               through chrome-extension/)
       -> build parsed leads, merged with history (build_parsed_from_fetch.py)
       -> insta-lead-analyst agent via `claude -p`, in batches
       -> upsert into master/hp-insta-leads.xlsx  (upsert_leads_excel.py)
@@ -295,7 +296,13 @@ def main():
             code = run(cmd)
             if code != 0:
                 summary["status"] = "fetch_failed_exit_%d" % code
-                log("fetch failed with exit %d%s" % (code, ", log in again with: python scripts/fetch_instagram_dms.py --login" if code == 4 else ""))
+                hint = {
+                    4: ": Instagram is logged out (or on another account) in Chrome. Log in as the business account; the next run catches up",
+                    5: ": browser problem, see the fetch lines above",
+                    6: ": Instagram's page layout was not recognised, fix scripts/dom_*.js",
+                    7: ": Chrome is closed or the HP Insta Lead Reader extension is not loaded/enabled; the next run catches up",
+                }.get(code, "")
+                log("fetch failed with exit %d%s" % (code, hint))
                 return code
 
         fetched = load_json(fetched_path)

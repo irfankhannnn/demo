@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIdToken } from '../utils/authStorage';
 import { callMe } from '../utils/cognitoAuth';
-import { setUserProfile } from '../utils/authStorage';
+import { setOnboardingSession, setUserProfile } from '../utils/authStorage';
 import { trackEvent } from '../lib/analytics';
 import { AUTH_API_URL, CRM_API_URL } from '../config/apiConfig';
 
@@ -105,8 +105,9 @@ export default function RegisterAdmin() {
       sessionStorage.removeItem('utm_campaign');
       sessionStorage.removeItem('utm_medium');
 
-      console.log('[REGISTER_ADMIN] Navigating to /admin/dashboard');
-      navigate('/admin/dashboard', { replace: true });
+      // The agency now exists, so the user is no longer tenant-less.
+      setOnboardingSession(false, false);
+      navigate('/onboarding/choose-plan', { replace: true });
     } catch (err) {
       console.error('[REGISTER_ADMIN] Error:', err);
       setError(err instanceof Error ? err.message : 'Registration failed');

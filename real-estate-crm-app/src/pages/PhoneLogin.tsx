@@ -13,6 +13,7 @@ import PhoneInput from '../components/PhoneInput';
 import OTPInput from '../components/OTPInput';
 import { getAccessToken, getIdToken, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
 import { AUTH_API_URL } from '../config/apiConfig';
+import { SIGNUP_PLAN_KEY, isPlanTierId } from '../lib/plans';
 
 
 type Step = 'phone' | 'otp' | 'details' | 'uninvited';
@@ -40,6 +41,8 @@ export default function PhoneLogin() {
     if (utmSource) sessionStorage.setItem('utm_source', utmSource);
     if (utmCampaign) sessionStorage.setItem('utm_campaign', utmCampaign);
     if (utmMedium) sessionStorage.setItem('utm_medium', utmMedium);
+    const plan = params.get('plan');
+    if (isPlanTierId(plan)) sessionStorage.setItem(SIGNUP_PLAN_KEY, plan);
     trackEvent('signup_started', { utm_source: utmSource || undefined });
   }, []);
 

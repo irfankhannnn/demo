@@ -4,7 +4,7 @@ description: >
   Run or operate the Instagram lead automation for @happyproperties99 at
   kalim-sessions/kalim-automations/hp-insta-lead-automation. The normal path
   is the scheduled pipeline (scripts/run_pipeline.py) that reads DMs from
-  instagram.com in its own Chrome profile every 6 hours; the fallback path
+  instagram.com in the user's own Chrome (via a read-only extension) every 6 hours; the fallback path
   turns a raw pasted DM export (.txt) into rows in the master lead workbook.
   Parses the export into one record per Instagram handle, has the
   insta-lead-analyst agent write the summary, next action, Hinglish reply
@@ -22,7 +22,8 @@ description: >
 
 A Windows scheduled task, "HP Insta Lead Automation", runs
 `scripts/run_pipeline.cmd` every 6 hours. It reads the inbox (Primary,
-General, Requests) from instagram.com in a dedicated Chrome profile, opens
+General, Requests) from instagram.com in the user's own logged-in Chrome,
+through the unpacked "HP Insta Lead Reader" extension in `chrome-extension/`, opens
 only threads that changed since the last successful run, reads every message
 with Instagram's own sender label, has the `insta-lead-analyst` agent analyse
 the changed leads through `claude -p`, upserts the workbook and rebuilds the
@@ -35,7 +36,8 @@ dashboard. State lives in `state/fetch-state.json`; each run leaves
 | Reload the last N days | `python scripts/run_pipeline.py --backfill-days 30` |
 | Smoke test one thread, no state change | `python scripts/run_pipeline.py --max-threads 1 --tabs primary --no-state` |
 | Re-analyse a saved fetch | `python scripts/run_pipeline.py --skip-fetch --fetched runs/<id>/fetched.json` |
-| Fix "not logged in" (exit 4) | `python scripts/fetch_instagram_dms.py --login`, the user logs in in that window |
+| Check the browser link | `python scripts/chrome_bridge.py --check` (exit 7 = extension not connected, 4 = Instagram logged out) |
+| Fix exit 4 / exit 7 | the user logs in to Instagram in Chrome / enables the extension in `chrome://extensions` (Load unpacked `chrome-extension/` if missing) |
 | See what happened | last lines of `logs/runs.jsonl`, then `runs/<id>/pipeline.log` |
 | Change schedule | `powershell -ExecutionPolicy Bypass -File scripts/register_schedule.ps1 -Hours 6` |
 
@@ -47,13 +49,16 @@ Rules that protect the account and the data:
   an unread thread shows the lead "Seen".
 - Exit 3 means Excel had the workbook open. The run is parked and applied by
   the next run; do not re-run the analysis by hand.
+- The extension only runs the named helpers in `chrome-extension/page_lib.js`
+  (generated from `scripts/dom_*.js`) and only navigates inside
+  instagram.com/direct. Do not add a free-form "eval" command to it.
 - Exit 6 means Instagram changed its markup. Inspect the page with
   claude-in-chrome and fix `scripts/dom_thread_list.js` or
   `scripts/dom_extract_thread.js`; never fall back to guessing senders.
 
 The rest of this skill is the manual path for a pasted text export. Text
 copies lose which side of the chat each bubble is on, so prefer the automated
-path whenever the Chrome profile is logged in.
+path whenever Chrome is logged in and the extension is connected.
 
 Three stages. Stage 1 and 3 are deterministic Python, stage 2 is judgement.
 Never do stage 1 or 3 by hand, and never hand-edit the workbook to apply an
