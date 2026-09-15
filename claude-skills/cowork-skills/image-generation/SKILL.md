@@ -134,7 +134,7 @@ Professional ad banner, 1200x628 pixels.
 Image shows [Indian/Dubai] real estate agent smiling,
 holding phone showing RealtyFlow interface.
 Modern office setting, warm lighting.
-Colors: blue (#2563EB), green (#10B981), gold accents.
+Colors: marigold (#FF7A1A), gulal pink (#FF3D7F, used once), warm ink background (#1C1512).
 Professional photography style, high quality.
 Text overlay: "Close 25% More Deals"
 ```

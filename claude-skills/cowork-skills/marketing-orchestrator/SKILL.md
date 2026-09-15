@@ -95,8 +95,8 @@ Friday:    pipeline-tracker → weekly summary + outreach → adjust nurture
 
 ## RealtyFlow Brand Reference
 
-- **Colors:** Primary #2563EB (Royal Blue), Secondary #10B981 (Emerald), Accent #F59E0B (Amber)
-- **Font:** Inter (Google Fonts)
+- **Colors:** Ink #1C1512, Paper #FBF2E4, Marigold #FF7A1A, Gulal #FF3D7F (once per screen), Tulsi #1FAA59 (sparing)
+- **Font:** Unbounded (display/headlines) + Manrope (body/UI), Google Fonts
 - **Target:** Indian real estate agents/agencies (Mumbai, Pune, Delhi, Bangalore)
 - **Problem:** Lead chaos, manual follow-ups, no tech control
 - **Solution:** CRM built specifically for real estate workflows

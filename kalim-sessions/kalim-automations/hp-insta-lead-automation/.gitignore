@@ -22,3 +22,6 @@ archive/
 # Chrome extension: local token and generated page library.
 chrome-extension/bridge-config.js
 chrome-extension/page_lib.js
+
+# Raw DM exports carry real names and mobile numbers.
+sample-dm-file*.txt

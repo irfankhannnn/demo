@@ -249,17 +249,17 @@ Generate 5 taglines with progression from informational to emotional:
 ```markdown
 # RealtyFlow Brand Quick Reference
 
-## Color Palette
-- **Primary Blue:** #2563EB (Trust, intelligence, growth)
-- **Secondary Green:** #10B981 (Success, results, abundance)
-- **Accent Gold:** #F59E0B (Indian market, warmth, opportunity)
-- **Neutral Dark:** #1F2937 (Reliability, professionalism)
-- **Light Neutral:** #F3F4F6 (Clarity, simplicity)
+## Color Palette — "Bazaar Signal" (v3)
+- **Ink:** #1C1512 (Primary ground — warm near-black, not corporate navy)
+- **Paper:** #FBF2E4 (Light ground — khata-ledger cream)
+- **Marigold:** #FF7A1A (Primary accent — CTAs, prices, Indian bazaar energy)
+- **Gulal:** #FF3D7F (Secondary pop — once per screen, never with marigold on one card)
+- **Tulsi:** #1FAA59 (Sparing — checkmarks/verified only, a wink at WhatsApp)
 
 ## Typography
-- **Headlines:** Inter Bold, 700 weight (Confident, modern)
-- **Body:** Inter Regular, 400 weight (Readable, friendly)
-- **Accent:** Hindi words in warm gold (#F59E0B)
+- **Headlines:** Unbounded ExtraBold/Black, 800-900 weight (Chunky, hard to scroll past)
+- **Body:** Manrope Regular, 400 weight (Readable, friendly)
+- **Accent:** Hindi words in marigold (#FF7A1A)
 
 ## Imagery Style
 - Real Indian agents, real offices, real deals
