@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AtSign, Eye, MessageSquare, TrendingUp, Users } from 'lucide-react';
+import { AtSign, Eye, MessageSquare, PlayCircle, TrendingUp, UserCheck, Users } from 'lucide-react';
 import { getOverview, getTimeseries } from '../api/insta';
 import type { OverviewPoint, TimeseriesMetric } from '../api/types';
 import { useApi } from '../lib/useApi';
@@ -44,7 +44,7 @@ export default function Overview() {
         <ErrorState error={overview.error} onRetry={overview.reload} context="the overview" />
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard
               label="Enquiries"
               value={firstLoad ? null : counters.enquiries ?? 0}
@@ -67,7 +67,21 @@ export default function Overview() {
               hint="Across connected accounts"
               loading={firstLoad}
             />
-            <StatCard label="Reach" value={firstLoad ? null : counters.reach ?? 0} icon={Eye} hint="Last 30 days" loading={firstLoad} />
+            <StatCard
+              label="Reach"
+              value={firstLoad ? null : counters.reach ?? 0}
+              icon={Eye}
+              hint="Unique accounts, last 30 days"
+              loading={firstLoad}
+            />
+            <StatCard label="Views" value={firstLoad ? null : counters.views ?? 0} icon={PlayCircle} hint="Last 30 days" loading={firstLoad} />
+            <StatCard
+              label="Accounts engaged"
+              value={firstLoad ? null : counters.accountsEngaged ?? 0}
+              icon={UserCheck}
+              hint={`${formatNumber(counters.totalInteractions ?? 0)} likes, comments, saves and shares`}
+              loading={firstLoad}
+            />
           </section>
 
           <section className="mt-5">

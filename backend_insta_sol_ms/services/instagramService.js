@@ -67,6 +67,7 @@ export function publicAccount(account, now = Date.now()) {
     followersCount: account.followersCount ?? null,
     followsCount: account.followsCount ?? null,
     mediaCount: account.mediaCount ?? null,
+    insights30d: account.insights30d ?? null,
     status: account.status,
     tokenExpiresAt: account.tokenExpiresAt ?? null,
     tokenExpiringSoon: expiresAt ? expiresAt - now < REFRESH_WHEN_EXPIRING_WITHIN_MS : null,
@@ -789,9 +790,9 @@ export function createInstagramService({
   }
 
   async function syncComments(account, { maxMedia = 10 } = {}) {
+    // Comments are recorded even with no rules, so a commenter who DMs later is
+    // attributed to the reel they commented on.
     const rules = (await db.listRules(account.tenantId)).filter((r) => r.enabled !== false);
-    if (rules.length === 0) return { skipped: 'no_rules' };
-
     const token = await tokenFor(account);
     const media = (await db.listMedia(account.tenantId))
       .filter((m) => m.igUserId === account.igUserId)
@@ -804,9 +805,9 @@ export function createInstagramService({
       const res = await api.listComments(token, m.mediaId);
       for (const c of res?.data ?? []) {
         const createdAt = c.timestamp ? new Date(c.timestamp).toISOString() : nowIso();
-        // Older than 7 days cannot be privately replied to; nothing to do.
-        if (clock() - Date.parse(createdAt) > COMMENT_REPLY_WINDOW_MS) continue;
-        seen += 1;
+        // Older than 7 days cannot be privately replied to: recorded, never acted on.
+        const replyable = clock() - Date.parse(createdAt) <= COMMENT_REPLY_WINDOW_MS;
+        if (replyable) seen += 1;
         const outcome = await handleComment(
           account,
           {
@@ -817,7 +818,7 @@ export function createInstagramService({
             mediaId: m.mediaId,
             createdAt,
           },
-          { rules }
+          { rules: replyable ? rules : [] }
         );
         if (['replied', 'dry_run', 'failed'].includes(outcome.status)) acted += 1;
       }
@@ -829,7 +830,7 @@ export function createInstagramService({
   // Media, insights, profile
   // -------------------------------------------------------------------------
 
-  async function syncMedia(account, { insightsLimit = 10, insightsDays = 30 } = {}) {
+  async function syncMedia(account, { insightsLimit = 10 } = {}) {
     const token = await tokenFor(account);
     const res = await api.listMedia(token, { limit: 25 });
     const items = res?.data ?? [];
@@ -847,8 +848,9 @@ export function createInstagramService({
       const metrics = { ...(prior?.metrics || {}), likes: m.like_count ?? prior?.metrics?.likes, comments: m.comments_count ?? prior?.metrics?.comments };
       let metricsUpdatedAt = prior?.metricsUpdatedAt ?? null;
 
-      const recent = publishedAt && clock() - Date.parse(publishedAt) < insightsDays * DAY_MS;
-      if (recent && measured < insightsLimit) {
+      // Meta lists newest first. The newest few are measured whatever their age,
+      // because a reel keeps collecting views for months after it is posted.
+      if (measured < insightsLimit) {
         try {
           const insights = await api.getMediaInsights(token, mediaId);
           const v = insights.values;
@@ -891,17 +893,25 @@ export function createInstagramService({
     return { media: rows.length, measured };
   }
 
+  async function accountInsights(token, igUserId, window) {
+    try {
+      return (await api.getAccountInsights(token, window)).values;
+    } catch (err) {
+      if (err.kind === ERROR_KIND.RATE_LIMIT || err.kind === ERROR_KIND.AUTH) throw err;
+      log.warn('instagram.account_insights_failed', { igUserId, kind: err.kind, window: window ? '30d' : 'day' });
+      return {};
+    }
+  }
+
   async function syncProfile(account) {
     const token = await tokenFor(account);
     const profile = await api.getProfile(token);
-    let insights = { values: {} };
-    try {
-      insights = await api.getAccountInsights(token);
-    } catch (err) {
-      if (err.kind === ERROR_KIND.RATE_LIMIT || err.kind === ERROR_KIND.AUTH) throw err;
-      log.warn('instagram.account_insights_failed', { igUserId: account.igUserId, kind: err.kind });
-    }
-    const v = insights.values;
+    // The daily value feeds the chart; the 30-day total feeds the counters,
+    // because reach counts unique accounts and daily values cannot be summed.
+    const v = await accountInsights(token, account.igUserId);
+    const until = Math.floor(clock() / 1000);
+    // A minute of slack keeps the range inside Meta's 30-day cap.
+    const month = await accountInsights(token, account.igUserId, { since: until - 30 * 86400 + 60, until });
     await db.putAccountSnapshots(account.tenantId, [
       {
         igUserId: account.igUserId,
@@ -923,6 +933,16 @@ export function createInstagramService({
       followersCount: profile.followers_count ?? account.followersCount,
       followsCount: profile.follows_count ?? account.followsCount,
       mediaCount: profile.media_count ?? account.mediaCount,
+      ...(Object.keys(month).length > 0 && {
+        insights30d: {
+          reach: month.reach ?? null,
+          views: month.views ?? null,
+          accountsEngaged: month.accounts_engaged ?? null,
+          totalInteractions: month.total_interactions ?? null,
+          profileLinksTaps: month.profile_links_taps ?? null,
+          measuredAt: nowIso(),
+        },
+      }),
     });
     return { followers: profile.followers_count ?? null };
   }

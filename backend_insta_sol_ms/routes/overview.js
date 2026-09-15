@@ -43,6 +43,15 @@ export function createOverviewRouter({ db = defaultDb } = {}) {
       );
       const series = mergeSeries(snapshotSets.flat(), recentEnquiries);
 
+      // Meta's own 30-day totals once a profile sync has stored them. Reach is
+      // unique accounts, so summing the daily series would overcount it.
+      const live = accounts.filter((a) => a.status !== 'disconnected');
+      const measured = days === DEFAULT_DAYS ? live.filter((a) => a.insights30d) : [];
+      const total = (key) =>
+        measured.length > 0
+          ? measured.reduce((sum, a) => sum + (a.insights30d[key] || 0), 0)
+          : series.reduce((sum, p) => sum + (p[key] || 0), 0);
+
       return res.json({
         counters: {
           accounts: accounts.filter((a) => a.status === 'connected').length,
@@ -53,10 +62,11 @@ export function createOverviewRouter({ db = defaultDb } = {}) {
           newEnquiries: recentEnquiries.filter((e) => e.status === 'new').length,
           threads: conversations.length,
           unansweredThreads: conversations.filter((t) => t.unanswered).length,
-          followers: accounts
-            .filter((a) => a.status !== 'disconnected')
-            .reduce((sum, a) => sum + (a.followersCount || 0), 0),
-          reach: series.reduce((sum, p) => sum + (p.reach || 0), 0),
+          followers: live.reduce((sum, a) => sum + (a.followersCount || 0), 0),
+          reach: total('reach'),
+          views: total('views'),
+          accountsEngaged: total('accountsEngaged'),
+          totalInteractions: total('totalInteractions'),
         },
         accounts: accounts.map((a) => publicAccount(a)),
         series,

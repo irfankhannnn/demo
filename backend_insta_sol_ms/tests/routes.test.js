@@ -127,15 +127,17 @@ test('GET /accounts never returns a token, and only shows the caller\'s tenant',
   );
 });
 
-test('POST /accounts/:id/sync pulls DMs now; DELETE disconnects; unknown ids are 404', async () => {
+test('POST /accounts/:id/sync refreshes everything now; DELETE disconnects; unknown ids are 404', async () => {
   await withBoot(async ({ app, service, ig, db }) => {
     await connectTestAccount(service);
     ig.receiveMessage(RAHUL, 'Is it available?');
 
     const sync = await app.request(`${BASE}/accounts/${BUSINESS_IG_ID}/sync`, { method: 'POST' });
     assert.equal(sync.status, 200);
-    assert.equal(sync.body.summary.jobs.conversations, 1);
-    assert.equal(sync.body.summary.jobs.analysis, 1);
+    for (const job of ['profile', 'conversations', 'media', 'comments', 'analysis']) {
+      assert.equal(sync.body.summary.jobs[job], 1, job);
+    }
+    assert.equal(sync.body.account.insights30d.reach, 41000);
     assert.ok(await db.getThread(TENANT, `${BUSINESS_IG_ID}_${RAHUL.id}`));
 
     assert.equal((await app.request(`${BASE}/accounts/nope/sync`, { method: 'POST' })).status, 404);
@@ -355,17 +357,23 @@ test('GET /overview counts followers, conversations and enquiries into one serie
   await withBoot(async (ctx) => {
     await withConversation(ctx);
     await ctx.service.analysePendingThreads(await ctx.db.getAccount(TENANT, BUSINESS_IG_ID));
+    await ctx.service.syncProfile(await ctx.db.getAccount(TENANT, BUSINESS_IG_ID));
 
     const res = await ctx.app.request(`${BASE}/overview`);
     assert.equal(res.status, 200);
     assert.equal(res.body.counters.accounts, 1);
     assert.equal(res.body.counters.followers, 1520);
+    // Counters use Meta's 30-day totals; the series keeps the daily values.
+    assert.equal(res.body.counters.reach, 41000);
+    assert.equal(res.body.counters.views, 260000);
+    assert.equal(res.body.counters.accountsEngaged, 2100);
     assert.equal(res.body.counters.threads, 1);
     assert.equal(res.body.counters.unansweredThreads, 1);
     assert.equal(res.body.counters.enquiries, 1);
     assert.equal(res.body.counters.hotEnquiries, 1);
     const today = res.body.series.find((p) => p.date === toDateKey());
     assert.equal(today.followers, 1520);
+    assert.equal(today.reach, 5000);
     assert.equal(today.enquiries, 1);
     assert.ok(!JSON.stringify(res.body).includes('tokenCiphertext'));
   });

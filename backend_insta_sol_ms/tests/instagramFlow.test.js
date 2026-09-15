@@ -53,6 +53,38 @@ test('when comment webhooks need Advanced Access, messages are still subscribed 
   assert.deepEqual(ctx.ig.state.subscriptions, [['messages']]);
 });
 
+test('a profile sync stores the day for the chart and Meta\'s 30-day totals for the counters', async () => {
+  const ctx = setup();
+  const account = await connected(ctx);
+  await ctx.service.syncProfile(account);
+
+  const stored = await ctx.db.getAccount(TENANT, BUSINESS_IG_ID);
+  assert.equal(stored.insights30d.reach, 41000);
+  assert.equal(stored.insights30d.views, 260000);
+  assert.equal(stored.insights30d.accountsEngaged, 2100);
+  const [snapshot] = await ctx.db.listAccountSnapshots(TENANT, BUSINESS_IG_ID, { fromDate: '2000-01-01' });
+  assert.equal(snapshot.reach, 5000);
+});
+
+test('reels are measured whatever their age, and comments are recorded even without keyword rules', async () => {
+  const ctx = setup();
+  const account = await connected(ctx);
+  const iso = (ms) => new Date(ms).toISOString().replace('Z', '+0000');
+  ctx.ig.addMedia({ id: 'media_old', caption: 'Bhandup 1BHK', media_type: 'VIDEO', media_product_type: 'REELS', permalink: 'https://instagram.com/reel/old', timestamp: iso(ctx.clock() - 90 * DAY), comments_count: 2, like_count: 129 });
+  await ctx.service.syncMedia(account);
+  const [media] = await ctx.db.listMedia(TENANT);
+  assert.equal(media.metrics.views, 1200);
+  assert.equal(media.metrics.saved, 3);
+
+  ctx.ig.addComment('media_old', { id: 'c_new', text: 'rate?', timestamp: iso(ctx.clock()), from: { id: '901', username: 'asker' } });
+  ctx.ig.addComment('media_old', { id: 'c_old', text: 'nice', timestamp: iso(ctx.clock() - 20 * DAY), from: { id: '902', username: 'old.fan' } });
+  assert.deepEqual(await ctx.service.syncComments(account), { media: 1, seen: 1, acted: 0 });
+  assert.equal((await ctx.db.getComment(TENANT, 'c_new')).status, 'no_rule');
+  assert.equal((await ctx.db.getComment(TENANT, 'c_old')).status, 'no_rule');
+  assert.equal((await ctx.db.getThread(TENANT, `${BUSINESS_IG_ID}_902`)).sourceMediaId, 'media_old');
+  assert.equal(ctx.ig.state.sent.length, 0);
+});
+
 test('an Instagram account already connected to another workspace cannot be taken over', async () => {
   const ctx = setup();
   await connectTestAccount(ctx.service, OTHER_TENANT);

@@ -48,14 +48,16 @@ export function createAccountsRouter({ db = defaultDb, service }) {
         return res.status(409).json({ error: 'Conflict', details: 'Reconnect this Instagram account before syncing' });
       }
 
-      // API Gateway gives a request 29 seconds, so a manual sync runs the jobs
-      // a person is waiting on. Media and comments stay with the worker.
+      // Refreshes everything the console shows. API Gateway gives a request 29
+      // seconds, so no new job starts after 20; whatever is left runs on the
+      // worker's next pass.
       const summary = await runScheduledJobs({
         db,
         service,
         onlyAccount: { tenantId: req.tenantId, igUserId: account.igUserId },
         force: true,
-        jobNames: account.lastProfileSyncAt ? ['conversations', 'analysis'] : ['profile', 'conversations', 'analysis'],
+        jobNames: ['profile', 'conversations', 'media', 'comments', 'analysis'],
+        timeBudgetMs: 20_000,
       });
       const fresh = await db.getAccount(req.tenantId, account.igUserId);
       return res.json({ account: publicAccount(fresh), summary });

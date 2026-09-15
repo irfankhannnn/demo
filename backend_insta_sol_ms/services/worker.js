@@ -32,6 +32,7 @@ function isDue(lastAt, everyMinutes, now) {
  * @param {{tenantId: string, igUserId: string}} [opts.onlyAccount] - run for one account (manual sync)
  * @param {boolean} [opts.force] - ignore job clocks
  * @param {string[]} [opts.jobNames] - run only these jobs
+ * @param {number} [opts.timeBudgetMs] - stop starting jobs after this long (defaults to the worker's budget)
  */
 export async function runScheduledJobs({
   db = defaultDb,
@@ -40,8 +41,10 @@ export async function runScheduledJobs({
   onlyAccount = null,
   force = false,
   jobNames = null,
+  timeBudgetMs = null,
 } = {}) {
   const cfg = getConfig();
+  const budgetMs = timeBudgetMs ?? cfg.worker.timeBudgetMs;
   const started = clock();
   const summary = { accounts: 0, deferred: 0, jobs: {}, errors: [] };
 
@@ -63,13 +66,14 @@ export async function runScheduledJobs({
     { name: 'refresh', every: 12 * 60, clockField: 'lastTokenCheckAt', run: (a) => svc.refreshTokenIfDue(a) },
     { name: 'profile', every: cfg.worker.profileEveryMinutes, clockField: 'lastProfileSyncAt', run: (a) => svc.syncProfile(a) },
     { name: 'conversations', every: cfg.worker.conversationsEveryMinutes, clockField: 'lastConversationsSyncAt', run: (a) => svc.syncConversations(a) },
-    { name: 'analysis', every: 0, clockField: null, run: (a) => svc.analysePendingThreads(a) },
     { name: 'media', every: cfg.worker.mediaEveryMinutes, clockField: 'lastMediaSyncAt', run: (a) => svc.syncMedia(a) },
     { name: 'comments', every: cfg.worker.commentsEveryMinutes, clockField: 'lastCommentsSyncAt', run: (a) => svc.syncComments(a) },
+    // Last, so it also scores threads that comments opened in this pass.
+    { name: 'analysis', every: 0, clockField: null, run: (a) => svc.analysePendingThreads(a) },
   ];
 
   for (const ref of refs) {
-    if (clock() - started > cfg.worker.timeBudgetMs) {
+    if (clock() - started > budgetMs) {
       summary.deferred += 1;
       continue;
     }
@@ -79,7 +83,7 @@ export async function runScheduledJobs({
     summary.accounts += 1;
 
     for (const job of jobs) {
-      if (clock() - started > cfg.worker.timeBudgetMs) break;
+      if (clock() - started > budgetMs) break;
       if (jobNames && !jobNames.includes(job.name)) continue;
       if (!force && job.clockField && !isDue(account[job.clockField], job.every, clock())) continue;
 

@@ -272,8 +272,10 @@ export function createInstagramApi({ fetchImpl } = {}) {
       return this.getInsights(token, `/${assertId(mediaId, 'mediaId')}/insights`, MEDIA_METRICS);
     },
 
-    getAccountInsights(token) {
-      return this.getInsights(token, '/me/insights', ACCOUNT_METRICS, { period: 'day', metric_type: 'total_value' });
+    // No window returns the last day; since/until (unix seconds) return a total
+    // over that range, which Meta caps at 30 days.
+    getAccountInsights(token, { since, until } = {}) {
+      return this.getInsights(token, '/me/insights', ACCOUNT_METRICS, { period: 'day', metric_type: 'total_value', since, until });
     },
   };
 }

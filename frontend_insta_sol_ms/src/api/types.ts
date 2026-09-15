@@ -65,6 +65,15 @@ export interface InstagramAccount {
   followersCount?: number | null;
   followsCount?: number | null;
   mediaCount?: number | null;
+  /** Meta's totals for the last 30 days, from the latest profile sync. */
+  insights30d?: {
+    reach?: number | null;
+    views?: number | null;
+    accountsEngaged?: number | null;
+    totalInteractions?: number | null;
+    profileLinksTaps?: number | null;
+    measuredAt?: string;
+  } | null;
   status: AccountStatus;
   tokenExpiresAt?: string | null;
   tokenExpiringSoon?: boolean | null;
@@ -118,7 +127,11 @@ export interface OverviewCounters {
   unansweredThreads?: number;
   threads?: number;
   followers?: number;
+  /** Last 30 days. Reach is unique accounts. */
   reach?: number;
+  views?: number;
+  accountsEngaged?: number;
+  totalInteractions?: number;
   media?: number;
 }
 

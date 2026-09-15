@@ -155,8 +155,12 @@ export function createFakeInstagram({ now = () => Date.now() } = {}) {
       return { values: { views: 1200, reach: 900, likes: 40, comments: 6, saved: 3, shares: 2, total_interactions: 51 }, missing: [] };
     },
 
-    async getAccountInsights(token) {
+    async getAccountInsights(token, window) {
       requireToken(token);
+      // With a since/until window Meta returns the total over that range.
+      if (window?.since) {
+        return { values: { reach: 41000, views: 260000, accounts_engaged: 2100, total_interactions: 5200, profile_links_taps: 90 }, missing: [] };
+      }
       return { values: { reach: 5000, views: 9000, accounts_engaged: 300, total_interactions: 420, profile_links_taps: 12 }, missing: [] };
     },
   };

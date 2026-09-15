@@ -26,7 +26,11 @@ const LIMIT = 50;
 interface Scored {
   media: Media;
   views: number;
+  reach: number;
+  likes: number;
   comments: number;
+  saved: number;
+  shares: number;
   dms: number;
   enquiries: number;
   hot: number;
@@ -43,7 +47,11 @@ function score(items: Media[]): Scored[] {
     return {
       media,
       views,
+      reach: media.metrics?.reach ?? 0,
+      likes: media.metrics?.likes ?? 0,
       comments: media.commentCount ?? media.metrics?.comments ?? 0,
+      saved: media.metrics?.saved ?? 0,
+      shares: media.metrics?.shares ?? 0,
       dms: media.dmCount ?? 0,
       enquiries,
       hot: media.hotCount ?? 0,
@@ -95,8 +103,16 @@ export default function Reels() {
       switch (sort.key) {
         case 'views':
           return row.views;
+        case 'reach':
+          return row.reach;
+        case 'likes':
+          return row.likes;
         case 'comments':
           return row.comments;
+        case 'saved':
+          return row.saved;
+        case 'shares':
+          return row.shares;
         case 'dms':
           return row.dms;
         case 'hot':
@@ -153,12 +169,48 @@ export default function Reels() {
       ),
     },
     {
+      key: 'reach',
+      header: 'Reach',
+      align: 'right',
+      sortable: true,
+      hideBelow: 'lg',
+      render: (row) => (
+        <span className="tabular-nums" title={formatNumber(row.reach)}>
+          {formatCompact(row.reach)}
+        </span>
+      ),
+    },
+    {
+      key: 'likes',
+      header: 'Likes',
+      align: 'right',
+      sortable: true,
+      hideBelow: 'md',
+      render: (row) => <span className="tabular-nums">{formatNumber(row.likes)}</span>,
+    },
+    {
       key: 'comments',
       header: 'Comments',
       align: 'right',
       sortable: true,
       hideBelow: 'lg',
       render: (row) => <span className="tabular-nums">{formatNumber(row.comments)}</span>,
+    },
+    {
+      key: 'saved',
+      header: 'Saves',
+      align: 'right',
+      sortable: true,
+      hideBelow: 'lg',
+      render: (row) => <span className="tabular-nums">{formatNumber(row.saved)}</span>,
+    },
+    {
+      key: 'shares',
+      header: 'Shares',
+      align: 'right',
+      sortable: true,
+      hideBelow: 'lg',
+      render: (row) => <span className="tabular-nums">{formatNumber(row.shares)}</span>,
     },
     {
       key: 'dms',
