@@ -136,6 +136,18 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
   return authState === 'authenticated' ? children : <Navigate to="/login" replace />;
 };
 
+/**
+ * The Instagram console is a separate app served from /insta/. CloudFront only
+ * routes /insta/* to it, so a bare /insta lands here; hand the browser over
+ * with a full navigation rather than the CRM fallback to /crm.
+ */
+function InstaConsoleRedirect() {
+  useEffect(() => {
+    window.location.replace('/insta/');
+  }, []);
+  return null;
+}
+
 function App() {
   const [authState, setAuthState] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading');
 
@@ -477,6 +489,8 @@ function App() {
             <Route path="/crm/call-recordings" element={<ProtectedRoute authState={authState}><CallRecordings /></ProtectedRoute>} />
             <Route path="/crm/ai-calling" element={<ProtectedRoute authState={authState}><AICalling /></ProtectedRoute>} />
             <Route path="/crm/agency-policies" element={<ProtectedRoute authState={authState}><AgencyPolicies /></ProtectedRoute>} />
+
+            <Route path="/insta" element={<InstaConsoleRedirect />} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/crm" replace />} />
