@@ -18,9 +18,12 @@
       </div>
     </div>
     <div class="header-meta" id="headerMeta"></div>
+    <div class="live-wrap" id="liveBadge"></div>
   </div>
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true"  data-panel="pipeline">Pipeline</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="requirements">Requirements</button>
+    <button class="tab" role="tab" aria-selected="false" data-panel="sourcing">Sourcing (Sameer)</button>
     <button class="tab" role="tab" aria-selected="false" data-panel="activity">Activity</button>
     <button class="tab" role="tab" aria-selected="false" data-panel="history">Change history</button>
     <button class="tab" role="tab" aria-selected="false" data-panel="guide">Data guide</button>
@@ -63,6 +66,86 @@
           <tbody id="leadBody"></tbody>
         </table>
       </div>
+    </div>
+  </section>
+
+  <!-- ========================== REQUIREMENTS =========================== -->
+  <section class="panel" id="panel-requirements" hidden>
+    <p class="section-intro">
+      What buyers and tenants are actually asking for, pulled straight from the
+      workbook's <strong>locality</strong>, <strong>city</strong>,
+      <strong>building_name</strong>, <strong>budget</strong> and
+      <strong>units_required</strong> columns &mdash; nothing here is guessed.
+      A field that is blank has simply never been said; it fills in the next time
+      that lead is analysed from a fresh export or handled in a live chat.
+    </p>
+
+    <div class="kpi-grid" id="reqKpiGrid"></div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head">
+        <div>
+          <h2>Consolidated requirement list</h2>
+          <p>One line per distinct area + deal combination, with how many leads want it</p>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="plain" id="reqGroupTable"></table></div>
+    </div>
+
+    <div class="req-split">
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Demand by area</h2><p>Locality as the lead said it</p></div>
+        </div>
+        <div class="table-wrap"><table class="plain" id="reqAreaTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Demand by city</h2><p>Only when a city was actually named</p></div>
+        </div>
+        <div class="table-wrap"><table class="plain" id="reqCityTable"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Demand by building / society</h2><p>Only when a specific building was named</p></div>
+        </div>
+        <div class="table-wrap"><table class="plain" id="reqBuildingTable"></table></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div>
+          <h2>Full requirement list, one row per lead</h2>
+          <p id="reqListCount"></p>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="plain" id="reqListTable"></table></div>
+    </div>
+  </section>
+
+  <!-- ============================ SOURCING ============================= -->
+  <section class="panel" id="panel-sourcing" hidden>
+    <p class="section-intro">
+      Every requirement a property search could not fill, raised automatically as
+      <i class="info" data-tip="Written into sourcing_action_for_sameer by the live chat runner when a property search finds nothing. An export upsert only carries this forward, it never opens or closes a task on its own.">sourcing_action_for_sameer</i>.
+      This is Sameer's action list. Marking a task <strong>done</strong> or
+      <strong>dropped</strong> here writes straight back to the workbook and an
+      export re-run will not reopen it.
+    </p>
+
+    <div class="kpi-grid" id="sourcingKpiGrid"></div>
+
+    <div class="filter-bar">
+      <div class="chip-row" id="sourcingChips">
+        <span class="chip-label">Status</span>
+      </div>
+    </div>
+
+    <p class="result-count" id="sourcingCount"></p>
+
+    <div class="card">
+      <div class="table-wrap"><table class="plain" id="sourcingTable"></table></div>
     </div>
   </section>
 
@@ -177,6 +260,11 @@
             <h4>This page</h4>
             <p><code>build_dashboard_data.py</code> exports the workbook to <code>lead-dashboard-data.js</code>. This page only reads it.</p>
           </div>
+          <div class="step">
+            <div class="step-num">5</div>
+            <h4>Live conversation</h4>
+            <p><code>lead_desk_server.py</code> is the optional runner. Paste a lead's reply and it drafts the next DM, searches real inventory, and writes the exchange back on Save.</p>
+          </div>
         </div>
       </div>
 
@@ -253,8 +341,14 @@
       'Configuration as the lead stated it. Blank means never stated, it is not a guess.'],
     locality: ['Locality', 'free text', 'analyst',
       'Area or building as the lead said it, not normalised to a master list. Blank means never stated.'],
+    city: ['City', 'free text', 'analyst',
+      'The city the locality sits in, only when the lead or thread actually named it. Never inferred, so this is blank far more often than locality.'],
+    building_name: ['Building / society', 'free text', 'analyst',
+      'An actual society, project or building name mentioned by either side. Blank unless a specific one was named, not filled from a vague phrase.'],
     budget: ['Budget', 'free text', 'analyst',
       'Kept as the lead phrased it, for example "40k to 42k" or "5 to 10 lakh deposit", because the unit carries meaning. Deliberately not converted to a number.'],
+    units_required: ['Units required', 'free text, usually a small number', 'analyst',
+      'How many properties or units the lead wants, only when they actually said a number greater than one. Blank is treated as one property wanted.'],
     possession_timeline: ['Possession', 'free text', 'analyst',
       'When they need it. Often a date that has already passed, which is itself a signal the lead may be gone.'],
     requirement_complete: ['Requirement complete', 'computed enum: yes / no', 'computed',
@@ -273,6 +367,12 @@
       'yes needs all three: a mobile number, requirement_complete = yes, and a scheduled personal meeting. It marks the conversations that can leave the DM queue for phone or in-person handling.'],
     close_reason: ['Close reason', 'computed text', 'computed',
       'Either the rule that was satisfied, or the exact list of what is still missing.'],
+    sourcing_action_for_sameer: ['Sourcing task', 'text', 'computed',
+      'Raised automatically when a property search finds nothing for this lead. It states the configuration, locality, deal type and budget Sameer needs to source. It is written by the live chat runner, never by an export, so a re-run of the DM export will not wipe it.'],
+    sourcing_status: ['Sourcing status', 'enum: open / done / dropped / blank', 'you',
+      'Yours to set, either in Excel or from the buttons in this panel. Nothing else overwrites it: once you mark a task done, later runs leave it alone. Blank means no sourcing task has ever been raised for this lead.'],
+    sourcing_raised_on: ['Sourcing raised', 'date, YYYY-MM-DD', 'computed',
+      'When the sourcing task was first raised. Set once and not moved by later runs, so the age of an open task is real.'],
     conversation_start_date: ['First message', 'date, YYYY-MM-DD', 'parser',
       'Earliest dated message across every export processed. Blank when the thread carried no timestamp at all.'],
     conversation_end_date: ['Last message', 'date, YYYY-MM-DD', 'parser',
@@ -301,11 +401,15 @@
     ['Relative dates are resolved, not invented.', 'Instagram writes "Mon 18:50" with no date for the trailing week. Those resolve against the export file\'s modified date, and each message records which rule dated it. Some threads carry no timestamp at all and have blank dates.'],
     ['Budgets stay as text.', 'A budget is stored the way the lead said it because "20 lakh" as a deposit and "20k" as rent are different things. Do not sort on this column expecting numbers.'],
     ['Scores are a reading, not a calculation.', 'lead_score, lead_type and the summary come from a model reading the thread. The needs_review flag marks the ones where that reading could be wrong. Set manual_override once you know better.'],
-    ['This page is a snapshot.', 'It reads lead-dashboard-data.js, exported from the workbook. Re-run build_dashboard_data.py after every upsert to refresh it. The Excel file always wins.']
+    ['This page is a snapshot.', 'It reads lead-dashboard-data.js, exported from the workbook. Re-run build_dashboard_data.py after every upsert to refresh it. The Excel file always wins.'],
+    ['A drafted reply is a draft.', 'Read it before sending. The model is given the real matching properties and is told explicitly when there are none, so it will not invent a listing or a price, but it is still writing on your behalf and nothing is sent automatically.'],
+    ['An empty property search is not proof of nothing.', 'The CRM\'s semantic search returns an empty list rather than an error when its vector index has not been built for that environment, so the runner falls through to an exact-filter search before declaring no match, and names the path that answered.'],
+    ['The sourcing status is yours alone.', 'An export re-run carries the three sourcing columns forward untouched. Marking a task done will not be undone by processing another DM export.']
   ];
 
   var TABLE_COLUMNS = ['lead_name', 'lead_score', 'lead_type', 'requirement', 'mobile_number',
-                       'action_channel', 'next_action', 'conversation_end_date'];
+                       'action_channel', 'sourcing_action_for_sameer', 'next_action',
+                       'conversation_end_date'];
 
   /* ---------------------------------------------------------------------
      helpers
@@ -335,8 +439,19 @@
     return '<span class="channel channel-' + esc(c) + '"><span class="dot"></span>' + esc(c) + '</span>';
   }
 
+  function sourcingCell(lead) {
+    var task = esc(lead.sourcing_action_for_sameer || '');
+    var status = String(lead.sourcing_status || '').toLowerCase();
+    if (!task && !status) return '<span class="muted">none</span>';
+    var badge = status === 'done' ? '<span class="badge badge-yes">done</span>'
+              : status === 'dropped' ? '<span class="badge badge-no">dropped</span>'
+              : '<span class="badge badge-review">open for Sameer</span>';
+    return badge + (task ? '<div class="truncate-2 sourcing-text">' + task + '</div>' : '');
+  }
+
   function requirementText(lead) {
-    var parts = [lead.property_type, lead.deal_type, lead.locality, lead.budget]
+    var parts = [lead.property_type, lead.deal_type, lead.building_name || lead.locality,
+                 lead.city, lead.budget]
       .filter(function (p) { return p; });
     return parts.length ? parts.join(' · ') : '';
   }
@@ -366,6 +481,29 @@
     el('headerMeta').innerHTML = items.map(function (it) {
       return '<div><span>' + esc(it[0]) + '</span><strong>' + esc(it[1]) + '</strong></div>';
     }).join('');
+    renderLiveBadge();
+  }
+
+  function renderLiveBadge() {
+    var host = el('liveBadge');
+    if (!host) return;
+    if (!HEALTH) {
+      host.innerHTML = '<span class="live-badge off" title="Open this page from ' +
+        'the local runner to draft replies and search inventory">' +
+        '<i></i>read only</span>';
+      return;
+    }
+    var parts = [];
+    parts.push(HEALTH.gemini_configured
+      ? 'AI ' + esc(HEALTH.model || '')
+      : 'no AI key');
+    parts.push(HEALTH.crm_configured
+      ? 'CRM ' + esc(HEALTH.crm_mode)
+      : 'mock inventory');
+    var healthy = HEALTH.gemini_configured;
+    host.innerHTML = '<span class="live-badge ' + (healthy ? 'on' : 'warn') +
+      '" title="' + esc(HEALTH.inventory_source || '') + '"><i></i>' +
+      parts.join(' · ') + '</span>';
   }
 
   function countBy(field, value) {
@@ -386,6 +524,8 @@
       ['Mobile captured', withPhone, Math.round(withPhone / Math.max(leads.length, 1) * 100) + '% of all leads', 'is-brand', 'mobile_number'],
       ['Meetings set', meetings, 'A visit or office meeting was agreed', 'is-brand', 'meeting_schedule'],
       ['Ready to close DM', canClose, 'Number + full requirement + meeting', 'is-good', 'dm_can_be_closed'],
+      ['Sourcing open', countBy('sourcing_status', 'open'),
+       'Waiting on Sameer to find stock', 'is-warm', 'sourcing_status'],
       ['Needs review', review, 'The reading could be wrong', '', 'needs_review']
     ];
 
@@ -407,6 +547,9 @@
     can_close: ['Ready to close', function (l) { return l.dm_can_be_closed === 'yes'; }],
     has_meeting: ['Meeting set', function (l) { return !!l.meeting_schedule; }],
     needs_review: ['Needs review', function (l) { return l.needs_review === 'yes'; }],
+    sourcing_open: ['Sourcing open', function (l) {
+      return String(l.sourcing_status || '').toLowerCase() === 'open';
+    }],
     unanswered: ['Quiet 14+ days', function (l) { return Number(l.days_since_last_message) >= 14; }]
   };
 
@@ -431,7 +574,8 @@
         if (!FLAGS[state.flags[i]][1](l)) return false;
       }
       if (!q) return true;
-      return ['lead_name', 'lead_id', 'locality', 'summary', 'mobile_number', 'budget',
+      return ['lead_name', 'lead_id', 'locality', 'city', 'building_name', 'summary',
+              'mobile_number', 'budget',
               'property_type', 'next_action', 'notes'].some(function (f) {
         return String(l[f] || '').toLowerCase().indexOf(q) !== -1;
       });
@@ -472,6 +616,7 @@
           (l.requirement_complete === 'yes' ? ' <span class="badge badge-yes">complete</span>' : '') + '</td>' +
         '<td class="mono">' + (l.mobile_number ? esc(l.mobile_number) : '<span class="muted">none</span>') + '</td>' +
         '<td>' + channelCell(l.action_channel) + '</td>' +
+        '<td class="cell-sourcing">' + sourcingCell(l) + '</td>' +
         '<td class="cell-action"><div class="truncate-2">' + esc(l.next_action) + '</div></td>' +
         '<td class="mono">' + (l.conversation_end_date
             ? esc(fmtDate(l.conversation_end_date)) +
@@ -515,9 +660,236 @@
     return '<div class="timeline">' + html + '</div>';
   }
 
+  /* ---------------------------------------------------------------------
+     Live conversation. Paste what the lead replied, the runner extracts the
+     requirement, searches inventory, and drafts the next DM aimed at booking
+     a meeting. Nothing is written to the workbook until Save is pressed.
+     --------------------------------------------------------------------- */
+  var HEALTH = null;
+  var currentLeadId = null;
+
+  function chatSectionHtml(lead) {
+    if (!HEALTH || !HEALTH.gemini_configured) {
+      return '<div class="drawer-section"><h4>Continue the conversation</h4>' +
+        '<div class="offline-note">' +
+        (HEALTH
+          ? 'The runner is up but no Gemini key is set. Add GEMINI_API_KEY to ' +
+            '<code>.env</code> and restart it to draft replies here.'
+          : 'Live replies need the local runner. Start it with ' +
+            '<code>python scripts/lead_desk_server.py</code> and open the page ' +
+            'from the address it prints.') +
+        '</div></div>';
+    }
+    return '<div class="drawer-section chat-block">' +
+      '<h4>Continue the conversation' +
+      '<i class="info" tabindex="0" data-tip="Paste the lead\'s latest reply. The runner reads the whole thread, updates the requirement, searches real inventory and drafts the next message. The goal it is steering towards is a booked meeting.">i</i></h4>' +
+      '<textarea id="chatInput" class="chat-input" rows="3" ' +
+      'placeholder="Paste what the lead just replied, then press Draft next reply"></textarea>' +
+      '<div class="chat-actions">' +
+        '<button class="btn-primary" id="chatDraft">Draft next reply</button>' +
+        '<span class="chat-status" id="chatStatus"></span>' +
+      '</div>' +
+      '<div id="chatResult"></div>' +
+    '</div>';
+  }
+
+  function sourcingSectionHtml(lead) {
+    var status = String(lead.sourcing_status || '').toLowerCase();
+    var task = lead.sourcing_action_for_sameer || '';
+    if (!task && !status) {
+      return '<p class="prose muted-note">No sourcing task. One is raised ' +
+        'automatically when a property search finds nothing for this ' +
+        'requirement.</p>';
+    }
+    var buttons = HEALTH ? '<div class="chat-actions">' +
+      ['open', 'done', 'dropped'].map(function (value) {
+        return '<button class="chip' + (status === value ? ' is-on' : '') +
+               '" data-sourcing="' + value + '">' + value + '</button>';
+      }).join('') +
+      '<span class="chat-status" id="sourcingStatus"></span></div>'
+      : '<p class="muted-note">Start the runner to change this status here, ' +
+        'or edit the column in Excel.</p>';
+    return '<div class="sourcing-box">' +
+      '<div class="sourcing-head">Status: <strong>' + esc(status || 'not raised') +
+      '</strong>' + (lead.sourcing_raised_on
+        ? ' <span class="muted">raised ' + esc(fmtDate(lead.sourcing_raised_on)) +
+          '</span>' : '') + '</div>' +
+      (task ? '<p class="prose">' + esc(task) + '</p>' : '') +
+      '</div>' + buttons;
+  }
+
+  function renderChatResult(data) {
+    var matches = data.matches || [];
+    var propertyHtml = matches.length
+      ? '<div class="prop-list">' + matches.map(function (p) {
+          return '<div class="prop"><div class="prop-title">' +
+            esc(p.title || p.id) + '</div>' +
+            '<div class="prop-meta">' +
+            [p.config ? esc(p.config) + ' BHK' : '', esc(p.society), esc(p.locality),
+             esc(p.headline)].filter(Boolean).join(' · ') + '</div>' +
+            '<div class="prop-why">matched on ' + esc(p.matched_on) + '</div></div>';
+        }).join('') + '</div>'
+      : '<div class="no-match">No property in inventory fits this requirement. ' +
+        'A sourcing task for Sameer is drafted below.</div>';
+
+    var extracted = data.extracted || {};
+    var learned = ['deal_type', 'property_type', 'locality', 'budget',
+                   'possession_timeline', 'mobile_number', 'meeting_schedule']
+      .filter(function (f) { return extracted[f]; })
+      .map(function (f) {
+        return '<span class="pill"><b>' + esc(labelOf(f)) + ':</b> ' +
+               esc(extracted[f]) + '</span>';
+      }).join('');
+
+    var notes = (data.search_notes || []).concat(
+      data.search_error ? ['property lookup failed: ' + data.search_error] : []);
+
+    el('chatResult').innerHTML =
+      '<div class="chat-out">' +
+        '<div class="chat-goal">Aiming for: ' + esc(data.goal_this_turn || '') + '</div>' +
+        '<div class="reply-box" id="draftReply">' + esc(data.reply || '') + '</div>' +
+        '<div class="chat-actions">' +
+          '<button class="btn-copy" id="copyDraft">Copy reply</button>' +
+          '<button class="btn-primary" id="saveDraft">Save to workbook</button>' +
+          '<span class="chat-status" id="saveStatus"></span>' +
+        '</div>' +
+        (data.meeting_proposal
+          ? '<div class="meeting-note"><b>Meeting being proposed:</b> ' +
+            esc(data.meeting_proposal) + '</div>' : '') +
+        '<h5 class="chat-sub">Inventory checked' +
+          '<i class="info" tabindex="0" data-tip="Where the property data came from. The embeddings path is the CRM\'s own semantic search over Bedrock Titan vectors. If that is unavailable the runner falls back to exact filters, then to the local mock inventory, and says so here.">i</i></h5>' +
+        '<div class="source-line">' + esc(data.match_source || '') +
+          ' · ' + esc(String(data.inventory_size || 0)) + ' records considered</div>' +
+        propertyHtml +
+        (notes.length ? '<div class="search-notes">' + notes.map(esc).join('<br>') +
+          '</div>' : '') +
+        (data.sourcing_action_for_sameer
+          ? '<h5 class="chat-sub">Sourcing task drafted for Sameer</h5>' +
+            '<div class="sourcing-box">' + esc(data.sourcing_action_for_sameer) +
+            '</div>' : '') +
+        (learned ? '<h5 class="chat-sub">Read from this reply</h5>' +
+          '<div class="pill-row">' + learned + '</div>' : '') +
+        '<div class="model-line">drafted by ' + esc(data.model || '') + '</div>' +
+      '</div>';
+
+    el('copyDraft').addEventListener('click', function () {
+      copyText(data.reply, el('copyDraft'), 'Copy reply');
+    });
+    el('saveDraft').addEventListener('click', function () {
+      saveExchange(data);
+    });
+  }
+
+  function saveExchange(data) {
+    var button = el('saveDraft');
+    var status = el('saveStatus');
+    button.disabled = true;
+    status.textContent = 'saving...';
+    fetch('/api/chat/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lead_id: data.lead_id,
+        lead_message: data.lead_message || '',
+        reply: data.reply,
+        extracted: data.extracted,
+        next_action: data.next_action,
+        meeting_proposal: data.meeting_proposal,
+        sourcing_action_for_sameer: data.sourcing_action_for_sameer
+      })
+    }).then(function (r) { return r.json(); }).then(function (out) {
+      if (out.error) {
+        status.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
+        button.disabled = false;
+        return;
+      }
+      status.innerHTML = '<span class="ok">saved, ' + out.changes +
+        ' field(s) updated. Reload to see it in the table.</span>';
+    }).catch(function (err) {
+      status.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
+      button.disabled = false;
+    });
+  }
+
+  function bindChatSection(lead) {
+    var draft = el('chatDraft');
+    if (draft) {
+      draft.addEventListener('click', function () {
+        var message = el('chatInput').value.trim();
+        var status = el('chatStatus');
+        draft.disabled = true;
+        status.textContent = 'reading the thread, searching inventory...';
+        el('chatResult').innerHTML = '';
+        fetch('/api/chat/reply', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: lead.lead_id, message: message })
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          draft.disabled = false;
+          if (data.error) {
+            status.innerHTML = '<span class="err">' + esc(data.error) + '</span>';
+            return;
+          }
+          status.textContent = '';
+          data.lead_message = message;
+          renderChatResult(data);
+        }).catch(function (err) {
+          draft.disabled = false;
+          status.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
+        });
+      });
+    }
+
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-sourcing]'), function (button) {
+        button.addEventListener('click', function () {
+          var status = el('sourcingStatus');
+          status.textContent = 'saving...';
+          fetch('/api/sourcing/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lead_id: lead.lead_id,
+                                   status: button.dataset.sourcing })
+          }).then(function (r) { return r.json(); }).then(function (out) {
+            if (out.error) {
+              status.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
+              return;
+            }
+            Array.prototype.forEach.call(
+              document.querySelectorAll('[data-sourcing]'), function (other) {
+                other.classList.toggle('is-on',
+                  other.dataset.sourcing === button.dataset.sourcing);
+              });
+            lead.sourcing_status = button.dataset.sourcing;
+            status.innerHTML = '<span class="ok">set to ' +
+              esc(button.dataset.sourcing) + '</span>';
+          });
+        });
+      });
+  }
+
+  function copyText(text, button, label) {
+    var done = function () {
+      button.textContent = 'Copied';
+      button.classList.add('done');
+      setTimeout(function () {
+        button.textContent = label;
+        button.classList.remove('done');
+      }, 1600);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {
+        fallbackCopy(text, done);
+      });
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
   function openLead(id) {
     var lead = leads.filter(function (l) { return l.lead_id === id; })[0];
     if (!lead) return;
+    currentLeadId = id;
 
     el('dName').textContent = lead.lead_name || lead.lead_id;
     el('dHandle').innerHTML = '<a href="' + esc(lead.instagram_link) + '" target="_blank" rel="noopener">@' +
@@ -545,6 +917,11 @@
           '<button class="btn-copy" id="copyReply">Copy reply</button></div>'
         : '') +
 
+      chatSectionHtml(lead) +
+
+      '<div class="drawer-section"><h4>Sourcing task for Sameer' +
+        tip('sourcing_action_for_sameer') + '</h4>' + sourcingSectionHtml(lead) + '</div>' +
+
       '<div class="drawer-section"><h4>Can this DM be closed?' + tip('dm_can_be_closed') + '</h4>' +
         '<div class="close-banner ' + (canClose ? 'can' : 'cannot') + '">' +
         '<strong>' + (canClose ? 'Yes, ready to hand off' : 'Not yet') + '</strong>' +
@@ -554,7 +931,10 @@
         field('deal_type', lead.deal_type) +
         field('property_type', lead.property_type) +
         field('locality', lead.locality) +
+        field('city', lead.city) +
+        field('building_name', lead.building_name) +
         field('budget', lead.budget) +
+        field('units_required', lead.units_required) +
         field('possession_timeline', lead.possession_timeline) +
         field('requirement_complete', lead.requirement_complete) +
       '</div></div>' +
@@ -597,27 +977,16 @@
     var copyBtn = el('copyReply');
     if (copyBtn) {
       copyBtn.addEventListener('click', function () {
-        var text = lead.suggested_reply;
-        var done = function () {
-          copyBtn.textContent = 'Copied';
-          copyBtn.classList.add('done');
-          setTimeout(function () {
-            copyBtn.textContent = 'Copy reply';
-            copyBtn.classList.remove('done');
-          }, 1600);
-        };
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
-        } else {
-          fallbackCopy(text, done);
-        }
+        copyText(lead.suggested_reply, copyBtn, 'Copy reply');
       });
     }
+    bindChatSection(lead);
 
     el('drawer').classList.add('open');
     el('drawer').setAttribute('aria-hidden', 'false');
     el('scrim').classList.add('open');
     el('drawerBody').scrollTop = 0;
+    document.body.classList.add('drawer-locked');
   }
 
   function fallbackCopy(text, done) {
@@ -635,6 +1004,358 @@
     el('drawer').classList.remove('open');
     el('drawer').setAttribute('aria-hidden', 'true');
     el('scrim').classList.remove('open');
+    document.body.classList.remove('drawer-locked');
+  }
+
+  /* ---------------------------------------------------------------------
+     requirements: what buyers/tenants are asking for, and demand counts by
+     area, city and building. Every number here is derived from leads[]
+     already loaded above, straight from the workbook's own columns.
+     --------------------------------------------------------------------- */
+  function dealCategory(lead) {
+    var dt = String(lead.deal_type || '').toLowerCase();
+    if (dt === 'buy') return 'sale';
+    if (dt === 'rent' || dt === 'heavy_deposit') return 'rent';
+    var lt = String(lead.lead_type || '').toLowerCase();
+    if (lt === 'buyer') return 'sale';
+    if (lt === 'tenant') return 'rent';
+    return '';
+  }
+
+  function isDemandLead(lead) {
+    var lt = String(lead.lead_type || '').toLowerCase();
+    return lt === 'buyer' || lt === 'tenant';
+  }
+
+  function hasRequirementSignal(lead) {
+    return !!(lead.property_type || lead.locality || lead.budget ||
+              lead.city || lead.building_name);
+  }
+
+  function requirementLeads() {
+    return leads.filter(function (l) { return isDemandLead(l) && hasRequirementSignal(l); });
+  }
+
+  function unitsFor(lead) {
+    var n = parseInt(lead.units_required, 10);
+    return (!n || n < 1) ? 1 : n;
+  }
+
+  function computeRequirementGroups() {
+    var groups = {};
+    requirementLeads().forEach(function (l) {
+      var category = dealCategory(l);
+      if (!category) return;
+      var locDisplay = (l.locality || '').trim() || 'Area not stated';
+      var key = locDisplay.toLowerCase() + '|' + category;
+      var g = groups[key] || (groups[key] = {
+        locality: locDisplay, category: category,
+        configs: {}, budgets: {}, cities: {}, leads: []
+      });
+      g.leads.push(l);
+      if (l.property_type) g.configs[l.property_type] = true;
+      if (l.budget) g.budgets[l.budget] = true;
+      if (l.city) g.cities[l.city] = true;
+    });
+    return Object.keys(groups).map(function (k) { return groups[k]; })
+      .sort(function (a, b) { return b.leads.length - a.leads.length; });
+  }
+
+  function groupSentence(g) {
+    var units = g.leads.reduce(function (sum, l) { return sum + unitsFor(l); }, 0);
+    var people = g.leads.length;
+    var configs = Object.keys(g.configs);
+    var configText = configs.length === 1 ? configs[0]
+                    : configs.length > 1 ? 'mixed configurations' : '';
+    var budgets = Object.keys(g.budgets);
+    var budgetText = budgets.length
+      ? 'budget ' + budgets.slice(0, 4).join(', ') +
+        (budgets.length > 4 ? ' (+' + (budgets.length - 4) + ' more)' : '')
+      : 'budget not stated';
+    var cities = Object.keys(g.cities);
+    var placeText = esc(g.locality) + (cities.length ? ', ' + esc(cities.join(' / ')) : '');
+    var unitWord = units === 1 ? 'property' : 'properties';
+    var actionWord = g.category === 'sale' ? 'for sale' : 'for rent';
+    var peopleText = people + ' lead' + (people === 1 ? '' : 's') +
+      (people !== units ? ', ' + units + ' units total' : '');
+    return '<strong>' + units + ' ' + esc(unitWord) + ' ' + esc(actionWord) +
+      '</strong> required in <strong>' + placeText + '</strong>' +
+      (configText ? ' &middot; ' + esc(configText) : '') +
+      ' &mdash; ' + esc(budgetText) +
+      ' <span class="muted">(' + esc(peopleText) + ')</span>';
+  }
+
+  function renderReqGroups() {
+    var groups = computeRequirementGroups();
+    if (!groups.length) {
+      el('reqGroupTable').innerHTML = '<tbody><tr><td>' +
+        '<div class="empty-state">No requirements captured yet.</div></td></tr></tbody>';
+      return;
+    }
+    var head = '<thead><tr><th>Requirement</th><th>Category</th></tr></thead>';
+    var body = '<tbody>' + groups.map(function (g) {
+      var chips = g.leads.map(function (l) {
+        return '<span class="req-lead-chip" data-id="' + esc(l.lead_id) + '">' +
+          esc(l.lead_name || l.lead_id) + '</span>';
+      }).join('');
+      return '<tr><td>' + groupSentence(g) +
+        '<details class="req-group-toggle"><summary>' + g.leads.length +
+        ' lead' + (g.leads.length === 1 ? '' : 's') + '</summary>' +
+        '<div class="req-lead-chips">' + chips + '</div></details></td>' +
+        '<td><span class="badge ' + (g.category === 'sale' ? 'badge-type' : 'badge-neutral') +
+        '">' + esc(g.category) + '</span></td></tr>';
+    }).join('') + '</tbody>';
+    el('reqGroupTable').innerHTML = head + body;
+  }
+
+  function computeDemandBy(getter, blankLabel) {
+    var map = {};
+    requirementLeads().forEach(function (l) {
+      var category = dealCategory(l);
+      if (!category) return;
+      var key = (getter(l) || '').trim();
+      if (!key) {
+        if (!blankLabel) return;
+        key = blankLabel;
+      }
+      var bucket = map[key] || (map[key] = { label: key, sale: 0, rent: 0 });
+      bucket[category] += 1;
+    });
+    return Object.keys(map).map(function (k) { return map[k]; })
+      .sort(function (a, b) { return (b.sale + b.rent) - (a.sale + a.rent); });
+  }
+
+  function renderDemandTable(targetId, rows, labelHeader, emptyNote) {
+    if (!rows.length) {
+      el(targetId).innerHTML = '<tbody><tr><td><div class="empty-state">' +
+        esc(emptyNote) + '</div></td></tr></tbody>';
+      return;
+    }
+    var head = '<thead><tr><th>' + esc(labelHeader) +
+      '</th><th>Sale</th><th>Rent</th><th>Total</th></tr></thead>';
+    var body = '<tbody>' + rows.map(function (r) {
+      return '<tr><td>' + esc(r.label) + '</td><td>' + r.sale + '</td><td>' + r.rent +
+        '</td><td><strong>' + (r.sale + r.rent) + '</strong></td></tr>';
+    }).join('') + '</tbody>';
+    el(targetId).innerHTML = head + body;
+  }
+
+  function renderReqKpis() {
+    var rows = requirementLeads();
+    var sale = rows.filter(function (l) { return dealCategory(l) === 'sale'; }).length;
+    var rent = rows.filter(function (l) { return dealCategory(l) === 'rent'; }).length;
+    function distinct(field) {
+      var seen = {};
+      rows.forEach(function (l) { if (l[field]) seen[l[field].trim().toLowerCase()] = true; });
+      return Object.keys(seen).length;
+    }
+    var tiles = [
+      ['Requirements captured', rows.length, 'Buyers and tenants with something captured', ''],
+      ['Wanting to buy', sale, 'Sale-side demand', 'is-brand'],
+      ['Wanting to rent', rent, 'Rent-side demand, includes heavy deposit', 'is-warm'],
+      ['Distinct areas', distinct('locality'), 'As the lead phrased the locality', ''],
+      ['Cities named', distinct('city'), 'Only when actually stated', ''],
+      ['Buildings named', distinct('building_name'), 'Only when a specific one was named', '']
+    ];
+    el('reqKpiGrid').innerHTML = tiles.map(function (t) {
+      return '<div class="kpi ' + t[3] + '"><div class="kpi-label">' + esc(t[0]) + '</div>' +
+        '<div class="kpi-value">' + esc(t[1]) + '</div><div class="kpi-sub">' + esc(t[2]) +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderReqList() {
+    var rows = requirementLeads();
+    el('reqListCount').textContent = rows.length + ' lead' + (rows.length === 1 ? '' : 's') +
+      ' with a captured requirement, in the order the Leads sheet holds them.';
+    if (!rows.length) {
+      el('reqListTable').innerHTML = '<tbody><tr><td>' +
+        '<div class="empty-state">Nothing captured yet.</div></td></tr></tbody>';
+      return;
+    }
+    var notStated = '<span class="muted">not stated</span>';
+    var head = '<thead><tr><th>Lead</th><th>Deal</th><th>Configuration</th><th>Locality</th>' +
+      '<th>City</th><th>Building</th><th>Budget</th><th>Units</th><th>Score</th></tr></thead>';
+    var body = '<tbody>' + rows.map(function (l) {
+      return '<tr class="req-row" data-id="' + esc(l.lead_id) + '" tabindex="0">' +
+        '<td><div class="name">' + esc(l.lead_name || l.lead_id) + '</div>' +
+        '<div class="handle">@' + esc(l.lead_id) + '</div></td>' +
+        '<td><span class="badge ' + (dealCategory(l) === 'sale' ? 'badge-type' : 'badge-neutral') +
+        '">' + esc(dealCategory(l)) + '</span></td>' +
+        '<td>' + (l.property_type ? esc(l.property_type) : notStated) + '</td>' +
+        '<td>' + (l.locality ? esc(l.locality) : notStated) + '</td>' +
+        '<td>' + (l.city ? esc(l.city) : notStated) + '</td>' +
+        '<td>' + (l.building_name ? esc(l.building_name) : notStated) + '</td>' +
+        '<td>' + (l.budget ? esc(l.budget) : notStated) + '</td>' +
+        '<td>' + esc(unitsFor(l)) + '</td>' +
+        '<td>' + scoreBadge(l.lead_score) + '</td></tr>';
+    }).join('') + '</tbody>';
+    el('reqListTable').innerHTML = head + body;
+  }
+
+  function bindRequirementEvents() {
+    el('reqGroupTable').addEventListener('click', function (e) {
+      var chip = e.target.closest('.req-lead-chip');
+      if (chip) openLead(chip.dataset.id);
+    });
+    el('reqListTable').addEventListener('click', function (e) {
+      var row = e.target.closest('tr[data-id]');
+      if (row) openLead(row.dataset.id);
+    });
+    el('reqListTable').addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      var row = e.target.closest('tr[data-id]');
+      if (row) { e.preventDefault(); openLead(row.dataset.id); }
+    });
+  }
+
+  function renderRequirementsPanel() {
+    renderReqKpis();
+    renderReqGroups();
+    renderDemandTable('reqAreaTable', computeDemandBy(function (l) { return l.locality; },
+      'Area not stated'), 'Area', 'No requirements captured yet.');
+    renderDemandTable('reqCityTable', computeDemandBy(function (l) { return l.city; }, null),
+      'City', 'No city has been named yet. It fills in once a lead or a live chat states one explicitly.');
+    renderDemandTable('reqBuildingTable', computeDemandBy(function (l) { return l.building_name; }, null),
+      'Building / society', 'No specific building or society has been named yet.');
+    renderReqList();
+  }
+
+  /* ---------------------------------------------------------------------
+     sourcing: Sameer's action list, one row per open/done/dropped task.
+     --------------------------------------------------------------------- */
+  function sourcingLeads() {
+    return leads.filter(function (l) { return l.sourcing_action_for_sameer || l.sourcing_status; });
+  }
+
+  function daysSince(iso) {
+    if (!iso) return null;
+    var d = new Date(iso + 'T00:00:00');
+    if (isNaN(d)) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+
+  var sourcingState = { status: 'open' };
+
+  function visibleSourcing() {
+    var rows = sourcingLeads();
+    if (sourcingState.status === 'all') return rows;
+    return rows.filter(function (l) {
+      var s = String(l.sourcing_status || '').toLowerCase();
+      return sourcingState.status === 'open' ? (s === 'open' || !s) : s === sourcingState.status;
+    });
+  }
+
+  function renderSourcingKpis() {
+    var rows = sourcingLeads();
+    function count(s) {
+      return rows.filter(function (l) { return String(l.sourcing_status || '').toLowerCase() === s; }).length;
+    }
+    var stale = rows.filter(function (l) {
+      return String(l.sourcing_status || '').toLowerCase() === 'open' &&
+        (daysSince(l.sourcing_raised_on) || 0) >= 7;
+    }).length;
+    var tiles = [
+      ['Open tasks', count('open'), 'Waiting on Sameer to find stock', 'is-warm'],
+      ['Open 7+ days', stale, 'Getting old, worth a nudge', 'is-hot'],
+      ['Done', count('done'), 'Sourced and closed out', 'is-good'],
+      ['Dropped', count('dropped'), 'No longer being chased', '']
+    ];
+    el('sourcingKpiGrid').innerHTML = tiles.map(function (t) {
+      return '<div class="kpi ' + t[3] + '"><div class="kpi-label">' + esc(t[0]) + '</div>' +
+        '<div class="kpi-value">' + esc(t[1]) + '</div><div class="kpi-sub">' + esc(t[2]) +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderSourcingChips() {
+    var opts = [['open', 'Open'], ['done', 'Done'], ['dropped', 'Dropped'], ['all', 'All']];
+    el('sourcingChips').innerHTML = '<span class="chip-label">Status</span>' +
+      opts.map(function (o) {
+        return '<button class="chip' + (sourcingState.status === o[0] ? ' is-on' : '') +
+          '" data-status="' + o[0] + '" aria-pressed="' + (sourcingState.status === o[0]) +
+          '">' + esc(o[1]) + '</button>';
+      }).join('');
+  }
+
+  function renderSourcingTable() {
+    var rows = visibleSourcing().slice().sort(function (a, b) {
+      return (daysSince(b.sourcing_raised_on) || 0) - (daysSince(a.sourcing_raised_on) || 0);
+    });
+    el('sourcingCount').innerHTML = 'Showing <strong>' + rows.length + '</strong> of ' +
+      sourcingLeads().length + ' sourcing tasks.';
+    if (!rows.length) {
+      el('sourcingTable').innerHTML = '<tbody><tr><td>' +
+        '<div class="empty-state">No sourcing tasks match this filter.</div></td></tr></tbody>';
+      return;
+    }
+    var head = '<thead><tr><th>Lead</th><th>Score</th><th>Requirement</th>' +
+      '<th>Task for Sameer</th><th>Status</th><th>Raised</th></tr></thead>';
+    var body = '<tbody>' + rows.map(function (l) {
+      var status = String(l.sourcing_status || '').toLowerCase();
+      var age = daysSince(l.sourcing_raised_on);
+      var buttons = HEALTH ? ['open', 'done', 'dropped'].map(function (v) {
+        return '<button class="chip' + (status === v ? ' is-on' : '') +
+          '" data-sourcing-lead="' + esc(l.lead_id) + '" data-sourcing-value="' + v +
+          '">' + v + '</button>';
+      }).join('') + '<span class="chat-status" data-sourcing-status="' + esc(l.lead_id) + '"></span>'
+        : '<span class="muted-note">start the runner to change status here</span>';
+      return '<tr>' +
+        '<td class="cell-lead lead-link" data-id="' + esc(l.lead_id) + '"><div class="name">' +
+          esc(l.lead_name || l.lead_id) + '</div><div class="handle">@' + esc(l.lead_id) +
+          '</div></td>' +
+        '<td>' + scoreBadge(l.lead_score) + '</td>' +
+        '<td><div class="truncate-2">' + (requirementText(l) || '<span class="muted">nothing captured</span>') + '</div></td>' +
+        '<td><div class="truncate-2 sourcing-text">' + esc(l.sourcing_action_for_sameer || '') + '</div></td>' +
+        '<td><div class="chat-actions">' + buttons + '</div></td>' +
+        '<td class="mono">' + (l.sourcing_raised_on
+            ? esc(fmtDate(l.sourcing_raised_on)) + (age !== null ? '<div class="handle">' + age + 'd open</div>' : '')
+            : '<span class="muted">n/a</span>') + '</td>' +
+        '</tr>';
+    }).join('') + '</tbody>';
+    el('sourcingTable').innerHTML = head + body;
+  }
+
+  function bindSourcingEvents() {
+    el('sourcingChips').addEventListener('click', function (e) {
+      var btn = e.target.closest('.chip');
+      if (!btn) return;
+      sourcingState.status = btn.dataset.status;
+      renderSourcingChips();
+      renderSourcingTable();
+    });
+
+    el('sourcingTable').addEventListener('click', function (e) {
+      var link = e.target.closest('.lead-link');
+      if (link) { openLead(link.dataset.id); return; }
+      var btn = e.target.closest('[data-sourcing-value]');
+      if (!btn || !HEALTH) return;
+      var leadId = btn.dataset.sourcingLead;
+      var value = btn.dataset.sourcingValue;
+      var statusEl = el('sourcingTable').querySelector('[data-sourcing-status="' + leadId + '"]');
+      if (statusEl) statusEl.textContent = 'saving...';
+      fetch('/api/sourcing/status', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: leadId, status: value })
+      }).then(function (r) { return r.json(); }).then(function (out) {
+        if (out.error) {
+          if (statusEl) statusEl.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
+          return;
+        }
+        var lead = leads.filter(function (l) { return l.lead_id === leadId; })[0];
+        if (lead) lead.sourcing_status = value;
+        renderSourcingKpis();
+        renderSourcingTable();
+      }).catch(function (err) {
+        if (statusEl) statusEl.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
+      });
+    });
+  }
+
+  function renderSourcingPanel() {
+    renderSourcingKpis();
+    renderSourcingChips();
+    renderSourcingTable();
   }
 
   /* ---------------------------------------------------------------------
@@ -856,11 +1577,31 @@
         'lead-dashboard-data.js from the workbook, then reload this page.</div></div>';
       return;
     }
+    // The page is useful on its own, so the runner is probed rather than
+    // required: if nothing answers, the live sections explain how to start it.
+    fetch('/api/health').then(function (r) {
+      return r.ok ? r.json() : null;
+    }).then(function (health) {
+      HEALTH = health && health.ok ? health : null;
+      renderLiveBadge();
+      // A lead opened before this resolved would be showing the offline note,
+      // so redraw it now that we know the runner is there.
+      if (currentLeadId) openLead(currentLeadId);
+      renderSourcingTable();
+    }).catch(function () {
+      HEALTH = null;
+      renderLiveBadge();
+    });
+
     renderHeader();
     renderKpis();
     renderChips();
     renderTableHead();
     renderTable();
+    renderRequirementsPanel();
+    bindRequirementEvents();
+    renderSourcingPanel();
+    bindSourcingEvents();
     renderDaily();
     renderWeekly();
     renderOverview();

@@ -137,18 +137,34 @@ def parse_block(lines, anchor, cfg, warnings):
     biz_markers = [re.compile(p, re.I) for p in cfg["business_marker_patterns"]]
     lead_markers = [re.compile(p, re.I) for p in cfg["lead_marker_patterns"]]
     wa_phrases = [p.lower() for p in cfg["whatsapp_phrases"]]
+    our_numbers = {normalise_phone(n) for n in cfg.get("business_phone_numbers", [])}
+    our_numbers.discard(None)
 
     messages, phones, links = [], [], []
     current_dt = None
     pending_direction = None
     whatsapp_mentioned = False
     seen_marker = False
+    after_phone_card = False
 
     for raw in lines[handle_idx + 1:]:
         line = clean(raw)
         if not line:
             continue
         low = line.lower()
+
+        # Hovering a number in Instagram web opens a card ("Phone number",
+        # the number reformatted as 0XXXXX XXXXX, WhatsApp buttons). Copying
+        # the thread pastes that card in. It is UI, not a message.
+        if after_phone_card:
+            after_phone_card = False
+            if looks_like_phone_line(line):
+                continue
+        if low == "phone number":
+            after_phone_card = True
+            continue
+        if low in ("whatsapp message", "whatsapp call"):
+            continue
 
         match = ABS_TS_RE.match(line)
         if match:
@@ -200,24 +216,33 @@ def parse_block(lines, anchor, cfg, warnings):
             whatsapp_mentioned = True
 
         shared_a_number = False
+        mentions_our_number = False
         if looks_like_phone_line(line):
-            number = normalise_phone(line)
-            shared_a_number = number is not None
-            if number and number not in phones:
-                phones.append(number)
+            candidates = [line]
         else:
-            for candidate in re.findall(r"\+?\d[\d\s\-()]{8,14}\d", line):
-                number = normalise_phone(candidate)
-                if number and number not in phones:
-                    phones.append(number)
+            candidates = re.findall(r"\+?\d[\d\s\-()]{8,14}\d", line)
+        for candidate in candidates:
+            number = normalise_phone(candidate)
+            if number is None:
+                continue
+            if number in our_numbers:
+                # Our own contact number, e.g. "Call on 95941...". Never the lead's.
+                mentions_our_number = True
+                continue
+            if looks_like_phone_line(line):
+                shared_a_number = True
+            if number not in phones:
+                phones.append(number)
 
         if pending_direction:
             direction, basis = pending_direction, "instagram reply marker"
             pending_direction = None
         elif any(p in low for p in business_phrases):
             direction, basis = "business", "matched business phrase config"
+        elif mentions_our_number:
+            direction, basis = "business", "contains a number from business_phone_numbers"
         elif shared_a_number:
-            # Our side never posts a mobile number into a DM; leads do.
+            # A bare number that is not one of ours is the lead sharing theirs.
             direction, basis = "lead", "message is a shared mobile number"
         else:
             direction, basis = "unknown", "not stated in the export"

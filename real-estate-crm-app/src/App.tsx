@@ -65,6 +65,7 @@ import RoleSelection from './pages/RoleSelection';
 import AcceptInvite from './pages/AcceptInvite';
 import RegisterAdmin from './pages/RegisterAdmin';
 import ConnectWhatsApp from './pages/onboarding/ConnectWhatsApp';
+import ChoosePlan from './pages/onboarding/ChoosePlan';
 
 // Member Pages
 import Invites from './pages/member/Invites';
@@ -119,6 +120,8 @@ import PublicPagesSettings from './pages/crm/PublicPagesSettings';
 
 
 const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authState: 'loading' | 'authenticated' | 'unauthenticated' }) => {
+  const location = useLocation();
+
   if (authState === 'loading') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -133,7 +136,17 @@ const ProtectedRoute = ({ children, authState }: { children: JSX.Element; authSt
     );
   }
 
-  return authState === 'authenticated' ? children : <Navigate to="/login" replace />;
+  if (authState !== 'authenticated') {
+    return <Navigate to="/login" replace />;
+  }
+
+  // A signed-in user who hasn't created or joined an agency yet has no tenant,
+  // so every CRM screen would fail; keep them in the onboarding flow.
+  if (!location.pathname.startsWith('/onboarding/') && hasOnboardingSession() && !getUserProfile()?.tenantId) {
+    return <Navigate to="/onboarding/role-selection" replace />;
+  }
+
+  return children;
 };
 
 /**
@@ -295,6 +308,10 @@ function App() {
     }
 
     const handleAuthChanged = () => {
+      // Without this, a fresh login navigates into a protected route while the
+      // state is still 'unauthenticated' and gets bounced to /login. An already
+      // authenticated session (token refresh) must not flash the spinner.
+      setAuthState((prev) => (prev === 'authenticated' ? prev : 'loading'));
       initAuth();
     };
 
@@ -414,6 +431,7 @@ function App() {
             {/* Onboarding Routes (authenticated but not registered) */}
             <Route path="/onboarding/role-selection" element={<ProtectedRoute authState={authState}><RoleSelection /></ProtectedRoute>} />
             <Route path="/onboarding/register-admin" element={<ProtectedRoute authState={authState}><RegisterAdmin /></ProtectedRoute>} />
+            <Route path="/onboarding/choose-plan" element={<ProtectedRoute authState={authState}><ChoosePlan /></ProtectedRoute>} />
             <Route path="/onboarding/connect-whatsapp" element={<ProtectedRoute authState={authState}><ConnectWhatsApp /></ProtectedRoute>} />
             <Route path="/onboarding/accept-invite" element={<ProtectedRoute authState={authState}><AcceptInvite /></ProtectedRoute>} />
 

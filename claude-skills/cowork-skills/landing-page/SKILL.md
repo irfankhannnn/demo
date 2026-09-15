@@ -17,19 +17,20 @@ This skill generates production-ready, single-file HTML landing pages for Realty
 
 ## Design System
 
-### Color Palette
+### Color Palette — "Bazaar Signal" (v3)
 ```css
---primary: #2563EB;      /* Trust, intelligence, action */
---secondary: #10B981;    /* Success, results, abundance */
---accent: #F59E0B;       /* Opportunity, warmth, India */
---dark: #1F2937;         /* Text, reliability */
---light: #F3F4F6;        /* Backgrounds, simplicity */
+--ink: #1C1512;          /* Primary ground — warm near-black */
+--paper: #FBF2E4;        /* Light ground — khata-ledger cream */
+--marigold: #FF7A1A;     /* Primary accent — CTAs, prices, opportunity */
+--gulal: #FF3D7F;        /* Secondary pop — once per screen only */
+--tulsi: #1FAA59;        /* Sparing — checkmarks/verified only */
 --danger: #EF4444;       /* Alerts, urgency */
 ```
 
 ### Typography
-- **Font:** Inter (system fallback: -apple-system, BlinkMacSystemFont, Segoe UI)
-- **Headlines:** 700 weight, 2.25rem-3.75rem
+- **Display font:** Unbounded (headlines, hooks — 800/900 weight only)
+- **Body font:** Manrope (system fallback: -apple-system, BlinkMacSystemFont, Segoe UI)
+- **Headlines:** Unbounded 800 weight, 2.25rem-3.75rem
 - **Body:** 400 weight, 1rem
 - **Small text:** 0.875rem, 500 weight
 

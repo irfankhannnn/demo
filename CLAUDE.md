@@ -3,8 +3,10 @@
 ## Marketing Automation System
 
 **IMPORTANT:** Before generating any marketing content, always read:
-1. `.brand/brand-kit.md` — colors (#2563EB primary), fonts (Inter), Hinglish tone rules
-2. `.brand/positioning.md` — ICP (Indian real estate agents), buyer personas, competitive positioning
+1. `marketing-and-sales/creative/realestateflow-launch/brand-kit.md` — v3 "Bazaar Signal" system:
+   colors (ink `#1C1512`, paper `#FBF2E4`, marigold `#FF7A1A`, gulal `#FF3D7F`, tulsi `#1FAA59` sparing),
+   fonts (Unbounded display + Manrope body), Hinglish tone rules, Instagram Content System
+2. `marketing-and-sales/realestateflow/BRAND-POSITIONING.md` — ICP (Indian real estate agents), buyer personas, competitive positioning
 
 ### MCPs Available (project-scope, in `.mcp.json`)
 | MCP | Purpose | Auth |
@@ -14,14 +16,15 @@
 | `blotato` | Social media scheduling + publishing to IG, FB, LinkedIn, TikTok, X | Blotato API key |
 
 ### Marketing Outputs
-- `marketing/assets/` — Generated images, videos, audio
-- `marketing/posts/` — Social media content queue (by platform)
-- `marketing/campaigns/` — Ad campaign configs + plans
-- `marketing/content/` — Blog posts, landing pages, email sequences
-- `marketing/reports/` — Analytics + performance tracking
+- `marketing-and-sales/creative/` — Generated images, videos, audio, landing pages
+- `marketing-and-sales/leads/` — Social media content queue, pipeline (by platform)
+- `marketing-and-sales/ads/` — Ad campaign configs + plans
+- `marketing-and-sales/reports/` — Analytics + performance tracking
 
-### Full Documentation
-See `marketing/MARKETING_SYSTEM.md` — master guide with examples for every content type.
+> Note: the older top-level `marketing/` folder (automation-pipeline docs for Nano Banana/Meta
+> Ads/Blotato) has been archived to
+> `marketing-and-sales/realestateflow/archive/marketing/` — it described a system that was never
+> wired up to the paths above. Treat `marketing-and-sales/` as the single live output root.
 
 ---
 

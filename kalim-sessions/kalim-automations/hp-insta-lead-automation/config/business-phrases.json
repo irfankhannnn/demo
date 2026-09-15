@@ -37,6 +37,10 @@
     "is budget me nhi milega",
     "flat is available"
   ],
+  "_business_phone_numbers_comment": "Our own team's contact numbers. A message containing one is ours, and the number is never recorded as the lead's mobile. Add every number the sales team gives out in DMs.",
+  "business_phone_numbers": [
+    "9594191916"
+  ],
   "_lead_reply_markers_comment": "Structural markers Instagram itself writes into the export. These are authoritative and override phrase matching.",
   "business_marker_patterns": [
     "^you replied to ",

@@ -29,6 +29,20 @@ from openpyxl.utils import get_column_letter
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 DEFAULT_WORKBOOK = os.path.join(ROOT, "master", "hp-insta-leads.xlsx")
+CONFIG_PATH = os.path.join(ROOT, "config", "business-phrases.json")
+
+
+def load_business_numbers():
+    """Our own team numbers. They are never a lead's mobile, even if an earlier run stored one."""
+    try:
+        with open(CONFIG_PATH, encoding="utf-8") as fh:
+            numbers = json.load(fh).get("business_phone_numbers", [])
+    except (OSError, ValueError):
+        return set()
+    return {"".join(ch for ch in str(n) if ch.isdigit())[-10:] for n in numbers}
+
+
+BUSINESS_NUMBERS = load_business_numbers()
 
 SHEET_LEADS = "Leads"
 SHEET_DAILY = "Daily Activity"
@@ -40,10 +54,12 @@ SHEET_OVERVIEW = "Overview"
 
 LEAD_COLUMNS = [
     "lead_id", "lead_name", "instagram_link", "mobile_number", "whatsapp_available",
-    "lead_type", "lead_score", "deal_type", "property_type", "locality", "budget",
+    "lead_type", "lead_score", "deal_type", "property_type", "locality", "city",
+    "building_name", "budget", "units_required",
     "possession_timeline", "requirement_complete", "summary", "next_action",
     "action_channel", "suggested_reply", "meeting_schedule", "dm_can_be_closed",
-    "close_reason", "conversation_start_date", "conversation_end_date",
+    "close_reason", "sourcing_action_for_sameer", "sourcing_status",
+    "sourcing_raised_on", "conversation_start_date", "conversation_end_date",
     "days_since_last_message", "message_count", "reel_links", "needs_review",
     "notes", "manual_override", "first_seen_run", "last_updated_run", "source_files",
 ]
@@ -65,15 +81,23 @@ RUN_COLUMNS = [
 
 # Analyst-owned fields. A blank incoming value never wipes an existing one.
 ANALYST_FIELDS = [
-    "lead_type", "lead_score", "deal_type", "property_type", "locality", "budget",
+    "lead_type", "lead_score", "deal_type", "property_type", "locality", "city",
+    "building_name", "budget", "units_required",
     "possession_timeline", "summary", "next_action", "action_channel",
     "suggested_reply", "meeting_schedule", "needs_review", "notes",
+]
+
+# Owned by the live-chat runner and by whoever works the queue in Excel.
+# Never written by an export upsert, only carried forward.
+SOURCING_FIELDS = [
+    "sourcing_action_for_sameer", "sourcing_status", "sourcing_raised_on",
 ]
 
 # Protected when the row carries manual_override = yes.
 LOCKED_FIELDS = [
     "lead_type", "lead_score", "summary", "next_action", "suggested_reply",
-    "meeting_schedule", "notes", "budget", "locality",
+    "meeting_schedule", "notes", "budget", "locality", "city", "building_name",
+    "units_required",
 ]
 
 VALID_LEAD_TYPE = {"buyer", "seller", "tenant", "landlord", "not_a_lead", "unknown"}
@@ -90,6 +114,7 @@ SCORE_FILL = {
 }
 WIDE_COLUMNS = {
     "summary": 70, "suggested_reply": 60, "next_action": 45, "notes": 32,
+    "sourcing_action_for_sameer": 52, "building_name": 26,
     "close_reason": 34, "instagram_link": 38, "reel_links": 38, "lead_id": 24,
     "lead_name": 22, "source_files": 26, "text": 70,
 }
@@ -195,6 +220,7 @@ def build_incoming(parsed, analysis, run_id, today):
             extra = "".join(ch for ch in extra if ch.isdigit())
             if len(extra) == 10 and extra not in phones:
                 phones.append(extra)
+        phones = [n for n in phones if n not in BUSINESS_NUMBERS]
 
         whatsapp = as_text(entry.get("whatsapp_available")).lower()
         if not whatsapp:
@@ -387,6 +413,8 @@ def build_overview(leads, daily_rows, run_id, stats, workbook_path):
         ("READINESS", "Meeting scheduled",
          sum(1 for l in leads if as_text(l.get("meeting_schedule")))),
         ("READINESS", "DM can be closed", count("dm_can_be_closed", "yes")),
+        ("READINESS", "Sourcing tasks open", count("sourcing_status", "open")),
+        ("READINESS", "Sourcing tasks done", count("sourcing_status", "done")),
         ("READINESS", "Flagged needs_review", count("needs_review", "yes")),
         ("READINESS", "Rows locked by manual_override", count("manual_override", "yes")),
     ]
@@ -457,8 +485,10 @@ def main():
         changes = []
 
         merged = {
-            "mobile_number": merge_list(current.get("mobile_number"),
-                                        row["mobile_number"].split("; ")),
+            "mobile_number": "; ".join(
+                n for n in merge_list(current.get("mobile_number"),
+                                      row["mobile_number"].split("; ")).split("; ")
+                if n and n not in BUSINESS_NUMBERS),
             "reel_links": merge_list(current.get("reel_links"),
                                      row["reel_links"].split("; ")),
             "source_files": merge_list(current.get("source_files"), [source]),
@@ -573,7 +603,8 @@ def main():
     write_table(workbook, SHEET_OVERVIEW, ["section", "metric", "value"], overview)
     write_table(workbook, SHEET_LEADS, LEAD_COLUMNS, existing_leads,
                 wrap_columns=("summary", "suggested_reply", "next_action",
-                              "close_reason", "notes"))
+                              "close_reason", "notes",
+                              "sourcing_action_for_sameer"))
     write_table(workbook, SHEET_DAILY,
                 ["date", "conversations_active", "messages", "new_conversations",
                  "from_lead", "from_us", "unattributed"], daily_rows)

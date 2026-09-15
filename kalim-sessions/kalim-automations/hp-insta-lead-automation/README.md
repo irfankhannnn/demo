@@ -10,6 +10,14 @@ anything in `scripts/`.
 
 ---
 
+## 0. How it runs now
+
+Every 6 hours a Windows scheduled task reads the Instagram inbox of
+@happyproperties99 straight from instagram.com, and only the threads that
+changed get analysed and written into the workbook. Nobody pastes anything.
+Section 12 covers that automated path. Sections 1 and 2 describe the older
+manual path from a pasted text export, which still works as a fallback.
+
 ## 1. Pipeline
 
 ```
@@ -147,7 +155,10 @@ the most recently active on top.
 | `deal_type` | analyst | `rent`, `buy`, `heavy_deposit` or blank |
 | `property_type` | analyst | `1 BHK`, `2 BHK` and so on |
 | `locality` | analyst | Free text as the lead said it |
+| `city` | analyst | Free text, only when actually named. Never inferred from the agency being Mumbai-based. |
+| `building_name` | analyst | Society, building or project name, only when a specific one was named |
 | `budget` | analyst | Free text as the lead said it |
+| `units_required` | analyst | How many properties/units, only when stated as more than one. Blank means one. |
 | `possession_timeline` | analyst | When they need it |
 | `requirement_complete` | computed | `yes` when deal type, property type, locality and budget are all present |
 | `summary` | analyst | What happened, where it stopped, what the blocker is |
@@ -157,6 +168,9 @@ the most recently active on top.
 | `meeting_schedule` | analyst | What was agreed, with the date resolved |
 | `dm_can_be_closed` | computed | See the rule below |
 | `close_reason` | computed | Either the rule that was satisfied, or exactly what is still missing |
+| `sourcing_action_for_sameer` | live runner | The task raised when a property search finds nothing. Survives export re-runs. |
+| `sourcing_status` | **you** | `open`, `done`, `dropped` or blank. Nothing overwrites your value. |
+| `sourcing_raised_on` | live runner | When the task was first raised, so its age is real |
 | `conversation_start_date` | parser | Earliest dated message, across all runs |
 | `conversation_end_date` | parser | Latest dated message, across all runs |
 | `days_since_last_message` | computed | Recalculated every run |
@@ -260,7 +274,7 @@ phone or in-person handling.
 
 | Score | Meaning |
 |-------|---------|
-| `very_hot` | A mobile number with a real requirement, or a fixed meeting or site visit. An explicit "call me on this number" qualifies on its own. |
+| `very_hot` | A mobile number with a real requirement, or a fixed meeting or site visit. An explicit "call me on this number" from the lead qualifies on its own. Us sending our own number does not. |
 | `hot` | A clear requirement, at least two of deal type, configuration, locality and budget, with recent activity, but no number. |
 | `cold` | Vague or one-line threads, dead negotiations, stale threads with nothing captured, and anyone who said no. |
 
@@ -288,14 +302,34 @@ That reads the workbook and writes `lead-dashboard-data.js`, which the page load
 with a plain script tag. A script tag is used rather than `fetch` because `fetch`
 is blocked on `file://` while a script tag is not.
 
-Four tabs:
+Six tabs:
 
 | Tab | What it holds |
 |-----|---------------|
 | Pipeline | One row per lead, hottest first, with search and filters for score, has-mobile, ready-to-close, meeting set, needs-review and quiet 14+ days. Clicking a row opens the full detail, including the reconstructed conversation and a copy button on the drafted reply. |
+| Requirements | What buyers and tenants are actually asking for, built entirely from `locality`, `city`, `building_name`, `budget` and `units_required`. A consolidated sentence per area+deal combination (e.g. "2 properties for sale required in Kurla West — budget 1.2 Cr"), demand counts by area, by city and by building/society split sale vs rent, and the full one-row-per-lead requirement list. Nothing here is estimated: a blank means the field has never been captured, and it fills in automatically the next time that lead is analysed or handled live. |
+| Sourcing (Sameer) | Every open, done and dropped `sourcing_action_for_sameer` task in one action list, with status buttons wired to the same `/api/sourcing/status` endpoint the drawer uses, filterable by status and sorted oldest-open-first. |
 | Activity | The datewise bar chart and the weekwise table, plus the Overview counters. |
 | Change history | The run log and every field change, showing the old value struck through next to the new one. |
 | Data guide | How the data is produced, then every field with its type, allowed values, origin and meaning, followed by the rules worth knowing before trusting a number. |
+
+### Requirements tab: where the numbers come from
+
+The Requirements tab reads the workbook only, exactly like every other tab. A
+lead counts toward demand when its `lead_type` is `buyer` (sale side) or
+`tenant` (rent side, `heavy_deposit` included), and it has at least one of
+`property_type`, `locality`, `budget`, `city` or `building_name` set. Budgets
+are never summed or averaged, the same rule as everywhere else in this
+document: they are listed as the distinct phrases the leads used, because a
+budget is text with a unit, not a number.
+
+If `city` or `building_name` come back empty for most leads, that is expected
+on a first pass, most conversations only ever name an area. They get filled
+in going forward from two places: the next time `insta-lead-analyst` reads a
+fresh export, and the live chat runner's extraction step (`lead_desk_server.py`),
+which now asks for both explicitly, the same way it already asks for
+`locality` and `budget`. Neither will ever guess a city or a building name;
+a blank stays blank rather than being invented.
 
 Context is built into the page rather than left to this document. Every field
 label carries an info marker giving its type and meaning, the message timeline
@@ -308,7 +342,112 @@ numbers and is gitignored for that reason.
 
 ---
 
-## 7. Files
+## 7. Live conversation
+
+The dashboard can carry a conversation forward. Paste what the lead replied and
+the runner reads the whole thread, updates the requirement, searches real
+inventory and drafts the next Instagram DM.
+
+```bash
+cp .env.sample .env        # then fill in the values, see below
+python scripts/lead_desk_server.py
+```
+
+That serves the dashboard and opens it. Without the runner the page still works
+as a plain file, just without the live sections, which say so rather than
+failing silently.
+
+### What one turn does
+
+1. **Extract.** The whole thread plus the new reply go to Gemini, which returns
+   the requirement as structured JSON. It is told to record only what the lead
+   actually said, so a field it has not heard stays empty rather than guessed.
+2. **Search.** That requirement goes to the CRM, see section 8.
+3. **Compose.** The thread, the requirement and the real matches go back to
+   Gemini, which writes the next DM. Its instructions rank the goals: book a
+   meeting first, put a real property in front of them second, close the
+   remaining requirement gaps third. It is given the matches explicitly and
+   told when there are none, so it cannot invent a listing or a price.
+4. **You decide.** Nothing is written until you press Save to workbook.
+
+### What Save writes
+
+Same merge discipline as the export upsert. A blank never clears a known value,
+phone numbers accumulate, every change lands in the Changelog with run ids
+prefixed `chat-`, and both messages are appended to the Messages sheet with
+`source_file` of `live-chat` so live turns are distinguishable from exported
+ones. `requirement_complete` and `dm_can_be_closed` are then recomputed, which
+is how a lead flips to closable the moment a meeting is agreed.
+
+### Which model
+
+Leave `GEMINI_MODEL` blank and the runner asks your key which models it can
+use, then picks the cheapest capable one, which is a Flash-tier model. The CRM
+backend itself runs `gemini-2.5-flash`, so a blank usually lands on the same
+model the product already uses. See the list your key can reach with:
+
+```bash
+python scripts/lead_desk_server.py --list-models
+```
+
+### Credentials
+
+They live in `.env`, which is gitignored, and are read only by the runner. They
+never reach the browser. The runner calls the CRM server-side on purpose: the
+CRM's CORS allowlist would reject a browser page on `127.0.0.1`, and proxying
+sidesteps that without anyone loosening the allowlist.
+
+---
+
+## 8. Property matching
+
+The runner tries three paths in order and tells you in the panel which one
+answered.
+
+| Path | Endpoint | Credentials | Notes |
+|------|----------|-------------|-------|
+| Embeddings | `POST /api/internal/properties/match` | `CRM_INTERNAL_API_KEY` + `CRM_TENANT_ID` | Semantic search over Bedrock Titan embeddings and DynamoDB vector search, the same one the AI voice agent uses |
+| Filters | `GET /api/crm/properties` | `CRM_AUTH_TOKEN`, a Cognito ID token | Exact filters: `area`, `bhk`, `minRent`, `maxRent`, `status` |
+| Mock | `config/mock-properties.json` | none | Twelve Mumbai listings shaped like real CRM records |
+
+**The embeddings path can return empty without meaning "nothing matches."** If
+the DynamoDB vector index was never built for that environment, the backend
+catches the failure and returns an empty list rather than an error. The runner
+therefore treats an empty semantic result as inconclusive and falls through to
+the filter search before declaring no match, and says so in the notes.
+
+Whatever answers, results are re-scored locally. The three endpoints take
+different parameter names and the semantic one ranks by embedding distance, so
+one local pass is what makes the ranking consistent. Scoring: locality is
+mandatory, then configuration, deal type and budget add to the score. A
+different side of the same suburb still matches but ranks lower, so "Kurla
+West" will surface Kurla East rather than pretending nothing exists, and will
+never surface Bhandup West on the word "West" alone.
+
+Budgets are parsed from the lead's own words, so `40k to 42k`, `5 to 10 lakh
+deposit`, `25-30lakh` and `60 lac` all resolve. On a heavy-deposit requirement
+the deposit is compared, not the monthly rent, or the ranking would come out
+backwards.
+
+### The sourcing task for Sameer
+
+When a search returns nothing, the runner writes the requirement into
+`sourcing_action_for_sameer`, sets `sourcing_status` to `open` and stamps
+`sourcing_raised_on`. The Pipeline table shows it as a column, there is a
+Sourcing open filter and a counter tile, and the detail panel has buttons to
+mark it `done` or `dropped`. The dedicated **Sourcing (Sameer)** tab is the
+consolidated version of the same thing: every task in one list, filterable by
+status, sorted oldest-open-first, with the same done/dropped buttons acting
+on the same endpoint, so it does not matter which page you resolve a task
+from.
+
+That status is yours. An export upsert never writes these three columns, it
+only carries them forward, so re-running the DM export will not reopen a task
+you have closed.
+
+---
+
+## 9. Files
 
 ```
 hp-insta-lead-automation/
@@ -318,12 +457,16 @@ hp-insta-lead-automation/
 ├── lead-dashboard.html              standalone read-only UI
 ├── lead-dashboard.css               its stylesheet, CRM design tokens
 ├── lead-dashboard-data.js           generated from the workbook, gitignored
+├── .env.sample                      copy to .env and fill in, gitignored
 ├── config/
-│   └── business-phrases.json        which lines are ours, editable, no code change
+│   ├── business-phrases.json        which lines are ours, editable, no code change
+│   └── mock-properties.json         fallback inventory when no CRM creds are set
 ├── scripts/
 │   ├── parse_dm_export.py           stage 1, deterministic
 │   ├── upsert_leads_excel.py        stage 3, deterministic
-│   └── build_dashboard_data.py      workbook to dashboard data file
+│   ├── build_dashboard_data.py      workbook to dashboard data file
+│   ├── lead_desk_server.py          local runner: Gemini + CRM + workbook writes
+│   └── property_search.py           the three CRM paths and the local scorer
 ├── parsed/                          stage 1 output, gitignored
 ├── analysis/                        stage 2 output, gitignored
 └── master/
@@ -351,9 +494,20 @@ empty summary. Nothing is written when validation fails.
 
 ---
 
-## 8. Known limits
+## 10. Known limits
 
-- **Direction is partial.** 81 of 193 messages on the sample. The activity
+- **The drafted reply is a draft.** Read it before sending. The model is told
+  never to invent a property or a price and is given the real matches, but it
+  is still writing on your behalf.
+- **A Cognito ID token expires in about an hour**, so the filter-search path
+  needs a fresh `CRM_AUTH_TOKEN` for each session of use. The embeddings path
+  uses a static service key and does not.
+- **Nothing is sent to the lead.** The runner drafts and records. Sending
+  stays manual in Instagram.
+
+- **Direction is partial for text exports only.** The automated fetch reads
+  the sender of every message from Instagram, see section 12. For a pasted
+  export it was 74 of 185 messages on the sample. The activity
   sheet's `from_lead` and `from_us` columns undercount by design and
   `unattributed` holds the rest. Extending `config/business-phrases.json`
   improves this over time.
@@ -368,10 +522,154 @@ empty summary. Nothing is written when validation fails.
 - **Phone numbers are validated as Indian mobiles**, ten digits starting with
   6 to 9, with `91`, `091` or `0` prefixes stripped. Landlines are not picked
   up.
+- **`city`, `building_name` and `units_required` are additive columns.** Any
+  lead analysed before these were added simply has them blank, same as any
+  other analyst field the thread never mentioned. Re-run the export through
+  `insta-lead-analyst` (or handle the lead in a live chat) to backfill them;
+  nothing needs to be migrated by hand.
 
-## 9. Privacy
+## 11. Privacy
 
 The workbook holds real names, mobile numbers and private message content.
 `master/`, `parsed/` and `analysis/` are gitignored, and this whole folder sits
 under `kalim-sessions/` which the repository already ignores. Do not commit
 this data, and do not upload the workbook to any external service.
+
+## 12. Automated fetch from Instagram web
+
+### Why not the pasted export
+
+A thread copied as text loses which side of the chat each bubble sits on. In
+the sample, `sameenaruknuddin` ended up with our own number 9594191916
+recorded as hers, scored `very_hot`, because "Call on 9594191916" and the
+contact card after it looked like the lead sharing a number. The fetcher
+avoids that class of error entirely: every message bubble on instagram.com
+carries a hidden "React to message from <username>" button, and that label is
+what sets `direction`.
+
+### Flow
+
+```
+Windows Task Scheduler, every 6 h
+  scripts/run_pipeline.cmd -> scripts/run_pipeline.py
+    1. apply any run parked because Excel had the workbook open
+    2. scripts/fetch_instagram_dms.py      your own Chrome via the extension, read-only
+         reads Primary, General, Requests lists
+         opens only changed threads, reads messages + sender from the DOM
+         -> runs/<id>/fetched.json
+    3. scripts/build_parsed_from_fetch.py  merges workbook history per lead
+         -> runs/<id>/parsed.json
+    4. claude -p --agent insta-lead-analyst, 12 leads per batch, one retry
+         -> runs/<id>/analysis.json
+    5. scripts/upsert_leads_excel.py       same merge rules as section 4
+    6. scripts/build_dashboard_data.py
+    7. advance state/fetch-state.json, append logs/runs.jsonl
+```
+
+### What counts as changed
+
+Read from Instagram's own thread list, newest first:
+
+| Situation | Opened? |
+|-----------|---------|
+| First run ever, or `--backfill-days N` | every thread active in the last N days (config `first_run_backfill_days`, 30) |
+| Last activity newer than the last successful run, plus 2 h slack | yes |
+| Preview line differs from what state recorded | yes |
+| Thread never seen before | yes |
+| Instagram shows it as unread | **no**, see below |
+| Three known, unchanged threads in a row | stop reading the list |
+
+`state/fetch-state.json` holds `last_success_started_at`, and per Instagram
+thread id the handle, display name, tab, preview line and when it was last
+fetched. It only advances after the workbook save succeeds, so a failed run
+is simply redone next time.
+
+### Protecting the account
+
+- **Read-only.** The scripts never type, send, react, or press Accept,
+  Delete or Block. The only clicks are on thread rows and the inbox tabs.
+- **Unread threads are skipped** (`open_unread_threads: false`). Opening one
+  would show the lead "Seen" with no reply. They are picked up on the first run
+  after someone on the team has read them. Message requests are always safe:
+  Instagram tells the sender nothing until the request is accepted.
+- **Human pace.** 4 to 9 seconds between threads, a 40 to 90 second break every
+  12 threads, at most 40 threads per 6-hour run (150 on a backfill). All in
+  `config/fetch-config.json`.
+- **Your own Chrome, your own login.** The fetch runs inside the Chrome you
+  already use, through the unpacked extension in `chrome-extension/`
+  ("HP Insta Lead Reader"). A run opens one minimised window on
+  instagram.com/direct, reads, and closes it. No second login, no test browser.
+- **The extension can only read.** While a run is active the pipeline serves
+  commands on 127.0.0.1 (port `bridge_port`, 8947) and the extension polls it
+  with a token from `chrome-extension/bridge-config.js`. Commands are a fixed
+  list of named helpers (read list, read thread, scroll, click a tab or a
+  thread row) and navigation is limited to `instagram.com/direct`. No free-form
+  code is ever sent.
+
+This keeps the risk low, not zero: Instagram's terms do not allow automated
+collection. Keep the pacing as it is.
+
+### Setup, once
+
+1. In Chrome open `chrome://extensions`, turn on **Developer mode**, click
+   **Load unpacked** and pick this folder's `chrome-extension/`. Keep it enabled.
+   Chrome must be logged in to Instagram as happyproperties99.
+2. Then:
+
+```bash
+python scripts/chrome_bridge.py --check        # extension connected + inbox visible?
+python scripts/run_pipeline.py --max-threads 1 --tabs primary --no-state --workbook runs/smoke/test.xlsx   # smoke test
+python scripts/run_pipeline.py                                              # first run = 30 day backfill
+powershell -ExecutionPolicy Bypass -File scripts/register_schedule.ps1      # every 6 hours
+```
+
+The task runs only while the user is logged on to Windows, because Chrome
+needs the desktop. If Chrome is closed, the run starts it with no window
+(`--no-startup-window`) so the extension wakes up.
+
+Why an extension rather than attaching to Chrome over DevTools: Chrome 136+
+refuses `--remote-debugging-port` on the default profile, so the only ways to
+drive the logged-in Chrome are an extension or a second profile with its own
+login. The second-profile path still exists as `browser_mode: "cdp"`
+(`python scripts/fetch_instagram_dms.py --login --browser cdp` once).
+
+`chrome-extension/page_lib.js` is generated from `scripts/dom_helpers.js`,
+`dom_thread_list.js` and `dom_extract_thread.js` at the start of every fetch,
+so a fix to those files reaches the extension without reinstalling it. A
+change to `background.js` or `manifest.json` needs the reload button on the
+extension in `chrome://extensions`. Sleep or hibernate pauses it; a missed run starts as soon
+as the laptop is awake.
+
+### Operating it
+
+| Symptom | Meaning | Fix |
+|---------|---------|-----|
+| `logs/runs.jsonl` status `ok` / `ok_nothing_new` | fine | none |
+| `fetch_failed_exit_4` | Instagram is logged out in Chrome, or logged in as another account | log in as happyproperties99 in Chrome; the next run catches up |
+| `fetch_failed_exit_7` | Chrome closed or the extension is missing/disabled | enable HP Insta Lead Reader in `chrome://extensions`; check with `python scripts/chrome_bridge.py --check` |
+| scripts or config suddenly missing | a `git checkout` of a branch that does not track this folder removed them | switch back, or restore them from the branch that has them |
+| `fetch_failed_exit_6` | no thread rows recognised, Instagram changed its page | fix `scripts/dom_thread_list.js` / `dom_extract_thread.js` |
+| `parked_excel_open` | workbook was open in Excel | close Excel, the next run applies it |
+| `analysis_incomplete` | the analyst skipped a lead twice | look in `runs/<id>/batches/`, re-run with `--skip-fetch --fetched runs/<id>/fetched.json` |
+| status missing, lock file present | a run is in progress or crashed | a lock older than 3 h is cleared automatically |
+
+Skipped threads and why (unread, row not found) are listed at the end of
+each `runs/<id>/pipeline.log`.
+
+### Files
+
+| Path | Role |
+|------|------|
+| `config/fetch-config.json` | account, tabs, pacing, caps, backfill days, batch size |
+| `config/business-phrases.json` | `business_phone_numbers`: our numbers, never a lead's |
+| `scripts/dom_thread_list.js`, `scripts/dom_extract_thread.js`, `scripts/dom_helpers.js` | the only code that knows Instagram's markup |
+| `scripts/chrome_bridge.py` | the two browser drivers (extension, cdp), extension build and `--check` |
+| `chrome-extension/` | the unpacked extension; `bridge-config.js` (token) and `page_lib.js` are generated and gitignored |
+| `state/fetch-state.json` | incremental state |
+| `runs/<run_id>/` | fetched, parsed, analysis, batches, pipeline.log per run |
+| `logs/runs.jsonl`, `logs/scheduler.log` | one line per run; raw scheduler output |
+| `archive/2026-09-14-text-export/` | the workbook built from the pasted export, before the switch |
+
+`runs/`, `state/`, `logs/` and `archive/` are gitignored. They hold message
+content.
+

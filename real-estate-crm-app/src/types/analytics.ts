@@ -4,6 +4,8 @@ export type AnalyticsEvent =
   | 'signup_completed'
   | 'otp_verified'
   | 'onboarding_role_selected'
+  | 'onboarding_plan_buy_clicked'
+  | 'onboarding_trial_started'
   | 'agency_registered'
   | 'buyer_added'
   | 'owner_added'

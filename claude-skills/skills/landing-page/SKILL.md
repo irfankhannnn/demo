@@ -30,8 +30,8 @@ Create a landing page for RealtyFlow. Brief: $ARGUMENTS
 
 ## Design System
 
-- Colors: Primary #2563EB, Secondary #10B981, Accent #F59E0B
-- Font: Inter (Google Fonts)
+- Colors: Ink #1C1512, Paper #FBF2E4, Marigold #FF7A1A, Gulal #FF3D7F (once per screen), Tulsi #1FAA59 (sparing)
+- Font: Unbounded (display/headlines) + Manrope (body/UI), Google Fonts
 - Mobile-first responsive (80%+ traffic is mobile in India)
 - CSS Grid/Flexbox layout
 
