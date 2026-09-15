@@ -3,7 +3,7 @@
  *
  * Service-to-service entry point for lead sources that run outside this Lambda —
  * today the Instagram Solution microservice (backend_insta_sol_ms) forwarding
- * enquiries captured by the agency's laptop agent; later the website form and
+ * Instagram DM enquiries from connected accounts; later the website form and
  * any other adapter.
  *
  * Auth follows the pattern already established for ai-calling-service → CRM

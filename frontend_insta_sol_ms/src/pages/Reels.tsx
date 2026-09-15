@@ -230,7 +230,7 @@ export default function Reels() {
       ) : rows.length === 0 ? (
         <EmptyState
           title="No reels have synced yet"
-          description="Once the laptop agent has pulled your media and its insights, every post shows up here with the enquiries it produced."
+          description="Posts and their insights sync hourly once an Instagram account is connected. Each reel shows the DMs and enquiries it produced."
           icon={<Film className="h-5 w-5" />}
         />
       ) : (

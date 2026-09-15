@@ -45,7 +45,7 @@ async function boot() {
 test('OPTIONS from an allowed origin returns 204 with CORS headers and skips auth', async () => {
   const app = await boot();
   try {
-    const res = await app.preflight('/api/insta/devices', ALLOWED);
+    const res = await app.preflight('/api/insta/accounts', ALLOWED);
     assert.equal(res.status, 204);
     assert.equal(res.headers.get('access-control-allow-origin'), ALLOWED);
     assert.equal(res.headers.get('access-control-allow-credentials'), 'true');
@@ -59,7 +59,7 @@ test('OPTIONS from an allowed origin returns 204 with CORS headers and skips aut
 test('OPTIONS from a disallowed origin is not a 401 and never reaches auth', async () => {
   const app = await boot();
   try {
-    const res = await app.preflight('/api/insta/devices', DISALLOWED);
+    const res = await app.preflight('/api/insta/accounts', DISALLOWED);
     assert.notEqual(res.status, 401);
     assert.equal(res.status, 204);
     assert.equal(res.headers.get('access-control-allow-origin'), null);
@@ -72,7 +72,7 @@ test('OPTIONS from a disallowed origin is not a 401 and never reaches auth', asy
 test('a non-preflight request from an allowed origin still goes through auth', async () => {
   const app = await boot();
   try {
-    const res = await app.get('/api/insta/devices', ALLOWED);
+    const res = await app.get('/api/insta/accounts', ALLOWED);
     assert.equal(res.status, 401);
     assert.equal(res.headers.get('access-control-allow-origin'), ALLOWED);
     assert.equal(app.authCalls(), 1);

@@ -1,21 +1,18 @@
 /**
- * Wire types for every response in section 4 of
- * docs/insta-sol-ms-docs/03-ARCHITECTURE.md.
- *
- * Attribute names come from the DynamoDB item tables in section 3, since the
- * contract does not spell out response envelopes field by field. Anything the
- * contract left unspecified is optional here and the UI degrades rather than
- * crashing when it is absent — the only safe reading of a contract that two
- * teams are implementing in parallel.
+ * Wire types for backend_insta_sol_ms. Attribute names match what the routes
+ * in backend_insta_sol_ms/routes return; fields the backend may omit are
+ * optional so the UI degrades rather than crashing.
  */
 
 /* ------------------------------------------------------------------ */
-/* Enumerations — section 3                                            */
+/* Enumerations                                                        */
 /* ------------------------------------------------------------------ */
 
 export type Intent = 'buy' | 'rent' | 'heavy_deposit_ok' | 'sell' | 'unknown';
 
 export type Temperature = 'hot' | 'warm' | 'cold';
+
+export type LeadScore = 'very_hot' | 'hot' | 'cold';
 
 export type EnquiryStatus =
   | 'new'
@@ -27,6 +24,8 @@ export type EnquiryStatus =
   | 'spam';
 
 export type WindowState = 'STANDARD' | 'COMMENT_REPLY' | 'HUMAN_AGENT' | 'CLOSED';
+
+export type AccountStatus = 'connected' | 'reconnect_required' | 'disconnected';
 
 export const TEMPERATURES: Temperature[] = ['hot', 'warm', 'cold'];
 
@@ -40,12 +39,8 @@ export const ENQUIRY_STATUSES: EnquiryStatus[] = [
   'spam',
 ];
 
-export const WINDOW_STATES: WindowState[] = [
-  'STANDARD',
-  'COMMENT_REPLY',
-  'HUMAN_AGENT',
-  'CLOSED',
-];
+/** HUMAN_AGENT is never produced by this backend; filters only offer real states. */
+export const WINDOW_STATES: WindowState[] = ['STANDARD', 'COMMENT_REPLY', 'CLOSED'];
 
 /* ------------------------------------------------------------------ */
 /* Errors                                                              */
@@ -58,94 +53,97 @@ export interface ApiErrorBody {
 }
 
 /* ------------------------------------------------------------------ */
-/* GET /overview                                                       */
+/* Instagram accounts                                                  */
 /* ------------------------------------------------------------------ */
 
-/** One day of the 30-day dashboard series. Metric keys are all optional. */
+export interface InstagramAccount {
+  igUserId: string;
+  username?: string | null;
+  name?: string | null;
+  accountType?: string | null;
+  profilePictureUrl?: string | null;
+  followersCount?: number | null;
+  followsCount?: number | null;
+  mediaCount?: number | null;
+  status: AccountStatus;
+  tokenExpiresAt?: string | null;
+  tokenExpiringSoon?: boolean | null;
+  webhookSubscribed?: boolean;
+  webhookError?: string | null;
+  connectedAt?: string | null;
+  lastConversationsSyncAt?: string | null;
+  lastMediaSyncAt?: string | null;
+  lastProfileSyncAt?: string | null;
+  lastWebhookAt?: string | null;
+  lastError?: string | null;
+  lastErrorAt?: string | null;
+}
+
+export interface AccountsResponse {
+  accounts: InstagramAccount[];
+  instagramConfigured: boolean;
+  dryRunSends: boolean;
+  killSwitch: boolean;
+}
+
+export interface SyncSummary {
+  accounts: number;
+  jobs: Record<string, number>;
+  errors: Array<{ igUserId: string; job: string; message: string }>;
+}
+
+export interface SyncResponse {
+  account: InstagramAccount;
+  summary: SyncSummary;
+}
+
+/* ------------------------------------------------------------------ */
+/* GET /overview, GET /insights/timeseries                             */
+/* ------------------------------------------------------------------ */
+
 export interface OverviewPoint {
   date: string;
   enquiries?: number;
   followers?: number;
   reach?: number;
   views?: number;
-  dms?: number;
 }
 
 export interface OverviewCounters {
+  accounts?: number;
+  accountsNeedingReconnect?: number;
   enquiries?: number;
   hotEnquiries?: number;
   newEnquiries?: number;
   unansweredThreads?: number;
   threads?: number;
   followers?: number;
-  followersDelta?: number;
   reach?: number;
-  views?: number;
   media?: number;
 }
 
 export interface OverviewResponse {
   counters: OverviewCounters;
-  /** 30 days, oldest first. */
+  /** Oldest first. */
   series: OverviewPoint[];
-  /** Some deployments inline device health here; /devices stays authoritative. */
-  devices?: Device[];
-  accounts?: InstagramAccount[];
-  killSwitch?: boolean;
-  generatedAt?: string;
-}
-
-/* ------------------------------------------------------------------ */
-/* GET /accounts, GET /devices, POST /devices/pair                     */
-/* ------------------------------------------------------------------ */
-
-export type DeviceStatus = 'active' | 'revoked' | 'pending' | (string & {});
-
-export interface Device {
-  deviceId: string;
-  deviceName?: string;
-  platform?: string;
-  status?: DeviceStatus;
-  igUserId?: string;
-  igUsername?: string;
-  agentVersion?: string;
-  /** ISO timestamp of the last heartbeat. */
-  lastSeenAt?: string;
-  /** ISO timestamp the long-lived Instagram token expires (F64). */
-  tokenExpiresAt?: string;
-  revokedAt?: string;
-  createdAt?: string;
-}
-
-export interface InstagramAccount {
-  igUserId: string;
-  igUsername?: string;
-  followersCount?: number;
-  followsCount?: number;
-  mediaCount?: number;
-  profilePictureUrl?: string;
-  deviceId?: string;
-  lastSyncAt?: string;
-  tokenExpiresAt?: string;
-}
-
-export interface AccountsResponse {
   accounts: InstagramAccount[];
-  devices?: Device[];
 }
 
-export interface DevicesResponse {
-  devices: Device[];
+export type TimeseriesMetric = 'followers' | 'reach' | 'views';
+
+export interface TimeseriesPoint {
+  date: string;
+  value: number;
 }
 
-export interface PairingCodeResponse {
-  pairingCode: string;
-  /** ISO timestamp, 15 minutes out per the contract. */
-  expiresAt: string;
+export interface TimeseriesResponse {
+  metric: TimeseriesMetric;
+  days?: number;
+  points: TimeseriesPoint[];
 }
 
 /* ------------------------------------------------------------------ */
-/* GET /media — the reel leaderboard (F29)                             */
+/* Media — the reel leaderboard                                        */
 /* ------------------------------------------------------------------ */
 
 export interface MediaMetrics {
@@ -156,7 +154,6 @@ export interface MediaMetrics {
   saved?: number;
   shares?: number;
   totalInteractions?: number;
-  avgWatchTimeMs?: number;
 }
 
 export interface Media {
@@ -171,7 +168,6 @@ export interface Media {
   commentCount?: number;
   dmCount?: number;
   enquiryCount?: number;
-  /** Enquiries from this reel scored `hot`. */
   hotCount?: number;
 }
 
@@ -179,17 +175,8 @@ export interface MediaListResponse {
   media: Media[];
 }
 
-/** One dated row of `SNAP#MEDIA#<mediaId>#<date>`. */
-export interface MediaSnapshot {
+export interface MediaSnapshot extends MediaMetrics {
   date: string;
-  views?: number;
-  reach?: number;
-  likes?: number;
-  comments?: number;
-  saved?: number;
-  shares?: number;
-  totalInteractions?: number;
-  avgWatchTimeMs?: number;
 }
 
 export interface MediaDetailResponse {
@@ -200,22 +187,56 @@ export interface MediaDetailResponse {
 export type MediaSort = 'enquiries' | 'views';
 
 /* ------------------------------------------------------------------ */
-/* GET /enquiries, PATCH /enquiries/:enquiryId                         */
+/* Enquiries                                                           */
 /* ------------------------------------------------------------------ */
+
+export type CrmSyncStatus =
+  | 'created'
+  | 'updated'
+  | 'duplicate'
+  | 'skipped'
+  | 'failed'
+  | 'waiting_for_phone'
+  | 'needs_intent'
+  | 'not_configured'
+  | 'disabled';
+
+export interface CrmSync {
+  status: CrmSyncStatus;
+  leadId?: string | null;
+  reason?: string | null;
+  at?: string;
+}
 
 export interface Enquiry {
   enquiryId: string;
-  name?: string;
-  phone?: string;
+  threadId?: string;
+  igUserId?: string;
+  name?: string | null;
+  phone?: string | null;
   intent?: Intent;
   budgetBracket?: string;
-  preferredArea?: string;
+  budgetText?: string;
+  preferredArea?: string | null;
+  city?: string | null;
+  propertyType?: string;
+  dealType?: string;
+  leadType?: string;
+  leadScore?: LeadScore;
   temperature?: Temperature;
-  sourceMediaId?: string;
+  summary?: string;
+  nextAction?: string;
+  suggestedReply?: string;
+  meetingSchedule?: string;
+  callRequested?: boolean;
+  needsReview?: boolean;
+  analyser?: string;
+  sourceMediaId?: string | null;
   igSenderId?: string;
-  igUsername?: string;
+  igUsername?: string | null;
   status?: EnquiryStatus;
-  notes?: string;
+  notes?: string | null;
+  crmSync?: CrmSync | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -232,46 +253,85 @@ export interface EnquiryPatch {
 }
 
 /* ------------------------------------------------------------------ */
-/* GET /threads                                                        */
+/* Threads                                                             */
 /* ------------------------------------------------------------------ */
 
+export interface ThreadAnalysis {
+  analyser?: string;
+  leadScore?: LeadScore;
+  leadType?: string;
+  temperature?: Temperature;
+  summary?: string;
+  nextAction?: string;
+  suggestedReply?: string;
+  needsReview?: boolean;
+  isLead?: boolean;
+  analysedAt?: string;
+}
+
 export interface Thread {
-  conversationId: string;
+  threadId: string;
+  igUserId?: string;
+  conversationId?: string | null;
   participantId?: string;
-  participantUsername?: string;
+  participantUsername?: string | null;
   messageCount?: number;
-  lastInboundAt?: string;
-  lastOutboundAt?: string;
+  lastInboundAt?: string | null;
+  lastOutboundAt?: string | null;
+  lastMessageAt?: string | null;
+  lastMessageText?: string | null;
+  lastMessageDirection?: 'in' | 'out' | null;
   windowState?: WindowState;
+  windowExpiresAt?: string | null;
   unanswered?: boolean;
+  needsAnalysis?: boolean;
+  sourceMediaId?: string | null;
+  enquiryId?: string;
+  analysis?: ThreadAnalysis;
   firstSeenAt?: string;
 }
 
 export interface ThreadListResponse {
   threads: Thread[];
-  cursor?: string | null;
+}
+
+export interface Message {
+  messageId: string;
+  direction: 'in' | 'out';
+  text: string;
+  createdAt: string;
+  source?: string | null;
+  status?: string | null;
+}
+
+export interface ThreadDetailResponse {
+  thread: Thread;
+  messages: Message[];
+  enquiry: Enquiry | null;
+  canReply: { allowed: boolean; reason: string };
+}
+
+export interface ReplyResponse {
+  messageId: string;
+  status: 'sent' | 'dry_run';
+  thread: Thread;
 }
 
 /* ------------------------------------------------------------------ */
-/* GET/POST /rules, DELETE /rules/:ruleId                              */
+/* Rules                                                               */
 /* ------------------------------------------------------------------ */
 
 export type RuleMatchType = 'exact' | 'contains' | 'starts_with' | 'regex';
 
-export const RULE_MATCH_TYPES: RuleMatchType[] = [
-  'exact',
-  'contains',
-  'starts_with',
-  'regex',
-];
+export const RULE_MATCH_TYPES: RuleMatchType[] = ['exact', 'contains', 'starts_with', 'regex'];
 
 export interface Rule {
   ruleId: string;
   keyword: string;
   matchType?: RuleMatchType;
-  publicReply?: string;
-  dmMessage?: string;
-  /** `all`, or a specific mediaId the rule is scoped to. */
+  publicReply?: string | null;
+  dmMessage?: string | null;
+  /** `all`, or a comma-separated list of media ids the rule is scoped to. */
   mediaScope?: string;
   enabled?: boolean;
   createdAt?: string;
@@ -279,36 +339,18 @@ export interface Rule {
 
 export interface RuleListResponse {
   rules: Rule[];
-  updatedAt?: string;
 }
 
 /** POST /rules body. A present `ruleId` means upsert of an existing rule. */
 export type RuleInput = Omit<Rule, 'ruleId' | 'createdAt'> & { ruleId?: string };
 
 /* ------------------------------------------------------------------ */
-/* GET /insights/timeseries                                            */
-/* ------------------------------------------------------------------ */
-
-export type TimeseriesMetric = 'followers' | 'reach' | 'views';
-
-export interface TimeseriesPoint {
-  date: string;
-  value: number;
-}
-
-export interface TimeseriesResponse {
-  metric: TimeseriesMetric;
-  days?: number;
-  points: TimeseriesPoint[];
-}
-
-/* ------------------------------------------------------------------ */
 /* GET /health                                                         */
 /* ------------------------------------------------------------------ */
 
 export interface HealthResponse {
-  ok: boolean;
+  status: string;
   service?: string;
-  version?: string;
-  time?: string;
+  instagramConfigured?: boolean;
+  serverTime?: string;
 }

@@ -114,6 +114,7 @@ for tbl_var in INSTA_DATA_TABLE_NAME INSTA_AUDIT_TABLE_NAME; do
 done
 
 assert_custom_domain_vars
+assert_instagram_app_vars
 
 AWS_ARGS=(--region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager)
 

@@ -1,12 +1,12 @@
 {
   "name": "backend-insta-sol-ms",
   "version": "1.0.0",
-  "description": "Instagram Solution backend microservice — Express on Lambda, DynamoDB single-table, JWT + HMAC device auth",
+  "description": "Instagram Solution backend microservice — Express on Lambda, DynamoDB single-table, Instagram Business Login, webhooks + scheduled sync",
   "type": "module",
   "main": "lambda.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js",
+    "dev": "node --env-file=.env.local --watch server.js",
     "test": "node --test \"tests/**/*.test.js\""
   },
   "dependencies": {

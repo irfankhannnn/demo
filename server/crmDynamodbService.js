@@ -3774,7 +3774,7 @@ export async function createLead(tenantId, data) {
     // Instagram-sourced leads carry a reference to the triggering post so a
     // human can see which reel/listing prompted the DM.
     reelRef: data.reelRef || null,
-    // Which intake adapter produced this lead — 'manychat', 'insta-agent',
+    // Which intake adapter produced this lead — 'manychat', 'instagram',
     // 'bailey', 'website', or null for a human typing it in. `source` stays the
     // coarse, user-facing channel ('Instagram'); this is the finer-grained
     // provenance, so two Instagram intake paths stay tellable apart without

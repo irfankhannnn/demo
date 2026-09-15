@@ -21,7 +21,7 @@
  *   leadType        'buyer' | 'tenant' | 'seller'  (see intentToLeadType)
  *   requirement     { requirement?, budget?, preferredArea? }
  *   source          coarse channel shown in the UI, e.g. 'Instagram'
- *   sourceAdapter   fine-grained provenance, e.g. 'manychat' | 'insta-agent'
+ *   sourceAdapter   fine-grained provenance, e.g. 'manychat' | 'instagram'
  *   reelRef         { postId, permalink } | null
  *   externalRef     { igUsername, igSenderId, sourceMediaId, conversationRef }
  *   createdBy        human-readable origin label

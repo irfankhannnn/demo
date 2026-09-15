@@ -1,5 +1,7 @@
 # Instagram Local Agent — Feature Catalogue
 
+> **Superseded (September 2026).** This is the original laptop-agent plan, kept for history. The product was rebuilt as a hosted service (one Meta app, "Connect Instagram" in the console, webhooks + scheduled sync) and `instagram-local-agent/` was removed. Current design: [03-ARCHITECTURE.md](03-ARCHITECTURE.md), setup: [07-META-APP-SETUP.md](07-META-APP-SETUP.md).
+
 Companion to `PLAN.md`. That document describes the 14 technical modules. This one
 describes what an agency owner actually gets, why they care, and how each thing flows.
 

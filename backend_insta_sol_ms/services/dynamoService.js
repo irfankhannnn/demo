@@ -1,15 +1,17 @@
 // The only module in this service that talks to DynamoDB.
 //
-// Two tables, contract section 3: `insta-data` holds the durable projection of
-// what the laptop agent collected, `insta-audit` holds the API trail and the
-// HMAC replay nonces under a TTL.
+// Two tables: `insta-data` holds connected Instagram accounts (with their
+// encrypted tokens), DM threads and messages, enquiries, media, snapshots and
+// keyword rules; `insta-audit` holds the audit trail under a TTL.
 //
 // Tenancy rule, enforced here rather than trusted at the route: every function
-// below takes tenantId as its first argument and builds `pk` from it. No
-// function accepts a caller-supplied pk, and nothing scans across tenants
-// except the two GSI1 lookups that structurally cannot be tenant-scoped
-// (device-by-id and pairing-code-by-code — the caller has not been identified
-// yet at that point, which is precisely what those lookups establish).
+// that reads or writes agency data takes tenantId as its first argument and
+// builds `pk` from it. No function accepts a caller-supplied pk.
+//
+// The one exception is the REGISTRY partitions. A webhook from Meta arrives
+// with an Instagram account id and no tenant, and the scheduled worker has to
+// find every connected account across tenants. The registry rows hold nothing
+// but {tenantId, igUserId} pointers, and they are the only cross-tenant reads.
 
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -24,11 +26,12 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { getConfig } from '../config/env.js';
 import { logger } from '../logger.js';
+import { createLocalDocClient } from './localDynamo.js';
+import { classifyWindow } from './windowPolicy.js';
 
 const log = logger.child({ module: 'dynamoService' });
 
-// DynamoDB's hard ceiling for BatchWriteItem. Agent uploads arrive in batches
-// of up to 500, so every write path chunks.
+// DynamoDB's hard ceiling for BatchWriteItem.
 const BATCH_LIMIT = 25;
 
 let docClient = null;
@@ -39,29 +42,40 @@ let docClient = null;
  */
 export function getDocClient() {
   if (!docClient) {
-    const base = new DynamoDBClient({ region: getConfig().region });
-    docClient = DynamoDBDocumentClient.from(base, {
-      marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },
-    });
+    const cfg = getConfig();
+    if (cfg.store === 'memory') {
+      docClient = createLocalDocClient({ file: cfg.memoryStoreFile });
+      log.warn('dynamo.using_local_memory_store', { persisted: Boolean(cfg.memoryStoreFile) });
+    } else {
+      const base = new DynamoDBClient({
+        region: cfg.region,
+        ...(process.env.DYNAMODB_ENDPOINT && { endpoint: process.env.DYNAMODB_ENDPOINT }),
+      });
+      docClient = DynamoDBDocumentClient.from(base, {
+        marshallOptions: { removeUndefinedValues: true, convertClassInstanceToMap: true },
+      });
+    }
   }
   return docClient;
 }
 
-/** Test seam — lets the integration-shaped tests inject a fake client. */
+/** Test seam — lets the suite inject a fresh client per test. */
 export function __setDocClient(client) {
   docClient = client;
 }
 
 function dataTable() {
-  const t = getConfig().dataTable;
-  if (!t) throw new Error('INSTA_DATA_TABLE_NAME is not set');
-  return t;
+  const cfg = getConfig();
+  if (cfg.dataTable) return cfg.dataTable;
+  if (cfg.store === 'memory') return 'local-realestateflow-insta-data';
+  throw new Error('INSTA_DATA_TABLE_NAME is not set');
 }
 
 function auditTable() {
-  const t = getConfig().auditTable;
-  if (!t) throw new Error('INSTA_AUDIT_TABLE_NAME is not set');
-  return t;
+  const cfg = getConfig();
+  if (cfg.auditTable) return cfg.auditTable;
+  if (cfg.store === 'memory') return 'local-realestateflow-insta-audit';
+  throw new Error('INSTA_AUDIT_TABLE_NAME is not set');
 }
 
 function requireTenant(tenantId) {
@@ -72,15 +86,14 @@ function requireTenant(tenantId) {
 }
 
 // ---------------------------------------------------------------------------
-// Key construction — pure, exported, and unit-tested. Every sort key in the
-// contract is built here so a typo shows up in one place rather than nine.
+// Key construction — pure, exported, and unit-tested.
 // ---------------------------------------------------------------------------
 
 export const keys = {
   tenantPk: (tenantId) => `TENANT#${requireTenant(tenantId)}`,
 
-  device: (deviceId) => `DEVICE#${deviceId}`,
-  pairingCode: (code) => `PAIRCODE#${String(code).toUpperCase()}`,
+  account: (igUserId) => `IGACCOUNT#${igUserId}`,
+  accountPrefix: () => 'IGACCOUNT#',
   accountSnapshot: (igUserId, dateKey) => `SNAP#ACCOUNT#${igUserId}#${dateKey}`,
   accountSnapshotPrefix: (igUserId) => `SNAP#ACCOUNT#${igUserId}#`,
   media: (mediaId) => `MEDIA#${mediaId}`,
@@ -89,21 +102,29 @@ export const keys = {
   mediaSnapshotPrefix: (mediaId) => `SNAP#MEDIA#${mediaId}#`,
   enquiry: (enquiryId) => `ENQ#${enquiryId}`,
   enquiryPrefix: () => 'ENQ#',
-  thread: (conversationId) => `THREAD#${conversationId}`,
+  thread: (threadId) => `THREAD#${threadId}`,
   threadPrefix: () => 'THREAD#',
+  // The trailing '#' stops thread "a_1" leaking into thread "a_10".
+  message: (threadId, messageId) => `MSG#${threadId}#${messageId}`,
+  messagePrefix: (threadId) => `MSG#${threadId}#`,
+  comment: (commentId) => `COMMENT#${commentId}`,
   rule: (ruleId) => `RULE#${ruleId}`,
   rulePrefix: () => 'RULE#',
 
-  // GSI1 — sparse, only on the items that need a non-tenant-scoped lookup or a
-  // time-ordered listing.
-  gsiDevice: (deviceId) => `DEVICE#${deviceId}`,
-  gsiPairingCode: (code) => `PAIRCODE#${String(code).toUpperCase()}`,
+  // GSI1 — newest-first enquiry listing without a partition scan.
   gsiEnquiryPk: (tenantId) => `TENANT#${requireTenant(tenantId)}#ENQ`,
   gsiEnquirySk: (createdAt, enquiryId) => `${createdAt}#${enquiryId}`,
 
+  // Registry — pointer rows only, see the header comment.
+  registryAccountsPk: () => 'REGISTRY#IGACCOUNTS',
+  registryAccount: (tenantId, igUserId) => `ACCT#${requireTenant(tenantId)}#${igUserId}`,
+  registryIdsPk: () => 'REGISTRY#IGIDS',
+  registryId: (anyIgId) => `IGID#${anyIgId}`,
+  registryDeletionsPk: () => 'REGISTRY#DELETIONS',
+  deletion: (code) => `DEL#${code}`,
+
   // Audit table.
   auditEvent: (isoTs, id) => `EVT#${isoTs}#${id}`,
-  nonce: (deviceId, nonce) => `NONCE#${deviceId}#${nonce}`,
 };
 
 // ---------------------------------------------------------------------------
@@ -144,217 +165,86 @@ async function put(tableName, item) {
 }
 
 async function getItem(tableName, pk, sk) {
-  const res = await getDocClient().send(
-    new GetCommand({ TableName: tableName, Key: { pk, sk } })
-  );
+  const res = await getDocClient().send(new GetCommand({ TableName: tableName, Key: { pk, sk } }));
   return res.Item || null;
 }
 
 /**
  * BatchWrite in chunks of 25, retrying whatever DynamoDB hands back as
  * UnprocessedItems. Without the retry a throttled partition silently drops
- * rows from a snapshot upload and the dashboard shows a hole in the series.
+ * rows and the dashboard shows a hole.
  */
-async function batchPut(tableName, items) {
-  if (!items.length) return 0;
+async function batchWrite(tableName, requests) {
+  if (!requests.length) return 0;
   let written = 0;
 
-  for (const group of chunk(items)) {
-    let requests = group.map((Item) => ({ PutRequest: { Item } }));
-
-    for (let attempt = 0; attempt < 4 && requests.length; attempt += 1) {
-      const res = await getDocClient().send(
-        new BatchWriteCommand({ RequestItems: { [tableName]: requests } })
-      );
+  for (const group of chunk(requests)) {
+    let pending = group;
+    for (let attempt = 0; attempt < 4 && pending.length; attempt += 1) {
+      const res = await getDocClient().send(new BatchWriteCommand({ RequestItems: { [tableName]: pending } }));
       const unprocessed = res.UnprocessedItems?.[tableName] || [];
-      written += requests.length - unprocessed.length;
-      requests = unprocessed;
-      if (requests.length) {
-        await new Promise((r) => setTimeout(r, 50 * 2 ** attempt));
-      }
+      written += pending.length - unprocessed.length;
+      pending = unprocessed;
+      if (pending.length) await new Promise((r) => setTimeout(r, 50 * 2 ** attempt));
     }
-
-    if (requests.length) {
-      log.warn('dynamo.batchPut.unprocessed', { tableName, dropped: requests.length });
-    }
+    if (pending.length) log.warn('dynamo.batchWrite.unprocessed', { tableName, dropped: pending.length });
   }
-
   return written;
 }
+
+const batchPut = (tableName, items) => batchWrite(tableName, items.map((Item) => ({ PutRequest: { Item } })));
 
 async function queryAll(params, { limit } = {}) {
   const items = [];
   let ExclusiveStartKey = params.ExclusiveStartKey;
-
   do {
-    const res = await getDocClient().send(
-      new QueryCommand({ ...params, ExclusiveStartKey })
-    );
+    const res = await getDocClient().send(new QueryCommand({ ...params, ExclusiveStartKey }));
     items.push(...(res.Items || []));
     ExclusiveStartKey = res.LastEvaluatedKey;
     if (limit && items.length >= limit) return items.slice(0, limit);
   } while (ExclusiveStartKey);
-
   return items;
 }
 
-// ---------------------------------------------------------------------------
-// Devices
-// ---------------------------------------------------------------------------
-
-export async function createDevice(tenantId, device) {
-  const pk = keys.tenantPk(tenantId);
-  const now = new Date().toISOString();
-  const item = {
-    pk,
-    sk: keys.device(device.deviceId),
-    gsi1pk: keys.gsiDevice(device.deviceId),
-    gsi1sk: pk,
-    type: 'DEVICE',
-    tenantId,
-    deviceId: device.deviceId,
-    deviceName: device.deviceName || 'unnamed-laptop',
-    deviceSecret: device.deviceSecret,
-    platform: device.platform || 'unknown',
-    agentVersion: device.agentVersion || null,
-    status: 'active',
-    igUserId: device.igUserId || null,
-    igUsername: device.igUsername || null,
-    tokenExpiresAt: device.tokenExpiresAt || null,
-    lastSeenAt: null,
-    revokedAt: null,
-    createdAt: now,
-    updatedAt: now,
-  };
-  return put(dataTable(), item);
+function queryPrefix(pk, prefix, opts) {
+  return queryAll(
+    {
+      TableName: dataTable(),
+      KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
+      ExpressionAttributeValues: { ':pk': pk, ':prefix': prefix },
+    },
+    opts
+  );
 }
 
-export async function getDevice(tenantId, deviceId) {
-  return getItem(dataTable(), keys.tenantPk(tenantId), keys.device(deviceId));
-}
+const IMMUTABLE_FIELDS = new Set(['pk', 'sk', 'tenantId', 'type', 'gsi1pk', 'gsi1sk']);
 
 /**
- * Device lookup by id alone, via GSI1. Used by deviceAuth before the tenant is
- * known — the device record is what establishes it. Everything the middleware
- * does afterwards is scoped by the tenantId found here.
+ * SET every provided field, bump updatedAt. The item must already exist, so a
+ * typo'd id cannot create a ghost record. Returns the updated item, or null
+ * when it does not exist.
  */
-export async function getDeviceById(deviceId) {
-  const items = await queryAll({
-    TableName: dataTable(),
-    IndexName: 'gsi1-index',
-    KeyConditionExpression: 'gsi1pk = :pk',
-    ExpressionAttributeValues: { ':pk': keys.gsiDevice(deviceId) },
-  }, { limit: 1 });
-  return items[0] || null;
-}
-
-export async function listDevices(tenantId) {
-  return queryAll({
-    TableName: dataTable(),
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :sk)',
-    ExpressionAttributeValues: {
-      ':pk': keys.tenantPk(tenantId),
-      ':sk': 'DEVICE#',
-    },
-  });
-}
-
-export async function updateDevice(tenantId, deviceId, fields) {
-  const allowed = [
-    'deviceName',
-    'status',
-    'igUserId',
-    'igUsername',
-    'agentVersion',
-    'lastSeenAt',
-    'tokenExpiresAt',
-    'revokedAt',
-    'counters',
-  ];
+async function updateFields(tableName, key, fields) {
   const sets = ['#updatedAt = :updatedAt'];
   const names = { '#updatedAt': 'updatedAt' };
   const values = { ':updatedAt': new Date().toISOString() };
 
-  for (const key of allowed) {
-    if (fields[key] === undefined) continue;
-    sets.push(`#${key} = :${key}`);
-    names[`#${key}`] = key;
-    values[`:${key}`] = fields[key];
-  }
+  Object.entries(fields).forEach(([field, value], index) => {
+    if (value === undefined || IMMUTABLE_FIELDS.has(field) || field === 'updatedAt') return;
+    sets.push(`#f${index} = :v${index}`);
+    names[`#f${index}`] = field;
+    values[`:v${index}`] = value;
+  });
 
-  const res = await getDocClient().send(
-    new UpdateCommand({
-      TableName: dataTable(),
-      Key: { pk: keys.tenantPk(tenantId), sk: keys.device(deviceId) },
-      UpdateExpression: `SET ${sets.join(', ')}`,
-      // Guards against an update resurrecting a device that was deleted, and
-      // against a typo'd deviceId silently creating a ghost record.
-      ConditionExpression: 'attribute_exists(pk)',
-      ExpressionAttributeNames: names,
-      ExpressionAttributeValues: values,
-      ReturnValues: 'ALL_NEW',
-    })
-  );
-  return res.Attributes || null;
-}
-
-export async function revokeDevice(tenantId, deviceId) {
-  const now = new Date().toISOString();
-  return updateDevice(tenantId, deviceId, { status: 'revoked', revokedAt: now });
-}
-
-// ---------------------------------------------------------------------------
-// Pairing codes
-// ---------------------------------------------------------------------------
-
-export async function createPairingCode(tenantId, { code, ttlMinutes, createdBy }) {
-  const pk = keys.tenantPk(tenantId);
-  const expiresAtMs = Date.now() + ttlMinutes * 60 * 1000;
-  const item = {
-    pk,
-    sk: keys.pairingCode(code),
-    gsi1pk: keys.gsiPairingCode(code),
-    gsi1sk: pk,
-    type: 'PAIRCODE',
-    tenantId,
-    code: String(code).toUpperCase(),
-    // Epoch seconds: the table's TTL attribute. DynamoDB deletes lazily, so
-    // every read still checks expiry itself rather than trusting the sweep.
-    expiresAt: Math.floor(expiresAtMs / 1000),
-    expiresAtIso: new Date(expiresAtMs).toISOString(),
-    usedAt: null,
-    createdBy: createdBy || null,
-    createdAt: new Date().toISOString(),
-  };
-  await put(dataTable(), item);
-  return item;
-}
-
-/** Pairing-code lookup by code alone, via GSI1 — the agent has no tenant yet. */
-export async function getPairingCodeByCode(code) {
-  const items = await queryAll({
-    TableName: dataTable(),
-    IndexName: 'gsi1-index',
-    KeyConditionExpression: 'gsi1pk = :pk',
-    ExpressionAttributeValues: { ':pk': keys.gsiPairingCode(code) },
-  }, { limit: 1 });
-  return items[0] || null;
-}
-
-/**
- * Single-use enforcement. The conditional update is the whole point: two
- * agents racing the same code must not both end up paired, so the loser gets
- * a ConditionalCheckFailedException and we return null.
- */
-export async function consumePairingCode(tenantId, code) {
   try {
     const res = await getDocClient().send(
       new UpdateCommand({
-        TableName: dataTable(),
-        Key: { pk: keys.tenantPk(tenantId), sk: keys.pairingCode(code) },
-        UpdateExpression: 'SET usedAt = :now',
-        ConditionExpression: 'attribute_exists(pk) AND (attribute_not_exists(usedAt) OR usedAt = :null)',
-        ExpressionAttributeValues: { ':now': new Date().toISOString(), ':null': null },
+        TableName: tableName,
+        Key: key,
+        UpdateExpression: `SET ${sets.join(', ')}`,
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeNames: names,
+        ExpressionAttributeValues: values,
         ReturnValues: 'ALL_NEW',
       })
     );
@@ -366,7 +256,215 @@ export async function consumePairingCode(tenantId, code) {
 }
 
 // ---------------------------------------------------------------------------
-// Snapshots (account + media), media, enquiries, threads, rules
+// Instagram accounts + registry
+// ---------------------------------------------------------------------------
+
+export async function putAccount(tenantId, account) {
+  const now = new Date().toISOString();
+  const item = {
+    ...account,
+    pk: keys.tenantPk(tenantId),
+    sk: keys.account(account.igUserId),
+    type: 'IG_ACCOUNT',
+    tenantId,
+    createdAt: account.createdAt || now,
+    updatedAt: now,
+  };
+  return put(dataTable(), item);
+}
+
+export function getAccount(tenantId, igUserId) {
+  return getItem(dataTable(), keys.tenantPk(tenantId), keys.account(igUserId));
+}
+
+export function listAccounts(tenantId) {
+  return queryPrefix(keys.tenantPk(tenantId), keys.accountPrefix());
+}
+
+export function updateAccount(tenantId, igUserId, fields) {
+  return updateFields(dataTable(), { pk: keys.tenantPk(tenantId), sk: keys.account(igUserId) }, fields);
+}
+
+/**
+ * Pointer rows: one per account for the worker's cross-tenant listing, and one
+ * per Instagram id (professional account id and app-scoped id can differ) for
+ * webhook routing.
+ */
+export async function registerAccount(tenantId, igUserId, ids = []) {
+  const now = new Date().toISOString();
+  const rows = [
+    { pk: keys.registryAccountsPk(), sk: keys.registryAccount(tenantId, igUserId), type: 'REGISTRY', tenantId, igUserId, updatedAt: now },
+    ...[...new Set([igUserId, ...ids].filter(Boolean).map(String))].map((id) => ({
+      pk: keys.registryIdsPk(),
+      sk: keys.registryId(id),
+      type: 'REGISTRY',
+      tenantId,
+      igUserId,
+      updatedAt: now,
+    })),
+  ];
+  await batchPut(dataTable(), rows);
+  return rows.length;
+}
+
+/** @returns {Promise<{tenantId: string, igUserId: string}|null>} */
+export async function findAccountRefByIgId(anyIgId) {
+  if (!anyIgId) return null;
+  const row = await getItem(dataTable(), keys.registryIdsPk(), keys.registryId(String(anyIgId)));
+  return row ? { tenantId: row.tenantId, igUserId: row.igUserId } : null;
+}
+
+export async function listRegisteredAccounts() {
+  const rows = await queryAll({
+    TableName: dataTable(),
+    KeyConditionExpression: 'pk = :pk',
+    ExpressionAttributeValues: { ':pk': keys.registryAccountsPk() },
+  });
+  return rows.map((r) => ({ tenantId: r.tenantId, igUserId: r.igUserId }));
+}
+
+export async function unregisterAccount(tenantId, igUserId, ids = []) {
+  const client = getDocClient();
+  await client.send(
+    new DeleteCommand({ TableName: dataTable(), Key: { pk: keys.registryAccountsPk(), sk: keys.registryAccount(tenantId, igUserId) } })
+  );
+  for (const id of new Set([igUserId, ...ids].filter(Boolean).map(String))) {
+    try {
+      // Only remove a pointer this tenant owns: another workspace may have
+      // connected the same account since.
+      await client.send(
+        new DeleteCommand({
+          TableName: dataTable(),
+          Key: { pk: keys.registryIdsPk(), sk: keys.registryId(id) },
+          ConditionExpression: 'attribute_not_exists(pk) OR tenantId = :tenantId',
+          ExpressionAttributeValues: { ':tenantId': tenantId },
+        })
+      );
+    } catch (err) {
+      if (err?.name !== 'ConditionalCheckFailedException') throw err;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Threads + messages
+// ---------------------------------------------------------------------------
+
+export async function putThread(tenantId, thread) {
+  const now = new Date().toISOString();
+  const item = {
+    ...thread,
+    pk: keys.tenantPk(tenantId),
+    sk: keys.thread(thread.threadId),
+    type: 'THREAD',
+    tenantId,
+    firstSeenAt: thread.firstSeenAt || now,
+    updatedAt: now,
+  };
+  // windowState is derived on read; a stored copy would go stale within a day.
+  delete item.windowState;
+  delete item.windowExpiresAt;
+  return put(dataTable(), item);
+}
+
+export function getThread(tenantId, threadId) {
+  return getItem(dataTable(), keys.tenantPk(tenantId), keys.thread(threadId));
+}
+
+export function updateThread(tenantId, threadId, fields) {
+  return updateFields(dataTable(), { pk: keys.tenantPk(tenantId), sk: keys.thread(threadId) }, fields);
+}
+
+/** Adds the live Meta messaging window to a stored thread. */
+export function withWindow(thread, at = Date.now()) {
+  if (!thread) return thread;
+  const w = classifyWindow(thread, at);
+  return { ...thread, windowState: w.state, windowExpiresAt: w.expiresAt };
+}
+
+export async function listThreads(tenantId, { windowState, unanswered, igUserId, limit } = {}) {
+  const items = await queryPrefix(keys.tenantPk(tenantId), keys.threadPrefix());
+  const now = Date.now();
+
+  // Filtering in memory rather than with a FilterExpression: thread counts per
+  // tenant are in the hundreds, and the window state is not stored anyway.
+  let out = items.map((t) => withWindow(t, now));
+  if (igUserId) out = out.filter((t) => t.igUserId === igUserId);
+  if (windowState) out = out.filter((t) => t.windowState === windowState);
+  if (unanswered !== undefined) out = out.filter((t) => !!t.unanswered === !!unanswered);
+  return limit ? out.slice(0, limit) : out;
+}
+
+/**
+ * Stores messages that are not already stored. Idempotent on messageId, so a
+ * webhook delivery, a poll and our own send can all report the same message.
+ *
+ * @returns {Promise<object[]>} only the rows that were new
+ */
+export async function putMessagesIfAbsent(tenantId, messages) {
+  const pk = keys.tenantPk(tenantId);
+  const inserted = [];
+  for (const m of messages) {
+    const item = {
+      ...m,
+      pk,
+      sk: keys.message(m.threadId, m.messageId),
+      type: 'MESSAGE',
+      tenantId,
+      storedAt: new Date().toISOString(),
+    };
+    try {
+      await getDocClient().send(
+        new PutCommand({ TableName: dataTable(), Item: item, ConditionExpression: 'attribute_not_exists(pk)' })
+      );
+      inserted.push(item);
+    } catch (err) {
+      if (err?.name !== 'ConditionalCheckFailedException') throw err;
+    }
+  }
+  return inserted;
+}
+
+export async function listMessages(tenantId, threadId) {
+  const items = await queryPrefix(keys.tenantPk(tenantId), keys.messagePrefix(threadId));
+  return items.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+
+// ---------------------------------------------------------------------------
+// Comments (keyword-rule bookkeeping)
+// ---------------------------------------------------------------------------
+
+/** First writer wins: the same comment arriving by webhook and by poll is acted on once. */
+export async function claimComment(tenantId, comment) {
+  const item = {
+    ...comment,
+    pk: keys.tenantPk(tenantId),
+    sk: keys.comment(comment.commentId),
+    type: 'COMMENT',
+    tenantId,
+    claimedAt: new Date().toISOString(),
+  };
+  try {
+    await getDocClient().send(
+      new PutCommand({ TableName: dataTable(), Item: item, ConditionExpression: 'attribute_not_exists(pk)' })
+    );
+    return true;
+  } catch (err) {
+    if (err?.name === 'ConditionalCheckFailedException') return false;
+    throw err;
+  }
+}
+
+export function updateComment(tenantId, commentId, fields) {
+  return updateFields(dataTable(), { pk: keys.tenantPk(tenantId), sk: keys.comment(commentId) }, fields);
+}
+
+export function getComment(tenantId, commentId) {
+  return getItem(dataTable(), keys.tenantPk(tenantId), keys.comment(commentId));
+}
+
+// ---------------------------------------------------------------------------
+// Snapshots (account + media) and media
 // ---------------------------------------------------------------------------
 
 export async function putAccountSnapshots(tenantId, snapshots) {
@@ -386,30 +484,23 @@ export async function putAccountSnapshots(tenantId, snapshots) {
     accountsEngaged: s.accountsEngaged ?? null,
     totalInteractions: s.totalInteractions ?? null,
     profileLinksTaps: s.profileLinksTaps ?? null,
-    demographics: s.demographics ?? null,
     updatedAt: new Date().toISOString(),
   }));
   return batchPut(dataTable(), items);
 }
 
 export async function listAccountSnapshots(tenantId, igUserId, { fromDate, toDate } = {}) {
-  const values = {
-    ':pk': keys.tenantPk(tenantId),
-    ':prefix': keys.accountSnapshotPrefix(igUserId),
-  };
-  let cond = 'pk = :pk AND begins_with(sk, :prefix)';
-  if (fromDate) {
-    // Dates are lexicographically ordered by construction (YYYY-MM-DD), so a
-    // string BETWEEN on the sort key is a real range query, not a filter.
-    cond = 'pk = :pk AND sk BETWEEN :from AND :to';
-    values[':from'] = keys.accountSnapshot(igUserId, fromDate);
-    values[':to'] = keys.accountSnapshot(igUserId, toDate || '9999-12-31');
-    delete values[':prefix'];
-  }
+  if (!fromDate) return queryPrefix(keys.tenantPk(tenantId), keys.accountSnapshotPrefix(igUserId));
+  // Dates are lexicographically ordered by construction (YYYY-MM-DD), so a
+  // string BETWEEN on the sort key is a real range query, not a filter.
   return queryAll({
     TableName: dataTable(),
-    KeyConditionExpression: cond,
-    ExpressionAttributeValues: values,
+    KeyConditionExpression: 'pk = :pk AND sk BETWEEN :from AND :to',
+    ExpressionAttributeValues: {
+      ':pk': keys.tenantPk(tenantId),
+      ':from': keys.accountSnapshot(igUserId, fromDate),
+      ':to': keys.accountSnapshot(igUserId, toDate || '9999-12-31'),
+    },
   });
 }
 
@@ -430,25 +521,17 @@ export async function putMediaItems(tenantId, mediaItems) {
     thumbnailUrl: m.thumbnailUrl ?? null,
     metrics: m.metrics ?? {},
     commentCount: m.commentCount ?? 0,
-    dmCount: m.dmCount ?? 0,
-    enquiryCount: m.enquiryCount ?? 0,
+    metricsUpdatedAt: m.metricsUpdatedAt ?? null,
     updatedAt: new Date().toISOString(),
   }));
   return batchPut(dataTable(), items);
 }
 
-export async function listMedia(tenantId, { limit } = {}) {
-  return queryAll({
-    TableName: dataTable(),
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-    ExpressionAttributeValues: {
-      ':pk': keys.tenantPk(tenantId),
-      ':prefix': keys.mediaPrefix(),
-    },
-  }, { limit });
+export function listMedia(tenantId, { limit } = {}) {
+  return queryPrefix(keys.tenantPk(tenantId), keys.mediaPrefix(), { limit });
 }
 
-export async function getMedia(tenantId, mediaId) {
+export function getMedia(tenantId, mediaId) {
   return getItem(dataTable(), keys.tenantPk(tenantId), keys.media(mediaId));
 }
 
@@ -460,6 +543,7 @@ export async function putMediaSnapshots(tenantId, snapshots) {
     type: 'SNAP_MEDIA',
     tenantId,
     mediaId: s.mediaId,
+    igUserId: s.igUserId ?? null,
     date: s.date,
     views: s.views ?? null,
     reach: s.reach ?? null,
@@ -468,53 +552,36 @@ export async function putMediaSnapshots(tenantId, snapshots) {
     saved: s.saved ?? null,
     shares: s.shares ?? null,
     totalInteractions: s.totalInteractions ?? null,
-    avgWatchTimeMs: s.avgWatchTimeMs ?? null,
     updatedAt: new Date().toISOString(),
   }));
   return batchPut(dataTable(), items);
 }
 
-export async function listMediaSnapshots(tenantId, mediaId, { limit } = {}) {
-  return queryAll({
-    TableName: dataTable(),
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-    ExpressionAttributeValues: {
-      ':pk': keys.tenantPk(tenantId),
-      ':prefix': keys.mediaSnapshotPrefix(mediaId),
-    },
-  }, { limit });
+export function listMediaSnapshots(tenantId, mediaId, { limit } = {}) {
+  return queryPrefix(keys.tenantPk(tenantId), keys.mediaSnapshotPrefix(mediaId), { limit });
 }
 
-export async function putEnquiries(tenantId, enquiries) {
-  const pk = keys.tenantPk(tenantId);
+// ---------------------------------------------------------------------------
+// Enquiries
+// ---------------------------------------------------------------------------
+
+export async function putEnquiry(tenantId, enquiry) {
   const now = new Date().toISOString();
-  const items = enquiries.map((e) => {
-    const createdAt = e.createdAt || now;
-    return {
-      pk,
-      sk: keys.enquiry(e.enquiryId),
-      // GSI1 gives the dashboard a createdAt-ordered listing without a scan.
-      gsi1pk: keys.gsiEnquiryPk(tenantId),
-      gsi1sk: keys.gsiEnquirySk(createdAt, e.enquiryId),
-      type: 'ENQUIRY',
-      tenantId,
-      enquiryId: e.enquiryId,
-      name: e.name ?? null,
-      phone: e.phone ?? null,
-      intent: e.intent,
-      budgetBracket: e.budgetBracket,
-      preferredArea: e.preferredArea ?? null,
-      temperature: e.temperature,
-      sourceMediaId: e.sourceMediaId ?? null,
-      igSenderId: e.igSenderId ?? null,
-      igUsername: e.igUsername ?? null,
-      status: e.status || 'new',
-      notes: e.notes ?? null,
-      createdAt,
-      updatedAt: now,
-    };
-  });
-  return batchPut(dataTable(), items);
+  const createdAt = enquiry.createdAt || now;
+  const item = {
+    ...enquiry,
+    pk: keys.tenantPk(tenantId),
+    sk: keys.enquiry(enquiry.enquiryId),
+    // GSI1 gives the dashboard a createdAt-ordered listing without a scan.
+    gsi1pk: keys.gsiEnquiryPk(tenantId),
+    gsi1sk: keys.gsiEnquirySk(createdAt, enquiry.enquiryId),
+    type: 'ENQUIRY',
+    tenantId,
+    status: enquiry.status || 'new',
+    createdAt,
+    updatedAt: now,
+  };
+  return put(dataTable(), item);
 }
 
 export async function listEnquiries(tenantId, { status, temperature, limit = 50, cursor } = {}) {
@@ -548,101 +615,26 @@ export async function listEnquiries(tenantId, { status, temperature, limit = 50,
     })
   );
 
-  return {
-    items: res.Items || [],
-    cursor: encodeCursor(res.LastEvaluatedKey),
-  };
+  return { items: res.Items || [], cursor: encodeCursor(res.LastEvaluatedKey) };
 }
 
-export async function getEnquiry(tenantId, enquiryId) {
+export function getEnquiry(tenantId, enquiryId) {
   return getItem(dataTable(), keys.tenantPk(tenantId), keys.enquiry(enquiryId));
 }
 
-export async function updateEnquiry(tenantId, enquiryId, { status, notes }) {
-  const sets = ['#updatedAt = :updatedAt'];
-  const names = { '#updatedAt': 'updatedAt' };
-  const values = { ':updatedAt': new Date().toISOString() };
+const ENQUIRY_PATCHABLE = ['status', 'notes', 'crmSync'];
 
-  if (status !== undefined) {
-    sets.push('#status = :status');
-    names['#status'] = 'status';
-    values[':status'] = status;
-  }
-  if (notes !== undefined) {
-    sets.push('#notes = :notes');
-    names['#notes'] = 'notes';
-    values[':notes'] = notes;
-  }
-
-  try {
-    const res = await getDocClient().send(
-      new UpdateCommand({
-        TableName: dataTable(),
-        Key: { pk: keys.tenantPk(tenantId), sk: keys.enquiry(enquiryId) },
-        UpdateExpression: `SET ${sets.join(', ')}`,
-        ConditionExpression: 'attribute_exists(pk)',
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-        ReturnValues: 'ALL_NEW',
-      })
-    );
-    return res.Attributes || null;
-  } catch (err) {
-    if (err?.name === 'ConditionalCheckFailedException') return null;
-    throw err;
-  }
+export function updateEnquiry(tenantId, enquiryId, patch) {
+  const fields = Object.fromEntries(ENQUIRY_PATCHABLE.filter((k) => patch[k] !== undefined).map((k) => [k, patch[k]]));
+  return updateFields(dataTable(), { pk: keys.tenantPk(tenantId), sk: keys.enquiry(enquiryId) }, fields);
 }
 
-export async function putThreads(tenantId, threads) {
-  const pk = keys.tenantPk(tenantId);
-  const now = new Date().toISOString();
-  const items = threads.map((t) => ({
-    pk,
-    sk: keys.thread(t.conversationId),
-    type: 'THREAD',
-    tenantId,
-    conversationId: t.conversationId,
-    participantId: t.participantId ?? null,
-    participantUsername: t.participantUsername ?? null,
-    messageCount: t.messageCount ?? 0,
-    lastInboundAt: t.lastInboundAt ?? null,
-    lastOutboundAt: t.lastOutboundAt ?? null,
-    windowState: t.windowState,
-    unanswered: !!t.unanswered,
-    firstSeenAt: t.firstSeenAt ?? now,
-    updatedAt: now,
-  }));
-  return batchPut(dataTable(), items);
-}
+// ---------------------------------------------------------------------------
+// Rules
+// ---------------------------------------------------------------------------
 
-export async function listThreads(tenantId, { windowState, unanswered, limit } = {}) {
-  const items = await queryAll({
-    TableName: dataTable(),
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-    ExpressionAttributeValues: {
-      ':pk': keys.tenantPk(tenantId),
-      ':prefix': keys.threadPrefix(),
-    },
-  });
-
-  // Filtering in memory rather than with a FilterExpression: thread counts per
-  // tenant are in the hundreds, and a FilterExpression would still read every
-  // row while making the page size unpredictable.
-  let out = items;
-  if (windowState) out = out.filter((t) => t.windowState === windowState);
-  if (unanswered !== undefined) out = out.filter((t) => !!t.unanswered === !!unanswered);
-  return limit ? out.slice(0, limit) : out;
-}
-
-export async function listRules(tenantId) {
-  return queryAll({
-    TableName: dataTable(),
-    KeyConditionExpression: 'pk = :pk AND begins_with(sk, :prefix)',
-    ExpressionAttributeValues: {
-      ':pk': keys.tenantPk(tenantId),
-      ':prefix': keys.rulePrefix(),
-    },
-  });
+export function listRules(tenantId) {
+  return queryPrefix(keys.tenantPk(tenantId), keys.rulePrefix());
 }
 
 export async function putRule(tenantId, rule) {
@@ -655,8 +647,8 @@ export async function putRule(tenantId, rule) {
     ruleId: rule.ruleId,
     keyword: rule.keyword,
     matchType: rule.matchType || 'contains',
-    publicReply: rule.publicReply ?? null,
-    dmMessage: rule.dmMessage ?? null,
+    publicReply: rule.publicReply || null,
+    dmMessage: rule.dmMessage || null,
     mediaScope: rule.mediaScope || 'all',
     enabled: rule.enabled !== false,
     createdAt: rule.createdAt || now,
@@ -665,18 +657,58 @@ export async function putRule(tenantId, rule) {
   return put(dataTable(), item);
 }
 
+export async function getRule(tenantId, ruleId) {
+  return getItem(dataTable(), keys.tenantPk(tenantId), keys.rule(ruleId));
+}
+
 export async function deleteRule(tenantId, ruleId) {
   await getDocClient().send(
-    new DeleteCommand({
-      TableName: dataTable(),
-      Key: { pk: keys.tenantPk(tenantId), sk: keys.rule(ruleId) },
-    })
+    new DeleteCommand({ TableName: dataTable(), Key: { pk: keys.tenantPk(tenantId), sk: keys.rule(ruleId) } })
   );
   return true;
 }
 
 // ---------------------------------------------------------------------------
-// Audit table — events and HMAC replay nonces
+// Meta data deletion
+// ---------------------------------------------------------------------------
+
+const ACCOUNT_OWNED_TYPES = new Set(['IG_ACCOUNT', 'THREAD', 'MESSAGE', 'ENQUIRY', 'MEDIA', 'SNAP_MEDIA', 'SNAP_ACCOUNT', 'COMMENT']);
+
+/**
+ * Deletes everything this service holds for one Instagram account in one
+ * tenant. Leads already created in the CRM are not touched - they belong to
+ * the agency's CRM, not to this service.
+ */
+export async function deleteAccountData(tenantId, igUserId) {
+  const items = await queryAll({
+    TableName: dataTable(),
+    KeyConditionExpression: 'pk = :pk',
+    ExpressionAttributeValues: { ':pk': keys.tenantPk(tenantId) },
+  });
+  const doomed = items.filter((item) => ACCOUNT_OWNED_TYPES.has(item.type) && String(item.igUserId) === String(igUserId));
+  return batchWrite(
+    dataTable(),
+    doomed.map((item) => ({ DeleteRequest: { Key: { pk: item.pk, sk: item.sk } } }))
+  );
+}
+
+export async function putDeletionRequest(code, record) {
+  return put(dataTable(), {
+    ...record,
+    pk: keys.registryDeletionsPk(),
+    sk: keys.deletion(code),
+    type: 'DELETION_REQUEST',
+    code,
+    createdAt: new Date().toISOString(),
+  });
+}
+
+export function getDeletionRequest(code) {
+  return getItem(dataTable(), keys.registryDeletionsPk(), keys.deletion(code));
+}
+
+// ---------------------------------------------------------------------------
+// Audit table
 // ---------------------------------------------------------------------------
 
 export async function putAuditEvent(tenantId, event) {
@@ -693,40 +725,6 @@ export async function putAuditEvent(tenantId, event) {
   return put(auditTable(), item);
 }
 
-/**
- * Claims a nonce for a device, returning false if it was already used.
- *
- * This is the replay defence and it has to be a conditional write, not a
- * read-then-write: two concurrent replays of the same signed request would
- * both pass a read check. TTL is short (minutes) because a nonce only has to
- * outlive the signature's own skew window.
- */
-export async function claimNonce(tenantId, deviceId, nonce, ttlSeconds) {
-  const item = {
-    pk: keys.tenantPk(tenantId),
-    sk: keys.nonce(deviceId, nonce),
-    type: 'NONCE',
-    tenantId,
-    deviceId,
-    ts: new Date().toISOString(),
-    expiresAt: Math.floor(Date.now() / 1000) + ttlSeconds,
-  };
-
-  try {
-    await getDocClient().send(
-      new PutCommand({
-        TableName: auditTable(),
-        Item: item,
-        ConditionExpression: 'attribute_not_exists(pk) AND attribute_not_exists(sk)',
-      })
-    );
-    return true;
-  } catch (err) {
-    if (err?.name === 'ConditionalCheckFailedException') return false;
-    throw err;
-  }
-}
-
 export default {
   keys,
   chunk,
@@ -734,15 +732,24 @@ export default {
   decodeCursor,
   getDocClient,
   __setDocClient,
-  createDevice,
-  getDevice,
-  getDeviceById,
-  listDevices,
-  updateDevice,
-  revokeDevice,
-  createPairingCode,
-  getPairingCodeByCode,
-  consumePairingCode,
+  putAccount,
+  getAccount,
+  listAccounts,
+  updateAccount,
+  registerAccount,
+  findAccountRefByIgId,
+  listRegisteredAccounts,
+  unregisterAccount,
+  putThread,
+  getThread,
+  updateThread,
+  withWindow,
+  listThreads,
+  putMessagesIfAbsent,
+  listMessages,
+  claimComment,
+  updateComment,
+  getComment,
   putAccountSnapshots,
   listAccountSnapshots,
   putMediaItems,
@@ -750,15 +757,16 @@ export default {
   getMedia,
   putMediaSnapshots,
   listMediaSnapshots,
-  putEnquiries,
+  putEnquiry,
   listEnquiries,
   getEnquiry,
   updateEnquiry,
-  putThreads,
-  listThreads,
   listRules,
   putRule,
+  getRule,
   deleteRule,
+  deleteAccountData,
+  putDeletionRequest,
+  getDeletionRequest,
   putAuditEvent,
-  claimNonce,
 };

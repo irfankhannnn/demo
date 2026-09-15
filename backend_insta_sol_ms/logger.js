@@ -64,12 +64,17 @@ export function createLogger(baseFields = {}) {
   const write = (level, message, fields) => {
     if ((LEVELS[level] ?? 100) < CURRENT_LEVEL) return;
 
+    // ts, level and the event name are written last so a field that happens to
+    // be called `message` (for example an error's) can never replace them.
+    const extra = { ...base, ...(fields ? redact(fields) : {}) };
+    delete extra.ts;
+    delete extra.level;
+    delete extra.message;
     const line = safeStringify({
       ts: new Date().toISOString(),
       level,
       message,
-      ...base,
-      ...(fields ? redact(fields) : {}),
+      ...extra,
     });
 
     if (level === 'error') console.error(line);

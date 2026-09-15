@@ -16,6 +16,8 @@ export function createHealthRouter() {
       status: 'ok',
       service: 'insta-sol-ms',
       env: cfg.nodeEnv,
+      // Booleans only: enough to tell a half-configured stack apart, nothing more.
+      instagramConfigured: cfg.instagramConfigured,
       serverTime: new Date().toISOString(),
     });
   });

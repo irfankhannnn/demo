@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
+  AtSign,
   BarChart3,
   Film,
-  Laptop,
   MessageSquare,
   Menu,
   Users,
@@ -26,11 +26,11 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: '/', label: 'Overview', icon: BarChart3, hint: 'Counters and 30-day trend' },
+  { to: '/threads', label: 'DM inbox', icon: MessageSquare, hint: 'Reply inside the 24h window' },
+  { to: '/enquiries', label: 'Enquiries', icon: Users, hint: 'Scored leads from Instagram' },
   { to: '/reels', label: 'Reels', icon: Film, hint: 'Which reel actually earns' },
-  { to: '/enquiries', label: 'Enquiries', icon: Users, hint: 'Leads from Instagram' },
-  { to: '/threads', label: 'DM threads', icon: MessageSquare, hint: 'Windows and unanswered' },
   { to: '/rules', label: 'Keyword rules', icon: Zap, hint: 'Comment to DM triggers' },
-  { to: '/devices', label: 'Laptops', icon: Laptop, hint: 'Paired agents and health' },
+  { to: '/accounts', label: 'Instagram accounts', icon: AtSign, hint: 'Connect and sync health' },
 ];
 
 export function AppShell() {
