@@ -58,7 +58,7 @@ export function createFakeInstagram({ now = () => Date.now() } = {}) {
       return {
         accessToken: mintToken('short'),
         userId: BUSINESS_IG_ID,
-        permissions: ['instagram_business_basic', 'instagram_business_manage_messages', 'instagram_business_manage_comments'],
+        permissions: ['instagram_business_basic', 'instagram_business_manage_messages', 'instagram_business_manage_comments', 'instagram_business_manage_insights'],
       };
     },
 

@@ -26,14 +26,16 @@ const RAW_API_GATEWAY_HOST = /execute-api\.|\.amazonaws\.com/i;
 
 /**
  * The only Instagram permissions this service asks for. Each one is used:
- * basic for profile/media/insights, messages for the inbox and replies,
- * comments for keyword rules. content_publish is deliberately absent - nothing
- * here publishes, and every extra scope is one more thing App Review questions.
+ * basic for profile and media, messages for the inbox and replies, comments
+ * for keyword rules, insights for reel views/reach and account reach.
+ * content_publish is deliberately absent - nothing here publishes, and every
+ * extra scope is one more thing App Review questions.
  */
 export const INSTAGRAM_SCOPES = [
   'instagram_business_basic',
   'instagram_business_manage_messages',
   'instagram_business_manage_comments',
+  'instagram_business_manage_insights',
 ];
 
 function num(name, fallback) {

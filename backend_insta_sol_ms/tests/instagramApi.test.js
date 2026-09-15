@@ -25,7 +25,7 @@ test('the authorize URL carries the app id, the exact redirect URI, the three sc
   assert.equal(url.searchParams.get('client_id'), 'test-app-id');
   assert.equal(url.searchParams.get('redirect_uri'), 'http://insta.test/api/insta/oauth/callback');
   assert.equal(url.searchParams.get('response_type'), 'code');
-  assert.equal(url.searchParams.get('scope'), 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments');
+  assert.equal(url.searchParams.get('scope'), 'instagram_business_basic,instagram_business_manage_messages,instagram_business_manage_comments,instagram_business_manage_insights');
   assert.equal(url.searchParams.get('state'), 'STATE123');
 });
 

@@ -387,6 +387,7 @@ export function createInstagramService({
       if (reachedUnchanged || !res?.paging?.next || !after) break;
     }
 
+    log.info('instagram.conversations_synced', { igUserId: account.igUserId, conversations, messages });
     return { conversations, messages };
   }
 
@@ -886,6 +887,7 @@ export function createInstagramService({
 
     await db.putMediaItems(account.tenantId, rows);
     await db.putMediaSnapshots(account.tenantId, snapshots);
+    log.info('instagram.media_synced', { igUserId: account.igUserId, media: rows.length, measured });
     return { media: rows.length, measured };
   }
 

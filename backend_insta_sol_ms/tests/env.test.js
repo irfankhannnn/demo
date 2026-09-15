@@ -102,7 +102,7 @@ test('the OAuth redirect URI is derived from this API\'s own public URL, unless 
       assert.equal(cfg.meta.redirectUri, 'https://services-api.cloudberrysolutions.in/devrealestateinsta/api/insta/oauth/callback');
       assert.equal(cfg.consoleUrl, 'https://app.example.com/insta');
       assert.equal(cfg.instagramConfigured, true);
-      assert.deepEqual(cfg.meta.scopes, ['instagram_business_basic', 'instagram_business_manage_messages', 'instagram_business_manage_comments']);
+      assert.deepEqual(cfg.meta.scopes, ['instagram_business_basic', 'instagram_business_manage_messages', 'instagram_business_manage_comments', 'instagram_business_manage_insights']);
 
       process.env.META_REDIRECT_URI = 'https://tunnel.example.dev/api/insta/oauth/callback';
       assert.equal(getConfig().meta.redirectUri, 'https://tunnel.example.dev/api/insta/oauth/callback');
