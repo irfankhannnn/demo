@@ -13,6 +13,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { PhoneNumber } from '../../components/PhoneNumber';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 
 /** Canonical BUYER entity row (not CONTACT). */
@@ -21,6 +22,7 @@ interface BuyerRow {
   name: string;
   email?: string | null;
   phone?: string | null;
+  phoneMasked?: boolean;
   preferredArea?: string | null;
   budget?: number | null;
   status?: string;
@@ -132,7 +134,7 @@ export default function BuyerList() {
       render: (buyer) => (
         <div className="flex items-center gap-2">
           <Phone className="h-4 w-4 text-gray-400" />
-          <span>{buyer.phone || '-'}</span>
+          <PhoneNumber value={buyer.phone} masked={buyer.phoneMasked} entityType="buyer" entityId={buyer.buyerId} showCallButton compact fallback="-" />
         </div>
       ),
     },

@@ -9,6 +9,7 @@ import { webhookRateLimit } from '../middleware/rateLimiter.js';
 import { normalizeWhatsAppPhone } from '../utils/whatsapp.js';
 import { getTenantIdByInstagramWebhookToken } from '../agencyConfigService.js';
 import { ingestLead, intentToLeadType, parseBudgetBracket } from '../leadIngestion.js';
+import { forwardFollowupJob, buildFollowupJobPayload } from '../services/followupService.js';
 
 const router = express.Router();
 
@@ -240,8 +241,34 @@ router.post('/whatsapp', webhookRateLimit, async (req, res) => {
 //   "budgetBracket": "80L-1Cr",
 //   "preferredArea": "Andheri West",
 //   "postId": "17912345678901234",     // triggering reel/post id
-//   "permalink": "https://instagram.com/p/..."
+//   "permalink": "https://instagram.com/p/...",
+//   "callRequested": true,             // optional: the person asked to be called
+//   "meetingSchedule": "Sat 4pm"       // optional: free-text slot they agreed to
 // }
+// Either of the last two turns into a `followUp` hint (CONTRACTS.md 1.1): the
+// hint rides on the lead.created event and is also handed straight to the
+// follow-up service for the resolved lead, so a returning enquirer who now
+// asks for a call gets one too.
+
+/** ManyChat sends booleans as true/"true"/"yes"/1 depending on the flow field type. */
+function isTruthyFlag(value) {
+  if (value === true || value === 1) return true;
+  const s = String(value ?? '').trim().toLowerCase();
+  return s === 'true' || s === 'yes' || s === '1';
+}
+
+function buildInstagramFollowUp(body) {
+  const callRequested = isTruthyFlag(body.callRequested ?? body.call_requested);
+  const meetingSchedule = String(body.meetingSchedule ?? body.meeting_schedule ?? '').trim();
+  if (!callRequested && !meetingSchedule) return null;
+  return {
+    type: 'site_visit_confirmation',
+    meetingSchedule: meetingSchedule || null,
+    propertyHint: body.propertyHint || body.preferredArea || body.area || null,
+    note: callRequested ? 'Asked for a call via Instagram DM' : 'Agreed a meeting via Instagram DM',
+  };
+}
+
 router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
   try {
     const { webhookToken } = req.params;
@@ -285,6 +312,8 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
       ? requirementRaw
       : 'buy';
 
+    const followUp = buildInstagramFollowUp(body);
+
     const result = await ingestLead(
       tenantId,
       {
@@ -302,6 +331,7 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
           ? { postId: body.postId || null, permalink: body.permalink || null }
           : null,
         createdBy: 'ManyChat (Instagram)',
+        followUp,
       },
       // Idempotency was already established above on the ManyChat subscriber id,
       // so no second dedupeKey is needed here.
@@ -312,8 +342,21 @@ router.post('/instagram/:webhookToken', webhookRateLimit, async (req, res) => {
       return res.status(200).json({ ok: true, skipped: true, reason: result.reason });
     }
 
-    logger.info('webhooks.instagram.lead_created', { tenantId, leadId: result.lead.leadId });
-    return res.status(200).json({ ok: true, leadId: result.lead.leadId });
+    const leadId = result.lead.leadId;
+    logger.info('webhooks.instagram.lead_created', { tenantId, leadId, created: Boolean(result.created) });
+
+    // Created or matched to an existing lead alike: the person asked for a
+    // call now. Never throws; a follow-up stack that is down or not deployed
+    // must not turn into a ManyChat retry storm.
+    let followupJob;
+    if (followUp) {
+      followupJob = await forwardFollowupJob(
+        tenantId,
+        buildFollowupJobPayload(leadId, followUp, { requestedBy: 'manychat', source: 'crm-adapter' })
+      );
+    }
+
+    return res.status(200).json({ ok: true, leadId, ...(followupJob ? { followupJob } : {}) });
   } catch (err) {
     logger.error('webhooks.instagram.error', { error: err.message, stack: err.stack });
     // 200 even on failure — same policy as the WhatsApp webhook — so ManyChat

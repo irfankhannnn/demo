@@ -14,6 +14,49 @@ interface AiEmployeeConfig {
   timezone: string;
   whitelistedPhones?: string[];
   blacklistedPhones?: string[];
+  /** AI follow-up calls (followup-agent-service), CONTRACTS.md section 6. */
+  followupCallsEnabled: boolean;
+  followupCallOnNewInstagramLead: boolean;
+  followupMaxAttempts: number;
+  followupRetryGapMinutes: number;
+  followupPostVisitDelayMinutes: number;
+  followupEscalationUserIds: string[];
+}
+
+/** Team member as returned by GET /api/crm/leads/agents. */
+interface FollowupContact {
+  userId: string;
+  username: string;
+  label?: string;
+  role?: string;
+}
+
+type FollowupNumberKey = 'followupMaxAttempts' | 'followupRetryGapMinutes' | 'followupPostVisitDelayMinutes';
+
+const FOLLOWUP_NUMBER_FIELDS: { key: FollowupNumberKey; label: string; min: number; max: number; hint: string }[] = [
+  { key: 'followupMaxAttempts', label: 'Max call attempts', min: 1, max: 5, hint: 'Dials per follow-up before escalating to a human' },
+  { key: 'followupRetryGapMinutes', label: 'Retry gap (minutes)', min: 10, max: 240, hint: 'Wait between attempts when the lead does not pick up' },
+  { key: 'followupPostVisitDelayMinutes', label: 'Post-visit call delay (minutes)', min: 0, max: 1440, hint: 'How long after a completed site visit the feedback call is placed' },
+];
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
+        checked ? 'bg-brand' : 'bg-slate-200'
+      }`}
+      role="switch"
+      aria-checked={checked}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
 }
 
 const PERSONALITY_OPTIONS: { id: AiPersonality; label: string; description: string }[] = [
@@ -46,6 +89,12 @@ export const AiEmployeeSettings: React.FC = () => {
     timezone: 'Asia/Kolkata',
     whitelistedPhones: [],
     blacklistedPhones: [],
+    followupCallsEnabled: true,
+    followupCallOnNewInstagramLead: false,
+    followupMaxAttempts: 2,
+    followupRetryGapMinutes: 45,
+    followupPostVisitDelayMinutes: 120,
+    followupEscalationUserIds: [],
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -53,12 +102,18 @@ export const AiEmployeeSettings: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [newPhone, setNewPhone] = useState('');
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  // null = members list not available on this deployment -> comma-separated fallback
+  const [teamMembers, setTeamMembers] = useState<FollowupContact[] | null>(null);
+  const [escalationInput, setEscalationInput] = useState('');
 
   useEffect(() => {
     setLoading(true);
     api
       .getAiEmployeeConfig()
-      .then((data) =>
+      .then((data) => {
+        const escalationIds: string[] = Array.isArray(data.followupEscalationUserIds)
+          ? data.followupEscalationUserIds.map(String)
+          : [];
         setConfig({
           aiEmployeeEnabled: data.aiEmployeeEnabled ?? false,
           followupAgentMode: data.followupAgentMode || 'draft',
@@ -70,10 +125,27 @@ export const AiEmployeeSettings: React.FC = () => {
           timezone: data.timezone || 'Asia/Kolkata',
           whitelistedPhones: data.whitelistedPhones || [],
           blacklistedPhones: data.blacklistedPhones || [],
-        })
-      )
+          // Contract default: on when the AI employee is on.
+          followupCallsEnabled: data.followupCallsEnabled ?? (data.aiEmployeeEnabled ?? false),
+          followupCallOnNewInstagramLead: data.followupCallOnNewInstagramLead ?? false,
+          followupMaxAttempts: Number(data.followupMaxAttempts ?? 2),
+          followupRetryGapMinutes: Number(data.followupRetryGapMinutes ?? 45),
+          followupPostVisitDelayMinutes: Number(data.followupPostVisitDelayMinutes ?? 120),
+          followupEscalationUserIds: escalationIds,
+        });
+        setEscalationInput(escalationIds.join(', '));
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
+  }, []);
+
+  // Team members for the escalation picker. If the agents route is not
+  // available, the picker falls back to a comma-separated list of user ids.
+  useEffect(() => {
+    api
+      .getLeadAgents()
+      .then((list) => setTeamMembers(Array.isArray(list) ? list : []))
+      .catch(() => setTeamMembers(null));
   }, []);
 
   const handleSave = async () => {
@@ -82,6 +154,15 @@ export const AiEmployeeSettings: React.FC = () => {
 
     if (config.businessHoursStart && config.businessHoursEnd && config.businessHoursStart >= config.businessHoursEnd) {
       setError('Business hours start must be before end time');
+      setSaving(false);
+      return;
+    }
+
+    const outOfRange = FOLLOWUP_NUMBER_FIELDS.find(
+      (f) => !Number.isInteger(config[f.key]) || config[f.key] < f.min || config[f.key] > f.max,
+    );
+    if (outOfRange) {
+      setError(`${outOfRange.label} must be a whole number between ${outOfRange.min} and ${outOfRange.max}`);
       setSaving(false);
       return;
     }
@@ -103,6 +184,15 @@ export const AiEmployeeSettings: React.FC = () => {
       followupAgentAutoSendChannels: prev.followupAgentAutoSendChannels.includes(ch)
         ? prev.followupAgentAutoSendChannels.filter((c) => c !== ch)
         : [...prev.followupAgentAutoSendChannels, ch],
+    }));
+  };
+
+  const toggleEscalationUser = (userId: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      followupEscalationUserIds: prev.followupEscalationUserIds.includes(userId)
+        ? prev.followupEscalationUserIds.filter((u) => u !== userId)
+        : [...prev.followupEscalationUserIds, userId],
     }));
   };
 
@@ -336,6 +426,112 @@ export const AiEmployeeSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* AI follow-up calls (followup-agent-service) */}
+      <div className="space-y-4 border border-slate-200 rounded-lg p-4">
+        <div>
+          <h3 className="font-medium text-slate-900 text-sm">AI Follow-up Calls</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            The voice agent calls leads to confirm site visits and collect post-visit feedback, inside the business hours above.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Enable follow-up calls</p>
+            <p className="text-xs text-slate-500 mt-0.5">Allow the AI agent to place outbound follow-up calls</p>
+          </div>
+          <Toggle
+            checked={config.followupCallsEnabled}
+            onChange={() => setConfig((prev) => ({ ...prev, followupCallsEnabled: !prev.followupCallsEnabled }))}
+          />
+        </div>
+
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Call every new Instagram lead</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Schedule a confirmation call as soon as an Instagram lead with a phone number arrives
+            </p>
+          </div>
+          <Toggle
+            checked={config.followupCallOnNewInstagramLead}
+            onChange={() =>
+              setConfig((prev) => ({ ...prev, followupCallOnNewInstagramLead: !prev.followupCallOnNewInstagramLead }))
+            }
+          />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {FOLLOWUP_NUMBER_FIELDS.map((f) => (
+            <div key={f.key}>
+              <label className="block text-xs text-slate-500 mb-1">
+                {f.label} ({f.min}-{f.max})
+              </label>
+              <input
+                type="number"
+                min={f.min}
+                max={f.max}
+                step={1}
+                value={Number.isNaN(config[f.key]) ? '' : config[f.key]}
+                onChange={(e) =>
+                  setConfig((prev) => ({ ...prev, [f.key]: e.target.value === '' ? NaN : Number(e.target.value) }))
+                }
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">{f.hint}</p>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <label className="block text-xs text-slate-500 mb-1">Escalation contacts</label>
+          <p className="text-[11px] text-slate-400 mb-2">
+            Notified (in-app, email, WhatsApp) when the agent cannot reach a lead or a call needs a human. The lead's
+            assignee is always included.
+          </p>
+          {teamMembers && teamMembers.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {teamMembers.map((m) => {
+                const selected = config.followupEscalationUserIds.includes(m.userId);
+                return (
+                  <button
+                    key={m.userId}
+                    type="button"
+                    onClick={() => toggleEscalationUser(m.userId)}
+                    aria-pressed={selected}
+                    className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                      selected
+                        ? 'bg-brand text-white border-brand'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400'
+                    }`}
+                  >
+                    {m.label || m.username}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <input
+              type="text"
+              value={escalationInput}
+              onChange={(e) => {
+                const raw = e.target.value;
+                setEscalationInput(raw);
+                setConfig((prev) => ({
+                  ...prev,
+                  followupEscalationUserIds: raw
+                    .split(',')
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                }));
+              }}
+              placeholder="User ids, comma-separated"
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
+            />
+          )}
+        </div>
+      </div>
 
       {/* Whitelisted phones */}
       <div className="space-y-3">

@@ -15,6 +15,10 @@
 import crypto from 'node:crypto';
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
+import {
+  normalizeMeetingDetails,
+  normalizePropertyBrief,
+} from '../utils/responseNormalizer.js';
 
 const ELEVENLABS_BASE_URL = 'https://api.elevenlabs.io/v1';
 
@@ -72,6 +76,9 @@ early research, not ready to commit or visit yet.`;
  */
 export function buildDynamicVariables(config = {}) {
   const rubricContext = config.rubricContext || {};
+  // Follow-up context (CONTRACTS.md 2.1). Every field is optional and most
+  // calls carry none of it, so each one renders to explicit "not known" prose.
+  const context = config.context || {};
 
   return {
     agency_name: config.agencyName || 'our real estate agency',
@@ -84,6 +91,22 @@ export function buildDynamicVariables(config = {}) {
       : 'Not yet — ask them directly.',
     greeting: config.greeting || '',
     escalation_phone: config.escalationPhone || '',
+    // Site-visit confirmation / post-visit feedback context. Rendered as
+    // spoken prose here (dates as "6 September", prices in lakh/crore) so the
+    // prompt never has to teach the agent how to read a JSON blob aloud.
+    meeting_details:
+      normalizeMeetingDetails(context.meeting) ||
+      'No visit is booked on record — ask the customer if one was agreed.',
+    property_details:
+      normalizePropertyBrief(context.property) ||
+      'The specific property is not known — ask which one they were looking at.',
+    visit_details:
+      normalizePropertyBrief(context.visitedProperty) ||
+      normalizePropertyBrief(context.property) ||
+      'The property they visited is not on record — ask them which one it was.',
+    assigned_agent_name: context.assignedAgentName || 'one of our agents',
+    dm_summary: context.dmSummary || 'No earlier chat summary on record.',
+    extra_instructions: context.instructions || 'None.',
     // Passed so server tools invoked mid-call can scope themselves to the
     // right tenant/lead without the agent having to know or repeat them.
     // secret__ prefix keeps these out of the LLM provider payload.
@@ -374,6 +397,9 @@ export function parsePostCallWebhook(body) {
       dynamicVars.secret__call_session_id || dynamicVars.call_session_id || null,
     transcript: Array.isArray(data.transcript) ? data.transcript : [],
     analysis: data.analysis || null,
+    // Only present on call_initiation_failure; kept so the FAILED session
+    // records why rather than just that.
+    failureReason: data.failure_reason || data.error || data.reason || null,
     raw: data,
   };
 }

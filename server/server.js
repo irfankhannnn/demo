@@ -45,9 +45,13 @@ import aiEmployeeConfigRouter from './routes/aiEmployeeConfig.js';
 import whatsappConversationsRoutes from './routes/whatsappConversations.js';
 import aiCallingInternalRoutes from './routes/aiCallingInternal.js';
 import adapterIngestionInternalRoutes from './routes/adapterIngestionInternal.js';
+import followupInternalRoutes from './routes/followupInternal.js';
+import followupsRoutes from './routes/followups.js';
 import publicPagesInternalRoutes from './routes/publicPagesInternal.js';
 import publicPagesSettingsRoutes from './routes/publicPagesSettings.js';
 import validateToken from './middleware/validateToken.js';
+import phoneMaskingMiddleware from './middleware/phoneMasking.js';
+import clickToCallRoutes from './routes/clickToCall.js';
 // AI Integrations dashboard API (frontend uses this to list/disconnect OAuth clients)
 import aiIntegrationsRoutes from './routes/aiIntegrations.js';
 // Public OAuth callback — must NOT have validateToken (browser redirect, no auth header)
@@ -136,6 +140,11 @@ logger.info('routes.mount', { basePath: '/api/auth', router: 'authRoutes' });
 app.use('/api/auth', authRateLimit, authRoutes);
 
 // AI Employee — agent tools (MCP JWT-auth), activity log (admin/manager), config (admin only)
+// Phone masking for every /api/crm/* JSON response (followup-agent-service/docs/CONTRACTS.md section 7).
+// Must precede every /api/crm* router: it only wraps res.json and decides at
+// send time from req.user, which the routes' own validateToken sets later.
+app.use('/api/crm', phoneMaskingMiddleware());
+
 logger.info('routes.mount', { basePath: '/api/crm/agent', router: 'agentToolsRouter' });
 app.use('/api/crm/agent', agentToolsRouter);
 // In-CRM AI chat (Phase 5) — SSE, authenticated CRM users only.
@@ -159,6 +168,12 @@ app.use('/api/ai-employee', aiEmployeeStatusRoutes);
 // reached this route.
 logger.info('routes.mount', { basePath: '/api/internal/adapters', router: 'adapterIngestionInternalRoutes' });
 app.use('/api/internal/adapters', adapterIngestionInternalRoutes);
+
+// Internal API for followup-agent-service (x-api-key = FOLLOWUP_INTERNAL_API_KEY
+// + x-tenant-id): lead snapshot, escalations, notes. Same mount-order
+// requirement as the adapter route above.
+logger.info('routes.mount', { basePath: '/api/internal/followups', router: 'followupInternalRoutes' });
+app.use('/api/internal/followups', followupInternalRoutes);
 
 // Internal read/write API for property-pages-ms (x-api-key + x-tenant-id).
 // Same mount-order requirement as the adapter route above.
@@ -192,9 +207,18 @@ app.use('/api/crm/call-recordings', callRecordingsRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/ai-calling', router: 'aiCallingRoutes' });
 app.use('/api/crm/ai-calling', aiCallingRoutes);
 
+// Exotel click-to-call. Mounted before crmRoutes so the sub-path is never swallowed.
+logger.info('routes.mount', { basePath: '/api/crm/calls', router: 'clickToCallRoutes' });
+app.use('/api/crm/calls', clickToCallRoutes);
+
 // Mounted before the generic /api/crm router so this specific path wins.
 logger.info('routes.mount', { basePath: '/api/crm/agency-policies', router: 'agencyPoliciesRoutes' });
 app.use('/api/crm/agency-policies', agencyPoliciesRoutes);
+// AI follow-up jobs by id (cancel) — proxied to followup-agent-service. The
+// per-lead follow-up routes live under /api/crm/leads. Mounted before the
+// generic /api/crm router for the same reason as agency-policies.
+logger.info('routes.mount', { basePath: '/api/crm/followups', router: 'followupsRoutes' });
+app.use('/api/crm/followups', followupsRoutes);
 logger.info('routes.mount', { basePath: '/api/crm', router: 'crmRoutes' });
 app.use('/api/crm', crmRoutes);
 logger.info('routes.mount', { basePath: '/api/crm/contacts', router: 'contactsRoutes' });

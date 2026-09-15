@@ -754,8 +754,11 @@ router.get('/properties/public/list', apiKeyAuth, extractTenantIdOptional, async
           }))
         );
         
-        // Remove owner info and sensitive data
-        const { ownerId, ...publicData } = property;
+        // Remove owner info and sensitive data — the same strip as the
+        // public detail route below. ownerName/ownerPhone/ownerSnapshot are
+        // the owner's contact details and tenantCustomerId links to the
+        // sitting tenant; none of them belong on a public listing.
+        const { ownerId, ownerName, ownerPhone, ownerSnapshot, tenantCustomerId, ...publicData } = property;
         return {
           ...publicData,
           images,
@@ -798,7 +801,7 @@ router.get('/properties/public/:id', apiKeyAuth, extractTenantIdOptional, async 
       }))
     );
 
-    const { ownerId, ownerName, ownerPhone, tenantCustomerId, ...publicData } = property;
+    const { ownerId, ownerName, ownerPhone, ownerSnapshot, tenantCustomerId, ...publicData } = property;
     res.json({
       ...publicData,
       images,

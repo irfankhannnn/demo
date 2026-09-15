@@ -1,11 +1,15 @@
-// Exotel Telephony Service — post-call data and number handling only.
+// Exotel Telephony Service — post-call data, number handling, click-to-call.
 //
-// Outbound dialling no longer happens here. ElevenLabs' native Exotel
-// integration places the call and bridges the audio in one request (see
+// AI calls are NOT dialled here. ElevenLabs' native Exotel integration places
+// the call and bridges the audio in one request (see
 // elevenlabsService.initiateOutboundCall), which is what actually connects
 // the customer to the agent. What remains in this module is the Exotel
 // account-side data ElevenLabs doesn't expose — call detail records and
 // recording URLs — plus phone-number normalization and webhook validation.
+//
+// The one dial that does live here is connectCall(): a plain human-to-human
+// bridge (team member → contact) with no agent in the loop, so there is no
+// audio for ElevenLabs to own and Exotel's Calls/connect is the right tool.
 
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
@@ -38,6 +42,72 @@ function getClient() {
 // Exposed for tests — lets a suite reset the memoized client between cases.
 export function resetClient() {
   client = null;
+}
+
+// Exposed for tests — swap in a fake axios-like client ({ post, get }) so
+// request encoding can be checked without Exotel credentials or a network.
+export function setClient(override) {
+  client = override || null;
+}
+
+/**
+ * Click-to-call: ring `from` (a team member), then bridge them to `to`.
+ *
+ * Exotel's Calls/connect takes form-encoded fields, not JSON — the client's
+ * default Content-Type is already x-www-form-urlencoded and URLSearchParams
+ * serialises to exactly that. CustomField carries our correlation ids back
+ * on the status webhook, the same way ElevenLabs-placed calls correlate via
+ * dynamic variables.
+ *
+ * @param {object} params
+ * @param {string} params.from - Team member's phone, E.164 (rings first)
+ * @param {string} params.to - Contact's phone, E.164 (bridged second)
+ * @param {string} params.callerId - The ExoPhone shown to both parties
+ * @param {string} [params.statusCallbackUrl] - Our Exotel status webhook
+ * @param {object|string} [params.customField] - Correlation payload
+ * @returns {Promise<{callSid: string|null, status: string|null}>}
+ */
+export async function connectCall(params) {
+  const { from, to, callerId, statusCallbackUrl, customField } = params || {};
+
+  if (!from) throw new Error('connectCall: from is required');
+  if (!to) throw new Error('connectCall: to is required');
+  if (!callerId) throw new Error('connectCall: callerId is required');
+
+  const form = new URLSearchParams();
+  form.append('From', from);
+  form.append('To', to);
+  form.append('CallerId', callerId);
+  if (statusCallbackUrl) {
+    form.append('StatusCallback', statusCallbackUrl);
+    // Only the final state — we don't need Exotel to ring us on every hop.
+    form.append('StatusCallbackEvents[0]', 'terminal');
+  }
+  if (customField) {
+    form.append(
+      'CustomField',
+      typeof customField === 'string' ? customField : JSON.stringify(customField)
+    );
+  }
+
+  try {
+    const response = await getClient().post('/Calls/connect.json', form);
+    const call = response.data?.Call || {};
+    return {
+      callSid: call.Sid || null,
+      status: call.Status || null,
+    };
+  } catch (error) {
+    // Exotel puts the useful reason in the body (RestException.Message).
+    const detail = error.response?.data
+      ? JSON.stringify(error.response.data)
+      : error.message;
+    logger.error('Exotel connect call failed', error, {
+      status: error.response?.status,
+      detail,
+    });
+    throw new Error(`Exotel connect call failed: ${detail}`);
+  }
 }
 
 /**
@@ -201,8 +271,10 @@ export default {
   getCallDetails,
   getCallRecording,
   endCall,
+  connectCall,
   parseWebhookPayload,
   validateWebhookSource,
   toE164India,
   resetClient,
+  setClient,
 };

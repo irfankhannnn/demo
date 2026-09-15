@@ -3,6 +3,7 @@ import {
   getAuthServiceBaseUrl,
   getMcpApiBaseUrl,
   getAiCallingServiceBaseUrl,
+  getFollowupServiceBaseUrl,
   ServiceUrlConfigError,
 } from './serviceUrls.js';
 
@@ -13,6 +14,8 @@ const VARS = [
   'MCP_API_BASE_PATH',
   'AI_CALLING_SERVICE_DOMAIN_NAME',
   'AI_CALLING_SERVICE_BASE_PATH',
+  'FOLLOWUP_SERVICE_DOMAIN_NAME',
+  'FOLLOWUP_SERVICE_BASE_PATH',
 ];
 const saved = {};
 
@@ -91,5 +94,18 @@ describe('service getters', () => {
     process.env.AI_CALLING_SERVICE_BASE_PATH = 'devrealestatecalling';
     expect(getAiCallingServiceBaseUrl())
       .toBe('https://services-api.cloudberrysolutions.in/devrealestatecalling/api/ai-calling');
+  });
+
+  test('follow-up service is optional and returns the bare base (no route prefix)', () => {
+    expect(getFollowupServiceBaseUrl()).toBeNull();
+    process.env.FOLLOWUP_SERVICE_DOMAIN_NAME = 'services-api.cloudberrysolutions.in';
+    process.env.FOLLOWUP_SERVICE_BASE_PATH = 'devrealestatefollowup';
+    expect(getFollowupServiceBaseUrl())
+      .toBe('https://services-api.cloudberrysolutions.in/devrealestatefollowup');
+  });
+
+  test('follow-up service still rejects a raw invoke URL', () => {
+    process.env.FOLLOWUP_SERVICE_DOMAIN_NAME = 'abc123.execute-api.ap-south-1.amazonaws.com';
+    expect(() => getFollowupServiceBaseUrl()).toThrow(ServiceUrlConfigError);
   });
 });

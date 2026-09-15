@@ -719,6 +719,75 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
 
+  # ============== CRM Calls (click-to-call) ==============
+  CrmCallsResource:
+    Type: AWS::ApiGateway::Resource
+    DependsOn: CrmOptionsMethod
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref CrmResource
+      PathPart: calls
+
+  CrmCallsClickToCallResource:
+    Type: AWS::ApiGateway::Resource
+    DependsOn: CrmCallsResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref CrmCallsResource
+      PathPart: click-to-call
+
+  CrmCallsClickToCallPostMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmCallsClickToCallResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmCallsClickToCallResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  CrmCallsClickToCallOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmCallsClickToCallPostMethod
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmCallsClickToCallResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   CrmAgentsResource:
     Type: AWS::ApiGateway::Resource
     DependsOn: CrmConfigAiEmployeeOptionsMethod
@@ -7451,6 +7520,174 @@ Resources:
             method.response.header.Access-Control-Allow-Origin: true
 
   # ============== CRM Contact Activity ==============
+
+  # ============== AI Follow-up (followup-agent-service): per-lead routes ==============
+  # /api/crm/leads/{id}/followup-call — schedule an AI follow-up call
+  CrmLeadFollowupCallResource:
+    Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref CrmLeadResource
+      PathPart: followup-call
+
+  CrmLeadFollowupCallPostMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadFollowupCallResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmLeadFollowupCallResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 400
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 401
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 403
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 404
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  CrmLeadFollowupCallOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadFollowupCallPostMethod
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmLeadFollowupCallResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # /api/crm/leads/{id}/followups — a lead's follow-up jobs
+  CrmLeadFollowupsResource:
+    Type: AWS::ApiGateway::Resource
+    DependsOn: CrmLeadResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ParentId: !Ref CrmLeadResource
+      PathPart: followups
+
+  CrmLeadFollowupsGetMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadFollowupsResource
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmLeadFollowupsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 400
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 401
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 403
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 404
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+        - StatusCode: 500
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+
+  CrmLeadFollowupsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: CrmLeadFollowupsGetMethod
+    Properties:
+      RestApiId: !Ref RestApiId
+      ResourceId: !Ref CrmLeadFollowupsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        PassthroughBehavior: NEVER
+        ContentHandling: CONVERT_TO_TEXT
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ContentHandling: CONVERT_TO_TEXT
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: !Sub "'${AllowHeaders}'"
+              method.response.header.Access-Control-Allow-Methods: !Sub "'${AllowMethods}'"
+              method.response.header.Access-Control-Allow-Origin: !Sub "'${AllowOrigin}'"
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
 
 Outputs:
   ApiResourceId:

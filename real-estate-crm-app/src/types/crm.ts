@@ -1,4 +1,6 @@
 export interface CRMCustomer {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   customerId: string;
   name: string;
   email?: string;
@@ -79,6 +81,8 @@ export interface CRMEnquiryNote {
 }
 
 export interface CRMOwner {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   ownerId: string;
   contactId?: string;
   name: string;
@@ -180,6 +184,8 @@ export interface CRMListing {
 }
 
 export interface CRMProperty {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   propertyId: string;
   /** @deprecated Prefer currentOwnerContactId — legacy OWNER entity id */
   ownerId: string | null;
@@ -532,6 +538,8 @@ export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled' | 'reschedul
 export type RelatedEntityType = 'customer' | 'owner' | 'enquiry' | 'b2b_lead' | 'property' | 'lead';
 
 export interface CRMMeeting {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   meetingId: string;
   title: string;
   description?: string;
@@ -640,6 +648,8 @@ export interface OwnerProfile {
 }
 
 export interface CRMContact {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   contactId: string;
   name: string;
   email?: string;
@@ -846,6 +856,8 @@ export interface LeadConversion {
 }
 
 export interface CRMLead {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   leadId: string;
   leadType: LeadType;
   name: string;
@@ -1012,6 +1024,8 @@ export interface RoleMetrics {
 // ============== Real Estate Management - Developers ==============
 
 export interface CRMDeveloper {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   developerId: string;
   name: string;
   slug?: string;

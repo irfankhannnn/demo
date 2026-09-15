@@ -18,7 +18,9 @@ router.use(authenticateCrmCaller);
 // Start a new AI call
 router.post('/start', async (req, res) => {
   try {
-    const { leadId, leadName, leadPhone, callPurpose } = req.body;
+    // `context` and `metadata` are optional follow-up extras (CONTRACTS.md
+    // 2.1) — the orchestrator trims them to the fields the prompt uses.
+    const { leadId, leadName, leadPhone, callPurpose, context, metadata } = req.body;
 
     if (!leadPhone) {
       return res.status(400).json({ error: 'leadPhone is required' });
@@ -30,6 +32,8 @@ router.post('/start', async (req, res) => {
       leadName,
       leadPhone,
       callPurpose,
+      context,
+      metadata,
     });
 
     res.status(201).json(result);
@@ -42,6 +46,41 @@ router.post('/start', async (req, res) => {
     }
     logger.error('Start call error', error);
     res.status(500).json({ error: 'Failed to start call', details: error.message });
+  }
+});
+
+// Click-to-call: bridge a team member to a contact through Exotel (no agent).
+// Declared before the /:callSessionId routes so "connect" is never read as an id.
+router.post('/connect', async (req, res) => {
+  try {
+    const { fromPhone, toPhone, entityType, entityId, initiatedByUserId, initiatedByName } =
+      req.body || {};
+
+    if (!fromPhone) return res.status(400).json({ error: 'fromPhone is required' });
+    if (!toPhone) return res.status(400).json({ error: 'toPhone is required' });
+
+    const result = await callOrchestration.connectCall({
+      tenantId: req.tenantId,
+      fromPhone,
+      toPhone,
+      entityType,
+      entityId,
+      initiatedByUserId,
+      initiatedByName,
+    });
+
+    res.status(201).json(result);
+  } catch (error) {
+    // 503 = EXOTEL_CALLER_ID is blank on this deployment; the CRM shows
+    // "not enabled" rather than "failed".
+    if (error?.statusCode === 503) {
+      return res.status(503).json({ error: error.message });
+    }
+    if (error?.statusCode === 400) {
+      return res.status(400).json({ error: error.message });
+    }
+    logger.error('Connect call error', error);
+    res.status(500).json({ error: 'Failed to connect call', details: error.message });
   }
 });
 

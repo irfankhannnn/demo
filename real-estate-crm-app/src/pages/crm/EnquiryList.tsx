@@ -34,6 +34,9 @@ import {
 import { api } from '../../services/api';
 import Toast from '../../components/Toast';
 import { CRMEnquiryNote, CRMMeeting } from '../../types/crm';
+import { PhoneNumber, clickToCallEntityFor, useCanViewFullPhone } from '../../components/PhoneNumber';
+import type { ClickToCallEntityType } from '../../services/clickToCallApi';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE } from '../../utils/phoneMasking';
 import ScheduleMeetingModal from '../../components/ScheduleMeetingModal';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
@@ -46,6 +49,8 @@ interface Enquiry {
   name: string;
   email?: string;
   phone: string;
+  /** Set by the server when the phone was masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   message?: string;
   userType?: string;
   propertyType?: string;
@@ -76,8 +81,20 @@ interface EnquiryMetrics {
   };
 }
 
+/**
+ * An enquiry is not a click-to-call entity (CONTRACTS.md 5). Once it has been
+ * converted, the resulting lead/owner/tenant record is, so the Call button
+ * for a masked role is routed there.
+ */
+function enquiryCallTarget(enquiry: Enquiry): { entityType?: ClickToCallEntityType; entityId?: string } {
+  if (!enquiry.convertedId) return {};
+  const entityType = clickToCallEntityFor(enquiry.convertedTo);
+  return entityType ? { entityType, entityId: enquiry.convertedId } : {};
+}
+
 export default function EnquiryList() {
   const navigate = useNavigate();
+  const canViewFullPhone = useCanViewFullPhone();
   const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
   const [filteredEnquiries, setFilteredEnquiries] = useState<Enquiry[]>([]);
   const [metrics, setMetrics] = useState<EnquiryMetrics | null>(null);
@@ -984,7 +1001,7 @@ export default function EnquiryList() {
                         <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm text-gray-500">
                           <span className="flex items-center gap-1">
                             <Phone className="w-4 h-4" />
-                            {enquiry.phone}
+                            <PhoneNumber value={enquiry.phone} masked={enquiry.phoneMasked} />
                           </span>
                           {enquiry.email && (
                             <span className="flex items-center gap-1">
@@ -1060,9 +1077,14 @@ export default function EnquiryList() {
                     </div>
                     <div className="flex items-center gap-3">
                       <Phone className="w-5 h-5 text-gray-400" />
-                      <a href={`tel:${selectedEnquiry.phone}`} className="text-primary-600 hover:underline">
-                        {selectedEnquiry.phone}
-                      </a>
+                      <PhoneNumber
+                        value={selectedEnquiry.phone}
+                        masked={selectedEnquiry.phoneMasked}
+                        linkWhenVisible
+                        showCallButton
+                        {...enquiryCallTarget(selectedEnquiry)}
+                        className="text-primary-600 hover:underline"
+                      />
                     </div>
                     {selectedEnquiry.email && (
                       <div className="flex items-center gap-3">
@@ -1421,13 +1443,34 @@ export default function EnquiryList() {
               {/* Actions */}
               <div className="px-6 py-4 border-t bg-gray-50">
                 <div className="flex gap-3">
-                  <a
-                    href={`tel:${selectedEnquiry.phone}`}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors border-2 border-indigo-600"
-                  >
-                    <Phone className="w-4 h-4" />
-                    Call
-                  </a>
+                  {canViewFullPhone && !selectedEnquiry.phoneMasked && !isMaskedPhoneValue(selectedEnquiry.phone) ? (
+                    <a
+                      href={`tel:${selectedEnquiry.phone}`}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors border-2 border-indigo-600"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call
+                    </a>
+                  ) : enquiryCallTarget(selectedEnquiry).entityType ? (
+                    <PhoneNumber
+                      value=""
+                      masked
+                      showCallButton
+                      {...enquiryCallTarget(selectedEnquiry)}
+                      wrapperClassName="flex-1"
+                      callButtonClassName="w-full flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors border-2 border-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      title={`${PHONE_HIDDEN_NOTE}. Convert this enquiry to a lead to place calls.`}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg border-2 border-indigo-600 opacity-50 cursor-not-allowed"
+                    >
+                      <Phone className="w-4 h-4" />
+                      Call
+                    </button>
+                  )}
                   {selectedEnquiry.email && (
                     <a
                       href={`mailto:${selectedEnquiry.email}`}

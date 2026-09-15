@@ -24,12 +24,15 @@ import ConfirmDialog from '../../components/ConfirmDialog';
 import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { CRMOwner, CRMOwnerNote, CRMMeeting } from '../../types/crm';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE, stripMaskedPhoneFields } from '../../utils/phoneMasking';
 import AddPropertyModal from '../../components/AddPropertyModal';
 import DocumentUploadSection from '../../components/DocumentUploadSection';
 
 export default function OwnerDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const canViewFullPhone = useCanViewFullPhone();
   const isNew = !id || id === 'new';
 
   const [owner, setOwner] = useState<Partial<CRMOwner>>({
@@ -140,6 +143,10 @@ export default function OwnerDetails() {
     }
   };
 
+  // A masked role sees `+91 ******5678`; keep the field read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !isNew && (!canViewFullPhone || owner.phoneMasked === true || isMaskedPhoneValue(owner.phone));
+
   const handleSave = async () => {
     if (!owner.name || !owner.phone) {
       showToast('Name and phone are required', 'error');
@@ -159,7 +166,7 @@ export default function OwnerDetails() {
         }
         navigate(`/crm/owners/${created.ownerId}`, { replace: true });
       } else {
-        await api.updateOwner(id!, owner as any);
+        await api.updateOwner(id!, stripMaskedPhoneFields(owner) as any);
         await loadOwner();
       }
     } catch (error) {
@@ -343,7 +350,9 @@ export default function OwnerDetails() {
                     {isNew ? 'New Owner' : owner.name || 'Owner Details'}
                   </h1>
                   {!isNew && owner.phone && (
-                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{owner.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">
+                      <PhoneNumber value={owner.phone} masked={owner.phoneMasked} entityType="owner" entityId={id} showCallButton />
+                    </p>
                   )}
                 </div>
               </div>
@@ -393,11 +402,14 @@ export default function OwnerDetails() {
                       value={owner.phone || ''}
                       onChange={(e) => setOwner({ ...owner, phone: e.target.value })}
                       onBlur={(e) => isNew && handlePhoneLookup(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+                      readOnly={phoneLocked}
+                      title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+                      className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all read-only:bg-gray-50 read-only:text-gray-500"
                       placeholder="Phone number"
                       disabled={lookingUp}
                     />
                   </div>
+                  {phoneLocked && <p className="mt-1 text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>

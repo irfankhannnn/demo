@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to config/crm-push.json (gitignored) and fill in. adapter_api_key is the CRM's ADAPTER_INTERNAL_API_KEY; tenant_id is the CRM tenant the leads belong to. dry_run=true prints payloads and never posts or writes.",
+  "crm_base_url": "https://services-api.cloudberrysolutions.in/devrealestatecrm",
+  "tenant_id": "",
+  "adapter_api_key": "",
+  "adapter_name": "insta-excel",
+  "dry_run": false
+}

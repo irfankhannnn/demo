@@ -151,6 +151,49 @@ export async function scheduleSiteVisit(tenantId, visitData) {
 }
 
 /**
+ * Confirm / reschedule / cancel an existing meeting (CONTRACTS.md 3.4).
+ *
+ * Throws on failure, like scheduleSiteVisit: the agent is about to tell the
+ * customer their visit is confirmed, and it must not say that on the strength
+ * of a write that never landed.
+ */
+export async function updateMeeting(tenantId, meetingId, payload) {
+  try {
+    const response = await getClient().patch(`/api/internal/meetings/${meetingId}`, payload, {
+      headers: { 'x-tenant-id': tenantId },
+    });
+    return response.data;
+  } catch (error) {
+    logger.error('Failed to update meeting', error, { tenantId, meetingId, action: payload?.action });
+    throw error;
+  }
+}
+
+/**
+ * Append a note to the lead from the follow-up flow (CONTRACTS.md 3.3).
+ *
+ * Non-critical: the feedback is already on the call session and travels on
+ * the call.ended event, so a failed note must not turn into a broken tool
+ * mid-call. The CRM route accepts this service's key as well as the follow-up
+ * service's, so the usual x-api-key header is all it needs.
+ */
+export async function addFollowupNote(tenantId, note) {
+  try {
+    const response = await getClient().post('/api/internal/followups/notes', note, {
+      headers: { 'x-tenant-id': tenantId },
+    });
+    return response.data;
+  } catch (error) {
+    logger.error('Failed to add follow-up note', error, {
+      tenantId,
+      leadId: note?.leadId,
+      type: note?.type,
+    });
+    return null;
+  }
+}
+
+/**
  * Update lead status after call
  */
 export async function updateLeadCallOutcome(tenantId, leadId, outcomeData) {
@@ -240,6 +283,8 @@ export default {
   matchProperties,
   getPropertyDetails,
   scheduleSiteVisit,
+  updateMeeting,
+  addFollowupNote,
   updateLeadCallOutcome,
   getBuyerDetails,
   getSellerDetails,

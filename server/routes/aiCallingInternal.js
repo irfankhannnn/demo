@@ -17,18 +17,24 @@ import {
   getBuyer,
   getProperties,
   getProperty,
-  getPropertiesByStatus,
   matchProperties,
   createMeeting,
+  getMeeting,
+  updateMeeting,
   getOwner,
   getOwners,
 } from '../crmDynamodbService.js';
-import { notifyHotLead } from '../leadNotifications.js';
+import { notifyHotLead, notifySiteVisitBooked } from '../leadNotifications.js';
 import { chargeForAiCall } from '../aiCallBilling.js';
 import { logger } from '../logger.js';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
 import { buildRubricContext } from '../utils/leadRubric.js';
 import { answerPolicyQuestion } from '../services/knowledge/policySearchService.js';
+import {
+  simplifyPropertyForAgent,
+  buildAvailablePropertyFilters,
+  selectAvailableProperties,
+} from '../utils/propertyProjection.js';
 
 const router = express.Router();
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -66,17 +72,26 @@ router.use(extractTenantId);
 
 // ============== Lead Context ==============
 
-function buildLeadSummary(lead) {
+/**
+ * One-paragraph requirement summary for a voice agent's prompt. Also used by
+ * routes/followupInternal.js for the follow-up service's lead snapshot, so the
+ * two callers describe a lead in the same words.
+ */
+export function buildLeadSummary(lead) {
   const parts = [];
 
   if (lead.name) parts.push(`Customer name is ${lead.name}`);
-  const requirement = lead.buyerRequirement?.requirement;
+  // Rental enquiries keep their requirement in tenantRequirement (see
+  // leadIngestion.js buildTypeSpecificFields); fall back to it so a tenant
+  // lead is not described as a buyer with no budget.
+  const req = lead.buyerRequirement || lead.tenantRequirement || {};
+  const requirement = req.requirement;
   if (lead.leadType) parts.push(`looking to ${requirement === 'rent' ? 'rent' : requirement === 'heavy_deposit_ok' ? 'rent with a heavy deposit' : 'buy'}`);
-  const budget = lead.buyerRequirement?.budget;
+  const budget = req.budget;
   if (budget) parts.push(`with budget around ${budget}`);
-  const area = lead.buyerRequirement?.preferredArea;
+  const area = req.preferredArea;
   if (area) parts.push(`in ${area}`);
-  if (lead.buyerRequirement?.propertyType) parts.push(`a ${lead.buyerRequirement.propertyType}`);
+  if (req.propertyType) parts.push(`a ${req.propertyType}`);
   if (lead.notes) parts.push(`Notes: ${lead.notes}`);
 
   return parts.join('. ');
@@ -220,54 +235,31 @@ router.post('/policies/answer', async (req, res) => {
   }
 });
 
+/**
+ * Exact-filter listing lookup for the voice agent's `search_properties` tool
+ * (its fallback when semantic matching is unavailable).
+ *
+ * Goes through getProperties' real filter contract rather than a hand-rolled
+ * filter over attributes that do not exist on a PROPERTY item: the previous
+ * version read `bedrooms`, `rent`, `deposit`, `squareFeet` (real names are
+ * `bhk`, `rentAmount`, `rentalInfo.securityDeposit`, `carpetArea`) and only
+ * the literal 'available' status, while real listings are 'for-sale' /
+ * 'for-rent' — so the agent was answering from an empty or half-empty list.
+ * See utils/propertyProjection.js for the query → filter mapping.
+ *
+ * Response stays a bare array of the simplified shape: that is what the tool
+ * schema in ai-calling-service expects.
+ */
 router.get('/properties/available', async (req, res) => {
   try {
-    const { type, location, minPrice, maxPrice, bedrooms } = req.query;
+    const { filters, status, priceRange, limit } = buildAvailablePropertyFilters(req.query);
 
-    let properties = await getPropertiesByStatus(req.tenantId, 'available');
+    // No `limit` on the fetch: the listable-status and generic-price cuts
+    // below run after it, and a limit applied before them would drop matches.
+    const { properties } = await getProperties(req.tenantId, filters);
+    const selected = selectAvailableProperties(properties, { status, priceRange, limit });
 
-    if (type) {
-      properties = properties.filter(p =>
-        p.propertyType?.toLowerCase().includes(type.toLowerCase())
-      );
-    }
-    if (location) {
-      properties = properties.filter(p =>
-        p.area?.toLowerCase().includes(location.toLowerCase()) ||
-        p.city?.toLowerCase().includes(location.toLowerCase()) ||
-        p.address?.toLowerCase().includes(location.toLowerCase())
-      );
-    }
-    if (minPrice) {
-      const min = parseInt(minPrice, 10);
-      properties = properties.filter(p => (p.rent || p.price || 0) >= min);
-    }
-    if (maxPrice) {
-      const max = parseInt(maxPrice, 10);
-      properties = properties.filter(p => (p.rent || p.price || 0) <= max);
-    }
-    if (bedrooms) {
-      const beds = parseInt(bedrooms, 10);
-      properties = properties.filter(p => p.bedrooms === beds);
-    }
-
-    const simplified = properties.map(p => ({
-      propertyId: p.propertyId,
-      propertyType: p.propertyType,
-      bedrooms: p.bedrooms,
-      bathrooms: p.bathrooms,
-      area: p.area,
-      city: p.city,
-      address: p.address,
-      rent: p.rent || p.price,
-      deposit: p.deposit || p.securityDeposit,
-      squareFeet: p.squareFeet || p.carpetArea,
-      furnishing: p.furnishing,
-      amenities: p.amenities?.slice(0, 5),
-      availableFrom: p.availableFrom,
-    }));
-
-    res.json(simplified);
+    res.json(selected.map(simplifyPropertyForAgent));
   } catch (error) {
     logger.error('aiCallingInternal.getAvailableProperties.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to get properties' });
@@ -288,18 +280,10 @@ router.get('/properties/:propertyId/details', async (req, res) => {
       ownerName = owner?.name;
     }
 
+    // Same real-attribute projection as /properties/available, plus the
+    // long-form fields a "tell me more about this one" question needs.
     res.json({
-      propertyId: property.propertyId,
-      propertyType: property.propertyType,
-      bedrooms: property.bedrooms,
-      bathrooms: property.bathrooms,
-      area: property.area,
-      city: property.city,
-      address: property.address,
-      rent: property.rent || property.price,
-      deposit: property.deposit || property.securityDeposit,
-      squareFeet: property.squareFeet || property.carpetArea,
-      furnishing: property.furnishing,
+      ...simplifyPropertyForAgent(property),
       amenities: property.amenities,
       description: property.description,
       availableFrom: property.availableFrom,
@@ -327,17 +311,22 @@ router.get('/properties/search', async (req, res) => {
     }
 
     const { properties } = await getProperties(req.tenantId);
-    const searchTerm = q.toLowerCase();
+    const searchTerm = String(q).toLowerCase();
 
     const matches = properties.filter(p =>
       p.propertyType?.toLowerCase().includes(searchTerm) ||
+      p.title?.toLowerCase().includes(searchTerm) ||
+      p.buildingName?.toLowerCase().includes(searchTerm) ||
       p.area?.toLowerCase().includes(searchTerm) ||
       p.city?.toLowerCase().includes(searchTerm) ||
       p.address?.toLowerCase().includes(searchTerm) ||
       p.description?.toLowerCase().includes(searchTerm)
     );
 
-    res.json(matches.slice(0, 10));
+    // Same allowlisted projection as /properties/available. The raw item
+    // carries ownerPhone, ownerSnapshot and legal-document keys, none of
+    // which the calling service has any business receiving.
+    res.json(matches.slice(0, 10).map(simplifyPropertyForAgent));
   } catch (error) {
     logger.error('aiCallingInternal.searchProperties.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to search properties' });
@@ -377,17 +366,26 @@ router.post('/site-visits', async (req, res) => {
       meetingDate = tomorrow.toISOString().split('T')[0];
     }
 
+    meetingDate = meetingDate || new Date().toISOString().split('T')[0];
+    const propertyName = property.title || `${property.propertyType} in ${property.area}`;
+
+    // createMeeting's contract is relatedEntityType/relatedEntityId (it throws
+    // without them) — this used to send entityType/entityId and every AI-booked
+    // visit failed with a 500. meetingType/propertyId/propertyName/source are
+    // persisted so the follow-up service can recognise a site visit when it
+    // is completed (CONTRACTS.md 1.2).
     const meeting = await createMeeting(req.tenantId, {
-      title: `Site Visit - ${property.propertyType} in ${property.area}`,
+      title: `Site Visit - ${propertyName}`,
       description: `Site visit scheduled via AI call for ${lead.name}`,
-      meetingDate: meetingDate || new Date().toISOString().split('T')[0],
-      meetingTime: meetingTime,
+      meetingDate,
+      meetingTime,
       meetingType: 'site_visit',
-      entityType: 'LEAD',
-      entityId: leadId,
-      entityName: lead.name,
-      propertyId: propertyId,
-      propertyName: `${property.propertyType} in ${property.area}`,
+      relatedEntityType: 'LEAD',
+      relatedEntityId: leadId,
+      relatedEntityName: lead.name || '',
+      relatedEntityPhone: lead.phone || '',
+      propertyId,
+      propertyName,
       location: property.address || `${property.area}, ${property.city}`,
       status: 'scheduled',
       source: source || 'ai_call',
@@ -400,17 +398,96 @@ router.post('/site-visits', async (req, res) => {
       notes: `${lead.notes || ''}\n[AI Call] Site visit scheduled for ${meetingDate} at ${meetingTime}`,
     });
 
+    // The agency has to turn up for this; tell them. Best effort — the
+    // meeting is already written and the caller is a live phone call.
+    notifySiteVisitBooked(req.tenantId, { lead, meeting, propertyTitle: propertyName }).catch((err) =>
+      logger.warn('aiCallingInternal.scheduleSiteVisit.notify_failed', { tenantId: req.tenantId, meetingId: meeting.meetingId, error: err.message })
+    );
+
     res.status(201).json({
       visitId: meeting.meetingId,
+      meetingId: meeting.meetingId,
       date: meetingDate,
       time: meetingTime,
-      propertyName: `${property.propertyType} in ${property.area}`,
+      propertyName,
       address: property.address || `${property.area}, ${property.city}`,
       status: 'scheduled',
     });
   } catch (error) {
     logger.error('aiCallingInternal.scheduleSiteVisit.error', { error: error.message, tenantId: req.tenantId });
     res.status(500).json({ error: error.message || 'Failed to schedule site visit' });
+  }
+});
+
+// ============== Meetings ==============
+
+const MEETING_ACTIONS = new Set(['confirm', 'reschedule', 'cancel']);
+const OPEN_MEETING_STATUSES = new Set(['scheduled', 'rescheduled']);
+
+/**
+ * PATCH /api/internal/meetings/:meetingId — the voice agent's
+ * `confirm_site_visit` tool (CONTRACTS.md 3.4).
+ *
+ * Body: { action: 'confirm' | 'reschedule' | 'cancel', meetingDate?, meetingTime?, note?, updatedBy? }
+ *
+ * `confirm` records that the customer said yes (confirmedAt / confirmedVia)
+ * without changing status; `reschedule` moves date/time and marks the meeting
+ * rescheduled; `cancel` cancels. Status transitions are updateMeeting's own
+ * rules — a transition it refuses comes back as 409, not 500, because on a
+ * live call "that visit was already completed" is an answer, not a fault.
+ */
+router.patch('/meetings/:meetingId', async (req, res) => {
+  try {
+    const { action, meetingDate, meetingTime, note, updatedBy } = req.body || {};
+
+    if (!MEETING_ACTIONS.has(action)) {
+      return res.status(400).json({ error: 'action must be one of: confirm, reschedule, cancel' });
+    }
+
+    const meeting = await getMeeting(req.tenantId, req.params.meetingId);
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const actor = typeof updatedBy === 'string' && updatedBy.trim() ? updatedBy.trim() : 'AI Calling Agent';
+    const noteText = typeof note === 'string' && note.trim() ? note.trim().slice(0, 1000) : null;
+    const patch = { updatedBy: actor };
+    if (noteText) {
+      // Append, never replace: the notes field is a running log.
+      patch.notes = `${meeting.notes ? `${meeting.notes}\n` : ''}[AI Call] ${noteText}`;
+    }
+
+    if (action === 'confirm') {
+      if (!OPEN_MEETING_STATUSES.has(meeting.status)) {
+        return res.status(409).json({ error: `Meeting is ${meeting.status} and cannot be confirmed`, meeting });
+      }
+      patch.confirmedAt = new Date().toISOString();
+      patch.confirmedVia = 'ai_call';
+    } else if (action === 'reschedule') {
+      if (!meetingDate && !meetingTime) {
+        return res.status(400).json({ error: 'meetingDate or meetingTime is required to reschedule' });
+      }
+      if (meetingDate) patch.meetingDate = String(meetingDate);
+      if (meetingTime) patch.meetingTime = String(meetingTime);
+      patch.status = 'rescheduled';
+      // A reschedule supersedes any earlier confirmation of the old slot.
+      patch.confirmedAt = null;
+      patch.confirmedVia = null;
+    } else {
+      patch.status = 'cancelled';
+    }
+
+    const updated = await updateMeeting(req.tenantId, req.params.meetingId, patch);
+    logger.info('aiCallingInternal.meeting.patched', {
+      tenantId: req.tenantId, meetingId: req.params.meetingId, action, status: updated?.status,
+    });
+    res.json(updated);
+  } catch (error) {
+    if (/Invalid meeting status transition/i.test(error.message || '')) {
+      return res.status(409).json({ error: error.message });
+    }
+    logger.error('aiCallingInternal.patchMeeting.error', { error: error.message, tenantId: req.tenantId, meetingId: req.params.meetingId });
+    res.status(500).json({ error: error.message || 'Failed to update meeting' });
   }
 });
 

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMProperty, CRMOwner, CRMCustomer, CRMPropertyDocument } from '../../types/crm';
+import { PhoneNumber } from '../../components/PhoneNumber';
 import { KhataPartyType } from '../../types/khata';
 import GoogleMapPicker from '../../components/GoogleMapPicker';
 import CreateTenantModal from '../../components/CreateTenantModal';
@@ -1039,7 +1040,12 @@ export default function PropertyDetails() {
                       <>
                         <p className="text-gray-900 font-medium">
                           {selectedOwner.name}
-                          {selectedOwner.phone ? ` · ${selectedOwner.phone}` : ''}
+                          {selectedOwner.phone ? (
+                            <>
+                              {' · '}
+                              <PhoneNumber value={selectedOwner.phone} masked={selectedOwner.phoneMasked || property?.phoneMasked} entityType="owner" entityId={selectedOwner.ownerId} showCallButton compact />
+                            </>
+                          ) : ''}
                         </p>
                         <div className="flex flex-wrap gap-3 mt-2">
                           {formData.ownerId && (
@@ -1422,7 +1428,11 @@ export default function PropertyDetails() {
                               className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-left bg-white flex items-center justify-between"
                             >
                               <span className={selectedCustomer ? 'text-gray-900' : 'text-gray-500'}>
-                                {selectedCustomer ? `${selectedCustomer.name} - ${selectedCustomer.phone}` : 'No Tenant'}
+                                {selectedCustomer ? (
+                                  <>
+                                    {selectedCustomer.name} - <PhoneNumber value={selectedCustomer.phone} masked={selectedCustomer.phoneMasked} />
+                                  </>
+                                ) : 'No Tenant'}
                               </span>
                               <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
