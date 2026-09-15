@@ -7,7 +7,11 @@
 import { api, type QueryValue } from './client';
 import type {
   AccountsResponse,
+  CommentListResponse,
+  CommentReplyMode,
+  CommentReplyResponse,
   Enquiry,
+  InstagramComment,
   EnquiryListResponse,
   EnquiryPatch,
   EnquiryStatus,
@@ -185,6 +189,24 @@ export function sendThreadReply(threadId: string, text: string, signal?: AbortSi
 
 export function analyseThread(threadId: string, signal?: AbortSignal): Promise<{ thread: Thread; enquiry: Enquiry | null }> {
   return api.post(`/threads/${encodeURIComponent(threadId)}/analyse`, undefined, signal);
+}
+
+/* ------------------------------------------------------------------ */
+/* Comments                                                            */
+/* ------------------------------------------------------------------ */
+
+export async function getComments(query: { mediaId?: string } = {}, signal?: AbortSignal): Promise<CommentListResponse> {
+  const raw = await api.get<Record<string, unknown>>('/comments', { mediaId: query.mediaId || undefined }, signal);
+  return { comments: toList<InstagramComment>(raw, 'comments') };
+}
+
+export function replyToComment(
+  commentId: string,
+  text: string,
+  mode: CommentReplyMode,
+  signal?: AbortSignal,
+): Promise<CommentReplyResponse> {
+  return api.post<CommentReplyResponse>(`/comments/${encodeURIComponent(commentId)}/reply`, { text, mode }, signal);
 }
 
 /* ------------------------------------------------------------------ */

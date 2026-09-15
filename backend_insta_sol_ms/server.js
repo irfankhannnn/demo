@@ -27,6 +27,7 @@ import { createMediaRouter } from './routes/media.js';
 import { createEnquiriesRouter } from './routes/enquiries.js';
 import { createThreadsRouter } from './routes/threads.js';
 import { createRulesRouter } from './routes/rules.js';
+import { createCommentsRouter } from './routes/comments.js';
 import { createOverviewRouter } from './routes/overview.js';
 import { createInsightsRouter } from './routes/insights.js';
 
@@ -118,6 +119,7 @@ export function createApp({ db = defaultDb, service, authMiddleware } = {}) {
   jwtScope.use('/enquiries', createEnquiriesRouter({ db, service: instagram }));
   jwtScope.use('/threads', createThreadsRouter({ db, service: instagram }));
   jwtScope.use('/rules', createRulesRouter({ db }));
+  jwtScope.use('/comments', createCommentsRouter({ db, service: instagram }));
   jwtScope.use('/insights', createInsightsRouter({ db }));
   app.use(BASE, jwtScope);
 

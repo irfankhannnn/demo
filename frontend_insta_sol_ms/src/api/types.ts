@@ -334,6 +334,44 @@ export interface ReplyResponse {
 /* Rules                                                               */
 /* ------------------------------------------------------------------ */
 
+/* Comments                                                            */
+
+export type CommentReplyMode = 'public' | 'private';
+
+export interface CommentReply {
+  mode: CommentReplyMode;
+  text: string;
+  status: 'sent' | 'dry_run';
+  at: string;
+  by?: string | null;
+}
+
+export interface InstagramComment {
+  commentId: string;
+  igUserId?: string | null;
+  mediaId?: string | null;
+  text: string;
+  fromId?: string | null;
+  fromUsername?: string | null;
+  createdAt?: string | null;
+  /** What the keyword rules did: seen, no_rule, replied, dry_run, paused, rate_capped, failed, own_comment. */
+  status?: string | null;
+  ruleId?: string | null;
+  lastReply?: CommentReply | null;
+  privateReplyAllowed: boolean;
+  privateReplyReason: string;
+  media?: { caption?: string | null; permalink?: string | null; thumbnailUrl?: string | null } | null;
+}
+
+export interface CommentListResponse {
+  comments: InstagramComment[];
+}
+
+export interface CommentReplyResponse {
+  comment: InstagramComment;
+  status: 'sent' | 'dry_run';
+}
+
 export type RuleMatchType = 'exact' | 'contains' | 'starts_with' | 'regex';
 
 export const RULE_MATCH_TYPES: RuleMatchType[] = ['exact', 'contains', 'starts_with', 'regex'];

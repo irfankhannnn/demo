@@ -108,6 +108,7 @@ export const keys = {
   message: (threadId, messageId) => `MSG#${threadId}#${messageId}`,
   messagePrefix: (threadId) => `MSG#${threadId}#`,
   comment: (commentId) => `COMMENT#${commentId}`,
+  commentPrefix: () => 'COMMENT#',
   rule: (ruleId) => `RULE#${ruleId}`,
   rulePrefix: () => 'RULE#',
 
@@ -463,6 +464,10 @@ export function getComment(tenantId, commentId) {
   return getItem(dataTable(), keys.tenantPk(tenantId), keys.comment(commentId));
 }
 
+export function listComments(tenantId, { limit } = {}) {
+  return queryPrefix(keys.tenantPk(tenantId), keys.commentPrefix(), { limit });
+}
+
 // ---------------------------------------------------------------------------
 // Snapshots (account + media) and media
 // ---------------------------------------------------------------------------
@@ -750,6 +755,7 @@ export default {
   claimComment,
   updateComment,
   getComment,
+  listComments,
   putAccountSnapshots,
   listAccountSnapshots,
   putMediaItems,

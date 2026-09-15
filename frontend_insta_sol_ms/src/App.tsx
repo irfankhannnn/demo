@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { EmptyState } from './components/EmptyState';
 import Accounts from './pages/Accounts';
+import Comments from './pages/Comments';
 import Enquiries from './pages/Enquiries';
 import Overview from './pages/Overview';
 import Reels from './pages/Reels';
@@ -26,6 +27,7 @@ export default function App() {
             <Route path="enquiries" element={<Enquiries />} />
             <Route path="threads" element={<Threads />} />
             <Route path="threads/:threadId" element={<ThreadDetail />} />
+            <Route path="comments" element={<Comments />} />
             <Route path="rules" element={<Rules />} />
             {/* The old laptop-pairing screen; bookmarks land on its replacement. */}
             <Route path="devices" element={<Navigate to="/accounts" replace />} />

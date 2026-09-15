@@ -669,6 +669,64 @@ export function createInstagramService({
   // Comments + keyword rules
   // -------------------------------------------------------------------------
 
+  /**
+   * A person answers a comment from the console: publicly under the post, or
+   * privately as a DM. Instagram allows one private reply per comment, within
+   * 7 days of it.
+   */
+  async function replyToComment({ tenantId, userId, commentId, text, mode = 'public' }) {
+    const cfg = getConfig();
+    const body = clampMessage(text);
+    if (!body) throw new ServiceError(400, 'Bad Request', 'Reply text is required');
+    if (mode !== 'public' && mode !== 'private') throw new ServiceError(400, 'Bad Request', 'mode must be public or private');
+    if (cfg.killSwitch) throw new ServiceError(423, 'Locked', 'Sending is paused for this environment (kill switch)');
+
+    const comment = await db.getComment(tenantId, commentId);
+    if (!comment) throw new ServiceError(404, 'Not Found', 'Comment not found');
+    const account = await db.getAccount(tenantId, comment.igUserId);
+    if (!account || account.status !== 'connected') {
+      throw new ServiceError(409, 'Conflict', 'This Instagram account is not connected');
+    }
+
+    if (mode === 'private') {
+      if (comment.privateReplyAt || comment.privateReply === 'sent') {
+        throw new ServiceError(409, 'Conflict', 'This comment already has its one private reply');
+      }
+      const verdict = canSend({ kind: 'private_reply', commentCreatedAt: comment.commentCreatedAt }, clock());
+      if (!verdict.allowed) throw new ServiceError(409, 'Conflict', verdict.reason);
+    }
+
+    const status = cfg.sends.dryRun ? 'dry_run' : 'sent';
+    let messageId = null;
+    if (!cfg.sends.dryRun) {
+      const token = await tokenFor(account);
+      try {
+        if (mode === 'public') await api.replyToComment(token, commentId, body);
+        else messageId = (await api.sendMessage(token, { commentId, text: body }))?.message_id ?? null;
+      } catch (err) {
+        await recordFailure(account, 'comment_reply', err);
+        throw new ServiceError(502, 'Bad Gateway', `Instagram refused the reply: ${err.message}`);
+      }
+    }
+
+    const at = nowIso();
+    await db.updateComment(tenantId, commentId, {
+      lastReply: { mode, text: body, status, at, by: userId ?? null },
+      ...(mode === 'private' && { privateReplyAt: at }),
+    });
+    // A private reply opens a conversation, so it belongs in the DM inbox too.
+    if (mode === 'private' && comment.fromId) {
+      await ingestMessages(
+        account,
+        { participantId: comment.fromId, participantUsername: comment.fromUsername, sourceMediaId: comment.mediaId },
+        [{ messageId: messageId || `pr_${commentId}`, direction: 'out', text: body, createdAt: at, source: 'console', status, sentBy: userId ?? null }]
+      );
+    }
+    await db.putAuditEvent(tenantId, { action: `comment.${mode}_reply`, status, commentId, userId });
+
+    return { comment: await db.getComment(tenantId, commentId), status };
+  }
+
   async function autoReplyAllowance(account) {
     const cfg = getConfig();
     const fresh = await db.getAccount(account.tenantId, account.igUserId);
@@ -1012,6 +1070,7 @@ export function createInstagramService({
     promoteEnquiry,
     sendReply,
     handleComment,
+    replyToComment,
     syncComments,
     syncMedia,
     syncProfile,
