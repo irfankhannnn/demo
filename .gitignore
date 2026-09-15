@@ -1,5 +1,5 @@
 # Personal terminal/session launcher (local machine only, not shared)
-kalim-sessions/
+#kalim-sessions/
 
 # Playwright artifacts (when run from root before config was moved)
 test-results/

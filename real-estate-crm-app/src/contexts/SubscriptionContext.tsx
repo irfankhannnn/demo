@@ -19,7 +19,7 @@ interface SubscriptionContextValue {
   subscription: SubscriptionStatus | null;
   loading: boolean;
   error: string | null;
-  refetch: () => void;
+  refetch: () => Promise<void>;
   isPaying: boolean;
   isTrialing: boolean;
   trialDaysLeft: number;
@@ -31,7 +31,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue>({
   subscription: null,
   loading: true,
   error: null,
-  refetch: () => {},
+  refetch: async () => {},
   isPaying: false,
   isTrialing: false,
   trialDaysLeft: 0,

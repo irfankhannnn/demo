@@ -1,0 +1,63 @@
+{
+  "_comment": "Phrases that identify a message as sent BY OUR TEAM (the business account) rather than by the lead. Matching is case-insensitive substring matching on the message text. Add new templated lines here as the sales team's scripts evolve - the parser reads this file at run time, no code change needed.",
+  "business_phrases": [
+    "do you have any property requirement",
+    "do you have any requirement",
+    "do you have any req",
+    "i'm from sales team",
+    "im from sales team",
+    "area, requirements,contact",
+    "let me know your requirements",
+    "your name and contact number please",
+    "your contact number please",
+    "your contact number",
+    "also your contact details",
+    "please provide ur number",
+    "provide ur number",
+    "provide your number",
+    "provide ur contact",
+    "our team will be get back to you",
+    "our team will get back to you",
+    "please visit our office directly",
+    "we are open from",
+    "can you provide complete requirement",
+    "aapka complete requirement",
+    "aapka exact requirements bhejo",
+    "aur area bhi batao",
+    "kuch ayega to batayenge",
+    "kuch aya to contact karenge",
+    "agar kuch aya to contact karenge",
+    "will let you know",
+    "let me know your position date",
+    "let me know your possession date",
+    "kaunsa wala koi specific reel",
+    "heavy deposit me abi filhal ek bhi nhi hai",
+    "heavy pe ek bhi nhi h filhal",
+    "not possible in kurla in private building",
+    "is budget me nhi milega",
+    "flat is available"
+  ],
+  "_business_phone_numbers_comment": "Our own team's contact numbers. A message containing one is ours, and the number is never recorded as the lead's mobile. Add every number the sales team gives out in DMs.",
+  "business_phone_numbers": [
+    "9594191916"
+  ],
+  "_lead_reply_markers_comment": "Structural markers Instagram itself writes into the export. These are authoritative and override phrase matching.",
+  "business_marker_patterns": [
+    "^you replied to ",
+    "^you replied to yourself$"
+  ],
+  "lead_marker_patterns": [
+    " replied to you$",
+    " replied to themself$",
+    " replied to themselves$"
+  ],
+  "_whatsapp_comment": "Substrings that indicate the lead confirmed WhatsApp on the shared number.",
+  "whatsapp_phrases": [
+    "watsapp",
+    "whatsapp",
+    "whats app",
+    "wtsp",
+    "wa pe",
+    "whatsup"
+  ]
+}

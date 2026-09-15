@@ -78,6 +78,37 @@ there, so it may partly load. Verify rather than assume.
 
 No prod deploys were made. Prod env files were updated to the new shape and will apply on the next prod deploy.
 
+## Working agreement (2026-09-14)
+
+Build and test locally together → Kalim approves → commit to `main` → CI/CD pipeline from `main` deploys to dev →
+re-test on `https://app.realestateflow.in` (dev). No more `deploy.sh` runs from a local dirty tree. The main-branch
+pipeline does not exist yet and has to be built.
+
+Later dev deploys on 2026-09-14: `frontend_insta_sol_ms` build 0004 (verified live: `/insta/devices` calls
+`devrealestateinsta`, shows the empty state), `property-pages-ms` build 0005 (`devrealestatepages` live, `/health` 200;
+`.env.dev` had gone missing and was rebuilt from build 0004's params, `.env.prod` created from sample with blank
+secrets). CRM frontend content-deploy build 0010 **failed** (npm EPERM on esbuild.exe held by a local vite server; the
+failed `npm ci` wiped node_modules, restored since) so the live `/crm` still calls raw URLs. `server` not deployed:
+gate flags `DEMO_TENANT_ID=DEMO_YOUR_TENANT` (`server/.env.dev:180`), awaiting Kalim's real value; the audit also
+noticed plaintext AWS keys at `server/.env.dev:176-177`.
+
+## Onboarding / choose-plan work (local only, uncommitted, awaiting review)
+
+Why new agencies never saw onboarding or pricing:
+1. Auth race: `ProtectedRoute` bounced freshly logged-in users to `/login` because `auth-changed` re-ran `initAuth`
+   without entering `loading`; Google signups never set the onboarding flag, so `/auth/me` 404 logged them out.
+2. No plans step after `RegisterAdmin`; `?plan=` from the marketing site was ignored.
+3. "Buy" in `PaywallModal` passes a plan name as a Razorpay `subscription_id`; no server route creates Razorpay
+   subscriptions. `onboarding-page/` is a local operator tool, not the user flow.
+
+Changes in `real-estate-crm-app` (local): `App.tsx` (loading on auth-changed unless already authenticated; tenant-less
+onboarding users redirected to `/onboarding/role-selection`; new `/onboarding/choose-plan` route),
+`pages/AuthCallback.tsx` (sets onboarding flag for new Google users), `pages/RegisterAdmin.tsx` (clears flag, goes to
+choose-plan), `pages/PhoneLogin.tsx` (stores `?plan=`), new `pages/onboarding/ChoosePlan.tsx` (tiers, monthly/annual,
+Buy shows "payment coming soon", Start 14-day free trial calls trial-status then dashboard), new `lib/plans.ts` (tiers
+shared with `PaywallModal`), `SubscriptionContext` refetch typed as a promise, two analytics event names.
+Next after approval: Razorpay checkout (server route + Razorpay test plans) to make Buy real.
+
 ## Pending (low priority)
 
 1. **reality-flow-mcp readiness gaps (blocks its deploy).** Until MCP is deployed, dev server and the CRM AI
