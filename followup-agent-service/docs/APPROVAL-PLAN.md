@@ -1,6 +1,6 @@
 # Follow-up Agent Microservice: Understanding and Implementation Plan (for approval)
 
-Date: 2026-09-14 · Branch: `claude/followup-agent-microservice-df68b2` · Prepared by Claude for Kalim Qureshi
+Date: 2026-09-14 · Repo: `nabi-app-git-bkp`, branch `feat/property-pages-ms` (ported 2026-09-15 from `claude/followup-agent-microservice-df68b2`) · Prepared by Claude for Kalim Qureshi
 
 This document records what was found in the codebase, what already exists, what is missing, and exactly what will be built. Please review **Section 5 (Decisions and defaults)** and **Section 6 (Open questions)**, then mark Section 8.
 

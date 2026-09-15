@@ -2,7 +2,7 @@
 
 Written for a browser-automation test agent. Everything it needs is in this file; the deeper contracts are in `CONTRACTS.md`, the deploy order in `RUNBOOK.md`, the design in `APPROVAL-PLAN.md`.
 
-Branch: `claude/followup-agent-microservice-df68b2`. Nothing on it is deployed as of 2026-09-15. **Sections 2 to 4 can only run once the dev stacks are deployed** (see section 1). Section 5 lists what a browser cannot test and how to cover it instead.
+Repo: `nabi-app-git-bkp`, branch `feat/property-pages-ms`. Nothing on it is deployed as of 2026-09-15. **Sections 2 to 4 can only run once the dev stacks are deployed** (see section 1). Section 5 lists what a browser cannot test and how to cover it instead.
 
 ---
 
