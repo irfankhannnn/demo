@@ -18,6 +18,7 @@ rules, and lets the team reply from the console inside Instagram's 24-hour windo
 | [06-DEPLOYMENT.md](06-DEPLOYMENT.md) | Stacks, deploy scripts, secrets, switches, local development |
 | [08-TESTING.md](08-TESTING.md) | What is tested, how to run it, what was verified end to end |
 | [09-CLOUDFRONT-INTEGRATION.md](09-CLOUDFRONT-INTEGRATION.md) | Serving the console at `/insta/*` on the CRM distribution |
+| [10-APP-REVIEW.md](10-APP-REVIEW.md) | Meta App Review: prerequisites, per-permission text, screencast scripts |
 | [01-PLAN.md](01-PLAN.md), [02-FEATURES.md](02-FEATURES.md) | The original laptop-agent plan and feature catalogue (historical) |
 
 ## Code layout
