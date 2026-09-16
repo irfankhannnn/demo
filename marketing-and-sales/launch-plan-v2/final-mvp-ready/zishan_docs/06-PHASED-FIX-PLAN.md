@@ -19,7 +19,7 @@ This plan divides all fixes into **9 core phases** plus **2 new sub-phases (1A a
 - **Estimated Time** — For planning
 
 **Prerequisites:**
-- `server/.env` exists (copy from `server/.env.example`)
+- `apps/crm/server/.env` exists (copy from `apps/crm/server/.env.example`)
 - AWS CLI configured with credentials
 - Node.js 18+ installed locally
 
@@ -32,8 +32,8 @@ This plan divides all fixes into **9 core phases** plus **2 new sub-phases (1A a
 **Why First:** Without this, deployment fails immediately with parameter errors. The `cfn-backend.yaml` already defines these parameters and the Lambda environment variables already use them — only the deployment script is missing them.
 
 **Files:**
-- `server/infra/deploy.sh` (primary)
-- `server/infra/deploy-fixed.sh` (untracked backup/alternative — also needs the same parameters if you decide to use it)
+- `apps/crm/server/infra/deploy.sh` (primary)
+- `apps/crm/server/infra/deploy-fixed.sh` (untracked backup/alternative — also needs the same parameters if you decide to use it)
 
 **Current State of deploy.sh:**
 - Already has `set -euo pipefail` at line 2 (strict error handling is done)
@@ -45,7 +45,7 @@ This plan divides all fixes into **9 core phases** plus **2 new sub-phases (1A a
 
 ### 1.1 Add parameters to cfn-params.json heredoc
 
-Open `server/infra/deploy.sh` around line 164 (the `cat > "$SCRIPT_DIR/cfn-params.json" <<EOF` section). Add these 8 parameters before the closing `]`:
+Open `apps/crm/server/infra/deploy.sh` around line 164 (the `cat > "$SCRIPT_DIR/cfn-params.json" <<EOF` section). Add these 8 parameters before the closing `]`:
 
 ```bash
   { "ParameterKey": "CreditsTableName", "ParameterValue": "${CREDITS_TABLE_NAME}" },
@@ -79,7 +79,7 @@ Around line 207, find the `PARAM_OVERRIDES=(` array. Add these 8 lines:
 
 ### 1.3 Add environment variables to .env
 
-Ensure these 8 variables are present in `server/.env` (copy from `server/.env.example` if needed):
+Ensure these 8 variables are present in `apps/crm/server/.env` (copy from `apps/crm/server/.env.example` if needed):
 
 ```bash
 CREDITS_TABLE_NAME=cloudberry-real-estate-credits
@@ -95,7 +95,7 @@ AGENTS_ENABLED=false
 **Verification:**
 
 ```bash
-cd server/infra
+cd apps/crm/server/infra
 bash -n deploy.sh  # Syntax check (should output nothing)
 ```
 
@@ -122,7 +122,7 @@ After the first successful CloudFormation deployment, you can switch back to `DE
 
 **Goal:** Ensure the removed dependencies are still available at Lambda runtime
 
-**Why:** You removed several dependencies from `server/package.json` to reduce bundle size:
+**Why:** You removed several dependencies from `apps/crm/server/package.json` to reduce bundle size:
 - `@aws-sdk/client-bedrock-runtime`
 - `@aws-sdk/client-eventbridge`
 - `@aws-sdk/client-sesv2`
@@ -136,7 +136,7 @@ The code now uses dynamic imports (`await import(...)`). This is fine, but the p
 ### Option A: Use Lambda layers (Recommended)
 1. Create a Lambda layer containing the removed packages
 2. Attach the layer to the Lambda in `cfn-backend.yaml`
-3. Update the layer ARN in `server/.env` and pass it to CloudFormation
+3. Update the layer ARN in `apps/crm/server/.env` and pass it to CloudFormation
 
 ### Option B: Add them back to package.json for now
 ```bash
@@ -183,7 +183,7 @@ rm -f function-26mb.zip function-33mb.zip function-41mb.zip
 rm -rf server/temp_folder_to_be_deleted_after_fixing/
 ```
 
-**Note:** `server/infra/deploy-fixed.sh` is also untracked. If it's a backup, either delete it or move it to a `backups/` directory outside git.
+**Note:** `apps/crm/server/infra/deploy-fixed.sh` is also untracked. If it's a backup, either delete it or move it to a `backups/` directory outside git.
 
 **Estimated Time:** 5 minutes
 
@@ -838,7 +838,7 @@ Then write a quick test to verify validation works (e.g., passing wrong type sho
 
 **Files:**
 - `server/mcp/skills/` (or wherever skills are defined)
-- `server/agents/` (agent runtime)
+- `apps/crm/server/agents/` (agent runtime)
 
 ### 7.1 Implement Lead Qualification Skill (E6-T5)
 
@@ -982,7 +982,7 @@ Then test by invoking the skills through the agent runtime (if agents are enable
 ### 8.1 Validate all CloudFormation templates
 
 ```bash
-cd server/infra
+cd apps/crm/server/infra
 aws cloudformation validate-template --template-body file://cfn-backend.yaml
 
 cd ../cron
@@ -999,7 +999,7 @@ All should return without errors.
 ### 8.2 Deploy main stack
 
 ```bash
-cd server/infra
+cd apps/crm/server/infra
 ./deploy.sh
 ```
 
@@ -1114,7 +1114,7 @@ aws cloudformation deploy \
    - `payment.captured`
    - `subscription.activated`
    - `subscription.charged`
-6. Save secret in `server/.env` as `RAZORPAY_WEBHOOK_SECRET`
+6. Save secret in `apps/crm/server/.env` as `RAZORPAY_WEBHOOK_SECRET`
 
 ### 9.3 Bailey Configuration (Optional — Keep Disabled)
 
@@ -1124,7 +1124,7 @@ Only if you want to enable WhatsApp:
 2. Get API key and webhook secret
 3. Configure webhook URL: `https://api.realestateflow.in/api/webhooks/whatsapp`
 4. Add DNS records for WhatsApp Business API
-5. Update `server/.env`:
+5. Update `apps/crm/server/.env`:
    - `BAILEY_ENABLED=true`
    - `BAILEY_API_KEY=your_key`
    - `BAILEY_WEBHOOK_SECRET=your_secret`
@@ -1140,7 +1140,7 @@ Use this to track progress:
 **Phase 1: Deployment Script**
 - [x] Add 8 parameters to cfn-params.json heredoc
 - [x] Add 8 parameters to PARAM_OVERRIDES array
-- [x] Verify 8 env vars exist in `server/.env`
+- [x] Verify 8 env vars exist in `apps/crm/server/.env`
 - [ ] Set `DEPLOY_CFN=true` for first deployment (you must do this)
 - [ ] Run `bash -n deploy.sh` syntax check
 - [ ] **Note:** `set -euo pipefail` already present
@@ -1154,7 +1154,7 @@ Use this to track progress:
 - [ ] Delete `crmDynamodbService_nobom.js`
 - [ ] Delete `function-*.zip` artifacts
 - [ ] Delete `server/temp_folder_to_be_deleted_after_fixing/`
-- [ ] Decide fate of `server/infra/deploy-fixed.sh` (already gone)
+- [ ] Decide fate of `apps/crm/server/infra/deploy-fixed.sh` (already gone)
 
 **Phase 2: Critical Cron Issues**
 - [ ] Fix escalation-cron.js syntax error

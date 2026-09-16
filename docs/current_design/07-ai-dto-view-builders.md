@@ -1,8 +1,8 @@
 # Priority 7 — AI DTO View Builders
 
-Source: `server/aiViewBuilders/`, `server/aiDtoMiddleware.js`, `server/normalizers/`
+Source: `apps/crm/server/aiViewBuilders/`, `apps/crm/server/aiDtoMiddleware.js`, `apps/crm/server/normalizers/`
 
-Entity contracts: [`ai-response-design/`](../../ai-response-design/)  
+Entity contracts: [`docs/ai-response-design/`](../ai-response-design/)  
 WhatsApp templates: [`docs/interaction-design/`](../interaction-design/)
 
 ---
@@ -37,7 +37,7 @@ normalizer → view builder
 
 Local/dev `.env` and `.env.example` set these to `true`. Production Lambda env should enable per entity after deploy.
 
-Shared recommendations: `server/aiViewBuilders/recommendations.js` (lead, buyer, owner, tenant, property, contact, meeting).
+Shared recommendations: `apps/crm/server/aiViewBuilders/recommendations.js` (lead, buyer, owner, tenant, property, contact, meeting).
 
 ---
 
@@ -70,5 +70,5 @@ Shared recommendations: `server/aiViewBuilders/recommendations.js` (lead, buyer,
 ## Gaps
 
 - Meeting normalizer still thin (raw → builder)
-- Buyer design docs under `ai-response-design/buyer/` incomplete vs leads (ARCHITECTURE + README only historically; prefer root README for status)
+- Buyer design docs under `docs/ai-response-design/buyer/` incomplete vs leads (ARCHITECTURE + README only historically; prefer root README for status)
 - Document tools not fully DTO-wrapped

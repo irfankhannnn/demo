@@ -10,13 +10,13 @@
 Static-analysis sweep of every server route + every DynamoDB call to confirm zero tenant data leakage paths, plus a Playwright pen-test that attempts cross-tenant access and confirms 403/404 (never 200 with leaked data). Publish a written audit report so we can cite "we audited" in enterprise due-diligence.
 
 ## Why This Matters for RealEstateFlow
-Multi-tenancy is already implemented (`server/tenantMiddleware.js` + `extractTenantId` middleware on every route + `req.tenantId` passed to service layer). But "implemented" ≠ "uniformly applied". One missed route = full data breach for one agency. This audit confirms uniform coverage and produces evidence for legal defence.
+Multi-tenancy is already implemented (`apps/crm/server/tenantMiddleware.js` + `extractTenantId` middleware on every route + `req.tenantId` passed to service layer). But "implemented" ≠ "uniformly applied". One missed route = full data breach for one agency. This audit confirms uniform coverage and produces evidence for legal defence.
 
 ## User Story
 As a founder selling to multiple agencies, I want a written audit confirming no API route or DDB call can leak one agency's data to another, so I can pass DPDP enquiry, enterprise due-diligence, and sleep at night.
 
 ## Acceptance Criteria
-- [ ] Static analysis CSV at `marketing-and-sales/launch-implement/pre-launch/13-security/route-tenant-coverage.csv` listing every route in `server/routes/*.js` with columns: `file, method, path, hasValidateToken, hasExtractTenantId, dynamoCallsCount, dynamoCallsWithTenantIdInKey, isPublic, securityNotes`
+- [ ] Static analysis CSV at `marketing-and-sales/launch-implement/pre-launch/13-security/route-tenant-coverage.csv` listing every route in `apps/crm/server/routes/*.js` with columns: `file, method, path, hasValidateToken, hasExtractTenantId, dynamoCallsCount, dynamoCallsWithTenantIdInKey, isPublic, securityNotes`
 - [ ] Zero rows where `isPublic=false` AND (`hasValidateToken=false` OR `hasExtractTenantId=false`)
 - [ ] Zero rows where `dynamoCallsCount > dynamoCallsWithTenantIdInKey` (allowing for legitimate non-tenant tables: Grievances, AIEmployeeProvisioning, WebhookLog, TenantApiKeys, NPSResponses, etc. — explicit allowlist)
 - [ ] Playwright pen-test `tests/cross-tenant-pentest.spec.ts`: log in as Agency A, attempt 10+ API GETs/PUTs/DELETEs with Agency B's IDs in URL/body → assert 403/404 always, never 200 with B's data
@@ -35,14 +35,14 @@ As a founder selling to multiple agencies, I want a written audit confirming no 
 You are a senior application security auditor. Perform a static + dynamic security audit of RealEstateFlow's backend, specifically multi-tenancy isolation.
 
 Read these inputs:
-- `server/routes/*.js` (every file — auth, leads, owners, buyers, properties, tenants, b2bLeads, khata, calendar, hierarchy, analytics, rentedProperties, notifications, areas, developers, projects, grievance (P9), billing (P11), aiEmployeeStatus (P11), subscriptions (P12))
-- `server/tenantMiddleware.js`
-- `server/middleware/*.js` (validateToken, etc.)
-- `server/crmDynamodbService.js` (108KB — find each function's DDB key conditions)
-- `server/grievanceDynamodbService.js` (P9)
-- `server/aiEmployeeProvisioningService.js` (P11)
-- `server/subscriptionService.js` (P12)
-- `server/server.js` (route mounting)
+- `apps/crm/server/routes/*.js` (every file — auth, leads, owners, buyers, properties, tenants, b2bLeads, khata, calendar, hierarchy, analytics, rentedProperties, notifications, areas, developers, projects, grievance (P9), billing (P11), aiEmployeeStatus (P11), subscriptions (P12))
+- `apps/crm/server/tenantMiddleware.js`
+- `apps/crm/server/middleware/*.js` (validateToken, etc.)
+- `apps/crm/server/crmDynamodbService.js` (108KB — find each function's DDB key conditions)
+- `apps/crm/server/grievanceDynamodbService.js` (P9)
+- `apps/crm/server/aiEmployeeProvisioningService.js` (P11)
+- `apps/crm/server/subscriptionService.js` (P12)
+- `apps/crm/server/server.js` (route mounting)
 - `infra/dynamodb/*.tf` (table schemas)
 - `marketing-and-sales/launch-implement/pre-launch/01-legal/privacy.md` (sub-processor list)
 

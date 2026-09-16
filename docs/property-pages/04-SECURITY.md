@@ -1,6 +1,6 @@
 # Security — Abuse Controls on the Public Booking Flow
 
-Scope: `property-pages-ms/routes/pages.js` (the POST handler),
+Scope: `apps/property-pages-ms/routes/pages.js` (the POST handler),
 `services/abuseGuard.js`, `services/sessionToken.js`, `services/captcha.js`.
 This is the anonymous, internet-facing write path — the one place this
 service creates data instead of only reading it.
@@ -67,7 +67,7 @@ already wrong.
 
 ## Why DynamoDB counters, not a process Map
 
-The CRM's existing limiter (`server/middleware/rateLimiter.js`) keeps
+The CRM's existing limiter (`apps/crm/server/middleware/rateLimiter.js`) keeps
 counters in a per-process `Map`. Under Lambda that's one counter per warm
 container — "40/hour" becomes "40/hour per container," and a bigger burst
 just spins up more containers to absorb it, backwards for a control meant to
@@ -112,7 +112,7 @@ the evasion case.
 
 Covered in `01-ARCHITECTURE.md`. Relevant here as the other half of the
 threat model: rate limiting and captcha bound *how much* someone can do;
-`server/publicListingService.js`'s allowlist bounds *what* is ever exposed
+`apps/crm/server/publicListingService.js`'s allowlist bounds *what* is ever exposed
 regardless. Even a fully successful abuse run can only produce more of the
 same already-public data.
 

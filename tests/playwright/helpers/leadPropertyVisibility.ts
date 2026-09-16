@@ -1,5 +1,5 @@
 /**
- * Mirrors real-estate-crm-app/src/utils/leadPropertySchema.ts for Playwright fills.
+ * Mirrors apps/crm/real-estate-crm-app/src/utils/leadPropertySchema.ts for Playwright fills.
  */
 export type LeadPropertyType = 'apartment' | 'house' | 'villa' | 'office' | 'land' | '';
 

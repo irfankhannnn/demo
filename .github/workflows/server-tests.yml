@@ -4,8 +4,8 @@ name: Server Tests
 # registry, skill dispatch, call-intelligence pipeline and WhatsApp
 # processor) previously ran only on developer machines — playwright.yml
 # builds and tests the CRM frontend but never touches server/. That gap is
-# recorded in working-context/current-issues-and-pending.md ("npm install in
-# server/ so Jest suite runs in CI") and launch-audit/03-production-readiness.md
+# recorded in docs/working-context/current-issues-and-pending.md ("npm install in
+# apps/crm/server/ so Jest suite runs in CI") and docs/launch-audit/03-production-readiness.md
 # ("Security scans: ❌ No SAST/dependency-audit step in CI").
 #
 # Branch triggers mirror playwright.yml so both run on the same PRs.
@@ -29,14 +29,14 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: server/package-lock.json
+          cache-dependency-path: apps/crm/server/package-lock.json
 
       - name: Install server dependencies
-        working-directory: server
+        working-directory: apps/crm/server
         run: npm ci
 
       - name: Run Jest suite
-        working-directory: server
+        working-directory: apps/crm/server
         # Jest needs the VM-modules flag because the server is native ESM
         # ("type": "module"); this matches the local `npm test` script.
         run: npm test
@@ -60,11 +60,11 @@ jobs:
       #                      produces self-consistent but wrong output, which
       #                      the first check cannot see.
       - name: Check MCP tool definitions are regenerated
-        working-directory: server
+        working-directory: apps/crm/server
         run: npm run check:mcp-tools
 
       - name: Check MCP tool-registry drift
-        working-directory: server
+        working-directory: apps/crm/server
         run: npm run check:mcp-drift
 
       # Compiles the MCP service and runs its OAuth scope-consistency check
@@ -72,7 +72,7 @@ jobs:
       # the check entirely when a tool has no scope — or a write tool being
       # granted a read scope.
       - name: Build MCP service and verify OAuth scopes
-        working-directory: reality-flow-mcp
+        working-directory: services/reality-flow-mcp
         run: |
           npm ci
           npm run build
@@ -94,14 +94,14 @@ jobs:
       # wedge an unrelated PR. Tighten to --audit-level=high once the current
       # backlog is triaged.
       - name: Audit server dependencies
-        working-directory: server
+        working-directory: apps/crm/server
         run: npm audit --audit-level=critical
 
       - name: Audit CRM dependencies
-        working-directory: real-estate-crm-app
+        working-directory: apps/crm/real-estate-crm-app
         run: npm audit --audit-level=critical
 
       - name: Report non-blocking findings (server)
         if: always()
-        working-directory: server
+        working-directory: apps/crm/server
         run: npm audit --audit-level=moderate || true

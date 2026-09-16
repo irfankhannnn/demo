@@ -58,13 +58,13 @@ Consequences to be aware of:
   `prod-realestateflow-insta-*` stacks are the old device-pairing build and the
   `.env.prod` secrets are blank. Do this after App Review (see
   [instagram-app-review-actions.md](instagram-app-review-actions.md)).
-- [ ] **Line endings.** `real-estate-crm-app/package-lock.json` and
+- [ ] **Line endings.** `apps/crm/real-estate-crm-app/package-lock.json` and
   `android/gradlew.bat` show as modified in every checkout because of CRLF vs
   LF only. A `.gitattributes` entry would stop the noise.
 
 ## How to deploy (unchanged)
 
 Every service goes through the readiness audit and its wrapper:
-`cfn-templates-cicd/<service>/deploy.sh dev`. Config-only changes, such as
+`infra/cicd/<service>/deploy.sh dev`. Config-only changes, such as
 `INSTA_DRY_RUN_SENDS`, use `deploy.sh config-deploy dev`. Prod deploys need
 explicit sign-off.

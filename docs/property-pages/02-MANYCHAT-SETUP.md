@@ -58,7 +58,7 @@ ManyChat's "Instagram Post and Reel Comments" trigger.
 ## Step 3 — Construct the CTA link
 
 The booking page's query string is read by two functions in
-`property-pages-ms/routes/pages.js`:
+`apps/property-pages-ms/routes/pages.js`:
 
 **`prefillFrom(query)`** — form prefill, always just a hint, never trusted:
 
@@ -94,7 +94,7 @@ https://sunrise-realty.pages.realestateflow.in/visit/prop-1
 filled by ManyChat.** For Instagram subscribers, ManyChat reliably has only
 the username and Contact ID — phone/email are empty unless collected
 in-flow via a Data Collection block, and names are frequently blank too.
-That's why `property-pages-ms/views/visit.js` marks phone `required` and
+That's why `apps/property-pages-ms/views/visit.js` marks phone `required` and
 always user-entered, prefilling only what ManyChat actually handed it. Don't
 add a Data Collection step to force phone/email up front — it adds friction
 for a value the form asks for anyway.

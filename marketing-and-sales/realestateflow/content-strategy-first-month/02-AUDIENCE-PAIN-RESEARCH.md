@@ -86,13 +86,13 @@ not on this table.
 
 | Pain | Real feature | Verified in |
 |------|--------------|-------------|
-| A1 employee takes contacts | Multi-tenant CRM - leads/buyers/owners/tenants/contacts owned by the agency | `server/agents`, tenant-scoped tables |
-| A2 no pipeline visibility | `get_pipeline_summary`, `get_business_health`, `get_crm_metrics`, `get_dashboard_snapshot` | `server/shared/toolDefinitions.js` |
+| A1 employee takes contacts | Multi-tenant CRM - leads/buyers/owners/tenants/contacts owned by the agency | `apps/crm/server/agents`, tenant-scoped tables |
+| A2 no pipeline visibility | `get_pipeline_summary`, `get_business_health`, `get_crm_metrics`, `get_dashboard_snapshot` | `apps/crm/server/shared/toolDefinitions.js` |
 | A3 duplicate calling | Lead assignment + ownership, `update_lead` | CRM lead module |
-| A4 who do I owe | **Khata Book** - `TO_GIVE`/`TO_TAKE`, party type, per-property, settlement status, reminders | `real-estate-crm-app/src/types/khata.ts` |
+| A4 who do I owe | **Khata Book** - `TO_GIVE`/`TO_TAKE`, party type, per-property, settlement status, reminders | `apps/crm/real-estate-crm-app/src/types/khata.ts` |
 | B1 missed follow-up | `get_followup_summary`, `get_priority_leads`, `suggest_next_actions`, `get_daily_brief` | tool definitions |
 | B2 lost documents | `create_property_document`, `get_property_documents` | tool definitions |
-| B4 rent reminders | Khata `reminderAt` + notification service | `server/notificationDynamodbService.js` |
+| B4 rent reminders | Khata `reminderAt` + notification service | `apps/crm/server/notificationDynamodbService.js` |
 | B5 visit history | Notes + meetings per entity (`get_owner_notes`, `get_upcoming_meetings`) | tool definitions |
 | B6 deposit disputes | Khata categories: Security Deposit, Deep Cleaning, Repair, Maintenance + line items | `khata.ts` |
 | B7 requirement mismatch | Buyer records with BHK/budget/location/furnishing | `search_buyers` schema |

@@ -5,10 +5,10 @@
 **Assessed:** 2026-08-22, branch `auth_rbac_feature`. Test suite **724/724 green** (589 at first assessment).
 
 **Companion documents:**
-- [`01-audit-findings.md`](./01-audit-findings.md) — every bug found and fixed across five audit passes
-- [`02-credit-refund.md`](./02-credit-refund.md) — the credit-refund leak and the refund policy chosen
-- [`03-decisions-and-open-items.md`](./03-decisions-and-open-items.md) — **product decisions taken, and what is still waiting on a person**
-- [`04-backend-deployment-runbook.md`](./04-backend-deployment-runbook.md) — **every CloudFormation template, deploy order, and the six things that block a first deploy today**
+- [`01-audit-findings.md`](01-audit-findings.md) — every bug found and fixed across five audit passes
+- [`02-credit-refund.md`](02-credit-refund.md) — the credit-refund leak and the refund policy chosen
+- [`03-decisions-and-open-items.md`](03-decisions-and-open-items.md) — **product decisions taken, and what is still waiting on a person**
+- [`04-backend-deployment-runbook.md`](04-backend-deployment-runbook.md) — **every CloudFormation template, deploy order, and the six things that block a first deploy today**
 
 ---
 
@@ -99,7 +99,7 @@ A full manual test plan already exists at [`../recording-flow-test.md`](../recor
 | Tenant scoping on every tool call | ✅ Enforced — `tenantId` is a required parameter throughout |
 | Dependency audit in CI | ✅ **Added this session** (`npm audit`, fails on critical) |
 | **Category permissions bypassed on WhatsApp** | ❌ **OPEN — see below** |
-| Global rate limiting / WAF | ❌ Open (from `launch-audit/05-launch-gaps.md`, INFRA-04) |
+| Global rate limiting / WAF | ❌ Open (from `docs/launch-audit/05-launch-gaps.md`, INFRA-04) |
 | Seat-cap enforcement at invite API | ❌ Open (BUG-009, cross-service, documented not implemented) |
 
 ### The one I would not launch past without a decision
@@ -120,7 +120,7 @@ Mitigating factors: the self-chat check means only the connected business number
 
 ## 7. SRE / observability
 
-**Was at zero** — the stack had 0 alarms, 0 dashboards, 0 SNS topics. `launch-audit/05-launch-gaps.md` lists this as an open **HIGH** gap (INFRA-05): *"Incidents undetected until customer complaint."*
+**Was at zero** — the stack had 0 alarms, 0 dashboards, 0 SNS topics. `docs/launch-audit/05-launch-gaps.md` lists this as an open **HIGH** gap (INFRA-05): *"Incidents undetected until customer complaint."*
 
 **Now IaC-ready** (validated: YAML parses, dashboard JSON parses):
 - **8 alarms** — WhatsApp processor errors / throttles / p95 duration, API Lambda errors, call-recording DLQ-not-empty, queue backlog, worker errors, CrmTable throttling
@@ -137,7 +137,7 @@ Alarms deliberately use **AWS-native** metrics, not the app's custom ones: the c
 
 **Blocking, and only you can do these:**
 
-1. **Deploy** — the 7 launch DDB tables (`launch-tables-cfn.yaml`), the `AgencyConfigTable` GSI, the alarms/dashboard, and populate real env values. From `launch-audit/03-production-readiness.md`, all still pending.
+1. **Deploy** — the 7 launch DDB tables (`launch-tables-cfn.yaml`), the `AgencyConfigTable` GSI, the alarms/dashboard, and populate real env values. From `docs/launch-audit/03-production-readiness.md`, all still pending.
 2. **Run one staging pass.** This converts most ⚠️ rows to ✅ or finds real bugs:
    - WhatsApp: create/update a lead, owner, property, tenant, buyer, seller-lead, meeting; ask a khata question; ask for a person by name
    - Upload a real recording and walk `../recording-flow-test.md`

@@ -1,6 +1,6 @@
 # Tool Definitions (SyncBot / Gemini)
 
-Source: `server/shared/toolDefinitions.js`
+Source: `apps/crm/server/shared/toolDefinitions.js`
 
 Total tools: **65**
 

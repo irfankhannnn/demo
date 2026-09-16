@@ -40,7 +40,7 @@ If you don't have one yet, this is Day 15's main task.
 **Production options:**
 - **Loom screen recording** (free, fast) — most pragmatic for Day 15
 - **Higgsfield + Veo / Kling for AI generation** (per CLAUDE.md MCPs) — higher polish, 4-6 hours
-- **Remotion programmatic video** (per `my-video/` project) — most flexible if you can ship today
+- **Remotion programmatic video** (per `marketing-and-sales/video-projects/my-video/` project) — most flexible if you can ship today
 
 **Captions:** Add subtitles (Loom auto-generates; or use Descript). Include Hinglish translation if main is English.
 
@@ -134,7 +134,7 @@ This:
 ## Tools / Stack Required
 - Loom for video (free)
 - OR Higgsfield MCP for AI video (per CLAUDE.md)
-- OR Remotion (per `my-video/`)
+- OR Remotion (per `marketing-and-sales/video-projects/my-video/`)
 - Descript for captions (free tier)
 - Squoosh / TinyPNG for image compression
 - Your existing landing page stack

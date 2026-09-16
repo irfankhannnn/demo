@@ -6,7 +6,7 @@
 
 **Step 1 — One-time setup (do once before any agent starts):**
 
-1. Add the tagged comment blocks to `server/server.js` and `real-estate-crm-app/src/App.tsx` (described in `00-MASTER-BRIEF.md §11,§12`).
+1. Add the tagged comment blocks to `apps/crm/server/server.js` and `apps/crm/real-estate-crm-app/src/App.tsx` (described in `00-MASTER-BRIEF.md §11,§12`).
 2. Ensure `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` is up-to-date with any last-minute schema changes.
 3. Create the 7 new DynamoDB tables from `01-SHARED-CONTRACTS.md §1` in AWS Console (so they exist when agents deploy).
 
@@ -102,7 +102,7 @@ Total: 6 days, 13 PRs, 12 AI agent sessions.
 
 1. **Stubs everywhere** — agents create stubs (placeholder functions with `// replace with PR-X` comments) for dependencies not yet built. This allows parallel work without missing imports.
 
-2. **Tagged comment blocks** — `server/server.js` and `App.tsx` use `// === [LAUNCH ROUTES IMPORTS] ===` blocks so multiple agents can add to the same file without conflicts.
+2. **Tagged comment blocks** — `apps/crm/server/server.js` and `App.tsx` use `// === [LAUNCH ROUTES IMPORTS] ===` blocks so multiple agents can add to the same file without conflicts.
 
 3. **PostHog-only in CRM** — `analytics.ts` wraps PostHog only. GA4/Pixel/LinkedIn/Hotjar are LP-only. This is architecturally enforced by the file ownership matrix.
 

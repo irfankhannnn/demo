@@ -32,23 +32,32 @@
 Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
 
 ## Tech Stack
-- **Frontend:** React + TypeScript + Vite + TailwindCSS (real-estate-crm-app/)
-- **Backend:** Node.js + Express + DynamoDB (server/)
-- **AI Calling:** Lambda + Exotel + ElevenLabs (ai-calling-service/)
-- **Video:** Remotion (React-based programmatic video) (my-video/)
+- **Frontend:** React + TypeScript + Vite + TailwindCSS (apps/crm/real-estate-crm-app/)
+- **Backend:** Node.js + Express + DynamoDB (apps/crm/server/)
+- **AI Calling:** Lambda + Exotel + ElevenLabs (services/ai-calling-service/)
+- **Video:** Remotion (React-based programmatic video) (marketing-and-sales/video-projects/my-video/)
 - **Auth:** JWT-based authentication
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 - **Package Manager:** npm
 
 ## Key Directories
-- `real-estate-crm-app/src/` — Frontend source (components, pages, services, types, contexts)
-- `server/` — Express backend (routes, services, middleware)
-- `server/build-lambda/` — Lambda deployment build
-- `ai-calling-service/` — AI calling microservice
-- `onboarding-page/` — Onboarding flow
-- `my-video/` — Remotion video generation project
-- `claude-skills/` — Agent definitions, skills, scripts, templates
+Top-level layout: `apps/` (product frontends + backends, grouped per product), `services/`
+(standalone backend microservices), `infra/cicd/` (deploy wrappers), `docs/` (all documentation),
+`tests/`, `tools/`, `marketing-and-sales/`. See `README.md` for the full tree.
+
+- `apps/crm/real-estate-crm-app/src/` — CRM frontend source (components, pages, services, types, contexts)
+- `apps/crm/server/` — CRM Express backend (routes, services, middleware)
+- `apps/instagram/{frontend,backend}_insta_sol_ms/` — Instagram lead console + API
+- `apps/onboarding/`, `apps/landing-pages/`, `apps/property-pages-ms/` — Onboarding flow, marketing site, public property pages
+- `services/` — `reality-flow-authentication`, `reality-flow-mcp`, `whatsapp-platform`, `ai-calling-service`, `followup-agent-service`
+- `infra/cicd/<service>/deploy.sh` — Release-tracked deploy wrapper; folder name matches the service folder's name
+- `docs/` — All documentation (index: `docs/README.md`); service READMEs stay in their service
+- `marketing-and-sales/video-projects/my-video/` — Remotion video generation project
+- `tools/claude-skills/` — Agent definitions, skills, scripts, templates
 - `marketing-and-sales/` — All marketing outputs (creative, leads, outreach, ads, research)
+
+When adding a new service, put it under `apps/<product>/` (if it has a frontend/backend pair) or
+`services/`, add its wrapper at `infra/cicd/<same-name>/`, and put design docs in `docs/services/<same-name>/`.
 
 ## DynamoDB Tables
 - CRM: Buyers, Sellers, Owners, Customers (Tenants)
@@ -104,13 +113,13 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 4. **Testing:** Always run relevant tests before marking tasks complete.
 5. **Git discipline:** Create descriptive commits; never force-push.
 6. **Hinglish:** All marketing content uses casual Hinglish tone for Indian audience.
-7. **Remotion:** Use `my-video/` project for all programmatic video/image generation.
+7. **Remotion:** Use `marketing-and-sales/video-projects/my-video/` project for all programmatic video/image generation.
 8. **APIs:** Check `INTEGRATIONS.md` for required env vars before using external APIs.
 
 ## File Ownership Map
 | Team | Owned Paths |
 |------|-------------|
-| Builders (architect, sentry, pr-commander) | `real-estate-crm-app/src/`, `server/`, `ai-calling-service/` |
+| Builders (architect, sentry, pr-commander) | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
 | Strategists (trend-hunter, deep-researcher, oracle) | `marketing-and-sales/research/`, `marketing-and-sales/reports/` |
 | Content Factory (brand-strategist, nano-designer, motion-engineer, ugc-planner, orator, landing-page-builder, seo-content-writer) | `marketing-and-sales/creative/`, `marketing-and-sales/assets/` |
 | Scalers (media-buyer, ab-optimizer, lead-scraper) | `marketing-and-sales/ads/`, `marketing-and-sales/leads/` |

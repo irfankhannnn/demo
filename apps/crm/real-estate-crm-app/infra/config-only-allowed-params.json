@@ -1,0 +1,35 @@
+{
+  "_comment": [
+    "ALLOWLIST, not a denylist — fail-closed by design (see",
+    "docs/proposals/config-only-deploy/context.md and",
+    "services/reality-flow-authentication/infra/config-only-allowed-params.json for the",
+    "full rationale).",
+    "",
+    "This is a static site (S3 + CloudFront), not a Lambda service — every",
+    "one of its 8 CFN parameters is pure infrastructure topology (domain,",
+    "cert, price class, WAF), nothing app-runtime. But 'config-only' here",
+    "still only ever means 'skip npm ci + vite build + s3 sync' (infra/",
+    "config-deploy.sh, --skip-build) — it is a SEPARATE, DISTINCT axis from",
+    "'skip the CFN update' (infra/content-deploy.sh, --skip-cfn, for a pure",
+    "VITE_*-only change, which is baked into the JS bundle at build time and",
+    "can never skip the build regardless of whether any CFN parameter also",
+    "changed). See docs/proposals/config-only-deploy/context.md's category 1",
+    "vs. category 3 for why these are two axes, not one.",
+    "",
+    "Deliberately NOT listed, and why:",
+    "  EnvironmentName  — identity of the stack itself.",
+    "  BucketName       — the PHYSICAL resource name of the S3 bucket this",
+    "                      template creates — changing it makes CloudFormation",
+    "                      try to REPLACE the bucket (serving the site from a",
+    "                      bucket that doesn't have the deployed content),",
+    "                      not a config tweak."
+  ],
+  "allowedParams": [
+    "PriceClass",
+    "CustomDomainName",
+    "AcmCertificateArn",
+    "HostedZoneId",
+    "WafWebAclArn",
+    "InstaFrontendBucketDomainName"
+  ]
+}

@@ -8,8 +8,8 @@ approves it.
 
 - Frontend page: **CRM → Call Recordings** (`/crm/call-recordings`, admin only)
 - API base path: `/api/crm/call-recordings`
-- Backend code: `server/services/callIntelligence/`, `server/routes/callRecordings.js`,
-  `server/workers/callRecordingWorker.js`
+- Backend code: `apps/crm/server/services/callIntelligence/`, `apps/crm/server/routes/callRecordings.js`,
+  `apps/crm/server/workers/callRecordingWorker.js`
 
 ---
 
@@ -71,7 +71,7 @@ recording.
 
 ## 2. Identifying the caller
 
-`server/services/callIntelligence/phoneExtractor.js` reads the number out of the
+`apps/crm/server/services/callIntelligence/phoneExtractor.js` reads the number out of the
 file name. Recorder apps produce wildly different names, so the parser strips
 the extension, glues digit groups split by spaces or dashes, and then evaluates
 each digit run:
@@ -327,7 +327,7 @@ upload missing or action no longer pending, `502` a tool call failed.
 
 ## 9. Configuration
 
-Backend (`server/.env`, and CloudFormation parameters of the same name):
+Backend (`apps/crm/server/.env`, and CloudFormation parameters of the same name):
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -359,7 +359,7 @@ Frontend needs no new environment variables — it uses the existing
 
 ### What the CloudFormation change adds
 
-`server/infra/cfn-backend.yaml`:
+`apps/crm/server/infra/cfn-backend.yaml`:
 
 - `CallRecordingQueue` — SQS, visibility timeout tied to the worker timeout so a
   message is never redelivered while it is still being processed, redrive to the

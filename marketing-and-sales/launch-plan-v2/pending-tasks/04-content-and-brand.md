@@ -23,7 +23,7 @@
 1. Authenticate Higgsfield MCP at mcp.higgsfield.ai.
 2. Run the P8 brand prompt with the brand kit (`#2563EB`, Inter) via `nano-banana-pro`.
 3. Generate `logo.svg` (light + dark), 9-size favicon set, 6 OG PNGs (1200×630), `manifest.json`, `meta-tag-snippet.html`, + a LinkedIn banner (1584×396).
-4. Save to `marketing-and-sales/realestateflow/assets/`; copy into `creative/landing-pages/assets/brand/` + `real-estate-crm-app/public/`.
+4. Save to `marketing-and-sales/realestateflow/assets/`; copy into `creative/landing-pages/assets/brand/` + `apps/crm/real-estate-crm-app/public/`.
 
 ---
 

@@ -4,14 +4,14 @@
 
 **Architecture anchors:**
 - DynamoDB v3 (`@aws-sdk/lib-dynamodb`), single-table naming `cloudberry-real-estate-*`, PAY_PER_REQUEST.
-- Server ESM (`"type":"module"` in `server/package.json`): use `import`/`export`. No `require()`.
-- Middleware chain: `validateToken` (→ `server/middleware/validateToken.js`) → `extractTenantId` (→ `server/middleware/tenantMiddleware.js`) → `requireRole(...)` (→ `server/middleware/requireRole.js`).
-- Existing subscription service: `server/subscriptionService.js` → `getSubscription(tenantId)` returns `{ plan, seatsPaid, seatsUsed, trialEndsAt, isPaying, paymentStatus, gracePeriodActive }`.
-- Existing subscription routes: `server/routes/subscriptions.js` → `GET /api/subscriptions/current`, `GET /api/subscriptions/trial-status`, `POST /api/subscriptions/check-seat`.
-- Existing Razorpay subscription flow: `real-estate-crm-app/src/components/PaywallModal.tsx` + `src/lib/razorpay.ts` → `openCheckout({ planId, ... })`. Plan IDs: `plan_team_*` (₹1999), `plan_teamplus_*` (₹4999).
-- Billing webhook: `server/routes/billing.js` → `POST /webhook` (full path: `POST /api/billing/webhook`) — mounted with per-route `express.raw()` before JSON parsing; HMAC timing-safe verify pattern to copy for credit purchase webhook.
+- Server ESM (`"type":"module"` in `apps/crm/server/package.json`): use `import`/`export`. No `require()`.
+- Middleware chain: `validateToken` (→ `apps/crm/server/middleware/validateToken.js`) → `extractTenantId` (→ `apps/crm/server/middleware/tenantMiddleware.js`) → `requireRole(...)` (→ `apps/crm/server/middleware/requireRole.js`).
+- Existing subscription service: `apps/crm/server/subscriptionService.js` → `getSubscription(tenantId)` returns `{ plan, seatsPaid, seatsUsed, trialEndsAt, isPaying, paymentStatus, gracePeriodActive }`.
+- Existing subscription routes: `apps/crm/server/routes/subscriptions.js` → `GET /api/subscriptions/current`, `GET /api/subscriptions/trial-status`, `POST /api/subscriptions/check-seat`.
+- Existing Razorpay subscription flow: `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx` + `src/lib/razorpay.ts` → `openCheckout({ planId, ... })`. Plan IDs: `plan_team_*` (₹1999), `plan_teamplus_*` (₹4999).
+- Billing webhook: `apps/crm/server/routes/billing.js` → `POST /webhook` (full path: `POST /api/billing/webhook`) — mounted with per-route `express.raw()` before JSON parsing; HMAC timing-safe verify pattern to copy for credit purchase webhook.
 - `req.tenantId` is the only trusted tenant source — **never** read tenant from request body.
-- `InsufficientCreditsError` class: define inline in `server/creditService.js` (not a separate file/dir). See `server/expressError.js` for the existing error class style to match.
+- `InsufficientCreditsError` class: define inline in `apps/crm/server/creditService.js` (not a separate file/dir). See `apps/crm/server/expressError.js` for the existing error class style to match.
 - See `notes/codebase-reference.md` §4 for DynamoDB table names and GSI definitions.
 
 ---
@@ -23,11 +23,11 @@
 **Goal:** Two new tables and an owner-editable config, all matching existing conventions.
 
 **Files**
-- MODIFY `server/infra/cfn-backend.yaml` (add tables + extend Lambda role Resource list + add env vars to `ApiLambdaFunction`)
-- MODIFY `server/infra/deploy.sh` (add new table-name params)
-- NEW `server/creditConfig.js` (root-level, matching `*Service.js` convention; loads config from table with hard-coded safe defaults as fallback)
+- MODIFY `apps/crm/server/infra/cfn-backend.yaml` (add tables + extend Lambda role Resource list + add env vars to `ApiLambdaFunction`)
+- MODIFY `apps/crm/server/infra/deploy.sh` (add new table-name params)
+- NEW `apps/crm/server/creditConfig.js` (root-level, matching `*Service.js` convention; loads config from table with hard-coded safe defaults as fallback)
 
-> **File placement:** backend modules go at **server root** (`server/creditService.js`, `server/creditConfig.js`, etc.) — there is no `server/services/` or `server/config/` dir in this repo. Root `*.js` ships via the existing zip. See `07-infra-cfn-deploy.md` §6.
+> **File placement:** backend modules go at **server root** (`apps/crm/server/creditService.js`, `apps/crm/server/creditConfig.js`, etc.) — there is no `apps/crm/server/services/` or `apps/crm/server/config/` dir in this repo. Root `*.js` ships via the existing zip. See `07-infra-cfn-deploy.md` §6.
 
 **Tables (add to `cfn-backend.yaml`, mirror `CrmTable` block style):**
 
@@ -87,8 +87,8 @@
 **Goal:** Safe, concurrency-correct credit ops. **No sum-of-scan on the request path.**
 
 **Files**
-- NEW `server/creditService.js` (root-level)
-- `InsufficientCreditsError` — define as an **inline class** in `creditService.js` (no `errors/` dir; match the style of `server/expressError.js`)
+- NEW `apps/crm/server/creditService.js` (root-level)
+- `InsufficientCreditsError` — define as an **inline class** in `creditService.js` (no `errors/` dir; match the style of `apps/crm/server/expressError.js`)
 
 **API**
 ```js
@@ -128,11 +128,11 @@ resetMonthlyCredits(tenantId, plan)          // set/refresh monthly allotment
 **Goal:** Declarative per-route credit metering.
 
 **Files**
-- NEW `server/middleware/meterCredits.js`
+- NEW `apps/crm/server/middleware/meterCredits.js`
 
 **Detail**
 ```js
-// server/middleware/meterCredits.js
+// apps/crm/server/middleware/meterCredits.js
 // Relative path from middleware/ to server root: ../
 import { deductCredits } from '../creditService.js';
 import { getCosts } from '../creditConfig.js';
@@ -184,15 +184,15 @@ export function meterCredits(actionType) {
 **Goal:** Charge credits for the real actions.
 
 **Files**
-- MODIFY `server/routes/crm.js` (lead/contact/property/owner/tenant create; bulk import)
-- MODIFY `server/routes/khata.js` (entry create) — confirm path exists; if khata lives elsewhere, locate via route registration in `server.js`.
+- MODIFY `apps/crm/server/routes/crm.js` (lead/contact/property/owner/tenant create; bulk import)
+- MODIFY `apps/crm/server/routes/khata.js` (entry create) — confirm path exists; if khata lives elsewhere, locate via route registration in `server.js`.
 
 **Detail**
-- **Before modifying any route file:** read `server/server.js` to confirm which file handles each endpoint.
-  - Leads create: check both `server/routes/crm.js` AND `server/routes/leads.js` — both mount under `/api/crm/leads`.
-  - Contacts create: `server/routes/contacts.js` → `POST /api/crm/contacts`.
-  - Buyers create: `server/routes/buyers.js` → `POST /api/crm/buyers`.
-  - Khata entries: `server/routes/khata.js` → `POST /api/khata`.
+- **Before modifying any route file:** read `apps/crm/server/server.js` to confirm which file handles each endpoint.
+  - Leads create: check both `apps/crm/server/routes/crm.js` AND `apps/crm/server/routes/leads.js` — both mount under `/api/crm/leads`.
+  - Contacts create: `apps/crm/server/routes/contacts.js` → `POST /api/crm/contacts`.
+  - Buyers create: `apps/crm/server/routes/buyers.js` → `POST /api/crm/buyers`.
+  - Khata entries: `apps/crm/server/routes/khata.js` → `POST /api/khata`.
   - Owner create: check `crm.js` (owners may be in the main CRM file).
 - For each create endpoint, call `deductCredits(req.tenantId, cost, '<action>', { recordId })` **after** the DynamoDB write succeeds. Wrap so a failed write does **not** charge.
 - Map: leads→`lead_add`, contacts→`contact_add`, properties→`property_add`, owners→`owner_add`, customers/tenants→`tenant_add`, khata→`khata_entry`, bulk import→`bulk_import_per_record × count`.
@@ -218,16 +218,16 @@ export function meterCredits(actionType) {
 **Goal:** One-time credit-pack purchase that grants credits on payment capture.
 
 **Files**
-- MODIFY `server/routes/subscriptions.js` — add `POST /credits/purchase`
-- MODIFY `server/routes/billing.js` — in `payment.captured` (and/or `order.paid`), if `notes.credits` present, `grantCredits`
-- NEW `server/razorpayOrders.js` — create Orders via Razorpay REST (server key/secret env), since current frontend flow is subscription-only.
+- MODIFY `apps/crm/server/routes/subscriptions.js` — add `POST /credits/purchase`
+- MODIFY `apps/crm/server/routes/billing.js` — in `payment.captured` (and/or `order.paid`), if `notes.credits` present, `grantCredits`
+- NEW `apps/crm/server/razorpayOrders.js` — create Orders via Razorpay REST (server key/secret env), since current frontend flow is subscription-only.
 
 **Detail**
 - `POST /credits/purchase` (admin/owner only — use `requireRole('ADMIN','FOUNDER','OWNER')`): body `{ packId | credits }`. Compute amount from `creditConfig.getPacks()`, create a Razorpay **Order** via `razorpayOrders.createOrder({ amount, receipt, notes: { tenantId, credits } })`, return `{ orderId, amount, credits }`.
 - Frontend `BuyCreditsModal` (E2-T8) opens checkout with `order_id` (not `subscription_id`). Must extend `src/lib/razorpay.ts` → `openCheckout` to accept `orderId` mode alongside the existing `planId` subscription mode.
-- Webhook: in `server/routes/billing.js`, in the `payment.captured` handler, add: if `notes?.credits` present on the captured payment's order, call `grantCredits(tenantId, Number(notes.credits), 'purchase', { razorpayOrderId, razorpayPaymentId, amountPaise: payment.amount })`.
+- Webhook: in `apps/crm/server/routes/billing.js`, in the `payment.captured` handler, add: if `notes?.credits` present on the captured payment's order, call `grantCredits(tenantId, Number(notes.credits), 'purchase', { razorpayOrderId, razorpayPaymentId, amountPaise: payment.amount })`.
 - Idempotency: use `webhookLogService.logEventIfNotProcessed(razorpayPaymentId)` (already used in billing.js) to prevent duplicate grants.
-- `server/razorpayOrders.js`: use Razorpay REST API (`https://api.razorpay.com/v1/orders`) with basic auth `{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}` env vars.
+- `apps/crm/server/razorpayOrders.js`: use Razorpay REST API (`https://api.razorpay.com/v1/orders`) with basic auth `{RAZORPAY_KEY_ID}:{RAZORPAY_KEY_SECRET}` env vars.
 
 **Security**
 - Reuse existing HMAC verification already in `billing.js`. Validate `notes.tenantId` matches the order.
@@ -250,13 +250,13 @@ export function meterCredits(actionType) {
 **Goal:** Read balance/ledger; let owner edit costs/packs.
 
 **Files**
-- MODIFY `server/routes/subscriptions.js`:
+- MODIFY `apps/crm/server/routes/subscriptions.js`:
   - `GET /credits` → `{ balance, costs, packs, freeTier, resetDate }`
   - `GET /credits/ledger?limit&startKey` → paginated rows
-- NEW `server/routes/creditAdmin.js` (mounted `/api/credit-config`, `requireRole('ADMIN','FOUNDER','OWNER')`):
+- NEW `apps/crm/server/routes/creditAdmin.js` (mounted `/api/credit-config`, `requireRole('ADMIN','FOUNDER','OWNER')`):
   - `GET /` → current config
   - `PUT /costs`, `PUT /packs`, `PUT /free-tier` → update config table
-- MODIFY `server/server.js` to mount the new router (after json + auth).
+- MODIFY `apps/crm/server/server.js` to mount the new router (after json + auth).
 
 **Security**
 - Config mutations admin-only; validate numeric ranges (costs ≥ 0, packs > 0).
@@ -279,7 +279,7 @@ export function meterCredits(actionType) {
 **Goal:** Refresh each tenant's monthly free/plan allotment on their cycle.
 
 **Files**
-- NEW `server/scripts/credit-reset-cron.js` (handler `handler`, ships via zip)
+- NEW `apps/crm/server/scripts/credit-reset-cron.js` (handler `handler`, ships via zip)
 - NEW CFN `cron/credit-reset.yaml` (clone `cron/trial-reminder.yaml`; daily; pass `CREDITS_TABLE_NAME`, `CREDIT_CONFIG_TABLE_NAME`, `SUBSCRIPTIONS_TABLE`)
 
 **Detail**
@@ -306,10 +306,10 @@ export function meterCredits(actionType) {
 **Goal:** Show balance everywhere relevant; allow pack purchase; handle 402 gracefully.
 
 **Files**
-- MODIFY `real-estate-crm-app/src/contexts/SubscriptionContext.tsx` — also fetch `GET /api/subscriptions/credits`; expose `creditBalance`, `creditCosts`, `packs`.
-- NEW `real-estate-crm-app/src/components/CreditBalanceCard.tsx` — "Credits: {balance}", reset date, "Buy more".
-- NEW `real-estate-crm-app/src/components/BuyCreditsModal.tsx` — calls `POST /credits/purchase`, then `openCheckout` with `order_id` (extend `src/lib/razorpay.ts` to accept an order flow alongside subscription flow).
-- MODIFY `real-estate-crm-app/src/pages/crm/BillingSettings.tsx` (E1-T3) and CRM dashboard header to mount `CreditBalanceCard`.
+- MODIFY `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx` — also fetch `GET /api/subscriptions/credits`; expose `creditBalance`, `creditCosts`, `packs`.
+- NEW `apps/crm/real-estate-crm-app/src/components/CreditBalanceCard.tsx` — "Credits: {balance}", reset date, "Buy more".
+- NEW `apps/crm/real-estate-crm-app/src/components/BuyCreditsModal.tsx` — calls `POST /credits/purchase`, then `openCheckout` with `order_id` (extend `src/lib/razorpay.ts` to accept an order flow alongside subscription flow).
+- MODIFY `apps/crm/real-estate-crm-app/src/pages/crm/BillingSettings.tsx` (E1-T3) and CRM dashboard header to mount `CreditBalanceCard`.
 - Global 402 handling: in `ApiService.handleResponse`, detect `error==='insufficient_credits'` and surface a toast + open BuyCreditsModal.
 
 **Security**

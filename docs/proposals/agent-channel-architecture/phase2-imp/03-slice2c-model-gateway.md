@@ -8,13 +8,13 @@ Three files independently constructed their own `GoogleGenerativeAI` client and 
 
 ## What changed
 
-New module `server/agents/modelGateway/index.js` exporting `classify(message, opts)`, `plan(message, opts)`, `compose(params)` — each one a single-line delegation to the existing, unchanged `routeDomains`/`planTurn`/`composeReply`. `agentRuntime.js` now imports from the gateway instead of the three files directly; the only change to its three call sites is the function name (`routeDomains` → `classify`, `planTurn` → `planWithGateway`, `composeReply` → `composeWithGateway`, renamed on import to avoid colliding with the local `plan` variable already used in `runConversationalPipeline`) — arguments, the `onApiCall` callback convention, and everything else at each call site is untouched.
+New module `apps/crm/server/agents/modelGateway/index.js` exporting `classify(message, opts)`, `plan(message, opts)`, `compose(params)` — each one a single-line delegation to the existing, unchanged `routeDomains`/`planTurn`/`composeReply`. `agentRuntime.js` now imports from the gateway instead of the three files directly; the only change to its three call sites is the function name (`routeDomains` → `classify`, `planTurn` → `planWithGateway`, `composeReply` → `composeWithGateway`, renamed on import to avoid colliding with the local `plan` variable already used in `runConversationalPipeline`) — arguments, the `onApiCall` callback convention, and everything else at each call site is untouched.
 
 This is intentionally the smallest possible seam: the gateway's "one adapter" *is* the three existing functions, exactly as the proposal specifies for this phase. A future non-Gemini model provider would be added inside the gateway later, without `agentRuntime.js` changing again.
 
 ## How it was tested
 
-1. **New file `server/agents/modelGateway/index.test.js`** (4 tests) — proves the gateway is genuinely pure delegation: each function forwards its arguments unchanged to the underlying `routeDomains`/`planTurn`/`composeReply` and returns whatever they return unchanged, including the `null` case `composeReply` returns on invalid output.
+1. **New file `apps/crm/server/agents/modelGateway/index.test.js`** (4 tests) — proves the gateway is genuinely pure delegation: each function forwards its arguments unchanged to the underlying `routeDomains`/`planTurn`/`composeReply` and returns whatever they return unchanged, including the `null` case `composeReply` returns on invalid output.
 2. **Zero changes needed** to `agents/llm/planTurn.test.js`, `agents/agentRuntime.test.js`, or `agents/goldenConversations.test.js` — all three passed unchanged after the swap, which is the real verification signal that the seam didn't alter behavior (these tests exercise the domain-routing rules fast-path and reply-formatting contracts that would break if the gateway forwarded arguments incorrectly).
 3. **Full suite**: 565/568 passing (up from 561/564 before this slice), same 3 pre-existing unrelated failures, zero new ones.
 

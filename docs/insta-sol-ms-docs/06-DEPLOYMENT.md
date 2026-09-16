@@ -1,7 +1,7 @@
 # Deployment
 
 Two deployable stacks. Both follow the repo's established pattern: the real work lives
-in `<service>/infra/deploy.sh`, and `cfn-templates-cicd/<service>/deploy.sh` wraps it
+in `<service>/infra/deploy.sh`, and `infra/cicd/<service>/deploy.sh` wraps it
 with build tracking.
 
 ## Why no VPC

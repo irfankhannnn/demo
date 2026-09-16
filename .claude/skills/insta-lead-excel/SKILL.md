@@ -2,7 +2,7 @@
 name: insta-lead-excel
 description: >
   Run or operate the Instagram lead automation for @happyproperties99 at
-  kalim-sessions/kalim-automations/hp-insta-lead-automation. The normal path
+  tools/kalim-sessions/kalim-automations/hp-insta-lead-automation. The normal path
   is the scheduled pipeline (scripts/run_pipeline.py) that reads DMs from
   instagram.com in the user's own Chrome (via a read-only extension) every 6 hours; the fallback path
   turns a raw pasted DM export (.txt) into rows in the master lead workbook.
@@ -65,7 +65,7 @@ Never do stage 1 or 3 by hand, and never hand-edit the workbook to apply an
 analysis, because the changelog and the idempotency both depend on the script.
 
 Working directory for everything below:
-`kalim-sessions/kalim-automations/hp-insta-lead-automation`
+`tools/kalim-sessions/kalim-automations/hp-insta-lead-automation`
 
 ## 1. Parse the export
 

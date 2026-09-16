@@ -20,7 +20,7 @@ The lifecycle rules that *do* exist are hygiene only: abort incomplete multipart
 ### D2. Credit refund on a failed turn — refund only when no CRM write landed
 **Decided by:** product owner (option B of two) · **Status:** ✅ implemented
 
-Full write-up: [`02-credit-refund.md`](./02-credit-refund.md).
+Full write-up: [`02-credit-refund.md`](02-credit-refund.md).
 
 A turn that fails without any tool succeeding now returns its 15 credits. A turn that fails *after* a tool wrote to the CRM does not — the customer got what they asked for.
 
@@ -65,7 +65,7 @@ Bounded at 6 steps / 25s (18s on web), 15 tests. **It has never run against the 
 ### O3. Phase 3c — strict tool schemas
 Blocked on evaluation data, not on code. Turning on `additionalProperties: false` means deleting `coerceQueryToFilters()` and `LEAD_STATUS_TYPOS`, which are load-bearing today; removing them without evidence breaks whatever they were silently repairing.
 
-Needs: a `GEMINI_API_KEY`, and **~100–200 real WhatsApp utterances labelled with the tool that should have been called**. The harness exists (`npm run eval`) but has only 5 hand-written fixtures. Fixture shape is in `server/eval/fixtures/whatsapp-tool-choice.json`. The labelling needs someone who knows the right answer.
+Needs: a `GEMINI_API_KEY`, and **~100–200 real WhatsApp utterances labelled with the tool that should have been called**. The harness exists (`npm run eval`) but has only 5 hand-written fixtures. Fixture shape is in `apps/crm/server/eval/fixtures/whatsapp-tool-choice.json`. The labelling needs someone who knows the right answer.
 
 ### O4. Phase R1 — vector-search spike
 R0 is done: the SDK is at 3.1116.0 and `SearchVectorsCommand` is available.
@@ -80,7 +80,7 @@ Options: a Lambda Function URL with `awslambda.streamifyResponse` for `/api/crm/
 ### O6. Deploy, and run against reality
 Nothing here is deployed and nothing has run against the real Gemini model or real AWS. Two GSIs (`connectedWhatsAppPhone-index`, `instagramWebhookToken-index`) must report `ACTIVE` **and** `Backfilling: false` before the code that queries them runs.
 
-**Full runbook: [`04-backend-deployment-runbook.md`](./04-backend-deployment-runbook.md)** — the template inventory, the deploy order, and the six blockers found when the templates were checked against the live account. Both GSIs land in one shot because `AgencyConfigTable` is being created, not updated.
+**Full runbook: [`04-backend-deployment-runbook.md`](04-backend-deployment-runbook.md)** — the template inventory, the deploy order, and the six blockers found when the templates were checked against the live account. Both GSIs land in one shot because `AgencyConfigTable` is being created, not updated.
 
 ---
 

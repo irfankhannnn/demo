@@ -17,13 +17,13 @@ Bundling these together would mean the whole phase can't ship until the slowest,
 
 | Slice | What | Status | Doc |
 |---|---|---|---|
-| 1 | Hot-path cleanup (remove debug fetches, dedupe tenant-resolution Scan) | ✅ **Done** | [`01-slice1-hot-path-cleanup.md`](./01-slice1-hot-path-cleanup.md) |
-| 2 | Add a GSI on `connectedWhatsAppPhone`, switch tenant lookup from Scan to Query | ✅ **Code done, tested — deploy pending (user-owned)** | [`02-slice2-gsi-tenant-lookup.md`](./02-slice2-gsi-tenant-lookup.md) |
-| 3 | `archive_property` tool (proof of concept — reuses the existing `archived` enum value) | ✅ **Done** | [`03-slice3-archive-property.md`](./03-slice3-archive-property.md) |
-| 4 | `archive_*` for the remaining 7 entities (each needs its own schema decision) | ✅ **Done** | [`04-slice4-archive-remaining-entities.md`](./04-slice4-archive-remaining-entities.md) |
-| 5 | Remove the 8 `delete_*` tools + the `gateDeleteToolPlan`/`pendingConfirmation` subsystem | ✅ **Done** | [`05-slice5-remove-delete-tools.md`](./05-slice5-remove-delete-tools.md) |
-| 6 | Eval set: export real Hinglish utterance→tool-call pairs, build a labelled fixture harness | 🟡 **Harness built — real data export still blocked** | [`06-slice6-eval-set.md`](./06-slice6-eval-set.md) |
-| — | Bugs found and fixed along the way (5 live production bugs, ~360 lines of dead code, several stale references) | — | [`07-bugs-found.md`](./07-bugs-found.md) |
+| 1 | Hot-path cleanup (remove debug fetches, dedupe tenant-resolution Scan) | ✅ **Done** | [`01-slice1-hot-path-cleanup.md`](01-slice1-hot-path-cleanup.md) |
+| 2 | Add a GSI on `connectedWhatsAppPhone`, switch tenant lookup from Scan to Query | ✅ **Code done, tested — deploy pending (user-owned)** | [`02-slice2-gsi-tenant-lookup.md`](02-slice2-gsi-tenant-lookup.md) |
+| 3 | `archive_property` tool (proof of concept — reuses the existing `archived` enum value) | ✅ **Done** | [`03-slice3-archive-property.md`](03-slice3-archive-property.md) |
+| 4 | `archive_*` for the remaining 7 entities (each needs its own schema decision) | ✅ **Done** | [`04-slice4-archive-remaining-entities.md`](04-slice4-archive-remaining-entities.md) |
+| 5 | Remove the 8 `delete_*` tools + the `gateDeleteToolPlan`/`pendingConfirmation` subsystem | ✅ **Done** | [`05-slice5-remove-delete-tools.md`](05-slice5-remove-delete-tools.md) |
+| 6 | Eval set: export real Hinglish utterance→tool-call pairs, build a labelled fixture harness | 🟡 **Harness built — real data export still blocked** | [`06-slice6-eval-set.md`](06-slice6-eval-set.md) |
+| — | Bugs found and fixed along the way (5 live production bugs, ~360 lines of dead code, several stale references) | — | [`07-bugs-found.md`](07-bugs-found.md) |
 
 Slices 1, 3, 4, and 5 are fully done and tested (535 tests passing, zero regressions — verified against the pre-session baseline via `git stash`). Slice 2's code is done and tested; the actual CFN deploy and index backfill wait is a user-owned infra step. Slice 6's harness is real and working but has no real fixture data yet — see that doc.
 

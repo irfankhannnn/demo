@@ -16,7 +16,7 @@ The AI Employee is the wedge but actual provisioning is technical (OpenClaw conf
 As an agency owner who just paid for AI Employee add-on, I want a clear status page showing "Setup in progress — your AI Employee will be live within 24h" + a Loom walkthrough delivered when ready, so I trust the process and don't open 5 support tickets.
 
 ## Acceptance Criteria
-- [x] Razorpay webhook `subscription.charged` (or `subscription.activated`) handler at `server/routes/billing.js` verifies signature + checks `plan_id == 'ai_employee_addon'`
+- [x] Razorpay webhook `subscription.charged` (or `subscription.activated`) handler at `apps/crm/server/routes/billing.js` verifies signature + checks `plan_id == 'ai_employee_addon'`
 - [x] If true, creates row in DynamoDB `AIEmployeeProvisioning` with: `tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, status='pending', expectedSLAEnd (paidAt + 24h), planId, razorpaySubscriptionId, internalNotes, loomUrl, liveAt, createdAt, updatedAt`
 - [x] Webhook also: emails `info@realestateflow.in` (CC support) with onboarding ticket details + adds tenant to AiSensy broadcast list `AI-Employee-Onboarding-Pending`
 - [x] Webhook posts PostHog event `ai_employee_provisioned` (status=`pending`)
@@ -31,18 +31,18 @@ As an agency owner who just paid for AI Employee add-on, I want a clear status p
 
 ```
 You are a senior full-stack engineer + RevOps specialist. Read these inputs:
-- `server/routes/leads.js` (route conventions)
-- `server/tenantMiddleware.js`
-- `server/crmDynamodbService.js` (DDB patterns)
-- `server/server.js` (where to mount)
-- `server/awsClientWrapper.js`
-- `real-estate-crm-app/src/App.tsx` (route patterns + role gates)
+- `apps/crm/server/routes/leads.js` (route conventions)
+- `apps/crm/server/tenantMiddleware.js`
+- `apps/crm/server/crmDynamodbService.js` (DDB patterns)
+- `apps/crm/server/server.js` (where to mount)
+- `apps/crm/server/awsClientWrapper.js`
+- `apps/crm/real-estate-crm-app/src/App.tsx` (route patterns + role gates)
 - `marketing-and-sales/launch-plan-v2/pricing.json` (AI Employee plan)
 - `marketing-and-sales/launch-plan-v2/pre-launch-prep/P10-analytics-events.md` (event spec)
 
 Produce:
 
-## 1. `server/routes/billing.js` — Razorpay webhook handler
+## 1. `apps/crm/server/routes/billing.js` — Razorpay webhook handler
 - POST `/api/billing/webhook` (PUBLIC route, verifies signature via `crypto.createHmac('sha256', RAZORPAY_WEBHOOK_SECRET)`)
 - Parse `event.entity`, `event.payload.subscription.entity`, `event.payload.payment.entity`
 - Branches:
@@ -55,7 +55,7 @@ Produce:
 - Idempotent: store every webhook `event.id` in DDB `WebhookLog` to avoid reprocessing on retries
 - Mount in server.js
 
-## 2. `server/aiEmployeeProvisioningService.js` — DDB service
+## 2. `apps/crm/server/aiEmployeeProvisioningService.js` — DDB service
 Functions:
 - `createProvisioningRow({tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, planId, razorpaySubscriptionId})` returns row
 - `getProvisioningByTenant(tenantId)`
@@ -63,7 +63,7 @@ Functions:
 - `listPendingProvisioning()` (used by escalation cron)
 - DDB schema: `AIEmployeeProvisioning` PK=`tenantId`, sort=`createdAt`, attrs as listed in ACs
 
-## 3. `real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
+## 3. `apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
 Tailwind page, route `/integrations/ai-employee`:
 - Fetches `GET /api/ai-employee/status` (tenant-scoped via existing auth)
 - Status states with copy:
@@ -73,11 +73,11 @@ Tailwind page, route `/integrations/ai-employee`:
 - Footer: contact info, Crisp chat trigger
 - Read-only — no buttons that mutate
 
-## 4. `server/routes/aiEmployeeStatus.js` — read endpoint
+## 4. `apps/crm/server/routes/aiEmployeeStatus.js` — read endpoint
 - GET `/api/ai-employee/status` (validateToken + extractTenantId)
 - Returns provisioning row for current tenant or 404 if not paid
 
-## 5. `server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
+## 5. `apps/crm/server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
 - Every 6h: list pending rows, if `now > expectedSLAEnd`, update status=`escalated`, send escalation email to founder + customer apology + Razorpay credit note for ₹500 + PostHog event `ai_employee_escalated`
 - Deploy as scheduled Lambda (mirror P5 reset-cron approach)
 
@@ -136,11 +136,11 @@ Stop here. Do not deploy. Do not test in live (founder triggers manual test).
 - OpenClaw soul.md template (founder maintains separately — internal repo)
 
 ## Outputs
-- `server/routes/billing.js`
-- `server/routes/aiEmployeeStatus.js`
-- `server/aiEmployeeProvisioningService.js`
-- `server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
-- `real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
+- `apps/crm/server/routes/billing.js`
+- `apps/crm/server/routes/aiEmployeeStatus.js`
+- `apps/crm/server/aiEmployeeProvisioningService.js`
+- `apps/crm/server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
+- `apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
 - `infra/dynamodb/AIEmployeeProvisioning.tf` + `WebhookLog.tf` + `TenantApiKeys.tf`
 - `marketing-and-sales/launch-implement/pre-launch/11-openclaw-concierge/sop.md`
 - `.../messages.md`

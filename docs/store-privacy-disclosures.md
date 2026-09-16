@@ -98,8 +98,8 @@ data for advertising. Set `NSPrivacyTracking` to false and leave
 `VITE_AI_CALLING_ENABLED=false` in `.env.mobile.sample`. **Leave it off for
 submission.**
 
-`ai-calling-service/src/services/exotelService.js` sets `Record: 'true'` by
-default, and a search for "consent" across `ai-calling-service/` and
+`services/ai-calling-service/src/services/exotelService.js` sets `Record: 'true'` by
+default, and a search for "consent" across `services/ai-calling-service/` and
 `services/callIntelligence/` returns nothing — no recording disclosure, no
 callee consent capture, no privacy-policy section. Recording third parties who
 never used the app is a legal exposure independent of the stores, and Apple will

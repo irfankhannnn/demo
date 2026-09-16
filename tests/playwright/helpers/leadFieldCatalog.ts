@@ -1,6 +1,6 @@
 /**
  * Lead entity field catalog — aligned with LeadDetails.tsx (/crm/leads/new, /crm/leads/:id),
- * server/crmDynamodbService.js createLead, and real-estate-crm-app/src/types/crm.ts.
+ * apps/crm/server/crmDynamodbService.js createLead, and apps/crm/real-estate-crm-app/src/types/crm.ts.
  *
  * Mandatory at API: leadType, name
  * Mandatory at UI: leadType, name (marked with *)

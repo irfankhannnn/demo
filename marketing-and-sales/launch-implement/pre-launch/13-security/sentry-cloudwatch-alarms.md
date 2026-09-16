@@ -10,7 +10,7 @@
 |------------|-----------|--------|
 | P0 Fatal Error | Any `level=fatal` event | Immediate email + WhatsApp to founder |
 | Error Rate Spike | Error rate >1% over 5 min window | Email founder |
-| New Issue in Billing | New issue in `server/routes/billing.js` | Email founder + Slack |
+| New Issue in Billing | New issue in `apps/crm/server/routes/billing.js` | Email founder + Slack |
 | Unhandled Rejection | Any unhandled promise rejection | Email founder |
 
 ### Sentry Configuration Steps

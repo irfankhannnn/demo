@@ -10,11 +10,11 @@
 ## MANDATORY: Read First
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
-2. All existing `server/routes/*.js` files — enumerate every route
-3. `server/tenantMiddleware.js` — understand extractTenantId
-4. `server/middleware/validateToken.js`
-5. `server/server.js` — all mounted routes
-6. `server/crmDynamodbService.js` — understand how DDB calls use tenantId
+2. All existing `apps/crm/server/routes/*.js` files — enumerate every route
+3. `apps/crm/server/tenantMiddleware.js` — understand extractTenantId
+4. `apps/crm/server/middleware/validateToken.js`
+5. `apps/crm/server/server.js` — all mounted routes
+6. `apps/crm/server/crmDynamodbService.js` — understand how DDB calls use tenantId
 7. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P13-multitenancy-security-audit.md`
 
 ---
@@ -25,7 +25,7 @@
 
 `marketing-and-sales/launch-implement/pre-launch/13-security/route-tenant-coverage.csv`
 
-Walk every `router.{get,post,put,delete,patch}` in every `server/routes/*.js` file.
+Walk every `router.{get,post,put,delete,patch}` in every `apps/crm/server/routes/*.js` file.
 
 Columns:
 ```
@@ -139,14 +139,14 @@ All routes added in Days 1-6 that weren't in the T-1 baseline scan.
 ## What NOT to Touch
 
 This PR creates ONLY documentation and test files. It MUST NOT:
-- Modify any source code (`server/routes/*.js`, `src/**/*.tsx`)
+- Modify any source code (`apps/crm/server/routes/*.js`, `src/**/*.tsx`)
 - Fix any security findings it discovers — document them with P0/P1/P2 severity and leave fixing to a dedicated PR (founder assigns)
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `route-tenant-coverage.csv` covers every route in `server/routes/*.js`
+- [ ] `route-tenant-coverage.csv` covers every route in `apps/crm/server/routes/*.js`
 - [ ] Zero P0 rows (all routes either properly secured or allowlisted)
 - [ ] If P0 found: document in report with fix recommendation; set executive summary to "FIX-AND-RESCAN"
 - [ ] Playwright pen-test: all 7 scenarios pass (cross-tenant attempts all return 403/404)

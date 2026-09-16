@@ -39,8 +39,8 @@
 ## 📋 DAY 1 CHECKLIST: FIX BLOCKERS + CODE VERIFY
 
 ### Fix Blockers (4 hours)
-- [ ] Add 8 params to `server/infra/deploy.sh`
-- [ ] Add `}` to `server/scripts/escalation-cron.js`
+- [ ] Add 8 params to `apps/crm/server/infra/deploy.sh`
+- [ ] Add `}` to `apps/crm/server/scripts/escalation-cron.js`
 - [ ] Verify all 10 cron jobs are merged into cfn-backend.yaml
 - [ ] Verify SES env vars and IAM permissions in main template
 
@@ -113,7 +113,7 @@ npm run test:security
 ### Deploy CloudFormation (2 hours)
 ```bash
 set -e
-cd server/infra
+cd apps/crm/server/infra
 ./deploy.sh
 ```
 - [ ] CloudFormation deployed ✅ (includes API + all 10 cron jobs)
@@ -241,13 +241,13 @@ npm run test:unit      # Unit tests (optional)
 ### Deployment
 ```bash
 set -e
-cd server/infra
+cd apps/crm/server/infra
 ./deploy.sh            # Deploy main stack (includes API + all 10 cron jobs)
 ```
 
 ### Validation
 ```bash
-node --check server/scripts/escalation-cron.js
+node --check apps/crm/server/scripts/escalation-cron.js
 aws cloudformation validate-template --template-body file://server/infra/cfn-backend.yaml
 # Note: All cron jobs are now merged into cfn-backend.yaml - no separate cron templates to validate
 ```

@@ -34,14 +34,14 @@ A step-by-step operator handbook to take RealtyFlow from "finished build" to "fi
 
 ## Quick Navigation
 
-- [Plan Overview](./00-PLAN-OVERVIEW.md)
-- [Gaps & Additions](./00-GAPS-AND-ADDITIONS.md)
-- [Pre-Launch Prep](./pre-launch-prep/) — Start here (parallel to Day 1)
-- [Week 1: Foundation](./week-1-foundation/)
-- [Week 2: Soft Launch](./week-2-soft-launch/)
-- [Week 3: Public Launch](./week-3-public-launch/)
-- [Week 4: Optimize & Convert](./week-4-optimize-convert/)
-- [Templates](./templates/)
+- [Plan Overview](00-PLAN-OVERVIEW.md)
+- [Gaps & Additions](00-GAPS-AND-ADDITIONS.md)
+- [Pre-Launch Prep](pre-launch-prep/) — Start here (parallel to Day 1)
+- [Week 1: Foundation](week-1-foundation/)
+- [Week 2: Soft Launch](week-2-soft-launch/)
+- [Week 3: Public Launch](week-3-public-launch/)
+- [Week 4: Optimize & Convert](week-4-optimize-convert/)
+- [Templates](templates/)
 
 ## North-Star Metrics for Month 1
 

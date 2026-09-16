@@ -25,12 +25,12 @@ This folder breaks the MVP into **6 EPICs**. Each EPIC file contains **discrete,
 
 1. **Work on `auth_rbac_feature` only.** Never push to another branch.
 2. **One task = one focused change + its tests.** Keep commits small and descriptive.
-3. **Match existing style.** Server is **ESM** (`import`/`export`, `"type": "module"` in `server/package.json`). No `require()`. Frontend is **React 18 + React Router v7 + TailwindCSS**, fetch-based `ApiService`. AWS SDK is **v3** (`@aws-sdk/*`).
+3. **Match existing style.** Server is **ESM** (`import`/`export`, `"type": "module"` in `apps/crm/server/package.json`). No `require()`. Frontend is **React 18 + React Router v7 + TailwindCSS**, fetch-based `ApiService`. AWS SDK is **v3** (`@aws-sdk/*`).
 4. **Tenant isolation is non-negotiable.** Derive `tenantId` from `req.tenantId` only (set by `validateToken` middleware). NEVER read tenant from request body or headers.
-5. **Run `server/scripts/build.sh`** (syntax check) before considering any server task done. This script currently only checks `routes/ middleware/ scripts/ lib/` — it does not check root `*.js` or `agents/`. Extend it in E6 (see `07-infra-cfn-deploy.md` §7).
+5. **Run `apps/crm/server/scripts/build.sh`** (syntax check) before considering any server task done. This script currently only checks `routes/ middleware/ scripts/ lib/` — it does not check root `*.js` or `agents/`. Extend it in E6 (see `07-infra-cfn-deploy.md` §7).
 6. **Secrets via env + CFN parameters only.** Never hardcode keys.
-7. **Infra changes** go into `server/infra/cfn-backend.yaml` + individual `cron/*.yaml` files. Reflect all new params in `server/infra/deploy.sh`. See `07-infra-cfn-deploy.md` for the full consolidated change list.
-8. **Do NOT invent directories.** There is no `server/services/`, `server/config/`, or `server/errors/`. New backend modules go at **server root** as `server/<name>.js` and ship automatically via the `*.js` glob. Only `server/agents/` is a new allowed subdirectory (add it to the zip include explicitly).
+7. **Infra changes** go into `apps/crm/server/infra/cfn-backend.yaml` + individual `cron/*.yaml` files. Reflect all new params in `apps/crm/server/infra/deploy.sh`. See `07-infra-cfn-deploy.md` for the full consolidated change list.
+8. **Do NOT invent directories.** There is no `apps/crm/server/services/`, `apps/crm/server/config/`, or `server/errors/`. New backend modules go at **server root** as `server/<name>.js` and ship automatically via the `*.js` glob. Only `apps/crm/server/agents/` is a new allowed subdirectory (add it to the zip include explicitly).
 9. **Check before creating.** These files ALREADY EXIST and must not be recreated: `src/pages/RegisterAdmin.tsx`, `src/components/TrialCountdownBanner.tsx`, `src/components/GlassDataTable.tsx`, `src/components/PaywallModal.tsx`, `src/lib/razorpay.ts`. Read them before writing anything new.
 
 ---

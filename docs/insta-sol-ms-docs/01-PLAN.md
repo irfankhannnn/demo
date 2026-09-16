@@ -19,18 +19,18 @@ This is a **new, isolated feature**. It does not modify, wrap, or depend on any
 existing flow.
 
 Specifically it does **not** touch:
-- `server/routes/webhooks.js` — the ManyChat Instagram lead webhook stays exactly as
+- `apps/crm/server/routes/webhooks.js` — the ManyChat Instagram lead webhook stays exactly as
   it is and keeps running in parallel.
-- `server/agencyConfigService.js` and the `AgencyConfig` table — no new fields.
+- `apps/crm/server/agencyConfigService.js` and the `AgencyConfig` table — no new fields.
 - The existing `Leads` table, `createLead`, `notifyNewLead`, or the `lead.created`
   EventBridge flow.
-- `server/infra/cfn-backend.yaml` — new tables go in their own stack.
+- `apps/crm/server/infra/cfn-backend.yaml` — new tables go in their own stack.
 
 Everything the agent produces lands in **its own tables** and shows up on **its own
 CRM page**. If we later decide Instagram DM leads should become real CRM leads, that
 is a separate, explicit switch built after this ships — not a dependency of it.
 
-**Total edit to existing code: 2 lines in `server/server.js`** (one import, one
+**Total edit to existing code: 2 lines in `apps/crm/server/server.js`** (one import, one
 `app.use('/api/ig-agent', ...)`), plus one route line in the frontend router. Nothing
 else in the repo changes.
 
@@ -332,15 +332,15 @@ next window. Deliberately far below the line.
 **New files only:**
 ```
 instagram-local-agent/               entire laptop app
-server/routes/instagramAgent.js      new router, /api/ig-agent/*
+apps/crm/server/routes/instagramAgent.js      new router, /api/ig-agent/*
 server/instagramAgentService.js      new DynamoDB access layer
-server/infra/cfn-instagram-agent.yaml   own CFN stack, own tables
-real-estate-crm-app/src/pages/instagram/  new CRM page
+apps/crm/server/infra/cfn-instagram-agent.yaml   own CFN stack, own tables
+apps/crm/real-estate-crm-app/src/pages/instagram/  new CRM page
 ```
 
 **Existing files edited (2 lines + 1):**
 ```
-server/server.js          import + app.use('/api/ig-agent', validateToken, igAgentRoutes)
+apps/crm/server/server.js          import + app.use('/api/ig-agent', validateToken, igAgentRoutes)
 frontend router           one <Route> entry
 ```
 

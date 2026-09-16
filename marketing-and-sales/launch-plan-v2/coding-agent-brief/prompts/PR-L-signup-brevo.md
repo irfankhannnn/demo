@@ -9,16 +9,16 @@
 ## MANDATORY: Read First
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
-2. `server/routes/auth.js` — find the registration/signup handler
-3. `real-estate-crm-app/src/pages/PhoneLogin.tsx` — the signup entry point
-4. `real-estate-crm-app/src/App.tsx` — understand where RegisterAdmin sits in the flow
-5. `real-estate-crm-app/src/pages/RegisterAdmin.tsx` — the final registration completion page
+2. `apps/crm/server/routes/auth.js` — find the registration/signup handler
+3. `apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx` — the signup entry point
+4. `apps/crm/real-estate-crm-app/src/App.tsx` — understand where RegisterAdmin sits in the flow
+5. `apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx` — the final registration completion page
 
 ---
 
 ## What to Build
 
-### 1. Update `server/routes/auth.js` — registration handler
+### 1. Update `apps/crm/server/routes/auth.js` — registration handler
 
 Find the POST handler that creates a new user/agency (the final registration step after OTP). Add after successful registration:
 
@@ -66,7 +66,7 @@ await serverTrack(userId, 'signup_completed', {
 
 **Only add this block to the registration success path. Do not touch any other handler in auth.js.**
 
-### 2. Update `real-estate-crm-app/src/pages/PhoneLogin.tsx`
+### 2. Update `apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx`
 
 On mount, capture UTM params from the URL and store in sessionStorage:
 
@@ -95,7 +95,7 @@ useEffect(() => {
 
 **Only add this useEffect. Do not restructure the component or change its existing logic.**
 
-### 3. Update `real-estate-crm-app/src/pages/RegisterAdmin.tsx`
+### 3. Update `apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx`
 
 After successful agency registration (the final step of onboarding), clear the UTM sessionStorage:
 
@@ -120,9 +120,9 @@ sessionStorage.removeItem('utm_medium');
 
 ## What NOT to Touch
 
-- Any other handler in `server/routes/auth.js` — only the registration success path
-- `server/routes/billing.js` (PR-F)
-- `server/routes/grievance.js` (PR-B)
+- Any other handler in `apps/crm/server/routes/auth.js` — only the registration success path
+- `apps/crm/server/routes/billing.js` (PR-F)
+- `apps/crm/server/routes/grievance.js` (PR-B)
 - Any LP files
 - Any components not listed above
 
@@ -147,9 +147,9 @@ Batch 5 | Day 5
 Depends on: Batch 4 merged
 
 Files modified:
-- server/routes/auth.js — Brevo contact add + PostHog signup_completed in registration handler
-- real-estate-crm-app/src/pages/PhoneLogin.tsx — UTM capture on mount + signup_started event
-- real-estate-crm-app/src/pages/RegisterAdmin.tsx — UTM pass-through to API + sessionStorage cleanup
+- apps/crm/server/routes/auth.js — Brevo contact add + PostHog signup_completed in registration handler
+- apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx — UTM capture on mount + signup_started event
+- apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx — UTM pass-through to API + sessionStorage cleanup
 
 Source task: ZEE-013 (week-1-foundation/day-06-landing-pages-deploy.md)
 ```

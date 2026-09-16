@@ -3,7 +3,7 @@
 **Branch to create:** `cursor/pr-4j-paywall-trial-8e67`
 **Base branch:** `main` (after Batch 3 is merged)
 **Batch:** 4 (Day 4) — runs in parallel with PR-K
-**Hard dependency:** PR-H merged (`server/subscriptionService.js` + `subscriptions.js` must exist)
+**Hard dependency:** PR-H merged (`apps/crm/server/subscriptionService.js` + `subscriptions.js` must exist)
 
 ---
 
@@ -11,10 +11,10 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§3.1 SubscriptionStatus, §4 Razorpay Plan IDs)
-3. `server/routes/subscriptions.js` (created by PR-H — you add trial-status endpoint)
-4. `server/subscriptionService.js` (created by PR-H — you call getSubscription)
-5. `real-estate-crm-app/src/App.tsx` (authenticated layout structure)
-6. `real-estate-crm-app/src/components/SeatCounter.tsx` (created by PR-H — component pattern to follow)
+3. `apps/crm/server/routes/subscriptions.js` (created by PR-H — you add trial-status endpoint)
+4. `apps/crm/server/subscriptionService.js` (created by PR-H — you call getSubscription)
+5. `apps/crm/real-estate-crm-app/src/App.tsx` (authenticated layout structure)
+6. `apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx` (created by PR-H — component pattern to follow)
 7. `marketing-and-sales/launch-plan-v2/pricing.json`
 8. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P14-paywall-trial-countdown.md`
 
@@ -22,7 +22,7 @@
 
 ## What to Build
 
-### 1. Update `server/routes/subscriptions.js` — add trial-status endpoint
+### 1. Update `apps/crm/server/routes/subscriptions.js` — add trial-status endpoint
 
 PR-H created this file with `GET /current`. Add `GET /trial-status`:
 
@@ -51,7 +51,7 @@ router.get('/trial-status', validateToken, extractTenantId, async (req, res) => 
 
 **Only add this endpoint. Do not modify the GET /current endpoint from PR-H.**
 
-### 2. `real-estate-crm-app/src/contexts/SubscriptionContext.tsx`
+### 2. `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx`
 
 React context for subscription state:
 ```typescript
@@ -66,7 +66,7 @@ interface SubscriptionContextValue {
 }
 ```
 
-### 3. `real-estate-crm-app/src/hooks/useSubscription.ts`
+### 3. `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`
 
 ```typescript
 // Fetches GET /api/subscriptions/trial-status on mount + every 5 minutes
@@ -75,7 +75,7 @@ interface SubscriptionContextValue {
 // Returns null/defaults when user not authenticated or endpoint returns 404
 ```
 
-### 4. `real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
+### 4. `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
 
 ```typescript
 // Returns null if isPaying OR trialDaysLeft > 7
@@ -85,7 +85,7 @@ interface SubscriptionContextValue {
 // Sticky below the main nav (not fixed position — flows with layout)
 ```
 
-### 5. `real-estate-crm-app/src/components/PaywallModal.tsx`
+### 5. `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
 
 ```typescript
 // Renders as a full-screen overlay when: isTrialExpired && !isPaying && !gracePeriodActive
@@ -109,7 +109,7 @@ const PAYWALL_WHITELIST = ['/profile', '/billing', '/legal', '/grievance', '/int
 // - On payment success: refetch() subscription, close modal, navigate to original route
 ```
 
-### 6. `real-estate-crm-app/src/lib/razorpay.ts`
+### 6. `apps/crm/real-estate-crm-app/src/lib/razorpay.ts`
 
 ```typescript
 declare global {
@@ -167,7 +167,7 @@ In `{/* === [LAUNCH LAYOUT COMPONENTS] === */}`:
 
 Actually — the SubscriptionContext.Provider should wrap the authenticated Routes. Find where `<ProtectedRoute>` routes are rendered and wrap them.
 
-### 8. `server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
+### 8. `apps/crm/server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
 
 Daily cron at 09:00 IST (03:30 UTC):
 
@@ -212,8 +212,8 @@ Each email: subject ≤50 chars, preheader ≤90, body markdown, deep-link CTA t
 
 ## What NOT to Touch
 
-- `server/subscriptionService.js` functions (PR-H created them — only use `getSubscription`)
-- `server/routes/subscriptions.js` GET /current endpoint (PR-H created; only ADD trial-status)
+- `apps/crm/server/subscriptionService.js` functions (PR-H created them — only use `getSubscription`)
+- `apps/crm/server/routes/subscriptions.js` GET /current endpoint (PR-H created; only ADD trial-status)
 - `src/components/SeatCounter.tsx`, `SeatUpgradeModal.tsx` (PR-H created)
 - Any LP files
 
@@ -228,18 +228,18 @@ Batch 4 | Day 4 | Parallel with PR-K
 Depends on: PR-H merged (subscriptionService + subscriptions route exist)
 
 Files created:
-- real-estate-crm-app/src/contexts/SubscriptionContext.tsx
-- real-estate-crm-app/src/hooks/useSubscription.ts
-- real-estate-crm-app/src/components/TrialCountdownBanner.tsx
-- real-estate-crm-app/src/components/PaywallModal.tsx
-- real-estate-crm-app/src/lib/razorpay.ts
-- server/scripts/trial-reminder-cron.js + cron/trial-reminder.yaml
+- apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx
+- apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts
+- apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx
+- apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx
+- apps/crm/real-estate-crm-app/src/lib/razorpay.ts
+- apps/crm/server/scripts/trial-reminder-cron.js + cron/trial-reminder.yaml
 - marketing-and-sales/launch-implement/pre-launch/14-paywall/trial-emails.md
 - tests/paywall.spec.ts
 
 Files modified:
-- server/routes/subscriptions.js — added GET /trial-status (new endpoint, no touch to /current)
-- real-estate-crm-app/src/App.tsx — SubscriptionContext.Provider + TrialCountdownBanner + PaywallModal
+- apps/crm/server/routes/subscriptions.js — added GET /trial-status (new endpoint, no touch to /current)
+- apps/crm/real-estate-crm-app/src/App.tsx — SubscriptionContext.Provider + TrialCountdownBanner + PaywallModal
 
 Source task: ZEE-007 (pre-launch-prep/P14-paywall-trial-countdown.md)
 ```

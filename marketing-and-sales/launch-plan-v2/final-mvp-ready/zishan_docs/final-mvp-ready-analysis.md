@@ -71,7 +71,7 @@ final-mvp-ready/
 | E1-T3 | Billing settings page (current plan + manage) | ✅ Done | Show subscription status + upgrade/downgrade options |
 
 **Key Implementation Details:**
-- **RegisterAdmin page:** Already exists at `real-estate-crm-app/src/pages/RegisterAdmin.tsx`; only route missing
+- **RegisterAdmin page:** Already exists at `apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx`; only route missing
 - **Trial banner:** Reuse existing `TrialCountdownBanner.tsx` (do NOT create duplicate)
 - **Upgrade flow:** Reuse `PaywallModal.tsx` + `openCheckout()` from `src/lib/razorpay.ts`
 - **Bailey WhatsApp gateway:** Optional (gated behind `BAILEY_ENABLED=false` by default); requires external vendor setup
@@ -200,7 +200,7 @@ final-mvp-ready/
 
 **Cron Infrastructure:**
 - Each cron = separate CloudFormation template in `server/cron/*.yaml`
-- EventBridge Rule → Lambda (handler in `server/scripts/*-cron.js`)
+- EventBridge Rule → Lambda (handler in `apps/crm/server/scripts/*-cron.js`)
 - Runs on schedule (e.g., daily at 9am IST)
 
 **Risks:**
@@ -258,7 +258,7 @@ The **00-validation-and-feasibility.md** document lists **17 critical correction
 | 11 | `TrialCountdownBanner.tsx` already exists | Avoid duplication | ✅ Documented |
 | 12 | Auth svc `/internal/users` does NOT return list | Use forwarded token instead | ✅ Documented |
 | 13 | E2-T3 code snippet has duplicate import bug | Fixed in EPIC 2 | ✅ Documented |
-| 14 | `server/agents/` is new directory; add to zip | Deploy fix | ✅ Documented |
+| 14 | `apps/crm/server/agents/` is new directory; add to zip | Deploy fix | ✅ Documented |
 | 15 | Billing route is `/api/billing/webhook` not `/api/billing` | Routing clarity | ✅ Documented |
 | 16 | `RegisterAdmin.tsx` already exists | Avoid duplication | ✅ Documented |
 | 17 | Two separate leads route files (crm.js + leads.js) | Metering placement | ✅ Documented |
@@ -271,7 +271,7 @@ The **00-validation-and-feasibility.md** document lists **17 critical correction
 - **Module system:** ESM (`import`/`export`, `"type": "module"` in `package.json`)
 - **AWS SDK:** v3 (`@aws-sdk/*`)
 - **DynamoDB:** v3 `lib-dynamodb` (high-level API)
-- **File structure:** Root-level modules (`server/creditService.js`, `server/emailService.js`, etc.); no `services/` or `config/` directories
+- **File structure:** Root-level modules (`apps/crm/server/creditService.js`, `apps/crm/server/emailService.js`, etc.); no `services/` or `config/` directories
 - **Middleware chain:** `validateToken` → `extractTenantId` → `requireRole(...)`
 - **Tenant isolation:** `req.tenantId` is the only trusted source (set by middleware)
 - **Error handling:** Custom error classes (e.g., `InsufficientCreditsError`) matching `expressError.js` style
@@ -310,7 +310,7 @@ The **00-validation-and-feasibility.md** document lists **17 critical correction
 ### Deployment Steps (from `pending-mvp/deployment-steps.md`)
 ```bash
 # 1. Deploy main stack (includes API + all 10 cron jobs)
-cd server/infra
+cd apps/crm/server/infra
 ./deploy.sh
 
 # 2. Seed credit config

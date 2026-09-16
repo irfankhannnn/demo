@@ -47,11 +47,11 @@ As founder reading PostHog Live Events on Day 4 evening, I want every event in t
 Read inputs:
 - `marketing-and-sales/launch-plan-v2/pre-launch-prep/P10-analytics-events.md` (event catalogue)
 - `marketing-and-sales/launch-implement/pre-launch/10-analytics/analytics-spec.md` (P10 output)
-- `real-estate-crm-app/src/lib/analytics.ts` (P10 SDK wrapper)
-- `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
-- `server/lib/posthog.js`
-- `server/routes/billing.js` (P11 webhook events)
-- `server/routes/grievance.js` (P9 grievance event)
+- `apps/crm/real-estate-crm-app/src/lib/analytics.ts` (P10 SDK wrapper)
+- `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+- `apps/crm/server/lib/posthog.js`
+- `apps/crm/server/routes/billing.js` (P11 webhook events)
+- `apps/crm/server/routes/grievance.js` (P9 grievance event)
 - `tests/analytics.spec.ts` (P10 test)
 
 Verification tasks:

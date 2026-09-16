@@ -16,7 +16,7 @@ url = "https://mcp.facebook.com/ads"
 
 [mcp_servers.nabi-crm]
 command = "node"
-args = ["server/mcp-server/index.js"]
+args = ["apps/crm/server/mcp-server/index.js"]
 env_vars = [
     "MCP_TENANT_ID",
     "CRM_DYNAMODB_TABLE_NAME",

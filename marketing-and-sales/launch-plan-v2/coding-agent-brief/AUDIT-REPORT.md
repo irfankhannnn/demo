@@ -56,7 +56,7 @@ Evidence: `git merge-base --is-ancestor origin/<pr> auth_rbac_feature` → YES f
 
 ### Why `auth_rbac_feature` differs from individual PR tips
 
-`auth_rbac_feature` is **66–79 commits ahead** of each PR branch. It is the **integration superset**: later PR merges added routes to `server/server.js`, LP pages from PR-I, paywall/NPS/Brevo layers, etc. Individual PR branches are **stale snapshots** — always treat `auth_rbac_feature` as canonical.
+`auth_rbac_feature` is **66–79 commits ahead** of each PR branch. It is the **integration superset**: later PR merges added routes to `apps/crm/server/server.js`, LP pages from PR-I, paywall/NPS/Brevo layers, etc. Individual PR branches are **stale snapshots** — always treat `auth_rbac_feature` as canonical.
 
 ---
 
@@ -64,25 +64,25 @@ Evidence: `git merge-base --is-ancestor origin/<pr> auth_rbac_feature` → YES f
 
 | File | PR | On auth_rbac |
 |---|---|---|
-| `server/scripts/seed-demo-tenant.js` | A | ✅ |
-| `server/scripts/reset-demo-tenant.js` | A | ✅ |
+| `apps/crm/server/scripts/seed-demo-tenant.js` | A | ✅ |
+| `apps/crm/server/scripts/reset-demo-tenant.js` | A | ✅ |
 | `cron/reset-demo.yaml` | A | ✅ |
-| `real-estate-crm-app/src/components/DemoBanner.tsx` | A | ✅ |
-| `server/routes/grievance.js` + service + UI + test | B | ✅ |
+| `apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx` | A | ✅ |
+| `apps/crm/server/routes/grievance.js` + service + UI + test | B | ✅ |
 | `marketing-and-sales/creative/landing-pages/_partials/cookie-banner.html` | C | ✅ |
-| `real-estate-crm-app/src/components/CookieConsentBanner.tsx` | C | ✅ |
+| `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` | C | ✅ |
 | `tests/cookie-consent.spec.ts` | C | ✅ |
 | `marketing-and-sales/creative/landing-pages/build/*` | D | ✅ |
-| `real-estate-crm-app/src/lib/analytics.ts` | E | ✅ |
+| `apps/crm/real-estate-crm-app/src/lib/analytics.ts` | E | ✅ |
 | `marketing-and-sales/creative/landing-pages/_partials/head-analytics.hbs` | E | ✅ |
-| `server/lib/posthog.js` | E | ✅ |
-| `server/routes/billing.js` + concierge stack | F | ✅ |
+| `apps/crm/server/lib/posthog.js` | E | ✅ |
+| `apps/crm/server/routes/billing.js` + concierge stack | F | ✅ |
 | `tests/cross-tenant-pentest.spec.ts` + audit docs | G | ✅ |
-| `server/subscriptionService.js` + seat UI + test | H | ✅ |
+| `apps/crm/server/subscriptionService.js` + seat UI + test | H | ✅ |
 | 14 LP `index.html` + 12 JSON-LD schemas | I | ✅ |
 | Paywall + trial cron + test | J | ✅ |
 | NPS modal + feedback route + test | K | ✅ |
-| `server/routes/auth.js` post-registration (Brevo) | L | ✅ |
+| `apps/crm/server/routes/auth.js` post-registration (Brevo) | L | ✅ |
 | `.github/workflows/playwright.yml` + event CSV | M | ✅ |
 | **`tests/analytics.spec.ts`** | E + M | ❌ **Never delivered in any PR branch** |
 
@@ -188,7 +188,7 @@ PR #4 (`auth_rbac_feature`) is the correct integration PR — merge to `main` on
 
 ### Suggested test order on auth_rbac_feature
 
-1. `npm run build` in `real-estate-crm-app/`
+1. `npm run build` in `apps/crm/real-estate-crm-app/`
 2. Start API + `npx vite preview` → `npx playwright test` (6 specs)
 3. `cd marketing-and-sales/creative/landing-pages/build && npm run build:lps` → inspect `dist/` for analytics/cookie (BUG-004)
 4. Razorpay webhook test with valid HMAC (BUG-001)

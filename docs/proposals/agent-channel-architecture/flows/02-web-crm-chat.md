@@ -88,7 +88,7 @@ This work is **independent of the tool loop** and can ship on its own. It is the
 
 ## Frontend
 
-`real-estate-crm-app/` (React + TypeScript + Vite + Tailwind).
+`apps/crm/real-estate-crm-app/` (React + TypeScript + Vite + Tailwind).
 
 | Piece | Notes |
 |---|---|

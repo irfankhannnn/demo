@@ -19,7 +19,7 @@
 
 ## Credit Config Table (owner-editable via API)
 
-Seeded defaults in `server/creditConfig.js`:
+Seeded defaults in `apps/crm/server/creditConfig.js`:
 
 | Key | Purpose |
 |-----|---------|
@@ -75,7 +75,7 @@ BAILEY_API_KEY=<random 32+ char secret>  # must match BAILEYS_API_KEY on platfor
 BAILEY_ADMIN_API_KEY=<random 32+ char secret>  # must match BAILEYS_ADMIN_API_KEY on platform
 ```
 
-Deploy `whatsapp-platform/`. See `whatsapp-platform/README.md`.
+Deploy `services/whatsapp-platform/`. See `services/whatsapp-platform/README.md`.
 
 Frontend (optional):
 ```
@@ -85,7 +85,7 @@ VITE_BAILEY_ENABLED=true
 ## MCP Local Development
 
 ```bash
-cd server/mcp-server && npm install
+cd apps/crm/server/mcp-server && npm install
 export MCP_TENANT_ID=<your-tenant-id>
 export CRM_DYNAMODB_TABLE_NAME=cloudberry-real-estate-crm
 export AWS_REGION=ap-south-1

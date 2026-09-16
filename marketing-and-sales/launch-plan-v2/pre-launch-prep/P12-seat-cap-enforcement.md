@@ -17,8 +17,8 @@ As a Team-plan agency owner trying to invite a 4th team member, I want a clear "
 
 ## Acceptance Criteria
 - [ ] DynamoDB attribute `Subscriptions.seatsPaid` and `Subscriptions.seatsUsed` (or extend Agency record). Default: Solo=1, Team=3, Team+=variable
-- [ ] `server/routes/auth.js` invite-creation logic returns HTTP 402 + `{ error: 'paywall_seat_limit', currentSeats, paidSeats, upgradePlanId }` when `seatsUsed >= seatsPaid`
-- [ ] `real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (and `MemberManagement.tsx`) show seat counter at top: "Used 3 of 3 seats. Upgrade to add more →"
+- [ ] `apps/crm/server/routes/auth.js` invite-creation logic returns HTTP 402 + `{ error: 'paywall_seat_limit', currentSeats, paidSeats, upgradePlanId }` when `seatsUsed >= seatsPaid`
+- [ ] `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (and `MemberManagement.tsx`) show seat counter at top: "Used 3 of 3 seats. Upgrade to add more →"
 - [ ] When at cap, "Invite member" button is disabled with tooltip; primary CTA replaces with "Upgrade to add seat → ₹500/mo"
 - [ ] CTA opens Razorpay checkout for `add_seat` SKU (₹500 prorated for current billing cycle)
 - [ ] On successful payment, Razorpay webhook `subscription.updated` increments `seatsPaid` by 1
@@ -34,25 +34,25 @@ As a Team-plan agency owner trying to invite a 4th team member, I want a clear "
 
 ```
 You are a senior full-stack engineer specialised in B2B SaaS billing. Read these inputs:
-- `server/routes/auth.js` (invite/registration logic)
-- `server/routes/leads.js` (route patterns)
-- `server/tenantMiddleware.js`
-- `server/crmDynamodbService.js` (Agency / Subscription / Members entities)
-- `server/awsClientWrapper.js`
-- `real-estate-crm-app/src/pages/admin/InviteManagement.tsx`
-- `real-estate-crm-app/src/pages/admin/MemberManagement.tsx`
-- `real-estate-crm-app/src/App.tsx` (auth context)
+- `apps/crm/server/routes/auth.js` (invite/registration logic)
+- `apps/crm/server/routes/leads.js` (route patterns)
+- `apps/crm/server/tenantMiddleware.js`
+- `apps/crm/server/crmDynamodbService.js` (Agency / Subscription / Members entities)
+- `apps/crm/server/awsClientWrapper.js`
+- `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx`
+- `apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx`
+- `apps/crm/real-estate-crm-app/src/App.tsx` (auth context)
 - `marketing-and-sales/launch-plan-v2/pricing.json`
 
 Produce:
 
-## 1. `server/subscriptionService.js` — DDB service
+## 1. `apps/crm/server/subscriptionService.js` — DDB service
 - `getSubscription(tenantId)` returns `{tenantId, plan, seatsPaid, seatsUsed, nextBillingDate, razorpaySubscriptionId, status}`
 - `incrementSeatsPaid(tenantId, by=1)` (called on `subscription.updated` webhook)
 - `decrementSeatsPaid(tenantId, by=1)` (rare — only on tier downgrade or cancellation)
 - `recomputeSeatsUsed(tenantId)` — counts active members in Agency/Members table
 
-## 2. Update `server/routes/auth.js` invite-creation handler
+## 2. Update `apps/crm/server/routes/auth.js` invite-creation handler
 - Before creating invite: fetch subscription via `getSubscription(req.tenantId)`
 - Compute `seatsUsed = countActiveMembers(req.tenantId)`
 - If `seatsUsed >= seatsPaid`: return 402 with body
@@ -74,14 +74,14 @@ Produce:
 - Branch: `subscription.updated` AND payload includes plan with `add_seat` semantics → call `incrementSeatsPaid(tenantId, 1)`
 - For Team+ subscription `subscription.charged` events with seat-line-items, increment based on payload
 
-## 4. `real-estate-crm-app/src/components/SeatCounter.tsx`
+## 4. `apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx`
 Reusable React component:
 - Fetches `/api/subscriptions/current` (new endpoint to add — wraps getSubscription)
 - Shows: `{seatsUsed} of {seatsPaid} seats used` with progress bar (green <70%, yellow 70-90%, red ≥90%)
 - "Upgrade" CTA when at-cap or 1 seat remaining
 - Used in InviteManagement.tsx + MemberManagement.tsx
 
-## 5. `real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
+## 5. `apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
 - Triggered when 402 received OR when "Upgrade" CTA clicked
 - Shows tier-aware copy:
   - Solo at-cap: "Solo limited to 1 member. Upgrade to Team for 3 seats — ₹1,999/mo" with "Upgrade to Team" CTA → Razorpay checkout for Team plan + cancel-Solo flow (Razorpay subscription change)
@@ -97,7 +97,7 @@ Reusable React component:
 ## 7. Tests `tests/seat-cap.spec.ts` — Playwright
 Scenarios listed in the AC list. Use a test tenant with each tier; manipulate seatsPaid in DDB directly for some scenarios.
 
-## 8. Migration script `server/scripts/backfill-seats-paid.js`
+## 8. Migration script `apps/crm/server/scripts/backfill-seats-paid.js`
 For existing tenants: set seatsPaid based on plan (Solo=1, Team=3) — handles edge case of users who signed up before this rollout. Idempotent.
 
 Stop here. Do not deploy or run Razorpay test transactions (manual).
@@ -119,15 +119,15 @@ Stop here. Do not deploy or run Razorpay test transactions (manual).
 - Razorpay add_seat plan ID (P7)
 
 ## Outputs
-- `server/subscriptionService.js`
-- Updated `server/routes/auth.js`
-- Updated `server/routes/billing.js` (P11 created the file)
-- New `server/routes/subscriptions.js` (for `/api/subscriptions/current`)
-- `real-estate-crm-app/src/components/SeatCounter.tsx`
+- `apps/crm/server/subscriptionService.js`
+- Updated `apps/crm/server/routes/auth.js`
+- Updated `apps/crm/server/routes/billing.js` (P11 created the file)
+- New `apps/crm/server/routes/subscriptions.js` (for `/api/subscriptions/current`)
+- `apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx`
 - `.../SeatUpgradeModal.tsx`
 - Updated `InviteManagement.tsx` and `MemberManagement.tsx`
 - `tests/seat-cap.spec.ts`
-- `server/scripts/backfill-seats-paid.js`
+- `apps/crm/server/scripts/backfill-seats-paid.js`
 
 ## Success Criterion
 All 5 test scenarios pass end-to-end; no agency can have more active members than seatsPaid.

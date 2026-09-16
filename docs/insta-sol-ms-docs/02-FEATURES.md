@@ -47,7 +47,7 @@ Reel posted with "PRICE comment karo"
 | # | Feature | Benefit | Status | Phase |
 |---|---|---|---|---|
 | F9 | AI qualification in Hinglish | Budget, area, buy/rent, timeline, loan need, possession — asked conversationally, not as a form | ✅ | 3 |
-| F10 | Lead temperature (hot / warm / cold) | Rakesh works 6 hot leads instead of scrolling 60 DMs. Reuses the scoring rules already drafted in `TESTING_INSTAGRAM_LEAD_TEMPERATURE.md` | ✅ | 3 |
+| F10 | Lead temperature (hot / warm / cold) | Rakesh works 6 hot leads instead of scrolling 60 DMs. Reuses the scoring rules already drafted in `docs/testing/TESTING_INSTAGRAM_LEAD_TEMPERATURE.md` | ✅ | 3 |
 | F11 | Buyer / tenant / investor / seller classification | A rental enquiry never gets filed as a buyer again — the same bug the ManyChat webhook already had to fix | ✅ | 3 |
 | F12 | Hinglish budget extraction | "1.4 tak", "1 cr ke around", "50 lakh max", "budget thoda tight hai" → a bracket | ✅ | 3 |
 | F13 | Locality extraction + mapping | "Andheri West", "andheri w", "4 bunglow" → your existing Areas/Projects records | ✅ | 3 |
@@ -156,7 +156,7 @@ kind of thing 99acres and Housing sell, generated as a by-product of a free tool
 | # | Feature | Benefit | Status | Phase |
 |---|---|---|---|---|
 | F47 | Schedule reels / posts / carousels / stories | Post at the right time without being on his phone | ✅ | 4 |
-| F48 | Auto-generate listing reels | New flat in the CRM → Remotion renders a reel → queued to publish. Ties `my-video/` into the product | 🔗 | 4 |
+| F48 | Auto-generate listing reels | New flat in the CRM → Remotion renders a reel → queued to publish. Ties `marketing-and-sales/video-projects/my-video/` into the product | 🔗 | 4 |
 | F49 | Auto-story on new listing | Every new listing gets a story, automatically | ✅ | 4 |
 | F50 | Publish from laptop | Large video files never touch our servers — our storage and egress cost stays at zero | ✅ | 4 |
 

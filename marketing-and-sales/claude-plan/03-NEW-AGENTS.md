@@ -7,7 +7,7 @@
 **Priority:** P0 — Build First  
 **Role:** The master decision brain. Synthesizes data from all sources into strategic direction.  
 **Team:** Extends Team 2 (Strategists)  
-**File:** `claude-skills/agents/growth-strategist.md`
+**File:** `tools/claude-skills/agents/growth-strategist.md`
 
 ### Purpose
 Acts as the AI equivalent of a Growth VP. Reads weekly data (pipeline, ads, product analytics,
@@ -80,7 +80,7 @@ growth-strategist
 **Priority:** P1 — Build Second  
 **Role:** Generates A/B test hypotheses, designs experiments, tracks active tests, declares winners.  
 **Team:** Extends Team 4 (Scalers)  
-**File:** `claude-skills/agents/experiment-designer.md`
+**File:** `tools/claude-skills/agents/experiment-designer.md`
 
 ### Purpose
 `ab-optimizer` is good at execution (pause/scale). It has no strategic layer.
@@ -154,7 +154,7 @@ experiment-designer
 **Priority:** P1 — Build Second (parallel with experiment-designer)  
 **Role:** Cohort analysis, churn signal detection, win-back campaign triggers.  
 **Team:** Extends Team 5 (Converters)  
-**File:** `claude-skills/agents/retention-analyst.md`
+**File:** `tools/claude-skills/agents/retention-analyst.md`
 
 ### Purpose
 The most under-built capability in the current system. You can generate 3,000 leads and 300 customers,

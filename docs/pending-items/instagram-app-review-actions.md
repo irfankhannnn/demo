@@ -16,7 +16,7 @@ settings and the data-handling answers are in
   unreachable. Meta's crawler opens them and rejects an app whose privacy
   policy does not load. Point the domain (and `www`) at the landing
   CloudFront distribution `d2flnb4locg3qf.cloudfront.net`, then deploy the
-  landing pages (`cfn-templates-cicd/landing-pages/deploy.sh dev`). The CRM's
+  landing pages (`infra/cicd/landing-pages/deploy.sh dev`). The CRM's
   `/legal/*` routes just redirect to these pages, so they are broken too.
   **Owner: Kalim.**
 - [ ] **2. Business Verification** for Cloudberry IT Solutions in Meta Business
@@ -39,7 +39,7 @@ settings and the data-handling answers are in
 - [ ] **Turn test mode off while reviewers test.** Dev has
   `INSTA_DRY_RUN_SENDS=true`, so a reviewer's reply would be recorded and not
   delivered, which fails the messages review. Setting it to `false` and running
-  `cfn-templates-cicd/backend_insta_sol_ms/deploy.sh config-deploy dev` makes
+  `infra/cicd/backend_insta_sol_ms/deploy.sh config-deploy dev` makes
   replies really go out from @happyproperties99. Decide before recording.
 - [ ] **Which account owns the reels.** Only posts owned by the connected
   account are returned, so today the console shows 1 of 23. Either

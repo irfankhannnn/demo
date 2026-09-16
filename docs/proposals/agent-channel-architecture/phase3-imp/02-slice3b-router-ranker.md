@@ -45,7 +45,7 @@ That was a deliberate trade. Incremental widening needs the model to somehow exp
 
 ## How it was tested
 
-Two tests added to `server/agents/llm/runToolLoop.test.js` (15 total in that file now):
+Two tests added to `apps/crm/server/agents/llm/runToolLoop.test.js` (15 total in that file now):
 
 - **`a mis-scoped turn escalates to the full registry and recovers`** — router scoped to `['search_leads']`, user asks about properties. Model's first response has no tool call; the loop escalates, and the second attempt calls `search_properties` and succeeds. Asserts the tool actually executed with the right args.
 - **`escalation happens at most once, and not at all when disabled`** — with `allowScopeEscalation: false`, exactly one round-trip happens and the model's text is returned as-is (no retry).
@@ -54,4 +54,4 @@ Two tests added to `server/agents/llm/runToolLoop.test.js` (15 total in that fil
 
 ## Rollout
 
-Shares Slice 3a's flag and rollout path — see [`01-slice3a-bounded-tool-loop.md`](./01-slice3a-bounded-tool-loop.md). One extra thing to watch once enabled: the `agent.tool_loop.scope_escalation` rate. A few percent is healthy (the router is doing its job, escalation catches the tail). A high rate means the router's rules are mis-firing often enough to be worth fixing directly rather than papering over with escalation round-trips.
+Shares Slice 3a's flag and rollout path — see [`01-slice3a-bounded-tool-loop.md`](01-slice3a-bounded-tool-loop.md). One extra thing to watch once enabled: the `agent.tool_loop.scope_escalation` rate. A few percent is healthy (the router is doing its job, escalation catches the tail). A high rate means the router's rules are mis-firing often enough to be worth fixing directly rather than papering over with escalation round-trips.

@@ -18,7 +18,7 @@ npm run build
 
 #### 2.1 Backend environment variables
 
-Create `server/.env` with these critical additions:
+Create `apps/crm/server/.env` with these critical additions:
 
 ```bash
 # Database tables (new)
@@ -55,7 +55,7 @@ AUTH_SERVICE_URL=https://auth.realestateflow.in
 
 #### 2.2 Update CFN parameters file
 
-Edit `server/infra/cfn-params.json`:
+Edit `apps/crm/server/infra/cfn-params.json`:
 
 ```json
 {
@@ -94,7 +94,7 @@ Edit `server/infra/cfn-params.json`:
 
 #### 2.3 Frontend environment variables
 
-Create `.env.production` or configure in `real-estate-crm-app/.env`:
+Create `.env.production` or configure in `apps/crm/real-estate-crm-app/.env`:
 
 ```bash
 VITE_API_URL=https://api.realestateflow.in/api
@@ -108,7 +108,7 @@ VITE_BAILEY_ENABLED=false  # Enable only after Bailey credentials obtained
 #### 3.1 Deploy main CloudFormation stack
 
 ```bash
-cd server/infra
+cd apps/crm/server/infra
 
 # Ensure cfn-params.json is updated (see Phase 2.2)
 ./deploy.sh
@@ -234,7 +234,7 @@ aws logs put-metric-filter \
 # - Active: Yes
 ```
 
-**Handler already implemented:** `server/routes/billing.js`
+**Handler already implemented:** `apps/crm/server/routes/billing.js`
 - `payment.captured` → grant credits if `notes.credits` present
 - `subscription.activated` → persist `billingAnniversaryDay` from `subscription.start_at`
 
@@ -443,7 +443,7 @@ BAILEY_WEBHOOK_SECRET=<webhook-secret>
 **Option B — Self-hosted Baileys library:**
 
 ```bash
-# 1. Deploy whatsapp-platform (see whatsapp-platform/README.md)
+# 1. Deploy whatsapp-platform (see services/whatsapp-platform/README.md)
 # 2. Set in Lambda env:
 BAILEY_ENABLED=true
 BAILEY_MODE=selfhosted

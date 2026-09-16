@@ -32,7 +32,7 @@ AGENT CORE                     ┌───────────────�
                                        ▼                ▼
                              ┌─────────────────┐  ┌──────────────────┐
                              │  Model Gateway   │  │  Tool Registry    │
-                             │  (Gemini today)  │  │  server/shared/   │
+                             │  (Gemini today)  │  │  apps/crm/server/shared/   │
                              └────────┬─────────┘  │  toolDefinitions  │
                                       │             └────────┬─────────┘
                                       │                      ▼
@@ -85,7 +85,7 @@ API Gateway REST added response streaming (`ResponseTransferMode: STREAM`) in No
 
 ### 5. MCP boundary (unchanged, but drift fixed separately)
 
-`reality-flow-mcp/` stays a separate service for **external** AI clients (Claude Desktop, ChatGPT, etc.). The internal agent core does **not** become an MCP client of its own tools — that would add a network hop and serialization cost for zero benefit, since the core already has direct in-process access via `skillInvoker.js`. The only fix needed here is generating `reality-flow-mcp`'s tool schema from the canonical `server/shared/toolDefinitions.js` at build/deploy time instead of hand-maintaining a second copy — see `03-implementation-plan.md` Phase 5.
+`services/reality-flow-mcp/` stays a separate service for **external** AI clients (Claude Desktop, ChatGPT, etc.). The internal agent core does **not** become an MCP client of its own tools — that would add a network hop and serialization cost for zero benefit, since the core already has direct in-process access via `skillInvoker.js`. The only fix needed here is generating `reality-flow-mcp`'s tool schema from the canonical `apps/crm/server/shared/toolDefinitions.js` at build/deploy time instead of hand-maintaining a second copy — see `03-implementation-plan.md` Phase 5.
 
 ### 6. Semantic retrieval layer
 
@@ -109,11 +109,11 @@ Two rules that keep this from becoming a liability:
 - **Exact stays exact.** Identity lookups — phone numbers, IDs, keys — never go through ANN search. Vector search is for free-text meaning (`requirement`, `notes`, `summary`, `description`) only.
 - **Tenant scoping is structural, not conventional.** `tenantId` is the vector index partition key, which makes AWS reject any search that omits it.
 
-Full design, constraints and risks: [`05-retrieval-and-vector-search.md`](./05-retrieval-and-vector-search.md).
+Full design, constraints and risks: [`05-retrieval-and-vector-search.md`](05-retrieval-and-vector-search.md).
 
 ### 7. Orchestration modes for non-chat flows
 
-The bounded loop above applies to flows where a human reads the output turn by turn. Unattended flows (event-driven, scheduled) use a different mode — the LLM produces structured facts, deterministic code selects tools, and writes beyond a safe default queue for approval. See [`04-orchestration-patterns.md`](./04-orchestration-patterns.md) for the selection rule and [`flows/`](./flows/) for each flow's architecture.
+The bounded loop above applies to flows where a human reads the output turn by turn. Unattended flows (event-driven, scheduled) use a different mode — the LLM produces structured facts, deterministic code selects tools, and writes beyond a safe default queue for approval. See [`04-orchestration-patterns.md`](04-orchestration-patterns.md) for the selection rule and [`flows/`](flows/) for each flow's architecture.
 
 ## Deletes stay out of AI reach
 

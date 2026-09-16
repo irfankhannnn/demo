@@ -125,7 +125,7 @@ Write a script that:
 
 Sample command:
 ```bash
-node server/scripts/reset-demo-tenant.js --tenant DEMO_REALTYFLOW
+node apps/crm/server/scripts/reset-demo-tenant.js --tenant DEMO_REALTYFLOW
 ```
 
 ### Step 10: Use demo in landing page + outreach
@@ -135,7 +135,7 @@ node server/scripts/reset-demo-tenant.js --tenant DEMO_REALTYFLOW
 
 ## Tools / Stack Required
 - Your existing DynamoDB tables + multi-tenancy logic (TENANT# prefix)
-- A seed data file: `server/scripts/demo-data.json`
+- A seed data file: `apps/crm/server/scripts/demo-data.json`
 - Unsplash for stock real estate photos
 - Faker.js for additional sample data generation (npm package)
 - Lambda + EventBridge for nightly reset (or cron on your server)
@@ -147,8 +147,8 @@ node server/scripts/reset-demo-tenant.js --tenant DEMO_REALTYFLOW
 - **Total: 1.5-2 days**
 
 ## Deliverables
-- `server/scripts/demo-data.json` — seed file
-- `server/scripts/reset-demo-tenant.js` — reset script
+- `apps/crm/server/scripts/demo-data.json` — seed file
+- `apps/crm/server/scripts/reset-demo-tenant.js` — reset script
 - Demo tenant accessible at `app.realtyflow.in/login` with demo creds
 - Landing page "Try Demo" button live
 - Daily reset cron deployed

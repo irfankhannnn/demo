@@ -125,7 +125,7 @@
 
 #### Tasks
 - [ ] **MAD-005-T1** — Run the AI Prompt from `P8-logo-and-favicons.md` using `nano-banana-pro`
-  - Generate: `real-estate-crm-app/public/logo-light.svg` + `logo-dark.svg`
+  - Generate: `apps/crm/real-estate-crm-app/public/logo-light.svg` + `logo-dark.svg`
   - Generate: favicon set (favicon.ico, favicon-16x16.png, favicon-32x32.png, favicon-96x96.png, apple-touch-icon.png, icon-192x192.png, icon-512x512.png)
   - Generate: OG templates — `og-default.png` (for `/`), `og-pricing.png`, `og-demo.png`, `og-ai-employee.png`, `og-about.png` (1200×630 each)
   - Generate: `site.webmanifest` with all icon entries
@@ -134,7 +134,7 @@
   - OG images must include: logo, page title, one-line value prop, brand colours
 - [ ] **MAD-005-T3** — Save all assets:
   - LP assets: `creative/landing-pages/assets/brand/` (logos, favicons, OG images used by `realestateflow.in`)
-  - CRM SPA assets: `real-estate-crm-app/public/` (favicon, manifest — for `app.realestateflow.in` browser tab)
+  - CRM SPA assets: `apps/crm/real-estate-crm-app/public/` (favicon, manifest — for `app.realestateflow.in` browser tab)
   - Source assets: `marketing-and-sales/realestateflow/assets/` (canonical source, referenced by both)
 - [ ] **MAD-005-T4** — Create LinkedIn banner (1584×396 px) for Founder's profile using brand kit (for MAD-006)
   - Use `nano-banana-pro` with brand kit colors + "Building RealEstateFlow — AI for Mumbai Brokers"

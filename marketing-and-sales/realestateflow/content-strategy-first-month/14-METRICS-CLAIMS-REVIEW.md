@@ -83,13 +83,13 @@ These are green. They're specific, checkable, and stronger than any statistic.
 
 | Claim | Verified in |
 |-------|-------------|
-| The AI understands Hinglish: `kharidar`, `kirayedar`, `makan`, `malik`, `sampark`, `milan`, `kitne`, `dikhao` | `server/agents/domainRouter.js` |
-| It runs real CRM operations from WhatsApp - leads, buyers, owners, tenants, contacts, properties, meetings, notes, documents | `server/shared/toolDefinitions.js` |
+| The AI understands Hinglish: `kharidar`, `kirayedar`, `makan`, `malik`, `sampark`, `milan`, `kitne`, `dikhao` | `apps/crm/server/agents/domainRouter.js` |
+| It runs real CRM operations from WhatsApp - leads, buyers, owners, tenants, contacts, properties, meetings, notes, documents | `apps/crm/server/shared/toolDefinitions.js` |
 | Daily brief, pipeline summary, priority leads, follow-up summary, business health, next-action suggestions | tool definitions |
-| Khata Book: To Give / To Take, per party, per property, with categories and settlement status | `real-estate-crm-app/src/types/khata.ts` |
+| Khata Book: To Give / To Take, per party, per property, with categories and settlement status | `apps/crm/real-estate-crm-app/src/types/khata.ts` |
 | Khata categories: Brokerage, Maintenance, Deep Cleaning, Repair, Security Deposit, Rent, Utility Bills | `khata.ts` |
-| Reminders on Khata entries, wired to notifications | `server/notificationDynamodbService.js` |
-| Connect your own WhatsApp number by QR - no Meta Business API needed | `whatsapp-platform/` (Baileys) |
+| Reminders on Khata entries, wired to notifications | `apps/crm/server/notificationDynamodbService.js` |
+| Connect your own WhatsApp number by QR - no Meta Business API needed | `services/whatsapp-platform/` (Baileys) |
 | 2 months free CRM, no credit card · 6-month money-back · AI Employee ₹5,000/mo, no free trial | Approved offer terms |
 
 ### 2.4 Mandatory disclosures

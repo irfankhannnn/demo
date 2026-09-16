@@ -11,7 +11,7 @@
 - [ ] Select **EU region** (document in Privacy Policy)
 - [ ] Copy project API key → `phc_XXXXX`
 - [ ] **LP env** (`creative/landing-pages/.env`): `POSTHOG_KEY=phc_XXXXX`
-- [ ] **CRM env** (`real-estate-crm-app/.env`): `VITE_POSTHOG_KEY=phc_XXXXX`, `VITE_POSTHOG_HOST=https://eu.i.posthog.com`
+- [ ] **CRM env** (`apps/crm/real-estate-crm-app/.env`): `VITE_POSTHOG_KEY=phc_XXXXX`, `VITE_POSTHOG_HOST=https://eu.i.posthog.com`
 - [ ] **Lambda env:** `POSTHOG_KEY_SERVER=phc_XXXXX`
 - [ ] Enable session replay; mask sensitive inputs
 - [ ] Create dashboard per `posthog-dashboard.md`
@@ -107,7 +107,7 @@
 
 ## 10. Server Events
 
-- [ ] `server/lib/posthog.js` wired in lambda-handler
+- [ ] `apps/crm/server/lib/posthog.js` wired in lambda-handler
 - [ ] Billing webhook fires: `razorpay_payment_succeeded`, `subscription_paid`, `seat_added`
 - [ ] Grievance route fires: `grievance_received`
 - [ ] AI Employee SOP fires: `ai_employee_provisioned`

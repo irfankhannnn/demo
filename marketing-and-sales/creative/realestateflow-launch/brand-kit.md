@@ -5,7 +5,7 @@
 > Indian bazaar/festival color instead of corporate navy. Positioning, offer terms, and messaging below
 > are **unchanged from v2** — only the Visual Identity section (colors, type, components, photography,
 > plus a new Instagram Content System) has been revised. A full positioning pass is scheduled separately.
-> See [`brand-lookbook-v3-bazaar-signal.html`](./brand-lookbook-v3-bazaar-signal.html) for the palette,
+> See [`brand-lookbook-v3-bazaar-signal.html`](brand-lookbook-v3-bazaar-signal.html) for the palette,
 > type specimen, and Instagram post/carousel mockups in visual form.
 
 ## Positioning

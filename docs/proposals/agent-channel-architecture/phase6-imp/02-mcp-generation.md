@@ -4,7 +4,7 @@
 
 ## The blocker was environmental, and it lifted
 
-The [detection half](./01-mcp-drift-detection.md) deferred generation for one reason above all others: *"No TypeScript toolchain available here. `reality-flow-mcp` has no `node_modules` and no local `tsc`, so any TS I write or generate is unverifiable."*
+The [detection half](01-mcp-drift-detection.md) deferred generation for one reason above all others: *"No TypeScript toolchain available here. `reality-flow-mcp` has no `node_modules` and no local `tsc`, so any TS I write or generate is unverifiable."*
 
 That was true at the time. It is no longer: `npm install` in `reality-flow-mcp` succeeds, and `npx tsc --noEmit` compiles the existing source clean. Every claim below is verified by an actual build, not by inspection.
 
@@ -12,7 +12,7 @@ That was true at the time. It is no longer: `npm install` in `reality-flow-mcp` 
 
 ## What was generated, and what deliberately was not
 
-`server/scripts/generate-mcp-tools.mjs` emits `reality-flow-mcp/src/services/generatedToolDefinitions.ts` — **the tool data only**.
+`apps/crm/server/scripts/generate-mcp-tools.mjs` emits `services/reality-flow-mcp/src/services/generatedToolDefinitions.ts` — **the tool data only**.
 
 The MCP service's own logic stays hand-written in `toolDefinitions.ts`, which imports the generated array: the interfaces, `convertToMcpTools`, and `inferScope`'s OAuth scope mapping.
 

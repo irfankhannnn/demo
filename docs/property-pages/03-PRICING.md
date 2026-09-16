@@ -76,7 +76,7 @@ real usage.
 - **Reliable phone/email prefill** — usually absent for an Instagram-origin
   contact unless collected in-flow.
 - **The scheduling backend** — no concept of our availability, slots, or
-  business hours; that's `server/siteVisitBooking.js`.
+  business hours; that's `apps/crm/server/siteVisitBooking.js`.
 - **The CRM record** — ManyChat gets a visitor to a link, nothing more.
 - **The booking confirmation** — confirming and durably storing a specific
   date/time is our flow's job end to end.

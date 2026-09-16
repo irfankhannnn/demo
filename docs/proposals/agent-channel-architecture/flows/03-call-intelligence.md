@@ -39,7 +39,7 @@ Browser                API Lambda              SQS              Worker Lambda
 
 ## Why this flow is the reference
 
-`server/services/callIntelligence/actionPlanner.js` states the principle outright:
+`apps/crm/server/services/callIntelligence/actionPlanner.js` states the principle outright:
 
 > *"This mapping is deterministic on purpose. The LLM reports what was said; the rules here decide what the CRM may be asked to do. That keeps tool arguments schema-valid and makes the behaviour unit-testable without an LLM."*
 
@@ -91,7 +91,7 @@ Backfill for existing recordings is a one-off job; the index must reach `IndexSt
 
 ### 2. Expose `search_calls_semantic` as a shared tool
 
-Added to `server/shared/toolDefinitions.js`, which means it becomes available to **Flow 01, Flow 02 and Flow 06 automatically** — one registry, every consumer. An agency owner can then ask on WhatsApp: *"pichhle mahine ke khata dispute wale calls dikhao"*.
+Added to `apps/crm/server/shared/toolDefinitions.js`, which means it becomes available to **Flow 01, Flow 02 and Flow 06 automatically** — one registry, every consumer. An agency owner can then ask on WhatsApp: *"pichhle mahine ke khata dispute wale calls dikhao"*.
 
 ### 3. Fix the documented limitations
 

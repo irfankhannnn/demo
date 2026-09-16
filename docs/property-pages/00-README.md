@@ -3,7 +3,7 @@
 `property-pages-ms` is a standalone Express-on-Lambda microservice that
 server-renders public, tenant-branded property listing pages and a site-visit
 booking flow. It has no direct access to CRM data — every read and write goes
-through `server/routes/publicPagesInternal.js`, a dedicated internal API on
+through `apps/crm/server/routes/publicPagesInternal.js`, a dedicated internal API on
 the main CRM backend.
 
 ## Three surfaces
@@ -12,7 +12,7 @@ the main CRM backend.
 |---|---|---|
 | Per-agency branded pages | Built | `<slug>.pages.realestateflow.in/...` (or `/t/<slug>/...` before DNS is wired) — one agency's listings, styled with that agency's brand color and logo. |
 | Instagram / ManyChat visit CTA | Built | A visitor comments on an agency's Instagram post, ManyChat DMs them a link into the booking flow (`/visit/<propertyId>`), prefilled with whatever ManyChat knows about them. |
-| Consumer marketplace (`properties.realestateflow.in`) | **Not built** | Cross-tenant, city-sharded search across every agency's listings. The DynamoDB GSI it will need (`marketplace-index`) already exists in `server/infra/cfn-backend.yaml`, but nothing writes to it or reads from it yet. |
+| Consumer marketplace (`properties.realestateflow.in`) | **Not built** | Cross-tenant, city-sharded search across every agency's listings. The DynamoDB GSI it will need (`marketplace-index`) already exists in `apps/crm/server/infra/cfn-backend.yaml`, but nothing writes to it or reads from it yet. |
 
 ## Documents in this folder
 

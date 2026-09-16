@@ -2,7 +2,7 @@
 name: cfn-readiness-auditor
 description: >
   Read-only auditor for a RealtyFlow/Cloudberry microservice's CloudFormation
-  templates, deploy scripts, env files, and cfn-templates-cicd CI/CD wrapper.
+  templates, deploy scripts, env files, and infra/cicd CI/CD wrapper.
   Checks them against this repo's established best-practices checklist
   (env-first naming, deploy-script safety, env-file hygiene, CFN security
   posture, secrets hygiene, CI/CD build-tracking design, config-only deploy
@@ -24,8 +24,8 @@ You may run `aws` CLI commands, but **only** ones that cannot change anything: `
 ## Inputs
 
 You will be told two paths and a target environment:
-- `SERVICE_DIR` — the microservice's own folder (e.g. `server`, `reality-flow-authentication`)
-- `WRAPPER_DIR` — its CI/CD wrapper (e.g. `cfn-templates-cicd/server`)
+- `SERVICE_DIR` — the microservice's own folder (e.g. `apps/crm/server`, `services/reality-flow-authentication`)
+- `WRAPPER_DIR` — its CI/CD wrapper (e.g. `infra/cicd/server`)
 - `ENV` — `dev` or `prod`
 
 If either path doesn't exist, or `WRAPPER_DIR/deploy.sh` doesn't delegate to `SERVICE_DIR/infra/deploy.sh` (grep for the service dir name inside the wrapper script), stop immediately and report that the mapping is broken — don't try to guess a different pairing.
@@ -101,7 +101,7 @@ Every backend microservice must be reachable via its environment's shared custom
 Check `SERVICE_DIR/infra/*.yaml` for:
 - An `AWS::ApiGateway::BasePathMapping` resource gated behind an `EnableCustomDomainMapping`-style condition (so a first deploy before the domain exists doesn't fail), with `DomainName`/`BasePath`/`Stage` all driven by parameters — not hardcoded.
 - The domain-name parameter's value in `SERVICE_DIR/.env.$ENV` matches the environment: `services-api.realestateflow.in` for `.env.prod`, `services-api.cloudberrysolutions.in` for `.env.dev`. A prod env file pointing at the cloudberrysolutions.in domain (or vice versa) is a FAIL.
-- If the API Gateway integration is `AWS_PROXY` (Lambda proxy) — check for `AWS_PROXY` / a greedy `{proxy+}` resource in the template — the Lambda handler must strip the base path itself before Express/router matching runs. API Gateway's base path mapping only affects *routing selection*; it does not remove the base path from `event.path`/`event.rawPath` delivered to a Lambda proxy integration. Look for an `ENABLE_BASE_PATH_STRIP`-style env flag and a corresponding strip function in the Lambda entry point (e.g. `server/lambda-handler.js`'s `stripConfiguredBasePath`, `reality-flow-authentication/src/index.ts`'s `stripBasePath`, `backend_insta_sol_ms/lambda.js`'s `stripBasePath`). Its absence when the API is AWS_PROXY and base-path-mapped is a FAIL — requests silently 404 once the mapping goes live.
+- If the API Gateway integration is `AWS_PROXY` (Lambda proxy) — check for `AWS_PROXY` / a greedy `{proxy+}` resource in the template — the Lambda handler must strip the base path itself before Express/router matching runs. API Gateway's base path mapping only affects *routing selection*; it does not remove the base path from `event.path`/`event.rawPath` delivered to a Lambda proxy integration. Look for an `ENABLE_BASE_PATH_STRIP`-style env flag and a corresponding strip function in the Lambda entry point (e.g. `apps/crm/server/lambda-handler.js`'s `stripConfiguredBasePath`, `services/reality-flow-authentication/src/index.ts`'s `stripBasePath`, `apps/instagram/backend_insta_sol_ms/lambda.js`'s `stripBasePath`). Its absence when the API is AWS_PROXY and base-path-mapped is a FAIL — requests silently 404 once the mapping goes live.
 - The mapping is actually enabled for `$ENV`: `ENABLE_CUSTOM_DOMAIN_MAPPING=true` and `ENABLE_BASE_PATH_STRIP=true` in `SERVICE_DIR/.env.$ENV`. "Mapping supported but switched off" is a FAIL for both dev and prod.
 - **No raw execute-api URLs anywhere the service consumes or publishes them.** Run `rg --no-ignore --hidden -n -g '!node_modules' -g '!dist' -g '!android' -g '!ios' -g '!deploy-versions' 'execute-api\.[a-z0-9-]+\.amazonaws\.com' SERVICE_DIR WRAPPER_DIR` (`.env.*` files are gitignored, so the flags are required). Any hit in an env value, `cfn-params.json`, deploy script, source file, UI string, or a CFN Output/`!Sub` that builds a URL for callers is a FAIL. An IAM action string `execute-api:Invoke` is not a hit. Calls to other services must use a `<STEM>_DOMAIN_NAME` + `<STEM>_BASE_PATH` pair (frontends: `VITE_<X>_API_DOMAIN_NAME` + `VITE_<X>_API_BASE_PATH`), and the deploy scripts must reject an empty or execute-api domain value.
 
@@ -114,7 +114,7 @@ parameter / Lambda-runtime-env-var change straight to `cloudformation deploy`
 build step" is) without a full `npm install` + build + zip + upload cycle. Not
 yet built for every service in this repo, so a FAIL here does not block a
 normal deploy — it's a gap to flag, not a reason to stop.
-`cfn-templates-cicd/reality-flow-authentication` is the reference
+`infra/cicd/reality-flow-authentication` is the reference
 implementation for a straightforward Lambda-with-CFN-Environment-Variables
 service. This repo has since built the same *safety properties* onto three
 meaningfully different architectures — judge this checklist against those
