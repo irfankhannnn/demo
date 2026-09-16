@@ -1,12 +1,12 @@
 # Cloudberry Claude Skills — Setup Script
 # Creates symlinks from tools/claude-skills/ into .claude/ for Claude Code discovery
-# Run: .\claude-skills\setup.ps1
+# Run: .\tools\claude-skills\setup.ps1
 
 $ErrorActionPreference = "Stop"
 
-$projectRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)  # tools/claude-skills -> repo root
 $claudeDir = Join-Path $projectRoot ".claude"
-$skillsSource = Join-Path $projectRoot "claude-skills"
+$skillsSource = $PSScriptRoot
 
 Write-Host "=== Cloudberry Claude Skills Setup ===" -ForegroundColor Cyan
 Write-Host "Project root: $projectRoot"
