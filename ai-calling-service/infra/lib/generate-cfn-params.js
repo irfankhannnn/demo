@@ -39,6 +39,7 @@ const params = {
   ExotelApiKey: e.EXOTEL_API_KEY,
   ExotelApiToken: e.EXOTEL_API_TOKEN,
   ExotelSid: e.EXOTEL_SID,
+  ExotelCallerId: e.EXOTEL_CALLER_ID || '',
   ExotelWebhookIps: e.EXOTEL_WEBHOOK_IPS || '',
   ElevenLabsApiKey: e.ELEVENLABS_API_KEY,
   ElevenLabsAgentId: e.ELEVENLABS_AGENT_ID,

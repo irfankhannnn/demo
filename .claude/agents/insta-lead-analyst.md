@@ -85,6 +85,8 @@ stage and blocks the whole run.
       "action_channel": "dm | call | whatsapp | meeting | none",
       "suggested_reply": "ready-to-paste Hinglish message",
       "meeting_schedule": "what was agreed and when, \"\" if nothing was",
+      "meeting_datetime": "YYYY-MM-DDTHH:MM local when a specific date and time was agreed, else \"\"",
+      "call_requested": "yes | no",
       "needs_review": "yes | no",
       "notes": "one line for anything a human should know"
     }
@@ -152,6 +154,21 @@ are `tenant` with `deal_type: heavy_deposit`.
 **meeting_schedule** — Only what was actually agreed, with the date resolved,
 for example "Office visit committed for 6 Sep 2026 around 4pm". A vague "will
 visit tomorrow" belongs here too, with the ambiguity stated.
+
+**meeting_datetime** — The machine-readable twin of `meeting_schedule`. Fill
+it only when both a specific date and a specific time were agreed, as ISO
+local time without seconds or zone, e.g. `2026-09-06T16:00`. Resolve the date
+the same way as `meeting_schedule` (against the export's anchor date). A date
+with no time, "sometime next week", or "will visit tomorrow" stays `""`; a
+follow-up call is dialled off this field, so a guess costs a wasted call.
+
+**call_requested** — `yes` only when the lead asked us to call them or sent a
+number for that purpose ("call me on ...", "aap call karo", a contact card
+with a request to ring). Us asking them to call our number is `no`. So is a
+number shared for WhatsApp only. This flag, `action_channel` in `call` or
+`meeting`, and `dm_can_be_closed` are the three signals that move a lead from
+the DM queue to the CRM's follow-up call, so `yes` must be backed by the
+lead's own words.
 
 **needs_review** — `yes` when your reading could be wrong: ambiguous message
 direction (text exports only, a DOM fetch has none), an unclear budget unit (lakh versus thousand), a thread with no

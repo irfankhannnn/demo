@@ -12,11 +12,27 @@
 // request headers on each tool (see elevenlabs-agent-tools.md), so the model
 // cannot widen its own scope by inventing a different tenant.
 
-import { INTENT_TYPES, KNOWLEDGE_CATEGORIES, QUALIFICATION_STATUS } from '../config/constants.js';
+import {
+  INTENT_TYPES,
+  KNOWLEDGE_CATEGORIES,
+  QUALIFICATION_STATUS,
+  CALL_OUTCOME,
+} from '../config/constants.js';
 import { logger } from '../utils/logger.js';
-import * as db from '../services/dynamodbService.js';
-import * as crmApi from '../services/crmApiService.js';
+import * as dbService from '../services/dynamodbService.js';
+import * as crmApiService from '../services/crmApiService.js';
 import * as responseNormalizer from '../utils/responseNormalizer.js';
+
+// Rebindable so the route tests can stand in fakes for DynamoDB and the CRM
+// without a module loader hook — namespace imports are frozen, `let` isn't.
+let db = dbService;
+let crmApi = crmApiService;
+
+// Exposed for tests — pass {} to restore the real services.
+export function setDependencies(overrides = {}) {
+  db = overrides.db || dbService;
+  crmApi = overrides.crmApi || crmApiService;
+}
 
 /**
  * Record what the agent fetched onto the call transcript, so the CRM's
@@ -154,10 +170,195 @@ export async function scheduleSiteVisit(scope, args = {}) {
   });
 
   if (visit?.visitId && scope.callSessionId) {
-    await appendAction(scope, { action: 'SITE_VISIT_SCHEDULED', data: visit });
+    await appendAction(
+      scope,
+      { action: 'SITE_VISIT_SCHEDULED', data: visit },
+      {
+        outcome: CALL_OUTCOME.SITE_VISIT_SCHEDULED,
+        meeting: {
+          meetingId: visit.meetingId || visit.visitId,
+          action: 'scheduled',
+          meetingDate: visit.meetingDate || visit.date || visit.visitDate || args.preferredDate || null,
+          meetingTime: visit.meetingTime || visit.time || visit.visitTime || args.preferredTime || null,
+        },
+      }
+    );
   }
 
   return { speech, visit: visit || null };
+}
+
+/**
+ * Confirm or reschedule a site visit that already exists in the CRM.
+ *
+ * The meeting normally comes from the call context the follow-up service
+ * supplied at call start (session.context.meeting), so the agent does not
+ * have to know or repeat an id. A meetingId argument is accepted as an
+ * override for the rare case where the agent was told one.
+ */
+export async function confirmSiteVisit(scope, args = {}) {
+  const action = String(args.action || '').toLowerCase();
+  if (!['confirm', 'reschedule'].includes(action)) {
+    return {
+      speech: 'Should I keep the visit as planned, or move it to another time?',
+      meeting: null,
+    };
+  }
+
+  let meetingId = args.meetingId || null;
+  let session = null;
+  if (!meetingId && scope.callSessionId) {
+    session = await db.getCallSession(scope.tenantId, scope.callSessionId);
+    meetingId = session?.context?.meeting?.meetingId || session?.meeting?.meetingId || null;
+  }
+
+  if (!meetingId) {
+    // Nothing to update. Don't pretend — hand it to a person.
+    await requestCallback(scope, {
+      reason: `customer wanted to ${action} a site visit but no meeting is on record`,
+      topic: 'site_visit',
+    });
+    return {
+      speech:
+        "I don't have that visit in front of me right now. I'll have our team confirm the timing with you shortly.",
+      meeting: null,
+    };
+  }
+
+  if (action === 'reschedule' && !args.newDate) {
+    return { speech: 'Sure. Which day would suit you better, and roughly what time?', meeting: null };
+  }
+
+  const payload = {
+    action,
+    ...(action === 'reschedule' && {
+      meetingDate: args.newDate,
+      ...(args.newTime && { meetingTime: args.newTime }),
+    }),
+    ...(args.note && { note: String(args.note) }),
+    updatedBy: 'AI Calling Agent',
+  };
+
+  const updated = (await crmApi.updateMeeting(scope.tenantId, meetingId, payload)) || {};
+
+  const meeting = {
+    meetingId: updated.meetingId || meetingId,
+    action: action === 'reschedule' ? 'rescheduled' : 'confirmed',
+    meetingDate: updated.meetingDate || args.newDate || session?.context?.meeting?.meetingDate || null,
+    meetingTime: updated.meetingTime || args.newTime || session?.context?.meeting?.meetingTime || null,
+  };
+
+  const speech = responseNormalizer.normalizeMeetingUpdate(meeting, action);
+
+  await recordToolUse(scope, {
+    intent: INTENT_TYPES.SCHEDULE_SITE_VISIT,
+    text: speech,
+    dataSource: 'CRM_API',
+  });
+
+  if (scope.callSessionId) {
+    await appendAction(
+      scope,
+      { action: action === 'reschedule' ? 'SITE_VISIT_RESCHEDULED' : 'SITE_VISIT_CONFIRMED', data: meeting },
+      {
+        outcome:
+          action === 'reschedule'
+            ? CALL_OUTCOME.SITE_VISIT_RESCHEDULED
+            : CALL_OUTCOME.SITE_VISIT_CONFIRMED,
+        meeting,
+      }
+    );
+  }
+
+  logger.callEvent('SITE_VISIT_UPDATED', scope.callSessionId, scope.tenantId, {
+    meetingId: meeting.meetingId,
+    action: meeting.action,
+    leadId: scope.leadId,
+  });
+
+  return { speech, meeting };
+}
+
+/**
+ * Record structured feedback after a site visit.
+ *
+ * Silent, like submit_qualification: the agent keeps talking, the note lands
+ * on the session (for the call.ended event) and on the lead (so the agent
+ * who runs the deal sees it in the CRM without opening the transcript).
+ */
+export async function recordVisitFeedback(scope, args = {}) {
+  const interestLevel = String(args.interestLevel || '').toLowerCase();
+
+  const visitFeedback = {
+    liked: typeof args.liked === 'boolean' ? args.liked : null,
+    issues: toStringList(args.issues),
+    clarificationsNeeded: toStringList(args.clarificationsNeeded),
+    tokenTimeline: args.tokenTimeline ? String(args.tokenTimeline) : null,
+    interestLevel: ['high', 'medium', 'low', 'none'].includes(interestLevel) ? interestLevel : null,
+    notes: args.notes ? String(args.notes) : null,
+    recordedAt: new Date().toISOString(),
+  };
+
+  if (scope.callSessionId) {
+    await appendAction(
+      scope,
+      { action: 'VISIT_FEEDBACK_RECORDED', data: visitFeedback },
+      { visitFeedback, outcome: CALL_OUTCOME.FEEDBACK_RECORDED }
+    );
+  }
+
+  if (scope.leadId) {
+    await crmApi.addFollowupNote(scope.tenantId, {
+      leadId: scope.leadId,
+      callSessionId: scope.callSessionId || undefined,
+      type: 'visit_feedback',
+      content: summarizeFeedback(visitFeedback),
+      data: visitFeedback,
+    });
+  }
+
+  logger.callEvent('VISIT_FEEDBACK_RECORDED', scope.callSessionId, scope.tenantId, {
+    leadId: scope.leadId,
+    interestLevel: visitFeedback.interestLevel,
+    liked: visitFeedback.liked,
+  });
+
+  // Empty speech: the agent carries on, it doesn't announce the note.
+  return { speech: '', recorded: true };
+}
+
+/**
+ * The customer needs a person to call them back about something the agent
+ * cannot resolve (a question it has no data for, an action only a human can
+ * take). Marks the session so the follow-up service escalates rather than
+ * retries.
+ */
+export async function requestCallback(scope, args = {}) {
+  const reason = String(args.reason || 'customer asked for a callback');
+  const topic = args.topic ? String(args.topic) : null;
+
+  if (scope.callSessionId) {
+    await appendAction(
+      scope,
+      { action: 'CALLBACK_REQUESTED', data: { reason, topic } },
+      {
+        needsHuman: true,
+        needsHumanReason: reason,
+        outcome: CALL_OUTCOME.CALLBACK_REQUESTED,
+      }
+    );
+  }
+
+  logger.callEvent('CALLBACK_REQUESTED', scope.callSessionId, scope.tenantId, {
+    reason,
+    topic,
+    leadId: scope.leadId,
+  });
+
+  return {
+    speech: 'Noted — someone from our team will call you back about that shortly.',
+    recorded: true,
+  };
 }
 
 /**
@@ -242,7 +443,11 @@ export async function requestHumanHandoff(scope, args = {}) {
   const reason = args.reason || 'customer requested a human agent';
 
   if (scope.callSessionId) {
-    await appendAction(scope, { action: 'HUMAN_HANDOFF_REQUESTED', data: { reason } });
+    await appendAction(
+      scope,
+      { action: 'HUMAN_HANDOFF_REQUESTED', data: { reason } },
+      { needsHuman: true, needsHumanReason: reason }
+    );
   }
 
   logger.callEvent('HUMAN_HANDOFF_REQUESTED', scope.callSessionId, scope.tenantId, {
@@ -263,18 +468,45 @@ export async function requestHumanHandoff(scope, args = {}) {
  * a single conversation are inherently serialized by the agent (it waits for
  * each tool response before continuing), unlike carrier webhooks.
  */
-async function appendAction(scope, entry) {
+async function appendAction(scope, entry, extraUpdates = {}) {
   try {
     const session = await db.getCallSession(scope.tenantId, scope.callSessionId);
     const actionsPerformed = [...(session?.actionsPerformed || [])];
     actionsPerformed.push({ ...entry, timestamp: new Date().toISOString() });
-    await db.updateCallSession(scope.tenantId, scope.callSessionId, { actionsPerformed });
+    // Outcome / needsHuman ride along in the same write as the action list,
+    // so a tool never leaves the session half-updated.
+    await db.updateCallSession(scope.tenantId, scope.callSessionId, {
+      ...extraUpdates,
+      actionsPerformed,
+    });
   } catch (error) {
     logger.error('Failed to append call action', error, {
       tenantId: scope.tenantId,
       callSessionId: scope.callSessionId,
     });
   }
+}
+
+/** Coerce a tool argument to a clean list of non-empty strings. */
+function toStringList(value) {
+  if (Array.isArray(value)) return value.map((v) => String(v).trim()).filter(Boolean);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
+/** One-paragraph note for the CRM, so the feedback reads without the JSON. */
+function summarizeFeedback(feedback) {
+  const parts = [];
+  if (feedback.liked === true) parts.push('Liked the property.');
+  else if (feedback.liked === false) parts.push('Did not like the property.');
+  if (feedback.interestLevel) parts.push(`Interest: ${feedback.interestLevel}.`);
+  if (feedback.issues.length) parts.push(`Issues: ${feedback.issues.join(', ')}.`);
+  if (feedback.clarificationsNeeded.length) {
+    parts.push(`Needs clarity on: ${feedback.clarificationsNeeded.join(', ')}.`);
+  }
+  if (feedback.tokenTimeline) parts.push(`Token timeline: ${feedback.tokenTimeline}.`);
+  if (feedback.notes) parts.push(feedback.notes);
+  return parts.join(' ') || 'Visit feedback call completed; no specifics captured.';
 }
 
 /** Trim a property record down to what's useful to speak about. */
@@ -295,4 +527,8 @@ export default {
   answerPolicyQuestion,
   submitQualification,
   requestHumanHandoff,
+  confirmSiteVisit,
+  recordVisitFeedback,
+  requestCallback,
+  setDependencies,
 };

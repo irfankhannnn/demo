@@ -63,6 +63,8 @@ import { getConvertResultPath, isLeadConverted } from '../../utils/leadConversio
 import type { FlashToast } from '../../utils/flashToast';
 import LeadPropertyFields from '../../components/LeadPropertyFields';
 import BuyerRequirementFields from '../../components/BuyerRequirementFields';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE } from '../../utils/phoneMasking';
 
 
 
@@ -79,6 +81,7 @@ interface LeadDrawerProps {
 
 
 export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProps) {
+  const canViewFullPhone = useCanViewFullPhone();
 
   const navigate = useNavigate();
 
@@ -605,6 +608,9 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
 
   const isConverted = isLeadConverted(lead);
+  // A masked role sees `+91 ******5678`; keep the field read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !canViewFullPhone || lead.phoneMasked === true || isMaskedPhoneValue(lead.phone);
 
 
 
@@ -815,11 +821,27 @@ export default function LeadDrawer({ leadId, onClose, onUpdate }: LeadDrawerProp
 
                         disabled={isConverted}
 
-                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                        readOnly={phoneLocked}
+
+                        title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+
+                        className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 read-only:bg-gray-50 read-only:text-gray-500"
 
                         placeholder="Phone number"
 
                       />
+
+                    </div>
+
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
+
+                      {phoneLocked && <span className="text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</span>}
+
+                      {lead.phone && (
+
+                        <PhoneNumber value="" masked={lead.phoneMasked} entityType="lead" entityId={leadId} showCallButton />
+
+                      )}
 
                     </div>
 

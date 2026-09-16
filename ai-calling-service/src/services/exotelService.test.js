@@ -9,7 +9,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { toE164India, parseWebhookPayload, validateWebhookSource } from './exotelService.js';
+import {
+  toE164India,
+  parseWebhookPayload,
+  validateWebhookSource,
+  connectCall,
+  setClient,
+  resetClient,
+} from './exotelService.js';
 
 test('toE164India accepts the formats Indian numbers actually arrive in', () => {
   const expected = '+919876543210';
@@ -91,4 +98,87 @@ test('validateWebhookSource honours the allowlist', () => {
 
   if (prevIps === undefined) delete process.env.EXOTEL_WEBHOOK_IPS;
   else process.env.EXOTEL_WEBHOOK_IPS = prevIps;
+});
+
+/** A fake axios-like client that records what connectCall posts. */
+function fakeExotelClient({ reject = false } = {}) {
+  const posts = [];
+  return {
+    posts,
+    async post(url, body) {
+      posts.push({ url, body });
+      if (reject) {
+        const error = new Error('Request failed with status code 400');
+        error.response = { status: 400, data: { RestException: { Message: 'Invalid CallerId' } } };
+        throw error;
+      }
+      return { data: { Call: { Sid: 'sid_connect_1', Status: 'in-progress' } } };
+    },
+  };
+}
+
+test.afterEach(() => resetClient());
+
+test('connectCall posts form-encoded fields to Calls/connect.json', async () => {
+  // Exotel rejects JSON bodies on this endpoint, so the encoding is the
+  // contract: URLSearchParams, the exact field names, and terminal-only
+  // status callbacks. CustomField carries our ids back on the webhook.
+  const client = fakeExotelClient();
+  setClient(client);
+
+  const result = await connectCall({
+    from: '+919800000000',
+    to: '+919812345678',
+    callerId: '+912212345678',
+    statusCallbackUrl: 'https://calls.example.com/webhooks/exotel/status',
+    customField: { tenantId: 't1', callSessionId: 'c1' },
+  });
+
+  assert.equal(result.callSid, 'sid_connect_1');
+  assert.equal(result.status, 'in-progress');
+  assert.equal(client.posts.length, 1);
+
+  const { url, body } = client.posts[0];
+  assert.equal(url, '/Calls/connect.json');
+  assert.ok(body instanceof URLSearchParams, 'body must be form-encoded, not JSON');
+  assert.equal(body.get('From'), '+919800000000');
+  assert.equal(body.get('To'), '+919812345678');
+  assert.equal(body.get('CallerId'), '+912212345678');
+  assert.equal(body.get('StatusCallback'), 'https://calls.example.com/webhooks/exotel/status');
+  assert.equal(body.get('StatusCallbackEvents[0]'), 'terminal');
+  assert.deepEqual(JSON.parse(body.get('CustomField')), { tenantId: 't1', callSessionId: 'c1' });
+
+  // The serialised form is what actually goes over the wire.
+  const wire = body.toString();
+  assert.match(wire, /^From=%2B919800000000&To=%2B919812345678&CallerId=%2B912212345678&/);
+});
+
+test('connectCall omits the callback fields when no webhook URL is configured', async () => {
+  const client = fakeExotelClient();
+  setClient(client);
+
+  await connectCall({ from: '+919800000000', to: '+919812345678', callerId: '+912212345678' });
+
+  const { body } = client.posts[0];
+  assert.equal(body.has('StatusCallback'), false);
+  assert.equal(body.has('StatusCallbackEvents[0]'), false);
+  assert.equal(body.has('CustomField'), false);
+});
+
+test('connectCall fails fast on missing parties and surfaces the Exotel reason', async () => {
+  setClient(fakeExotelClient());
+  await assert.rejects(
+    () => connectCall({ to: '+919812345678', callerId: '+912212345678' }),
+    /from is required/
+  );
+  await assert.rejects(
+    () => connectCall({ from: '+919800000000', to: '+919812345678' }),
+    /callerId is required/
+  );
+
+  setClient(fakeExotelClient({ reject: true }));
+  await assert.rejects(
+    () => connectCall({ from: '+919800000000', to: '+919812345678', callerId: '+912212345678' }),
+    /Invalid CallerId/
+  );
 });

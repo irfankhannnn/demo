@@ -150,3 +150,93 @@ test('extractQualificationResult returns null when absent or malformed', () => {
   assert.equal(extractQualificationResult([{ text: '[QUALIFICATION_RESULT: {"temperature":"LUKEWARM"}]' }]), null);
   assert.equal(extractQualificationResult(null), null);
 });
+
+test('buildDynamicVariables renders follow-up context as spoken prose', () => {
+  // The follow-up service sends the CONTRACTS.md 2.1 context shape; the agent
+  // must be able to read every field aloud without seeing a date string, a
+  // raw rupee figure or "BHK".
+  const vars = buildDynamicVariables({
+    tenantId: 't1',
+    callPurpose: 'site_visit_confirmation',
+    context: {
+      meeting: {
+        meetingId: 'm1',
+        meetingDate: '2026-09-06',
+        meetingTime: '16:00',
+        location: 'Lodha Park, Worli',
+        status: 'scheduled',
+      },
+      property: {
+        propertyId: 'p1',
+        title: '2 BHK in Andheri West',
+        propertyType: 'apartment',
+        bhk: 2,
+        area: 'Andheri West',
+        city: 'Mumbai',
+        buildingName: 'Lodha Park',
+        price: 18000000,
+        carpetArea: 950,
+        furnishing: 'semi-furnished',
+      },
+      visitedProperty: { title: '3 BHK in Powai', bhk: 3, rentAmount: 65000 },
+      assignedAgentName: 'Sameer',
+      dmSummary: 'Wants 2 BHK under 1.8 Cr',
+      instructions: 'Mention parking is included',
+    },
+  });
+
+  assert.match(vars.meeting_details, /6 September 2026/);
+  assert.match(vars.meeting_details, /4 PM/);
+  assert.match(vars.meeting_details, /Lodha Park, Worli/);
+  assert.doesNotMatch(vars.meeting_details, /2026-09-06|16:00/, 'dates must be spoken, not ISO');
+
+  assert.match(vars.property_details, /two bedroom apartment/);
+  assert.match(vars.property_details, /one crore 80 lakh/);
+  assert.match(vars.property_details, /950 square feet/);
+  assert.doesNotMatch(vars.property_details, /18000000|\bBHK\b/);
+
+  // visitedProperty wins over property for visit_details.
+  assert.match(vars.visit_details, /Powai/);
+  assert.match(vars.visit_details, /65 thousand per month/);
+  assert.doesNotMatch(vars.visit_details, /Andheri/);
+
+  assert.equal(vars.assigned_agent_name, 'Sameer');
+  assert.equal(vars.dm_summary, 'Wants 2 BHK under 1.8 Cr');
+  assert.equal(vars.extra_instructions, 'Mention parking is included');
+  assert.equal(vars.call_purpose, 'site_visit_confirmation');
+});
+
+test('buildDynamicVariables gives every follow-up variable a "not known" fallback', () => {
+  // No context at all (an ordinary lead_followup call) and a context whose
+  // property carries nothing speakable must both render as guidance for the
+  // agent, never as an empty {{placeholder}}.
+  for (const context of [undefined, { property: { propertyId: 'p1' } }]) {
+    const vars = buildDynamicVariables({ tenantId: 't1', context });
+    assert.match(vars.meeting_details, /No visit is booked on record/);
+    assert.match(vars.property_details, /not known/);
+    assert.match(vars.visit_details, /not on record/);
+    assert.equal(vars.assigned_agent_name, 'one of our agents');
+    assert.match(vars.dm_summary, /No earlier chat summary/);
+    assert.equal(vars.extra_instructions, 'None.');
+    for (const key of [
+      'meeting_details',
+      'property_details',
+      'visit_details',
+      'assigned_agent_name',
+      'dm_summary',
+      'extra_instructions',
+    ]) {
+      assert.ok(vars[key].length > 0, `${key} must never be empty`);
+    }
+  }
+});
+
+test('buildDynamicVariables falls back from visitedProperty to property', () => {
+  const vars = buildDynamicVariables({
+    tenantId: 't1',
+    callPurpose: 'post_visit_feedback',
+    context: { property: { title: '2 BHK in Andheri West', bhk: 2 } },
+  });
+  assert.match(vars.visit_details, /Andheri West/);
+  assert.equal(vars.visit_details, vars.property_details);
+});

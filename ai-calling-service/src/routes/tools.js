@@ -66,4 +66,9 @@ router.post('/policy-answer', toolRoute('answer_policy_question', tools.answerPo
 router.post('/qualification', toolRoute('submit_qualification', tools.submitQualification));
 router.post('/human-handoff', toolRoute('request_human_handoff', tools.requestHumanHandoff));
 
+// Follow-up agent tools (CONTRACTS.md 2.3).
+router.post('/confirm-site-visit', toolRoute('confirm_site_visit', tools.confirmSiteVisit));
+router.post('/visit-feedback', toolRoute('record_visit_feedback', tools.recordVisitFeedback));
+router.post('/request-callback', toolRoute('request_callback', tools.requestCallback));
+
 export default router;

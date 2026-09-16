@@ -24,10 +24,13 @@ import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { useFlashToast } from '../../hooks/useFlashToast';
 import { CRMContact, CRMContactNote } from '../../types/crm';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE, stripMaskedPhoneFields } from '../../utils/phoneMasking';
 
 export default function BuyerDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const canViewFullPhone = useCanViewFullPhone();
   const isNew = !id || id === 'new';
 
   const [contact, setContact] = useState<Partial<CRMContact>>({
@@ -86,6 +89,7 @@ export default function BuyerDetails() {
             name: buyerData.name,
             email: buyerData.email,
             phone: buyerData.phone,
+            phoneMasked: (buyerData as unknown as { phoneMasked?: boolean }).phoneMasked,
             address: buyerData.address,
             roles: { owner: false, buyer: true, tenant: false },
             status: buyerData.status || 'active',
@@ -150,6 +154,10 @@ export default function BuyerDetails() {
     }
   };
 
+  // A masked role sees `+91 ******5678`; keep the field read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !isNew && (!canViewFullPhone || contact.phoneMasked === true || isMaskedPhoneValue(contact.phone));
+
   const handleSave = async () => {
     if (!contact.name || !contact.phone) {
       showToast('Name and phone are required', 'error');
@@ -193,7 +201,7 @@ export default function BuyerDetails() {
       } else if (isLegacyBuyer) {
         await api.updateBuyer(id!, {
           name: contact.name,
-          phone: contact.phone,
+          phone: isMaskedPhoneValue(contact.phone) ? undefined : contact.phone,
           email: contact.email,
           address: contact.address,
           status: contact.status,
@@ -203,10 +211,10 @@ export default function BuyerDetails() {
         });
         await loadContact();
       } else {
-        await api.updateContact(id!, {
+        await api.updateContact(id!, stripMaskedPhoneFields({
           ...contact,
           roles: { ...contact.roles, buyer: true },
-        });
+        }));
         await loadContact();
       }
     } catch (error) {
@@ -300,7 +308,9 @@ export default function BuyerDetails() {
                     {isNew ? 'New Buyer' : contact.name || 'Buyer Details'}
                   </h1>
                   {!isNew && contact.phone && (
-                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{contact.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">
+                      <PhoneNumber value={contact.phone} masked={contact.phoneMasked} entityType="buyer" entityId={id} showCallButton />
+                    </p>
                   )}
                 </div>
               </div>
@@ -367,10 +377,13 @@ export default function BuyerDetails() {
                       type="tel"
                       value={contact.phone || ''}
                       onChange={(e) => setContact({ ...contact, phone: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all"
+                      readOnly={phoneLocked}
+                      title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+                      className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/30 focus:border-orange-400 transition-all read-only:bg-gray-50 read-only:text-gray-500"
                       placeholder="Phone number"
                     />
                   </div>
+                  {phoneLocked && <p className="mt-1 text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>

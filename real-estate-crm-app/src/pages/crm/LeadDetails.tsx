@@ -39,12 +39,16 @@ import type { FlashToast } from '../../utils/flashToast';
 import LeadPropertyFields from '../../components/LeadPropertyFields';
 import BuyerRequirementFields from '../../components/BuyerRequirementFields';
 import LeadTemperatureBadge from '../../components/LeadTemperatureBadge';
+import AiFollowupCard from '../../components/AiFollowupCard';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE } from '../../utils/phoneMasking';
 
 export default function LeadDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
+  const canViewFullPhone = useCanViewFullPhone();
 
   // Get initial data from navigation state (e.g., when converting from enquiry)
   const initialData = location.state?.initialData;
@@ -699,6 +703,9 @@ export default function LeadDetails() {
   // Check if lead is converted
   const isConverted = isLeadConverted(lead);
   const convertedEntityPath = getConvertedEntityPath(lead.convertedTo);
+  // A masked role sees `+91 ******5678`; the field is read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !isNew && (!canViewFullPhone || lead.phoneMasked === true || isMaskedPhoneValue(lead.phone));
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50 to-orange-50">
@@ -903,6 +910,15 @@ export default function LeadDetails() {
           </div>
         )}
 
+        {!isNew && id && (
+          <AiFollowupCard
+            leadId={id}
+            hasPhone={!!lead.phone}
+            disabled={isConverted}
+            onToast={showToast}
+          />
+        )}
+
         {/* Lead Type Selection */}
         {!isConverted && (
           <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4">
@@ -967,10 +983,26 @@ export default function LeadDetails() {
                   value={lead.phone || ''}
                   onChange={(e) => setLead({ ...lead, phone: e.target.value })}
                   disabled={isConverted}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100"
+                  readOnly={phoneLocked}
+                  title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 read-only:bg-gray-50 read-only:text-gray-500"
                   placeholder="Phone number"
                 />
               </div>
+              {!isNew && id && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {phoneLocked && <span className="text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</span>}
+                  {lead.phone && (
+                    <PhoneNumber
+                      value=""
+                      masked={lead.phoneMasked}
+                      entityType="lead"
+                      entityId={id}
+                      showCallButton
+                    />
+                  )}
+                </div>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>

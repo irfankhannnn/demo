@@ -23,6 +23,31 @@ export const CALL_PURPOSE = {
   // questions and reports back HOT/WARM/COLD via call-outcome's `temperature`
   // field. See CRM's server/utils/leadRubric.js for the shared rubric text.
   LEAD_QUALIFICATION: 'lead_qualification',
+  // Follow-up agent purposes (see followup-agent-service/docs/CONTRACTS.md).
+  // The agent either confirms/reschedules an already-booked site visit, or
+  // collects structured feedback after one happened. Both are short calls.
+  SITE_VISIT_CONFIRMATION: 'site_visit_confirmation',
+  POST_VISIT_FEEDBACK: 'post_visit_feedback',
+  // Not an AI call at all: Exotel bridges a team member to a contact. The
+  // session exists so the Exotel status webhook has somewhere to land.
+  CLICK_TO_CALL: 'click_to_call',
+};
+
+/**
+ * Terminal outcome of a call, stored as `outcome` on the session and carried
+ * on the `aicalling.calls` / `call.ended` event (CONTRACTS.md 1.3).
+ *
+ * Distinct from CALL_STATUS: status says how the call ended at the carrier
+ * (completed / no_answer / ...), outcome says what the conversation achieved.
+ * A completed call with a null outcome is a call where nothing happened.
+ */
+export const CALL_OUTCOME = {
+  CALL_INITIATION_FAILED: 'call_initiation_failed',
+  SITE_VISIT_SCHEDULED: 'site_visit_scheduled',
+  SITE_VISIT_CONFIRMED: 'site_visit_confirmed',
+  SITE_VISIT_RESCHEDULED: 'site_visit_rescheduled',
+  FEEDBACK_RECORDED: 'feedback_recorded',
+  CALLBACK_REQUESTED: 'callback_requested',
 };
 
 export const INTENT_TYPES = {

@@ -1,6 +1,7 @@
 import type { CRMLead, LeadType, BuyerRequirement } from '../types/crm';
 import { normalizeBuyerRequirement } from './buyerRequirementSchema';
 import { normalizeLeadTextFields } from './leadTextNormalizer';
+import { isMaskedPhoneValue } from './phoneMasking';
 
 const LEAD_REQUIREMENT_FIELD: Record<LeadType, keyof CRMLead> = {
   buyer: 'buyerRequirement',
@@ -22,7 +23,8 @@ export function buildLeadSavePayload(lead: Partial<CRMLead>) {
   const payload: Record<string, unknown> = {
     leadType: lead.leadType,
     name: lead.name,
-    phone: lead.phone,
+    // A masked role only ever sees `+91 ******5678`; never write that back.
+    phone: isMaskedPhoneValue(lead.phone) ? undefined : lead.phone,
     email: lead.email,
     source: lead.source,
     status: lead.status,

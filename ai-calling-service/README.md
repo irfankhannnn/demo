@@ -38,6 +38,7 @@ agent pull live CRM data mid-conversation through server tools.
    after the call:
       ElevenLabs ──► POST /webhooks/elevenlabs/post-call (HMAC verified)
       Exotel     ──► POST /webhooks/exotel/status        (IP allowlisted)
+      Lambda     ──► EventBridge aicalling.calls / call.ended
 ```
 
 **One ElevenLabs request places the call and bridges the audio.** There is no
@@ -63,6 +64,33 @@ the agent. That is what the native integration replaces.
 7. **Exotel status webhooks** track ringing → in progress → completed
 8. **A signed post-call webhook** delivers the transcript; the outcome, summary
    and any qualification verdict are written back to the CRM lead
+9. **`call.ended` is published** on EventBridge (source `aicalling.calls`) so
+   the follow-up agent service can close, retry or escalate its job
+
+### Call purposes
+
+`lead_followup`, `lead_qualification` (180s cap, see below), and the two
+follow-up purposes driven by `followup-agent-service`:
+
+- `site_visit_confirmation` — confirm or reschedule a visit already booked in
+  the CRM. `POST /calls/start` carries `context.meeting` / `context.property`
+  and `metadata.followupJobId`; the agent calls `confirm_site_visit`.
+- `post_visit_feedback` — ask how the visit went; the agent calls
+  `record_visit_feedback` (stored as `visitFeedback` on the session and as a
+  CRM lead note) and `request_callback` when a human needs to step in.
+
+`click_to_call` sessions are not AI calls at all — see the connect endpoint.
+
+### `call.ended` event
+
+Emitted once per terminal outcome from the ElevenLabs post-call webhook
+(`post_call_transcription` and `call_initiation_failure`), from Exotel
+terminal statuses, and when initiation itself fails. The same session can
+emit twice (Exotel `completed`, then the transcript a few seconds later);
+consumers dedupe on `callSessionId`. Shape: `followup-agent-service/docs/CONTRACTS.md`
+section 1.3 — `tenantId`, `callSessionId`, `leadId`, `callPurpose`, `status`,
+`outcome`, `duration`, `followupJobId`, `needsHuman`, `needsHumanReason`,
+`feedback`, `meeting`, `transcriptSummary`, `dataCollection`, `source`, `endedAt`.
 
 ## Multi-tenancy
 
@@ -87,8 +115,8 @@ Isolation is enforced throughout:
 
 `ENVIRONMENT`, `AI_CALLING_TABLE_NAME`, `AI_CALLING_KNOWLEDGE_BUCKET`,
 `AI_CALLING_RECORDINGS_BUCKET`, `CRM_INTERNAL_API_DOMAIN_NAME`,
-`CRM_INTERNAL_API_BASE_PATH`, `EXOTEL_SUBDOMAIN`,
-`EXOTEL_WEBHOOK_IPS`, `ELEVENLABS_AGENT_ID`,
+`CRM_INTERNAL_API_BASE_PATH`, `EXOTEL_SUBDOMAIN`, `EXOTEL_CALLER_ID` (blank
+disables click-to-call), `EXOTEL_WEBHOOK_IPS`, `ELEVENLABS_AGENT_ID`,
 `ELEVENLABS_AGENT_PHONE_NUMBER_ID`, `WEBHOOK_BASE_URL` (derived by the stack
 from the custom domain + base path),
 `API_BASE_PATH_PREFIX`, `ENABLE_BASE_PATH_STRIP`, `ALLOWED_ORIGINS`,
@@ -116,7 +144,7 @@ Two files hold the content a human pastes into the ElevenLabs dashboard:
 
 - **`elevenlabs-agent-prompt.md`** — the shared agent's system prompt, the
   dynamic variables it expects, and recommended voice/language settings
-- **`elevenlabs-agent-tools.md`** — all six server tools (paths, parameters,
+- **`elevenlabs-agent-tools.md`** — all nine server tools (paths, parameters,
   the four required headers) and the post-call webhook
 
 Both require a deployed API Gateway URL, so deploy before configuring.
@@ -124,7 +152,10 @@ Both require a deployed API Gateway URL, so deploy before configuring.
 ## API
 
 ### Calls
-- `POST /api/ai-calling/calls/start` — start a call
+- `POST /api/ai-calling/calls/start` — start a call (optional `context`, `metadata`)
+- `POST /api/ai-calling/calls/connect` — click-to-call: Exotel bridges
+  `fromPhone` (team member) to `toPhone` (contact) with `EXOTEL_CALLER_ID` as
+  the CallerId; `503 { error: "click_to_call_not_configured" }` when blank
 - `GET  /api/ai-calling/calls/:id/status`
 - `GET  /api/ai-calling/calls/:id/transcript`
 - `POST /api/ai-calling/calls/:id/end`
@@ -137,6 +168,9 @@ Both require a deployed API Gateway URL, so deploy before configuring.
 - `POST /api/ai-calling/tools/policy-answer`
 - `POST /api/ai-calling/tools/qualification`
 - `POST /api/ai-calling/tools/human-handoff`
+- `POST /api/ai-calling/tools/confirm-site-visit`
+- `POST /api/ai-calling/tools/visit-feedback`
+- `POST /api/ai-calling/tools/request-callback`
 
 ### Webhooks
 - `POST /webhooks/elevenlabs/post-call` — HMAC verified

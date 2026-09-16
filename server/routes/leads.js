@@ -30,6 +30,14 @@ import { resolveRequestActor } from '../utils/requestActor.js';
 import { notifyNewLead, notifyLeadAssigned, notifyHotLead } from '../leadNotifications.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { hasCreditForAiCall } from '../aiCallBilling.js';
+import {
+  createFollowupJob,
+  listFollowupJobs,
+  stripPhoneFields,
+  FollowupServiceError,
+  FOLLOWUP_JOB_TYPES,
+  DEFAULT_FOLLOWUP_JOB_TYPE,
+} from '../services/followupService.js';
 
 const eventBridge = new EventBridgeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 
@@ -553,6 +561,81 @@ router.post('/:id/qualify-call', validateToken, extractTenantId, requireCrmMembe
       return res.status(error.response.status || 502).json({ error: error.response.data?.error || 'AI calling service error' });
     }
     res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
+// ============== AI Follow-up Calls (CONTRACTS.md section 5) ==============
+//
+// Thin proxies to followup-agent-service. Same trust boundary as
+// /:id/qualify-call: the browser names a lead, the tenant comes from the
+// session, and the lead's phone never appears in a response — the service
+// dials it later, out of band. A job the service returns is passed through
+// with phone-shaped keys stripped, belt and braces.
+
+function handleFollowupError(res, req, label, error) {
+  if (error instanceof FollowupServiceError) {
+    if (error.code === 'not_configured') {
+      return res.status(503).json({ error: 'Follow-up service not configured' });
+    }
+    logger.error(`leads.${label}.service_error`, { tenantId: req.tenantId, leadId: req.params.id, status: error.status, error: error.message });
+    return res.status(error.status || 502).json({ error: error.message || 'Follow-up service error' });
+  }
+  logger.error(`leads.${label}.error`, { tenantId: req.tenantId, leadId: req.params.id, error: error.message });
+  return res.status(500).json({ error: error.message || 'Internal server error' });
+}
+
+// Schedule an AI follow-up call (site-visit confirmation by default).
+router.post('/:id/followup-call', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const { jobType, note } = req.body || {};
+    if (jobType !== undefined && !FOLLOWUP_JOB_TYPES.includes(jobType)) {
+      return res.status(400).json({ error: `jobType must be one of: ${FOLLOWUP_JOB_TYPES.join(', ')}` });
+    }
+
+    const lead = await getLead(req.tenantId, req.params.id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+    if (!lead.phone) {
+      return res.status(400).json({ error: 'Lead has no phone number to call' });
+    }
+
+    const agencyConfig = await getAgencyConfig(req.tenantId).catch(() => null);
+    if (!agencyConfig?.aiEmployeeEnabled) {
+      return res.status(409).json({ error: 'AI calling not enabled for this tenant' });
+    }
+
+    const { actorUserId, actorName } = resolveRequestActor(req.user);
+    const context = {};
+    if (typeof note === 'string' && note.trim()) context.note = note.trim().slice(0, 1000);
+
+    const { job, duplicate } = await createFollowupJob(req.tenantId, {
+      leadId: lead.leadId,
+      jobType: jobType || DEFAULT_FOLLOWUP_JOB_TYPE,
+      context,
+      requestedBy: actorUserId || actorName || 'crm-user',
+      source: 'api',
+    });
+
+    res.status(duplicate ? 200 : 201).json({ job: stripPhoneFields(job), duplicate: Boolean(duplicate) });
+  } catch (error) {
+    handleFollowupError(res, req, 'followupCall', error);
+  }
+});
+
+// Follow-up jobs for a lead (timeline in the lead drawer).
+router.get('/:id/followups', validateToken, extractTenantId, requireCrmMemberOrAbove, async (req, res) => {
+  try {
+    const lead = await getLead(req.tenantId, req.params.id);
+    if (!lead) {
+      return res.status(404).json({ error: 'Lead not found' });
+    }
+
+    const { status, limit } = req.query;
+    const { jobs } = await listFollowupJobs(req.tenantId, { leadId: lead.leadId, status, limit });
+    res.json({ jobs: stripPhoneFields(jobs) });
+  } catch (error) {
+    handleFollowupError(res, req, 'followups', error);
   }
 });
 

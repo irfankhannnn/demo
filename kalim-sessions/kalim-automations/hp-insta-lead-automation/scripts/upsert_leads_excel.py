@@ -19,6 +19,7 @@ Exit codes: 0 ok, 1 bad input, 2 validation failure, 3 workbook locked.
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, date
 
@@ -57,12 +58,18 @@ LEAD_COLUMNS = [
     "lead_type", "lead_score", "deal_type", "property_type", "locality", "city",
     "building_name", "budget", "units_required",
     "possession_timeline", "requirement_complete", "summary", "next_action",
-    "action_channel", "suggested_reply", "meeting_schedule", "dm_can_be_closed",
+    "action_channel", "suggested_reply", "meeting_schedule", "call_requested",
+    "meeting_datetime", "dm_can_be_closed",
     "close_reason", "sourcing_action_for_sameer", "sourcing_status",
     "sourcing_raised_on", "conversation_start_date", "conversation_end_date",
     "days_since_last_message", "message_count", "reel_links", "needs_review",
     "notes", "manual_override", "first_seen_run", "last_updated_run", "source_files",
+    "pushed_to_crm", "pushed_to_crm_at", "crm_lead_id",
 ]
+
+# Written only by scripts/push_leads_to_crm.py. The upsert carries them through
+# untouched so a lead is never sent to the CRM twice.
+CRM_PUSH_FIELDS = ["pushed_to_crm", "pushed_to_crm_at", "crm_lead_id"]
 
 CHANGELOG_COLUMNS = [
     "run_id", "run_timestamp", "lead_id", "lead_name", "change_type",
@@ -84,7 +91,8 @@ ANALYST_FIELDS = [
     "lead_type", "lead_score", "deal_type", "property_type", "locality", "city",
     "building_name", "budget", "units_required",
     "possession_timeline", "summary", "next_action", "action_channel",
-    "suggested_reply", "meeting_schedule", "needs_review", "notes",
+    "suggested_reply", "meeting_schedule", "call_requested", "meeting_datetime",
+    "needs_review", "notes",
 ]
 
 # Owned by the live-chat runner and by whoever works the queue in Excel.
@@ -96,14 +104,17 @@ SOURCING_FIELDS = [
 # Protected when the row carries manual_override = yes.
 LOCKED_FIELDS = [
     "lead_type", "lead_score", "summary", "next_action", "suggested_reply",
-    "meeting_schedule", "notes", "budget", "locality", "city", "building_name",
-    "units_required",
+    "meeting_schedule", "meeting_datetime", "call_requested", "notes", "budget",
+    "locality", "city", "building_name", "units_required",
 ]
 
 VALID_LEAD_TYPE = {"buyer", "seller", "tenant", "landlord", "not_a_lead", "unknown"}
 VALID_SCORE = {"very_hot", "hot", "cold"}
 VALID_CHANNEL = {"dm", "call", "whatsapp", "meeting", "none"}
 VALID_WHATSAPP = {"yes", "no", "not_mentioned"}
+VALID_YES_NO = {"yes", "no"}
+# ISO 8601 local time without seconds or zone, e.g. 2026-09-06T16:00.
+MEETING_DATETIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 
 HEADER_FILL = PatternFill("solid", fgColor="2563EB")
 HEADER_FONT = Font(bold=True, color="FFFFFF", size=11)
@@ -128,9 +139,27 @@ def fail(message, code=2):
 def as_text(value):
     if value is None:
         return ""
-    if isinstance(value, (datetime, date)):
+    if isinstance(value, datetime):
+        # Cell values Excel has coerced to a datetime; keep minutes for
+        # meeting_datetime and pushed_to_crm_at, dates only for everything else.
+        if value.hour or value.minute or value.second:
+            return value.strftime("%Y-%m-%dT%H:%M")
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, date):
         return value.strftime("%Y-%m-%d")
     return str(value).strip()
+
+
+def changelog_entry(run_id, run_timestamp, lead_id, lead_name, change_type,
+                    field, old_value, new_value, source_file):
+    """The one shape every Changelog row has. Shared with push_leads_to_crm.py."""
+    return {
+        "run_id": run_id, "run_timestamp": run_timestamp,
+        "lead_id": lead_id, "lead_name": lead_name,
+        "change_type": change_type, "field": field,
+        "old_value": as_text(old_value), "new_value": as_text(new_value),
+        "source_file": source_file,
+    }
 
 
 def validate_analysis(analysis, parsed):
@@ -150,12 +179,17 @@ def validate_analysis(analysis, parsed):
         checks = (
             ("lead_type", VALID_LEAD_TYPE), ("lead_score", VALID_SCORE),
             ("action_channel", VALID_CHANNEL), ("whatsapp_available", VALID_WHATSAPP),
+            ("call_requested", VALID_YES_NO), ("needs_review", VALID_YES_NO),
         )
         for field, allowed in checks:
             value = as_text(entry.get(field)).lower()
             if value and value not in allowed:
                 problems.append("%s has %s=%r, expected one of %s"
                                 % (lead_id, field, value, sorted(allowed)))
+        meeting_dt = as_text(entry.get("meeting_datetime"))
+        if meeting_dt and not MEETING_DATETIME_RE.match(meeting_dt):
+            problems.append("%s has meeting_datetime=%r, expected YYYY-MM-DDTHH:MM"
+                            % (lead_id, meeting_dt))
         if not as_text(entry.get("summary")):
             problems.append("%s has an empty summary" % lead_id)
     missing = parsed_ids - seen
@@ -191,7 +225,7 @@ def compute_closability(row):
         needed = ("deal_type", "property_type", "locality", "budget")
         gaps = [f for f in needed if not as_text(row.get(f))]
         missing.append("requirement (" + ", ".join(gaps) + ")")
-    meeting = as_text(row.get("meeting_schedule"))
+    meeting = as_text(row.get("meeting_schedule")) or as_text(row.get("meeting_datetime"))
     if not meeting and as_text(row.get("action_channel")) != "meeting":
         missing.append("personal meeting not scheduled")
     if missing:
@@ -241,12 +275,17 @@ def build_incoming(parsed, analysis, run_id, today):
             "last_updated_run": run_id,
             "source_files": source,
         }
+        for field in CRM_PUSH_FIELDS:
+            row[field] = ""
         for field in ANALYST_FIELDS:
             row[field] = as_text(entry.get(field))
         row["lead_type"] = row["lead_type"].lower() or "unknown"
         row["lead_score"] = row["lead_score"].lower() or "cold"
         row["action_channel"] = row["action_channel"].lower() or "dm"
         row["needs_review"] = row["needs_review"].lower() or "no"
+        # Left blank rather than defaulted to "no" so an analysis file that omits
+        # the field can never flip an earlier "yes" back on an existing row.
+        row["call_requested"] = row["call_requested"].lower()
         row["requirement_complete"] = compute_requirement_complete(row)
         row["dm_can_be_closed"], row["close_reason"] = compute_closability(row)
         row["days_since_last_message"] = days_since(row["conversation_end_date"], today)
@@ -412,9 +451,13 @@ def build_overview(leads, daily_rows, run_id, stats, workbook_path):
         ("READINESS", "Requirement complete", count("requirement_complete", "yes")),
         ("READINESS", "Meeting scheduled",
          sum(1 for l in leads if as_text(l.get("meeting_schedule")))),
+        ("READINESS", "Meeting date/time fixed",
+         sum(1 for l in leads if as_text(l.get("meeting_datetime")))),
+        ("READINESS", "Call requested by lead", count("call_requested", "yes")),
         ("READINESS", "DM can be closed", count("dm_can_be_closed", "yes")),
         ("READINESS", "Sourcing tasks open", count("sourcing_status", "open")),
         ("READINESS", "Sourcing tasks done", count("sourcing_status", "done")),
+        ("READINESS", "Pushed to CRM", count("pushed_to_crm", "yes")),
         ("READINESS", "Flagged needs_review", count("needs_review", "yes")),
         ("READINESS", "Rows locked by manual_override", count("manual_override", "yes")),
     ]
@@ -469,16 +512,14 @@ def main():
         current = by_id.get(lead_id)
 
         if current is None:
+            row["call_requested"] = row["call_requested"] or "no"
             by_id[lead_id] = row
             existing_leads.append(row)
             stats["new"] += 1
-            new_changes.append({
-                "run_id": run_id, "run_timestamp": now.isoformat(timespec="seconds"),
-                "lead_id": lead_id, "lead_name": row["lead_name"],
-                "change_type": "new", "field": "(row created)", "old_value": "",
-                "new_value": "%s / %s" % (row["lead_score"], row["lead_type"]),
-                "source_file": source,
-            })
+            new_changes.append(changelog_entry(
+                run_id, now.isoformat(timespec="seconds"), lead_id, row["lead_name"],
+                "new", "(row created)", "",
+                "%s / %s" % (row["lead_score"], row["lead_type"]), source))
             continue
 
         locked = as_text(current.get("manual_override")).lower() == "yes"
@@ -529,12 +570,9 @@ def main():
             current["last_updated_run"] = run_id
             stats["updated"] += 1
             for field, old, new in changes:
-                new_changes.append({
-                    "run_id": run_id, "run_timestamp": now.isoformat(timespec="seconds"),
-                    "lead_id": lead_id, "lead_name": current.get("lead_name", ""),
-                    "change_type": "update", "field": field,
-                    "old_value": old, "new_value": new, "source_file": source,
-                })
+                new_changes.append(changelog_entry(
+                    run_id, now.isoformat(timespec="seconds"), lead_id,
+                    current.get("lead_name", ""), "update", field, old, new, source))
         else:
             stats["unchanged"] += 1
 

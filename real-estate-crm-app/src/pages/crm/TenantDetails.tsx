@@ -26,10 +26,13 @@ import SpeechToTextButton from '../../components/SpeechToTextButton';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
 import { useFlashToast } from '../../hooks/useFlashToast';
 import { CRMCustomer, CRMCustomerNote, CRMMeeting } from '../../types/crm';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE, stripMaskedPhoneFields } from '../../utils/phoneMasking';
 
 export default function TenantDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const canViewFullPhone = useCanViewFullPhone();
   const isNew = !id || id === 'new';
 
   const [customer, setCustomer] = useState<Partial<CRMCustomer>>({
@@ -132,6 +135,10 @@ export default function TenantDetails() {
     }
   };
 
+  // A masked role sees `+91 ******5678`; keep the field read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !isNew && (!canViewFullPhone || customer.phoneMasked === true || isMaskedPhoneValue(customer.phone));
+
   const handleSave = async () => {
     if (!customer.name || !customer.phone) {
       setToast({ message: 'Name and phone are required', type: 'error' });
@@ -151,7 +158,7 @@ export default function TenantDetails() {
         }
         navigate(`/crm/tenants/${created.customerId}`, { replace: true });
       } else {
-        await api.updateCustomer(id!, customer as any);
+        await api.updateCustomer(id!, stripMaskedPhoneFields(customer) as any);
         await loadCustomer();
       }
     } catch (error) {
@@ -318,7 +325,9 @@ export default function TenantDetails() {
                     {isNew ? 'New Tenant' : customer.name || 'Tenant Details'}
                   </h1>
                   {!isNew && customer.phone && (
-                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{customer.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">
+                      <PhoneNumber value={customer.phone} masked={customer.phoneMasked} entityType="customer" entityId={id} showCallButton />
+                    </p>
                   )}
                 </div>
               </div>
@@ -365,7 +374,9 @@ export default function TenantDetails() {
                   value={customer.phone || ''}
                   onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                   onBlur={(e) => isNew && handlePhoneLookup(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all"
+                  readOnly={phoneLocked}
+                  title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+                  className="w-full pl-10 pr-3 py-2 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-teal-500/30 focus:border-teal-400 transition-all read-only:bg-gray-50 read-only:text-gray-500"
                   placeholder="Phone number"
                 />
                 {lookingUp && (
@@ -374,6 +385,7 @@ export default function TenantDetails() {
                   </div>
                 )}
               </div>
+              {phoneLocked && <p className="mt-1 text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</p>}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>

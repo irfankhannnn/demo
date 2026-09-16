@@ -25,6 +25,10 @@
  *   reelRef         { postId, permalink } | null
  *   externalRef     { igUsername, igSenderId, sourceMediaId, conversationRef }
  *   createdBy        human-readable origin label
+ *   followUp        { type?, meetingSchedule?, propertyHint?, note? } | null —
+ *                   optional "please call this person" hint from the source
+ *                   (CONTRACTS.md 1.1). Not stored on the lead; carried on the
+ *                   lead.created event for the follow-up service.
  */
 
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
@@ -36,6 +40,7 @@ import {
 } from './crmDynamodbService.js';
 import { notifyNewLead } from './leadNotifications.js';
 import { logEventIfNotProcessed } from './webhookLogService.js';
+import { normalizeFollowUpHint } from './services/followupService.js';
 import { logger } from './logger.js';
 
 const eventBridge = new EventBridgeClient({
@@ -372,6 +377,10 @@ export async function ingestLead(tenantId, input = {}, options = {}) {
 
   if (process.env.AGENTS_ENABLED === 'true') {
     try {
+      // Provenance and the optional follow-up hint ride on the event
+      // (CONTRACTS.md 1.1) so the follow-up service can decide on a
+      // site-visit confirmation call without a second round trip to the CRM.
+      const followUp = normalizeFollowUpHint(input.followUp);
       await eventBridge.send(new PutEventsCommand({
         Entries: [{
           Source: 'crm.leads',
@@ -383,6 +392,9 @@ export async function ingestLead(tenantId, input = {}, options = {}) {
             name: lead.name,
             phone: lead.phone,
             createdAt: lead.createdAt,
+            sourceAdapter: leadData.sourceAdapter,
+            source: leadData.source || null,
+            ...(followUp ? { followUp } : {}),
           }),
         }],
       }));

@@ -1,6 +1,6 @@
 # ElevenLabs Agent — Server Tools
 
-Six webhook tools to add to the shared agent in the ElevenLabs dashboard
+Nine webhook tools to add to the shared agent in the ElevenLabs dashboard
 (**Agent → Tools → Add tool → Webhook**). They replace the old
 "intent webhook → regex classifier → inject context" relay: the agent's own
 model now decides when it needs data.
@@ -19,7 +19,7 @@ Implementations live in `src/handlers/serverTools.js`, routed in
 path, never an execute-api invoke URL. The tools only respond once the stack is
 deployed.
 
-## Headers — required on all six tools
+## Headers — required on all nine tools
 
 Set these identically on every tool. They are what scopes a call to one tenant;
 without them the request is rejected.
@@ -170,6 +170,72 @@ Returns `{ speech, recorded }`.
 
 ---
 
+## 7. `confirm_site_visit`
+
+> Confirm, or move to a new time, a site visit that is already booked. Call
+> this on a site-visit confirmation call once the customer has said whether
+> the planned time works. For a reschedule, ask for the new day first — never
+> invent one.
+
+`POST /confirm-site-visit`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `action` | string | yes | Exactly one of: `confirm`, `reschedule` |
+| `newDate` | string | for reschedule | New day as the customer said it, e.g. "Sunday", "12 March" |
+| `newTime` | string | no | New rough time, e.g. "11am", "evening" |
+| `note` | string | no | Anything the customer asked to pass on |
+| `meetingId` | string | no | Leave empty — the visit is taken from the call's own context |
+
+Returns `{ speech, meeting }`. The meeting comes from the context the CRM
+supplied at call start, so the model never has to know an id; if nothing is
+on record the service flags a callback itself and returns speech saying so.
+
+---
+
+## 8. `record_visit_feedback`
+
+> Record how a site visit went. Call this once on a post-visit call, after
+> you have heard whether they liked it, any issues, anything they still need
+> clarity on, and when they could proceed with the token. This is a silent
+> background note — never tell the customer you are recording anything.
+
+`POST /visit-feedback`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `liked` | boolean | no | Did they like the property they visited |
+| `issues` | array of strings | no | Concerns raised, e.g. ["parking", "west facing"] |
+| `clarificationsNeeded` | array of strings | no | Things they still want answered, e.g. ["maintenance charges"] |
+| `tokenTimeline` | string | no | When they could pay the token, in their words: "next week", "after Diwali" |
+| `interestLevel` | string | no | Your read: exactly one of `high`, `medium`, `low`, `none` |
+| `notes` | string | no | Anything else worth passing to the agent |
+
+Returns `{ speech: "", recorded: true }` — deliberately empty speech so the
+agent carries on naturally. Stored on the call session and appended to the
+lead as a CRM note.
+
+---
+
+## 9. `request_callback`
+
+> Flag that a person needs to call this customer back about something
+> specific. Call this when they ask something you have no information for,
+> or want something done that you cannot do (a revisit, a price discussion,
+> documents, a different property). Be specific about the reason.
+
+`POST /request-callback`
+
+| Parameter | Type | Required | Description for the model |
+|---|---|---|---|
+| `reason` | string | yes | What the person needs to address, in one sentence |
+| `topic` | string | no | Short label, e.g. "pricing", "documents", "revisit" |
+
+Returns `{ speech, recorded }`. Marks the call as needing a human; the
+follow-up service escalates to the assigned agent instead of retrying.
+
+---
+
 ## Post-call webhook
 
 Separately from the tools, configure the workspace **post-call webhook**
@@ -194,8 +260,8 @@ rejects unsigned or stale requests.
 
 ## Checklist
 
-- [ ] All six tools created, pointing at the deployed API Gateway URL
-- [ ] All four headers set identically on all six tools
+- [ ] All nine tools created, pointing at the deployed API Gateway URL
+- [ ] All four headers set identically on all nine tools
 - [ ] `SERVER_TOOL_API_KEY` stored as a workspace Secret, matching the value in Secrets Manager
 - [ ] No tool has a `tenant_id` body parameter
 - [ ] Post-call webhook configured, secret matching `ELEVENLABS_WEBHOOK_SECRET`
