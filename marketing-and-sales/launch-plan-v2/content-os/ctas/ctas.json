@@ -1,0 +1,3502 @@
+[
+  {
+    "id": "CTA-DEMO-001",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho — sirf 2 minute. Link bio mein hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-002",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "2 min ka demo, poora CRM samajh jaoge. demo.realtyflow.in",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-003",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Live demo book karo, hum dikhayenge sab kuch.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-004",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Bina signup, demo dekho — demo.realtyflow.in pe jao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DEMO-005",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo ke baad decide karo. Pressure zero.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-006",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Apni agency ka demo chahiye? Comment karo DEMO.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-007",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Dekhna hai kaise kaam karta hai? Demo link bio mein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-008",
+    "category": "DEMO",
+    "language": "en-leaning",
+    "text": "Quick demo — 120 seconds, that's it.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-009",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Demo dekhe bina mat judge karo, bhai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-010",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Tap karo bio link, demo turant chalu.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-011",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo wala video bio mein pinned hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-012",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Ek baar demo dekh lo, baaki samajh jaoge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-013",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Free demo book karo aaj hi — slots limited.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DEMO-014",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo chahiye toh DM mein 'DEMO' likho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-015",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "2-minute walkthrough dekho, time waste nahi hoga.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-016",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho, fir trial lo — simple.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-017",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Live demo mein apne sawaal poocho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-018",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Curious ho? Demo se sab clear ho jayega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DEMO-019",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Demo dekhne ka time nahi? 2 min hi toh hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-020",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Personalised demo — apni agency ke hisaab se.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-021",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo link bio mein — abhi tap karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-022",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Dikhana hai team ko? Demo saath baith ke dekho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-023",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho — no slides, sirf real product.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-024",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Aaj ka demo slot book kar lo, kal busy ho jaoge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DEMO-025",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Demo dekhke socho — koi jaldi nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-026",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Bio mein demo link. Ek tap, done.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-027",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekhna free hai, judging tumhari marzi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-028",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Real CRM, real demo — demo.realtyflow.in.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-029",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo book karo, hum tumhare numbers pe dikhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-030",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Sirf dekhna chahte ho? Self-serve demo bio mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DEMO-031",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo ke baad 90% log trial le lete hain.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DEMO-032",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Live walkthrough chahiye? Comment 'DEMO'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-033",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho phone pe — desktop ki zaroorat nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-034",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Guided demo book karo — ek RealtyFlow expert ke saath.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-035",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo mein khata book bhi dikhayenge — zaroor dekho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-036",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "AI calling ka demo dekhna mat bhoolna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-037",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "2 min ka demo > 2 ghante ka confusion.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-038",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Demo dekho aaj, decision lo kal — koi rush nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-039",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Bio link tap karo, demo seedha khulega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-040",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho aur batao kya pasand aaya.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-041",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Free live demo — slot ke liye DM karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DEMO-042",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekhna hai bina baat kiye? Bio mein video hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DEMO-043",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Ek demo, saare doubts clear. demo.realtyflow.in.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-044",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo book karo — Hindi mein samjhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-045",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Sirf 2 min do, demo khud bol dega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-046",
+    "category": "DEMO",
+    "language": "hi-dominant",
+    "text": "Demo dekhe bina decision mat lena, yaar.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-047",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Quick demo lena hai? Bio link ready hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-048",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo dekho, screenshots se zyada clear hoga.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-049",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Apni team ke saath demo schedule karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DEMO-050",
+    "category": "DEMO",
+    "language": "mixed",
+    "text": "Demo ka link bio mein — abhi dekh lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-001",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe baat karte hain — bio mein number.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-002",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Koi sawaal? WhatsApp karo, turant reply.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-003",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'Hi' bhejo, baaki hum sambhal lenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-004",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Demo WhatsApp pe chahiye? Message karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-005",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe pricing poocho — koi formality nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-006",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Seedha WhatsApp karo — calls ka jhanjhat nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-007",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'CRM' likho, details aa jayengi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-008",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Confusion hai? WhatsApp pe clear kar dete hain.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-009",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp link bio mein — tap karke chat shuru.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-010",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe demo schedule karo, easy hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-011",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Bhai, WhatsApp karo — hum English/Hindi dono mein baat karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-012",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe apni agency ka size batao, plan suggest karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-013",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Jaldi reply chahiye? WhatsApp best hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-014",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp karo — no bots, real banda baat karega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-015",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Pricing, plans, demo — sab WhatsApp pe.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-016",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'TRIAL' likho, setup mein help milegi.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-017",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Office se baat karni hai? WhatsApp number bio mein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-018",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe message chhodo, hum call back karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-019",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Ek WhatsApp aur tumhara CRM setup shuru.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-020",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe doubt poocho — judge koi nahi karega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-021",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe demo ka time fix karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-022",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Reply guaranteed — WhatsApp karke dekho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-023",
+    "category": "WHATSAPP",
+    "language": "mr-dominant",
+    "text": "WhatsApp pe 'PUNE' likho agar Pune se ho — local team connect.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-024",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Team plan chahiye? WhatsApp pe baat karte hain.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-025",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe sab samjha denge — bina pressure.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-026",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Number save karo, kabhi bhi WhatsApp karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-027",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe apna requirement bhejo, custom quote denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-028",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Demo book karna hai? Bas WhatsApp karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-029",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe screenshot bhejo apni current sheet ka — migrate kar denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-030",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Late night doubt? WhatsApp chhodo, subah reply.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-031",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'DEMO' bhejo — link turant.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-032",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Hinglish mein baat karni hai? WhatsApp perfect hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-033",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe onboarding help — free hai.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-034",
+    "category": "WHATSAPP",
+    "language": "hi-dominant",
+    "text": "Sawaal chhota ho ya bada — WhatsApp karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-035",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe apni team add karwao — hum guide karenge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-036",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Bio mein WhatsApp button — ek tap mein chat.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-037",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe baat karo, fir trial lo — koi rush nahi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-038",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Kuch bhi poocho WhatsApp pe — sales pitch nahi milega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-039",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'PRICE' likho — saare plans bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-040",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp karo aur 10 min mein clarity le lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-041",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Demo ya trial — WhatsApp pe decide karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-042",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe humse juro, updates miss mat karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-043",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Migration ka tension? WhatsApp karo, free help.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-044",
+    "category": "WHATSAPP",
+    "language": "hi-dominant",
+    "text": "WhatsApp pe baat — phone uthane ka mann nahi toh type karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-045",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp number bio mein — abhi message karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-046",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Khata setup mein help? WhatsApp pe poocho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-047",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp pe 'AI' likho — AI calling samjhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-048",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "Tumhare time pe WhatsApp karo — hum wahin honge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-049",
+    "category": "WHATSAPP",
+    "language": "mixed",
+    "text": "WhatsApp se faster kuch nahi — abhi try karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-WHATSAPP-050",
+    "category": "WHATSAPP",
+    "language": "hi-dominant",
+    "text": "Ek WhatsApp message — saara confusion khatam.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-TRIAL-001",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial shuru karo — no credit card. app.realtyflow.in/signup",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-002",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Aaj hi free trial lo, kal se organised raho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-003",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial free hai — card maango toh batana.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-004",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Bio link se signup karo, 2 min mein ready.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-005",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free mein try karo — pasand aaye toh rakho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-006",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lo, apni asli leads daal ke test karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-007",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "No credit card, no jhanjhat — bas signup.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-008",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial = zero risk. Abhi shuru karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-009",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial ke liye bio link tap karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-010",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Aaj signup, aaj hi pehla lead add karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-011",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial — apni team ke saath try karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-012",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lena hai? app.realtyflow.in/signup pe jao.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-013",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Bina paise diye poora CRM chalao — trial lo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-014",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial shuru, spreadsheet band.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-015",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Signup karo, demo data ready milega — turant samjhoge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-016",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial free hai, decision tumhara — pressure zero.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-017",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Card ki zaroorat nahi — sirf phone number.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-018",
+    "category": "TRIAL",
+    "language": "hi-dominant",
+    "text": "Free trial lo, khud dekho farak.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-019",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial mein AI calling bhi try karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-020",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Signup link bio mein — 2 minute ka kaam.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-021",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial free, setup free, advice free — bas shuru karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-022",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Pehle try karo, fir trust karo — free trial lo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-023",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial chahiye? DM mein 'TRIAL' likho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-024",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Aaj free trial, kal pehli deal organised.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-025",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free plan se shuru karo — 50 leads tak free.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-026",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lo, team ko invite karo, saath mein chalao.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-027",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Risk kuch nahi — free trial abhi shuru.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-028",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Signup 2 min, value lifetime — trial lo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-029",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial pe apni purani sheet import karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-030",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial ke andar hi pehla follow-up set karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-031",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Bio link → signup → done. Itna easy.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-032",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial — bina commitment, bina card.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-033",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Aaj shuru karo, weekend tak system ready.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-034",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lo aur dekho ek bhi lead miss nahi hota.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-035",
+    "category": "TRIAL",
+    "language": "hi-dominant",
+    "text": "Free mein shuru karo — magic baad mein dikhega.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-036",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial activate karo, hum onboarding mein help karenge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-037",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Signup karo — Hindi interface bhi available.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-038",
+    "category": "TRIAL",
+    "language": "mr-dominant",
+    "text": "Free trial — Pune ki agencies already chala rahi hain.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-039",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lo, khata book test karo, hisaab clear.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-040",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Card details? Nahi chahiye. Sirf signup karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-041",
+    "category": "TRIAL",
+    "language": "hi-dominant",
+    "text": "Free trial start karo, baaki baad mein socho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-042",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial = free test drive. Bio link tap karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-043",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Aaj signup karo, kal team productive.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-044",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial — no expiry pressure, apne pace pe chalao.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-045",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial lo aur ek week mein farak feel karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-046",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Signup link bio mein — abhi try karo, free.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-047",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Free trial pe property inventory daal ke dekho.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-048",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "Trial start, spreadsheet ka tension end.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-049",
+    "category": "TRIAL",
+    "language": "mixed",
+    "text": "No card. No call. Sirf free trial. Shuru karo.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-TRIAL-050",
+    "category": "TRIAL",
+    "language": "hi-dominant",
+    "text": "Aaj free trial lo — kal khud thank you bologe.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-COMMENT-001",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Agree ho? Comment mein 'haan' likho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-002",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment karo 'CRM' aur link DM kar denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-003",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Tumhari sabse badi lead-problem comment mein batao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-004",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Relate kiya? Comment mein ek emoji chhodo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-005",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'DEMO' karo — link inbox mein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-006",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Kaun-kaun abhi bhi Excel pe hai? Comment karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-007",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein apna shehar likho — local tips denge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-008",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Sahmat ho? Niche comment karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-009",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'GUIDE' — free checklist bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-010",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Tumne aaj kitne follow-up miss kiye? Comment karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-011",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein batao — sabse bada time-waste kya hai?",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-012",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Yeh galti tum bhi karte ho? Comment 'yes/no'.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-013",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'TRIAL' — signup link bhej denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-COMMENT-014",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Apna favourite feature comment karo (demo dekh ke).",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-015",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein tag karo apne business partner ko.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-016",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Yeh pain real hai? Comment mein 100% likho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-017",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'PRICE' aur saare plans bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-018",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Konsa point sabse zyada hit hua? Comment karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-019",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Comment karo agar follow-up bhoolne ki aadat hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-020",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Apni agency ka size comment mein likho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-021",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'AI' — AI calling ki detail bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-022",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Tumhare paas kitne leads pending hain? Comment.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-023",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein ek shabd — tumhari biggest CRM wish.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-024",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Sehmat ho ya nahi? Comment mein bolo bindaas.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-025",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'KHATA' — commission tracking samjhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-026",
+    "category": "COMMENT",
+    "language": "mr-dominant",
+    "text": "Pune wale comment mein 'PUNE' likho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-027",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment karo, hum sabse common sawaal pe reel banayenge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-028",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Yeh tumhari kahani hai? Comment mein batao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-029",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'YES' agar leads WhatsApp mein kho jaate hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-030",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Apna doubt comment mein daalo — hum reply karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-031",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein guess karo — kitna time bachta hai?",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-032",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Sabse relatable point comment mein quote karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-033",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'SETUP' — onboarding steps bhej denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-COMMENT-034",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Konsa plan tumhare liye sahi? Comment karo, suggest karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-035",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein apni team ka naam tag karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-036",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Tumhe yeh feature chahiye? Comment 'chahiye'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-037",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment karo agar 2026 mein bhi sheet pe ho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-038",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Drop a 🏠 in the comments agar relate karte ho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-039",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'INFO' — poori detail bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-040",
+    "category": "COMMENT",
+    "language": "hi-dominant",
+    "text": "Sach bolo — comment mein, kitne deals miss hui?",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-041",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment mein apna pain likho, hum solution dikhayenge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-042",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Yeh hack pasand aaya? Comment mein 🔥 daalo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-043",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'HELP' — koi bhi sawaal, hum hain.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-044",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Apni city comment karo — wahan ki agencies dikhayenge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-045",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment karo: spreadsheet ya CRM — tum kya use karte ho?",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-046",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Yeh number sach lagta hai? Comment mein bolo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-047",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment 'REELS' agar aur tips chahiye.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-048",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Apna biggest 2026 goal comment mein likho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMENT-049",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Comment karo agar AI calling try karna chahte ho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMENT-050",
+    "category": "COMMENT",
+    "language": "mixed",
+    "text": "Ek comment, ek link — 'DEMO' likho bas.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SHARE-001",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh apni team ke saath share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-002",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Kisi agent dost ko bhejo jise yeh chahiye.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-003",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo — koi na koi iske liye thank you bolega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-004",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne broker group mein forward karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-005",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh reel apne partner ko zaroor bhejo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-006",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Team WhatsApp group mein share karo abhi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-007",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share with that one agent jo abhi bhi Excel pe hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-008",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh tip share karo, credit baad mein lo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-009",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne manager ko bhejo — wo khush ho jayenge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-010",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo agency owners ke group mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-011",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Kisi ko yaad aaya? Unhe yeh bhej do.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-012",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne junior agents ke saath share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-013",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Yeh sabko pata hona chahiye — share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-014",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Forward to a friend jo deals miss kar raha hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-015",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share button dabao, ek agent ki madad ho jayegi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-016",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh reel save bhi karo aur share bhi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-017",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne real estate WhatsApp group mein daal do.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-018",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Share karo — knowledge baatne se badhta hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-019",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Bhejo us dost ko jo CRM dhundh raha hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SHARE-020",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh apni puri sales team ko bhejo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-021",
+    "category": "SHARE",
+    "language": "mr-dominant",
+    "text": "Share this — Pune ke agents ko zaroor pasand aayega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-022",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Forward karo apne business partner ko.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-023",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Agar useful laga toh ek dost ko share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-024",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne network mein share karo, sab seekhe.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-025",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh hack share karo, hero bano group mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-026",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo us colleague ko jo overwhelmed hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-027",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Bhejo unhe jinki agency grow kar rahi hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-028",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh story share karo, koi na koi relate karega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-029",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne team lead ko tag aur share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-030",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo — agla deal kisi aur ka bach jayega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-031",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Forward this to your office group abhi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-032",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh reel apne realtor friends ko bhejo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-033",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo agar yeh tumhari problem solve kar sakta hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-034",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Bhejo us banda ko jo roz follow-up bhoolta hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-035",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apni agency ke owner ko yeh share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-036",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share with your team — saath mein try karna easy hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-037",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh post share karo, save bhi kar lo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-038",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Forward karo — sharing is caring, bhai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-039",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne CRE/broker community mein share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-040",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Bhejo apne us dost ko jo deals track nahi kar pata.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-041",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo, fir saath baith ke demo dekho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SHARE-042",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Yeh apne sabhi agents tak pahuchao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-043",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share this reel before tum bhool jao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-044",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Apne real estate group mein viral karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-045",
+    "category": "SHARE",
+    "language": "hi-dominant",
+    "text": "Bhejo unhe jo abhi bhi diary pe hisaab rakhte hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-046",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo — team ka time bachega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-047",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Yeh tip apne partner ke saath baant lo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-048",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Forward to anyone jiski agency scale ho rahi hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-049",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Share karo aur batao unhe — Excel ka zamana gaya.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SHARE-050",
+    "category": "SHARE",
+    "language": "mixed",
+    "text": "Ek share = ek agent ki zindagi easy.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-001",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save karo — baad mein kaam aayega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-002",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this reel, ek baar mein yaad nahi rahega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-003",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo — yeh checklist important hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-004",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo, jab CRM dhundho tab dekhna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-005",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh tips save kar lo, repeat dekhna padega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-006",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — agency setup ke time kaam aayega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-007",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark for later — yeh sona hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-008",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo, apni team ko baad mein dikhana.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-009",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh post save karo before scroll kar jao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-010",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save kar lo — yeh pricing breakdown handy hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-011",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark this reel, weekend pe try karna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-012",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo yeh follow-up template idea.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-013",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save karo, agle client call se pehle dekhna.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-014",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — 5 mistakes jo har agent karta hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-015",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo, demo dekhne se pehle yaad rahe.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-016",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save kar lo — khata setup steps yahan hain.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-017",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh reel save karo, apne pace pe seekhna.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-018",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this checklist before tum bhool jao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-019",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo — AI calling ka pura process.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-020",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo aur kal subah implement karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-021",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh hack save kar lo, daily use hoga.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-022",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — lead tracking ka simple system.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-023",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo, jab team grow kare tab dekhna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-024",
+    "category": "SAVE",
+    "language": "mr-dominant",
+    "text": "Save karo yeh — Pune market ke numbers.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-025",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save karo, screenshot lene ki zaroorat nahi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-026",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this reel — onboarding shortcut andar hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-027",
+    "category": "SAVE",
+    "language": "hi-dominant",
+    "text": "Bookmark karo, yeh tum dobara dhundhoge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-028",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo — property sharing trick yahan hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-029",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save kar lo, next deal mein use karna.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-030",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this before reel kho jaye feed mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-031",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo — commission dispute solution.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-032",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo aur apni team ke saath review karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-033",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save karo, demo link bhi yahin hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-034",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — agent ka daily routine optimised.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-035",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo, free trial ke time yaad aayega.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-SAVE-036",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo yeh — leads kaise organise karein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-037",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh reel save kar lo, gold info hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-038",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — agency growth ke 3 steps.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-039",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo, baad mein WhatsApp pe poochna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-040",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo — yeh setup guide miss mat karna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-041",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save kar lo before tum scroll karo aage.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-042",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this reel — tumhari biggest galti yahan hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-043",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo — RERA + CRM checklist.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-044",
+    "category": "SAVE",
+    "language": "hi-dominant",
+    "text": "Save karo, ek baar dekhke yaad nahi rahega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-045",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save karo — team plan compare yahan hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-046",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this — AI follow-up script template.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-047",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Bookmark karo, apne junior ko sikhana baad mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-048",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save karo — yeh trick deal close karwati hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-SAVE-049",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Yeh save kar lo, pricing yaad nahi rahegi warna.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-SAVE-050",
+    "category": "SAVE",
+    "language": "mixed",
+    "text": "Save this reel ab — thank me later.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DM-001",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'DEMO' likho — link turant bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-002",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox khol do, 'CRM' likho — details aayengi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-003",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo 'TRIAL' — signup link instantly.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-004",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Sawaal hai? DM karo, hum reply karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-005",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'PRICE' likho — saare plans bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-006",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Koi bhi doubt? DM open hai 24x7.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-007",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo 'INFO' — pura breakdown bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-008",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox mein 'GUIDE' likho — free checklist.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-009",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein apni agency ka size batao, plan suggest karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-010",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'AI' — AI calling ka demo bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-011",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Personal sawaal? DM mein bindaas poocho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-012",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo 'KHATA' — commission feature samjhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-013",
+    "category": "DM",
+    "language": "mr-dominant",
+    "text": "Inbox mein 'PUNE' likho — local team connect karegi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-014",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'SETUP' likho — onboarding steps milenge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-015",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Pricing detail DM mein chahiye? 'PLAN' likho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-016",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo, sales pitch nahi — sirf madad milegi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-017",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox khol ke 'DEMO' bhejo — done.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-018",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein apni current sheet ka screenshot bhejo — migrate karwa denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-019",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Koi feature pooch-na hai? DM karo abhi.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-020",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'TEAM' — team plan ki details bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-021",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox mein 'START' likho — turant shuru karwate hain.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-022",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo aur 10 min mein clarity le lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-023",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'WHATSAPP' likho — number share kar denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-024",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Confusion clear karna hai? DM seedha karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-025",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'HELP' — koi bhi sawaal, jawab pakka.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-026",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox mein 'OFFER' likho — current deal bhej denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-027",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo, hum bot nahi — real banda reply karega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-028",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein apna pain likho, solution dikhayenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-029",
+    "category": "DM",
+    "language": "en-leaning",
+    "text": "Quick question? Slide into our DMs.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-030",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'RERA' — compliance ke saath kaise kaam karein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-031",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox mein 'COMPARE' likho — plans compare bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-032",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo apne time pe — hum wahin honge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-033",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'CALL' likho — hum call back karenge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-034",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Doubt chhota ho ya bada — DM mein daalo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-035",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'MIGRATE' — purani sheet shift karwa denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-036",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Inbox khol do, jo poochna hai poocho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-037",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein apni city batao — local insights denge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-DM-038",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo 'FREE' — free plan ka link bhej denge.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-039",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Yeh feature chahiye? DM 'chahiye' likho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-040",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'BOOK' likho — demo slot fix karte hain.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-041",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox open — 'CRM' type karo, baaki hum sambhalein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-042",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo, judge koi nahi karega — sirf help.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-043",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'DASHBOARD' — analytics ka tour bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-044",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Apna requirement DM mein bhejo — custom quote.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-045",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM mein 'YES' likho — hum guide karenge step by step.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-DM-046",
+    "category": "DM",
+    "language": "mixed",
+    "text": "Inbox mein 'PROPERTY' likho — inventory feature dekho.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-047",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo abhi — kal busy ho jaoge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-048",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM 'LEADS' — lead tracking ka demo bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-049",
+    "category": "DM",
+    "language": "hi-dominant",
+    "text": "Inbox mein ek message — saara confusion khatam.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-DM-050",
+    "category": "DM",
+    "language": "mixed",
+    "text": "DM karo 'DEMO' aur 2 min ka video le lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-001",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Hamari agent community join karo — link bio mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-002",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Real estate agents ka group — judo aur seekho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-003",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein roz naye tips milte hain — join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-004",
+    "category": "COMMUNITY",
+    "language": "hi-dominant",
+    "text": "Akele mat struggle karo — community se juro.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-005",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo — 500+ agents already andar hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-006",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein apne sawaal poocho, jawab pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-007",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Free community — sirf agents ke liye. Join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-008",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Bio link se community join karo abhi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-009",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein deals, tips, support — sab milega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-010",
+    "category": "COMMUNITY",
+    "language": "mr-dominant",
+    "text": "Pune agents ka apna group hai — join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-011",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community join karo, networking free mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-012",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Doubt? Community mein poocho — koi na koi help karega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-013",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Hamari WhatsApp community join karo — link bio.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-014",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein weekly live sessions hote hain — join.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-015",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Agents ka community — competition nahi, collaboration.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-016",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo aur top agents se seekho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-017",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein apni wins share karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-018",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Free join — community mein exclusive resources milte hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-019",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Real estate ki real baatein — community join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-020",
+    "category": "COMMUNITY",
+    "language": "hi-dominant",
+    "text": "Community se juro, akele growth slow hoti hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-021",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo — har sawaal ka jawab community mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-022",
+    "category": "COMMUNITY",
+    "language": "hi-dominant",
+    "text": "Hamari community mein naye agents ka swagat hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-023",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein deals ka exchange bhi hota hai — join.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-024",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Bio link → community → instant access.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-025",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community join karo aur updates pehle pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-026",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Mumbai, Pune, Delhi agents — sab ek community mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-027",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein free templates aur scripts milte hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-028",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo — yeh group sirf serious agents ke liye.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-029",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein apni problem rakho, crowd se solution.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-030",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Free agent community — abhi join karo, link bio.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-031",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community se juro aur referrals bhi kamao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-032",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Hamari community mein roz value add hoti hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-033",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo aur RERA updates miss mat karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-034",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein top brokers ke case studies milte hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-035",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Agents ke liye safe space — community join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-036",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo, community mein hi demo bhi milta hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-037",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein apna intro do — connections banao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-038",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Free community access — sirf bio link se.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-039",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community join karo, isolation se bahar aao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-040",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Hamari community mein 100s of agents daily active.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-041",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo aur sabse pehle naye features try karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-042",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein weekly Q&A hota hai — join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-043",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Real agents, real advice — community join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-044",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Bio se community join karo, networking shuru.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-045",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein apni city ka sub-group milega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-046",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo — yahan koi sales pressure nahi, sirf support.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-047",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Community mein hi free trial ka offer milta hai.",
+    "funnel_stage": "BOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-048",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Agents ki community — judo, grow karo, jeeto.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-049",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Join karo aur expert mentors se direct baat karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-COMMUNITY-050",
+    "category": "COMMUNITY",
+    "language": "mixed",
+    "text": "Ek community, anginat connections — abhi join karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-001",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free checklist download karo — link bio mein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-002",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "'Agency Setup Guide' free hai — comment 'GUIDE'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-003",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free follow-up script template — DM 'SCRIPT'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-004",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Lead tracking sheet free download — bio link.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-005",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: '30% leads kyun leak hote hain' — DM 'LEAK'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-006",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Khata book template free hai — comment 'KHATA'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-007",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free RERA compliance checklist — DM 'RERA'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-008",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "'AI Calling Starter Kit' free — comment 'AI'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-009",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: agent ka daily routine planner.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-010",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free pricing comparison sheet — link bio mein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-011",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "'5 CRM mistakes' PDF free — DM 'PDF'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-012",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free lead-magnet: property sharing templates.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-013",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide download karo — agency scale kaise karein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-014",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'PLAN' aur free business plan template lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-015",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free WhatsApp lead-capture template — DM 'WA'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-016",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: commission calculator sheet.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-017",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free e-book: 'Real estate CRM 101' — bio link.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-018",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'CHECKLIST' — free onboarding checklist.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-019",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free template: team performance tracker.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-020",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "'Follow-up calendar' free download — DM 'CAL'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-021",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: leads ko deals mein kaise badle.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-022",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: site-visit scheduling template.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-023",
+    "category": "LEAD-MAGNET",
+    "language": "mr-dominant",
+    "text": "Free PDF: 'Pune real estate market 2026' — DM 'PUNE'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-024",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'KIT' — free agent starter kit milega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-025",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free download: buyer-property matching sheet.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-026",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "'Cold call script' free hai — DM 'CALL'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-027",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free resource: 50 follow-up message templates.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-028",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download karo free — agency KPI dashboard template.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-029",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: spreadsheet se CRM tak — DM 'SHIFT'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-030",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'LEADS' — free lead scoring template.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-031",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free checklist: naye agent ko onboard kaise karein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-032",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: monthly closing report template.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-033",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free e-book: 'Agency ki growth ke 7 steps' — bio.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-034",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "DM 'TEMPLATE' — free CRM setup template milega.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-035",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: client objections kaise handle karein.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-036",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: property inventory tracker.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-037",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'FREE' — agent toolkit bhej denge.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-038",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free PDF: 'WhatsApp leads organise kaise karein'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-039",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free resource: demo se pehle ki tayari checklist.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-040",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: team commission split sheet.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-041",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: AI follow-up calls setup — DM 'AI'.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-042",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'GROW' — free agency growth playbook.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-043",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free template: weekly pipeline review format.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-044",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: lead source tracking sheet.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-045",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free guide: 2026 mein agent ko kya seekhna hai.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-046",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "DM 'BOOK' — free khata management e-book.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-047",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free checklist: data safe kaise rakhein (RBAC).",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-048",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Download free: client meeting prep template.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-049",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Free resource: deal closing checklist — bio link.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-LEAD-MAGNET-050",
+    "category": "LEAD-MAGNET",
+    "language": "mixed",
+    "text": "Comment 'START' aur free quick-start guide lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-001",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur roz ek agent-tip pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-002",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Real estate hacks chahiye? Follow @realtyflow_india.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-003",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo — kal ka tip miss mat karna.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-004",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Aise reels pasand hain? Follow kar lo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-005",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow @realtyflow_india for daily CRM gyaan.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-006",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, agency growth ke tips free mein.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-007",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Naye agent ho? Follow karo, seekhte raho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-008",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow + bell on — koi update miss na ho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-009",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Yeh helpful tha? Follow karke aur pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-010",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo — har din real estate ki ek baat.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-011",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Agent banna serious hai? Follow @realtyflow_india.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-012",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow kar lo, content roz aata hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-013",
+    "category": "FOLLOW",
+    "language": "hi-dominant",
+    "text": "Aur tips chahiye? Bas follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-014",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur apni agency 10x karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-015",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Daily real estate tips ke liye follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-016",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow @realtyflow_india — Hinglish mein gyaan.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-017",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, hum tumhe organised banayenge.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-018",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Yeh page tumhare kaam ka hai — follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-019",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow + save = perfect combo, bhai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-020",
+    "category": "FOLLOW",
+    "language": "mr-dominant",
+    "text": "Follow karo Pune real estate updates ke liye.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-021",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Sirf agents ke liye content — follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-022",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur competitor se aage raho.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-023",
+    "category": "FOLLOW",
+    "language": "hi-dominant",
+    "text": "Pasand aaya? Follow karo, aur aayega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-024",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow @realtyflow_india — CRM, leads, growth.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-025",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, demo updates pehle pao.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-026",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Naye features ki khabar? Follow kar lo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-027",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo — yeh page tumhe miss nahi karna.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-028",
+    "category": "FOLLOW",
+    "language": "hi-dominant",
+    "text": "Roz seekho, roz badho — follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-029",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow @realtyflow_india aur tip-of-the-day pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-030",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo agar deals close karna serious hai.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-031",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Yeh content free hai — bas follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-032",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, agency ki growth ka roadmap milega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-033",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Daily Hinglish real estate tips — follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-034",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow + comment = aur personalised content.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-035",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, hum tumhari journey mein saath hain.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-036",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Mumbai/Pune/Delhi agents — follow @realtyflow_india.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-037",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur AI calling tips miss mat karo.",
+    "funnel_stage": "MOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-038",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Yeh reel useful laga? Follow karke loyalty dikhao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-039",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo — knowledge free, growth tumhari.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-040",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Real estate ka real content — follow @realtyflow_india.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-041",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, kal phir milenge naye tip ke saath.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-042",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Smart agent? Follow karo smart content ke liye.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-043",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow + share = community grow karega.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-044",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur khata/commission tips pao.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-045",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Yeh page agents ke liye gold hai — follow karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-046",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow @realtyflow_india before tum scroll karo.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-047",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo, har reel mein ek naya hack.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-048",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Agency owner ho? Follow karo, strategy roz milegi.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-049",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Follow karo aur 2026 ka best agent bano.",
+    "funnel_stage": "TOFU"
+  },
+  {
+    "id": "CTA-FOLLOW-050",
+    "category": "FOLLOW",
+    "language": "mixed",
+    "text": "Tap follow — aur is tarah ke tips ka silsila shuru.",
+    "funnel_stage": "TOFU"
+  }
+]
