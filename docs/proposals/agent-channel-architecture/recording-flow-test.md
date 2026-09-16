@@ -1,6 +1,6 @@
 # Call Intelligence — Recording Flow Test Plan
 
-Companion to [`flows/03-call-intelligence.md`](./flows/03-call-intelligence.md). That doc describes the target architecture; this one is a practical guide to standing the flow up locally and proving it end to end before/after a change.
+Companion to [`flows/03-call-intelligence.md`](flows/03-call-intelligence.md). That doc describes the target architecture; this one is a practical guide to standing the flow up locally and proving it end to end before/after a change.
 
 **Scope:** upload → S3 → Amazon Transcribe → Gemini analysis → deterministic action plan → approval → CRM write (via `skillInvoker.invokeSkill`, same path WhatsApp uses).
 
@@ -9,7 +9,7 @@ Companion to [`flows/03-call-intelligence.md`](./flows/03-call-intelligence.md).
 ## 1. Understanding the flow (recap)
 
 ```
-Browser              API (server/routes/callRecordings.js)         Pipeline (services/callIntelligence/)
+Browser              API (apps/crm/server/routes/callRecordings.js)         Pipeline (services/callIntelligence/)
   │ upload-url  ─────────────▶  create DynamoDB row (PENDING_UPLOAD)
   │                             phoneExtractor + entityResolver match
   │◀──── pre-signed PUT URL ───
@@ -26,16 +26,16 @@ Browser              API (server/routes/callRecordings.js)         Pipeline (ser
 Key files:
 | Layer | File |
 |---|---|
-| Routes | `server/routes/callRecordings.js` |
-| Orchestration | `server/services/callIntelligence/pipeline.js` |
-| Transcription | `server/services/callIntelligence/transcription/amazonTranscribeProvider.js` |
-| Analysis (LLM) | `server/services/callIntelligence/analysisService.js`, `analysisPrompt.js` |
-| Action planning (rules, no LLM) | `server/services/callIntelligence/actionPlanner.js` |
-| Action execution (CRM write) | `server/services/callIntelligence/actionExecutor.js` |
+| Routes | `apps/crm/server/routes/callRecordings.js` |
+| Orchestration | `apps/crm/server/services/callIntelligence/pipeline.js` |
+| Transcription | `apps/crm/server/services/callIntelligence/transcription/amazonTranscribeProvider.js` |
+| Analysis (LLM) | `apps/crm/server/services/callIntelligence/analysisService.js`, `analysisPrompt.js` |
+| Action planning (rules, no LLM) | `apps/crm/server/services/callIntelligence/actionPlanner.js` |
+| Action execution (CRM write) | `apps/crm/server/services/callIntelligence/actionExecutor.js` |
 | Phone/entity matching | `phoneExtractor.js`, `entityResolver.js` |
 | Storage | `callRecordingRepository.js` (DynamoDB), `s3Service.js` (S3) |
-| Async worker (prod) | `server/workers/callRecordingWorker.js`, SQS queue in `server/infra/cfn-backend.yaml` |
-| Frontend | `real-estate-crm-app/src/pages/crm/CallRecordings.tsx`, `CallRecordingReviewDrawer.tsx` |
+| Async worker (prod) | `apps/crm/server/workers/callRecordingWorker.js`, SQS queue in `apps/crm/server/infra/cfn-backend.yaml` |
+| Frontend | `apps/crm/real-estate-crm-app/src/pages/crm/CallRecordings.tsx`, `CallRecordingReviewDrawer.tsx` |
 
 Two run modes, same code:
 - **Inline** (`CALL_RECORDING_QUEUE_URL` unset): pipeline runs synchronously in-process, nudged forward on every list/detail GET (`nudgeInlinePipeline`). This is what local testing uses.
@@ -49,7 +49,7 @@ Two run modes, same code:
 2. **DynamoDB table** — the existing CRM single-table (`CRM_DYNAMODB_TABLE_NAME`) with GSI `owner-property-index`. No new table needed.
 3. **S3 bucket** — `S3_BUCKET_NAME`, with CORS allowing `PUT`/`POST` from your dev origin (see the `cfn-backend.yaml` diff — `AllowedOrigins` param, not `"*"` in real deployments).
 4. **Gemini** — `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g. `gemini-2.5-flash`).
-5. **`server/.env`** — copy relevant keys from `server/.env.sample`:
+5. **`apps/crm/server/.env`** — copy relevant keys from `apps/crm/server/.env.sample`:
    ```
    CRM_DYNAMODB_TABLE_NAME=...
    S3_BUCKET_NAME=...
@@ -199,7 +199,7 @@ curl -X POST .../approve -d '{"arguments":{"leadId":"someone-elses-lead","status
 
 ### 4.16 S3 presign regression check (relevant to your current uncommitted diff)
 
-Since `s3Service.js` / `ai-calling-service/src/routes/knowledge.js` were just changed to fix `BadDigest` on presigned PUTs (SDK checksum defaults), explicitly re-run 4.1 step 2 (the raw `curl -X PUT` upload) and confirm it succeeds with `200`, not `400 BadDigest`. This is the regression the diff is fixing — do not skip it.
+Since `s3Service.js` / `services/ai-calling-service/src/routes/knowledge.js` were just changed to fix `BadDigest` on presigned PUTs (SDK checksum defaults), explicitly re-run 4.1 step 2 (the raw `curl -X PUT` upload) and confirm it succeeds with `200`, not `400 BadDigest`. This is the regression the diff is fixing — do not skip it.
 
 ### 4.17 UI walkthrough (browser)
 

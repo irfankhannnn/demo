@@ -19,9 +19,9 @@ Basic settings page; mixing them up is the most common setup failure.
 
 | Environment | File | Variables |
 |---|---|---|
-| Local | `backend_insta_sol_ms/.env.local` | `META_APP_ID`, `META_APP_SECRET` |
-| dev stack | `backend_insta_sol_ms/.env.dev` | same |
-| prod stack | `backend_insta_sol_ms/.env.prod` | same |
+| Local | `apps/instagram/backend_insta_sol_ms/.env.local` | `META_APP_ID`, `META_APP_SECRET` |
+| dev stack | `apps/instagram/backend_insta_sol_ms/.env.dev` | same |
+| prod stack | `apps/instagram/backend_insta_sol_ms/.env.prod` | same |
 
 All three files are gitignored (`.env.*`). `infra/deploy.sh` passes the values to
 CloudFormation as `NoEcho` parameters, and from there to the Lambda environment.

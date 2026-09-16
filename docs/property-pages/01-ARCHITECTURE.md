@@ -3,14 +3,14 @@
 ## Two services, one trust boundary
 
 `property-pages-ms` is internet-facing, anonymous, and crawler-visible. The
-CRM backend (`server/`) holds the real DynamoDB tables and the S3 documents
+CRM backend (`apps/crm/server/`) holds the real DynamoDB tables and the S3 documents
 bucket, including title deeds, occupancy certificates, tax receipts, owner
 phone numbers, and full addresses.
 
-`property-pages-ms`'s Lambda role (`property-pages-ms/infra/cfn-property-pages.yaml`,
+`property-pages-ms`'s Lambda role (`apps/property-pages-ms/infra/cfn-property-pages.yaml`,
 resource `PagesLambdaRole`) grants exactly one permission: `GetItem`/`PutItem`/
 `UpdateItem` on its own `GuardTable`. No CRM table ARN, no S3 ARN. It reaches
-CRM data only over HTTPS, through `server/routes/publicPagesInternal.js`,
+CRM data only over HTTPS, through `apps/crm/server/routes/publicPagesInternal.js`,
 authenticated with a shared key (`x-api-key`, compared via
 `crypto.timingSafeEqual`) plus an explicit `x-tenant-id` header — never a
 user JWT. A full compromise of the public service therefore yields nothing
@@ -20,7 +20,7 @@ anything else.
 
 ## The allowlist serialiser
 
-`server/publicListingService.js`'s `toPublicProperty()` and `toPublicAgency()`
+`apps/crm/server/publicListingService.js`'s `toPublicProperty()` and `toPublicAgency()`
 build a **new** object naming every field they emit. They never spread the
 stored item and never delete fields after the fact.
 
@@ -47,7 +47,7 @@ private listing is indistinguishable from one that never existed.
 
 ## Tenant addressing
 
-Two modes, both live at once (`property-pages-ms/middleware/resolveTenant.js`):
+Two modes, both live at once (`apps/property-pages-ms/middleware/resolveTenant.js`):
 
 - **Subdomain** — `<agency-slug>.<PUBLIC_PAGES_BASE_DOMAIN>`, read from
   `X-Forwarded-Host`, which a CloudFront Function (`PreserveHostFunction`)
@@ -103,7 +103,7 @@ API Gateway (REGIONAL, {proxy+}) --AWS_PROXY-->  PagesLambda
   v
 crmClient.js  --HTTPS, x-api-key + x-tenant-id-->
   v
-server/routes/publicPagesInternal.js   (CRM backend, "server/")
+apps/crm/server/routes/publicPagesInternal.js   (CRM backend, "apps/crm/server/")
   |
   |  publicListingService.js: toPublicProperty / toPublicAgency (allowlist)
   |  siteVisitBooking.js: bookSiteVisit -> ingestLead() + createMeeting()

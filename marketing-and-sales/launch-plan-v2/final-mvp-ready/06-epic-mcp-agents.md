@@ -23,7 +23,7 @@
   ai-employee/AGENTS.md     — operating rules: backend-first, no inventing APIs or data
   ai-employee/TOOLS.md      — tool execution model diagram
   ```
-- Bedrock v3 client: copy setup from `ai-calling-service/src/services/ragService.js` which uses `@aws-sdk/client-bedrock-agent-runtime`. For the API Lambda, use `@aws-sdk/client-bedrock-runtime` (InvokeModel, not AgentRuntime) — add to `server/package.json`.
+- Bedrock v3 client: copy setup from `services/ai-calling-service/src/services/ragService.js` which uses `@aws-sdk/client-bedrock-agent-runtime`. For the API Lambda, use `@aws-sdk/client-bedrock-runtime` (InvokeModel, not AgentRuntime) — add to `apps/crm/server/package.json`.
 - `.mcp.json` (project root): currently lists only external servers (higgsfield, meta-ads, blotato, git). Add `nabi-crm` stdio server in E6-T2.
 - Cron/Lambda + EventBridge patterns: clone `cron/trial-reminder.yaml`. Handlers export `handler`. Runtime `nodejs20.x`.
 - See `notes/codebase-reference.md` §8 for Bedrock client setup reference.
@@ -37,19 +37,19 @@
 **Goal:** One module both the MCP server and the WhatsApp processor (E1-T6) use to run a skill action for a tenant. Avoid duplicate invocation logic.
 
 **Files**
-- NEW `server/skillInvoker.js`
+- NEW `apps/crm/server/skillInvoker.js`
 
 **Detail**
-- `invokeSkill(tenantId, toolName, input, { userId, adminToken? })` in `server/skillInvoker.js`:
+- `invokeSkill(tenantId, toolName, input, { userId, adminToken? })` in `apps/crm/server/skillInvoker.js`:
   - Maps `toolName` → domain + action. Tool name format: `{action}_{entity}` e.g. `create_lead`, `search_buyers`, `update_property`.
-  - **In-Lambda path (default):** import CRM service functions directly from `server/crmDynamodbService.js` — no HTTP, no token juggling. Pass `tenantId` to every DynamoDB call explicitly.
+  - **In-Lambda path (default):** import CRM service functions directly from `apps/crm/server/crmDynamodbService.js` — no HTTP, no token juggling. Pass `tenantId` to every DynamoDB call explicitly.
   - **stdio/external path:** HTTP to CRM API using a service JWT signed with `JWT_SECRET` env var and claim `{ tenantId, source: 'mcp', userId }`.
-  - Validate `input` against schemas in `server/validation/crmSchemas.js` before any mutation.
+  - Validate `input` against schemas in `apps/crm/server/validation/crmSchemas.js` before any mutation.
   - Always passes `tenantId` explicitly; never relies on ambient state.
 - Returns a normalized `{ ok: boolean, data?: any, error?: string }`.
 
 **Security**
-- Tenant id is a required argument; reject if missing. Validate `input` with existing `server/validation/` schemas before mutating.
+- Tenant id is a required argument; reject if missing. Validate `input` with existing `apps/crm/server/validation/` schemas before mutating.
 
 **Tests**
 - Unit: `create_lead` routes to lead create with tenant; invalid input rejected.
@@ -66,9 +66,9 @@
 **Goal:** Expose CRM skills as MCP tools.
 
 **Files**
-- NEW `server/mcp-server/index.js` (ESM; use `@modelcontextprotocol/sdk`)
-- NEW `server/mcp-server/package.json` (its own deps; not bundled into the API Lambda)
-- NEW `server/mcp-server/tools.js` (tool schemas: `create_lead`, `search_leads`, `get_lead`, `update_lead`, `convert_lead`, and equivalents for contact/owner/property/tenant)
+- NEW `apps/crm/server/mcp-server/index.js` (ESM; use `@modelcontextprotocol/sdk`)
+- NEW `apps/crm/server/mcp-server/package.json` (its own deps; not bundled into the API Lambda)
+- NEW `apps/crm/server/mcp-server/tools.js` (tool schemas: `create_lead`, `search_leads`, `get_lead`, `update_lead`, `convert_lead`, and equivalents for contact/owner/property/tenant)
 - MODIFY `.mcp.json` — register `nabi-crm` stdio server.
 
 **Detail**
@@ -100,7 +100,7 @@
 **Goal:** A thin agent runner that calls Bedrock with the MCP/skill tools, gated by credits and per-tenant enable.
 
 **Files**
-- NEW `server/agents/agentRuntime.js` — wraps Bedrock (copy client/region pattern from `ai-calling-service/src/services/ragService.js`; use `@aws-sdk/client-bedrock-runtime` with `InvokeModelCommand` for direct model calls). Haiku-first model routing, tool-use loop delegating to `skillInvoker`. **Note:** `server/agents/` is a new directory — add `agents/` to the zip include in `deploy.sh`.
+- NEW `apps/crm/server/agents/agentRuntime.js` — wraps Bedrock (copy client/region pattern from `services/ai-calling-service/src/services/ragService.js`; use `@aws-sdk/client-bedrock-runtime` with `InvokeModelCommand` for direct model calls). Haiku-first model routing, tool-use loop delegating to `skillInvoker`. **Note:** `apps/crm/server/agents/` is a new directory — add `agents/` to the zip include in `deploy.sh`.
 - NEW `server/agentAuditService.js` — log each agent action to CRM table (`PK=TENANT#{t}#AGENTLOG#{ts}`) with input/output summary + credits charged.
 
 **Detail**
@@ -148,7 +148,7 @@ Bedrock Agent (running in Lambda)
 
 **Implementation**
 ```js
-// server/agents/agentRuntime.js
+// apps/crm/server/agents/agentRuntime.js
 async function invokeAgent(tenantId, prompt, context = {}) {
   // 1. Pre-check: credits, AGENTS_ENABLED flag
   if (!process.env.AGENTS_ENABLED) return { error: 'agents_disabled' };
@@ -243,10 +243,10 @@ const ALLOWED_TOOLS = [
 **Goal:** Auto-score new leads HOT/WARM/COLD with reasons.
 
 **Files**
-- NEW `server/agents/leadQualifierAgent.js`
-- NEW `server/scripts/lead-qualifier-handler.js` (Lambda handler, ships via zip)
+- NEW `apps/crm/server/agents/leadQualifierAgent.js`
+- NEW `apps/crm/server/scripts/lead-qualifier-handler.js` (Lambda handler, ships via zip)
 - NEW CFN: EventBridge rule on `crm.leads`/`lead.created` → handler (see `07-infra-cfn-deploy.md`)
-- MODIFY `server/routes/crm.js` lead-create: publish EventBridge `lead.created` `{leadId, tenantId, leadType}` (v3 `@aws-sdk/client-eventbridge`).
+- MODIFY `apps/crm/server/routes/crm.js` lead-create: publish EventBridge `lead.created` `{leadId, tenantId, leadType}` (v3 `@aws-sdk/client-eventbridge`).
 
 **Detail**
 - Handler resolves `{tenantId, leadId}`, loads lead via `skillInvoker get_lead`, runs `agentRuntime` with a qualification prompt, then `update_lead` with `score` + `reasons` (store on lead; extend lead schema with optional `score`, `scoreReasons`, `scoredAt`).
@@ -270,8 +270,8 @@ const ALLOWED_TOOLS = [
 **Goal:** Draft follow-ups for leads contacted 1–7 days ago.
 
 **Files**
-- NEW `server/agents/leadFollowupAgent.js`
-- NEW `server/scripts/lead-followup-cron.js` (handler)
+- NEW `apps/crm/server/agents/leadFollowupAgent.js`
+- NEW `apps/crm/server/scripts/lead-followup-cron.js` (handler)
 - NEW CFN `cron/lead-followup.yaml` (daily 09:30 IST)
 
 **Detail**
@@ -296,8 +296,8 @@ const ALLOWED_TOOLS = [
 **Goal:** Assign qualified leads to the best-fit available member.
 
 **Files**
-- NEW `server/agents/leadRouterAgent.js`
-- NEW `server/scripts/lead-router-handler.js` (handler)
+- NEW `apps/crm/server/agents/leadRouterAgent.js`
+- NEW `apps/crm/server/scripts/lead-router-handler.js` (handler)
 - NEW CFN EventBridge rule on `lead.qualified` → handler. Qualifier emits `lead.qualified` after scoring.
 
 **Detail**
@@ -322,7 +322,7 @@ const ALLOWED_TOOLS = [
 **Goal:** Show recent agent actions + credit cost.
 
 **Files**
-- NEW `real-estate-crm-app/src/components/AgentActivityLog.tsx`
+- NEW `apps/crm/real-estate-crm-app/src/components/AgentActivityLog.tsx`
 - NEW read endpoint `GET /api/admin/agent-activity` (from `agentAuditService`), admin-only.
 
 **Tests/Acceptance**

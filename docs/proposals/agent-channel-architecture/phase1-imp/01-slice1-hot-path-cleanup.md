@@ -4,10 +4,10 @@
 
 ## Why
 
-Every inbound WhatsApp message runs through `server/scripts/whatsapp-message-processor.js` before a reply goes out. Two things on that path were pure overhead:
+Every inbound WhatsApp message runs through `apps/crm/server/scripts/whatsapp-message-processor.js` before a reply goes out. Two things on that path were pure overhead:
 
 1. **Two "debug connectivity" fetches** ran on every single reply, right before sending it: a request to `https://www.google.com` and a request to the Bailey ALB's `/health` endpoint, each with a 5-second abort timeout. Both were fire-and-forget — wrapped in try/catch, their results only ever `console.log`ged, never read by any other code. Worst case (both time out): **up to ~10 seconds of added latency per message**, for zero functional value. This is exactly the kind of thing a user feels as "the WhatsApp bot is slow to reply" without any visible cause.
-2. **Tenant resolution ran its own inline DynamoDB `Scan`**, duplicating a helper that already existed. `server/agencyConfigService.js` already exports `getTenantIdByConnectedWhatsAppPhone(phone)` — same table, same filter, same Scan — and its own docstring even (incorrectly) claimed the processor already used it. Two copies of the same query is how logic drifts: a fix applied to one stops covering the other. `server/routes/webhooks.js` was already calling the shared helper; the processor was the odd one out.
+2. **Tenant resolution ran its own inline DynamoDB `Scan`**, duplicating a helper that already existed. `apps/crm/server/agencyConfigService.js` already exports `getTenantIdByConnectedWhatsAppPhone(phone)` — same table, same filter, same Scan — and its own docstring even (incorrectly) claimed the processor already used it. Two copies of the same query is how logic drifts: a fix applied to one stops covering the other. `apps/crm/server/routes/webhooks.js` was already calling the shared helper; the processor was the odd one out.
 
 Both were verified against the live code (not just the design doc) before touching anything — see the verification notes in [`../README.md`](../README.md) and [`../01-diagnosis.md`](../01-diagnosis.md).
 
@@ -15,7 +15,7 @@ This slice fixes both, with **zero change to what a user sees** and **zero infra
 
 ## What changed
 
-File: `server/scripts/whatsapp-message-processor.js`
+File: `apps/crm/server/scripts/whatsapp-message-processor.js`
 
 ### 1. Removed the two debug fetches
 
@@ -53,7 +53,7 @@ const chunkResult = await sendWhatsAppMessageChunks(replyTo, replyText, null, to
 const chunkResult = await sendWhatsAppMessageChunks(replyTo, replyText, null, to);
 ```
 
-Nothing replaces this — it was dead weight, not a guard protecting anything. `BAILEY_API_ENDPOINT` is still read elsewhere (in `server/bailey.js`, where the actual send happens), so nothing else references the removed usage.
+Nothing replaces this — it was dead weight, not a guard protecting anything. `BAILEY_API_ENDPOINT` is still read elsewhere (in `apps/crm/server/bailey.js`, where the actual send happens), so nothing else references the removed usage.
 
 ### 2. Deduplicated tenant resolution
 
@@ -112,7 +112,7 @@ The shared helper (`agencyConfigService.js`) does not itself catch errors — it
 
 ## How it was tested
 
-New file: `server/scripts/whatsapp-message-processor.test.js` (this file had **zero** test coverage before this slice). All collaborators (`bailey.js`, `whatsappConversationService.js`, `agencyConfigService.js`, `whatsappAccessControl.js`, `userCategoryService.js`, `conversationStateService.js`, `agents/agentRuntime.js`) are mocked via `jest.unstable_mockModule` — the test never touches DynamoDB, WhatsApp, or the network.
+New file: `apps/crm/server/scripts/whatsapp-message-processor.test.js` (this file had **zero** test coverage before this slice). All collaborators (`bailey.js`, `whatsappConversationService.js`, `agencyConfigService.js`, `whatsappAccessControl.js`, `userCategoryService.js`, `conversationStateService.js`, `agents/agentRuntime.js`) are mocked via `jest.unstable_mockModule` — the test never touches DynamoDB, WhatsApp, or the network.
 
 Four tests:
 
@@ -136,7 +136,7 @@ node --experimental-vm-modules node_modules/jest/bin/jest.js scripts/whatsapp-me
 | `agents/agentRuntime.test.js` (36 tests, closest existing coverage to this pipeline) | ✅ All pass, no regression |
 | `agents/goldenConversations.test.js` (reply-formatting regression suite) | ✅ All pass, no regression |
 | Full server suite (`npm test`) | 511/523 pass. **12 pre-existing failures** in `skillInvoker.test.js`, `agents/responseFormatter.test.js`, `normalizers/leadTextNormalizer.test.js` — confirmed via `git stash` that these fail identically with this slice's change removed, so they predate this work and are out of scope for this slice. |
-| Manual check: `BAILEY_API_ENDPOINT` still referenced correctly elsewhere | ✅ Only used in `server/bailey.js`, unaffected by this change |
+| Manual check: `BAILEY_API_ENDPOINT` still referenced correctly elsewhere | ✅ Only used in `apps/crm/server/bailey.js`, unaffected by this change |
 
 The 12 pre-existing failures are `toHaveBeenCalledWith` argument-shape mismatches (e.g. `skillInvoker.test.js` expecting `deleteProperty(tenantId, propertyId)` but the mock recording zero calls, and `getCRMMetrics` being called with an extra `{}` argument the test doesn't expect) — they look like test/implementation drift unrelated to anything touched here, and are worth a separate, dedicated look rather than folding a fix into this slice.
 

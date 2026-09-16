@@ -7,43 +7,43 @@
 ## 1. Server — Root Layout
 
 ### Module system
-`server/package.json` has `"type": "module"` → use `import`/`export` everywhere in server.
+`apps/crm/server/package.json` has `"type": "module"` → use `import`/`export` everywhere in server.
 AWS SDK: **v3** (`@aws-sdk/lib-dynamodb`, `@aws-sdk/client-s3`, etc.) — never use v2 patterns.
 
 ### Existing root-level service files (ship via `*.js` in zip)
 ```
-server/crmDynamodbService.js     — all CRM entity ops (12 entity types)
-server/subscriptionService.js    — getSubscription(tenantId), incrementSeatsPaid(tenantId), decrementSeatsPaid(tenantId)
-server/agencyConfigService.js    — per-tenant agency config
-server/dynamodbService.js        — general DynamoDB utility helpers
-server/awsClientWrapper.js       — AWS SDK client factory
-server/s3Service.js              — S3 upload/delete
-server/logger.js                 — logging (pino or console)
-server/expressError.js           — custom error classes (InsufficientCreditsError goes HERE, not a new file)
-server/requestId.js              — request ID generation
-server/webhookLogService.js      — webhook idempotency log
-server/notificationDynamodbService.js
-server/enquiryDynamodbService.js
-server/grievanceDynamodbService.js
-server/projectsDynamodbService.js
-server/developersDynamodbService.js
-server/areasDynamodbService.js
-server/realEstateAreasDynamodbService.js
-server/aiEmployeeProvisioningService.js
+apps/crm/server/crmDynamodbService.js     — all CRM entity ops (12 entity types)
+apps/crm/server/subscriptionService.js    — getSubscription(tenantId), incrementSeatsPaid(tenantId), decrementSeatsPaid(tenantId)
+apps/crm/server/agencyConfigService.js    — per-tenant agency config
+apps/crm/server/dynamodbService.js        — general DynamoDB utility helpers
+apps/crm/server/awsClientWrapper.js       — AWS SDK client factory
+apps/crm/server/s3Service.js              — S3 upload/delete
+apps/crm/server/logger.js                 — logging (pino or console)
+apps/crm/server/expressError.js           — custom error classes (InsufficientCreditsError goes HERE, not a new file)
+apps/crm/server/requestId.js              — request ID generation
+apps/crm/server/webhookLogService.js      — webhook idempotency log
+apps/crm/server/notificationDynamodbService.js
+apps/crm/server/enquiryDynamodbService.js
+apps/crm/server/grievanceDynamodbService.js
+apps/crm/server/projectsDynamodbService.js
+apps/crm/server/developersDynamodbService.js
+apps/crm/server/areasDynamodbService.js
+apps/crm/server/realEstateAreasDynamodbService.js
+apps/crm/server/aiEmployeeProvisioningService.js
 ```
 
 ### New root-level service files to create (all EPICs)
 ```
-server/creditService.js          — E2-T2 (deductCredits, grantCredits, getBalance, getLedger, resetMonthlyCredits)
-server/creditConfig.js           — E2-T1 (getCosts, getPacks, getFreeTier — 60s in-memory cache)
-server/emailService.js           — E3-T1 (sendEmail — SES primary, Brevo fallback)
-server/teamAnalyticsService.js   — E4-T1 (getTeamAnalytics(tenantId, {startDate,endDate}))
-server/dataQualityService.js     — E5-T1 (findIncomplete(tenantId), findExpiringAgreements(tenantId, days))
-server/skillInvoker.js           — E6-T1 (invokeSkill(tenantId, toolName, input, {userId}))
+apps/crm/server/creditService.js          — E2-T2 (deductCredits, grantCredits, getBalance, getLedger, resetMonthlyCredits)
+apps/crm/server/creditConfig.js           — E2-T1 (getCosts, getPacks, getFreeTier — 60s in-memory cache)
+apps/crm/server/emailService.js           — E3-T1 (sendEmail — SES primary, Brevo fallback)
+apps/crm/server/teamAnalyticsService.js   — E4-T1 (getTeamAnalytics(tenantId, {startDate,endDate}))
+apps/crm/server/dataQualityService.js     — E5-T1 (findIncomplete(tenantId), findExpiringAgreements(tenantId, days))
+apps/crm/server/skillInvoker.js           — E6-T1 (invokeSkill(tenantId, toolName, input, {userId}))
 server/agentAuditService.js      — E6-T3 (logAgentAction(tenantId, agentId, action, input, output, credits))
-server/bailey.js                 — E1-T4 (getPairingQr, sendWhatsAppMessage, verifyBaileySignature — no-op when BAILEY_ENABLED!=='true')
-server/razorpayOrders.js         — E2-T5 (createOrder({amount, receipt, notes}))
-server/whatsappAuditService.js   — E1-T6 (logMessage, logOutcome — PK=TENANT#{t}#WHATSAPP#{msgId})
+apps/crm/server/bailey.js                 — E1-T4 (getPairingQr, sendWhatsAppMessage, verifyBaileySignature — no-op when BAILEY_ENABLED!=='true')
+apps/crm/server/razorpayOrders.js         — E2-T5 (createOrder({amount, receipt, notes}))
+apps/crm/server/whatsappAuditService.js   — E1-T6 (logMessage, logOutcome — PK=TENANT#{t}#WHATSAPP#{msgId})
 ```
 
 ---
@@ -52,51 +52,51 @@ server/whatsappAuditService.js   — E1-T6 (logMessage, logOutcome — PK=TENANT
 
 ### Existing route files and their mount paths in server.js
 ```
-server/routes/billing.js         → /api/billing      (MOUNTED BEFORE express.json() — raw body)
-server/routes/auth.js            → /api/auth
-server/routes/subscriptions.js   → /api/subscriptions
-server/routes/crm.js             → /api/crm          (general CRM + leads at root)
-server/routes/leads.js           → /api/crm/leads    (also mounted separately)
-server/routes/contacts.js        → /api/crm/contacts
-server/routes/buyers.js          → /api/crm/buyers
-server/routes/khata.js           → /api/khata
-server/routes/feedback.js        → /api/feedback
-server/routes/grievance.js       → /api (grievance sub-paths)
-server/routes/notifications.js   → /api/notifications
-server/routes/aiEmployeeStatus.js → /api/ai-employee
-server/routes/b2bLeads.js        → /api
-server/routes/enquiries.js       → /api/enquiries
-server/routes/areas.js, areasBuildings.js, buildings.js, flats.js,
+apps/crm/server/routes/billing.js         → /api/billing      (MOUNTED BEFORE express.json() — raw body)
+apps/crm/server/routes/auth.js            → /api/auth
+apps/crm/server/routes/subscriptions.js   → /api/subscriptions
+apps/crm/server/routes/crm.js             → /api/crm          (general CRM + leads at root)
+apps/crm/server/routes/leads.js           → /api/crm/leads    (also mounted separately)
+apps/crm/server/routes/contacts.js        → /api/crm/contacts
+apps/crm/server/routes/buyers.js          → /api/crm/buyers
+apps/crm/server/routes/khata.js           → /api/khata
+apps/crm/server/routes/feedback.js        → /api/feedback
+apps/crm/server/routes/grievance.js       → /api (grievance sub-paths)
+apps/crm/server/routes/notifications.js   → /api/notifications
+apps/crm/server/routes/aiEmployeeStatus.js → /api/ai-employee
+apps/crm/server/routes/b2bLeads.js        → /api
+apps/crm/server/routes/enquiries.js       → /api/enquiries
+apps/crm/server/routes/areas.js, areasBuildings.js, buildings.js, flats.js,
   developers.js, projects.js, publicAreas.js, realEstateAreas.js → various /api paths
-server/routes/aiCallingInternal.js → internal calling
+apps/crm/server/routes/aiCallingInternal.js → internal calling
 ```
 
 ### New route files to create
 ```
-server/routes/admin.js           — E4-T1 mount: /api/admin    (validateToken + extractTenantId + requireAdmin)
-server/routes/webhooks.js        — E1-T5 mount: /api/webhooks BEFORE express.json() with express.raw()
-server/routes/creditAdmin.js     — E2-T6 mount: /api/credit-config (requireAdmin)
+apps/crm/server/routes/admin.js           — E4-T1 mount: /api/admin    (validateToken + extractTenantId + requireAdmin)
+apps/crm/server/routes/webhooks.js        — E1-T5 mount: /api/webhooks BEFORE express.json() with express.raw()
+apps/crm/server/routes/creditAdmin.js     — E2-T6 mount: /api/credit-config (requireAdmin)
 ```
 
 ### New routes to add to existing files
 ```
-server/routes/subscriptions.js:
+apps/crm/server/routes/subscriptions.js:
   GET  /credits            → balance + costs + packs (E2-T6)
   GET  /credits/ledger     → paginated ledger (E2-T6)
   POST /credits/purchase   → create Razorpay Order (E2-T5, admin only)
 
-server/routes/admin.js (NEW):
+apps/crm/server/routes/admin.js (NEW):
   GET  /team-analytics              → { items: [ memberMetrics ] } (E4-T1)
   GET  /team-analytics/export       → xlsx download (E4-T2)
   GET  /agent-activity              → agent log (E6-T7)
 
-server/routes/creditAdmin.js (NEW):
+apps/crm/server/routes/creditAdmin.js (NEW):
   GET  /                   → current config
   PUT  /costs              → update credit costs
   PUT  /packs              → update packs
   PUT  /free-tier          → update free tier
 
-server/routes/webhooks.js (NEW):
+apps/crm/server/routes/webhooks.js (NEW):
   POST /whatsapp           → Bailey inbound (E1-T5)
 ```
 
@@ -113,35 +113,35 @@ router.get('/path', validateToken, extractTenantId, requireRole('ADMIN'), async 
 ## 3. Server — Middleware
 
 ```
-server/middleware/validateToken.js
+apps/crm/server/middleware/validateToken.js
   export: validateToken(req, res, next)
   — calls {AUTH_SERVICE_URL}/auth/me, 5s cache, sets req.user + req.tenantId + req.agency
 
-server/middleware/requireRole.js
+apps/crm/server/middleware/requireRole.js
   export: requireRole(...allowedRoles)   — factory, e.g. requireRole('ADMIN','MANAGER')
   export: requireAdmin                   — requireRole('ADMIN','FOUNDER','OWNER')
   export: requireAdminOrManager          — requireRole('ADMIN','MANAGER')
 
-server/middleware/tenantMiddleware.js
+apps/crm/server/middleware/tenantMiddleware.js
   export: extractTenantId(req, res, next)          — mandatory; fails if no tenantId
   export: extractTenantIdOptional(req, res, next)  — optional; falls back to x-tenant-id header
 
-server/middleware/validateBody.js
+apps/crm/server/middleware/validateBody.js
   export: validateBody(schema)(req, res, next)
 
-server/middleware/rateLimiter.js  — applied to /api/* except billing webhook
-server/middleware/csp.js          — CSP headers
-server/middleware/requestLogger.js — request logging
-server/middleware/apiKeyAuth.js   — x-internal-api-key header auth
+apps/crm/server/middleware/rateLimiter.js  — applied to /api/* except billing webhook
+apps/crm/server/middleware/csp.js          — CSP headers
+apps/crm/server/middleware/requestLogger.js — request logging
+apps/crm/server/middleware/apiKeyAuth.js   — x-internal-api-key header auth
 
-server/middleware/meterCredits.js — NEW (E2-T3)
+apps/crm/server/middleware/meterCredits.js — NEW (E2-T3)
   export: meterCredits(actionType)  — factory
 ```
 
-### server/validation/
+### apps/crm/server/validation/
 ```
-server/validation/crmSchemas.js  — CRM entity Joi/Zod schemas (reuse in E6-T1 skillInvoker)
-server/validation/otherSchemas.js
+apps/crm/server/validation/crmSchemas.js  — CRM entity Joi/Zod schemas (reuse in E6-T1 skillInvoker)
+apps/crm/server/validation/otherSchemas.js
 ```
 
 ---
@@ -199,10 +199,10 @@ cloudberry-real-estate-credit-config  — env: CREDIT_CONFIG_TABLE_NAME
 
 ### Key files
 ```
-reality-flow-authentication/src/models/usersModel.ts   — UserItem interface + DynamoDB ops
-reality-flow-authentication/src/controllers/authController.ts
-reality-flow-authentication/src/routes/auth.ts          — protected routes
-reality-flow-authentication/src/routes/internal.ts      — internal service routes (x-internal-api-key)
+services/reality-flow-authentication/src/models/usersModel.ts   — UserItem interface + DynamoDB ops
+services/reality-flow-authentication/src/controllers/authController.ts
+services/reality-flow-authentication/src/routes/auth.ts          — protected routes
+services/reality-flow-authentication/src/routes/internal.ts      — internal service routes (x-internal-api-key)
 ```
 
 ### Endpoints called by server
@@ -245,7 +245,7 @@ interface UserItem {
 
 ---
 
-## 6. Frontend (real-estate-crm-app/src/)
+## 6. Frontend (apps/crm/real-estate-crm-app/src/)
 
 ### Environment variables (Vite, prefix VITE_)
 ```
@@ -344,7 +344,7 @@ if (profile.role !== 'ADMIN') { navigate('/member/no-access'); return; }
 ### Lambda entry point
 ```
 Handler: lambda-handler.handler
-File:    server/lambda-handler.js
+File:    apps/crm/server/lambda-handler.js
 Runtime: nodejs20.x
 ```
 
@@ -365,7 +365,7 @@ zip -r function.zip node_modules package.json *.js routes/ middleware/ utils/ \
 ```
 
 ### Syntax check gate
-`server/scripts/build.sh` — currently checks `routes/ middleware/ scripts/ lib/`.
+`apps/crm/server/scripts/build.sh` — currently checks `routes/ middleware/ scripts/ lib/`.
 Extend to also check root `*.js` and `agents/`.
 
 ### New cron stacks (each gets own CFN yaml in `cron/`)
@@ -376,15 +376,15 @@ New cron yaml files: `credit-reset.yaml`, `incomplete-data.yaml`, `expiring-agre
 
 ## 8. Bedrock Client Reference
 
-**Copy client setup from:** `ai-calling-service/src/services/ragService.js`
+**Copy client setup from:** `services/ai-calling-service/src/services/ragService.js`
 - Uses `@aws-sdk/client-bedrock-agent-runtime` (v3, already installed in ai-calling-service)
 - Region: `ap-south-1`
 - Tenant-isolation pattern: inject `tenantId` into session/invocation metadata
 
-For the API Lambda (`server/agents/`):
+For the API Lambda (`apps/crm/server/agents/`):
 ```js
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
-// (add @aws-sdk/client-bedrock-runtime to server/package.json)
+// (add @aws-sdk/client-bedrock-runtime to apps/crm/server/package.json)
 const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 ```
 
@@ -393,7 +393,7 @@ const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION || 'ap
 ## 9. Cron Pattern Reference
 
 **Template to clone:** `cron/trial-reminder.yaml`
-**Handler reference:** `server/scripts/trial-reminder-cron.js` (exports `handler` async function)
+**Handler reference:** `apps/crm/server/scripts/trial-reminder-cron.js` (exports `handler` async function)
 
 Schedule expressions (all UTC, IST = UTC+5:30):
 ```
@@ -428,7 +428,7 @@ POST /check-seat      — pre-invite seat check; returns 402 at limit
 
 ## 12. Environment Variables — Complete MVP Addition List
 
-Add to `server/.env.example` and CFN parameters:
+Add to `apps/crm/server/.env.example` and CFN parameters:
 ```
 # Credits (E2)
 CREDITS_TABLE_NAME=cloudberry-real-estate-credits
@@ -449,4 +449,4 @@ BAILEY_API_ENDPOINT=https://api.bailey.ai
 AGENTS_ENABLED=false
 ```
 
-Frontend `.env.example` additions: none needed for E1-E5. For E6 (MCP local): documented in `server/mcp-server/README.md`.
+Frontend `.env.example` additions: none needed for E1-E5. For E6 (MCP local): documented in `apps/crm/server/mcp-server/README.md`.

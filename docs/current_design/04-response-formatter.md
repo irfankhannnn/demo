@@ -1,6 +1,6 @@
 # Priority 4 — Response Formatter Architecture
 
-Source: `server/agents/responseFormatter.js` + `server/agents/formatting/`
+Source: `apps/crm/server/agents/responseFormatter.js` + `apps/crm/server/agents/formatting/`
 
 Product templates: [`docs/interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md`](../interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md)
 
@@ -28,7 +28,7 @@ Summary / insight tools: LLM owns the reply (3-layer).
 ## Module layout
 
 ```
-server/agents/formatting/
+apps/crm/server/agents/formatting/
   utils.js        # money, dates, relative dates, phone, capitalize
   sections.js     # contact / timeline / note / recommendation blocks
   insight.js      # rule-based fallback insights

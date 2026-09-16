@@ -3,7 +3,7 @@
 Written 2026-09-11 after a domain-migration exercise (`landing-pages`,
 `real-estate-crm-app`, `reality-flow-authentication` all redeployed to point
 at `realestateflow.in`/`app.realestateflow.in`) exposed how expensive a pure
-config change currently is in this repo's `cfn-templates-cicd/<service>/
+config change currently is in this repo's `infra/cicd/<service>/
 deploy.sh` pipelines. This doc is a design brief for whoever builds a
 lighter-weight path — it is not an implementation, and no code here has been
 written yet.
@@ -46,8 +46,8 @@ the expensive thing every time).
 2. **Backend runtime env vars, CFN-parameterized into `Environment.Variables`
    on a Lambda.** `ALLOWED_ORIGINS`, `IDENTITY_CALLBACK_URL`,
    `CRM_INTERNAL_API_URL`, feature flags like `AGENTS_ENABLED`, credit costs,
-   rate limits, etc. — everything server/.env.dev, reality-flow-
-   authentication/.env.dev, property-pages-ms/.env.dev, backend_insta_sol_ms/
+   rate limits, etc. — everything apps/crm/server/.env.dev, reality-flow-
+   authentication/.env.dev, apps/property-pages-ms/.env.dev, apps/instagram/backend_insta_sol_ms/
    .env.dev carry. These are consumed via `process.env.X` at Lambda runtime,
    not baked into any artifact. **In principle** these should be exactly as
    cheap as category 1 — a CFN parameter update against the already-deployed
@@ -88,7 +88,7 @@ A config-only mode therefore needs to explicitly **pin the code-location
 parameter(s) to whatever the currently-deployed build already used**, rather
 than generating a new one. Concretely: read the last deployed build's
 `S3Key`/`S3ObjectVersion` out of that build's recorded `manifest.json` (every
-wrapper already writes one to `cfn-templates-cicd/<service>/deploy-versions/
+wrapper already writes one to `infra/cicd/<service>/deploy-versions/
 <build>/manifest.json`) and feed that exact value back into the parameter
 set — or use CloudFormation's own `UsePreviousValue: true` parameter flag for
 just that key, which is the mechanism AWS built for precisely this ("leave
@@ -136,7 +136,7 @@ Suggested shape for the new track, mirroring the existing `manifest.json`
 pattern per the request for "dates, commit id, version":
 
 ```
-cfn-templates-cicd/<service>/config-versions/<NNNN>/manifest.json
+infra/cicd/<service>/config-versions/<NNNN>/manifest.json
 ```
 ```jsonc
 {

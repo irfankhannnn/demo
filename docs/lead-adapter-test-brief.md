@@ -5,7 +5,7 @@ Short handover brief. Paste this to a test agent. Full detail:
 
 ## What changed, in one paragraph
 
-Every lead from every source now goes through one function (`server/leadIngestion.js`)
+Every lead from every source now goes through one function (`apps/crm/server/leadIngestion.js`)
 into one table (`CrmTable`, `EntityType: 'LEAD'`) and gets the same downstream
 pipeline (notification → `lead.created` → AI qualification call → score → closure).
 Instagram enquiries captured by the laptop agent are now promoted into real CRM
@@ -15,7 +15,7 @@ manual work is free, AI work costs credits.
 
 ## Setup
 
-Both `server/.env` and `backend_insta_sol_ms/.env` need the **same**
+Both `apps/crm/server/.env` and `apps/instagram/backend_insta_sol_ms/.env` need the **same**
 `ADAPTER_INTERNAL_API_KEY` (`openssl rand -hex 32`). Also set
 `CRM_INTERNAL_API_URL` (microservice), `AGENTS_ENABLED=true` (server), and a
 tenant's `instagramWebhookToken`.
@@ -52,7 +52,7 @@ cd server && NODE_OPTIONS=--experimental-vm-modules npx jest \
 ## Known-good baselines (don't report these as regressions)
 
 - `real-estate-crm-app` has **98 pre-existing type errors**, 3 in touched files. `frontend_insta_sol_ms` is clean.
-- Jest is not installed in `server/node_modules` — use `npx` as shown.
+- Jest is not installed in `apps/crm/server/node_modules` — use `npx` as shown.
 - `insta-data` still stores enquiries; that's intended. The **lead** lives only in `CrmTable`.
 
 ## Rollback

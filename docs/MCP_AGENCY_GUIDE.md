@@ -385,4 +385,4 @@ Need help? Contact us:
 
 ---
 
-*For developers, see [MCP_DEVELOPER_GUIDE.md](./MCP_DEVELOPER_GUIDE.md)*
+*For developers, see [MCP_DEVELOPER_GUIDE.md](MCP_DEVELOPER_GUIDE.md)*

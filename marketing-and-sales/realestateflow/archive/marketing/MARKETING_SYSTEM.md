@@ -141,7 +141,7 @@ marketing/
 │   └── linkedin/           ← professional copy per post
 ├── content/
 │   ├── blog/               ← SEO articles
-│   ├── landing-pages/      ← HTML pages
+│   ├── apps/landing-pages/      ← HTML pages
 │   └── emails/             ← email sequences
 └── reports/                ← analytics + performance
 ```

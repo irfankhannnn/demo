@@ -256,12 +256,12 @@ Never dump every metric field.
 
 | Concern | Code |
 |---------|------|
-| Templates | `server/agents/formatting/` |
-| Orchestrator | `server/agents/responseFormatter.js` |
-| Prompt rules | `server/agents/prompts.js` |
-| Routing registry | `server/agents/formatting/routing.js` |
-| AI DTOs | `server/aiViewBuilders/`, `server/aiDtoMiddleware.js` |
-| Memory | `server/conversationStateService.js` |
+| Templates | `apps/crm/server/agents/formatting/` |
+| Orchestrator | `apps/crm/server/agents/responseFormatter.js` |
+| Prompt rules | `apps/crm/server/agents/prompts.js` |
+| Routing registry | `apps/crm/server/agents/formatting/routing.js` |
+| AI DTOs | `apps/crm/server/aiViewBuilders/`, `apps/crm/server/aiDtoMiddleware.js` |
+| Memory | `apps/crm/server/conversationStateService.js` |
 
 ---
 

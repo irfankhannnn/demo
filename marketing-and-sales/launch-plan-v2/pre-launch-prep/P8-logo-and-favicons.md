@@ -32,7 +32,7 @@ As a founder sharing `realestateflow.in/pricing` on LinkedIn, I want a sharp 120
   - `og-demo.png` — "See it qualify a buyer in 90 seconds."
 - [ ] All assets committed under `marketing-and-sales/realestateflow/assets/`
 - [ ] All 5 LP HTMLs reference the SVG logo (replaces inline ad-hoc SVG) — actually executed in P15
-- [ ] CRM SPA header (`real-estate-crm-app/src/components/Header.tsx` or equivalent) imports the SVG
+- [ ] CRM SPA header (`apps/crm/real-estate-crm-app/src/components/Header.tsx` or equivalent) imports the SVG
 - [ ] OG template card preview tested at https://www.opengraph.xyz/url/realestateflow.in for each page after deploy
 
 ## AI Prompt (🤖)

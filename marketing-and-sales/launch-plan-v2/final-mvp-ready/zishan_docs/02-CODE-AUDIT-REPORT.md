@@ -30,7 +30,7 @@
 
 ### 🔴 BLOCKER #1: `deploy.sh` missing 8 new CFN parameters
 **Severity:** CRITICAL — Deployment will use defaults, not .env values  
-**Files:** `server/infra/deploy.sh` (lines 147-183, 190-224)  
+**Files:** `apps/crm/server/infra/deploy.sh` (lines 147-183, 190-224)  
 **Issue:** 8 new parameters defined in `cfn-backend.yaml` are NOT passed by `deploy.sh`:
 - `CreditsTableName`, `CreditConfigTableName`
 - `SesFromEmail`, `EmailProviderPrimary`
@@ -45,7 +45,7 @@
 
 ### 🔴 BLOCKER #2: `escalation-cron.js` syntax error
 **Severity:** CRITICAL — Cron Lambda will fail to load  
-**File:** `server/scripts/escalation-cron.js` (line 98)  
+**File:** `apps/crm/server/scripts/escalation-cron.js` (line 98)  
 **Issue:** Handler function missing closing brace `}`. Code after line 98 is orphaned outside the function scope.
 
 ```javascript
@@ -203,7 +203,7 @@ export async function handler(event) {
 4. **No input validation in skillInvoker.js** — plan requires validation against `crmSchemas.js` before mutations; not implemented
 5. **Lead qualifier hardcoded score** — always sets `score='WARM'` instead of extracting from agent response
 6. **No idempotency in lead qualifier** — will re-score leads if triggered multiple times
-7. **Duplicate agentAuditService.js** — root-level `server/agentAuditService.js` is unused; `server/agents/agentAuditService.js` is the correct one
+7. **Duplicate agentAuditService.js** — root-level `server/agentAuditService.js` is unused; `apps/crm/server/agents/agentAuditService.js` is the correct one
 
 ---
 
@@ -239,8 +239,8 @@ export async function handler(event) {
 
 | # | Issue | File | EPIC |
 |---|-------|------|------|
-| 1 | deploy.sh missing 8 CFN parameters | server/infra/deploy.sh | Infra/E2/E3 |
-| 2 | escalation-cron.js syntax error (missing `}`) | server/scripts/escalation-cron.js:98 | E3 |
+| 1 | deploy.sh missing 8 CFN parameters | apps/crm/server/infra/deploy.sh | Infra/E2/E3 |
+| 2 | escalation-cron.js syntax error (missing `}`) | apps/crm/server/scripts/escalation-cron.js:98 | E3 |
 | 3 | Cron YAMLs missing SES env vars + IAM | cron/trial-reminder.yaml, cron/escalate-openclaw.yaml | E3 |
 | 4 | lead-qualifier.yaml incomplete (no Code/Role/Env) | cron/lead-qualifier.yaml | E6/Infra |
 | 5 | 3 cron templates missing | cron/lead-followup.yaml, cron/lead-router.yaml, cron/whatsapp-processor.yaml | E6/Infra |
@@ -249,28 +249,28 @@ export async function handler(event) {
 
 | # | Issue | File | EPIC |
 |---|-------|------|------|
-| 6 | E6-T5 lead-router-handler.js + YAML missing | server/scripts/lead-router-handler.js | E6 |
-| 7 | E6-T6 lead-followup-cron.js + YAML missing | server/scripts/lead-followup-cron.js | E6 |
-| 8 | E5-T3 missing member grouping + notifications | server/scripts/expiring-agreements-cron.js | E5 |
-| 9 | skillInvoker.js missing 10 of 22 tools | server/skillInvoker.js:18-32 | E6 |
-| 10 | No input validation in skillInvoker.js | server/skillInvoker.js | E6 |
+| 6 | E6-T5 lead-router-handler.js + YAML missing | apps/crm/server/scripts/lead-router-handler.js | E6 |
+| 7 | E6-T6 lead-followup-cron.js + YAML missing | apps/crm/server/scripts/lead-followup-cron.js | E6 |
+| 8 | E5-T3 missing member grouping + notifications | apps/crm/server/scripts/expiring-agreements-cron.js | E5 |
+| 9 | skillInvoker.js missing 10 of 22 tools | apps/crm/server/skillInvoker.js:18-32 | E6 |
+| 10 | No input validation in skillInvoker.js | apps/crm/server/skillInvoker.js | E6 |
 
 ### 🟠 MEDIUM (5 — Logic issues)
 
 | # | Issue | File | EPIC |
 |---|-------|------|------|
-| 11 | Lead qualifier hardcoded score='WARM' | server/scripts/lead-qualifier-handler.js:19 | E6 |
-| 12 | No refund on handler failure (credit metering) | server/routes/leads.js | E2 |
-| 13 | meterCredits not used as middleware (manual pattern) | server/routes/leads.js | E2 |
-| 14 | No idempotency in lead qualifier | server/scripts/lead-qualifier-handler.js | E6 |
+| 11 | Lead qualifier hardcoded score='WARM' | apps/crm/server/scripts/lead-qualifier-handler.js:19 | E6 |
+| 12 | No refund on handler failure (credit metering) | apps/crm/server/routes/leads.js | E2 |
+| 13 | meterCredits not used as middleware (manual pattern) | apps/crm/server/routes/leads.js | E2 |
+| 14 | No idempotency in lead qualifier | apps/crm/server/scripts/lead-qualifier-handler.js | E6 |
 | 15 | Duplicate agentAuditService.js (unused root copy) | server/agentAuditService.js | E6 |
 
 ### 🔵 LOW (3 — Cosmetic/minor)
 
 | # | Issue | File | EPIC |
 |---|-------|------|------|
-| 16 | gracePeriodActive not in SubscriptionContextValue interface | real-estate-crm-app/src/contexts/SubscriptionContext.tsx:24 | E1 |
-| 17 | BAILEY_API_ENDPOINT not in CFN params (hardcoded default) | server/infra/cfn-backend.yaml | E1 |
+| 16 | gracePeriodActive not in SubscriptionContextValue interface | apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx:24 | E1 |
+| 17 | BAILEY_API_ENDPOINT not in CFN params (hardcoded default) | apps/crm/server/infra/cfn-backend.yaml | E1 |
 | 18 | credit-reset.yaml schedule mismatch (30 min off) | cron/credit-reset.yaml:55 | Infra |
 
 ---
@@ -278,34 +278,34 @@ export async function handler(event) {
 ## WHAT'S ACTUALLY WORKING (Verified Correct)
 
 ### ✅ Backend Services (all verified line-by-line)
-- `server/creditService.js` — atomic TransactWrite, InsufficientCreditsError, all 5 functions
-- `server/creditConfig.js` — 60s cache, fallback defaults, seed function
-- `server/emailService.js` — SES primary + Brevo fallback, 5s timeout, @aws-sdk/client-sesv2
-- `server/bailey.js` — getPairingQr, sendWhatsAppMessage, verifyBaileySignature, feature-flagged
-- `server/teamAnalyticsService.js` — cross-service join, all memberMetrics fields
-- `server/dataQualityService.js` — all completeness rules, expiring agreements
-- `server/whatsappAuditService.js` — logMessage, logOutcome
-- `server/razorpayOrders.js` — createOrder
-- `server/agents/agentRuntime.js` — Bedrock tool-use loop, credit gating, audit logging
-- `server/agents/agentAuditService.js` — logAgentAction, getAgentActivity
-- `server/skillInvoker.js` — invokeSkill (partial tool map)
-- `server/middleware/meterCredits.js` — factory + helpers (not used as middleware though)
+- `apps/crm/server/creditService.js` — atomic TransactWrite, InsufficientCreditsError, all 5 functions
+- `apps/crm/server/creditConfig.js` — 60s cache, fallback defaults, seed function
+- `apps/crm/server/emailService.js` — SES primary + Brevo fallback, 5s timeout, @aws-sdk/client-sesv2
+- `apps/crm/server/bailey.js` — getPairingQr, sendWhatsAppMessage, verifyBaileySignature, feature-flagged
+- `apps/crm/server/teamAnalyticsService.js` — cross-service join, all memberMetrics fields
+- `apps/crm/server/dataQualityService.js` — all completeness rules, expiring agreements
+- `apps/crm/server/whatsappAuditService.js` — logMessage, logOutcome
+- `apps/crm/server/razorpayOrders.js` — createOrder
+- `apps/crm/server/agents/agentRuntime.js` — Bedrock tool-use loop, credit gating, audit logging
+- `apps/crm/server/agents/agentAuditService.js` — logAgentAction, getAgentActivity
+- `apps/crm/server/skillInvoker.js` — invokeSkill (partial tool map)
+- `apps/crm/server/middleware/meterCredits.js` — factory + helpers (not used as middleware though)
 
 ### ✅ Routes (all verified)
-- `server/routes/admin.js` — team-analytics, export, agent-activity (admin-gated)
-- `server/routes/creditAdmin.js` — GET config, PUT costs/packs/free-tier
-- `server/routes/webhooks.js` — POST /whatsapp (HMAC verified, idempotent)
-- `server/routes/billing.js` — payment.captured → grantCredits, HMAC verified
-- `server/routes/subscriptions.js` — GET /credits, /credits/ledger, POST /credits/purchase
-- `server/routes/leads.js` — EventBridge publish (guarded by AGENTS_ENABLED)
+- `apps/crm/server/routes/admin.js` — team-analytics, export, agent-activity (admin-gated)
+- `apps/crm/server/routes/creditAdmin.js` — GET config, PUT costs/packs/free-tier
+- `apps/crm/server/routes/webhooks.js` — POST /whatsapp (HMAC verified, idempotent)
+- `apps/crm/server/routes/billing.js` — payment.captured → grantCredits, HMAC verified
+- `apps/crm/server/routes/subscriptions.js` — GET /credits, /credits/ledger, POST /credits/purchase
+- `apps/crm/server/routes/leads.js` — EventBridge publish (guarded by AGENTS_ENABLED)
 
 ### ✅ Cron Handlers (verified)
-- `server/scripts/credit-reset-cron.js` — tenant iteration, billingAnniversaryDay, idempotent
-- `server/scripts/incomplete-data-cron.js` — tenant iteration, WhatsApp/email
-- `server/scripts/expiring-agreements-cron.js` — tenant iteration (but missing member grouping)
-- `server/scripts/team-summary-cron.js` — per-member breakdown, Bailey + email
-- `server/scripts/trial-reminder-cron.js` — uses emailService.sendEmail
-- `server/scripts/whatsapp-message-processor.js` — parseWhatsAppCommand, handler
+- `apps/crm/server/scripts/credit-reset-cron.js` — tenant iteration, billingAnniversaryDay, idempotent
+- `apps/crm/server/scripts/incomplete-data-cron.js` — tenant iteration, WhatsApp/email
+- `apps/crm/server/scripts/expiring-agreements-cron.js` — tenant iteration (but missing member grouping)
+- `apps/crm/server/scripts/team-summary-cron.js` — per-member breakdown, Bailey + email
+- `apps/crm/server/scripts/trial-reminder-cron.js` — uses emailService.sendEmail
+- `apps/crm/server/scripts/whatsapp-message-processor.js` — parseWhatsAppCommand, handler
 
 ### ✅ Frontend (all verified)
 - `RegisterAdmin.tsx` — form submits to /auth/register-admin
@@ -335,8 +335,8 @@ export async function handler(event) {
 4. Fix `cron/lead-qualifier.yaml` — add Code, Role, Environment
 
 ### Phase 2: Complete Missing Agent Features (2-3 days)
-5. Create `server/scripts/lead-router-handler.js` + `cron/lead-router.yaml`
-6. Create `server/scripts/lead-followup-cron.js` + `cron/lead-followup.yaml`
+5. Create `apps/crm/server/scripts/lead-router-handler.js` + `cron/lead-router.yaml`
+6. Create `apps/crm/server/scripts/lead-followup-cron.js` + `cron/lead-followup.yaml`
 7. Create `cron/whatsapp-processor.yaml`
 8. Add missing 10 tools to `skillInvoker.js` TOOL_MAP
 9. Add input validation to `skillInvoker.js` using `crmSchemas.js`

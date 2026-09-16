@@ -29,7 +29,7 @@ Committed in 4 commits.
 | `TEST_PHONE` | A real phone number | Replace with a dedicated test number |
 | `TEST_OTP=123456` | Fixed OTP, env-gated | Confirm the prod stack parameter (below) |
 
-**On the fixed OTP — checked, and it is not a bypass by default.** It only applies when `TEST_OTP_ENABLED === 'true'` (`reality-flow-authentication/src/models/phoneLinkOtpModel.ts:48-52`, and the Cognito custom-auth trigger at `infra/cfn-backend.yaml:671`). It defaults to `false` in both `infra/deploy.sh:160` and `sample.env:46`, and is surfaced as the `TestOtpEnabled` CloudFormation parameter.
+**On the fixed OTP — checked, and it is not a bypass by default.** It only applies when `TEST_OTP_ENABLED === 'true'` (`services/reality-flow-authentication/src/models/phoneLinkOtpModel.ts:48-52`, and the Cognito custom-auth trigger at `infra/cfn-backend.yaml:671`). It defaults to `false` in both `infra/deploy.sh:160` and `sample.env:46`, and is surfaced as the `TestOtpEnabled` CloudFormation parameter.
 
 The one thing left to confirm is that the deployed production stack wasn't given `true`:
 

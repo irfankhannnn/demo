@@ -11,10 +11,10 @@
 Before writing a single line of code, read these files in full:
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md`
-3. `server/crmDynamodbService.js` (lines 1-100 for DDB patterns)
-4. `server/awsClientWrapper.js`
-5. `server/tenantMiddleware.js`
-6. `real-estate-crm-app/src/App.tsx` (lines 1-50 and 175-270 for route patterns)
+3. `apps/crm/server/crmDynamodbService.js` (lines 1-100 for DDB patterns)
+4. `apps/crm/server/awsClientWrapper.js`
+5. `apps/crm/server/tenantMiddleware.js`
+6. `apps/crm/real-estate-crm-app/src/App.tsx` (lines 1-50 and 175-270 for route patterns)
 7. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P5-demo-environment.md`
 8. `marketing-and-sales/research/icp-report-mumbai-launch.md` (for Mumbai-realistic data)
 
@@ -22,7 +22,7 @@ Before writing a single line of code, read these files in full:
 
 ## What to Build
 
-### 1. `server/scripts/seed-demo-tenant.js`
+### 1. `apps/crm/server/scripts/seed-demo-tenant.js`
 
 Self-contained Node ES module. CLI: `node seed-demo-tenant.js [--reset] [--tenant=DEMO_REALESTATEFLOW]`
 
@@ -42,7 +42,7 @@ Self-contained Node ES module. CLI: `node seed-demo-tenant.js [--reset] [--tenan
 - Exits non-zero on any error
 - Has JSDoc explaining how to extend
 
-### 2. `server/scripts/reset-demo-tenant.js`
+### 2. `apps/crm/server/scripts/reset-demo-tenant.js`
 
 Thin wrapper: calls `--reset` on seed-demo-tenant.js. Designed to be invoked by Lambda cron.
 
@@ -58,7 +58,7 @@ EventBridge rule + Lambda permissions spec:
 
 Include the matching `serverless.yaml` snippet format. Document IST timezone math.
 
-### 4. `real-estate-crm-app/src/components/DemoBanner.tsx`
+### 4. `apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx`
 
 React component:
 - Reads `import.meta.env.VITE_IS_DEMO` — returns null if not 'true'
@@ -71,7 +71,7 @@ React component:
 
 ## Where to Mount DemoBanner in App.tsx
 
-Find the `{/* === [LAUNCH LAYOUT COMPONENTS] === */}` block in `real-estate-crm-app/src/App.tsx`.
+Find the `{/* === [LAUNCH LAYOUT COMPONENTS] === */}` block in `apps/crm/real-estate-crm-app/src/App.tsx`.
 
 Add exactly this inside that block:
 ```tsx
@@ -90,7 +90,7 @@ import DemoBanner from './components/DemoBanner';
 
 ## What NOT to Touch
 
-- `server/server.js` — no route mounts needed (seed script is CLI-only)
+- `apps/crm/server/server.js` — no route mounts needed (seed script is CLI-only)
 - Any existing route files
 - Any LP files
 - Any other component files
@@ -99,8 +99,8 @@ import DemoBanner from './components/DemoBanner';
 
 ## Acceptance Tests (manual verification)
 
-1. `node server/scripts/seed-demo-tenant.js --tenant=DEMO_TEST` → no errors, logs row counts
-2. `node server/scripts/seed-demo-tenant.js --reset --tenant=DEMO_TEST` → deletes + re-seeds, counts same
+1. `node apps/crm/server/scripts/seed-demo-tenant.js --tenant=DEMO_TEST` → no errors, logs row counts
+2. `node apps/crm/server/scripts/seed-demo-tenant.js --reset --tenant=DEMO_TEST` → deletes + re-seeds, counts same
 3. DemoBanner renders with `VITE_IS_DEMO=true` + hides with `VITE_IS_DEMO=false`
 4. DemoBanner dismisses when X clicked; does NOT reappear on same-tab page navigation; DOES reappear after tab close + reopen
 
@@ -114,13 +114,13 @@ PR-A: Demo environment — seed script + cron + DemoBanner
 Batch 1 | Day 1 | Parallel with PR-B, PR-C, PR-D
 
 Files created:
-- server/scripts/seed-demo-tenant.js — 20 buyers, 15 owners, 10 properties, 8 leads, 5 AI transcripts
-- server/scripts/reset-demo-tenant.js — cron wrapper
+- apps/crm/server/scripts/seed-demo-tenant.js — 20 buyers, 15 owners, 10 properties, 8 leads, 5 AI transcripts
+- apps/crm/server/scripts/reset-demo-tenant.js — cron wrapper
 - cron/reset-demo.yaml — EventBridge cron spec (2 AM IST daily)
-- real-estate-crm-app/src/components/DemoBanner.tsx — VITE_IS_DEMO=true banner
+- apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx — VITE_IS_DEMO=true banner
 
 Files modified:
-- real-estate-crm-app/src/App.tsx — added DemoBanner to LAUNCH LAYOUT COMPONENTS block
+- apps/crm/real-estate-crm-app/src/App.tsx — added DemoBanner to LAUNCH LAYOUT COMPONENTS block
 
 Source task: ZEE-001 (pre-launch-prep/P5-demo-environment.md)
 ```

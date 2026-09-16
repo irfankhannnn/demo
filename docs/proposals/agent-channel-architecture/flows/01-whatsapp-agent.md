@@ -12,19 +12,19 @@
 WhatsApp user
     │
     ▼
-Baileys  (whatsapp-platform/, self-hosted ECS)
+Baileys  (services/whatsapp-platform/, self-hosted ECS)
     │ webhook
     ▼
-server/routes/webhooks.js ──▶ EventBridge  (source: whatsapp.incoming)
+apps/crm/server/routes/webhooks.js ──▶ EventBridge  (source: whatsapp.incoming)
     │                          │ local dev: direct import instead
     ▼                          ▼
-Lambda: server/scripts/whatsapp-message-processor.js
+Lambda: apps/crm/server/scripts/whatsapp-message-processor.js
     │  ├─ tenant resolution   ← ScanCommand on AgencyConfigTable
     │  ├─ atomic dedup claim  ← conditional DynamoDB write, 5-min window
     │  ├─ sender authz        ← self-chat / admin only
     │  └─ 2 debug fetches     ← google.com + Bailey ALB /health (5s timeout each)
     ▼
-server/agents/agentRuntime.js  invokeAgent()
+apps/crm/server/agents/agentRuntime.js  invokeAgent()
     │
     ├─▶ domainRouter.js      rules keyword match → Gemini classifier fallback
     │                        picks 1–2 domains, GATES the tool list
@@ -122,7 +122,7 @@ Per `../05-retrieval-and-vector-search.md`, semantic search is a **separate tool
 
 ## Tools
 
-Everything in `server/shared/toolDefinitions.js` (87 tools, 8 domains), plus proposed:
+Everything in `apps/crm/server/shared/toolDefinitions.js` (87 tools, 8 domains), plus proposed:
 
 | Tool | Why | Source |
 |---|---|---|

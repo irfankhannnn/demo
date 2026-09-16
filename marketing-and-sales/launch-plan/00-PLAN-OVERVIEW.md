@@ -59,7 +59,7 @@ Most plans assume email-first. In India, agents live on WhatsApp. Your outreach 
 
 ## North-Star Metrics
 
-See [README.md](./README.md#north-star-metrics-for-month-1).
+See [README.md](README.md#north-star-metrics-for-month-1).
 
 ## How To Track Progress
 
@@ -78,4 +78,4 @@ The good news: by Day 30, you will have learned more about your customer than 90
 
 ## Next Step
 
-Read [00-GAPS-AND-ADDITIONS.md](./00-GAPS-AND-ADDITIONS.md) to understand what was missing from your draft plan, then start [pre-launch-prep/01-legal-foundation.md](./pre-launch-prep/01-legal-foundation.md).
+Read [00-GAPS-AND-ADDITIONS.md](00-GAPS-AND-ADDITIONS.md) to understand what was missing from your draft plan, then start [pre-launch-prep/01-legal-foundation.md](pre-launch-prep/01-legal-foundation.md).

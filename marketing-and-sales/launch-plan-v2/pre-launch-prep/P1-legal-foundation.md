@@ -36,7 +36,7 @@ As a founder launching a B2B SaaS in India, I want DPDP / RBI / Consumer-Protect
 2. **Review & sign-off** — accept or reject lawyer's redlines within 48h. Re-run AI prompt only for sections that change.
 3. **Publish to LPs** — once signed, the AI-generated `tos.md`, `privacy.md`, `refund.md`, `cookies.md` get rendered into static HTML at `creative/landing-pages/main/legal/{slug}.html` (P15 includes this).
 4. **Wire footer** — update footer partial in all 5 LPs to include `/legal/terms · /legal/privacy · /legal/refund · /legal/cookies · /grievance`.
-5. **Add signup checkbox** — modify `real-estate-crm-app/src/components/auth/SignupForm.tsx` (or wherever signup lives) to add unchecked "I agree to ToS and Privacy" checkbox, block submit until ticked, log consent timestamp to DynamoDB `Users.consentSignedAt`.
+5. **Add signup checkbox** — modify `apps/crm/real-estate-crm-app/src/components/auth/SignupForm.tsx` (or wherever signup lives) to add unchecked "I agree to ToS and Privacy" checkbox, block submit until ticked, log consent timestamp to DynamoDB `Users.consentSignedAt`.
 6. **Smoke test** — open all 4 URLs incognito, confirm 200 + correct content + footer links resolve.
 7. **Tick this ACs box** + log decision to `00-DECISIONS-LOG.md` with date.
 

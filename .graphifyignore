@@ -1,25 +1,25 @@
 # ======================================
 # AI / Documentation
 # ======================================
-ai-calling-service/
-ai-response-design/
-ai_context_management_plan/
-claude-skills/
+services/ai-calling-service/
+docs/ai-response-design/
+docs/ai_context_management_plan/
+tools/claude-skills/
 docs/
-working-context/
-openclaw_workspace_reference/
+docs/working-context/
+tools/openclaw_workspace_reference/
 
 # ======================================
 # Marketing / Assets
 # ======================================
 assets/
-huashu-design/
+tools/huashu-design/
 marketing/
 marketing-and-sales/
-launch-audit/
-first-video/
-my-video/
-onboarding-page/
+docs/launch-audit/
+marketing-and-sales/video-projects/first-video/
+marketing-and-sales/video-projects/my-video/
+apps/onboarding/
 
 # ======================================
 # Output / Generated

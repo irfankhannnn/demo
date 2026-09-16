@@ -25,9 +25,9 @@
 
 | # | Blocker | File | Fix Time |
 |---|---------|------|----------|
-| 1 | `deploy.sh` missing 8 CFN parameters | `server/infra/deploy.sh` | 30 min |
-| 2 | `escalation-cron.js` syntax error | `server/scripts/escalation-cron.js` | 5 min |
-| 3 | Verify cron jobs merged into cfn-backend.yaml | `server/infra/cfn-backend.yaml` | 30 min |
+| 1 | `deploy.sh` missing 8 CFN parameters | `apps/crm/server/infra/deploy.sh` | 30 min |
+| 2 | `escalation-cron.js` syntax error | `apps/crm/server/scripts/escalation-cron.js` | 5 min |
+| 3 | Verify cron jobs merged into cfn-backend.yaml | `apps/crm/server/infra/cfn-backend.yaml` | 30 min |
 
 **Total fix time:** 1 hour
 

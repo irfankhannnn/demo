@@ -6,7 +6,7 @@
 ## Skill 1: `growth-intel`
 **Priority:** P0  
 **Used by:** growth-strategist agent (primary), manual invocation  
-**File:** `claude-skills/skills/growth-intel/SKILL.md`
+**File:** `tools/claude-skills/skills/growth-intel/SKILL.md`
 
 ### What It Does
 Takes structured data inputs (pipeline CSV, ad performance CSV, previous funnel report) and
@@ -44,7 +44,7 @@ Structured Weekly Growth Brief (see Agent 1 spec for format).
 ## Skill 2: `funnel-analysis`
 **Priority:** P0  
 **Used by:** growth-strategist, experiment-designer, manual invocation  
-**File:** `claude-skills/skills/funnel-analysis/SKILL.md`
+**File:** `tools/claude-skills/skills/funnel-analysis/SKILL.md`
 
 ### What It Does
 Reads product analytics data (PostHog CSV export or equivalent) and maps the user journey
@@ -106,7 +106,7 @@ Events to configure in PostHog (tell user what to instrument):
 ## Skill 3: `messaging-optimizer`
 **Priority:** P0  
 **Used by:** growth-strategist, landing-page-builder, media-buyer  
-**File:** `claude-skills/skills/messaging-optimizer/SKILL.md`
+**File:** `tools/claude-skills/skills/messaging-optimizer/SKILL.md`
 
 ### What It Does
 The feedback loop between "what message worked" and "what message to use next."
@@ -173,7 +173,7 @@ Avoid: Team features as primary pitch
 ## Skill 4: `retention-analysis`
 **Priority:** P1  
 **Used by:** retention-analyst agent, growth-strategist  
-**File:** `claude-skills/skills/retention-analysis/SKILL.md`
+**File:** `tools/claude-skills/skills/retention-analysis/SKILL.md`
 
 ### What It Does
 Cohort analysis + churn signal detection. Answers: which users are about to churn, which
@@ -201,7 +201,7 @@ cohorts retained well and why, what behavior in Day 1-7 predicts 6-month retenti
 ## Skill 5: `channel-cac-analysis`
 **Priority:** P1  
 **Used by:** growth-strategist, media-buyer  
-**File:** `claude-skills/skills/channel-cac-analysis/SKILL.md`
+**File:** `tools/claude-skills/skills/channel-cac-analysis/SKILL.md`
 
 ### What It Does
 Cross-channel CAC analysis. Not just "which channel has the lowest CPL" but "which channel
@@ -242,7 +242,7 @@ LinkedIn is actually cheaper per customer. But without this analysis, media-buye
 ## Skill 6: `experiment-design`
 **Priority:** P1  
 **Used by:** experiment-designer agent  
-**File:** `claude-skills/skills/experiment-design/SKILL.md`
+**File:** `tools/claude-skills/skills/experiment-design/SKILL.md`
 
 ### What It Does
 Given a funnel drop or conversion problem (from funnel-analysis report), generates a structured
@@ -275,7 +275,7 @@ Structured Experiment Brief (see experiment-designer spec).
 ## Skill 7: `competitive-intel`
 **Priority:** P2 — Build Later  
 **Used by:** growth-strategist, messaging-optimizer  
-**File:** `claude-skills/skills/competitive-intel/SKILL.md`
+**File:** `tools/claude-skills/skills/competitive-intel/SKILL.md`
 
 ### What It Does
 Extends trend-hunter output. trend-hunter reports WHAT competitors are doing.

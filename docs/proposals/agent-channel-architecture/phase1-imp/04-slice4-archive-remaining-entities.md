@@ -21,7 +21,7 @@ Slice 3 proved the tool-definition shape and dispatch pattern for `archive_*` us
 ### `lead`
 
 ```js
-// update_lead's status enum, server/shared/toolDefinitions.js
+// update_lead's status enum, apps/crm/server/shared/toolDefinitions.js
 ['new', 'contacted', 'qualified', 'negotiating', 'lost', 'archived']
 ```
 ```js
@@ -78,7 +78,7 @@ export async function archiveBuyer(tenantId, buyerId) {
 ### `meeting`
 
 ```js
-// updateMeeting's validTransitions, server/crmDynamodbService.js
+// updateMeeting's validTransitions, apps/crm/server/crmDynamodbService.js
 const validTransitions = {
   scheduled: ['completed', 'cancelled', 'rescheduled', 'archived'],
   rescheduled: ['completed', 'cancelled', 'scheduled', 'archived'],
@@ -111,15 +111,15 @@ export async function archivePropertyDocument(tenantId, propertyId, documentId) 
 ```
 `getPropertyDocuments()` now filters out `archivedAt`-set documents unconditionally (no existing "show archived documents" need identified, so no filter parameter was added — YAGNI).
 
-Matched the plan's schema decision exactly. What the plan under-anticipated was the **dispatch layer**: `create_property_document`/`archive_property_document`/`delete_property_document` all need *two* id-shaped fields (`propertyId` and `documentId`) passed to their handler, and `skillInvoker.js`'s generic dispatch only ever extracts one. This was a real, pre-existing bug (also affecting the now-removed `delete_property_document`) discovered and fixed as part of this work — full details in [`05-slice5-remove-delete-tools.md`](./05-slice5-remove-delete-tools.md) and [`07-bugs-found.md`](./07-bugs-found.md).
+Matched the plan's schema decision exactly. What the plan under-anticipated was the **dispatch layer**: `create_property_document`/`archive_property_document`/`delete_property_document` all need *two* id-shaped fields (`propertyId` and `documentId`) passed to their handler, and `skillInvoker.js`'s generic dispatch only ever extracts one. This was a real, pre-existing bug (also affecting the now-removed `delete_property_document`) discovered and fixed as part of this work — full details in [`05-slice5-remove-delete-tools.md`](05-slice5-remove-delete-tools.md) and [`07-bugs-found.md`](07-bugs-found.md).
 
 ## How it was tested
 
 1. **`validateToolDefinitions()` startup guard** — passes for all 8 archive handlers.
 2. **Dispatch tests** in `skillInvoker.test.js` for every entity (`archive_lead`, `archive_contact`, `archive_tenant`, `archive_owner`, `archive_buyer`, `archive_meeting`, `archive_property_document`), each asserting the correct handler is called with correctly-unpacked arguments — not the whole input object.
-3. **Full test suite** — 535 passing (up from the 511 baseline before this session), zero regressions introduced by any Slice 4 change; the only 3 remaining failures are pre-existing and unrelated (confirmed via `git stash` before this session started — see [`07-bugs-found.md`](./07-bugs-found.md) items #9–10).
+3. **Full test suite** — 535 passing (up from the 511 baseline before this session), zero regressions introduced by any Slice 4 change; the only 3 remaining failures are pre-existing and unrelated (confirmed via `git stash` before this session started — see [`07-bugs-found.md`](07-bugs-found.md) items #9–10).
 
-Per-entity DB-level integration tests (verifying the real DynamoDB update expression, not just the dispatch layer) were **not** added, for the same proportionality reasoning documented in [`03-slice3-archive-property.md`](./03-slice3-archive-property.md)'s testing-scope retrospective — these are thin wrappers over already-shipped `update*` functions that have no dedicated unit tests of their own in this codebase, with two exceptions where real new logic existed (the `buyer` branching and the `meeting` state-machine change), both of which were verified by direct code reading against the actual guard logic rather than by a mocked integration test, given the same ESM same-module-call-interception limitation described in Slice 3.
+Per-entity DB-level integration tests (verifying the real DynamoDB update expression, not just the dispatch layer) were **not** added, for the same proportionality reasoning documented in [`03-slice3-archive-property.md`](03-slice3-archive-property.md)'s testing-scope retrospective — these are thin wrappers over already-shipped `update*` functions that have no dedicated unit tests of their own in this codebase, with two exceptions where real new logic existed (the `buyer` branching and the `meeting` state-machine change), both of which were verified by direct code reading against the actual guard logic rather than by a mocked integration test, given the same ESM same-module-call-interception limitation described in Slice 3.
 
 ## Explicitly out of scope for this slice
 

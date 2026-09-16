@@ -25,10 +25,10 @@ rules, and lets the team reply from the console inside Instagram's 24-hour windo
 
 | Folder | What |
 |---|---|
-| `backend_insta_sol_ms/` | The microservice. Express on Lambda + EventBridge worker, API Gateway, two DynamoDB tables |
-| `frontend_insta_sol_ms/` | The console. React 18 + TS + Vite, served at `/insta/` |
-| `cfn-templates-cicd/backend_insta_sol_ms/` | CI/CD wrapper with build tracking and rollback |
-| `cfn-templates-cicd/frontend_insta_sol_ms/` | Same, plus per-build `dist/` archives |
+| `apps/instagram/backend_insta_sol_ms/` | The microservice. Express on Lambda + EventBridge worker, API Gateway, two DynamoDB tables |
+| `apps/instagram/frontend_insta_sol_ms/` | The console. React 18 + TS + Vite, served at `/insta/` |
+| `infra/cicd/backend_insta_sol_ms/` | CI/CD wrapper with build tracking and rollback |
+| `infra/cicd/frontend_insta_sol_ms/` | Same, plus per-build `dist/` archives |
 
 ## Decisions
 

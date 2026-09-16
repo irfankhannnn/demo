@@ -4,7 +4,7 @@
 > **Owner files to read:** `team-work/ZEESHAN-tasks.md` (`ZEE-013`, build/deploy support) and `team-work/FOUNDER-tasks.md` (`FND-002/007`, AWS).
 >
 > **Already done — no action needed (removed from this list):**
-> - DEPLOY-01 tagged route-injection blocks — present + verified in `server/server.js` and `real-estate-crm-app/src/App.tsx`.
+> - DEPLOY-01 tagged route-injection blocks — present + verified in `apps/crm/server/server.js` and `apps/crm/real-estate-crm-app/src/App.tsx`.
 > - LP analytics/consent partials + Netlify CSP + homepage SEO/AEO — shipped in PR #24 (`npm run build:lps` verifies 14/14 pages carry PostHog/GA4/consent).
 
 ---
@@ -72,7 +72,7 @@ Then: add custom domain `realestateflow.in` (+ `www`) in Netlify → point the C
 
 **Steps**
 1. Build the CRM with `VITE_IS_DEMO=true` + the `DEMO_*` pool vars → deploy to a separate Netlify site.
-2. Seed once: `node server/scripts/seed-demo-tenant.js --reset`.
+2. Seed once: `node apps/crm/server/scripts/seed-demo-tenant.js --reset`.
 3. Smoke test: log in as `demo@realestateflow.in` → confirm populated data + the Demo banner.
 
 ---
@@ -82,7 +82,7 @@ Then: add custom domain `realestateflow.in` (+ `www`) in Netlify → point the C
 **Priority:** Critical (P0) · **Read:** `team-work/FOUNDER-tasks.md` → `FND-002`
 
 **Steps**
-1. Deploy the server bundle to Lambda in `ap-south-1` (`server/DEPLOYMENT-GUIDE.md`).
+1. Deploy the server bundle to Lambda in `ap-south-1` (`docs/services/server/DEPLOYMENT-GUIDE.md`).
 2. Set all server secrets (Razorpay, Brevo, AiSensy, hCaptcha, PostHog, Sentry).
 3. Smoke: `curl https://api.realestateflow.in/api/health` → 200.
 

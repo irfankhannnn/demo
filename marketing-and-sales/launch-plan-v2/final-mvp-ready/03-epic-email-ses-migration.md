@@ -3,15 +3,15 @@
 **Outcome:** All transactional email goes through AWS SES first, with Brevo as automatic fallback. One abstraction (`emailService.js`) replaces the scattered direct Brevo calls.
 
 **Architecture anchors:**
-- Server AWS SDK is **v3** → use `@aws-sdk/client-sesv2` (`SESv2Client`, `SendEmailCommand`). Add to `server/package.json` matching existing `^3.669` version prefix.
-- `server/emailService.js` goes at **server root** (ships via `*.js` glob in deploy.sh zip).
+- Server AWS SDK is **v3** → use `@aws-sdk/client-sesv2` (`SESv2Client`, `SendEmailCommand`). Add to `apps/crm/server/package.json` matching existing `^3.669` version prefix.
+- `apps/crm/server/emailService.js` goes at **server root** (ships via `*.js` glob in deploy.sh zip).
 - Brevo currently called directly in **4 routes** + **2 crons** via inline `fetch('https://api.brevo.com/v3/smtp/email', ...)`:
-  - `server/routes/auth.js` — adds a **contact to a Brevo marketing list** (NOT transactional email; keep as-is; out of SES scope)
-  - `server/routes/billing.js` — `sendBrevoEmail(...)` call inside payment/subscription webhook handlers
-  - `server/routes/grievance.js` — contact-form email after grievance submission
-  - `server/routes/feedback.js` — NPS score alert email
-  - `server/scripts/trial-reminder-cron.js` — trial reminder sends (exports `handler`)
-  - `server/scripts/escalation-cron.js` — SLA escalation sends (exports `handler`)
+  - `apps/crm/server/routes/auth.js` — adds a **contact to a Brevo marketing list** (NOT transactional email; keep as-is; out of SES scope)
+  - `apps/crm/server/routes/billing.js` — `sendBrevoEmail(...)` call inside payment/subscription webhook handlers
+  - `apps/crm/server/routes/grievance.js` — contact-form email after grievance submission
+  - `apps/crm/server/routes/feedback.js` — NPS score alert email
+  - `apps/crm/server/scripts/trial-reminder-cron.js` — trial reminder sends (exports `handler`)
+  - `apps/crm/server/scripts/escalation-cron.js` — SLA escalation sends (exports `handler`)
 - Env already in CFN Lambda: `BREVO_API_KEY`, `BREVO_FROM_EMAIL`, `BREVO_FROM_NAME`.
 - New env to add (see `07-infra-cfn-deploy.md` §3): `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY`.
 - See `notes/codebase-reference.md` §12 for the complete env var addition list.
@@ -25,8 +25,8 @@
 **Goal:** Single send function used everywhere.
 
 **Files**
-- NEW `server/emailService.js`
-- MODIFY `server/package.json` — add `@aws-sdk/client-sesv2` (match existing `^3.669` line).
+- NEW `apps/crm/server/emailService.js`
+- MODIFY `apps/crm/server/package.json` — add `@aws-sdk/client-sesv2` (match existing `^3.669` line).
 
 **API**
 ```js
@@ -67,9 +67,9 @@ sendEmail({ to, subject, html, text, brevoTemplateId, params, from })
 **Goal:** Replace direct Brevo SMTP sends with `emailService.sendEmail`.
 
 **Files**
-- MODIFY `server/routes/billing.js` — replace local `sendBrevoEmail(...)` body to call `emailService.sendEmail({ to, brevoTemplateId: templateId, params })` (keep template-id support for existing Brevo templates; SES will use a rendered html when no template — provide minimal html for these).
-- MODIFY `server/routes/grievance.js` — contact-form email via `sendEmail({ to: FROM-equivalent recipient, subject, html })` using existing `FROM_EMAIL`/`FROM_NAME`.
-- MODIFY `server/routes/feedback.js` — NPS alert via `sendEmail`.
+- MODIFY `apps/crm/server/routes/billing.js` — replace local `sendBrevoEmail(...)` body to call `emailService.sendEmail({ to, brevoTemplateId: templateId, params })` (keep template-id support for existing Brevo templates; SES will use a rendered html when no template — provide minimal html for these).
+- MODIFY `apps/crm/server/routes/grievance.js` — contact-form email via `sendEmail({ to: FROM-equivalent recipient, subject, html })` using existing `FROM_EMAIL`/`FROM_NAME`.
+- MODIFY `apps/crm/server/routes/feedback.js` — NPS alert via `sendEmail`.
 
 **Detail**
 - Where code currently relies on a **Brevo template ID** with no html, pass `brevoTemplateId` so the Brevo path still works; for SES provide a basic html fallback (template content can be migrated to SES templates later — out of MVP scope).
@@ -93,8 +93,8 @@ sendEmail({ to, subject, html, text, brevoTemplateId, params, from })
 **Goal:** Trial-reminder and escalation crons send via SES-first.
 
 **Files**
-- MODIFY `server/scripts/trial-reminder-cron.js` — replace `sendBrevoEmail` with `emailService.sendEmail` (import path `../emailService.js`; both ship in the zip).
-- MODIFY `server/scripts/escalation-cron.js` — same.
+- MODIFY `apps/crm/server/scripts/trial-reminder-cron.js` — replace `sendBrevoEmail` with `emailService.sendEmail` (import path `../emailService.js`; both ship in the zip).
+- MODIFY `apps/crm/server/scripts/escalation-cron.js` — same.
 - MODIFY `cron/trial-reminder.yaml` and the escalation cron template — add env `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY=ses`; keep `BREVO_API_KEY` for fallback. Add `ses:SendEmail`/`ses:SendRawEmail` to those cron Lambda roles (or attach a shared policy).
 
 **Detail**
@@ -118,16 +118,16 @@ sendEmail({ to, subject, html, text, brevoTemplateId, params, from })
 **Goal:** Make SES deployable.
 
 **Files**
-- MODIFY `server/.env.example` — add:
+- MODIFY `apps/crm/server/.env.example` — add:
   ```
   AWS_SES_FROM_EMAIL=noreply@realestateflow.in
   EMAIL_PROVIDER_PRIMARY=ses
   EMAIL_PROVIDER_FALLBACK=brevo
   ```
-- MODIFY `server/infra/cfn-backend.yaml`:
+- MODIFY `apps/crm/server/infra/cfn-backend.yaml`:
   - Add `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY` to `ApiLambdaFunction.Environment`.
   - Add to `ApiLambdaExecutionRole` policy: `ses:SendEmail`, `ses:SendRawEmail` (Resource `*` or the identity ARN).
-- MODIFY `server/infra/deploy.sh` — pass the new params.
+- MODIFY `apps/crm/server/infra/deploy.sh` — pass the new params.
 - NEW `marketing-and-sales/launch-plan-v2/final-mvp-ready/notes/ses-aws-setup.md` — manual steps: verify sender/domain, DKIM, request production access (sandbox gate).
 
 **Security**

@@ -1,6 +1,6 @@
 # Priority 6 — Current Prompt Examples
 
-Source: `server/agents/prompts.js` (whatsapp block) + runtime classifier examples
+Source: `apps/crm/server/agents/prompts.js` (whatsapp block) + runtime classifier examples
 
 These examples are **embedded in the system prompt** and strongly influence Gemini behavior.
 

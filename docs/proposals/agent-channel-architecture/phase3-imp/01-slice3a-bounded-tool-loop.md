@@ -46,7 +46,7 @@ Fixed in both files by validating required fields against the args **as the mode
 
 ## How it was tested
 
-**`server/agents/llm/runToolLoop.test.js` — 13 tests.** Mocks the Gemini SDK at the chat-session level (`startChat`/`sendMessage`) so a whole multi-step conversation can be scripted turn by turn, with an injected fake `executeTool`:
+**`apps/crm/server/agents/llm/runToolLoop.test.js` — 13 tests.** Mocks the Gemini SDK at the chat-session level (`startChat`/`sendMessage`) so a whole multi-step conversation can be scripted turn by turn, with an injected fake `executeTool`:
 
 - no tool calls → `chat` plan; no calls and no text → `clarify`
 - exactly one call → the single-shot-compatible `tool` shape, with `result` carried so the caller doesn't re-execute

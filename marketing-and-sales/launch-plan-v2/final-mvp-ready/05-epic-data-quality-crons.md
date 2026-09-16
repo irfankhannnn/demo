@@ -4,17 +4,17 @@
 
 **Architecture anchors:**
 - CRM single-table `cloudberry-real-estate-crm` (env: `CRM_DYNAMODB_TABLE_NAME`). Entity types: `CUSTOMER`, `OWNER`, `PROPERTY`, `LEAD`, `CONTACT`, `BUYER`, `PROPERTY_AGREEMENT`. All keyed `PK = TENANT#{tenantId}#{ENTITY}#{id}`.
-- Completeness rules (from `server/crmDynamodbService.js` field patterns):
+- Completeness rules (from `apps/crm/server/crmDynamodbService.js` field patterns):
   - **Lead**: required `name`, `leadType`; often missing `phone`/`email`/type-specific block (`buyerRequirement` for buyer, `tenantRequirement` for tenant, `sellerProperty`/`ownerProperty` for seller/owner).
   - **Owner**: required `name`, `phone`; KYC `panNumber`, `aadharNumber` often missing.
   - **Customer (tenant)**: required `name`, `phone`; KYC docs `aadharNumber`, `aadharDocS3Key`, `photoS3Key` often missing.
   - **Property**: `title`, `area` required; missing `ownerId`, or rental/sale info; `agreementStatus`/`verificationStatus` = `pending`.
-  - **Agreements**: entity `PROPERTY_AGREEMENT` (SK `AGREEMENT#{id}`) with `endDate` field. Also `customer.currentRental.leaseEndDate`. A `leaseEndingWithinDays` filter **already exists** in `server/crmDynamodbService.js` — call it, do not re-implement the DynamoDB query.
-- `server/dataQualityService.js`: new root-level file (ships via `*.js` glob in deploy.sh).
-- **Cron jobs:** All cron resources (EventBridge rules, Lambda functions, IAM roles) are now merged into the main `cfn-backend.yaml` template. Handler files in `server/scripts/` (auto-included). Export: `handler` async function. One-click deployment via `./deploy.sh`.
+  - **Agreements**: entity `PROPERTY_AGREEMENT` (SK `AGREEMENT#{id}`) with `endDate` field. Also `customer.currentRental.leaseEndDate`. A `leaseEndingWithinDays` filter **already exists** in `apps/crm/server/crmDynamodbService.js` — call it, do not re-implement the DynamoDB query.
+- `apps/crm/server/dataQualityService.js`: new root-level file (ships via `*.js` glob in deploy.sh).
+- **Cron jobs:** All cron resources (EventBridge rules, Lambda functions, IAM roles) are now merged into the main `cfn-backend.yaml` template. Handler files in `apps/crm/server/scripts/` (auto-included). Export: `handler` async function. One-click deployment via `./deploy.sh`.
 - Messaging:
-  - `server/bailey.js` → `sendWhatsAppMessage(to, text, media?)` (EPIC 1, behind `BAILEY_ENABLED`)
-  - `server/emailService.js` → `sendEmail({ to, subject, html, text?, brevoTemplateId?, params?, from? })` (EPIC 3 fallback)
+  - `apps/crm/server/bailey.js` → `sendWhatsAppMessage(to, text, media?)` (EPIC 1, behind `BAILEY_ENABLED`)
+  - `apps/crm/server/emailService.js` → `sendEmail({ to, subject, html, text?, brevoTemplateId?, params?, from? })` (EPIC 3 fallback)
 - Admin lookup for cron recipients: call `GET {AUTH_SERVICE_URL}/users` with a service token or stored admin contact details; filter by `role === 'ADMIN'` and `status === 'ACTIVE'`.
 - See `notes/codebase-reference.md` §5 for UserItem fields and auth svc endpoint details.
 
@@ -27,7 +27,7 @@
 **Goal:** One reusable module classifies records as complete/incomplete per entity, so cron + (future) UI badges share logic.
 
 **Files**
-- NEW `server/dataQualityService.js`
+- NEW `apps/crm/server/dataQualityService.js`
 
 **API**
 ```js
@@ -62,8 +62,8 @@ findExpiringAgreements(tenantId, withinDays=30) // -> [{ propertyId, propertyNam
 **Goal:** Daily digest of half-filled records to the admin.
 
 **Files**
-- NEW `server/scripts/incomplete-data-cron.js` (handler)
-- Cron resources merged into `server/infra/cfn-backend.yaml` (schedule: `cron(30 3 * * ? *)` = 09:00 IST; env: CRM table, AUTH_SERVICE_URL, BAILEY, SES)
+- NEW `apps/crm/server/scripts/incomplete-data-cron.js` (handler)
+- Cron resources merged into `apps/crm/server/infra/cfn-backend.yaml` (schedule: `cron(30 3 * * ? *)` = 09:00 IST; env: CRM table, AUTH_SERVICE_URL, BAILEY, SES)
 
 **Detail**
 - For each tenant: `findIncomplete` → build digest:
@@ -95,8 +95,8 @@ findExpiringAgreements(tenantId, withinDays=30) // -> [{ propertyId, propertyNam
 **Goal:** Alert assigned member (+admin) about agreements expiring within 30 days (window configurable).
 
 **Files**
-- NEW `server/scripts/expiring-agreements-cron.js` (handler)
-- Cron resources merged into `server/infra/cfn-backend.yaml` (schedule: `cron(0 3 * * ? *)` = 08:30 IST; env as E5-T2)
+- NEW `apps/crm/server/scripts/expiring-agreements-cron.js` (handler)
+- Cron resources merged into `apps/crm/server/infra/cfn-backend.yaml` (schedule: `cron(0 3 * * ? *)` = 08:30 IST; env as E5-T2)
 
 **Detail**
 - For each tenant: `findExpiringAgreements(tenantId, withinDays)` (default 30; read from credit-config or a small `OPS_CONFIG` key for configurability).

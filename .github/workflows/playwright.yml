@@ -19,17 +19,17 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: real-estate-crm-app/package-lock.json
+          cache-dependency-path: apps/crm/real-estate-crm-app/package-lock.json
 
       - name: Install CRM dependencies
-        working-directory: real-estate-crm-app
+        working-directory: apps/crm/real-estate-crm-app
         run: npm ci
 
       - name: Install Playwright at root
         run: npm install --no-save @playwright/test
 
       - name: Build CRM app
-        working-directory: real-estate-crm-app
+        working-directory: apps/crm/real-estate-crm-app
         run: npm run build
         env:
           VITE_API_URL: http://localhost:3001
@@ -41,7 +41,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start preview server
-        working-directory: real-estate-crm-app
+        working-directory: apps/crm/real-estate-crm-app
         run: npx vite preview --port 5173 &
         env:
           VITE_API_URL: http://localhost:3001

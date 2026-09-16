@@ -1,5 +1,5 @@
 # Personal terminal/session launcher (local machine only, not shared)
-#kalim-sessions/
+#tools/kalim-sessions/
 
 # Playwright artifacts (when run from root before config was moved)
 test-results/
@@ -21,27 +21,27 @@ Thumbs.db
 # Auto-generated deployment files (regenerated fresh by deploy.sh from
 # .env.<env> on every run — carry real secrets, unlike the *.sample.json
 # checked-in templates)
-server/infra/cfn-params.json
-cfn-templates-cicd/**/cfn-params.json
+apps/crm/server/infra/cfn-params.json
+infra/cicd/**/cfn-params.json
 
 # Environment files (contain secrets — never commit real .env files)
 # .env.sample files are committed as templates; .env and .env.production are local/deploy secrets.
 .env
 .env.local
 .env.production
-server/.env
-server/.env.production
+apps/crm/server/.env
+apps/crm/server/.env.production
 # Server runtime logs (LLM traces, jsonl, etc.)
-server/logs/*
-!server/logs/.gitkeep
-real-estate-crm-app/.env
-real-estate-crm-app/.env.production
-whatsapp-platform/.env
-whatsapp-platform/.env.production
-reality-flow-authentication/.env
-reality-flow-mcp/.env
-onboarding-page/.env
-landing-pages/.env
+apps/crm/server/logs/*
+!apps/crm/server/logs/.gitkeep
+apps/crm/real-estate-crm-app/.env
+apps/crm/real-estate-crm-app/.env.production
+services/whatsapp-platform/.env
+services/whatsapp-platform/.env.production
+services/reality-flow-authentication/.env
+services/reality-flow-mcp/.env
+apps/onboarding/.env
+apps/landing-pages/.env
 tests/playwright/.env
 
 # Local AWS/Lambda env dumps (use .env / .env.production instead)
@@ -54,8 +54,8 @@ env-update.json
 # template/param snapshots). S3 (versioned) is the durable source of truth
 # for the actual artifacts — this is never checked in. See the .gitignore
 # best-practices section in the root README.md, and
-# cfn-templates-cicd/*/README.md for the deploy-versions/ design.
-cfn-templates-cicd/*/deploy-versions/
+# infra/cicd/*/README.md for the deploy-versions/ design.
+infra/cicd/*/deploy-versions/
 
 
 # ---------------------------------------------------------------------------
@@ -63,34 +63,66 @@ cfn-templates-cicd/*/deploy-versions/
 # ---------------------------------------------------------------------------
 # A plain ".env" line does NOT match ".env.dev"/".env.prod" - both patterns are
 # required, with an explicit exception for the committed sample templates.
-backend_insta_sol_ms/.env
-backend_insta_sol_ms/.env.*
-!backend_insta_sol_ms/.env.sample
-frontend_insta_sol_ms/.env
-frontend_insta_sol_ms/.env.*
-!frontend_insta_sol_ms/.env.sample
+apps/instagram/backend_insta_sol_ms/.env
+apps/instagram/backend_insta_sol_ms/.env.*
+!apps/instagram/backend_insta_sol_ms/.env.sample
+apps/instagram/frontend_insta_sol_ms/.env
+apps/instagram/frontend_insta_sol_ms/.env.*
+!apps/instagram/frontend_insta_sol_ms/.env.sample
 instagram-local-agent/.env
 instagram-local-agent/.env.*
 !instagram-local-agent/.env.sample
 
 # Build artifacts, regenerated on every deploy - never hand-edited, never committed
-backend_insta_sol_ms/infra/cfn-params.json
-backend_insta_sol_ms/infra/.last-deploy-artifacts.json
-backend_insta_sol_ms/infra/.last-config-diff.json
-backend_insta_sol_ms/infra/.last-config-params.json
-backend_insta_sol_ms/function.zip
-frontend_insta_sol_ms/infra/cfn-params.json
-frontend_insta_sol_ms/infra/.last-deploy-artifacts.json
-frontend_insta_sol_ms/infra/.last-config-diff.json
-frontend_insta_sol_ms/dist/
+apps/instagram/backend_insta_sol_ms/infra/cfn-params.json
+apps/instagram/backend_insta_sol_ms/infra/.last-deploy-artifacts.json
+apps/instagram/backend_insta_sol_ms/infra/.last-config-diff.json
+apps/instagram/backend_insta_sol_ms/infra/.last-config-params.json
+apps/instagram/backend_insta_sol_ms/function.zip
+apps/instagram/frontend_insta_sol_ms/infra/cfn-params.json
+apps/instagram/frontend_insta_sol_ms/infra/.last-deploy-artifacts.json
+apps/instagram/frontend_insta_sol_ms/infra/.last-config-diff.json
+apps/instagram/frontend_insta_sol_ms/dist/
 
 # Local build/release index - S3 is the durable source of truth
-cfn-templates-cicd/backend_insta_sol_ms/deploy-versions/
-cfn-templates-cicd/backend_insta_sol_ms/config-versions/
-cfn-templates-cicd/frontend_insta_sol_ms/deploy-versions/
-cfn-templates-cicd/frontend_insta_sol_ms/config-versions/
+infra/cicd/backend_insta_sol_ms/deploy-versions/
+infra/cicd/backend_insta_sol_ms/config-versions/
+infra/cicd/frontend_insta_sol_ms/deploy-versions/
+infra/cicd/frontend_insta_sol_ms/config-versions/
 
 # Laptop agent local state - SQLite DB, tokens, machine key. Never commit.
 instagram-local-agent/.ig-agent/
 instagram-local-agent/config/config.json
 instagram-local-agent/config/rules.json
+
+# Python bytecode
+__pycache__/
+
+# ---------------------------------------------------------------------------
+# Pre-reorganisation folder names (backstop)
+# ---------------------------------------------------------------------------
+# The 2026-09-17 reorg moved services under apps/, services/, infra/cicd/ and
+# tools/. Git moves tracked files, but local-only files (.env.<env>,
+# deploy-versions/, config-versions/, auth_state/, node_modules/, dist/) stay
+# behind in the old folders, and the old folder's own .gitignore goes away with
+# it. These rules keep those leftovers out of a broad `git add` until
+# tools/scripts/migrate-local-files.sh has moved them. Safe to delete once
+# every machine has migrated.
+/real-estate-crm-app/
+/server/
+/frontend_insta_sol_ms/
+/backend_insta_sol_ms/
+/onboarding-page/
+/landing-pages/
+/property-pages-ms/
+/reality-flow-authentication/
+/reality-flow-mcp/
+/whatsapp-platform/
+/ai-calling-service/
+/followup-agent-service/
+/cfn-templates-cicd/
+/kalim-sessions/
+/claude-skills/
+/huashu-design/
+/openclaw_workspace_reference/
+/videos/

@@ -10,21 +10,21 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§1.1 Grievances table, §2 API routes)
-3. `server/routes/leads.js` (route pattern to copy)
-4. `server/crmDynamodbService.js` (lines 1-100 for DDB patterns)
-5. `server/tenantMiddleware.js`
-6. `server/server.js` (understand the import + mount pattern)
-7. `real-estate-crm-app/src/App.tsx` (route + ProtectedRoute pattern)
-8. `real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (admin page pattern to match)
+3. `apps/crm/server/routes/leads.js` (route pattern to copy)
+4. `apps/crm/server/crmDynamodbService.js` (lines 1-100 for DDB patterns)
+5. `apps/crm/server/tenantMiddleware.js`
+6. `apps/crm/server/server.js` (understand the import + mount pattern)
+7. `apps/crm/real-estate-crm-app/src/App.tsx` (route + ProtectedRoute pattern)
+8. `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (admin page pattern to match)
 9. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P9-grievance-flow.md`
 
 ---
 
 ## What to Build
 
-### 1. `server/grievanceDynamodbService.js`
+### 1. `apps/crm/server/grievanceDynamodbService.js`
 
-Mirror the pattern of `server/crmDynamodbService.js`. Import DDB via `awsClientWrapper.js`.
+Mirror the pattern of `apps/crm/server/crmDynamodbService.js`. Import DDB via `awsClientWrapper.js`.
 
 Functions (all async):
 ```js
@@ -47,7 +47,7 @@ Schema notes from `01-SHARED-CONTRACTS.md §1.1`:
 - `status` defaults to `'new'`
 - `tenantId` is explicitly `null` (this is a PUBLIC table — no tenant scoping)
 
-### 2. `server/routes/grievance.js`
+### 2. `apps/crm/server/routes/grievance.js`
 
 Three endpoints. Use `express-rate-limit` for the public POST.
 
@@ -71,7 +71,7 @@ Three endpoints. Use `express-rate-limit` for the public POST.
 
 **Brevo email sending:** Use `axios.post('https://api.brevo.com/v3/transactional-emails', {...}, { headers: { 'api-key': process.env.BREVO_API_KEY } })`. Wrap in try/catch — email failure should NOT fail the grievance submission (return 200 even if email fails, but log the error).
 
-**PostHog server event:** Call `serverTrack` from `server/lib/posthog.js` (this file is created by PR-E; for now, create a stub):
+**PostHog server event:** Call `serverTrack` from `apps/crm/server/lib/posthog.js` (this file is created by PR-E; for now, create a stub):
 ```js
 // Stub — PR-E will implement the real module
 async function serverTrack(distinctId, event, properties) {
@@ -82,7 +82,7 @@ async function serverTrack(distinctId, event, properties) {
 }
 ```
 
-### 3. `real-estate-crm-app/src/pages/public/Grievance.tsx`
+### 3. `apps/crm/real-estate-crm-app/src/pages/public/Grievance.tsx`
 
 Public page — NO `ProtectedRoute` wrapper in App.tsx.
 
@@ -97,7 +97,7 @@ Layout:
 
 **hCaptcha widget:** Use `@hcaptcha/react-hcaptcha` npm package OR inject vanilla JS hCaptcha via a script tag. Whichever is cleaner. Site key from `import.meta.env.VITE_HCAPTCHA_SITE_KEY`.
 
-### 4. `real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
+### 4. `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
 
 Admin page — `ProtectedRoute` wrapper in App.tsx. Role check: only render content if user.role === 'founder' || user.role === 'admin'.
 
@@ -111,7 +111,7 @@ Layout:
 
 ### 5. `tests/grievance.spec.ts`
 
-Playwright test. Read existing test config in `real-estate-crm-app/test/` for base URL setup.
+Playwright test. Read existing test config in `apps/crm/real-estate-crm-app/test/` for base URL setup.
 
 Tests:
 1. Visit `/grievance`, fill all fields, submit → assert success message + tracking ID GR-XXXXXX format
@@ -121,7 +121,7 @@ Tests:
 
 ---
 
-## server/server.js Modification
+## apps/crm/server/server.js Modification
 
 Find the `// === [LAUNCH ROUTES IMPORTS] ===` block and add:
 ```js
@@ -165,10 +165,10 @@ import GrievanceList from './pages/admin/GrievanceList';
 
 ## What NOT to Touch
 
-- `server/lib/posthog.js` — leave as stub; PR-E creates the real version
+- `apps/crm/server/lib/posthog.js` — leave as stub; PR-E creates the real version
 - Any LP files
 - Any existing CRM pages
-- `server/crmDynamodbService.js` — create a separate `grievanceDynamodbService.js`
+- `apps/crm/server/crmDynamodbService.js` — create a separate `grievanceDynamodbService.js`
 
 ---
 
@@ -191,15 +191,15 @@ PR-B: Grievance flow — DPDP-compliant public grievance portal
 Batch 1 | Day 1 | Parallel with PR-A, PR-C, PR-D
 
 Files created:
-- server/routes/grievance.js — POST /api/grievance (public, rate-limited, hCaptcha) + admin GET/PATCH
-- server/grievanceDynamodbService.js — Grievances DDB service
-- real-estate-crm-app/src/pages/public/Grievance.tsx — public form page
-- real-estate-crm-app/src/pages/admin/GrievanceList.tsx — admin triage UI
+- apps/crm/server/routes/grievance.js — POST /api/grievance (public, rate-limited, hCaptcha) + admin GET/PATCH
+- apps/crm/server/grievanceDynamodbService.js — Grievances DDB service
+- apps/crm/real-estate-crm-app/src/pages/public/Grievance.tsx — public form page
+- apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx — admin triage UI
 - tests/grievance.spec.ts — Playwright tests
 
 Files modified:
-- server/server.js — added grievanceRoutes to LAUNCH ROUTES blocks
-- real-estate-crm-app/src/App.tsx — added /grievance + /admin/grievances to LAUNCH ROUTES blocks
+- apps/crm/server/server.js — added grievanceRoutes to LAUNCH ROUTES blocks
+- apps/crm/real-estate-crm-app/src/App.tsx — added /grievance + /admin/grievances to LAUNCH ROUTES blocks
 
 Source task: ZEE-002 (pre-launch-prep/P9-grievance-flow.md)
 ```

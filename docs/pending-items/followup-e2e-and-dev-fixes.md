@@ -4,7 +4,7 @@ Context for anyone picking this up. This work was done on
 `claude/followup-agent-service-test-1eb622` and merged into
 `feat/property-pages-ms`; that branch has been deleted. Branch-wide and
 deploy-collision items are in [deploys-and-branches.md](deploys-and-branches.md).
-The test script is `followup-agent-service/docs/E2E-TEST-BRIEF.md`.
+The test script is `docs/services/followup-agent-service/E2E-TEST-BRIEF.md`.
 
 ## What was fixed (now in `feat/property-pages-ms`)
 
@@ -43,17 +43,17 @@ The account picker only appears once this is done. Pick one of these routes:
 
 | Value | Where it goes | Where to get it |
 |---|---|---|
-| `EXOTEL_CALLER_ID` = `02246180704` | `ai-calling-service/.env.dev` | Already found; this is the account's ExoPhone. |
-| `ELEVENLABS_AGENT_PHONE_NUMBER_ID` (`phnum_…`) | `ai-calling-service/.env.dev` | ElevenLabs → Agents → Phone numbers → Import number → SIP trunk / Exotel. Label it `RealEstateFlow Dev ExoPhone`, number `+91 2246180704`, and enter your own Exotel SID, API key and token. Copy the ID it creates. |
+| `EXOTEL_CALLER_ID` = `02246180704` | `services/ai-calling-service/.env.dev` | Already found; this is the account's ExoPhone. |
+| `ELEVENLABS_AGENT_PHONE_NUMBER_ID` (`phnum_…`) | `services/ai-calling-service/.env.dev` | ElevenLabs → Agents → Phone numbers → Import number → SIP trunk / Exotel. Label it `RealEstateFlow Dev ExoPhone`, number `+91 2246180704`, and enter your own Exotel SID, API key and token. Copy the ID it creates. |
 | Exotel outbound calling enabled | Exotel dashboard | Confirm the Connect API / outbound calling is active on the account. |
 
-- [ ] After both env values are filled in: `cfn-templates-cicd/ai-calling-service/deploy.sh config-deploy dev`.
+- [ ] After both env values are filled in: `infra/cicd/ai-calling-service/deploy.sh config-deploy dev`.
 
 ### 4. ElevenLabs dev agent setup (needs your "yes"; changes the agent)
 
 The dev agent `[Dev] RealEstateFlow AI` (`agent_9701m1fm8dbme9cv9jya6nqc5tdw`) has no tools and no post-call webhook.
 
-- [ ] Create the 9 server tools listed in `ai-calling-service/elevenlabs-agent-tools.md`. Headers bind to `secret__` dynamic variables, and there is no `tenant_id` body parameter.
+- [ ] Create the 9 server tools listed in `services/ai-calling-service/elevenlabs-agent-tools.md`. Headers bind to `secret__` dynamic variables, and there is no `tenant_id` body parameter.
 - [ ] Add the post-call webhook. If its secret differs from `ELEVENLABS_WEBHOOK_SECRET` in `.env.dev`, update the env value and run config-deploy again.
 - [ ] If a call fails with "Agent configuration missing", seed an agent-config row for the test tenant.
 
@@ -68,4 +68,4 @@ The dev agent `[Dev] RealEstateFlow AI` (`agent_9701m1fm8dbme9cv9jya6nqc5tdw`) h
 - [ ] The CRM server wrapper's `rollback-code` / `rollback-full` restore code and stack but not SSM keys, so a rollback after a key rename can leave the old code without the keys it reads.
 - [ ] `reality-flow-authentication` has no `.env.dev`, so the `/auth/google` change there can't go through the wrapper until one is created.
 - [ ] `real-estate-crm-app` still has 75 existing `tsc` errors in untouched files. `vite build` ignores them, but `tsc --noEmit` doesn't pass.
-- [ ] Running `server/infra/deploy.sh` does `npm ci --omit=dev`, which removes jest. Run `npm ci` in `server/` before running tests again.
+- [ ] Running `apps/crm/server/infra/deploy.sh` does `npm ci --omit=dev`, which removes jest. Run `npm ci` in `apps/crm/server/` before running tests again.

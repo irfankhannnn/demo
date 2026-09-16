@@ -10,10 +10,10 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§1.2 AIEmployeeProvisioning, §1.3 WebhookLog, §1.4 TenantApiKeys, §2 API routes)
-3. `server/routes/leads.js` (route pattern)
-4. `server/crmDynamodbService.js` (DDB patterns, first 150 lines)
-5. `server/server.js` (understand where billing webhook mount must go — BEFORE validateToken)
-6. `real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (page pattern)
+3. `apps/crm/server/routes/leads.js` (route pattern)
+4. `apps/crm/server/crmDynamodbService.js` (DDB patterns, first 150 lines)
+5. `apps/crm/server/server.js` (understand where billing webhook mount must go — BEFORE validateToken)
+6. `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (page pattern)
 7. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P11-openclaw-concierge.md`
 8. `marketing-and-sales/launch-plan-v2/pricing.json` (AI Employee plan details)
 
@@ -33,7 +33,7 @@ app.use('/api/billing', billingRoutes);
 
 ## What to Build
 
-### 1. `server/routes/billing.js`
+### 1. `apps/crm/server/routes/billing.js`
 
 Razorpay webhook handler. PUBLIC — no `validateToken`.
 
@@ -42,7 +42,7 @@ import express from 'express';
 import crypto from 'crypto';
 import { createProvisioningRow, listPendingProvisioning } from '../aiEmployeeProvisioningService.js';
 import { serverTrack } from '../lib/posthog.js';
-// NOTE: server/lib/posthog.js stub exists from PR-B; PR-E replaces it
+// NOTE: apps/crm/server/lib/posthog.js stub exists from PR-B; PR-E replaces it
 
 const router = express.Router();
 
@@ -105,7 +105,7 @@ async function incrementSeatsPaid(tenantId, by) {
 }
 ```
 
-### 2. `server/aiEmployeeProvisioningService.js`
+### 2. `apps/crm/server/aiEmployeeProvisioningService.js`
 
 DDB service for `AIEmployeeProvisioning` table. Schema from `01-SHARED-CONTRACTS.md §1.2`.
 
@@ -123,14 +123,14 @@ export async function listPendingProvisioning()
 // Returns all rows where status = 'pending'
 ```
 
-### 3. `server/routes/aiEmployeeStatus.js`
+### 3. `apps/crm/server/routes/aiEmployeeStatus.js`
 
 ```js
 // GET /api/ai-employee/status — validateToken + extractTenantId
 // Returns provisioning row for req.tenantId or 404
 ```
 
-### 4. `server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
+### 4. `apps/crm/server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
 
 Cron that runs every 6h. Scans `AIEmployeeProvisioning` where `status=pending` and `now > expectedSLAEnd`.
 
@@ -149,7 +149,7 @@ On breach:
 # Timeout: 60s, Memory: 128MB
 ```
 
-### 5. `server/middleware/apiKeyAuth.js`
+### 5. `apps/crm/server/middleware/apiKeyAuth.js`
 
 Bearer token auth for OpenClaw HTTP requests:
 ```js
@@ -158,7 +158,7 @@ Bearer token auth for OpenClaw HTTP requests:
 // Else: 401 unauthorized
 ```
 
-### 6. `real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
+### 6. `apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
 
 Route: `/integrations/ai-employee`. Protected (requires auth).
 
@@ -172,7 +172,7 @@ Read-only page — no action buttons. Footer has Crisp chat trigger.
 
 ---
 
-## server/server.js Modification
+## apps/crm/server/server.js Modification
 
 In `// === [LAUNCH ROUTES IMPORTS] ===`:
 ```js
@@ -208,8 +208,8 @@ import AIEmployeeStatus from './pages/crm/AIEmployeeStatus';
 
 ## What NOT to Touch
 
-- `server/subscriptionService.js` — created by PR-H; use stubs for seat increment
-- `server/lib/posthog.js` — PR-B created stub; PR-E creates real version; call it regardless
+- `apps/crm/server/subscriptionService.js` — created by PR-H; use stubs for seat increment
+- `apps/crm/server/lib/posthog.js` — PR-B created stub; PR-E creates real version; call it regardless
 - Any LP files
 
 ---
@@ -233,17 +233,17 @@ PR-F: Billing webhook + OpenClaw concierge backend + AI Employee status page
 Batch 2 | Day 2 | Parallel with PR-E, PR-G
 
 Files created:
-- server/routes/billing.js — Razorpay webhook handler (HMAC sig verify + idempotency)
-- server/routes/aiEmployeeStatus.js — GET /api/ai-employee/status
-- server/aiEmployeeProvisioningService.js — AIEmployeeProvisioning DDB service
-- server/scripts/escalation-cron.js — 6h SLA escalation cron
+- apps/crm/server/routes/billing.js — Razorpay webhook handler (HMAC sig verify + idempotency)
+- apps/crm/server/routes/aiEmployeeStatus.js — GET /api/ai-employee/status
+- apps/crm/server/aiEmployeeProvisioningService.js — AIEmployeeProvisioning DDB service
+- apps/crm/server/scripts/escalation-cron.js — 6h SLA escalation cron
 - cron/escalate-openclaw.yaml — EventBridge cron spec
-- server/middleware/apiKeyAuth.js — Bearer token auth for OpenClaw requests
-- real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx — 3-state status page
+- apps/crm/server/middleware/apiKeyAuth.js — Bearer token auth for OpenClaw requests
+- apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx — 3-state status page
 
 Files modified:
-- server/server.js — billing webhook mount (BEFORE auth) + AI Employee status mount
-- real-estate-crm-app/src/App.tsx — /integrations/ai-employee route
+- apps/crm/server/server.js — billing webhook mount (BEFORE auth) + AI Employee status mount
+- apps/crm/real-estate-crm-app/src/App.tsx — /integrations/ai-employee route
 
 Source task: ZEE-004 (pre-launch-prep/P11-openclaw-concierge.md)
 ```

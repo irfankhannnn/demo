@@ -103,7 +103,7 @@ The fix is one moved block. The lesson is the test that now exists: `agentRuntim
 
 ## Follow-up shipped
 
-The assistant now also exists as a **full page** at `/crm/assistant`, with an Assistant/CRM switch, conversation threads, a `+` menu of CRM flows and quick-action chips. See [`02-assistant-page.md`](./02-assistant-page.md). The floating launcher and side sheet described above are unchanged.
+The assistant now also exists as a **full page** at `/crm/assistant`, with an Assistant/CRM switch, conversation threads, a `+` menu of CRM flows and quick-action chips. See [`02-assistant-page.md`](02-assistant-page.md). The floating launcher and side sheet described above are unchanged.
 
 ## Not done
 

@@ -46,7 +46,7 @@ As founder, I want all 12 LPs live + welcome drip running, so Day 9 beta invitee
    - Step 2 (T+1, +24h): "Have you tried adding your first buyer?" email
    - Step 3 (T+3, +72h): "Mumbai broker quick wins (5-min read)" email
    - Step 4 (T+7, +168h): "How are you finding it? Reply to this email" — direct founder reply path
-9. **Wire signup → Brevo**: in `server/routes/auth.js` registration handler, on success POST to Brevo `/contacts` API with list ID `Trial Signups` (env `BREVO_TRIAL_LIST_ID`).
+9. **Wire signup → Brevo**: in `apps/crm/server/routes/auth.js` registration handler, on success POST to Brevo `/contacts` API with list ID `Trial Signups` (env `BREVO_TRIAL_LIST_ID`).
 10. **Activation email** triggered when PostHog event `feature_first_use` fires (via Brevo Webhook integration or zap).
 11. **Smoke test** by registering a real test trial; expect T+0 email within 60s.
 12. **Daily standup** + tick ACs.

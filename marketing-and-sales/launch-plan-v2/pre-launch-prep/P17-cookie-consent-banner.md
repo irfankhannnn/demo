@@ -13,7 +13,7 @@ The LP (`realestateflow.in`) and CRM (`app.realestateflow.in`) run different tra
 | Surface | What it gates | Implementation |
 |---|---|---|
 | **LP** (`realestateflow.in`) | PostHog session recording + GA4 + Meta Pixel + LinkedIn + Hotjar | `creative/landing-pages/_partials/cookie-banner.html` (vanilla HTML+JS) |
-| **CRM** (`app.realestateflow.in`) | PostHog session recording ONLY — GA4/Pixel/LinkedIn/Hotjar are not loaded in the CRM | `real-estate-crm-app/src/components/CookieConsentBanner.tsx` (React) |
+| **CRM** (`app.realestateflow.in`) | PostHog session recording ONLY — GA4/Pixel/LinkedIn/Hotjar are not loaded in the CRM | `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` (React) |
 
 Both use the same `localStorage.cookieConsent` key so the choice persists on same-device cross-domain visits. The CRM banner has fewer toggles (no "Marketing" category) because ad-platform trackers are not present in the CRM.
 
@@ -38,7 +38,7 @@ As a first-time visitor to `realestateflow.in`, I want a clear cookie banner wit
 - [x] No dark patterns: "Reject" same visual prominence as "Accept" (per DPDP guidance)
 - [ ] Footer of every LP page has "Cookie preferences" link → re-opens Customize modal _(`window.openCookiePreferences()` exposed; footer wiring in LP rewrite — PR-I)_
 
-### CRM Banner (`real-estate-crm-app/src/components/CookieConsentBanner.tsx`)
+### CRM Banner (`apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`)
 - [x] Same 3 buttons: "Accept all" / "Reject non-essential" / "Customize"
 - [x] Customize opens modal with only **2 meaningful toggles**: Essential (locked) + Analytics ("We measure product usage via PostHog — no ads, no retargeting")
 - [x] **NO Marketing toggle** in CRM banner — GA4/Pixel/LinkedIn are NOT present in the CRM
@@ -62,7 +62,7 @@ You are a senior front-end engineer + privacy compliance writer. Read inputs:
 - `marketing-and-sales/launch-plan-v2/pre-launch-prep/P10-analytics-events.md` (defines what trackers exist)
 - `marketing-and-sales/launch-implement/pre-launch/01-legal/cookies.md` (P1 cookie inventory)
 - `creative/landing-pages/main/index.html` (LP structure)
-- `real-estate-crm-app/src/main.tsx` + `src/App.tsx` (SPA entry)
+- `apps/crm/real-estate-crm-app/src/main.tsx` + `src/App.tsx` (SPA entry)
 - `marketing-and-sales/creative/realestateflow-launch/brand-kit.md`
 
 Produce these outputs:
@@ -133,7 +133,7 @@ Plain HTML+JS+inline-CSS banner injected into all 5 LPs `<body>` end:
 
 (Expand the `openCustomizeModal()` body to render a full overlay modal with the 4 checkboxes.)
 
-## 2. CRM version `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+## 2. CRM version `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`
 React component — **different toggles from the LP banner**:
 - Same 3 buttons (Accept / Reject / Customize)
 - Customize modal shows only 2 toggles: Essential (locked) + Analytics ("PostHog product usage analytics — no ads")
@@ -195,7 +195,7 @@ Stop here. Do not deploy. Do not auto-set IDs (env-driven).
 
 ## Outputs
 - `creative/landing-pages/_partials/cookie-banner.html`
-- `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+- `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`
 - `marketing-and-sales/launch-implement/pre-launch/17-cookie-banner/{copy.md, cookie-inventory.md, maintenance-sop.md}`
 - `tests/cookie-consent.spec.ts`
 

@@ -8,7 +8,7 @@ CORS for the browser path.
 
 ## What was changed
 
-One existing file was edited — `real-estate-crm-app/infra/cfn-frontend.yaml` — and every
+One existing file was edited — `apps/crm/real-estate-crm-app/infra/cfn-frontend.yaml` — and every
 addition is behind a condition, so the template behaves exactly as before when the new
 parameter is left empty.
 
@@ -32,8 +32,8 @@ This is the part that breaks if someone changes one of them in isolation.
 
 | Where | Value | Why |
 |---|---|---|
-| `frontend_insta_sol_ms/vite.config.ts` | `base: '/insta/'` | makes the build emit asset URLs under `/insta/` |
-| `frontend_insta_sol_ms/infra/deploy.sh` | syncs to `s3://<bucket>/insta/` | the behavior forwards the **full** path (there is no `OriginPath`), so the S3 key must include `insta/` |
+| `apps/instagram/frontend_insta_sol_ms/vite.config.ts` | `base: '/insta/'` | makes the build emit asset URLs under `/insta/` |
+| `apps/instagram/frontend_insta_sol_ms/infra/deploy.sh` | syncs to `s3://<bucket>/insta/` | the behavior forwards the **full** path (there is no `OriginPath`), so the S3 key must include `insta/` |
 | `InstaSpaRewriteFunction` | rewrites to `/insta/index.html` | SPA deep links |
 
 Change one and the app 404s.
@@ -56,18 +56,18 @@ name the distribution, so this is a three-step sequence. It only has to be done 
 environment; after that, content deploys are a single command.
 
 ```
-1. frontend_insta_sol_ms/infra/deploy.sh prod        (CRM_DISTRIBUTION_ID empty)
+1. apps/instagram/frontend_insta_sol_ms/infra/deploy.sh prod        (CRM_DISTRIBUTION_ID empty)
    -> creates prod-realestateflow-insta-frontend bucket
    -> note the InstaFrontendBucketRegionalDomainName output
    -> bucket is private and unreadable. This is correct at this stage.
 
-2. real-estate-crm-app/infra/deploy.sh prod
+2. apps/crm/real-estate-crm-app/infra/deploy.sh prod
    with InstaFrontendBucketDomainName=<that output>
    -> adds the origin, OAC, rewrite function and /insta/* behavior
    -> note the DistributionId output
 
-3. set CRM_DISTRIBUTION_ID=<that id> in frontend_insta_sol_ms/.env.prod
-   frontend_insta_sol_ms/infra/deploy.sh prod
+3. set CRM_DISTRIBUTION_ID=<that id> in apps/instagram/frontend_insta_sol_ms/.env.prod
+   apps/instagram/frontend_insta_sol_ms/infra/deploy.sh prod
    -> attaches the bucket policy scoped to exactly that distribution
    -> /insta/ now serves
 ```

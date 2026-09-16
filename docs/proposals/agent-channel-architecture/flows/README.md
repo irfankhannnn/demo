@@ -4,19 +4,19 @@ One document per flow. Each states its trigger, its orchestration mode (per `../
 
 | # | Flow | Mode | Trigger | Status today |
 |---|---|---|---|---|
-| [01](./01-whatsapp-agent.md) | WhatsApp agent | **A** — bounded tool loop | Inbound WhatsApp message | Built, single-shot (no loop) |
-| [02](./02-web-crm-chat.md) | In-CRM web chat | **A** — bounded tool loop | Browser, synchronous | Not built |
-| [03](./03-call-intelligence.md) | Call Intelligence | **B** — extraction + rules | Recording upload | Built, correct shape |
-| [04](./04-background-automation.md) | Lead qualifier / router / follow-up | **B** — extraction + rules | EventBridge + cron | Built, uses Mode A machinery (wrong) |
-| [05](./05-voice-exotel.md) | Exotel voice | **C** — classifier per turn | Live phone call | Built, regex (no LLM) |
-| [06](./06-mcp-external.md) | MCP for external AI apps | **D** — tool surface only | External MCP client | Built, tool registry drifted |
+| [01](01-whatsapp-agent.md) | WhatsApp agent | **A** — bounded tool loop | Inbound WhatsApp message | Built, single-shot (no loop) |
+| [02](02-web-crm-chat.md) | In-CRM web chat | **A** — bounded tool loop | Browser, synchronous | Not built |
+| [03](03-call-intelligence.md) | Call Intelligence | **B** — extraction + rules | Recording upload | Built, correct shape |
+| [04](04-background-automation.md) | Lead qualifier / router / follow-up | **B** — extraction + rules | EventBridge + cron | Built, uses Mode A machinery (wrong) |
+| [05](05-voice-exotel.md) | Exotel voice | **C** — classifier per turn | Live phone call | Built, regex (no LLM) |
+| [06](06-mcp-external.md) | MCP for external AI apps | **D** — tool surface only | External MCP client | Built, tool registry drifted |
 
 ## Shared conventions
 
 Every flow, without exception:
 
-- Calls tools through `server/skillInvoker.js` — never a bespoke data path.
-- Uses tool definitions from `server/shared/toolDefinitions.js` — the single registry.
+- Calls tools through `apps/crm/server/skillInvoker.js` — never a bespoke data path.
+- Uses tool definitions from `apps/crm/server/shared/toolDefinitions.js` — the single registry.
 - Passes `tenantId` explicitly; tenant scoping is never implicit.
 - Writes an audit entry with a before-image on every mutation.
 - Uses the deterministic formatter for lists and entity cards; the LLM writes prose only.

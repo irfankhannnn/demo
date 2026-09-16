@@ -132,7 +132,7 @@ Produce:
 - Razorpay coupon LAUNCH-REF-XYZ generated per code
 
 ### Frontend
-- Component: `real-estate-crm-app/src/pages/ReferFriend.tsx` (paying user dashboard widget)
+- Component: `apps/crm/real-estate-crm-app/src/pages/ReferFriend.tsx` (paying user dashboard widget)
 - Public landing: `realestateflow.in/refer-friend/{code}` (LP variant with referrer attribution)
 - Email/WhatsApp share buttons + pre-filled message
 

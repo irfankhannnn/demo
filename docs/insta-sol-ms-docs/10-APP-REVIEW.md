@@ -18,8 +18,8 @@ DMs and 0 comments for @happyproperties99 even though the permissions are grante
 | Permissions used by the product: basic, messages, comments, insights | Done: requested at connect, used on screens reviewers can see | code |
 | Screen per permission (Accounts, DM inbox, Comments, Reels, Overview) | Done: Comments screen added for manage_comments | code |
 | Deauthorize and data deletion callbacks | Done: `POST /api/insta/meta/deauthorize`, `POST /api/insta/meta/data-deletion` (+ status URL) | code |
-| Privacy Policy section on Instagram data | Done in `landing-pages/legal/privacy` (Section 3.8, sub-processors, retention) | code, **counsel to review** |
-| Data deletion instructions page | Done: `landing-pages/legal/data-deletion` | code, **counsel to review** |
+| Privacy Policy section on Instagram data | Done in `apps/landing-pages/legal/privacy` (Section 3.8, sub-processors, retention) | code, **counsel to review** |
+| Data deletion instructions page | Done: `apps/landing-pages/legal/data-deletion` | code, **counsel to review** |
 | Legal pages reachable on the public internet | **Blocked**: `realestateflow.in` resolves to 162.215.226.6 and HTTPS does not answer. The landing CloudFront distribution has the alias, but DNS does not point to it | you |
 | Business Verification | Not done | you |
 | Reviewer login to the console | Not done (see 3.4) | you |
@@ -69,7 +69,7 @@ without a login before you submit (section 1, "Blocked").
 
 ### 3.3 Instagram → API setup with Instagram login
 
-Values come from the stack outputs (`cfn-templates-cicd/backend_insta_sol_ms/deploy.sh dev` prints them).
+Values come from the stack outputs (`infra/cicd/backend_insta_sol_ms/deploy.sh dev` prints them).
 For dev:
 
 | Setting | URL |
@@ -100,7 +100,7 @@ Reviewers use dev (`app.realestateflow.in/insta/`), which already has the
 account connected. While the review is open:
 
 - Set `INSTA_DRY_RUN_SENDS=false` for dev and run a config-only deploy
-  (`cfn-templates-cicd/backend_insta_sol_ms/deploy.sh config-deploy dev`), so a
+  (`infra/cicd/backend_insta_sol_ms/deploy.sh config-deploy dev`), so a
   reviewer's reply actually arrives on Instagram. Set it back afterwards if you
   want test mode again.
 - Keep the kill switch off.

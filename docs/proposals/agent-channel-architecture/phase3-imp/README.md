@@ -8,12 +8,12 @@ Same discipline as [`../phase1-imp/`](../phase1-imp/) and [`../phase2-imp/`](../
 
 | Slice | What | Status | Doc |
 |---|---|---|---|
-| 3a | Bounded multi-step tool loop (the `functionCalls[0]` fix) | ✅ **Done — shipped OFF behind `AGENT_TOOL_LOOP_ENABLED`** | [`01-slice3a-bounded-tool-loop.md`](./01-slice3a-bounded-tool-loop.md) |
-| 3b | Router hard gate → ranker (scope escalation on a mis-scoped turn) | ✅ **Done — same flag as 3a** | [`02-slice3b-router-ranker.md`](./02-slice3b-router-ranker.md) |
+| 3a | Bounded multi-step tool loop (the `functionCalls[0]` fix) | ✅ **Done — shipped OFF behind `AGENT_TOOL_LOOP_ENABLED`** | [`01-slice3a-bounded-tool-loop.md`](01-slice3a-bounded-tool-loop.md) |
+| 3b | Router hard gate → ranker (scope escalation on a mis-scoped turn) | ✅ **Done — same flag as 3a** | [`02-slice3b-router-ranker.md`](02-slice3b-router-ranker.md) |
 | 3c | Strict tool schemas; retire `coerceQueryToFilters`/`LEAD_STATUS_TYPOS` | ⛔ **Blocked — gated on eval data** | — |
-| 3d | `find_person` resolver tool | ✅ **Done — live, not flag-gated** | [`03-slice3d-find-person.md`](./03-slice3d-find-person.md) |
-| 3e | Consolidate the 12 overlapping metrics tools down to 3–4 | ✅ **Done — planner view 12 → 4, non-breaking** | [`04-slice3e-analytics-consolidation.md`](./04-slice3e-analytics-consolidation.md) |
-| 3f | Prompt caching on the stable prefix | ✅ **Done — explicit caching N/A; prefix stability 200 → 3,094 chars** | [`05-slice3f-prompt-prefix.md`](./05-slice3f-prompt-prefix.md) |
+| 3d | `find_person` resolver tool | ✅ **Done — live, not flag-gated** | [`03-slice3d-find-person.md`](03-slice3d-find-person.md) |
+| 3e | Consolidate the 12 overlapping metrics tools down to 3–4 | ✅ **Done — planner view 12 → 4, non-breaking** | [`04-slice3e-analytics-consolidation.md`](04-slice3e-analytics-consolidation.md) |
+| 3f | Prompt caching on the stable prefix | ✅ **Done — explicit caching N/A; prefix stability 200 → 3,094 chars** | [`05-slice3f-prompt-prefix.md`](05-slice3f-prompt-prefix.md) |
 
 **583/586 tests passing**, zero regressions. The 3 remaining failures are pre-existing and unrelated (documented in [`../phase1-imp/07-bugs-found.md`](../phase1-imp/07-bugs-found.md) #9–10).
 

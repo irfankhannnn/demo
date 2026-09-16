@@ -12,16 +12,16 @@ This folder is the **delta plan** produced by applying the uploaded *AI Employee
 
 ## Product & architecture context (grounding)
 
-So the plan stays accurate, here is what RealEstateFlow actually is, from the repo (`CLAUDE.md`, `server/`, `real-estate-crm-app/`):
+So the plan stays accurate, here is what RealEstateFlow actually is, from the repo (`CLAUDE.md`, `apps/crm/server/`, `apps/crm/real-estate-crm-app/`):
 
 | Layer | Detail |
 |---|---|
 | Product | **RealEstateFlow** — a multi-tenant real estate CRM + an autonomous **AI Employee** (internal codename "OpenClaw") that runs broking workflows on WhatsApp + Telegram |
-| Frontend | React + TypeScript + Vite + TailwindCSS — `real-estate-crm-app/src/` (pages, components, services, contexts, types) |
-| Backend | Node.js + Express on **AWS Lambda + API Gateway** (greedy `{proxy+}` proxy pattern) — `server/` (routes, services, middleware) |
+| Frontend | React + TypeScript + Vite + TailwindCSS — `apps/crm/real-estate-crm-app/src/` (pages, components, services, contexts, types) |
+| Backend | Node.js + Express on **AWS Lambda + API Gateway** (greedy `{proxy+}` proxy pattern) — `apps/crm/server/` (routes, services, middleware) |
 | Data | **DynamoDB single-table, multi-tenant** (`TENANT#` prefix, `x-tenant-id` header, `tenantMiddleware.js`); CRM entities: Buyers, Owners, Tenants/Customers, Properties/Flats, Leads, B2B Leads, Khata book + Settlement, Developers, Areas, Projects |
-| AI calling | `ai-calling-service/` (Lambda + Exotel + ElevenLabs) — **disabled for M1** (commented out in `App.tsx`) |
-| Onboarding | Separate flow — `onboarding-page/`, `server/onboard-agency.js`, `agencyConfigService.js` |
+| AI calling | `services/ai-calling-service/` (Lambda + Exotel + ElevenLabs) — **disabled for M1** (commented out in `App.tsx`) |
+| Onboarding | Separate flow — `apps/onboarding/`, `apps/crm/server/onboard-agency.js`, `agencyConfigService.js` |
 | Auth | JWT + Phone OTP; invite & member management |
 | Payments | **Razorpay** (UPI/card/netbanking/wallet), GST invoicing |
 | Region / infra | AWS `ap-south-1` (Mumbai); API host `services-api.cloudberrysolutions.in/realestateagency`; marketing site `realestateflow.in` |

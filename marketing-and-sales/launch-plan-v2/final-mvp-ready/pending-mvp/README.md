@@ -22,17 +22,17 @@
 
 ## Document Index
 
-1. [pending-tasks.md](./pending-tasks.md) — Task-by-task what remains
-2. [deployment-steps.md](./deployment-steps.md) — Full deployment runbook
-3. [manual-configurations.md](./manual-configurations.md) — Env vars, AWS, Razorpay, Bailey
-4. [testing-guide.md](./testing-guide.md) — E2E, integration, security tests
-5. [known-issues-and-suggestions.md](./known-issues-and-suggestions.md) — Bugs, gaps, recommendations
+1. [pending-tasks.md](pending-tasks.md) — Task-by-task what remains
+2. [deployment-steps.md](deployment-steps.md) — Full deployment runbook
+3. [manual-configurations.md](manual-configurations.md) — Env vars, AWS, Razorpay, Bailey
+4. [testing-guide.md](testing-guide.md) — E2E, integration, security tests
+5. [known-issues-and-suggestions.md](known-issues-and-suggestions.md) — Bugs, gaps, recommendations
 
 ---
 
 ## Critical Path to Launch
 
-1. Deploy `server/infra/cfn-backend.yaml` with new credit + SES params (includes all 10 cron jobs)
+1. Deploy `apps/crm/server/infra/cfn-backend.yaml` with new credit + SES params (includes all 10 cron jobs)
 2. Seed `cloudberry-real-estate-credit-config` table (run seed script once)
 3. Verify SES sender domain (see `../notes/ses-aws-setup.md`)
 4. Configure Razorpay webhook + `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`

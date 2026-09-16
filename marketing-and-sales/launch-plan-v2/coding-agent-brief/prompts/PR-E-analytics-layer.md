@@ -11,10 +11,10 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md` (§5 Analytics Architecture — read this twice)
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§3.4 EventName types, §3.5 CookieConsent)
-3. `real-estate-crm-app/src/components/CookieConsentBanner.tsx` (created by PR-C — understand how consent state is stored)
-4. `real-estate-crm-app/src/App.tsx` (initAuth logic — where identifyUser will be called)
-5. `real-estate-crm-app/src/main.tsx`
-6. `server/routes/grievance.js` (PostHog stub created by PR-B — you replace the stub)
+3. `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` (created by PR-C — understand how consent state is stored)
+4. `apps/crm/real-estate-crm-app/src/App.tsx` (initAuth logic — where identifyUser will be called)
+5. `apps/crm/real-estate-crm-app/src/main.tsx`
+6. `apps/crm/server/routes/grievance.js` (PostHog stub created by PR-B — you replace the stub)
 7. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P10-analytics-events.md`
 
 ---
@@ -32,7 +32,7 @@ Sentry        = main.tsx + lambda-handler.js     — Error tracking only
 
 ## What to Build
 
-### 1. `real-estate-crm-app/src/lib/analytics.ts`
+### 1. `apps/crm/real-estate-crm-app/src/lib/analytics.ts`
 
 **PostHog ONLY in this file — no GA4, no fbq, no lintrk.**
 
@@ -83,7 +83,7 @@ export function resetAnalytics(): void {
 
 Create matching types file `src/types/analytics.ts` with `AnalyticsEvent` union type and `UserTraits` interface from `01-SHARED-CONTRACTS.md §3.4`.
 
-### 2. `real-estate-crm-app/src/main.tsx` modifications
+### 2. `apps/crm/real-estate-crm-app/src/main.tsx` modifications
 
 Add at top of the file:
 ```typescript
@@ -149,7 +149,7 @@ Pages to instrument (add trackEvent calls, don't restructure the components):
 
 **Do not instrument pages that don't exist yet** (PaywallModal, NpsModal — those PRs add their own tracking).
 
-### 5. `server/lib/posthog.js`
+### 5. `apps/crm/server/lib/posthog.js`
 
 Replaces the stub created by PR-B:
 ```js
@@ -184,7 +184,7 @@ export async function shutdownPostHog() {
 }
 ```
 
-Also update `server/routes/grievance.js` (created by PR-B) to replace its stub with the real import:
+Also update `apps/crm/server/routes/grievance.js` (created by PR-B) to replace its stub with the real import:
 ```js
 // Replace: async function serverTrack(...) { console.log(...) }
 // With:
@@ -290,7 +290,7 @@ Playwright tests (two groups):
 
 ## What NOT to Touch
 
-- `server/server.js` — no route mounts (posthog.js is a lib, not a route)
+- `apps/crm/server/server.js` — no route mounts (posthog.js is a lib, not a route)
 - Any GA4/Pixel/LinkedIn code in CRM — strictly forbidden
 - Any LP HTML files (those are PR-I)
 
@@ -305,18 +305,18 @@ Batch 2 | Day 2 | Parallel with PR-F, PR-G
 Depends on: PR-C merged (CookieConsentBanner.tsx must exist)
 
 Files created:
-- real-estate-crm-app/src/lib/analytics.ts — PostHog-only CRM analytics module
-- real-estate-crm-app/src/types/analytics.ts — EventName + UserTraits types
+- apps/crm/real-estate-crm-app/src/lib/analytics.ts — PostHog-only CRM analytics module
+- apps/crm/real-estate-crm-app/src/types/analytics.ts — EventName + UserTraits types
 - creative/landing-pages/_partials/head-analytics.hbs — LP analytics snippet (5 trackers, all consent-gated)
-- server/lib/posthog.js — PostHog Node SDK wrapper (replaces stub from PR-B)
+- apps/crm/server/lib/posthog.js — PostHog Node SDK wrapper (replaces stub from PR-B)
 
 Files modified:
-- real-estate-crm-app/src/main.tsx — PostHog init + Sentry init
-- real-estate-crm-app/src/App.tsx — identifyUser after auth + resetAnalytics on logout
-- real-estate-crm-app/src/pages/PhoneLogin.tsx — UTM capture + signup_started event
-- real-estate-crm-app/src/pages/RoleSelection.tsx — onboarding_role_selected event
-- real-estate-crm-app/src/pages/RegisterAdmin.tsx — agency_registered event
-- server/routes/grievance.js — replace PostHog stub with real import
+- apps/crm/real-estate-crm-app/src/main.tsx — PostHog init + Sentry init
+- apps/crm/real-estate-crm-app/src/App.tsx — identifyUser after auth + resetAnalytics on logout
+- apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx — UTM capture + signup_started event
+- apps/crm/real-estate-crm-app/src/pages/RoleSelection.tsx — onboarding_role_selected event
+- apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx — agency_registered event
+- apps/crm/server/routes/grievance.js — replace PostHog stub with real import
 - tests/analytics.spec.ts — full Playwright test suite
 
 Architecture enforced: CRM has PostHog ONLY; LP snippet has all 5 trackers.

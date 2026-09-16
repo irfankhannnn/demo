@@ -6,15 +6,15 @@ Covers three unattended flows that currently share the wrong machinery:
 
 | Script | Trigger | Job |
 |---|---|---|
-| `server/scripts/lead-qualifier-handler.js` | EventBridge `lead.created` | Hot/Warm/Cold temperature from intake data |
-| `server/scripts/lead-router-handler.js` | EventBridge `lead.qualified` | Assign the lead to a team member |
-| `server/scripts/lead-followup-cron.js` | Scheduled | Generate follow-up nudges |
+| `apps/crm/server/scripts/lead-qualifier-handler.js` | EventBridge `lead.created` | Hot/Warm/Cold temperature from intake data |
+| `apps/crm/server/scripts/lead-router-handler.js` | EventBridge `lead.qualified` | Assign the lead to a team member |
+| `apps/crm/server/scripts/lead-followup-cron.js` | Scheduled | Generate follow-up nudges |
 
 ---
 
 ## The problem
 
-All three call `invokeAgent()` from `server/agents/agentRuntime.js` — **the same entry point the WhatsApp chat agent uses**. That means they inherit the full Mode A machinery: domain routing, open function-calling over the CRM tool registry, and the ability to write to the CRM with nobody reading the result.
+All three call `invokeAgent()` from `apps/crm/server/agents/agentRuntime.js` — **the same entry point the WhatsApp chat agent uses**. That means they inherit the full Mode A machinery: domain routing, open function-calling over the CRM tool registry, and the ability to write to the CRM with nobody reading the result.
 
 This is backwards. Nobody is watching a cron job. Per `../04-orchestration-patterns.md`, the correct question is not "how complex is the task" but "who is watching when the action happens" — and the answer here is *nobody, for hours or days*.
 

@@ -1,6 +1,6 @@
 # Agent Runtime Flow (Bonus)
 
-Source: `server/scripts/whatsapp-message-processor.js`, `server/agents/agentRuntime.js`, `server/agents/responseFormatter.js`
+Source: `apps/crm/server/scripts/whatsapp-message-processor.js`, `apps/crm/server/agents/agentRuntime.js`, `apps/crm/server/agents/responseFormatter.js`
 
 End-to-end path from WhatsApp message to reply.
 
@@ -75,7 +75,7 @@ Logging: `skillInvoker.request`, `skillInvoker.response`, `agent.tool.complete`
 
 `sanitizeAndFormatReply(reply, toolResults)`:
 
-- May **replace** LLM reply with deterministic formatter (see [04-response-formatter.md](./04-response-formatter.md))
+- May **replace** LLM reply with deterministic formatter (see [04-response-formatter.md](04-response-formatter.md))
 
 ### 6. State update (after reply)
 
@@ -141,4 +141,4 @@ Dev bypass: `agent.invoke.local_dev_bypass` when categories missing (config-depe
 | "undefined (Lead Lead)" after note | Formatter treated note as create — **fixed** |
 | Tool hang | CRM URL / permissions — separate infra issue |
 
-This flow doc should be read alongside [01-system-prompt.md](./01-system-prompt.md) and [04-response-formatter.md](./04-response-formatter.md).
+This flow doc should be read alongside [01-system-prompt.md](01-system-prompt.md) and [04-response-formatter.md](04-response-formatter.md).

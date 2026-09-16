@@ -5,8 +5,8 @@ All infra changes in one place so an implementer touches `cfn-backend.yaml` and 
 **IMPORTANT:** All 10 cron jobs are now merged into the main `cfn-backend.yaml` template. One-click deployment via `./deploy.sh` deploys the API + all crons in a single CloudFormation stack. The separate `cron/*.yaml` files and `deploy-crons.sh` are obsolete.
 
 References:
-- Main stack: `server/infra/cfn-backend.yaml` (DynamoDB tables, `ApiLambdaExecutionRole`, `ApiLambdaFunction`, two API Gateways, and all 10 cron jobs).
-- Deploy: `server/infra/deploy.sh` (npm ci → zip `function.zip` incl. `scripts/` → S3 → `cloudformation deploy` → force API GW deploy). Handler `lambda-handler.handler`. Syntax gate `server/scripts/build.sh`.
+- Main stack: `apps/crm/server/infra/cfn-backend.yaml` (DynamoDB tables, `ApiLambdaExecutionRole`, `ApiLambdaFunction`, two API Gateways, and all 10 cron jobs).
+- Deploy: `apps/crm/server/infra/deploy.sh` (npm ci → zip `function.zip` incl. `scripts/` → S3 → `cloudformation deploy` → force API GW deploy). Handler `lambda-handler.handler`. Syntax gate `apps/crm/server/scripts/build.sh`.
 
 ---
 
@@ -71,11 +71,11 @@ All 10 cron jobs are now defined within the main `cfn-backend.yaml` template. Ea
 | Lead Qualifier | EventBridge pattern `crm.leads`/`lead.created` | `lead-qualifier-handler.handler` | CRM, Bedrock, Credits |
 | Lead Router | EventBridge pattern `crm.leads`/`lead.qualified` | `lead-router-handler.handler` | CRM, AUTH, Bedrock, Credits |
 
-**Note:** All handlers live in `server/scripts/` so they are already in `function.zip`. Each cron Lambda points its `Code` at the same artifact (S3 bucket/key) the deploy uploads, with a distinct `Handler`.
+**Note:** All handlers live in `apps/crm/server/scripts/` so they are already in `function.zip`. Each cron Lambda points its `Code` at the same artifact (S3 bucket/key) the deploy uploads, with a distinct `Handler`.
 
 **Cron roles need SES + (where used) Bedrock + EventBridge** — these Lambdas don't use the API role.
 
-## 5. `server/server.js` mount additions
+## 5. `apps/crm/server/server.js` mount additions
 
 - `webhooksRoutes` mounted **before** `express.json()` with `express.raw()` (like billing). (E1-T5)
 - After json + auth: mount `admin.js` (`/api/admin`), `creditAdmin.js` (`/api/credit-config`). (E2/E4)
@@ -97,15 +97,15 @@ All 10 cron jobs are now defined within the main `cfn-backend.yaml` template. Ea
     -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
        "deploy*.ps1" "deploy.ps1" "*.md" ".git*" "cfn/*" "infra/*" "mcp-server/*"
   ```
-- **File-placement convention (match existing code):** backend services live at the **server root** as `server/<name>Service.js` (e.g. existing `crmDynamodbService.js`, `subscriptionService.js`, `agencyConfigService.js`). There is **no `server/services/` or `server/config/` directory** — do not invent them. New modules `creditService.js`, `creditConfig.js`, `emailService.js`, `teamAnalyticsService.js`, `dataQualityService.js`, `skillInvoker.js`, `agentAuditService.js`, `bailey.js`, `razorpayOrders.js`, `whatsappAuditService.js` go at **server root** and ship automatically via `*.js` glob.
-- `InsufficientCreditsError`: define inline in `server/creditService.js` — match the error class style in `server/expressError.js` (no `errors/` dir).
-- `server/agents/` is the **only new directory** (agent runtimes go here). Its handlers are not in scripts/ — they're in agents/. Lambda handlers for agents go in `server/scripts/` (already included).
-- `server/mcp-server/` is a separate stdio process; **exclude** from the API zip.
+- **File-placement convention (match existing code):** backend services live at the **server root** as `server/<name>Service.js` (e.g. existing `crmDynamodbService.js`, `subscriptionService.js`, `agencyConfigService.js`). There is **no `apps/crm/server/services/` or `apps/crm/server/config/` directory** — do not invent them. New modules `creditService.js`, `creditConfig.js`, `emailService.js`, `teamAnalyticsService.js`, `dataQualityService.js`, `skillInvoker.js`, `agentAuditService.js`, `bailey.js`, `razorpayOrders.js`, `whatsappAuditService.js` go at **server root** and ship automatically via `*.js` glob.
+- `InsufficientCreditsError`: define inline in `apps/crm/server/creditService.js` — match the error class style in `apps/crm/server/expressError.js` (no `errors/` dir).
+- `apps/crm/server/agents/` is the **only new directory** (agent runtimes go here). Its handlers are not in scripts/ — they're in agents/. Lambda handlers for agents go in `apps/crm/server/scripts/` (already included).
+- `apps/crm/server/mcp-server/` is a separate stdio process; **exclude** from the API zip.
 - New deps (`@aws-sdk/client-sesv2`, `@aws-sdk/client-eventbridge`, `xlsx`, `@aws-sdk/client-bedrock-runtime`) install via `npm ci` and ship in `node_modules`. Verify Lambda package size ≤ 250MB (uncompressed) before shipping; if close, consider Lambda layers.
 - All 10 cron jobs are now deployed as part of the main `cfn-backend.yaml` stack — no separate cron deployment needed.
 
 ## 7. Build gate
-- `server/scripts/build.sh` currently runs `find routes middleware scripts lib -name "*.js" -exec node --check`. Extend it to also check the server root `*.js` and the new `agents` dir, e.g. `find . -maxdepth 1 -name "*.js"` plus `agents`. (Root services are not currently syntax-checked — fix this.)
+- `apps/crm/server/scripts/build.sh` currently runs `find routes middleware scripts lib -name "*.js" -exec node --check`. Extend it to also check the server root `*.js` and the new `agents` dir, e.g. `find . -maxdepth 1 -name "*.js"` plus `agents`. (Root services are not currently syntax-checked — fix this.)
 
 ---
 
@@ -119,5 +119,5 @@ All 10 cron jobs are now defined within the main `cfn-backend.yaml` template. Ea
 - [x] `build.sh` extended: check root `*.js` files + `agents/` directory.
 - [x] All 10 cron jobs merged into cfn-backend.yaml with correct handler paths + execution roles + S3 Code.
 - [x] `cloudformation validate-template` passes for main stack (includes all crons).
-- [x] `server/server.js` mount additions: `webhooksRoutes` before `express.json()`, `adminRoutes` + `creditAdminRoutes` after.
+- [x] `apps/crm/server/server.js` mount additions: `webhooksRoutes` before `express.json()`, `adminRoutes` + `creditAdminRoutes` after.
 - [x] One-click deployment: `./deploy.sh` deploys API + all 10 cron jobs in single stack.

@@ -16,17 +16,17 @@ There are **two completely separate web applications** in this monorepo:
 
 | App | Directory | Domain | Stack | Auth |
 |---|---|---|---|---|
-| **CRM SPA** | `real-estate-crm-app/` | `app.realestateflow.in` | React + TypeScript + Vite + Tailwind | Cognito via `validateToken` middleware |
+| **CRM SPA** | `apps/crm/real-estate-crm-app/` | `app.realestateflow.in` | React + TypeScript + Vite + Tailwind | Cognito via `validateToken` middleware |
 | **Landing Pages** | `creative/landing-pages/` | `realestateflow.in` | Static HTML + Vite build pipeline | None (public) |
 
-**Both deploy to Netlify independently.** They share the same backend API (`server/`).
+**Both deploy to Netlify independently.** They share the same backend API (`apps/crm/server/`).
 
 ---
 
 ## 3. Backend Architecture
 
 ```
-server/
+apps/crm/server/
 ├── server.js              — Express entry point; mounts all routes
 ├── lambda-handler.js      — AWS Lambda entry wrapping Express
 ├── tenantMiddleware.js    — extractTenantId() middleware
@@ -53,7 +53,7 @@ router.get('/path', validateToken, extractTenantId, async (req, res) => {
 ## 4. Frontend Architecture
 
 ```
-real-estate-crm-app/src/
+apps/crm/real-estate-crm-app/src/
 ├── App.tsx                — React Router + auth state machine + ProtectedRoute
 ├── main.tsx               — Vite entry; PostHog + Sentry init goes here
 ├── pages/
@@ -128,9 +128,9 @@ const dynamodb = wrapAwsClient();
 
 ### Backend
 - ES Modules (`import`/`export`) — already configured
-- Pattern to copy: `server/routes/leads.js` + `server/tenantMiddleware.js`
+- Pattern to copy: `apps/crm/server/routes/leads.js` + `apps/crm/server/tenantMiddleware.js`
 - Error responses: `res.status(4xx).json({ error: 'string', details?: 'string' })`
-- All routes go in `server/routes/`; all DDB operations in `server/*DynamodbService.js`
+- All routes go in `apps/crm/server/routes/`; all DDB operations in `apps/crm/server/*DynamodbService.js`
 - Rate limiting: use `express-rate-limit` (check if installed)
 
 ### Frontend
@@ -142,7 +142,7 @@ const dynamodb = wrapAwsClient();
 - Copy pattern from existing pages: `src/pages/crm/BuyerList.tsx` or `src/pages/admin/InviteManagement.tsx`
 
 ### Testing
-- Playwright for E2E tests — existing config in `real-estate-crm-app/test/`
+- Playwright for E2E tests — existing config in `apps/crm/real-estate-crm-app/test/`
 - All test files in `tests/` at repo root
 - Run: `npx playwright test tests/{spec-file}.spec.ts`
 
@@ -152,7 +152,7 @@ const dynamodb = wrapAwsClient();
 
 All agents should use placeholder values for env vars they haven't been given. Never hardcode credentials.
 
-### Backend Lambda (`server/.env`)
+### Backend Lambda (`apps/crm/server/.env`)
 ```
 RAZORPAY_WEBHOOK_SECRET=
 RAZORPAY_KEY_SECRET=
@@ -167,7 +167,7 @@ DEMO_TENANT_ID=
 AUTH_SERVICE_URL=         # already exists
 ```
 
-### CRM SPA (`real-estate-crm-app/.env`)
+### CRM SPA (`apps/crm/real-estate-crm-app/.env`)
 ```
 VITE_API_URL=             # already exists
 VITE_POSTHOG_KEY=
@@ -196,7 +196,7 @@ See `01-SHARED-CONTRACTS.md` for all new DynamoDB table schemas, API route specs
 
 ---
 
-## 11. How to Add Routes to server/server.js
+## 11. How to Add Routes to apps/crm/server/server.js
 
 Add your import in the `// === [LAUNCH ROUTES IMPORTS] ===` block and your mount in the `// === [LAUNCH ROUTES MOUNTS] ===` block. These are tagged comment sections. Use your PR-ID as the tag so merges are conflict-free:
 
@@ -242,20 +242,20 @@ Each PR only adds its own tagged block. Never reorder or remove existing routes.
 
 | Agent | File | Allowed modification |
 |---|---|---|
-| PR-B | `server/server.js` | Add tagged import + mount block |
+| PR-B | `apps/crm/server/server.js` | Add tagged import + mount block |
 | PR-B | `src/App.tsx` | Add tagged route block (public + admin/grievances) |
 | PR-C | `src/App.tsx` | Add `<CookieConsentBanner />` inside authenticated layout |
 | PR-D | `creative/landing-pages/netlify.toml` | Add redirects for new pages; remove enterprise redirect |
-| PR-F | `server/server.js` | Add tagged import + mount block (billing webhook BEFORE auth) |
+| PR-F | `apps/crm/server/server.js` | Add tagged import + mount block (billing webhook BEFORE auth) |
 | PR-F | `src/App.tsx` | Add tagged route block (/integrations/ai-employee) |
-| PR-H | `server/server.js` | Add tagged import + mount block (subscriptions) |
-| PR-H | `server/routes/auth.js` | Add seat-cap check in the invite-creation handler ONLY |
+| PR-H | `apps/crm/server/server.js` | Add tagged import + mount block (subscriptions) |
+| PR-H | `apps/crm/server/routes/auth.js` | Add seat-cap check in the invite-creation handler ONLY |
 | PR-H | `src/App.tsx` | Add tagged route block (/admin/invites, /admin/members updates) |
-| PR-J | `server/server.js` | Add tagged import + mount block (subscriptions trial-status) |
+| PR-J | `apps/crm/server/server.js` | Add tagged import + mount block (subscriptions trial-status) |
 | PR-J | `src/App.tsx` | Add `<TrialCountdownBanner />` + `<PaywallModal />` to authenticated layout |
-| PR-K | `server/server.js` | Add tagged import + mount block (feedback) |
+| PR-K | `apps/crm/server/server.js` | Add tagged import + mount block (feedback) |
 | PR-K | `src/App.tsx` | Add tagged route block (/nps) |
-| PR-L | `server/routes/auth.js` | Add Brevo contact addition in the register handler ONLY |
+| PR-L | `apps/crm/server/routes/auth.js` | Add Brevo contact addition in the register handler ONLY |
 
 **Rule:** Any file not in your allowed modification list — create a new file instead.
 
@@ -274,10 +274,10 @@ Examples:
 ## 15. Source Files to Read for Patterns
 
 Before writing any code, read these files to understand existing patterns:
-- `server/routes/leads.js` — route pattern
-- `server/crmDynamodbService.js` (first 200 lines) — DDB service pattern
-- `server/tenantMiddleware.js` — tenant scoping
-- `server/awsClientWrapper.js` — DDB client wrapper
-- `real-estate-crm-app/src/pages/admin/InviteManagement.tsx` — admin page pattern
-- `real-estate-crm-app/src/pages/crm/BuyerList.tsx` — CRM page pattern
-- `real-estate-crm-app/src/App.tsx` — route + ProtectedRoute pattern
+- `apps/crm/server/routes/leads.js` — route pattern
+- `apps/crm/server/crmDynamodbService.js` (first 200 lines) — DDB service pattern
+- `apps/crm/server/tenantMiddleware.js` — tenant scoping
+- `apps/crm/server/awsClientWrapper.js` — DDB client wrapper
+- `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` — admin page pattern
+- `apps/crm/real-estate-crm-app/src/pages/crm/BuyerList.tsx` — CRM page pattern
+- `apps/crm/real-estate-crm-app/src/App.tsx` — route + ProtectedRoute pattern

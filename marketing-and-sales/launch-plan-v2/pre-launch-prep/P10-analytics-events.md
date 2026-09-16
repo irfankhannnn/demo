@@ -12,7 +12,7 @@
 
 There are two completely separate deployments:
 - **`realestateflow.in`** (Landing Pages) — `creative/landing-pages/` — static HTML, deployed to Netlify
-- **`app.realestateflow.in`** (CRM SPA) — `real-estate-crm-app/` — React/Vite SPA, deployed separately
+- **`app.realestateflow.in`** (CRM SPA) — `apps/crm/real-estate-crm-app/` — React/Vite SPA, deployed separately
 
 Analytics placement follows strict ownership:
 
@@ -32,9 +32,9 @@ Analytics placement follows strict ownership:
 ## Objective
 Wire a complete typed-event analytics layer covering:
 1. **LP analytics snippet** (in `creative/landing-pages/_partials/head.hbs`) — PostHog + GA4 + Pixel + LinkedIn + Hotjar, all gated by cookie consent
-2. **CRM analytics module** (`real-estate-crm-app/src/lib/analytics.ts`) — PostHog ONLY, with `posthog.identify()` post-login
-3. **Server PostHog SDK** (`server/lib/posthog.js`) — server-side events for payments, grievances, provisioning
-4. **Sentry** — SPA (`src/main.tsx`) + Server (`server/lambda-handler.js`) only
+2. **CRM analytics module** (`apps/crm/real-estate-crm-app/src/lib/analytics.ts`) — PostHog ONLY, with `posthog.identify()` post-login
+3. **Server PostHog SDK** (`apps/crm/server/lib/posthog.js`) — server-side events for payments, grievances, provisioning
+4. **Sentry** — SPA (`src/main.tsx`) + Server (`apps/crm/server/lambda-handler.js`) only
 
 ## Why This Matters for RealEstateFlow
 By Day 21 we need to see the full funnel from cold email click → LP page-view → form submit → signup → activation → paid → AI-Employee-connected. Without typed PostHog events stitched cross-domain, we are blind. Cookie consent is DPDP requirement (P1).
@@ -53,8 +53,8 @@ As a founder reading the Day-21 metrics review, I want every conversion-critical
 - [ ] Cookie consent banner controls all 5 LP trackers via `cookie-consent-analytics`, `cookie-consent-marketing`, `cookie-consent-functional` custom events
 - [ ] LP build env vars documented in `creative/landing-pages/.env.example`: `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`
 
-### CRM SPA Surface (`app.realestateflow.in` — `real-estate-crm-app/`)
-- [ ] `posthog-js` added to `real-estate-crm-app/package.json`; initialised in `src/main.tsx`
+### CRM SPA Surface (`app.realestateflow.in` — `apps/crm/real-estate-crm-app/`)
+- [ ] `posthog-js` added to `apps/crm/real-estate-crm-app/package.json`; initialised in `src/main.tsx`
 - [ ] `posthog.identify(userId, {tenantId, role, plan, trialEndsAt, agencyName})` called in `App.tsx initAuth` post-login
 - [ ] **GA4, Meta Pixel, LinkedIn Insight Tag, Hotjar are NOT present in the CRM SPA** — zero script tags for these in `index.html` or `main.tsx`
 - [ ] Sentry DSN configured for SPA (`src/main.tsx`); `VITE_SENTRY_DSN` env var
@@ -64,8 +64,8 @@ As a founder reading the Day-21 metrics review, I want every conversion-critical
 - [ ] SPA env vars: `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST`, `VITE_SENTRY_DSN`
 
 ### Server Surface (Lambda)
-- [ ] PostHog Node SDK in `server/lib/posthog.js` for server-side events
-- [ ] Sentry DSN configured in `server/lambda-handler.js`; `SENTRY_DSN_SERVER` env var
+- [ ] PostHog Node SDK in `apps/crm/server/lib/posthog.js` for server-side events
+- [ ] Sentry DSN configured in `apps/crm/server/lambda-handler.js`; `SENTRY_DSN_SERVER` env var
 - [ ] 7 server events wired (billing webhook, grievance, provisioning — see catalogue)
 
 ### Cross-Domain Attribution (PostHog bridge)
@@ -149,11 +149,11 @@ ARCHITECTURE RULE (enforce strictly):
 - PostHog is the cross-domain bridge: anonymous on LP → identified post-login in CRM
 
 Read these inputs:
-- `real-estate-crm-app/src/App.tsx` (existing routes + initAuth logic)
-- `real-estate-crm-app/src/main.tsx` (entry point)
-- `real-estate-crm-app/src/pages/**/*.tsx` (enumerate user actions)
-- `server/routes/*.js` (server actions)
-- `server/lambda-handler.js` (Lambda entry)
+- `apps/crm/real-estate-crm-app/src/App.tsx` (existing routes + initAuth logic)
+- `apps/crm/real-estate-crm-app/src/main.tsx` (entry point)
+- `apps/crm/real-estate-crm-app/src/pages/**/*.tsx` (enumerate user actions)
+- `apps/crm/server/routes/*.js` (server actions)
+- `apps/crm/server/lambda-handler.js` (Lambda entry)
 - `creative/landing-pages/main/index.html` (existing analytics placeholders to replace)
 - `marketing-and-sales/launch-plan-v2/pre-launch-prep/P10-analytics-events.md` (this file — event catalogue)
 
@@ -170,7 +170,7 @@ Complete event spec. For each event:
 - Mapping to LinkedIn conversion (LP events only — not CRM)
 - Description (1 line)
 
-## 2. `real-estate-crm-app/src/lib/analytics.ts` — CRM analytics module (PostHog ONLY)
+## 2. `apps/crm/real-estate-crm-app/src/lib/analytics.ts` — CRM analytics module (PostHog ONLY)
 TypeScript module exporting:
 - `initAnalytics()` — call from `main.tsx`; initialise PostHog; reads `localStorage.cookieConsent.analytics` to determine session-recording mode
 - `trackEvent(name: EventName, properties?: object)` — calls `posthog.capture(name, properties)` only; NO GA4/Pixel/LinkedIn calls here
@@ -179,7 +179,7 @@ TypeScript module exporting:
 - `EventName` typed union covering all CRM SPA events in the catalogue
 - Cookie-consent gate: if `localStorage.cookieConsent.analytics === false`, run PostHog with `disable_session_recording: true` only
 
-## 3. `real-estate-crm-app/src/components/CookieConsentBanner.tsx` — CRM version (PostHog gate only)
+## 3. `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` — CRM version (PostHog gate only)
 Tailwind banner:
 - First visit: shows at bottom with "Accept all" / "Reject non-essential" / "Customize"
 - Customize: only 2 meaningful toggles: Essential (locked) + Analytics ("We measure product usage via PostHog — no ads")
@@ -204,18 +204,18 @@ For each page in the CRM SPA events catalogue, add `trackEvent(...)` at the firi
 - On Razorpay success callback → `trackEvent('subscription_started', {tier, billing_cycle, amount})`
 
 ## 5. UTM parameter capture for cross-domain attribution
-In `real-estate-crm-app/src/pages/PhoneLogin.tsx` (the CRM signup entry):
+In `apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx` (the CRM signup entry):
 - On mount: read `utm_source`, `utm_campaign`, `utm_medium` from URL search params
 - Store in `sessionStorage` (survives page refresh; cleared on tab close)
 - Pass to `signup_started` event as properties
 - Pass to `identifyUser(userId, {utm_source, utm_campaign, utm_medium})` after signup completes
 
-## 6. `server/lib/posthog.js` — Server-side PostHog
+## 6. `apps/crm/server/lib/posthog.js` — Server-side PostHog
 - Wrapper around `posthog-node`
 - `serverTrack(distinctId, event, properties)` — called from billing webhook, grievance route
-- Initialise in `server/lambda-handler.js`
-- Add to `server/routes/billing.js` (P11) for the 7 server payment/subscription events
-- Add to `server/routes/grievance.js` (P9) for `grievance_received`
+- Initialise in `apps/crm/server/lambda-handler.js`
+- Add to `apps/crm/server/routes/billing.js` (P11) for the 7 server payment/subscription events
+- Add to `apps/crm/server/routes/grievance.js` (P9) for `grievance_received`
 
 ## 7. `creative/landing-pages/_partials/head-analytics.hbs` — LP analytics snippet
 Produces the `<head>` snippet to include in ALL LP pages. The snippet:
@@ -284,7 +284,7 @@ Stop here. Do not deploy or sign up for vendors (manual). Do not put GA4/Pixel/L
    - `META_PIXEL_ID`
    - `LINKEDIN_PARTNER_ID`
    - `HOTJAR_ID`, `HOTJAR_SV`
-3. **CRM env vars** → `real-estate-crm-app/.env` (Vite, NOT deployed to git):
+3. **CRM env vars** → `apps/crm/real-estate-crm-app/.env` (Vite, NOT deployed to git):
    - `VITE_POSTHOG_KEY` (same PostHog project key)
    - `VITE_POSTHOG_HOST`
    - `VITE_SENTRY_DSN` (SPA DSN — do NOT add GA4/Pixel/LinkedIn here)
@@ -304,9 +304,9 @@ Stop here. Do not deploy or sign up for vendors (manual). Do not put GA4/Pixel/L
 - Master event catalogue (above)
 
 ## Outputs
-- `real-estate-crm-app/src/lib/analytics.ts`
-- `real-estate-crm-app/src/components/CookieConsentBanner.tsx`
-- `server/lib/posthog.js`
+- `apps/crm/real-estate-crm-app/src/lib/analytics.ts`
+- `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+- `apps/crm/server/lib/posthog.js`
 - `tests/analytics.spec.ts`
 - `marketing-and-sales/launch-implement/pre-launch/10-analytics/{analytics-spec.md, lp-head-snippet.html, posthog-dashboard.md, setup-checklist.md}`
 - Instrumentation calls inserted across all CRM page files
