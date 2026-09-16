@@ -38,6 +38,10 @@ DEPLOY_INSTALL=true
 DEPLOY_ZIP=true
 DEPLOY_CFN=true
 
+# Set to true only once step 8 has put new Lambda code live — gates the
+# deferred SSM prune at the end of this script.
+NEW_CODE_LIVE=false
+
 
 # -----------------------------------------------------------------------------
 # Windows Git Bash compatibility
@@ -280,8 +284,17 @@ fi
 # Must run before the Lambda deploy below (step 8) — both Lambdas fetch their
 # config from SSM at cold start (config/ssmBootstrap.js), so the values need
 # to already be in place before either one starts running the new code.
-echo "[6/8] Syncing config to SSM Parameter Store..."
-"$SCRIPT_DIR/sync-ssm-params.sh" "$ENVIRONMENT_NAME"
+#
+# --no-delete: creates/updates only. Keys the new config no longer has are
+# NOT deleted here — the OLD code keeps serving (and cold-starting against
+# SSM) until step 8 finishes, and may still need them (a dev deploy once
+# deleted AUTH_SERVICE_URL/MCP_BASE_URL minutes before the code that stopped
+# reading them was live, breaking login). They're pruned at the very end,
+# only after the stack/Lambda update succeeded (see "Prune obsolete SSM
+# parameters" below). If anything in between fails, set -e exits first and
+# nothing is deleted.
+echo "[6/8] Syncing config to SSM Parameter Store (create/update only; deletes deferred)..."
+"$SCRIPT_DIR/sync-ssm-params.sh" "$ENVIRONMENT_NAME" --no-delete
 
 # -----------------------------------------------------------------------------
 # 7. Check for dependent MCP OAuth tables
@@ -448,6 +461,7 @@ if [ "$DEPLOY_CFN" = true ]; then
   else
     cfn_deploy_with_retry
   fi
+  NEW_CODE_LIVE=true
 elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP" = true ]; then
   echo "[8/8] Skipping CloudFormation deployment (DEPLOY_CFN=false)."
   echo "[8/8] Updating Lambda function directly..."
@@ -457,6 +471,13 @@ elif [ "$DEPLOY_CFN" = false ] && [ "$DEPLOY_LAMBDA" = true ] && [ "$DEPLOY_ZIP"
     --s3-key "${S3_KEY}" \
     --region "$AWS_REGION" \
     --no-cli-pager
+  # update-function-code returns as soon as the update STARTS — wait until
+  # the new code is actually serving before anything (the SSM prune at the
+  # end) assumes it is.
+  "$AWS_BIN" lambda wait function-updated \
+    --function-name "${ENVIRONMENT_NAME}-realestateflow-api" \
+    --region "$AWS_REGION"
+  NEW_CODE_LIVE=true
 
   # The call recording worker ships the same zip with a different handler, so a
   # code-only deploy has to refresh it too or the two drift apart.
@@ -518,6 +539,23 @@ fi
 if [ "$CRM_API_ID" != "None" ] && [ -n "$CRM_API_ID" ]; then
   sleep 5
   apigw_deploy_with_retry "$CRM_API_ID" "$CRM_API_STAGE_NAME"
+fi
+
+# -----------------------------------------------------------------------------
+# Prune obsolete SSM parameters — only now that the new code is live
+# -----------------------------------------------------------------------------
+# Step 6 ran with --no-delete. Reaching this line means every step above
+# succeeded (set -e), so the code that no longer reads the obsolete keys is
+# what's serving. If this run didn't actually ship new code (DEPLOY_CFN=false
+# and no direct Lambda update), the old code is still live and may still need
+# those keys, so leave them alone.
+if [ "$NEW_CODE_LIVE" = true ]; then
+  echo "Pruning obsolete SSM parameters (deferred from step 6)..."
+  "$SCRIPT_DIR/sync-ssm-params.sh" "$ENVIRONMENT_NAME" --delete-only
+else
+  echo "Skipping SSM prune: no new Lambda code was deployed in this run, so obsolete"
+  echo "  keys stay in place. Once the new code is live, run:"
+  echo "  ./infra/sync-ssm-params.sh $ENVIRONMENT_NAME --delete-only"
 fi
 
 echo ""

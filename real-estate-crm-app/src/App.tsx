@@ -395,7 +395,7 @@ function App() {
           <BuyCreditsModal forceOpen={showBuyCredits} onClose={() => setShowBuyCredits(false)} />
           <InsufficientCreditsListener onTrigger={() => setShowBuyCredits(true)} />
           {/* PR-K: NPS */}
-          <NpsModal />
+          <NpsModal authState={authState} />
           <CookieConsentBanner />
 
           <Routes>

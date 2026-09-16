@@ -286,7 +286,9 @@ zip -r -q -1 function.zip \
 
 # The handler is src/lambda-handler.handler - a missing src/ directory produces
 # an ERR_MODULE_NOT_FOUND at init that is far easier to catch here.
-if ! unzip -l "$PROJECT_DIR/function.zip" | grep -q "src/lambda-handler.js"; then
+# grep -c (not -q): -q exits at the first match, unzip then dies of SIGPIPE,
+# and with pipefail the whole check reports "missing" even when it is present.
+if ! unzip -l "$PROJECT_DIR/function.zip" | grep -c "src/lambda-handler.js" >/dev/null; then
   echo "ERROR: src/lambda-handler.js missing from function.zip - refusing to deploy"
   exit 1
 fi

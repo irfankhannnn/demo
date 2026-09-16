@@ -481,6 +481,20 @@ Resources:
     Properties:
       Domain: !Ref CognitoDomainPrefixV2
       UserPoolId: !Ref CognitoUserPoolV2
+      # Managed login (v2), not the classic hosted UI: only managed login
+      # forwards `prompt=select_account` to Google, which is what makes the
+      # Google account chooser appear. Requires the ESSENTIALS or PLUS tier.
+      ManagedLoginVersion: 2
+
+  # Managed login needs a branding style per app client, or Cognito's own
+  # pages (error, logout confirmation) fail to render.
+  ManagedLoginBrandingV2:
+    Type: AWS::Cognito::ManagedLoginBranding
+    DependsOn: UserPoolDomainV2
+    Properties:
+      UserPoolId: !Ref CognitoUserPoolV2
+      ClientId: !Ref UserPoolClientV2
+      UseCognitoProvidedValues: true
 
   # ===========================================================================
   # 5. DynamoDB — Users Table

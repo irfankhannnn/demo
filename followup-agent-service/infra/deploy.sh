@@ -218,7 +218,7 @@ zip -r -q -1 function.zip \
      "src/**/*.test.js"
 
 for entry in src/lambda-api.js src/lambda-worker.js; do
-  if ! unzip -l "$PROJECT_DIR/function.zip" | grep -q "$entry"; then
+  if ! unzip -l "$PROJECT_DIR/function.zip" | grep -c "$entry" >/dev/null; then
     echo "ERROR: $entry missing from function.zip - refusing to deploy"
     exit 1
   fi

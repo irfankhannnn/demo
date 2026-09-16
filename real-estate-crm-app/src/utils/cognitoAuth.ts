@@ -64,6 +64,10 @@ export async function redirectToLogin(): Promise<void> {
     code_challenge_method: 'S256',
     code_challenge: challenge,
     identity_provider: 'Google',
+    // Without this Google silently reuses whichever account the browser is
+    // signed in to, so a second account can never sign up. Cognito forwards
+    // `prompt` to Google only on managed login (domain ManagedLoginVersion 2).
+    prompt: 'select_account',
   });
 
   const authorizeUrl = `${COGNITO_DOMAIN}/oauth2/authorize?${params.toString()}`;

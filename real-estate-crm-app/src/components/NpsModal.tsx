@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { getIdToken } from '../utils/authStorage';
+import { getIdToken, isAuthenticated, getUserProfile } from '../utils/authStorage';
 import { trackEvent } from '../lib/analytics';
 import { CRM_API_URL } from '../config/apiConfig';
 
@@ -10,9 +11,16 @@ const NPS_DISMISSED_KEY = 'nps_dismissed_at';
 const NPS_THROTTLE_DAYS = 90;
 const NPS_MIN_AGE_DAYS = 14;
 
+// The modal is mounted outside <Routes>, so it has to keep itself off the
+// public and onboarding screens explicitly.
+const NPS_BLOCKED_PREFIXES = ['/login', '/signup', '/phone-login', '/auth/', '/onboarding/',
+  '/member/', '/grievance', '/nps', '/legal/'];
+
 type Step = 'score' | 'feedback' | 'done';
 
-export default function NpsModal() {
+export default function NpsModal({ authState }: { authState: 'loading' | 'authenticated' | 'unauthenticated' }) {
+  const { pathname } = useLocation();
+  const onBlockedRoute = pathname === '/' || NPS_BLOCKED_PREFIXES.some((p) => pathname.startsWith(p));
   const [visible, setVisible] = useState(false);
   const [step, setStep] = useState<Step>('score');
   const [score, setScore] = useState<number | null>(null);
@@ -22,10 +30,21 @@ export default function NpsModal() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    if (authState !== 'authenticated' || onBlockedRoute) {
+      setVisible(false);
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const checkEligibility = () => {
       try {
-        const idToken = getIdToken();
-        if (!idToken) return;
+        if (!isAuthenticated()) return;
+
+        // No profile yet (mid-onboarding) means we can't know the account's
+        // age, so don't ask.
+        const profile = getUserProfile();
+        if (!profile?.createdAt) return;
+        const ageMs = Date.now() - new Date(profile.createdAt).getTime();
+        if (!(ageMs >= NPS_MIN_AGE_DAYS * 86400000)) return;
 
         // Check throttle
         const lastAsked = localStorage.getItem(NPS_LAST_ASKED_KEY);
@@ -41,30 +60,18 @@ export default function NpsModal() {
           if (hoursSince < 24) return;
         }
 
-        // Check user age — we use a conservative delay to avoid showing to brand new users
-        // In production, this would check user.createdAt from profile
-        const profileStr = localStorage.getItem('userProfile');
-        if (profileStr) {
-          try {
-            const profile = JSON.parse(profileStr);
-            if (profile.createdAt) {
-              const ageMs = Date.now() - new Date(profile.createdAt).getTime();
-              if (ageMs < NPS_MIN_AGE_DAYS * 86400000) return;
-            }
-          } catch {
-            // If profile parse fails, still show NPS (graceful degradation)
-          }
-        }
-
         // Show with a 3-second delay to not interrupt the user immediately
-        setTimeout(() => setVisible(true), 3000);
+        timer = setTimeout(() => setVisible(true), 3000);
       } catch {
         // silently fail
       }
     };
 
     checkEligibility();
-  }, []);
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [authState, onBlockedRoute]);
 
   const handleScoreSelect = (s: number) => {
     setScore(s);

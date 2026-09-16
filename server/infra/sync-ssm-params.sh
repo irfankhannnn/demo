@@ -4,7 +4,28 @@ set -euo pipefail
 # =============================================================================
 # Sync server's config to SSM Parameter Store
 # =============================================================================
-# Usage: ./sync-ssm-params.sh <dev|prod>
+# Usage: ./sync-ssm-params.sh <dev|prod> [--no-delete | --delete-only] [--dry-run]
+#
+#   (no mode flag)  create + update + delete in one pass. Used by
+#                   infra/config-deploy.sh, where no code changes, so removing
+#                   an obsolete key is exactly the intended config change.
+#   --no-delete     create + update only. Obsolete keys are reported as
+#                   DEFERRED DELETE and left in place. Used by infra/deploy.sh
+#                   BEFORE the CloudFormation/Lambda update.
+#   --delete-only   delete obsolete keys only (no create/update). Used by
+#                   infra/deploy.sh AFTER the CloudFormation/Lambda update has
+#                   succeeded.
+#   --dry-run       print the plan for the chosen mode and change nothing (no
+#                   put/delete calls, plan file not written). Read-only AWS
+#                   call: get-parameters-by-path.
+#
+# Why the split: the old Lambda code keeps serving requests until the stack
+# update finishes, and any container that cold-starts during that window
+# reads SSM. Deleting a key the OLD code still needs (e.g. AUTH_SERVICE_URL,
+# replaced by AUTH_SERVICE_DOMAIN_NAME/BASE_PATH) before the NEW code is live
+# breaks the old code mid-deploy. So a full deploy adds/updates first, and
+# prunes only once the new code is live. If the deploy fails, nothing is
+# deleted.
 #
 # Reads server/infra/cfn-params.json (already generated fresh by deploy.sh
 # from .env.<env> — must exist and be current before calling this) and
@@ -20,10 +41,7 @@ set -euo pipefail
 # point of view (server/config/ssmBootstrap.js only sets process.env.X for
 # keys SSM actually returns).
 #
-# Always prints the full create/update/delete plan before applying it — see
-# server/infra/deploy.sh, which calls this after generating cfn-params.json
-# and before the CloudFormation/Lambda deploy step, so the values are live
-# in SSM before either Lambda cold-starts against the new code.
+# Always prints the full create/update/delete plan before applying it.
 #
 # All values are stored as SecureString (the AWS-managed alias/aws/ssm KMS
 # key — no extra setup, and it costs nothing extra over String at Standard
@@ -33,10 +51,37 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ENV="${1:-}"
+usage() {
+  echo "Usage: ./sync-ssm-params.sh <dev|prod> [--no-delete | --delete-only] [--dry-run]"
+}
+
+ENV=""
+MODE="full"
+DRY_RUN=false
+for arg in "$@"; do
+  case "$arg" in
+    dev|prod)
+      if [ -n "$ENV" ]; then echo "ERROR: environment given twice"; usage; exit 1; fi
+      ENV="$arg"
+      ;;
+    --no-delete|--delete-only)
+      if [ "$MODE" != "full" ]; then echo "ERROR: --no-delete and --delete-only are mutually exclusive"; usage; exit 1; fi
+      MODE="${arg#--}"
+      ;;
+    --dry-run)
+      DRY_RUN=true
+      ;;
+    *)
+      echo "ERROR: unknown argument '${arg}'"
+      usage
+      exit 1
+      ;;
+  esac
+done
+
 if [ "$ENV" != "dev" ] && [ "$ENV" != "prod" ]; then
   echo "ERROR: environment must be dev or prod (got: '${ENV}')"
-  echo "Usage: ./sync-ssm-params.sh <dev|prod>"
+  usage
   exit 1
 fi
 
@@ -92,9 +137,15 @@ fi
 
 echo "=============================================="
 echo " Syncing SSM parameters under $PREFIX"
+echo " Mode: $MODE$([ "$DRY_RUN" = true ] && echo ' (DRY RUN — no changes)')"
 echo "=============================================="
 
 DESIRED_FILE="$(mktemp)"
+EXISTING_FILE="$(mktemp)"
+# Both temp files can hold decrypted secret values — never leave them behind,
+# even if a put/delete call below fails under set -e.
+trap 'rm -f "$DESIRED_FILE" "$EXISTING_FILE"' EXIT
+
 node -e "
   const fs = require('fs');
   const [ , paramsFile, mapFile, outFile ] = process.argv;
@@ -126,11 +177,10 @@ node -e "
   }
   fs.writeFileSync(outFile, out.join('\n') + (out.length ? '\n' : ''));
   if (skippedEmpty > 0) {
-    console.error('(' + skippedEmpty + ' mapped key(s) have an empty value in cfn-params.json — not synced; any existing SSM parameter for them will be deleted below.)');
+    console.error('(' + skippedEmpty + ' mapped key(s) have an empty value in cfn-params.json — not synced; any existing SSM parameter for them is treated as obsolete below.)');
   }
 " "$(winpath "$PARAMS_FILE")" "$(winpath "$MAP_FILE")" "$(winpath "$DESIRED_FILE")"
 
-EXISTING_FILE="$(mktemp)"
 "$AWS_BIN" ssm get-parameters-by-path \
   --path "$PREFIX" \
   --recursive \
@@ -145,7 +195,10 @@ sed -i "s|^${PREFIX}||" "$EXISTING_FILE" 2>/dev/null || true
 node -e "
   const fs = require('fs');
   const { execFileSync } = require('child_process');
-  const [ , desiredFile, existingFile, prefix, region, awsBin ] = process.argv;
+  const [ , desiredFile, existingFile, prefix, region, awsBin, planFile, mode, dryRunArg ] = process.argv;
+  const dryRun = dryRunArg === 'true';
+  const doPut = mode !== 'delete-only';
+  const doDelete = mode !== 'no-delete';
 
   function parseKV(file) {
     const map = new Map();
@@ -164,7 +217,7 @@ node -e "
 
   const toCreate = [];
   const toUpdate = [];
-  const toDelete = [];
+  const obsolete = [];
   let unchanged = 0;
 
   for (const [key, value] of desired) {
@@ -173,27 +226,60 @@ node -e "
     else unchanged++;
   }
   for (const key of existing.keys()) {
-    if (!desired.has(key)) toDelete.push(key);
+    if (!desired.has(key)) obsolete.push(key);
   }
 
+  const created = doPut ? toCreate : [];
+  const updated = doPut ? toUpdate : [];
+  const deleted = doDelete ? obsolete : [];
+  const deferred = doDelete ? [] : obsolete;
+
+  const verb = dryRun ? 'Would' : 'Will';
   console.log('');
-  console.log('Will CREATE (' + toCreate.length + '): ' + (toCreate.join(', ') || '(none)'));
-  console.log('Will UPDATE (' + toUpdate.length + '): ' + (toUpdate.join(', ') || '(none)'));
-  console.log('Will DELETE (' + toDelete.length + '): ' + (toDelete.join(', ') || '(none)'));
+  if (doPut) {
+    console.log(verb + ' CREATE (' + created.length + '): ' + (created.join(', ') || '(none)'));
+    console.log(verb + ' UPDATE (' + updated.length + '): ' + (updated.join(', ') || '(none)'));
+  } else if (toCreate.length || toUpdate.length) {
+    // Should not happen in a normal deploy (the --no-delete pass ran first
+    // against the same cfn-params.json) — report, but never write here.
+    console.log('NOTE: ' + (toCreate.length + toUpdate.length) + ' key(s) still differ from cfn-params.json but --delete-only never creates/updates: ' + [...toCreate, ...toUpdate].join(', '));
+  }
+  if (doDelete) {
+    console.log(verb + ' DELETE (' + deleted.length + '): ' + (deleted.join(', ') || '(none)'));
+  } else {
+    console.log('DEFERRED DELETE (' + deferred.length + ', removed only after a successful stack/Lambda update): ' + (deferred.join(', ') || '(none)'));
+  }
   console.log('Unchanged, skipped: ' + unchanged);
   console.log('');
+
+  if (dryRun) {
+    console.log('Dry run — no SSM changes made, plan file not written.');
+    process.exit(0);
+  }
 
   // Key NAMES only, never values — this script deliberately never prints or
   // writes SSM values anywhere (many are real secrets), and this plan file
   // (read by infra/config-deploy.sh to know whether anything actually
   // changed, and by the CI/CD wrapper for its config revision manifest)
   // keeps that guarantee.
-  fs.writeFileSync(
-    process.argv[6],
-    JSON.stringify({ created: toCreate, updated: toUpdate, deleted: toDelete }, null, 2) + '\n'
-  );
+  let plan = { created, updated, deleted };
+  if (mode === 'no-delete') {
+    plan.deferredDeletes = deferred;
+  } else if (mode === 'delete-only') {
+    // Merge into the plan the --no-delete pass of the same deploy wrote, so
+    // the file still describes the whole deploy's SSM changes.
+    try {
+      const prev = JSON.parse(fs.readFileSync(planFile, 'utf8'));
+      plan = {
+        created: prev.created || [],
+        updated: prev.updated || [],
+        deleted: [...(prev.deleted || []), ...deleted],
+      };
+    } catch (_) { /* no previous plan — record just this pass */ }
+  }
+  fs.writeFileSync(planFile, JSON.stringify(plan, null, 2) + '\n');
 
-  for (const key of [...toCreate, ...toUpdate]) {
+  for (const key of [...created, ...updated]) {
     const value = desired.get(key);
     const name = prefix + key;
     execFileSync(awsBin, [
@@ -208,8 +294,8 @@ node -e "
   }
 
   // delete-parameters takes at most 10 names per call.
-  for (let i = 0; i < toDelete.length; i += 10) {
-    const batch = toDelete.slice(i, i + 10).map((k) => prefix + k);
+  for (let i = 0; i < deleted.length; i += 10) {
+    const batch = deleted.slice(i, i + 10).map((k) => prefix + k);
     execFileSync(awsBin, [
       'ssm', 'delete-parameters',
       '--names', ...batch,
@@ -218,7 +304,5 @@ node -e "
     ], { stdio: ['ignore', 'ignore', 'inherit'] });
   }
 
-  console.log('SSM sync complete: ' + toCreate.length + ' created, ' + toUpdate.length + ' updated, ' + toDelete.length + ' deleted, ' + unchanged + ' unchanged.');
-" "$(winpath "$DESIRED_FILE")" "$(winpath "$EXISTING_FILE")" "$PREFIX" "$REGION" "$AWS_BIN" "$(winpath "$SCRIPT_DIR/.last-ssm-sync-plan.json")"
-
-rm -f "$DESIRED_FILE" "$EXISTING_FILE"
+  console.log('SSM sync complete (' + mode + '): ' + created.length + ' created, ' + updated.length + ' updated, ' + deleted.length + ' deleted, ' + deferred.length + ' deferred, ' + unchanged + ' unchanged.');
+" "$(winpath "$DESIRED_FILE")" "$(winpath "$EXISTING_FILE")" "$PREFIX" "$REGION" "$AWS_BIN" "$(winpath "$SCRIPT_DIR/.last-ssm-sync-plan.json")" "$MODE" "$DRY_RUN"
