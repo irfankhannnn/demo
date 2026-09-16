@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const PROJECT_ROOT = path.resolve('..');
-const SERVER_DIR = path.join(PROJECT_ROOT, 'server');
+// Resolved from this file (tools/scripts/), so it works from any cwd.
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const SERVER_DIR = path.join(PROJECT_ROOT, 'apps', 'crm', 'server');
 const ROUTES_DIR = path.join(SERVER_DIR, 'routes');
 const YAML_PATH = path.join(SERVER_DIR, 'infra', 'apigw-explicit-routes.yaml');
 

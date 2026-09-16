@@ -4,7 +4,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LP_PARTIAL = path.resolve(__dirname, '..', '..', '..', '..', 'marketing-and-sales', 'creative', 'landing-pages', '_partials', 'cookie-banner.html');
+const LP_PARTIAL = path.resolve(__dirname, '..', '..', '..', '..', 'apps', 'landing-pages', '_partials', 'cookie-banner.html');
 const LP_ORIGIN = 'https://lp.test/';
 
 async function serveLpBanner(page: Page) {
