@@ -403,3 +403,28 @@ GOOGLE_SHEETS_SERVICE_ACCOUNT=path/to/service-account.json
    - Remotion Lambda for fast video rendering
    - Browserbase for website scraping
    - Full ad budget deployment
+
+---
+
+## Engineering Change Intelligence — Slack Integration
+
+### Slack Incoming Webhook (PR Intelligence)
+
+- **What:** Posts PR review reports to a Slack channel
+- **Setup:**
+  1. Go to [Slack API Apps](https://api.slack.com/apps) → Create New App
+  2. Enable **Incoming Webhooks**
+  3. Add webhook to `#engineering-reviews` (or your channel)
+  4. Copy the webhook URL
+- **Env:** `SLACK_PR_WEBHOOK_URL`
+- **Optional:** `SLACK_BOT_NAME` (default: PR Intelligence Bot)
+- **Used by:** Engineering Change Intelligence Platform (`tools/engineering-change-intelligence/`)
+- **Agent:** `pr-orchestrator` → `release-readiness`
+- **Script:** `tools/engineering-change-intelligence/scripts/post-to-slack.sh`
+- **GitHub Actions:** Set `SLACK_PR_WEBHOOK_URL` as repository secret
+
+### GitHub CLI (PR Context)
+
+- **What:** Fetches PR diffs, metadata, and file lists
+- **Setup:** `gh auth login` (local) or `GITHUB_TOKEN` (CI)
+- **Used by:** `tools/engineering-change-intelligence/scripts/gather-pr-context.sh --pr`

@@ -1,0 +1,125 @@
+{
+  "version": "1.0.0",
+  "description": "Determines which specialist agents run based on changed file paths",
+  "always_run": [
+    "pr-intelligence",
+    "security",
+    "sre-observability",
+    "release-readiness"
+],
+  "conditional": {
+    "architecture": {
+      "agent": "architecture",
+      "patterns": [
+        "cloudformation/",
+        "terraform/",
+        "cdk/",
+        "pulumi/",
+        "sam/",
+        "serverless/",
+        "cfn-",
+        ".tf",
+        "cdk.json",
+        "serverless.yml",
+        "serverless.yaml"
+      ]
+    },
+    "kubernetes-helm": {
+      "agent": "kubernetes-helm",
+      "patterns": [
+        "helm/",
+        "k8s/",
+        "kubernetes/",
+        "deployment.yaml",
+        "deployment.yml",
+        "statefulset.yaml",
+        "statefulset.yml",
+        "daemonset.yaml",
+        "daemonset.yml",
+        "hpa.yaml",
+        "pdb.yaml",
+        "values.yaml"
+      ]
+    },
+    "cicd": {
+      "agent": "cicd",
+      "patterns": [
+        "Jenkinsfile",
+        ".github/workflows",
+        "buildspec.yml",
+        "buildspec.yaml",
+        "gitlab-ci.yml",
+        ".gitlab-ci.yml",
+        "argo/",
+        "tekton/",
+        "azure-pipelines.yml",
+        "bitbucket-pipelines.yml"
+      ]
+    },
+    "finops": {
+      "agent": "finops",
+      "patterns": [
+        "cloudformation/",
+        "terraform/",
+        "cfn-",
+        ".tf",
+        "helm/",
+        "k8s/",
+        "lambda",
+        "rds",
+        "opensearch",
+        "elasticache",
+        "vpc",
+        "nat-gateway",
+        "api-gateway",
+        "cloudfront",
+        "s3",
+        "dynamodb",
+        "infra/"
+      ]
+    },
+    "database": {
+      "agent": "database",
+      "patterns": [
+        "migration",
+        "migrations/",
+        ".sql",
+        "schema",
+        "prisma/",
+        "drizzle/",
+        "knex/",
+        "sequelize/"
+      ]
+    },
+    "principal-engineer": {
+      "agent": "principal-engineer",
+      "patterns": [
+        "src/",
+        "lib/",
+        "app/",
+        "server/",
+        "api/",
+        "services/",
+        "components/",
+        "routes/",
+        "handlers/",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".py",
+        ".go",
+        ".rs"
+      ],
+      "exclude_if_only": ["architecture", "kubernetes-helm", "cicd", "database"]
+    }
+  },
+  "file_categories": {
+    "application": ["src/", "lib/", "app/", "components/", "pages/", "services/", "routes/", "handlers/"],
+    "infrastructure": ["cloudformation/", "terraform/", "cdk/", "pulumi/", "sam/", "serverless/", "infra/", "cfn-"],
+    "kubernetes": ["helm/", "k8s/", "kubernetes/", "deployment.yaml", "statefulset.yaml", "daemonset.yaml"],
+    "cicd": [".github/workflows", "Jenkinsfile", "buildspec.yml", "gitlab-ci.yml", "argo/", "tekton/"],
+    "database": ["migration", "migrations/", ".sql", "schema", "prisma/"],
+    "security": ["auth", "iam", "policy", "secrets", "cors", "jwt", "oauth", "rbac", "acl"]
+  }
+}
