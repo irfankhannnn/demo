@@ -4,15 +4,21 @@
 
 The Instagram work was done on `claude/instagram-lead-automation-setup-655d4b`,
 which merged `origin/feat/property-pages-ms` (two import-line conflicts, both
-sides kept) and has now been merged into **`feat/property-pages-ms`**; the
-Instagram branch is deleted.
+sides kept) and was then merged into **`feat/property-pages-ms`**. On
+2026-09-16 that branch was pushed to GitHub, including the three follow-up
+calling commits that had only been local (`1a09e07`, `14a002b`, `6de74b8`).
+The Instagram branch is deleted; it was never pushed, so there is no remote
+copy to remove.
 
-- [ ] **Push `feat/property-pages-ms`.** Nothing from this work is on GitHub
-  yet, and the branch also carries three follow-up-calling commits that were
-  only ever local (`1a09e07`, `14a002b`, `6de74b8`).
-- [ ] **Open the PR to `main`** once pushed. `main` is behind both lines of work.
+- [x] Push `feat/property-pages-ms`.
+- [ ] **Open the PR from `feat/property-pages-ms` to `main`.** `main` is behind
+  both lines of work. Run the CRM server's jest suite first (it was not run
+  on the merged tree; only `node --check` and the 125 Instagram tests were).
 - [ ] Deploy the CRM frontend only from `feat/property-pages-ms` or `main` from
   now on, never from a feature branch that lacks the other's commits.
+- [ ] Old Instagram branches still on GitHub, superseded by the hosted service:
+  `cursor/instagram-local-ops-fd8d` and `feature/instagram-lead-temperature`.
+  Check nothing in them is still wanted, then delete them.
 
 ## Dev deploys are being done from several checkouts at once
 
