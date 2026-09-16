@@ -341,7 +341,7 @@ export default function Profile() {
             <div className="bg-white w-20 h-20 sm:w-24 sm:h-24 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4 shadow-lg">
               <User className="w-10 h-10 sm:w-12 sm:h-12 text-indigo-600" />
             </div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">{formData.displayName || 'Admin User'}</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-1">{formData.displayName || formData.email?.split('@')[0] || 'Your profile'}</h2>
             <div className="flex items-center justify-center gap-2 text-indigo-100 mb-2">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
               <p className="text-sm sm:text-base font-medium">{getAgencyMembershipDescription()}</p>

@@ -79,6 +79,22 @@ export async function createCallSession(tenantId, data) {
     actionsPerformed: [],
     outcome: null,
     recordingUrl: null,
+    // Follow-up agent correlation (CONTRACTS.md 2.1). followupJobId is what
+    // the consumer of call.ended keys its idempotency on, so it is lifted to
+    // a top-level attribute rather than left buried inside metadata.
+    followupJobId: data.followupJobId ?? data.metadata?.followupJobId ?? null,
+    metadata: data.metadata ?? null,
+    context: data.context ?? null,
+    // Set by the agent's tools during the call; null until then.
+    needsHuman: false,
+    needsHumanReason: null,
+    visitFeedback: null,
+    meeting: null,
+    // Click-to-call only: who the team member dialled and who pressed the button.
+    entityType: data.entityType ?? null,
+    entityId: data.entityId ?? null,
+    initiatedByUserId: data.initiatedByUserId ?? null,
+    initiatedByName: data.initiatedByName ?? null,
     createdAt: timestamp,
     updatedAt: timestamp,
     // GSI keys

@@ -34,10 +34,10 @@ analysis/<name>.analysis.json  summary, next action, reply, score, type
         |  scripts/upsert_leads_excel.py       deterministic merge
         v
 master/hp-insta-leads.xlsx  7 sheets, source of truth
-        |
-        |  scripts/build_dashboard_data.py      export for the browser
-        v
-lead-dashboard.html         standalone read-only UI, no server needed
+        |                                   \
+        |  scripts/build_dashboard_data.py    \  scripts/push_leads_to_crm.py
+        v                                      v
+lead-dashboard.html         standalone UI    CRM adapter intake, follow-up call
 ```
 
 The split matters. Anything a machine can decide exactly (handles, dates,
@@ -166,6 +166,8 @@ the most recently active on top.
 | `action_channel` | analyst | `dm`, `call`, `whatsapp`, `meeting`, `none` |
 | `suggested_reply` | analyst | Ready to paste, Hinglish |
 | `meeting_schedule` | analyst | What was agreed, with the date resolved |
+| `call_requested` | analyst | `yes` only when the lead asked us to call them. Blank never clears an earlier `yes`. |
+| `meeting_datetime` | analyst | `YYYY-MM-DDTHH:MM` local, only when a specific date and time were agreed, else blank |
 | `dm_can_be_closed` | computed | See the rule below |
 | `close_reason` | computed | Either the rule that was satisfied, or exactly what is still missing |
 | `sourcing_action_for_sameer` | live runner | The task raised when a property search finds nothing. Survives export re-runs. |
@@ -182,6 +184,9 @@ the most recently active on top.
 | `first_seen_run` | script | Run that created the row |
 | `last_updated_run` | script | Run that last changed it |
 | `source_files` | script | Every export this lead has appeared in |
+| `pushed_to_crm` | push script | `yes` once the lead has been sent to the CRM. The upsert never touches it. |
+| `pushed_to_crm_at` | push script | ISO timestamp of that push |
+| `crm_lead_id` | push script | The CRM's lead id, for cross-reference |
 
 ### Daily Activity and Weekly Activity
 
@@ -229,6 +234,7 @@ On every run, for each lead in the export, keyed on `lead_id`:
 | Keep the higher | `message_count` |
 | Newest non-blank wins, blank never clears | every analyst field, `lead_name`, `whatsapp_available` |
 | Recomputed every run | `requirement_complete`, `dm_can_be_closed`, `close_reason`, `days_since_last_message` |
+| Never written by the upsert | `pushed_to_crm`, `pushed_to_crm_at`, `crm_lead_id` (owned by `push_leads_to_crm.py`) |
 
 Each field that actually changed writes one Changelog row holding the old and
 the new value.
@@ -243,7 +249,8 @@ safe to run.
 
 Type `yes` into the `manual_override` column on any row and later runs will
 stop overwriting its `lead_type`, `lead_score`, `summary`, `next_action`,
-`suggested_reply`, `meeting_schedule`, `notes`, `budget` and `locality`.
+`suggested_reply`, `meeting_schedule`, `meeting_datetime`, `call_requested`,
+`notes`, `budget` and `locality`.
 Everything else, including phone numbers and dates, still updates. Use it when
 you have spoken to the lead and know more than the DM thread does.
 
@@ -260,8 +267,8 @@ changed, not the workbook.
 1. a mobile number on record, **and**
 2. `requirement_complete` is `yes`, meaning deal type, property type, locality
    and budget are all captured, **and**
-3. a personal meeting is scheduled, meaning `meeting_schedule` is filled or
-   `action_channel` is `meeting`.
+3. a personal meeting is scheduled, meaning `meeting_schedule` or
+   `meeting_datetime` is filled, or `action_channel` is `meeting`.
 
 Otherwise `no`, and `close_reason` names exactly what is missing, for example
 `waiting on: mobile number; requirement (locality, budget)`. This is the
@@ -447,7 +454,84 @@ you have closed.
 
 ---
 
-## 9. Files
+## 9. Push to CRM
+
+`scripts/push_leads_to_crm.py` is the only stage that leaves the laptop. It
+sends the leads that are ready for a phone call to the CRM's adapter intake
+(`POST /api/internal/adapters/leads`, header `x-adapter: insta-excel`) with a
+`followUp` hint so the follow-up agent can place the site-visit confirmation
+call. The workbook stays the source of truth; the CRM only ever receives a
+copy.
+
+### Setup
+
+```bash
+cp config/crm-push.sample.json config/crm-push.json   # gitignored
+```
+
+| Key | Meaning |
+|-----|---------|
+| `crm_base_url` | CRM origin including the stage path, no trailing slash |
+| `tenant_id` | The CRM tenant the leads belong to (`x-tenant-id`) |
+| `adapter_api_key` | The CRM's `ADAPTER_INTERNAL_API_KEY` (`x-api-key`) |
+| `adapter_name` | `insta-excel`, becomes `sourceAdapter` and the `dedupeKey` prefix |
+| `dry_run` | `true` makes every run a dry run regardless of flags |
+
+### Running it
+
+```bash
+python scripts/push_leads_to_crm.py --dry-run     # print payloads, post nothing, write nothing
+python scripts/push_leads_to_crm.py               # push and mark the workbook
+python scripts/push_leads_to_crm.py --limit 5     # first five ready leads only
+```
+
+Run it after the upsert, with the workbook closed in Excel.
+
+### Which rows go
+
+A row is pushed when all of these hold:
+
+1. `mobile_number` contains at least one valid 10-digit Indian mobile
+   (the first one is sent as `+91XXXXXXXXXX`), **and**
+2. `action_channel` is `call` or `meeting`, **or** `dm_can_be_closed` is
+   `yes`, **or** `call_requested` is `yes`, **and**
+3. `lead_type` is `buyer`, `tenant`, `seller` or `landlord`. A landlord is
+   sent as `seller` (the intake has no landlord type) with the note saying so.
+   `not_a_lead` and `unknown` never go, **and**
+4. `pushed_to_crm` is not already `yes`.
+
+`manual_override = yes` rows are pushed like any other; the script writes only
+the three push columns and never touches the rest of the row.
+
+### What is sent
+
+Per lead: `name`, `phone`, `leadType`, `budgetBracket` (when the budget looks
+like `80L-1Cr` or `<50L`) or `budget` (free text), `preferredArea` (locality
+plus building name), `source: Instagram`, `sourceAdapter`, `externalRef`
+(`igUsername`, `conversationRef`), `dedupeKey: insta-excel:<lead_id>`,
+`createdBy`, and `followUp` with `type: site_visit_confirmation`,
+`meetingSchedule` (`meeting_schedule`, falling back to `meeting_datetime`),
+`meetingDatetime`, `propertyHint` (property type, locality, building) and
+`note` (the summary, cut at 500 characters).
+
+Batches of up to 50, 20 second timeout, one retry per batch on a network or
+5xx failure (a 4xx is not retried, it means the request itself is wrong). One
+log line per lead with the phone masked to its last four digits.
+
+### What is written back
+
+For every lead the CRM accepted (created, updated, or reported as an earlier
+duplicate) the script sets `pushed_to_crm = yes`, `pushed_to_crm_at` and
+`crm_lead_id`, and appends one Changelog row per changed field with
+`change_type = crm_push` in the same format the upsert uses. A lead the CRM
+skipped or errored on is left unmarked and picked up by the next run. If a
+batch fails after its retry the rows already marked from earlier batches are
+saved before the script exits 4, so nothing that reached the CRM is sent
+twice.
+
+---
+
+## 10. Files
 
 ```
 hp-insta-lead-automation/
@@ -460,13 +544,18 @@ hp-insta-lead-automation/
 ├── .env.sample                      copy to .env and fill in, gitignored
 ├── config/
 │   ├── business-phrases.json        which lines are ours, editable, no code change
-│   └── mock-properties.json         fallback inventory when no CRM creds are set
+│   ├── mock-properties.json         fallback inventory when no CRM creds are set
+│   ├── crm-push.sample.json         template for the CRM push config
+│   └── crm-push.json                CRM URL, tenant and key, gitignored
 ├── scripts/
 │   ├── parse_dm_export.py           stage 1, deterministic
 │   ├── upsert_leads_excel.py        stage 3, deterministic
 │   ├── build_dashboard_data.py      workbook to dashboard data file
 │   ├── lead_desk_server.py          local runner: Gemini + CRM + workbook writes
-│   └── property_search.py           the three CRM paths and the local scorer
+│   ├── property_search.py           the three CRM paths and the local scorer
+│   └── push_leads_to_crm.py         stage 4, workbook to CRM, marks pushed rows
+├── tests/
+│   └── test_push_leads_to_crm.py    python -m unittest discover -s tests
 ├── parsed/                          stage 1 output, gitignored
 ├── analysis/                        stage 2 output, gitignored
 └── master/
@@ -482,11 +571,14 @@ The Claude Code pieces live at the repository root:
 
 | Code | Script | Meaning |
 |------|--------|---------|
-| 0 | both | Success |
-| 1 | both | Input file missing |
+| 0 | all | Success |
+| 1 | parse, upsert | Input file missing |
 | 2 | parse | No lead blocks found, check the separators |
 | 2 | upsert | Analysis failed validation, nothing was written |
 | 3 | upsert | Workbook is open in Excel, close it and re-run |
+| 2 | push | `config/crm-push.json` missing or incomplete, nothing sent |
+| 3 | push | Workbook missing, has no Leads sheet, or is open in Excel |
+| 4 | push | A batch failed after its retry; earlier batches are already marked |
 
 Validation rejects an analysis that is missing a lead, has a duplicate lead,
 names a lead that is not in the export, uses an invalid enum value, or has an
@@ -494,7 +586,7 @@ empty summary. Nothing is written when validation fails.
 
 ---
 
-## 10. Known limits
+## 11. Known limits
 
 - **The drafted reply is a draft.** Read it before sending. The model is told
   never to invent a property or a price and is given the real matches, but it
@@ -528,14 +620,14 @@ empty summary. Nothing is written when validation fails.
   `insta-lead-analyst` (or handle the lead in a live chat) to backfill them;
   nothing needs to be migrated by hand.
 
-## 11. Privacy
+## 12. Privacy
 
 The workbook holds real names, mobile numbers and private message content.
 `master/`, `parsed/` and `analysis/` are gitignored, and this whole folder sits
 under `kalim-sessions/` which the repository already ignores. Do not commit
 this data, and do not upload the workbook to any external service.
 
-## 12. Automated fetch from Instagram web
+## 13. Automated fetch from Instagram web
 
 ### Why not the pasted export
 

@@ -573,19 +573,19 @@ cmd_rollback() {
   fi
 
   echo "Rolling $STACK_NAME back to build $build..."
-  local overrides
-  overrides="$(node -e '
+  # One array element per Key=Value, so a value with a space stays one argument.
+  local overrides=()
+  mapfile -t overrides < <(node -e '
     const p = require(process.argv[1]);
-    console.log(p.map(x => x.ParameterKey + "=" + x.ParameterValue).join(" "));
-  ' "$prm")"
+    for (const x of p) console.log(x.ParameterKey + "=" + x.ParameterValue);
+  ' "$prm" | tr -d '\r')
 
-  # shellcheck disable=SC2086
   "$AWS_BIN" cloudformation deploy \
     --template-file "$tpl" \
     --stack-name "$STACK_NAME" \
     --capabilities CAPABILITY_NAMED_IAM \
     --no-fail-on-empty-changeset \
-    --parameter-overrides $overrides \
+    --parameter-overrides "${overrides[@]}" \
     --region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager
 
   # A CFN rollback alone changes nothing a user can see - the bucket still holds

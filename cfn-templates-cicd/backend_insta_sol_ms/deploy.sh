@@ -681,19 +681,20 @@ cmd_rollback_full() {
   verify_build_env "$build" "$env" "$m"
 
   echo "Rolling $STACK_NAME back to build $build (template + params + code)..."
-  local overrides
-  overrides="$(node -e '
+  # One array element per Key=Value: values may contain spaces
+  # (WorkerScheduleExpression "rate(2 minutes)").
+  local overrides=()
+  mapfile -t overrides < <(node -e '
     const p = require(process.argv[1]);
-    console.log(p.map(x => x.ParameterKey + "=" + x.ParameterValue).join(" "));
-  ' "$prm")"
+    for (const x of p) console.log(x.ParameterKey + "=" + x.ParameterValue);
+  ' "$prm" | tr -d '\r')
 
-  # shellcheck disable=SC2086
   "$AWS_BIN" cloudformation deploy \
     --template-file "$tpl" \
     --stack-name "$STACK_NAME" \
     --capabilities CAPABILITY_NAMED_IAM \
     --no-fail-on-empty-changeset \
-    --parameter-overrides $overrides \
+    --parameter-overrides "${overrides[@]}" \
     --region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager
 
   echo "Rollback to build $build complete."

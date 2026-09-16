@@ -132,6 +132,11 @@ export const createMeetingSchema = z.object({
   attendeeEmail: z.string().email().optional().nullable().or(z.literal('')),
   notes: z.string().max(2000).optional().nullable(),
   status: z.enum(['scheduled', 'completed', 'cancelled', 'no-show']).optional(),
+  // Persisted by createMeeting; the follow-up service keys its post-visit call
+  // on meetingType === 'site_visit' (CONTRACTS.md 1.2).
+  meetingType: z.enum(['site_visit', 'meeting', 'call', 'other']).optional().nullable(),
+  propertyId: z.string().max(100).optional().nullable(),
+  propertyName: z.string().max(300).optional().nullable(),
 }).strict();
 
 export const updateMeetingSchema = createMeetingSchema.partial().strict();

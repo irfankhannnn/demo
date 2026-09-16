@@ -1,23 +1,30 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Lock, Smartphone } from 'lucide-react';
 import { redirectToLogin } from '../utils/cognitoAuth';
 import { isAuthenticated } from '../utils/authStorage';
+import { goToReturnPath, rememberReturnPath, sanitizeReturnPath } from '../utils/returnPath';
 
 export default function AdminLogin() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  // e.g. /login?next=https://app.realestateflow.in/insta/accounts from the Instagram console
+  const next = new URLSearchParams(location.search).get('next');
 
   // Check auth state in useEffect to prevent infinite redirect loop
   useEffect(() => {
     if (isAuthenticated()) {
-      navigate('/crm', { replace: true });
+      const returnTo = sanitizeReturnPath(next);
+      if (returnTo) goToReturnPath(returnTo, navigate);
+      else navigate('/crm', { replace: true });
     }
-  }, [navigate]);
+  }, [navigate, next]);
 
   const handleGoogleLogin = async () => {
     setLoading(true);
     try {
+      rememberReturnPath(next);
       await redirectToLogin();
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -82,7 +89,10 @@ export default function AdminLogin() {
 
           {/* Phone Sign-In */}
           <button
-            onClick={() => navigate('/phone-login')}
+            onClick={() => {
+              rememberReturnPath(next);
+              navigate('/phone-login');
+            }}
             disabled={loading}
             className="w-full bg-white/80 border-2 border-indigo-100 text-indigo-600 py-3.5 rounded-2xl font-semibold hover:bg-indigo-50/80 hover:border-indigo-200 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed btn-press flex items-center justify-center gap-3"
           >

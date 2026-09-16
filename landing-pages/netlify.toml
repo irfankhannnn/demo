@@ -62,6 +62,11 @@
   status = 200
 
 [[redirects]]
+  from = "/legal/data-deletion"
+  to = "/legal/data-deletion/index.html"
+  status = 200
+
+[[redirects]]
   from = "/vs/*"
   to = "/vs/:splat/index.html"
   status = 200

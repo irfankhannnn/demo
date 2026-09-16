@@ -8,6 +8,7 @@ import validateToken from '../middleware/validateToken.js';
 import { extractTenantId } from '../tenantMiddleware.js';
 import { requireAdmin } from '../middleware/requireRole.js';
 import { getAgencyConfig, updateAgencyConfig } from '../agencyConfigService.js';
+import { followupConfigResponseFields, validateFollowupConfigPatch } from '../utils/followupConfig.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
@@ -35,6 +36,9 @@ router.get('/ai-employee', validateToken, extractTenantId, requireAdmin, async (
       connectedWhatsAppPhone: config?.connectedWhatsAppPhone || null,
       whitelistedPhones: config?.whitelistedPhones || [],
       blacklistedPhones: config?.blacklistedPhones || [],
+      // AI follow-up caller settings (CONTRACTS.md section 6); defaults live
+      // in utils/followupConfig.js so the snapshot route reads the same ones.
+      ...followupConfigResponseFields(config),
     });
   } catch (err) {
     logger.error('config.ai-employee.get.failed', { tenantId, error: err.message });
@@ -167,6 +171,13 @@ router.patch('/ai-employee', validateToken, extractTenantId, requireAdmin, async
       .map(p => String(p || '').replace(/\D/g, ''))
       .filter(p => p.length >= 10 && p.length <= 15);
   }
+
+  // Follow-up caller keys: booleans, bounded integers and a user-id list.
+  const followup = validateFollowupConfigPatch(req.body || {});
+  if (followup.error) {
+    return res.status(400).json({ error: followup.error });
+  }
+  Object.assign(update, followup.update);
 
   if (!Object.keys(update).length) {
     return res.status(400).json({ error: 'No valid fields provided to update' });

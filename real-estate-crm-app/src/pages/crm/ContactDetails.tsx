@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMContact, CRMContactNote } from '../../types/crm';
+import { PhoneNumber, useCanViewFullPhone } from '../../components/PhoneNumber';
+import { isMaskedPhoneValue, PHONE_HIDDEN_NOTE, stripMaskedPhoneFields } from '../../utils/phoneMasking';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Toast from '../../components/Toast';
 import ContactActivityTimeline from '../../components/ContactActivityTimeline';
@@ -32,6 +34,7 @@ import { PermissionGuard } from '../../components/PermissionGuard';
 export default function ContactDetails() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const canViewFullPhone = useCanViewFullPhone();
   const isNew = !id || id === 'new';
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -91,6 +94,10 @@ export default function ContactDetails() {
     }
   };
 
+  // A masked role sees `+91 ******5678`; keep the field read-only for them so
+  // the asterisks can never be saved back over the real number.
+  const phoneLocked = !isNew && (!canViewFullPhone || contact.phoneMasked === true || isMaskedPhoneValue(contact.phone));
+
   const handleSave = async () => {
     if (!contact.name || !contact.phone) {
       showToast('Name and phone are required', 'error');
@@ -116,7 +123,7 @@ export default function ContactDetails() {
           tags: contact.tags,
         });
       } else {
-        await api.updateContact(id!, contact);
+        await api.updateContact(id!, stripMaskedPhoneFields(contact));
       }
       navigate('/crm/contacts');
     } catch (error) {
@@ -245,7 +252,9 @@ export default function ContactDetails() {
                     {isNew ? 'New Contact' : contact.name || 'Contact Details'}
                   </h1>
                   {!isNew && contact.phone && (
-                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">{contact.phone}</p>
+                    <p className="text-xs sm:text-sm text-slate-400 font-semibold">
+                      <PhoneNumber value={contact.phone} masked={contact.phoneMasked} entityType="contact" entityId={id} showCallButton />
+                    </p>
                   )}
                 </div>
               </div>
@@ -314,10 +323,13 @@ export default function ContactDetails() {
                       type="tel"
                       value={contact.phone || ''}
                       onChange={(e) => setContact({ ...contact, phone: e.target.value })}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                      readOnly={phoneLocked}
+                      title={phoneLocked ? PHONE_HIDDEN_NOTE : undefined}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 read-only:bg-gray-50 read-only:text-gray-500"
                       placeholder="Phone number"
                     />
                   </div>
+                  {phoneLocked && <p className="mt-1 text-xs text-slate-500">{PHONE_HIDDEN_NOTE}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>

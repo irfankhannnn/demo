@@ -14,34 +14,60 @@ export const LeadNotificationType = {
   LEAD_ASSIGNED: 'LEAD_ASSIGNED',
   LEAD_HOT: 'LEAD_HOT',
   SITE_VISIT_BOOKED: 'SITE_VISIT_BOOKED',
+  FOLLOWUP_ESCALATION: 'FOLLOWUP_ESCALATION',
 };
 
-const INTERNAL_API_KEY = process.env.INTERNAL_API_KEY || '';
+/** Roles that count as "the agency owner" for escalations (see CONTRACTS.md 7). */
+const ADMIN_ROLES = new Set(['ADMIN', 'FOUNDER', 'OWNER']);
 
 /**
- * Look up a team member's email via the internal (non-JWT) auth-service route —
- * the same one scripts/lead-router-handler.js already uses — so this works from
+ * List the tenant's team via the internal (non-JWT) auth-service route — the
+ * same one scripts/lead-router-handler.js already uses — so this works from
  * webhook/Lambda contexts that don't have a user's bearer token.
+ *
+ * Normalised to one shape regardless of which field names the auth service
+ * happens to return: `{ userId, name, email, phone, role }`. Returns [] on any
+ * failure — every caller here treats "could not resolve the team" as "skip the
+ * per-person channels", never as a reason to fail the notification.
  */
-async function getTeamMemberEmail(tenantId, userId) {
-  if (!userId) return null;
+export async function listTeamMembers(tenantId) {
+  if (!tenantId) return [];
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
+    // Read at call time, not import: ssmBootstrap hydrates process.env on the
+    // Lambda cold start, after this module has loaded.
     const response = await fetch(`${getAuthServiceBaseUrl()}/internal/users/list?tenantId=${encodeURIComponent(tenantId)}`, {
-      headers: { 'x-internal-api-key': INTERNAL_API_KEY },
+      headers: { 'x-internal-api-key': process.env.INTERNAL_API_KEY || '' },
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!response.ok) return null;
+    if (!response.ok) return [];
     const data = await response.json();
     const users = Array.isArray(data.users) ? data.users : (Array.isArray(data) ? data : []);
-    const match = users.find(u => u.userId === userId);
-    return match?.email || null;
+    return users
+      .filter(u => u && u.userId)
+      .map(u => ({
+        userId: u.userId,
+        name: u.displayName || u.name || u.username || u.email || 'Team member',
+        email: u.email || null,
+        phone: u.phoneNumber || u.phone || null,
+        role: u.role ? String(u.role).toUpperCase() : null,
+      }));
   } catch (err) {
-    logger.warn('leadNotifications.getTeamMemberEmail.failed', { tenantId, userId, error: err.message });
-    return null;
+    logger.warn('leadNotifications.listTeamMembers.failed', { tenantId, error: err.message });
+    return [];
   }
+}
+
+export function isAdminMember(member) {
+  return Boolean(member?.role && ADMIN_ROLES.has(member.role));
+}
+
+async function getTeamMemberEmail(tenantId, userId) {
+  if (!userId) return null;
+  const members = await listTeamMembers(tenantId);
+  return members.find(u => u.userId === userId)?.email || null;
 }
 
 async function safeCreateNotification(tenantId, data) {
@@ -175,4 +201,101 @@ export async function notifyHotLead(tenantId, lead) {
       });
     }
   }
+}
+
+/**
+ * The AI follow-up caller needs a human (CONTRACTS.md 3.2).
+ *
+ * Reaches the lead's assignee, every admin, and any extra user ids the tenant
+ * configured — the union is computed by the caller (routes/followupInternal.js)
+ * and arrives as `targetUserIds`. Four channels, each best-effort and
+ * independent: in-app (the one that always fires), email and WhatsApp to each
+ * resolved member, and a note on the lead so the reason survives in the
+ * record even after the notification is dismissed.
+ *
+ * Deliberately never includes the lead's phone number in any outbound text:
+ * team members see masked numbers in the CRM and call through click-to-call
+ * (docs/PHONE-MASKING-AND-CLICK-TO-CALL.md), and an escalation email is the
+ * easiest place to leak one by accident.
+ *
+ * @returns {Promise<{ notified: string[] }>} user ids the in-app notification targets
+ */
+export async function notifyFollowupEscalation(tenantId, { lead, jobId, jobType, reason, summary, targetUserIds, details }) {
+  const leadName = lead?.name || 'A lead';
+  const reasonLabel = {
+    max_attempts_exhausted: 'could not reach them after the configured attempts',
+    callback_requested: 'they asked for a call back from a person',
+    open_actions: 'there are open actions the agent cannot take',
+    error: 'the call could not be completed',
+  }[reason] || (reason ? String(reason).replace(/_/g, ' ') : 'needs a human');
+  const purpose = jobType === 'post_visit_feedback' ? 'post-visit feedback call' : 'site-visit confirmation call';
+  const summaryText = summary ? String(summary).slice(0, 1000) : '';
+  const humanReason = details?.needsHumanReason ? String(details.needsHumanReason).slice(0, 300) : '';
+
+  const targets = Array.from(new Set((targetUserIds || []).filter(Boolean)));
+
+  await safeCreateNotification(tenantId, {
+    category: NotificationCategory.LEADS || 'LEADS',
+    type: LeadNotificationType.FOLLOWUP_ESCALATION,
+    title: 'AI follow-up needs you',
+    message: `${leadName}: ${purpose} — ${reasonLabel}.${summaryText ? ` ${summaryText}` : ''}`.slice(0, 500),
+    deepLink: `/crm/leads/${lead?.leadId}`,
+    entityRef: { entityType: 'lead', entityId: lead?.leadId },
+    // One escalation per job: the service retries its own delivery, and a
+    // retried request for the same job must not notify twice.
+    dedupeKey: `followup_escalation:${jobId}`,
+    targetUserIds: targets.length ? targets : undefined,
+  });
+
+  // Per-person channels. Resolving the team can fail (auth service down);
+  // the in-app notification above has already landed by then.
+  const members = targets.length ? await listTeamMembers(tenantId) : [];
+  const recipients = members.filter(m => targets.includes(m.userId));
+
+  const subject = `AI follow-up needs you: ${leadName}`;
+  const lines = [
+    `${leadName} — ${purpose}: ${reasonLabel}.`,
+    summaryText ? `Summary: ${summaryText}` : null,
+    humanReason ? `Reason given: ${humanReason}` : null,
+    `Open the lead: ${process.env.APP_URL ? `${process.env.APP_URL.replace(/\/+$/, '')}/crm/leads/${lead?.leadId}` : `/crm/leads/${lead?.leadId}`}`,
+  ].filter(Boolean);
+  const text = lines.join('\n');
+  const html = `<p>${lines.map(l => l.replace(/</g, '&lt;')).join('</p><p>')}</p>`;
+
+  for (const member of recipients) {
+    if (member.email) {
+      await safeSendEmail({ to: member.email, subject, html, text });
+    }
+  }
+
+  // WhatsApp is optional infrastructure (Baileys may be off for a tenant or
+  // an environment); loaded lazily like scripts/lead-followup-cron.js so this
+  // module stays importable where it isn't configured at all.
+  try {
+    const { isBaileyEnabled, sendWhatsAppMessage } = await import('./bailey.js');
+    if (isBaileyEnabled()) {
+      for (const member of recipients) {
+        if (!member.phone) continue;
+        try {
+          await sendWhatsAppMessage(member.phone, text);
+        } catch (err) {
+          logger.warn('leadNotifications.escalation.whatsapp_failed', { tenantId, userId: member.userId, error: err.message });
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn('leadNotifications.escalation.whatsapp_unavailable', { tenantId, error: err.message });
+  }
+
+  try {
+    const { createLeadNote } = await import('./crmDynamodbService.js');
+    await createLeadNote(tenantId, lead?.leadId, {
+      content: `[AI Follow-up] Escalated to the team — ${purpose}: ${reasonLabel}.${summaryText ? ` ${summaryText}` : ''}${humanReason ? ` Reason: ${humanReason}` : ''}`,
+      createdBy: 'AI Follow-up Agent',
+    });
+  } catch (err) {
+    logger.warn('leadNotifications.escalation.note_failed', { tenantId, leadId: lead?.leadId, error: err.message });
+  }
+
+  return { notified: targets };
 }

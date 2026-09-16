@@ -122,6 +122,16 @@ Parameters:
       Exotel account SID. NoEcho even though it is not strictly a secret - it is
       half of the Exotel basic-auth pair and there is no reason to echo it.
 
+  ExotelCallerId:
+    Type: String
+    Default: ""
+    Description: >-
+      The Exotel ExoPhone, in E.164, used as CallerId for click-to-call
+      (POST /api/ai-calling/calls/connect bridges a team member to a contact
+      through Exotel's Calls/connect). Not a secret - it is the number both
+      parties see on their screen. Blank disables the feature: the route
+      answers 503 click_to_call_not_configured and nothing else is affected.
+
   ExotelWebhookIps:
     Type: String
     Default: ""
@@ -521,6 +531,17 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref AICallingSecrets
 
+              # call.ended events for the follow-up agent service (source
+              # aicalling.calls, detail-type call.ended). Resource is "*"
+              # because events:PutEvents on the default bus cannot be scoped
+              # any tighter - the only condition key EventBridge offers for
+              # PutEvents is events:detail-type / events:source, and the
+              # default bus ARN is the whole grant either way.
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: "*"
+
               # No Bedrock grant here on purpose. Policy/FAQ retrieval moved
               # to the CRM backend (server/services/knowledge/), which owns the
               # embeddings and the vector index; this service reaches it over
@@ -557,6 +578,7 @@ Resources:
           CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
           CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
           EXOTEL_SUBDOMAIN: !Ref ExotelSubdomain
+          EXOTEL_CALLER_ID: !Ref ExotelCallerId
           EXOTEL_WEBHOOK_IPS: !Ref ExotelWebhookIps
           ELEVENLABS_AGENT_ID: !Ref ElevenLabsAgentId
           ELEVENLABS_AGENT_PHONE_NUMBER_ID: !Ref ElevenLabsAgentPhoneNumberId

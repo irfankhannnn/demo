@@ -71,6 +71,9 @@ export const NotificationType = {
   LEAD_ASSIGNED: 'LEAD_ASSIGNED',
   LEAD_HOT: 'LEAD_HOT',
   SITE_VISIT_BOOKED: 'SITE_VISIT_BOOKED',
+  // The AI follow-up caller gave up on a lead (attempts exhausted, callback
+  // requested, or an open action it cannot take) and needs a human.
+  FOLLOWUP_ESCALATION: 'FOLLOWUP_ESCALATION',
 };
 
 // ============== Inbox Notification Operations ==============

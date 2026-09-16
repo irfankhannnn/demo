@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { CRMMeeting } from '../types/crm';
+import { isMaskedPhoneValue } from '../utils/phoneMasking';
 
 interface ScheduleMeetingModalProps {
   isOpen: boolean;
@@ -57,6 +58,9 @@ export default function ScheduleMeetingModal({
       setLoading(true);
       setError(null);
 
+      // A masked role receives `+91 ******5678`; never persist that on the meeting.
+      const realEntityPhone = isMaskedPhoneValue(entityPhone) ? undefined : entityPhone;
+
       const created = await api.createMeeting({
         title: formData.title,
         description: formData.description,
@@ -67,9 +71,9 @@ export default function ScheduleMeetingModal({
         relatedEntityType: entityType,
         relatedEntityId: entityId,
         relatedEntityName: entityName,
-        relatedEntityPhone: entityPhone,
+        relatedEntityPhone: realEntityPhone,
         attendeeName: entityName,
-        attendeePhone: entityPhone,
+        attendeePhone: realEntityPhone,
         attendeeEmail: entityEmail,
         notes: formData.notes,
       });

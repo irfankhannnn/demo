@@ -16,7 +16,10 @@
     "                                key only a real deploy's upload produces;",
     "                                config-only mode never uploads anything,",
     "                                so this must always carry forward the",
-    "                                live stack's current value."
+    "                                live stack's current value.",
+    "  TokenEncryptionKey         — changing it makes every stored Instagram",
+    "                                token undecryptable. That must be a",
+    "                                deliberate full deploy, never a shortcut."
   ],
   "allowedParams": [
     "LambdaMemorySize",
@@ -33,11 +36,20 @@
     "EnableBasePathStrip",
     "LogLevel",
     "LogRetentionDays",
-    "DeviceClockSkewToleranceMs",
     "KillSwitchEnabled",
     "CrmInternalApiDomainName",
     "CrmInternalApiBasePath",
     "AdapterInternalApiKey",
-    "PromoteEnquiriesToLeads"
+    "PromoteEnquiriesToLeads",
+    "MetaAppId",
+    "MetaAppSecret",
+    "MetaWebhookVerifyToken",
+    "InstaConsoleUrl",
+    "GeminiApiKey",
+    "LlmModel",
+    "DryRunSends",
+    "RulesEnabled",
+    "WorkerScheduleExpression",
+    "WorkerEnabled"
   ]
 }

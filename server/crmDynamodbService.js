@@ -24,6 +24,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getOrCreateArea, incrementAreaPropertyCount } from './areasDynamodbService.js';
 import { logger } from './logger.js';
 import { scheduleMeetingReminder, cancelMeetingReminder } from './notificationDynamodbService.js';
+import { publishMeetingStatusEvent } from './services/meetingEvents.js';
 import { wrapAwsClient } from './awsClientWrapper.js';
 import { SERVICE_ACCOUNT_USER } from './utils/serviceAccount.js';
 import { collectAllPages } from './utils/dynamoPagination.js';
@@ -2475,6 +2476,14 @@ export async function createMeeting(tenantId, data) {
     relatedEntityId: data.relatedEntityId,
     relatedEntityName: data.relatedEntityName || '',
     relatedEntityPhone: data.relatedEntityPhone || '',
+    // What kind of meeting and, for a site visit, which listing. The
+    // follow-up service keys its post-visit call on meetingType === 'site_visit'
+    // (CONTRACTS.md 1.2), so an AI-booked visit must persist it rather than
+    // relying on the title. All null for the ordinary calendar meeting.
+    meetingType: data.meetingType || null,
+    propertyId: data.propertyId || null,
+    propertyName: data.propertyName || null,
+    source: data.source || null,
     // Attendee info
     attendeeName: data.attendeeName || data.relatedEntityName || '',
     attendeePhone: data.attendeePhone || data.relatedEntityPhone || '',
@@ -2864,6 +2873,10 @@ export async function updateMeeting(tenantId, meetingId, data) {
     logger.error('meeting.reminder.update.error', { meetingId, error: reminderError.message });
     // Don't fail meeting update if reminder update fails
   }
+
+  // crm.meetings / meeting.completed | meeting.cancelled for the follow-up
+  // service (CONTRACTS.md 1.2). Gated on AGENTS_ENABLED inside; never throws.
+  await publishMeetingStatusEvent({ tenantId, before, after, data });
 
   logger.info('meeting.updated', { meetingId, tenantId });
   return result.Attributes;
@@ -3774,7 +3787,7 @@ export async function createLead(tenantId, data) {
     // Instagram-sourced leads carry a reference to the triggering post so a
     // human can see which reel/listing prompted the DM.
     reelRef: data.reelRef || null,
-    // Which intake adapter produced this lead — 'manychat', 'insta-agent',
+    // Which intake adapter produced this lead — 'manychat', 'instagram',
     // 'bailey', 'website', or null for a human typing it in. `source` stays the
     // coarse, user-facing channel ('Instagram'); this is the finer-grained
     // provenance, so two Instagram intake paths stay tellable apart without

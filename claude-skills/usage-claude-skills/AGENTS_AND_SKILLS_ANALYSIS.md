@@ -640,7 +640,7 @@ RESULT OUTPUT:
    - Headline: "Aapki Agency, Aapka Control"
    - Subheadline: "Leads se deals tak — RealtyFlow"
    - CTA: "Free Trial →"
-   - Colors: Primary (#2563EB), Text (#FFFFFF)
+   - Colors: Primary/Marigold (#FF7A1A), Text (#FBF2E4)
 
 5. OUTPUT: PNG banner ready for Meta Ads
 

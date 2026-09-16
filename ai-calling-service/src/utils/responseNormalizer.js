@@ -6,7 +6,7 @@ const numberWords = {
   10: 'ten', 11: 'eleven', 12: 'twelve',
 };
 
-function numberToWords(num) {
+export function numberToWords(num) {
   if (num <= 12) return numberWords[num] || num.toString();
   
   if (num >= 10000000) {
@@ -40,7 +40,7 @@ function numberToWords(num) {
   return num.toString();
 }
 
-function formatCurrency(amount) {
+export function formatCurrency(amount) {
   if (!amount || amount === 0) return 'price not specified';
   return `rupees ${numberToWords(amount)}`;
 }
@@ -172,6 +172,122 @@ export function normalizeFAQResponse(answer, sources = []) {
   return expandAbbreviations(response);
 }
 
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/**
+ * Turn an ISO date (2026-09-06) into "6 September 2026". Anything that isn't
+ * an ISO date is passed through untouched — the follow-up service may hand us
+ * a free-text schedule hint like "Saturday 4pm" and that already reads fine.
+ */
+export function speakDate(value) {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return String(value);
+  const month = MONTH_NAMES[Number(match[2]) - 1];
+  if (!month) return String(value);
+  return `${Number(match[3])} ${month} ${match[1]}`;
+}
+
+/**
+ * Turn a 24h time (16:00) into "4 PM" / "4:30 PM". Non-matching input is
+ * passed through as-is for the same reason as speakDate.
+ */
+export function speakTime(value) {
+  if (!value) return '';
+  const match = String(value).match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return String(value);
+  const hours24 = Number(match[1]);
+  const minutes = match[2];
+  if (hours24 > 23) return String(value);
+  const suffix = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 === 0 ? 12 : hours24 % 12;
+  return minutes === '00' ? `${hours12} ${suffix}` : `${hours12}:${minutes} ${suffix}`;
+}
+
+/**
+ * One spoken sentence describing a booked meeting / site visit, for the
+ * {{meeting_details}} dynamic variable. Returns null when there is nothing
+ * usable so the caller can substitute its own "not known" text.
+ */
+export function normalizeMeetingDetails(meeting) {
+  if (!meeting || typeof meeting !== 'object') return null;
+
+  const date = speakDate(meeting.meetingDate || meeting.date);
+  const time = speakTime(meeting.meetingTime || meeting.time);
+  const location = meeting.location || meeting.propertyName || '';
+  const schedule = meeting.meetingSchedule || '';
+
+  if (!date && !time && !location && !schedule) return null;
+
+  const kind = meeting.meetingType === 'site_visit' || !meeting.meetingType ? 'Site visit' : 'Meeting';
+  let text = kind;
+  if (date) text += ` on ${date}`;
+  if (time) text += ` at ${time}`;
+  if (!date && !time && schedule) text += ` ${schedule}`;
+  if (location) text += `, at ${expandAbbreviations(location)}`;
+  if (meeting.status) text += ` (currently ${String(meeting.status).replace(/_/g, ' ')})`;
+  return `${text}.`;
+}
+
+/**
+ * A short spoken description of one property, for {{property_details}} and
+ * {{visit_details}}. Prices go through the Indian number words so the agent
+ * says "one crore eighty lakh", not "18000000". Returns null when the object
+ * carries nothing worth saying.
+ */
+export function normalizePropertyBrief(property) {
+  if (!property || typeof property !== 'object') return null;
+
+  const p = property;
+  const parts = [];
+
+  const title = p.title || p.propertyName || p.name;
+  if (title) parts.push(expandAbbreviations(String(title)));
+
+  const bhk = p.bhk ?? p.bedrooms;
+  const type = p.propertyType || p.type;
+  const bhkType = [
+    bhk ? `${numberToWords(Number(bhk))} bedroom` : null,
+    type ? String(type) : null,
+  ].filter(Boolean).join(' ');
+  if (bhkType) parts.push(bhkType);
+
+  const place = [p.buildingName, p.area || p.location, p.city].filter(Boolean).join(', ');
+  if (place) parts.push(`in ${expandAbbreviations(place)}`);
+
+  if (p.price) parts.push(`priced at ${formatCurrency(Number(p.price))}`);
+  else if (p.rentAmount || p.rent) parts.push(`rent ${formatCurrency(Number(p.rentAmount || p.rent))} per month`);
+
+  const carpet = p.carpetArea || p.squareFeet;
+  if (carpet) parts.push(`${carpet} square feet carpet area`);
+
+  if (p.furnishing) parts.push(String(p.furnishing));
+
+  if (parts.length === 0) return null;
+  return `${parts.join(', ')}.`;
+}
+
+/**
+ * Speech for confirm_site_visit, spoken after the CRM has updated the meeting.
+ */
+export function normalizeMeetingUpdate(meeting, action) {
+  const date = speakDate(meeting?.meetingDate);
+  const time = speakTime(meeting?.meetingTime);
+  const when = [date && `on ${date}`, time && `at ${time}`].filter(Boolean).join(' ');
+
+  if (action === 'reschedule') {
+    return when
+      ? `Done, I've moved your visit to ${when}. You'll get a confirmation message with the details.`
+      : "Done, I've noted the new timing. You'll get a confirmation message with the details.";
+  }
+  return when
+    ? `Great, your visit is confirmed ${when}. Our team will be there to receive you.`
+    : 'Great, your visit is confirmed. Our team will be there to receive you.';
+}
+
 export function sanitizeForSpeech(text) {
   if (!text) return '';
   
@@ -182,6 +298,13 @@ export function sanitizeForSpeech(text) {
 }
 
 export default {
+  numberToWords,
+  formatCurrency,
+  speakDate,
+  speakTime,
+  normalizeMeetingDetails,
+  normalizePropertyBrief,
+  normalizeMeetingUpdate,
   normalizePropertyList,
   normalizePropertyDetails,
   normalizeSiteVisitConfirmation,

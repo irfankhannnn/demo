@@ -37,19 +37,29 @@ compute_param_values() {
     EnableBasePathStrip
     LogLevel
     LogRetentionDays
-    DeviceClockSkewToleranceMs
     KillSwitchEnabled
     CrmInternalApiDomainName
     CrmInternalApiBasePath
     AdapterInternalApiKey
     PromoteEnquiriesToLeads
+    MetaAppId
+    MetaAppSecret
+    MetaWebhookVerifyToken
+    TokenEncryptionKey
+    InstaConsoleUrl
+    GeminiApiKey
+    LlmModel
+    DryRunSends
+    RulesEnabled
+    WorkerScheduleExpression
+    WorkerEnabled
   )
 
   declare -gA PARAM_VALUES=(
     [EnvironmentName]="${ENVIRONMENT_NAME}"
     [LambdaRuntime]="${LAMBDA_RUNTIME:-nodejs20.x}"
     [LambdaMemorySize]="${LAMBDA_MEMORY_SIZE:-512}"
-    [LambdaTimeout]="${LAMBDA_TIMEOUT:-30}"
+    [LambdaTimeout]="${LAMBDA_TIMEOUT:-60}"
     [LambdaCodeS3Bucket]="${ARTIFACT_BUCKET}"
     [LambdaCodeS3Key]="${s3_key}"
     [DataTableName]="${INSTA_DATA_TABLE_NAME}"
@@ -64,12 +74,22 @@ compute_param_values() {
     [EnableBasePathStrip]="${ENABLE_BASE_PATH_STRIP:-false}"
     [LogLevel]="${LOG_LEVEL:-info}"
     [LogRetentionDays]="${LOG_RETENTION_DAYS:-30}"
-    [DeviceClockSkewToleranceMs]="${DEVICE_CLOCK_SKEW_TOLERANCE_MS:-300000}"
-    [KillSwitchEnabled]="${KILL_SWITCH_ENABLED:-false}"
+    [KillSwitchEnabled]="${INSTA_KILL_SWITCH:-false}"
     [CrmInternalApiDomainName]="${CRM_INTERNAL_API_DOMAIN_NAME:-}"
     [CrmInternalApiBasePath]="${CRM_INTERNAL_API_BASE_PATH:-}"
     [AdapterInternalApiKey]="${ADAPTER_INTERNAL_API_KEY:-}"
     [PromoteEnquiriesToLeads]="${INSTA_PROMOTE_ENQUIRIES_TO_LEADS:-true}"
+    [MetaAppId]="${META_APP_ID:-}"
+    [MetaAppSecret]="${META_APP_SECRET:-}"
+    [MetaWebhookVerifyToken]="${META_WEBHOOK_VERIFY_TOKEN:-}"
+    [TokenEncryptionKey]="${INSTA_TOKEN_ENCRYPTION_KEY:-}"
+    [InstaConsoleUrl]="${INSTA_CONSOLE_URL:-}"
+    [GeminiApiKey]="${GEMINI_API_KEY:-}"
+    [LlmModel]="${LLM_MODEL:-gemini-2.5-flash}"
+    [DryRunSends]="${INSTA_DRY_RUN_SENDS:-true}"
+    [RulesEnabled]="${INSTA_RULES_ENABLED:-true}"
+    [WorkerScheduleExpression]="${INSTA_WORKER_SCHEDULE:-rate(2 minutes)}"
+    [WorkerEnabled]="${INSTA_WORKER_ENABLED:-true}"
   )
 }
 
@@ -99,6 +119,25 @@ assert_custom_domain_vars() {
       errors=$((errors + 1))
     fi
   done
+  if [ "$errors" -gt 0 ]; then
+    exit 1
+  fi
+}
+
+# assert_instagram_app_vars — the Instagram app settings a deployed stack
+# cannot work without. Checked before any AWS call.
+assert_instagram_app_vars() {
+  local errors=0 var
+  for var in META_APP_ID META_APP_SECRET META_WEBHOOK_VERIFY_TOKEN INSTA_CONSOLE_URL; do
+    if [ -z "${!var:-}" ]; then
+      echo "ERROR: $var is empty — see backend_insta_sol_ms/.env.sample"
+      errors=$((errors + 1))
+    fi
+  done
+  if ! [[ "${INSTA_TOKEN_ENCRYPTION_KEY:-}" =~ ^[0-9a-fA-F]{64}$ ]]; then
+    echo "ERROR: INSTA_TOKEN_ENCRYPTION_KEY must be 64 hex characters (openssl rand -hex 32)"
+    errors=$((errors + 1))
+  fi
   if [ "$errors" -gt 0 ]; then
     exit 1
   fi

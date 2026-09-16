@@ -19,6 +19,7 @@ import {
   Filter,
 } from 'lucide-react';
 import { api } from '../../services/api';
+import { PhoneNumber } from '../../components/PhoneNumber';
 import { CRMOwner, CRMProperty } from '../../types/crm';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import { formatPropertyMarketPrice } from '../../utils/propertyPricing';
@@ -292,7 +293,7 @@ export default function OwnerList() {
       render: (owner) => (
         <div className="flex items-center gap-2">
           <Phone className="h-4 w-4 text-gray-400" />
-          <span>{owner.phone || '-'}</span>
+          <PhoneNumber value={owner.phone} masked={owner.phoneMasked} entityType="owner" entityId={owner.ownerId} showCallButton compact fallback="-" />
         </div>
       ),
     },
@@ -463,7 +464,7 @@ export default function OwnerList() {
                         {seller.phone && (
                           <span className="inline-flex items-center gap-1">
                             <Phone className="h-3.5 w-3.5" />
-                            {seller.phone}
+                            <PhoneNumber value={seller.phone} masked={seller.phoneMasked} entityType="owner" entityId={seller.ownerId} showCallButton compact />
                           </span>
                         )}
                         {seller.email && (

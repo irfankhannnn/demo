@@ -112,3 +112,24 @@ export function getAiCallingServiceBaseUrl() {
   );
   return `${base}${AI_CALLING_API_PREFIX}`;
 }
+
+/**
+ * followup-agent-service (the AI site-visit confirmation / post-visit feedback
+ * caller). Optional: returns null when FOLLOWUP_SERVICE_DOMAIN_NAME is blank
+ * (stack not deployed), so callers can degrade to "not configured" rather
+ * than dial a half-built URL. Still throws on a raw API Gateway host.
+ *
+ * Unlike the ai-calling getter this returns the bare service base — the
+ * route prefix (/api/followup/...) is appended by services/followupService.js,
+ * which is the only module that talks to it.
+ */
+export function getFollowupServiceBaseUrl() {
+  if (isBlank(process.env.FOLLOWUP_SERVICE_DOMAIN_NAME)) {
+    return null;
+  }
+  return buildServiceBaseUrl(
+    process.env.FOLLOWUP_SERVICE_DOMAIN_NAME,
+    process.env.FOLLOWUP_SERVICE_BASE_PATH,
+    'FOLLOWUP_SERVICE_DOMAIN_NAME'
+  );
+}

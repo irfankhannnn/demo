@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMCustomer } from '../../types/crm';
+import { PhoneNumber } from '../../components/PhoneNumber';
 
 interface TenantWithMeeting extends CRMCustomer {
   nextMeeting?: {
@@ -297,7 +298,7 @@ export default function TenantList() {
                     {tenant.phone && (
                       <div className="flex items-center text-sm text-gray-600">
                         <Phone className="h-4 w-4 mr-2 flex-shrink-0" />
-                        <span className="truncate">{tenant.phone}</span>
+                        <PhoneNumber value={tenant.phone} masked={tenant.phoneMasked} entityType="customer" entityId={tenant.customerId} showCallButton compact className="truncate" />
                       </div>
                     )}
                     {tenant.email && (

@@ -30,6 +30,9 @@ export async function getGoogleAuthUrl(req: Request, res: Response): Promise<voi
     authUrl.searchParams.set('redirect_uri', redirect_uri);
     authUrl.searchParams.set('scope', 'openid email profile phone');
     authUrl.searchParams.set('identity_provider', 'Google');
+    // Show Google's account chooser instead of silently reusing the browser's
+    // signed-in account (forwarded by Cognito on managed login only).
+    authUrl.searchParams.set('prompt', 'select_account');
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
     

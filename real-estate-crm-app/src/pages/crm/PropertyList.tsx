@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMProperty } from '../../types/crm';
+import { PhoneNumber } from '../../components/PhoneNumber';
 import GlassDataTable, { Column } from '../../components/GlassDataTable';
 import Toast from '../../components/Toast';
 import { formatPropertyMarketPrice } from '../../utils/propertyPricing';
@@ -202,7 +203,11 @@ export default function PropertyList() {
         return ownerName ? (
           <div className="text-sm">
             <p className="font-medium text-gray-900">{ownerName}</p>
-            {ownerPhone && <p className="text-xs text-gray-500">{ownerPhone}</p>}
+            {ownerPhone && (
+              <p className="text-xs text-gray-500">
+                <PhoneNumber value={ownerPhone} masked={p.phoneMasked || p.ownerSnapshot?.phoneMasked} entityType="property" entityId={property.propertyId} showCallButton compact />
+              </p>
+            )}
           </div>
         ) : (
           <span className="text-xs text-gray-400 italic">Unassigned</span>
@@ -215,7 +220,9 @@ export default function PropertyList() {
       render: (property) => property.tenant ? (
         <div className="text-sm">
           <p className="font-medium text-gray-900">{property.tenant.name}</p>
-          <p className="text-xs text-gray-500">{property.tenant.phone}</p>
+          <p className="text-xs text-gray-500">
+            <PhoneNumber value={property.tenant.phone} masked={property.tenant.phoneMasked} entityType="customer" entityId={property.tenant.customerId} showCallButton compact />
+          </p>
         </div>
       ) : (
         <span className="text-xs text-gray-400">-</span>

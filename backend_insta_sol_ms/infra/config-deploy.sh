@@ -154,9 +154,12 @@ fi
 
 # NoEcho parameters come back from describe-stacks as the literal string
 # "****" — always forwarded from .env.$ENV as-is (never diffed, never
-# blocked on). ADAPTER_INTERNAL_API_KEY is also on the allowlist, so this
-# only matters for whether it's diffed, not whether it's allowed to change.
-NOECHO_PARAMS=(AdapterInternalApiKey)
+# blocked on). Every NoEcho parameter in cfn-insta-sol-ms.yaml must be listed
+# here, or its "****" live value reads as a permanent change and blocks every
+# config-only deploy. INSTA_TOKEN_ENCRYPTION_KEY is forwarded too, so changing
+# it in .env.$ENV still rotates it: every connected account would then need
+# to reconnect.
+NOECHO_PARAMS=(AdapterInternalApiKey MetaAppSecret MetaWebhookVerifyToken TokenEncryptionKey GeminiApiKey)
 
 # LambdaCodeS3Key: compute_param_values() cannot derive a meaningful value
 # for it here (called with "" above) — never diff/block on it, always fall

@@ -1,14 +1,17 @@
-// Lambda entry point.
+// Lambda entry point. One function, two triggers:
+//
+//   API Gateway  -> the Express app (dashboard API, OAuth, webhooks)
+//   EventBridge  -> the scheduled Instagram worker (services/worker.js)
 //
 // assertEnv runs at module load, i.e. during the cold start, so a stack
 // deployed with a missing table name fails its very first invocation with a
-// readable message instead of a DynamoDB ValidationException on some later
-// write.
+// readable message instead of a DynamoDB ValidationException on a later write.
 
 import serverless from 'serverless-http';
 import { createApp } from './server.js';
 import { assertEnv } from './config/env.js';
 import { logger } from './logger.js';
+import { runScheduledJobs } from './services/worker.js';
 
 assertEnv();
 
@@ -22,7 +25,7 @@ logger.info('lambda.cold_start', {
 const serverlessHandler = serverless(app, {
   // API Gateway hands the body through as a string; serverless-http rebuilds
   // the request stream from it, and express.json's verify hook then sees the
-  // same bytes the agent signed.
+  // same bytes Meta signed.
   request: (request, event) => {
     request.requestContextRequestId = event?.requestContext?.requestId;
   },
@@ -31,9 +34,7 @@ const serverlessHandler = serverless(app, {
 // API Gateway's custom-domain base path mapping only affects routing
 // selection - it does not strip the base path from the event.path a Lambda
 // proxy integration receives, so we strip it ourselves before handing the
-// event to serverless-http. Mirrors server/lambda-handler.js's identical
-// stripConfiguredBasePath. Only runs when ENABLE_BASE_PATH_STRIP=true (i.e.
-// once the custom domain mapping is actually enabled for this stack).
+// event to serverless-http. Only runs when ENABLE_BASE_PATH_STRIP=true.
 function stripBasePath(pathValue) {
   if (typeof pathValue !== 'string') {
     return pathValue;
@@ -52,7 +53,15 @@ function stripBasePath(pathValue) {
   return pathValue;
 }
 
-export const handler = (event, context, callback) => {
+export function isScheduledEvent(event) {
+  return event?.source === 'aws.events' || event?.['detail-type'] === 'Scheduled Event' || event?.job === 'instagram-worker';
+}
+
+export const handler = async (event, context) => {
+  if (isScheduledEvent(event)) {
+    return runScheduledJobs();
+  }
+
   if (process.env.ENABLE_BASE_PATH_STRIP === 'true' && event) {
     if (typeof event.path === 'string') {
       event.path = stripBasePath(event.path);
@@ -67,7 +76,7 @@ export const handler = (event, context, callback) => {
       event.requestContext.http.path = stripBasePath(event.requestContext.http.path);
     }
   }
-  return serverlessHandler(event, context, callback);
+  return serverlessHandler(event, context);
 };
 
 export default handler;

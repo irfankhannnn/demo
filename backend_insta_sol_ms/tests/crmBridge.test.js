@@ -73,8 +73,11 @@ describe('forwardEnquiriesToCrm', () => {
     assert.equal(call.options.headers['x-tenant-id'], 'T1');
 
     const [lead] = call.body.leads;
-    assert.equal(lead.dedupeKey, 'ENQ-1');
-    assert.equal(lead.sourceAdapter, 'insta-agent');
+    // enquiryId + phone digits: a retry of the same hand-off is dropped, a new
+    // number for the same thread is a new hand-off.
+    assert.equal(lead.dedupeKey, 'ENQ-1:9876543210');
+    assert.equal(lead.sourceAdapter, 'instagram');
+    assert.equal(result.results[0].enquiryId, 'ENQ-1');
     assert.equal(lead.source, 'Instagram');
     assert.equal(lead.intent, 'buy');
     // Channel ids travel in one blob, and the media id is mirrored into reelRef
@@ -158,4 +161,16 @@ describe('forwardEnquiriesToCrm', () => {
     assert.equal(calls[0].body.leads.length, 100);
     assert.equal(calls[2].body.leads.length, 50);
   });
+});
+
+test('a parsed rupee budget is sent as a figure, never as a purchase-scale bracket', async () => {
+  const { toAdapterPayload } = await import('../services/crmBridge.js');
+  // A 45k rent bracketed as under_25L made the CRM store a 24 lakh budget.
+  const rent = toAdapterPayload(enquiry({ intent: 'rent', budgetRupees: 45000, budgetBracket: 'under_25L' }));
+  assert.equal(rent.budget, 45000);
+  assert.equal('budgetBracket' in rent, false);
+
+  const unparsed = toAdapterPayload(enquiry({ budgetRupees: null, budgetBracket: '80L_1Cr' }));
+  assert.equal(unparsed.budgetBracket, '80L_1Cr');
+  assert.equal('budget' in unparsed, false);
 });

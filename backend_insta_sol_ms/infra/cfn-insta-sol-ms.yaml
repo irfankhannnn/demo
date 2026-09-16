@@ -1,27 +1,22 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Instagram Solution microservice (backend_insta_sol_ms) - API Gateway + Lambda +
-  DynamoDB. Ingests Instagram account, reel, DM-thread and enquiry data pushed by
-  the instagram-local-agent running on an agency owner's laptop, and serves the
+  DynamoDB + EventBridge. Connects agencies' Instagram professional accounts
+  through Instagram Business Login, receives DMs by webhook and scheduled sync,
+  turns them into scored enquiries and CRM leads, and serves the
   frontend_insta_sol_ms web app.
 
 # =============================================================================
-# This stack is fully self-contained. It does NOT read or write any existing CRM
-# table (Leads, AgencyConfig, Buyers, ...) and shares no resource with
-# prod-realestateflow-backend. The only external dependency is the auth service
-# URL, called over HTTPS to validate a bearer token - the same pattern
-# server/middleware/validateToken.js uses. The Lambda's IAM role can reach
-# exactly two tables, so the isolation is enforced by IAM, not by convention.
+# This stack does NOT read or write any CRM table (Leads, AgencyConfig, ...).
+# Enquiries reach the CRM only through its internal HTTP adapter API, and the
+# auth service is called over HTTPS to validate bearer tokens. The Lambda's IAM
+# role can reach exactly two tables, so the isolation is enforced by IAM.
 #
 # Naming convention: every physical resource is named
-# <dev|prod>-realestateflow-insta-<resource> (env FIRST), matching the convention
-# already live on prod-realestateflow-networking-common and
-# prod-realestateflow-auth-stack.
+# <dev|prod>-realestateflow-insta-<resource> (env FIRST).
 #
 # No VpcConfig: every call this function makes is to a public AWS API endpoint
-# (DynamoDB) or an HTTPS URL (the auth service). Per the repo's CFN checklist,
-# pure AWS-API Lambdas do not belong in the VPC - it only adds ENI cold-start
-# latency and a NAT dependency for nothing.
+# (DynamoDB) or an HTTPS URL (auth service, CRM, Instagram, Gemini).
 #
 # NOTE: keep this file plain ASCII. aws.exe (AWS CLI v2 on Windows) reads
 # --template-file using the system codepage (cp1252 here), so non-ASCII bytes in
@@ -39,9 +34,8 @@ Parameters:
     Default: nodejs20.x
     AllowedValues: [nodejs20.x]
     Description: >
-      Pinned to nodejs20.x. 16.x is past AWS's function-create cutoff and 18.x is
-      on the deprecation track. Do not move to nodejs22.x without checking the
-      preinstalled AWS SDK v3 client set - it is incomplete there.
+      Pinned to nodejs20.x. Do not move to nodejs22.x without checking the
+      preinstalled AWS SDK v3 client set.
 
   LambdaMemorySize:
     Type: Number
@@ -51,9 +45,12 @@ Parameters:
 
   LambdaTimeout:
     Type: Number
-    Default: 30
-    MinValue: 5
+    Default: 60
+    MinValue: 30
     MaxValue: 300
+    Description: >
+      API requests are still capped at 29s by API Gateway. The longer timeout is
+      for the scheduled worker, whose own budget is INSTA_WORKER_TIME_BUDGET_MS.
 
   LambdaCodeS3Bucket:
     Type: String
@@ -65,11 +62,11 @@ Parameters:
 
   DataTableName:
     Type: String
-    Description: Single-table store for devices, snapshots, media, enquiries, threads, rules
+    Description: Single-table store for accounts, threads, messages, enquiries, media, snapshots, rules
 
   AuditTableName:
     Type: String
-    Description: TTL-only table for the audit trail and HMAC replay nonces
+    Description: TTL-only table for the audit trail
 
   AuthServiceDomainName:
     Type: String
@@ -90,10 +87,9 @@ Parameters:
     Default: ''
     AllowedPattern: "^[A-Za-z0-9.-]*$"
     Description: >-
-      API Gateway custom domain of the CRM API. Captured Instagram enquiries are
-      forwarded to https://<domain>/<CrmInternalApiBasePath>/api/internal/adapters/leads
-      so they become CRM leads and get the same AI qualification as every other
-      source. Blank disables promotion.
+      API Gateway custom domain of the CRM API. Qualified Instagram enquiries are
+      forwarded to https://<domain>/<CrmInternalApiBasePath>/api/internal/adapters/leads.
+      Blank disables promotion.
 
   CrmInternalApiBasePath:
     Type: String
@@ -128,7 +124,8 @@ Parameters:
     Description: >-
       Custom domain already registered in API Gateway to map this API's base
       path onto (services-api.realestateflow.in for prod,
-      services-api.cloudberrysolutions.in for dev/nonprod).
+      services-api.cloudberrysolutions.in for dev). Also the host of the
+      Instagram OAuth redirect URI and the webhook URL.
 
   InstaApiBasePath:
     Type: String
@@ -141,10 +138,8 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: >-
       Set to 'false' until the AWS::ApiGateway::DomainName named by
-      InstaApiDomainName actually exists (this template doesn't manage that
-      resource - it's set up once, separately). With it false,
-      BasePathMapping is skipped and the API has no supported public URL.
-      Both dev and prod domains exist, so both env files set this to 'true'.
+      InstaApiDomainName exists. With it false, BasePathMapping is skipped and
+      the API has no supported public URL.
 
   EnableBasePathStrip:
     Type: String
@@ -152,10 +147,8 @@ Parameters:
     AllowedValues: ['true', 'false']
     Description: >-
       Set to 'true' once EnableCustomDomainMapping is 'true'. API Gateway's
-      base path mapping only affects routing selection - it does not strip
-      the base path from the event.path a Lambda proxy integration receives
-      - so the Lambda strips it itself (see lambda.js). Mirrors
-      server/infra/cfn-backend.yaml's identical flag.
+      base path mapping does not strip the base path from the proxied event, so
+      the Lambda strips it itself (see lambda.js).
 
   LogLevel:
     Type: String
@@ -167,21 +160,81 @@ Parameters:
     Default: 30
     AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 180, 365]
 
-  DeviceClockSkewToleranceMs:
-    Type: Number
-    Default: 300000
-    Description: Max accepted clock skew on an HMAC-signed agent request (default 5 minutes)
-
   KillSwitchEnabled:
     Type: String
     Default: "false"
     AllowedValues: ["true", "false"]
     Description: >
-      When true the heartbeat endpoint tells every paired laptop agent to stop all
-      automation. A fleet-wide emergency brake, e.g. if Meta changes policy.
+      When true nothing is sent to Instagram at all (console replies and keyword
+      rules). Reads and lead analysis continue. The emergency brake.
+
+  MetaAppId:
+    Type: String
+    Default: ''
+    Description: Instagram App ID from the Meta app's "API setup with Instagram business login" page
+
+  MetaAppSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Instagram App Secret from the same page. Also verifies webhook signatures.
+
+  MetaWebhookVerifyToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Random string, pasted into the Meta app's webhook "Verify token" field
+
+  TokenEncryptionKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    AllowedPattern: "^([0-9a-fA-F]{64})?$"
+    ConstraintDescription: 64 hex characters (openssl rand -hex 32)
+    Description: AES-256-GCM key for stored Instagram access tokens. Changing it forces every account to reconnect.
+
+  InstaConsoleUrl:
+    Type: String
+    Default: ''
+    Description: The Instagram console URL, e.g. https://app.realestateflow.in/insta. OAuth sends the browser back to <this>/accounts.
+
+  GeminiApiKey:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Optional. When set, DM threads are analysed by Gemini; otherwise the rule-based analyst is used.
+
+  LlmModel:
+    Type: String
+    Default: gemini-2.5-flash
+    Description: Model id for the Gemini analyst
+
+  DryRunSends:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: When true, replies and rule DMs are recorded but never sent to Instagram. Start new environments with true.
+
+  RulesEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Keyword rules (comment -> public reply + private DM)
+
+  WorkerScheduleExpression:
+    Type: String
+    Default: rate(2 minutes)
+    Description: EventBridge schedule for the Instagram worker (polling, analysis, token refresh)
+
+  WorkerEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Pauses the scheduled worker without deleting it
 
 Conditions:
   CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
+  WorkerIsEnabled: !Equals [!Ref WorkerEnabled, 'true']
 
 Resources:
 
@@ -189,9 +242,9 @@ Resources:
   # DynamoDB
   # ---------------------------------------------------------------------------
 
-  # Holds user data (enquiries with names and phone numbers, DM thread metadata,
-  # historical metrics that Instagram itself deletes after ~90 days). Retain +
-  # PITR per the repo's CFN checklist - a stack delete must never take this with it.
+  # Holds user data (DMs, enquiries with names and phone numbers, encrypted
+  # Instagram tokens, historical metrics Instagram itself deletes after ~90
+  # days). Retain + PITR - a stack delete must never take this with it.
   InstaDataTable:
     Type: AWS::DynamoDB::Table
     DeletionPolicy: Retain
@@ -214,9 +267,7 @@ Resources:
         - AttributeName: sk
           KeyType: RANGE
       GlobalSecondaryIndexes:
-        # Sparse index. Two jobs: (1) resolve a deviceId or pairing code to its
-        # tenant without scanning, since an agent request arrives with no tenant
-        # context; (2) list enquiries newest-first without a full partition scan.
+        # Sparse index: enquiries newest-first without a full partition scan.
         - IndexName: gsi1-index
           KeySchema:
             - AttributeName: gsi1pk
@@ -226,8 +277,6 @@ Resources:
           Projection:
             ProjectionType: ALL
       TimeToLiveSpecification:
-        # Only pairing codes carry expiresAt. Everything else omits the attribute
-        # and is therefore never expired by TTL.
         AttributeName: expiresAt
         Enabled: true
       PointInTimeRecoverySpecification:
@@ -240,8 +289,7 @@ Resources:
         - Key: Service
           Value: realestateflow-insta
 
-  # Audit trail + HMAC replay nonces. Genuinely ephemeral (everything here has a
-  # TTL), so the checklist's Retain/PITR requirement does not apply.
+  # Audit trail. Everything here has a TTL, so Retain/PITR does not apply.
   InstaAuditTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -272,8 +320,6 @@ Resources:
   # Lambda
   # ---------------------------------------------------------------------------
 
-  # Explicit log group so retention is managed here rather than defaulting to
-  # "never expire". Must exist before the function writes to it.
   InstaLambdaLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -296,15 +342,12 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              # Scoped to this stack's own log group, not logs:* on everything.
               - Effect: Allow
                 Action:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EnvironmentName}-realestateflow-insta-lambda:*"
-              # Scoped to exactly the two tables this service owns, plus their
-              # indexes. No CRM table is reachable from this role at all - that is
-              # the isolation guarantee, enforced by IAM rather than by convention.
+              # Exactly the two tables this service owns, plus their indexes.
               - Effect: Allow
                 Action:
                   - dynamodb:GetItem
@@ -341,16 +384,23 @@ Resources:
           AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
           ALLOWED_ORIGINS: !Ref AllowedOrigins
           LOG_LEVEL: !Ref LogLevel
-          DEVICE_CLOCK_SKEW_TOLERANCE_MS: !Ref DeviceClockSkewToleranceMs
-          KILL_SWITCH_ENABLED: !Ref KillSwitchEnabled
+          INSTA_KILL_SWITCH: !Ref KillSwitchEnabled
+          INSTA_API_DOMAIN_NAME: !Ref InstaApiDomainName
           INSTA_API_BASE_PATH: !Ref InstaApiBasePath
           ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
-          # CRM lead-pipeline bridge. Both blank = enquiries stay local and are
-          # never promoted to CRM leads (the pre-bridge behaviour).
           CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
           CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
           ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
           INSTA_PROMOTE_ENQUIRIES_TO_LEADS: !Ref PromoteEnquiriesToLeads
+          META_APP_ID: !Ref MetaAppId
+          META_APP_SECRET: !Ref MetaAppSecret
+          META_WEBHOOK_VERIFY_TOKEN: !Ref MetaWebhookVerifyToken
+          INSTA_TOKEN_ENCRYPTION_KEY: !Ref TokenEncryptionKey
+          INSTA_CONSOLE_URL: !Ref InstaConsoleUrl
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          LLM_MODEL: !Ref LlmModel
+          INSTA_DRY_RUN_SENDS: !Ref DryRunSends
+          INSTA_RULES_ENABLED: !Ref RulesEnabled
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -359,13 +409,35 @@ Resources:
     DependsOn: InstaLambdaLogGroup
 
   # ---------------------------------------------------------------------------
+  # Scheduled worker: the same Lambda, invoked by EventBridge. Polls DMs (the
+  # only delivery path in Meta Development Mode), analyses new threads, pushes
+  # leads to the CRM, applies keyword rules and refreshes tokens.
+  # ---------------------------------------------------------------------------
+
+  InstaWorkerSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-insta-worker"
+      Description: Instagram sync worker for backend_insta_sol_ms
+      ScheduleExpression: !Ref WorkerScheduleExpression
+      State: !If [WorkerIsEnabled, ENABLED, DISABLED]
+      Targets:
+        - Id: insta-worker
+          Arn: !GetAtt InstaLambda.Arn
+          Input: '{"job":"instagram-worker"}'
+
+  InstaWorkerInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt InstaLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt InstaWorkerSchedule.Arn
+
+  # ---------------------------------------------------------------------------
   # API Gateway
   # ---------------------------------------------------------------------------
-  # A single greedy {proxy+} route rather than one CFN resource per endpoint.
-  # The main backend stack had to be split into nested stacks to stay under
-  # CloudFormation's 500-resource limit precisely because it enumerates routes;
-  # Express already does the routing, so there is nothing to gain by repeating
-  # it here.
+  # A single greedy {proxy+} route. Express already does the routing.
 
   InstaRestApi:
     Type: AWS::ApiGateway::RestApi
@@ -394,9 +466,9 @@ Resources:
       RestApiId: !Ref InstaRestApi
       ResourceId: !Ref InstaProxyResource
       HttpMethod: ANY
-      # Authorization is done inside the Lambda: JWT for browser routes, HMAC for
-      # agent routes. An API Gateway authorizer cannot express the HMAC scheme
-      # (it needs the raw request body), so both live in one place instead.
+      # Authorization is done inside the Lambda: JWT for browser routes,
+      # X-Hub-Signature-256 for webhooks, signed_request for Meta callbacks,
+      # signed state for the OAuth redirect.
       AuthorizationType: NONE
       RequestParameters:
         method.request.path.proxy: true
@@ -444,9 +516,6 @@ Resources:
       MethodSettings:
         - ResourcePath: "/*"
           HttpMethod: "*"
-          # Agent uploads are batched and infrequent; the browser app is a handful
-          # of users per tenant. These caps are well above real usage and exist to
-          # bound the blast radius of a runaway agent loop.
           ThrottlingBurstLimit: 200
           ThrottlingRateLimit: 100
       Tags:
@@ -467,10 +536,6 @@ Resources:
       BasePath: !Ref InstaApiBasePath
 
 Outputs:
-  # No raw execute-api invoke URL output on purpose: every client reaches this
-  # API through InstaApiBaseUrlOutput (custom domain + base path). The old
-  # InstaApiEndpoint export was verified unimported in both accounts before it
-  # was removed.
   InstaApiDomainOutput:
     Description: Custom domain name for the Instagram Solution API
     Value: !Ref InstaApiDomainName
@@ -482,6 +547,23 @@ Outputs:
     Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}"
     Export:
       Name: !Sub "${EnvironmentName}-realestateflow-insta-api-base-url"
+
+  # The four URLs to paste into the Meta app.
+  MetaOAuthRedirectUri:
+    Description: Meta app -> Instagram -> Business login settings -> OAuth redirect URIs
+    Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}/api/insta/oauth/callback"
+
+  MetaWebhookCallbackUrl:
+    Description: Meta app -> Instagram -> Webhooks -> Callback URL (fields messages, comments)
+    Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}/api/insta/webhooks/instagram"
+
+  MetaDeauthorizeCallbackUrl:
+    Description: Meta app -> Instagram -> Business login settings -> Deauthorize callback URL
+    Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}/api/insta/meta/deauthorize"
+
+  MetaDataDeletionRequestUrl:
+    Description: Meta app -> Instagram -> Business login settings -> Data deletion request URL
+    Value: !Sub "https://${InstaApiDomainName}/${InstaApiBasePath}/api/insta/meta/data-deletion"
 
   InstaRestApiId:
     Description: API Gateway REST API id (used by deploy.sh to force a stage deployment)

@@ -114,6 +114,7 @@ for tbl_var in INSTA_DATA_TABLE_NAME INSTA_AUDIT_TABLE_NAME; do
 done
 
 assert_custom_domain_vars
+assert_instagram_app_vars
 
 AWS_ARGS=(--region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager)
 
@@ -218,19 +219,20 @@ node -e '
 # -----------------------------------------------------------------------------
 echo "[5/6] Deploying stack $STACK_NAME..."
 
-PARAM_OVERRIDES=$(node -e '
+# One array element per Key=Value, so a value containing a space
+# (WorkerScheduleExpression "rate(2 minutes)") stays a single argument.
+mapfile -t PARAM_OVERRIDES < <(node -e '
   const p = require(process.argv[1]);
-  console.log(p.map(x => x.ParameterKey + "=" + x.ParameterValue).join(" "));
-' "$(winpath "$SCRIPT_DIR/cfn-params.json")")
+  for (const x of p) console.log(x.ParameterKey + "=" + x.ParameterValue);
+' "$(winpath "$SCRIPT_DIR/cfn-params.json")" | tr -d '\r')
 
-# shellcheck disable=SC2086
 "$AWS_BIN" cloudformation deploy \
   --template-file "$(winpath "$SCRIPT_DIR/cfn-insta-sol-ms.yaml")" \
   --stack-name "$STACK_NAME" \
   --capabilities CAPABILITY_NAMED_IAM \
   --no-fail-on-empty-changeset \
   --tags Environment="$ENVIRONMENT_NAME" Service=realestateflow-insta \
-  --parameter-overrides $PARAM_OVERRIDES \
+  --parameter-overrides "${PARAM_OVERRIDES[@]}" \
   "${AWS_ARGS[@]}"
 
 # -----------------------------------------------------------------------------

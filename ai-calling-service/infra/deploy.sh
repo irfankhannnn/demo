@@ -229,6 +229,15 @@ if [ -z "${ELEVENLABS_AGENT_PHONE_NUMBER_ID:-}" ]; then
   echo "         this is filled in and the stack redeployed."
 fi
 
+# Click-to-call is optional in every environment: blank simply turns the
+# feature off (the route answers 503 click_to_call_not_configured) and AI
+# calling is unaffected, so this is a warning in prod too, never a block.
+if [ -z "${EXOTEL_CALLER_ID:-}" ]; then
+  echo "WARNING: EXOTEL_CALLER_ID is empty - click-to-call is disabled."
+  echo "         POST /api/ai-calling/calls/connect will answer 503 until the"
+  echo "         ExoPhone (E.164) is set here and the stack redeployed."
+fi
+
 AWS_ARGS=(--region "$AWS_REGION" --profile "$AWS_PROFILE" --no-cli-pager)
 
 echo "Deploy target:  $DEPLOY_ENV (env file: $(basename "$ENV_FILE"))"
@@ -241,6 +250,7 @@ echo "Recordings:     $AI_CALLING_RECORDINGS_BUCKET"
 echo "CRM API:        https://${CRM_INTERNAL_API_DOMAIN_NAME}/${CRM_INTERNAL_API_BASE_PATH}"
 echo "Public API:     https://${AI_CALLING_API_DOMAIN_NAME}/${AI_CALLING_API_BASE_PATH} (WEBHOOK_BASE_URL)"
 echo "ElevenLabs:     agent=$ELEVENLABS_AGENT_ID phone=$ELEVENLABS_AGENT_PHONE_NUMBER_ID"
+echo "Click-to-call:  CallerId=${EXOTEL_CALLER_ID:-<blank - disabled>}"
 echo ""
 
 # Confirm which account we are actually about to deploy into. This repo has
@@ -276,7 +286,9 @@ zip -r -q -1 function.zip \
 
 # The handler is src/lambda-handler.handler - a missing src/ directory produces
 # an ERR_MODULE_NOT_FOUND at init that is far easier to catch here.
-if ! unzip -l "$PROJECT_DIR/function.zip" | grep -q "src/lambda-handler.js"; then
+# grep -c (not -q): -q exits at the first match, unzip then dies of SIGPIPE,
+# and with pipefail the whole check reports "missing" even when it is present.
+if ! unzip -l "$PROJECT_DIR/function.zip" | grep -c "src/lambda-handler.js" >/dev/null; then
   echo "ERROR: src/lambda-handler.js missing from function.zip - refusing to deploy"
   exit 1
 fi

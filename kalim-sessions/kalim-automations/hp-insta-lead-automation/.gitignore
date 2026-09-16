@@ -25,3 +25,10 @@ chrome-extension/page_lib.js
 
 # Raw DM exports carry real names and mobile numbers.
 sample-dm-file*.txt
+
+# CRM credentials for scripts/push_leads_to_crm.py. Copy crm-push.sample.json.
+config/crm-push.json
+
+# Test and tool caches.
+__pycache__/
+.pytest_cache/

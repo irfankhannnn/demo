@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CRMLead, LeadMetrics } from '../../types/crm';
+import { PhoneNumber } from '../../components/PhoneNumber';
 import { getUserProfile } from '../../utils/authStorage';
 import { canManageLeads } from '../../utils/rbac';
 import { isLeadConverted } from '../../utils/leadConversion';
@@ -297,7 +298,7 @@ export default function LeadList() {
       width: '12%',
       className: 'hidden xl:table-cell',
       render: (lead) => (
-        <span className="text-sm whitespace-nowrap">{lead.phone || '-'}</span>
+        <PhoneNumber value={lead.phone} masked={lead.phoneMasked} entityType="lead" entityId={lead.leadId} showCallButton compact fallback="-" className="text-sm whitespace-nowrap" />
       ),
     },
     {

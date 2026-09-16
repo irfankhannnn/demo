@@ -1,7 +1,7 @@
-// Keyword automation rules, contract section 4 (JWT auth).
+// Keyword automation rules (JWT auth).
 //
-// The CRM owns these; the laptop agent pulls them via GET /agent/rules and
-// applies them locally. Nothing here sends anything to Instagram.
+// Stored here; the scheduled worker and the comments webhook apply them (see
+// instagramService.handleComment). Nothing in this router sends anything.
 
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,7 +22,7 @@ export function createRulesRouter({ db = defaultDb } = {}) {
       rules.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
       return res.json({ rules });
     } catch (err) {
-      log.error('rules.list.failed', { message: err.message });
+      log.error('rules.list.failed', { error: err.message });
       return res.status(500).json({ error: 'Internal Server Error', details: 'Failed to list rules' });
     }
   });
@@ -67,7 +67,7 @@ export function createRulesRouter({ db = defaultDb } = {}) {
       await db.putAuditEvent(req.tenantId, { action: 'rule.saved', ruleId: rule.ruleId });
       return res.status(ruleId ? 200 : 201).json({ rule });
     } catch (err) {
-      log.error('rules.save.failed', { message: err.message });
+      log.error('rules.save.failed', { error: err.message });
       return res.status(500).json({ error: 'Internal Server Error', details: 'Failed to save rule' });
     }
   });
@@ -80,7 +80,7 @@ export function createRulesRouter({ db = defaultDb } = {}) {
       await db.putAuditEvent(req.tenantId, { action: 'rule.deleted', ruleId });
       return res.json({ ok: true, ruleId });
     } catch (err) {
-      log.error('rules.delete.failed', { message: err.message, ruleId });
+      log.error('rules.delete.failed', { error: err.message, ruleId });
       return res.status(500).json({ error: 'Internal Server Error', details: 'Failed to delete rule' });
     }
   });

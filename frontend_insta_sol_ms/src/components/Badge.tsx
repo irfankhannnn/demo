@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { cn } from '../lib/format';
-import type { EnquiryStatus, Temperature, WindowState } from '../api/types';
+import type { CrmSync, CrmSyncStatus, EnquiryStatus, LeadScore, Temperature, WindowState } from '../api/types';
 
 export type BadgeTone =
   | 'neutral'
@@ -62,6 +62,23 @@ export function TemperatureBadge({ value }: { value?: Temperature }) {
   );
 }
 
+const LEAD_SCORE: Record<LeadScore, { tone: BadgeTone; label: string; help: string }> = {
+  very_hot: { tone: 'danger', label: 'Very hot', help: 'Their number is on record with a real requirement, or a visit is fixed.' },
+  hot: { tone: 'warning', label: 'Hot', help: 'A clear requirement and recent activity, but no number yet.' },
+  cold: { tone: 'info', label: 'Cold', help: 'Vague, stale, or not interested.' },
+};
+
+export function LeadScoreBadge({ value }: { value?: LeadScore }) {
+  if (!value || !LEAD_SCORE[value]) return <span className="text-slate-400">—</span>;
+  const s = LEAD_SCORE[value];
+  return (
+    <Badge tone={s.tone} title={s.help}>
+      {value === 'very_hot' ? <span aria-hidden>🔥</span> : null}
+      {s.label}
+    </Badge>
+  );
+}
+
 const STATUS_TONE: Record<EnquiryStatus, BadgeTone> = {
   new: 'brand',
   contacted: 'info',
@@ -76,10 +93,32 @@ export function statusTone(status?: EnquiryStatus): BadgeTone {
   return status ? STATUS_TONE[status] ?? 'neutral' : 'neutral';
 }
 
+const CRM_SYNC: Record<CrmSyncStatus, { tone: BadgeTone; label: string }> = {
+  created: { tone: 'success', label: 'Lead created' },
+  updated: { tone: 'success', label: 'Added to existing lead' },
+  duplicate: { tone: 'success', label: 'Already in CRM' },
+  skipped: { tone: 'warning', label: 'CRM skipped it' },
+  failed: { tone: 'danger', label: 'CRM hand-off failed' },
+  waiting_for_phone: { tone: 'neutral', label: 'Waiting for phone' },
+  needs_intent: { tone: 'neutral', label: 'Buy/rent/sell unclear' },
+  not_configured: { tone: 'neutral', label: 'CRM not connected' },
+  disabled: { tone: 'neutral', label: 'CRM hand-off off' },
+};
+
+export function CrmSyncBadge({ value }: { value?: CrmSync | null }) {
+  if (!value || !CRM_SYNC[value.status]) return <span className="text-xs text-slate-400">not yet</span>;
+  const s = CRM_SYNC[value.status];
+  return (
+    <Badge tone={s.tone} title={value.reason ?? undefined}>
+      {s.label}
+    </Badge>
+  );
+}
+
 /**
  * Meta's messaging window, the single most consequential state in the product:
- * CLOSED means nothing may legally be sent to that person until they write
- * again (F25, F59), so it reads as a hard stop rather than another grey chip.
+ * CLOSED means nothing may be sent to that person until they write again, so
+ * it reads as a hard stop rather than another grey chip.
  */
 const WINDOW_TONE: Record<WindowState, BadgeTone> = {
   STANDARD: 'success',
@@ -88,18 +127,25 @@ const WINDOW_TONE: Record<WindowState, BadgeTone> = {
   CLOSED: 'danger',
 };
 
+const WINDOW_LABEL: Record<WindowState, string> = {
+  STANDARD: 'Can reply',
+  COMMENT_REPLY: 'Comment only',
+  HUMAN_AGENT: 'Human agent',
+  CLOSED: 'Window closed',
+};
+
 const WINDOW_HELP: Record<WindowState, string> = {
-  STANDARD: '24-hour window is open — automated replies are allowed.',
-  COMMENT_REPLY: 'Opened by a comment private reply — valid for 7 days.',
-  HUMAN_AGENT: 'Human agent tag applied — requires a person, not automation.',
-  CLOSED: 'Window shut. Nothing can be sent until this person messages again.',
+  STANDARD: 'They messaged within 24 hours — you can reply.',
+  COMMENT_REPLY: 'They commented within 7 days — only a private reply to that comment is allowed.',
+  HUMAN_AGENT: 'Human agent window.',
+  CLOSED: 'Nothing can be sent until this person messages again.',
 };
 
 export function WindowStateBadge({ value }: { value?: WindowState }) {
   if (!value) return <span className="text-slate-400">—</span>;
   return (
     <Badge tone={WINDOW_TONE[value] ?? 'neutral'} title={WINDOW_HELP[value]}>
-      {value.replace('_', ' ')}
+      {WINDOW_LABEL[value] ?? value}
     </Badge>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { exchangeCodeForTokens, callBootstrap, callMe } from '../utils/cognitoAuth';
-import { clearAuthSilently, setTokens, setUserProfile } from '../utils/authStorage';
+import { clearAuthSilently, setOnboardingSession, setTokens, setUserProfile } from '../utils/authStorage';
+import { goToReturnPath, takeReturnPath } from '../utils/returnPath';
 
 export default function AuthCallback() {
   const [status, setStatus] = useState('Signing you in...');
@@ -64,8 +65,13 @@ export default function AuthCallback() {
           lastLoginAt: meData.user.lastLoginAt,
           agency: meData.agency,
         });
-        navigate(meData.user.role === 'ADMIN' ? '/admin/dashboard' : '/crm', { replace: true });
+        const returnTo = takeReturnPath();
+        if (returnTo) goToReturnPath(returnTo, navigate);
+        else navigate(meData.user.role === 'ADMIN' ? '/admin/dashboard' : '/crm', { replace: true });
       } else {
+        // New Google user: /auth/me 404s until RegisterAdmin runs, and without
+        // this flag initAuth treats that as an invalid session and logs them out.
+        setOnboardingSession(true, false);
         setTokens(tokens);
         navigate('/onboarding/role-selection', { replace: true });
       }

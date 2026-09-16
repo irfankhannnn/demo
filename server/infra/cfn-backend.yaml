@@ -492,6 +492,35 @@ Parameters:
     Description: Shared secret this backend presents (x-api-key) when calling ai-calling-service's /api/ai-calling/* management routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the ai-calling-service stack. Deliberately separate from AiCallingInternalApiKey, which is the inbound direction.
     NoEcho: true
 
+  FollowupServiceDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain of the followup-agent-service stack (bare host,
+      no scheme), used by POST /api/crm/leads/:id/followup-call,
+      GET /api/crm/leads/:id/followups, POST /api/crm/followups/:jobId/cancel
+      and the adapter/ManyChat follow-up hand-off. Leave empty until that stack
+      is deployed (proxy routes return 503; hand-offs are logged and skipped).
+
+  FollowupServiceBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of followup-agent-service on FollowupServiceDomainName
+      (single segment). The /api/followup route prefix is appended in code.
+
+  FollowupCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling followup-agent-service's /api/followup/* routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the followup-agent-service stack. Outbound direction; FollowupInternalApiKey is the inbound one.
+    NoEcho: true
+
+  FollowupInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret followup-agent-service must present (x-api-key) to call /api/internal/followups/* (lead snapshot, escalations, notes). Its own key, separate from AiCallingInternalApiKey and AdapterInternalApiKey, so compromising the follow-up stack grants neither of the others' access. Must equal CrmInternalApiKey in the followup-agent-service stack.
+    NoEcho: true
+
   FounderWhatsApp:
     Type: String
     Default: ''

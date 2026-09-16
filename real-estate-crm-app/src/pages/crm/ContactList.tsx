@@ -23,6 +23,7 @@ import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ContactActivityTimeline, { ContactActivity } from '../../components/ContactActivityTimeline';
 import { CRMContact } from '../../types/crm';
+import { PhoneNumber } from '../../components/PhoneNumber';
 
 type RoleFilter = 'all' | 'owner' | 'seller' | 'buyer' | 'tenant';
 
@@ -326,7 +327,7 @@ export default function ContactList() {
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center text-sm text-gray-600">
                       <Phone className="h-4 w-4 mr-2 flex-shrink-0" />
-                      <span className="truncate">{contact.phone}</span>
+                      <PhoneNumber value={contact.phone} masked={contact.phoneMasked} entityType="contact" entityId={contact.contactId} showCallButton compact className="truncate" />
                     </div>
                     {contact.email && (
                       <div className="flex items-center text-sm text-gray-600">

@@ -244,7 +244,9 @@ export default function CRMDashboard() {
               </div>
               <div className="min-w-0">
                 <h1 className="text-base sm:text-xl font-bold text-slate-900 truncate tracking-tight">CRM Dashboard</h1>
-                <p className="text-xs text-slate-400 hidden sm:block font-medium">Welcome back, Admin</p>
+                <p className="text-xs text-slate-400 hidden sm:block font-medium">
+                  Welcome back, {profile?.displayName?.trim() || profile?.email?.split('@')[0] || 'there'}
+                </p>
               </div>
             </div>
             

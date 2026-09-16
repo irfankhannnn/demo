@@ -1,78 +1,56 @@
 # Instagram Solution — Documentation Index
 
-Branch: `instagram-solution`. All documentation for this feature lives in this folder.
+All documentation for this feature lives in this folder.
 
-An Instagram automation and analytics system for real estate agencies. The agency owner
-installs an agent on their own laptop; it talks to Meta's official Instagram APIs with
-their own token, keeps a local SQLite copy of their account, reel and DM data, drafts and
-sends window-safe DM replies, and pushes structured results to RealtyFlow as a
-tenant-scoped feed the agency sees in a web app.
+An Instagram lead system for real estate agencies, hosted inside RealtyFlow. An agency
+owner clicks **Connect Instagram** in the console; the service reads their DMs through
+Meta's official Instagram API, scores every conversation as a lead with a summary, next
+step and a Hinglish reply, hands qualified leads to the CRM, applies comment keyword
+rules, and lets the team reply from the console inside Instagram's 24-hour window.
 
 ## Read in this order
 
 | Doc | What it covers |
 |---|---|
-| [01-PLAN.md](01-PLAN.md) | The 14 technical modules (A1–A14), scope rules, phases, decisions |
-| [02-FEATURES.md](02-FEATURES.md) | The 64-feature catalogue, grouped, with benefits and flows |
-| [03-ARCHITECTURE.md](03-ARCHITECTURE.md) | **The binding contract** — auth, DynamoDB, HTTP API, SQLite, Meta endpoints, rate limits |
+| [07-META-APP-SETUP.md](07-META-APP-SETUP.md) | **Where the App ID and secret go**, URLs to register, testers, going live |
+| [03-ARCHITECTURE.md](03-ARCHITECTURE.md) | How it works: auth schemes, data model, flows, Meta endpoints, safety rules |
 | [04-BACKEND-API.md](04-BACKEND-API.md) | Endpoint reference for `backend_insta_sol_ms` |
-| [05-LOCAL-AGENT.md](05-LOCAL-AGENT.md) | Installing, configuring and running the laptop agent |
-| [06-DEPLOYMENT.md](06-DEPLOYMENT.md) | Stacks, deploy scripts, build tracking, rollback, known gaps |
-| [07-META-APP-SETUP.md](07-META-APP-SETUP.md) | Creating the Meta app in Development Mode, scopes, testers |
-| [08-TESTING.md](08-TESTING.md) | What is tested, how to run it, what was verified live |
-| [09-CLOUDFRONT-INTEGRATION.md](09-CLOUDFRONT-INTEGRATION.md) | Serving the app at `/insta/*` on the CRM distribution |
-
-If you only read one, read **03-ARCHITECTURE.md**. The three codebases were built
-independently against it.
+| [06-DEPLOYMENT.md](06-DEPLOYMENT.md) | Stacks, deploy scripts, secrets, switches, local development |
+| [08-TESTING.md](08-TESTING.md) | What is tested, how to run it, what was verified end to end |
+| [09-CLOUDFRONT-INTEGRATION.md](09-CLOUDFRONT-INTEGRATION.md) | Serving the console at `/insta/*` on the CRM distribution |
+| [10-APP-REVIEW.md](10-APP-REVIEW.md) | Meta App Review: prerequisites, per-permission text, screencast scripts |
+| [01-PLAN.md](01-PLAN.md), [02-FEATURES.md](02-FEATURES.md) | The original laptop-agent plan and feature catalogue (historical) |
 
 ## Code layout
 
 | Folder | What |
 |---|---|
-| `instagram-local-agent/` | The laptop agent. Node 20 ESM, SQLite, local console on `127.0.0.1:7317` |
-| `backend_insta_sol_ms/` | The microservice. Express on Lambda, API Gateway, two DynamoDB tables |
-| `frontend_insta_sol_ms/` | The web app. React 18 + TS + Vite, served at `/insta/` |
+| `backend_insta_sol_ms/` | The microservice. Express on Lambda + EventBridge worker, API Gateway, two DynamoDB tables |
+| `frontend_insta_sol_ms/` | The console. React 18 + TS + Vite, served at `/insta/` |
 | `cfn-templates-cicd/backend_insta_sol_ms/` | CI/CD wrapper with build tracking and rollback |
 | `cfn-templates-cicd/frontend_insta_sol_ms/` | Same, plus per-build `dist/` archives |
 
-## The decisions this was built on
+## Decisions
 
 | # | Decision | Chosen |
 |---|---|---|
-| D0 | Isolation | **New feature, additive only.** No changes to existing CRM flows |
-| D1 | Meta app model | **Development Mode** first; move to a shared App-Reviewed app later |
-| D2 | Realtime transport | Polling for now; cloud webhook relay in a later phase |
-| D3 | Stack | Node/TS — JS ESM for backend and agent (matches `server/`), TS for the frontend (matches the CRM app) |
-| D4 | Competitor/market data | Deferred; the interface is stubbed |
-| — | CDN topology | `/insta/*` behavior on the existing CRM distribution, not a separate one |
-| — | Build scope | Phases 1–3 working, Phases 4–5 stubbed |
+| D0 | Isolation | Own stack and tables; the CRM is reached only through its internal adapter API |
+| D1 | Meta app model | **One hosted Meta app** for all agencies. Tested in Development Mode with Instagram testers; the same app and code serve every agency after App Review |
+| D2 | DM delivery | Webhooks (Live mode) plus a scheduled poll that also covers Development Mode |
+| D3 | Lead analysis | Pluggable: rule-based by default, Gemini when a key is set; model output is checked against the conversation |
+| D4 | Sending | A person sends from the console; keyword rules send one private reply per comment. No other automation |
 
-## What "additive only" means in practice
+The laptop agent (`instagram-local-agent`) was removed in September 2026: it could not
+onboard other agencies (every laptop would need the app secret, and Meta does not
+approve a localhost login), and it could not receive webhooks. Its window classifier,
+enquiry extractor, error taxonomy and rule matcher were ported into the backend.
 
-Two existing files were touched, both minimally:
+## Things Meta decides, not us
 
-- `real-estate-crm-app/infra/cfn-frontend.yaml` — a conditional origin, OAC, SPA rewrite
-  function and `/insta/*` behavior. Entirely inert unless the new parameter is set.
-- `.gitignore` — patterns for the new folders' env files and build artifacts.
-
-Plus two lines in `server/server.js` **only if** you later choose to mount the API on the
-existing backend. The default deployment does not: the microservice has its own API
-Gateway, so `server/` is untouched.
-
-Not touched: `server/routes/webhooks.js` (the ManyChat Instagram lead webhook keeps
-running in parallel), `AgencyConfig`, the `Leads` table, `createLead`, `notifyNewLead`,
-the `lead.created` EventBridge flow, or `server/infra/cfn-backend.yaml`.
-
-Instagram enquiries land in this feature's own table and its own page. Promoting one into
-a real CRM lead is a deliberate later step, not a dependency of this work.
-
-## The three corrections that shaped the design
-
-1. **No Facebook Page is required.** *Instagram API with Instagram Login* (2024+)
-   authenticates the professional account directly. Most Indian agents have no Page.
-2. **Reading old DMs is not window-limited — only sending is.** Full thread history is
-   available at any age, so the analytics ask is satisfiable on day one. The 24-hour rule
-   only blocks outbound messages to a cold thread.
-3. **The send window is 24h plus two extensions.** Comment private replies reach 7 days
-   and are the real lead engine; `HUMAN_AGENT` also reaches 7 days but Meta restricts it
-   to a human resolving an issue, so it is implemented as human-click-to-send only.
+1. **No Facebook Page is required.** Instagram API with Instagram Login authenticates
+   the professional account directly.
+2. **Only the 20 most recent messages** of a conversation are returned, plus everything
+   that arrives after connecting.
+3. **Sending is window-limited, reading is not.** A reply is allowed within 24 hours of
+   the person's last message; a private reply to a comment within 7 days; nothing else.
+4. **Webhooks need Live mode**, and comment webhooks need Advanced Access.

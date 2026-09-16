@@ -1,10 +1,9 @@
-// Normalisers and enum guards shared by the agent-upload and dashboard routes.
+// Normalisers and enum guards shared by the analyst and the dashboard routes.
 //
-// The laptop agent extracts enquiries from free-text Instagram DMs, so
-// everything arriving on /agent/enquiries is best-effort human writing:
-// "2.5cr", "budget 45 lakhs", "call me on 09876543210". Normalising server-side
-// (in addition to on the laptop) keeps the dashboard's filters meaningful even
-// when an older agent build uploads raw strings.
+// Enquiries are extracted from free-text Instagram DMs, so every value starts
+// as best-effort human writing: "2.5cr", "budget 45 lakhs", "call me on
+// 09876543210". Normalising in one place keeps the dashboard's filters and the
+// CRM hand-off consistent.
 
 export const INTENTS = new Set(['buy', 'rent', 'heavy_deposit_ok', 'sell', 'unknown']);
 export const TEMPERATURES = new Set(['hot', 'warm', 'cold']);

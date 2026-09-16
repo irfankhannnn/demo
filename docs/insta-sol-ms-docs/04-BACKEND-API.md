@@ -1,72 +1,44 @@
-# Backend API Reference
+# Backend API — `backend_insta_sol_ms`
 
-Service: `backend_insta_sol_ms`. Deployed as `prod-realestateflow-insta-stack`.
-Live: `https://dvdmdi6c5i.execute-api.ap-south-1.amazonaws.com/v1`
+Base: `https://<INSTA_API_DOMAIN_NAME>/<INSTA_API_BASE_PATH>/api/insta`.
+Errors are always `{ error, details? }`. Tenancy comes from the JWT, never the body.
 
-Base path `/api/insta`. Errors are `{ error: string, details?: string }`, matching the
-repo convention.
+## Open or Meta-authenticated
 
-## Authentication
+| Method | Path | Auth | What |
+|---|---|---|---|
+| GET | `/health` | none | `{ status, service, env, instagramConfigured, serverTime }` |
+| GET | `/oauth/callback` | signed state | Instagram redirect target; 302 to `<INSTA_CONSOLE_URL>/accounts?connected=<handle>` or `?error=` |
+| GET | `/webhooks/instagram` | verify token | Meta subscription handshake; echoes `hub.challenge` |
+| POST | `/webhooks/instagram` | `X-Hub-Signature-256` | DMs, echoes, comments. 200 `EVENT_RECEIVED`; 401 on a bad signature |
+| POST | `/meta/deauthorize` | `signed_request` (form) | `{ ok, found }` |
+| POST | `/meta/data-deletion` | `signed_request` (form) | `{ url, confirmation_code }` |
+| GET | `/meta/data-deletion/status?code=` | none | `{ confirmationCode, status, completedAt }` |
 
-Two schemes, deliberately separate. See `03-ARCHITECTURE.md` section 2 for the details.
+## Console (JWT)
 
-| Routes | Scheme | Middleware |
+| Method | Path | What |
 |---|---|---|
-| `/agent/*` | HMAC device key | `middleware/deviceAuth.js` |
-| everything else | Bearer JWT via the auth service | `middleware/validateToken.js` |
-| `/health` | none | — |
-
-`tenantId` is **only ever** set by one of those two middlewares, from the authenticated
-device or user. It is never read from a request body, query or path — a test asserts
-this, and it is what makes the multi-tenancy safe.
-
-## Agent endpoints (HMAC)
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/agent/register` | `{ pairingCode, deviceName, platform, agentVersion }` returns `{ deviceId, deviceSecret, tenantId }`. Not HMAC-signed — the pairing code is the credential. Single use, 15-minute TTL. |
-| POST | `/agent/heartbeat` | Returns `{ ok, serverTime, killSwitch }`. `killSwitch` is the fleet-wide brake. |
-| POST | `/agent/snapshot` | `{ accounts, media, mediaSnapshots }`, max 500 items |
-| POST | `/agent/enquiries` | `{ enquiries }`, idempotent on `enquiryId`; returns `{ ok, written, rejected }` |
-| POST | `/agent/threads` | `{ threads }` — thread STATS only. Message bodies never leave the laptop. |
-| GET | `/agent/rules` | `{ rules, updatedAt }` |
-
-## Frontend endpoints (JWT)
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/overview` | Headline counters plus a 30-day series |
-| GET | `/accounts` | Connected IG accounts with device health |
-| GET | `/devices` | Paired laptops |
-| POST | `/devices/pair` | `{ pairingCode, expiresAt }` |
-| DELETE | `/devices/:deviceId` | Revoke. A revoked device fails HMAC immediately. |
-| GET | `/media` | Reel leaderboard. `?sort=enquiries\|views&limit=`. Defaults to enquiries. |
-| GET | `/media/:mediaId` | One reel plus its dated snapshot series |
-| GET | `/enquiries` | `?status=&temperature=&limit=&cursor=` |
+| POST | `/oauth/start` | `{ authorizeUrl }`; 503 when the Instagram app is not configured |
+| GET | `/accounts` | `{ accounts[], instagramConfigured, dryRunSends, killSwitch }` — never a token |
+| POST | `/accounts/:igUserId/sync` | runs profile and insights, conversations, media, comments and analysis now (no new job after 20 s); `{ account, summary }`; 409 if not connected |
+| DELETE | `/accounts/:igUserId` | disconnect; history kept |
+| GET | `/threads?windowState=&unanswered=&igUserId=` | conversations with `windowState`, `windowExpiresAt`, `analysis`; `{ threads, counts }` |
+| GET | `/threads/:threadId` | `{ thread, messages[], enquiry, canReply: { allowed, reason } }` |
+| POST | `/threads/:threadId/reply` | `{ text }` → 201 `{ messageId, status: sent|dry_run, thread }`; 409 outside the window; 423 kill switch |
+| POST | `/threads/:threadId/analyse` | re-run analysis → `{ thread, enquiry }` |
+| GET | `/enquiries?status=&temperature=&limit=&cursor=` | newest first, `{ enquiries, cursor }` |
 | PATCH | `/enquiries/:enquiryId` | `{ status?, notes? }` |
-| GET | `/threads` | `?windowState=&unanswered=` |
-| GET/POST | `/rules`, DELETE `/rules/:ruleId` | Keyword rules |
-| GET | `/insights/timeseries` | `?metric=followers\|reach\|views&days=` |
-| GET | `/health` | Unauthenticated liveness |
+| POST | `/enquiries/:enquiryId/push-to-crm` | retry the CRM hand-off → `{ enquiry, crmSync }` |
+| GET | `/media?sort=enquiries|views&limit=` | reels with `enquiryCount`, `hotCount`, `dmCount` |
+| GET | `/media/:mediaId` | `{ media, snapshots }` |
+| GET | `/comments?mediaId=&limit=` | synced comments newest first, with `media`, `lastReply`, `privateReplyAllowed`, `privateReplyReason`; `{ comments }` |
+| POST | `/comments/:commentId/reply` | `{ text, mode: public|private }` → 201 `{ comment, status: sent|dry_run }`; a private reply also lands in the DM inbox; 409 when a private reply is used or older than 7 days; 423 kill switch |
+| GET/POST | `/rules` | list / create or update (`ruleId` present = update) |
+| DELETE | `/rules/:ruleId` | |
+| GET | `/overview?days=` | `{ counters, accounts, series[{date, enquiries, followers, reach, views}] }`; for 30 days, `counters.reach/views/accountsEngaged/totalInteractions` are Meta's 30-day totals |
+| GET | `/insights/timeseries?metric=followers|reach|views&days=&igUserId=` | `{ metric, points }` |
 
-## Storage
-
-Two tables, single-table design, `TENANT#<id>` partition key. Full item-type map in
-`03-ARCHITECTURE.md` section 3.
-
-- `prod-realestateflow-insta-data` — Retain, PITR on, GSI `gsi1-index`
-- `prod-realestateflow-insta-audit` — TTL only, holds the audit trail and HMAC nonces
-
-The Lambda's IAM role reaches exactly those two table ARNs plus its own log group. No
-CRM table is reachable from this service at all — the isolation is enforced by IAM, not
-by convention.
-
-## Running locally
-
-```bash
-cd backend_insta_sol_ms
-cp .env.sample .env
-npm install
-npm start        # local Express server
-npm test         # 80 tests, no AWS needed
-```
+Enum values: `status` new, contacted, qualified, site_visit, won, lost, spam;
+`temperature` hot, warm, cold (lead score very_hot, hot, cold); `windowState` STANDARD,
+COMMENT_REPLY, CLOSED; rule `matchType` exact, contains, starts_with, regex.

@@ -99,27 +99,28 @@ You are **The Landing Page Builder**, a conversion-focused web designer who crea
 
 ## Design System
 
-### Colors (RealtyFlow Brand)
+### Colors (RealtyFlow Brand — "Bazaar Signal" v3)
 ```css
 :root {
-  --primary: #2563EB;       /* Royal Blue */
-  --primary-dark: #1D4ED8;
-  --secondary: #10B981;     /* Emerald Green */
-  --accent: #F59E0B;        /* Amber */
-  --dark: #1E293B;          /* Slate 800 */
-  --light: #F8FAFC;         /* Slate 50 */
-  --text: #334155;          /* Slate 700 */
-  --text-light: #94A3B8;    /* Slate 400 */
-  --gradient: linear-gradient(135deg, #2563EB 0%, #7C3AED 100%);
+  --ink: #1C1512;           /* Primary ground — warm near-black */
+  --paper: #FBF2E4;         /* Light ground — khata-ledger cream */
+  --marigold: #FF7A1A;      /* Primary accent — CTAs, prices */
+  --marigold-deep: #E8620A; /* Hover state */
+  --gulal: #FF3D7F;         /* Secondary pop — once per screen only */
+  --tulsi: #1FAA59;         /* Sparing — checkmarks/verified only */
+  --dust: #C9BBA8;          /* Muted text on ink */
+  --dust-dim: #948575;      /* Muted text on paper */
+  --gradient: linear-gradient(100deg, #FF7A1A 15%, #FF3D7F 85%);
 }
 ```
 
 ### Typography
 ```css
-/* Google Fonts: Inter */
-body { font-family: 'Inter', sans-serif; }
-h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; }
-h2 { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: 600; }
+/* Google Fonts: Unbounded (display) + Manrope (body) */
+body { font-family: 'Manrope', sans-serif; }
+h1, h2, h3 { font-family: 'Unbounded', sans-serif; font-weight: 800; }
+h1 { font-size: clamp(2rem, 5vw, 3.5rem); }
+h2 { font-size: clamp(1.5rem, 3vw, 2.5rem); }
 h3 { font-size: clamp(1.1rem, 2vw, 1.5rem); font-weight: 600; }
 p  { font-size: 1rem; line-height: 1.7; color: var(--text); }
 ```

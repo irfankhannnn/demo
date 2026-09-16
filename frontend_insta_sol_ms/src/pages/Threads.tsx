@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
 import { getThreads } from '../api/insta';
 import { WINDOW_STATES, type Thread, type WindowState } from '../api/types';
 import { useApi } from '../lib/useApi';
-import { cn, formatDateTime, formatRelative, millisSince } from '../lib/format';
-import { Badge, WindowStateBadge } from '../components/Badge';
+import { cn, formatDateTime, formatRelative, truncate } from '../lib/format';
+import { Badge, LeadScoreBadge, WindowStateBadge } from '../components/Badge';
 import { DataTable, type Column } from '../components/DataTable';
 import { EmptyState } from '../components/EmptyState';
 import { ErrorState } from '../components/ErrorState';
@@ -13,26 +14,29 @@ import { PageHeader } from '../components/PageHeader';
 import { SkeletonRows } from '../components/Spinner';
 
 /**
- * F5 — the missed-DM rescue queue.
- *
- * The countdown matters more than the list: a STANDARD thread stops being
- * answerable 24 hours after the last inbound message, and once it does the only
- * legal way back in is the story-CTA campaign (F25). Anything under four hours
- * left is called out in red.
+ * The DM inbox, worked newest-down. The countdown matters more than the list:
+ * a thread stops being answerable 24 hours after the person's last message,
+ * so anything under four hours left is called out in red.
  */
 
-const WINDOW_HOURS = 24;
 const HOUR_MS = 3_600_000;
 
 function hoursLeft(thread: Thread): number | null {
   if (thread.windowState === 'CLOSED') return 0;
-  const since = millisSince(thread.lastInboundAt);
-  if (since === null) return null;
-  const remaining = WINDOW_HOURS * HOUR_MS - since;
+  if (!thread.windowExpiresAt) return null;
+  const remaining = Date.parse(thread.windowExpiresAt) - Date.now();
+  if (Number.isNaN(remaining)) return null;
   return remaining <= 0 ? 0 : remaining / HOUR_MS;
 }
 
+const WINDOW_FILTER_LABEL: Record<string, string> = {
+  STANDARD: 'Can reply',
+  COMMENT_REPLY: 'Comment only',
+  CLOSED: 'Window closed',
+};
+
 export default function Threads() {
+  const navigate = useNavigate();
   const [windowState, setWindowState] = useState<WindowState | ''>('');
   const [unansweredOnly, setUnansweredOnly] = useState(false);
 
@@ -42,39 +46,49 @@ export default function Threads() {
   );
 
   const rows = data?.threads ?? [];
+  const unansweredCount = useMemo(() => rows.filter((thread) => thread.unanswered).length, [rows]);
+  const filtered = Boolean(windowState || unansweredOnly);
 
-  const unansweredCount = useMemo(
-    () => rows.filter((thread) => thread.unanswered).length,
-    [rows],
-  );
+  const clear = () => {
+    setWindowState('');
+    setUnansweredOnly(false);
+  };
 
   const columns: Column<Thread>[] = [
     {
       key: 'participant',
-      header: 'Person',
+      header: 'Conversation',
       sortable: true,
-      value: (row) => row.participantUsername || row.participantId || row.conversationId,
+      value: (row) => row.participantUsername || row.participantId,
       render: (row) => (
-        <div className="flex min-w-0 items-center gap-2">
-          {row.unanswered ? (
-            <span
-              aria-hidden
-              className="h-2 w-2 shrink-0 rounded-full bg-danger"
-              title="Waiting on a reply"
-            />
-          ) : (
-            <span aria-hidden className="h-2 w-2 shrink-0" />
-          )}
+        <div className="flex min-w-0 items-start gap-2">
+          <span aria-hidden className={cn('mt-1.5 h-2 w-2 shrink-0 rounded-full', row.unanswered ? 'bg-danger' : 'bg-transparent')} />
           <div className="min-w-0">
             <p className="truncate text-sm font-medium text-ink">
-              {row.participantUsername ? `@${row.participantUsername}` : 'Unknown sender'}
+              {row.participantUsername ? `@${row.participantUsername}` : `Instagram user ${row.participantId ?? ''}`}
             </p>
             <p className="truncate text-xs text-slate-500">
-              {row.messageCount ?? 0} message{row.messageCount === 1 ? '' : 's'}
+              {row.lastMessageDirection === 'out' ? 'You: ' : ''}
+              {truncate(row.lastMessageText, 70) || `${row.messageCount ?? 0} messages`}
             </p>
           </div>
         </div>
       ),
+    },
+    {
+      key: 'lead',
+      header: 'Lead',
+      sortable: true,
+      hideBelow: 'sm',
+      value: (row) => ({ very_hot: 3, hot: 2, cold: 1 })[row.analysis?.leadScore ?? 'cold'] ?? 0,
+      render: (row) =>
+        row.analysis ? (
+          <LeadScoreBadge value={row.analysis.leadScore} />
+        ) : row.needsAnalysis ? (
+          <span className="text-xs text-slate-400">analysing…</span>
+        ) : (
+          <span className="text-xs text-slate-400">—</span>
+        ),
     },
     {
       key: 'windowState',
@@ -88,7 +102,7 @@ export default function Threads() {
       header: 'Time left',
       align: 'right',
       sortable: true,
-      hideBelow: 'sm',
+      hideBelow: 'md',
       value: (row) => hoursLeft(row) ?? 999,
       render: (row) => {
         const left = hoursLeft(row);
@@ -96,7 +110,7 @@ export default function Threads() {
         if (left <= 0) {
           return (
             <Badge tone="danger" title="Nothing can be sent until they message again.">
-              window shut
+              shut
             </Badge>
           );
         }
@@ -113,70 +127,35 @@ export default function Threads() {
       },
     },
     {
-      key: 'lastInbound',
-      header: 'Last inbound',
-      align: 'right',
-      sortable: true,
-      hideBelow: 'md',
-      value: (row) => row.lastInboundAt,
-      render: (row) => (
-        <span
-          className="whitespace-nowrap text-xs text-slate-500"
-          title={formatDateTime(row.lastInboundAt)}
-        >
-          {formatRelative(row.lastInboundAt)}
-        </span>
-      ),
-    },
-    {
-      key: 'lastOutbound',
-      header: 'Last reply',
+      key: 'lastMessage',
+      header: 'Last message',
       align: 'right',
       sortable: true,
       hideBelow: 'lg',
-      value: (row) => row.lastOutboundAt,
+      value: (row) => row.lastMessageAt,
       render: (row) => (
-        <span
-          className="whitespace-nowrap text-xs text-slate-500"
-          title={formatDateTime(row.lastOutboundAt)}
-        >
-          {formatRelative(row.lastOutboundAt)}
+        <span className="whitespace-nowrap text-xs text-slate-500" title={formatDateTime(row.lastMessageAt)}>
+          {formatRelative(row.lastMessageAt)}
         </span>
       ),
-    },
-    {
-      key: 'unanswered',
-      header: 'State',
-      align: 'right',
-      sortable: true,
-      value: (row) => (row.unanswered ? 1 : 0),
-      render: (row) =>
-        row.unanswered ? (
-          <Badge tone="danger">unanswered</Badge>
-        ) : (
-          <Badge tone="success">answered</Badge>
-        ),
     },
   ];
 
   return (
     <div>
       <PageHeader
-        title="DM threads"
-        description="Every conversation the agent has seen, with the Meta messaging window it is currently in."
+        title="DM inbox"
+        description="Every Instagram conversation, scored as a lead, with the time left to reply. Open one to read it and send a reply."
         onRefresh={reload}
         refreshing={loading}
       />
 
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-3">
         <FilterSelect
-          label="Window state"
+          label="Window"
           value={windowState}
           onChange={(value) => setWindowState(value as WindowState | '')}
-          options={WINDOW_STATES.map((value) => ({
-            value,
-            label: value.replace('_', ' '),
-          }))}
+          options={WINDOW_STATES.map((value) => ({ value, label: WINDOW_FILTER_LABEL[value] ?? value }))}
         />
         <label className="flex min-h-touch items-center gap-2 rounded-lg px-1 text-sm text-slate-700">
           <input
@@ -185,53 +164,35 @@ export default function Threads() {
             onChange={(event) => setUnansweredOnly(event.target.checked)}
             className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
           />
-          Unanswered only
+          Waiting on us
         </label>
-        {windowState || unansweredOnly ? (
-          <button
-            type="button"
-            onClick={() => {
-              setWindowState('');
-              setUnansweredOnly(false);
-            }}
-            className="min-h-touch rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-brand"
-          >
+        {filtered ? (
+          <button type="button" onClick={clear} className="min-h-touch rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition hover:text-brand">
             Clear filters
           </button>
         ) : null}
         <span className="ml-auto self-center text-xs text-slate-500">
-          {rows.length} thread{rows.length === 1 ? '' : 's'}
-          {unansweredCount > 0 ? ` · ${unansweredCount} unanswered` : ''}
+          {rows.length} conversation{rows.length === 1 ? '' : 's'}
+          {unansweredCount > 0 ? ` · ${unansweredCount} waiting on us` : ''}
         </span>
       </div>
 
       {error ? (
-        <ErrorState error={error} onRetry={reload} context="your DM threads" />
+        <ErrorState error={error} onRetry={reload} context="your DM inbox" />
       ) : loading && !data ? (
         <SkeletonRows rows={6} />
       ) : rows.length === 0 ? (
         <EmptyState
-          title={
-            windowState || unansweredOnly
-              ? 'No threads match these filters'
-              : 'No DM threads have synced yet'
-          }
+          title={filtered ? 'No conversations match these filters' : 'No DMs synced yet'}
           description={
-            windowState || unansweredOnly
-              ? 'Clear the filters to see every conversation the agent has seen.'
-              : 'Threads appear here once the laptop agent has read your Instagram inbox. Nothing is sent on your behalf without a rule or your approval.'
+            filtered
+              ? 'Clear the filters to see every conversation.'
+              : 'Conversations appear here a few minutes after an Instagram account is connected. Nothing is sent on your behalf unless you reply or a keyword rule fires.'
           }
           icon={<MessageSquare className="h-5 w-5" />}
           action={
-            windowState || unansweredOnly ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setWindowState('');
-                  setUnansweredOnly(false);
-                }}
-                className="min-h-touch rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-light"
-              >
+            filtered ? (
+              <button type="button" onClick={clear} className="min-h-touch rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-light">
                 Clear filters
               </button>
             ) : null
@@ -242,15 +203,14 @@ export default function Threads() {
           <DataTable
             columns={columns}
             rows={rows}
-            rowKey={(row) => row.conversationId}
-            initialSort={{ key: 'remaining', direction: 'asc' }}
+            rowKey={(row) => row.threadId}
+            initialSort={{ key: 'lastMessage', direction: 'desc' }}
+            onRowClick={(row) => navigate(`/threads/${encodeURIComponent(row.threadId)}`)}
             rowClassName={(row) => (row.unanswered ? 'bg-red-50/50' : undefined)}
-            caption="Instagram DM threads"
+            caption="Instagram DM conversations"
           />
           <p className="mt-3 text-xs text-slate-500">
-            Rows tinted red are waiting on a reply. A CLOSED window cannot be messaged at
-            all until that person writes again — a story asking them to reply is the only
-            way to reopen it.
+            A red dot means their last message is waiting on us. A closed window cannot be messaged at all until that person writes again.
           </p>
         </>
       )}

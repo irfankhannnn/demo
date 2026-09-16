@@ -1,4 +1,6 @@
 export interface CRMCustomer {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   customerId: string;
   name: string;
   email?: string;
@@ -79,6 +81,8 @@ export interface CRMEnquiryNote {
 }
 
 export interface CRMOwner {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   ownerId: string;
   contactId?: string;
   name: string;
@@ -180,6 +184,8 @@ export interface CRMListing {
 }
 
 export interface CRMProperty {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   propertyId: string;
   /** @deprecated Prefer currentOwnerContactId — legacy OWNER entity id */
   ownerId: string | null;
@@ -532,6 +538,8 @@ export type MeetingStatus = 'scheduled' | 'completed' | 'cancelled' | 'reschedul
 export type RelatedEntityType = 'customer' | 'owner' | 'enquiry' | 'b2b_lead' | 'property' | 'lead';
 
 export interface CRMMeeting {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   meetingId: string;
   title: string;
   description?: string;
@@ -640,6 +648,8 @@ export interface OwnerProfile {
 }
 
 export interface CRMContact {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   contactId: string;
   name: string;
   email?: string;
@@ -764,7 +774,7 @@ export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'site_visit' | 'neg
 // Intake adapters that can create a lead. Every one funnels through the same
 // server-side ingestLead() entry point, so a lead's downstream treatment
 // (AI qualification, scoring, closure) does not depend on which one it was.
-export type LeadSourceAdapter = 'manychat' | 'insta-agent' | 'bailey' | 'website';
+export type LeadSourceAdapter = 'manychat' | 'instagram' | 'insta-agent' | 'bailey' | 'website';
 // LeadPriority (low/medium/high) is retired on the Lead entity — see
 // LeadTemperature. Buyer/Customer/Tenant/B2B-Lead entities keep their own
 // separate `priority` field, untouched by this migration.
@@ -846,6 +856,8 @@ export interface LeadConversion {
 }
 
 export interface CRMLead {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   leadId: string;
   leadType: LeadType;
   name: string;
@@ -866,7 +878,7 @@ export interface CRMLead {
   reelRef?: LeadReelRef | null;
   // Which intake adapter produced this lead. `source` is the coarse channel
   // shown to users ('Instagram'); this distinguishes the paths within it —
-  // 'manychat' (ManyChat cloud bot) vs 'insta-agent' (self-hosted laptop agent).
+  // 'manychat' (ManyChat cloud bot) vs 'instagram' (backend_insta_sol_ms; 'insta-agent' was the retired laptop agent).
   // null for a lead a human typed in.
   sourceAdapter?: LeadSourceAdapter | null;
   // Channel-native identifiers, e.g. { igUsername, igSenderId, sourceMediaId }.
@@ -1012,6 +1024,8 @@ export interface RoleMetrics {
 // ============== Real Estate Management - Developers ==============
 
 export interface CRMDeveloper {
+  /** Set by the server when phone fields were masked for this role (CONTRACTS.md 7). */
+  phoneMasked?: boolean;
   developerId: string;
   name: string;
   slug?: string;

@@ -2453,6 +2453,12 @@ class ApiService {
     businessHoursEnd?: string;
     timezone?: string;
     connectedWhatsAppPhone?: string | null;
+    followupCallsEnabled?: boolean;
+    followupCallOnNewInstagramLead?: boolean;
+    followupMaxAttempts?: number;
+    followupRetryGapMinutes?: number;
+    followupPostVisitDelayMinutes?: number;
+    followupEscalationUserIds?: string[];
   }) {
     const init = {
       method: 'PATCH',

@@ -1,0 +1,80 @@
+name: Instagram Service Tests
+
+# Continuous integration for the Instagram lead service. Deploys stay manual
+# and release-tracked through cfn-templates-cicd/{backend,frontend}_insta_sol_ms
+# (build numbers, S3 archive, rollback), like every other service in this repo;
+# this workflow gates the code those wrappers ship.
+#
+# The backend suite needs no AWS, Meta or CRM: it runs against an in-process
+# DynamoDB stand-in, a fake Instagram and a fake CRM (tests/support.js).
+
+on:
+  pull_request:
+    branches: [main, auth_rbac_feature, 'cursor/*', 'claude/*']
+    paths:
+      - 'backend_insta_sol_ms/**'
+      - 'frontend_insta_sol_ms/**'
+      - 'cfn-templates-cicd/backend_insta_sol_ms/**'
+      - 'cfn-templates-cicd/frontend_insta_sol_ms/**'
+      - '.github/workflows/insta-sol-ms-tests.yml'
+  push:
+    branches: [main, auth_rbac_feature, 'claude/instagram-*']
+    paths:
+      - 'backend_insta_sol_ms/**'
+      - 'frontend_insta_sol_ms/**'
+      - 'cfn-templates-cicd/backend_insta_sol_ms/**'
+      - 'cfn-templates-cicd/frontend_insta_sol_ms/**'
+      - '.github/workflows/insta-sol-ms-tests.yml'
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend_insta_sol_ms/package-lock.json
+      - name: Install
+        working-directory: backend_insta_sol_ms
+        run: npm ci
+      - name: Test
+        working-directory: backend_insta_sol_ms
+        run: npm test
+      - name: Deploy scripts parse
+        run: |
+          bash -n backend_insta_sol_ms/infra/deploy.sh
+          bash -n backend_insta_sol_ms/infra/config-deploy.sh
+          bash -n cfn-templates-cicd/backend_insta_sol_ms/deploy.sh
+      - name: Audit dependencies (critical only)
+        working-directory: backend_insta_sol_ms
+        run: npm audit --omit=dev --audit-level=critical
+
+  frontend:
+    name: Console typecheck and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend_insta_sol_ms/package-lock.json
+      - name: Install
+        working-directory: frontend_insta_sol_ms
+        run: npm ci
+      - name: Build
+        working-directory: frontend_insta_sol_ms
+        env:
+          VITE_INSTA_API_DOMAIN_NAME: services-api.cloudberrysolutions.in
+          VITE_INSTA_API_BASE_PATH: devrealestateinsta
+          VITE_CRM_URL: https://app.realestateflow.in
+        run: npm run build
+      - name: Deploy scripts parse
+        run: |
+          bash -n frontend_insta_sol_ms/infra/deploy.sh
+          bash -n cfn-templates-cicd/frontend_insta_sol_ms/deploy.sh

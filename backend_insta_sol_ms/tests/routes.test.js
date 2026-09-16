@@ -1,291 +1,212 @@
-// Route handlers over real HTTP with a mocked dynamoService.
+// Every HTTP route over the real stack: Express, the real data layer on the
+// in-process DynamoDB stand-in, a fake Instagram, fake auth and a fake CRM.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { startApp, makeFakeDb, TENANT, OTHER_TENANT } from './support.js';
+import crypto from 'node:crypto';
+import { startApp, freshDb, recordingDb, fakeCrm, makeService, connectTestAccount, withEnv, TENANT, OTHER_TENANT } from './support.js';
+import { createFakeInstagram, BUSINESS_IG_ID, BUSINESS_USERNAME } from './fakeInstagram.js';
+import { buildSignedRequest } from '../services/metaSecurity.js';
+import { toDateKey } from '../services/normalise.js';
 
-async function withApp(db, fn, opts = {}) {
-  const app = await startApp({ db, ...opts });
+const BASE = '/api/insta';
+const RAHUL = { id: '5551', username: 'rahul.sharma_22' };
+
+async function withBoot(fn, { tenantId = TENANT } = {}) {
+  const db = recordingDb(freshDb());
+  const ig = createFakeInstagram();
+  const crm = fakeCrm();
+  const service = makeService({ db, api: ig.api, crm });
+  const app = await startApp({ db, service, tenantId });
   try {
-    return await fn(app);
+    return await fn({ db, ig, crm, service, app });
   } finally {
     await app.close();
   }
 }
 
-const BASE = '/api/insta';
+async function withConversation(ctx, text = 'Hi, 2 BHK rent in Kurla, budget 45k, call me on 98765 43210') {
+  await connectTestAccount(ctx.service);
+  ctx.ig.receiveMessage(RAHUL, text);
+  await ctx.service.syncConversations(await ctx.db.getAccount(TENANT, BUSINESS_IG_ID));
+  return `${BUSINESS_IG_ID}_${RAHUL.id}`;
+}
+
+const json = (body) => ({ method: 'POST', body: JSON.stringify(body) });
 
 // ---------------------------------------------------------------------------
-// health + 404
+// basics
 // ---------------------------------------------------------------------------
 
-test('GET /health is open and does not touch the tables', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
+test('GET /health is open, does not touch the tables, and reports whether Instagram is configured', async () => {
+  await withBoot(async ({ app, db }) => {
     const res = await app.request(`${BASE}/health`);
     assert.equal(res.status, 200);
     assert.equal(res.body.status, 'ok');
-    assert.equal(res.body.service, 'insta-sol-ms');
+    assert.equal(res.body.instagramConfigured, true);
     assert.equal(db.calls.length, 0);
   });
 });
 
-test('an unknown path answers JSON, never HTML', async () => {
-  await withApp(makeFakeDb(), async (app) => {
-    const res = await app.request(`${BASE}/nope`);
-    assert.equal(res.status, 404);
-    assert.equal(res.body.error, 'Not Found');
-  });
-});
+test('an unknown path answers JSON, and malformed JSON gets the repo error shape', async () => {
+  await withBoot(async ({ app }) => {
+    const missing = await app.request(`${BASE}/nope`);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.error, 'Not Found');
 
-test('malformed JSON produces the repo error shape', async () => {
-  await withApp(makeFakeDb(), async (app) => {
-    const res = await app.request(`${BASE}/rules`, { method: 'POST', body: '{not json' });
-    assert.equal(res.status, 400);
-    assert.equal(res.body.error, 'Bad Request');
-    assert.equal(typeof res.body.details, 'string');
+    const bad = await app.request(`${BASE}/rules`, { method: 'POST', body: '{not json' });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.body.error, 'Bad Request');
   });
 });
 
 // ---------------------------------------------------------------------------
-// devices + accounts
+// OAuth
 // ---------------------------------------------------------------------------
 
-test('POST /devices/pair issues a code scoped to the authenticated tenant', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/devices/pair`, { method: 'POST', body: '{}' });
-    assert.equal(res.status, 201);
-    assert.match(res.body.pairingCode, /^[A-Z2-9]{8}$/);
-    assert.ok(Date.parse(res.body.expiresAt) > Date.now());
+test('POST /oauth/start returns the Instagram consent URL; 503 when the app is not configured', async () => {
+  await withBoot(async ({ app }) => {
+    const res = await app.request(`${BASE}/oauth/start`, { method: 'POST' });
+    assert.equal(res.status, 200);
+    assert.ok(new URL(res.body.authorizeUrl).searchParams.get('state'));
 
-    const call = db.calls.find((c) => c.name === 'createPairingCode');
-    assert.equal(call.args[0], TENANT);
-  });
-});
-
-test('a tenantId in the body is ignored — tenancy comes from the auth context', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    await app.request(`${BASE}/devices/pair`, {
-      method: 'POST',
-      body: JSON.stringify({ tenantId: OTHER_TENANT }),
+    await withEnv({ INSTA_TOKEN_ENCRYPTION_KEY: undefined }, async () => {
+      const off = await app.request(`${BASE}/oauth/start`, { method: 'POST' });
+      assert.equal(off.status, 503);
     });
-    const call = db.calls.find((c) => c.name === 'createPairingCode');
-    assert.equal(call.args[0], TENANT);
   });
 });
 
-test('GET /devices never returns a device secret', async () => {
-  const db = makeFakeDb({
-    listDevices: async () => [
-      {
-        deviceId: 'd1',
-        deviceName: 'owner-laptop',
-        deviceSecret: 'THIS-MUST-NOT-LEAK',
-        status: 'active',
-        lastSeenAt: new Date().toISOString(),
-        igUserId: '178414',
-      },
-    ],
-  });
+test('the OAuth callback connects the account and sends the browser back to the console', async () => {
+  await withBoot(async ({ app, service, db }) => {
+    const { authorizeUrl } = service.startConnect({ tenantId: TENANT, userId: 'user-1' });
+    const state = new URL(authorizeUrl).searchParams.get('state');
 
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/devices`);
-    assert.equal(res.status, 200);
-    assert.equal(res.body.devices.length, 1);
-    assert.equal(res.body.devices[0].deviceSecret, undefined);
-    assert.ok(!JSON.stringify(res.body).includes('THIS-MUST-NOT-LEAK'));
-    assert.equal(res.body.devices[0].health, 'online');
+    const res = await app.request(`${BASE}/oauth/callback?code=abc%23_&state=${encodeURIComponent(state)}`);
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), `http://console.test/insta/accounts?connected=${BUSINESS_USERNAME}`);
+    assert.equal((await db.getAccount(TENANT, BUSINESS_IG_ID)).status, 'connected');
   });
 });
 
-test('device health degrades to stale after the heartbeat window', async () => {
-  const db = makeFakeDb({
-    listDevices: async () => [
-      { deviceId: 'd1', status: 'active', lastSeenAt: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
-      { deviceId: 'd2', status: 'active', lastSeenAt: null },
-      { deviceId: 'd3', status: 'revoked', lastSeenAt: new Date().toISOString() },
-    ],
-  });
+test('a declined consent or a forged state lands on the console with an error, and connects nothing', async () => {
+  await withBoot(async ({ app, db }) => {
+    const denied = await app.request(`${BASE}/oauth/callback?error=access_denied&error_description=Permissions+error`);
+    assert.equal(denied.status, 302);
+    assert.equal(new URL(denied.headers.get('location')).searchParams.get('error'), 'Permissions error');
 
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/devices`);
-    assert.deepEqual(res.body.devices.map((d) => d.health), ['stale', 'never_seen', 'revoked']);
+    const forged = await app.request(`${BASE}/oauth/callback?code=abc&state=eyJ0IjoidmljdGltIn0.AAAA`);
+    assert.equal(forged.status, 302);
+    assert.match(new URL(forged.headers.get('location')).searchParams.get('error'), /State signature/);
+    assert.equal(await db.getAccount(TENANT, BUSINESS_IG_ID), null);
   });
 });
 
-test('DELETE /devices/:id revokes and audits', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/devices/d1`, { method: 'DELETE' });
-    assert.equal(res.status, 200);
-    assert.equal(res.body.device.status, 'revoked');
+// ---------------------------------------------------------------------------
+// accounts
+// ---------------------------------------------------------------------------
 
-    const revoke = db.calls.find((c) => c.name === 'revokeDevice');
-    assert.deepEqual(revoke.args, [TENANT, 'd1']);
-    assert.ok(db.calls.some((c) => c.name === 'putAuditEvent'));
-  });
-});
-
-test('DELETE on a missing device is a 404, not a 500', async () => {
-  const db = makeFakeDb({ revokeDevice: async () => null });
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/devices/ghost`, { method: 'DELETE' });
-    assert.equal(res.status, 404);
-    assert.equal(res.body.error, 'Not Found');
-  });
-});
-
-test('GET /accounts derives accounts from devices holding an IG token', async () => {
-  const db = makeFakeDb({
-    listDevices: async () => [
-      {
-        deviceId: 'd1',
-        status: 'active',
-        igUserId: '178414',
-        igUsername: 'agency',
-        lastSeenAt: new Date().toISOString(),
-        tokenExpiresAt: new Date(Date.now() + 3 * 86400 * 1000).toISOString(),
-      },
-      { deviceId: 'd2', status: 'active', igUserId: null },
-    ],
-  });
-
-  await withApp(db, async (app) => {
+test('GET /accounts never returns a token, and only shows the caller\'s tenant', async () => {
+  await withBoot(async ({ app, service }) => {
+    await connectTestAccount(service);
     const res = await app.request(`${BASE}/accounts`);
     assert.equal(res.status, 200);
     assert.equal(res.body.accounts.length, 1);
-    assert.equal(res.body.deviceCount, 2);
-    assert.equal(res.body.accounts[0].tokenExpiringSoon, true);
+    assert.equal(res.body.accounts[0].username, BUSINESS_USERNAME);
+    assert.equal(res.body.dryRunSends, false);
+    const raw = JSON.stringify(res.body);
+    assert.ok(!raw.includes('tokenCiphertext') && !raw.includes('v1:'), 'no token material in the response');
+  });
+
+  await withBoot(
+    async ({ app, service }) => {
+      await connectTestAccount(service, TENANT);
+      assert.equal((await app.request(`${BASE}/accounts`)).body.accounts.length, 0);
+    },
+    { tenantId: OTHER_TENANT }
+  );
+});
+
+test('POST /accounts/:id/sync refreshes everything now; DELETE disconnects; unknown ids are 404', async () => {
+  await withBoot(async ({ app, service, ig, db }) => {
+    await connectTestAccount(service);
+    ig.receiveMessage(RAHUL, 'Is it available?');
+
+    const sync = await app.request(`${BASE}/accounts/${BUSINESS_IG_ID}/sync`, { method: 'POST' });
+    assert.equal(sync.status, 200);
+    for (const job of ['profile', 'conversations', 'media', 'comments', 'analysis']) {
+      assert.equal(sync.body.summary.jobs[job], 1, job);
+    }
+    assert.equal(sync.body.account.insights30d.reach, 41000);
+    assert.ok(await db.getThread(TENANT, `${BUSINESS_IG_ID}_${RAHUL.id}`));
+
+    assert.equal((await app.request(`${BASE}/accounts/nope/sync`, { method: 'POST' })).status, 404);
+
+    const del = await app.request(`${BASE}/accounts/${BUSINESS_IG_ID}`, { method: 'DELETE' });
+    assert.equal(del.status, 200);
+    assert.equal(del.body.account.status, 'disconnected');
+    assert.equal((await app.request(`${BASE}/accounts/${BUSINESS_IG_ID}/sync`, { method: 'POST' })).status, 409);
+    assert.equal((await app.request(`${BASE}/accounts/nope`, { method: 'DELETE' })).status, 404);
   });
 });
 
 // ---------------------------------------------------------------------------
-// enquiries
+// webhooks + Meta callbacks
 // ---------------------------------------------------------------------------
 
-test('GET /enquiries passes filters and cursor through to the data layer', async () => {
-  const db = makeFakeDb({
-    listEnquiries: async () => ({ items: [{ enquiryId: 'e1' }], cursor: 'next-page' }),
-  });
+test('the webhook handshake echoes the challenge only for the right verify token', async () => {
+  await withBoot(async ({ app }) => {
+    const ok = await app.request(`${BASE}/webhooks/instagram?hub.mode=subscribe&hub.verify_token=test-verify-token&hub.challenge=1158201444`);
+    assert.equal(ok.status, 200);
+    assert.equal(String(ok.body), '1158201444');
 
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/enquiries?status=new&temperature=hot&limit=10&cursor=abc`);
+    const bad = await app.request(`${BASE}/webhooks/instagram?hub.mode=subscribe&hub.verify_token=guess&hub.challenge=1`);
+    assert.equal(bad.status, 403);
+  });
+});
+
+test('a webhook is accepted only with a valid signature over the exact body', async () => {
+  await withBoot(async ({ app, service, db }) => {
+    await connectTestAccount(service);
+    const body = JSON.stringify({
+      object: 'instagram',
+      entry: [{ id: BUSINESS_IG_ID, time: Date.now(), messaging: [{ sender: { id: '42' }, recipient: { id: BUSINESS_IG_ID }, timestamp: Date.now(), message: { mid: 'mid.w1', text: '1bhk?' } }] }],
+    });
+    const signature = `sha256=${crypto.createHmac('sha256', 'test-app-secret').update(body).digest('hex')}`;
+
+    const forged = await app.request(`${BASE}/webhooks/instagram`, { method: 'POST', body, headers: { 'x-hub-signature-256': 'sha256=deadbeef' } });
+    assert.equal(forged.status, 401);
+    assert.equal(await db.getThread(TENANT, `${BUSINESS_IG_ID}_42`), null);
+
+    const res = await app.request(`${BASE}/webhooks/instagram`, { method: 'POST', body, headers: { 'x-hub-signature-256': signature } });
     assert.equal(res.status, 200);
-    assert.equal(res.body.enquiries.length, 1);
-    assert.equal(res.body.cursor, 'next-page');
-
-    const call = db.calls.find((c) => c.name === 'listEnquiries');
-    assert.equal(call.args[0], TENANT);
-    assert.equal(call.args[1].status, 'new');
-    assert.equal(call.args[1].temperature, 'hot');
-    assert.equal(call.args[1].cursor, 'abc');
+    assert.equal(res.body, 'EVENT_RECEIVED');
+    assert.equal((await db.getThread(TENANT, `${BUSINESS_IG_ID}_42`)).messageCount, 1);
   });
 });
 
-test('an unknown filter value is a 400, not an empty list', async () => {
-  await withApp(makeFakeDb(), async (app) => {
-    const bad = await app.request(`${BASE}/enquiries?status=archived`);
-    assert.equal(bad.status, 400);
-
-    const badTemp = await app.request(`${BASE}/enquiries?temperature=tepid`);
-    assert.equal(badTemp.status, 400);
-  });
-});
-
-test('PATCH /enquiries validates, updates and audits', async () => {
-  const db = makeFakeDb({
-    updateEnquiry: async (t, id, patch) => ({ enquiryId: id, ...patch }),
-  });
-
-  await withApp(db, async (app) => {
-    const empty = await app.request(`${BASE}/enquiries/e1`, { method: 'PATCH', body: '{}' });
-    assert.equal(empty.status, 400);
-
-    const bad = await app.request(`${BASE}/enquiries/e1`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'archived' }),
+test('Meta deauthorize and data deletion callbacks accept a signed_request form post', async () => {
+  await withBoot(async ({ app, service, db }) => {
+    await connectTestAccount(service);
+    const form = (payload, secret = 'test-app-secret') => ({
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: `signed_request=${encodeURIComponent(buildSignedRequest(payload, secret))}`,
     });
-    assert.equal(bad.status, 400);
 
-    const ok = await app.request(`${BASE}/enquiries/e1`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'qualified', notes: 'called, wants 2BHK' }),
-    });
-    assert.equal(ok.status, 200);
-    assert.equal(ok.body.enquiry.status, 'qualified');
+    assert.equal((await app.request(`${BASE}/meta/deauthorize`, form({ user_id: BUSINESS_IG_ID }, 'nope'))).status, 400);
+    const deauth = await app.request(`${BASE}/meta/deauthorize`, form({ user_id: BUSINESS_IG_ID }));
+    assert.deepEqual(deauth.body, { ok: true, found: true });
+    assert.equal((await db.getAccount(TENANT, BUSINESS_IG_ID)).status, 'disconnected');
 
-    const update = db.calls.find((c) => c.name === 'updateEnquiry');
-    assert.equal(update.args[0], TENANT);
+    const deletion = await app.request(`${BASE}/meta/data-deletion`, form({ user_id: BUSINESS_IG_ID }));
+    assert.equal(deletion.status, 200);
+    assert.ok(deletion.body.url.endsWith(deletion.body.confirmation_code));
 
-    // The status transition is audited; the note body is not.
-    const audit = db.calls.find((c) => c.name === 'putAuditEvent');
-    assert.equal(audit.args[1].status, 'qualified');
-    assert.equal(audit.args[1].notesChanged, true);
-    assert.equal(audit.args[1].notes, undefined);
-  });
-});
-
-test('PATCH on an enquiry outside the tenant reads as 404', async () => {
-  const db = makeFakeDb({ updateEnquiry: async () => null });
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/enquiries/e-other`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status: 'won' }),
-    });
-    assert.equal(res.status, 404);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// media
-// ---------------------------------------------------------------------------
-
-test('GET /media ranks by enquiries by default and by views on request', async () => {
-  const db = makeFakeDb({
-    listMedia: async () => [
-      { mediaId: 'a', enquiryCount: 1, metrics: { views: 900 } },
-      { mediaId: 'b', enquiryCount: 7, metrics: { views: 100 } },
-      { mediaId: 'c', enquiryCount: 3, metrics: { views: 500 } },
-    ],
-  });
-
-  await withApp(db, async (app) => {
-    const byEnquiries = await app.request(`${BASE}/media`);
-    assert.deepEqual(byEnquiries.body.media.map((m) => m.mediaId), ['b', 'c', 'a']);
-    assert.equal(byEnquiries.body.sort, 'enquiries');
-
-    const byViews = await app.request(`${BASE}/media?sort=views`);
-    assert.deepEqual(byViews.body.media.map((m) => m.mediaId), ['a', 'c', 'b']);
-
-    const limited = await app.request(`${BASE}/media?limit=2`);
-    assert.equal(limited.body.media.length, 2);
-    assert.equal(limited.body.total, 3);
-
-    // An unknown sort falls back rather than erroring — the leaderboard is a
-    // read-only view and a bad query string should not blank the page.
-    const bogus = await app.request(`${BASE}/media?sort=vibes`);
-    assert.equal(bogus.body.sort, 'enquiries');
-  });
-});
-
-test('GET /media/:id returns the item plus a date-ordered series, 404 when absent', async () => {
-  const db = makeFakeDb({
-    getMedia: async (t, id) => (id === 'm1' ? { mediaId: 'm1' } : null),
-    listMediaSnapshots: async () => [
-      { date: '2026-03-04', views: 20 },
-      { date: '2026-03-01', views: 10 },
-    ],
-  });
-
-  await withApp(db, async (app) => {
-    const ok = await app.request(`${BASE}/media/m1`);
-    assert.equal(ok.status, 200);
-    assert.deepEqual(ok.body.snapshots.map((s) => s.date), ['2026-03-01', '2026-03-04']);
-
-    const missing = await app.request(`${BASE}/media/nope`);
-    assert.equal(missing.status, 404);
+    const status = await app.request(`${BASE}/meta/data-deletion/status?code=${deletion.body.confirmation_code}`);
+    assert.equal(status.body.status, 'completed');
+    assert.equal((await app.request(`${BASE}/meta/data-deletion/status?code=bad`)).status, 400);
+    assert.equal((await app.request(`${BASE}/meta/data-deletion/status?code=${'a'.repeat(24)}`)).status, 404);
   });
 });
 
@@ -293,186 +214,177 @@ test('GET /media/:id returns the item plus a date-ordered series, 404 when absen
 // threads
 // ---------------------------------------------------------------------------
 
-test('GET /threads filters, counts and validates windowState', async () => {
-  const db = makeFakeDb({
-    listThreads: async () => [
-      { conversationId: 'c1', unanswered: true, lastInboundAt: '2026-03-01T00:00:00.000Z' },
-      { conversationId: 'c2', unanswered: false, lastInboundAt: '2026-03-04T00:00:00.000Z' },
-    ],
-  });
-
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/threads?unanswered=true`);
+test('GET /threads lists conversations with their live window, filters and validates', async () => {
+  await withBoot(async (ctx) => {
+    await withConversation(ctx);
+    const res = await ctx.app.request(`${BASE}/threads`);
     assert.equal(res.status, 200);
-    // Newest inbound first.
-    assert.deepEqual(res.body.threads.map((t) => t.conversationId), ['c2', 'c1']);
-    assert.equal(res.body.counts.total, 2);
+    assert.equal(res.body.threads.length, 1);
+    assert.equal(res.body.threads[0].windowState, 'STANDARD');
     assert.equal(res.body.counts.unanswered, 1);
 
-    const call = db.calls.find((c) => c.name === 'listThreads');
-    assert.equal(call.args[0], TENANT);
-    assert.equal(call.args[1].unanswered, true);
-
-    const bad = await app.request(`${BASE}/threads?windowState=OPEN`);
-    assert.equal(bad.status, 400);
+    assert.equal((await ctx.app.request(`${BASE}/threads?windowState=NOPE`)).status, 400);
+    assert.equal((await ctx.app.request(`${BASE}/threads?unanswered=false`)).body.threads.length, 0);
+    assert.equal((await ctx.app.request(`${BASE}/threads?windowState=CLOSED`)).body.threads.length, 0);
   });
 });
 
-test('an absent unanswered param means no filter at all', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    await app.request(`${BASE}/threads`);
-    const call = db.calls.find((c) => c.name === 'listThreads');
-    assert.equal(call.args[1].unanswered, undefined);
-  });
-});
+test('a thread opens with its messages, then a reply is sent and the analysis can be re-run', async () => {
+  await withBoot(async (ctx) => {
+    const threadId = await withConversation(ctx);
 
-// ---------------------------------------------------------------------------
-// rules
-// ---------------------------------------------------------------------------
+    const detail = await ctx.app.request(`${BASE}/threads/${threadId}`);
+    assert.equal(detail.status, 200);
+    assert.equal(detail.body.messages.length, 1);
+    assert.equal(detail.body.canReply.allowed, true);
+    assert.equal(detail.body.enquiry, null);
+    assert.equal((await ctx.app.request(`${BASE}/threads/nope`)).status, 404);
 
-test('POST /rules validates before writing', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    const noKeyword = await app.request(`${BASE}/rules`, { method: 'POST', body: JSON.stringify({ dmMessage: 'hi' }) });
-    assert.equal(noKeyword.status, 400);
+    assert.equal((await ctx.app.request(`${BASE}/threads/${threadId}/reply`, json({ text: '  ' }))).status, 400);
+    const reply = await ctx.app.request(`${BASE}/threads/${threadId}/reply`, json({ text: 'Namaste! Call karte hain.' }));
+    assert.equal(reply.status, 201);
+    assert.equal(reply.body.status, 'sent');
+    assert.equal(ctx.ig.state.sent.length, 1);
+    assert.equal((await ctx.app.request(`${BASE}/threads/nope/reply`, json({ text: 'x' }))).status, 404);
 
-    const noAction = await app.request(`${BASE}/rules`, { method: 'POST', body: JSON.stringify({ keyword: 'price' }) });
-    assert.equal(noAction.status, 400);
-
-    const badMatch = await app.request(`${BASE}/rules`, {
-      method: 'POST',
-      body: JSON.stringify({ keyword: 'price', matchType: 'fuzzy', dmMessage: 'hi' }),
-    });
-    assert.equal(badMatch.status, 400);
-
-    const badRegex = await app.request(`${BASE}/rules`, {
-      method: 'POST',
-      body: JSON.stringify({ keyword: '([', matchType: 'regex', dmMessage: 'hi' }),
-    });
-    assert.equal(badRegex.status, 400);
-
-    assert.equal(db.calls.some((c) => c.name === 'putRule'), false);
-  });
-});
-
-test('POST /rules creates with a generated id, and 200s on edit', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    const created = await app.request(`${BASE}/rules`, {
-      method: 'POST',
-      body: JSON.stringify({ keyword: '  price  ', dmMessage: 'Sending details' }),
-    });
-    assert.equal(created.status, 201);
-    assert.equal(created.body.rule.keyword, 'price');
-    assert.match(created.body.rule.ruleId, /^[0-9a-f-]{36}$/);
-
-    const edited = await app.request(`${BASE}/rules`, {
-      method: 'POST',
-      body: JSON.stringify({ ruleId: 'r1', keyword: 'price', publicReply: 'DM sent' }),
-    });
-    assert.equal(edited.status, 200);
-
-    const put = db.calls.filter((c) => c.name === 'putRule');
-    assert.equal(put.length, 2);
-    assert.ok(put.every((c) => c.args[0] === TENANT));
-  });
-});
-
-test('DELETE /rules/:id removes and audits', async () => {
-  const db = makeFakeDb();
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/rules/r1`, { method: 'DELETE' });
-    assert.equal(res.status, 200);
-    assert.deepEqual(db.calls.find((c) => c.name === 'deleteRule').args, [TENANT, 'r1']);
+    const analysed = await ctx.app.request(`${BASE}/threads/${threadId}/analyse`, { method: 'POST' });
+    assert.equal(analysed.status, 200);
+    assert.equal(analysed.body.enquiry.phone, '+919876543210');
+    assert.equal(analysed.body.thread.analysis.leadScore, 'very_hot');
+    assert.equal(ctx.crm.calls.length, 1);
   });
 });
 
 // ---------------------------------------------------------------------------
-// overview + insights
+// enquiries
 // ---------------------------------------------------------------------------
 
-test('GET /overview assembles counters and merges the account series', async () => {
-  const today = new Date().toISOString();
-  const db = makeFakeDb({
-    listDevices: async () => [
-      { deviceId: 'd1', status: 'active', igUserId: '1' },
-      { deviceId: 'd2', status: 'revoked', igUserId: '2' },
-    ],
-    listEnquiries: async () => ({
-      items: [
-        { enquiryId: 'e1', createdAt: today, temperature: 'hot', status: 'new' },
-        { enquiryId: 'e2', createdAt: today, temperature: 'cold', status: 'contacted' },
-        { enquiryId: 'e3', createdAt: '2020-01-01T00:00:00.000Z', temperature: 'hot', status: 'new' },
-      ],
-      cursor: null,
-    }),
-    listThreads: async () => [{ unanswered: true }, { unanswered: false }],
-    listMedia: async () => [{ mediaId: 'm1' }],
-    listAccountSnapshots: async (t, igUserId) => [
-      { date: '2026-03-04', followersCount: igUserId === '1' ? 100 : 50, reach: 10 },
-    ],
-  });
+test('enquiry filters are validated; PATCH validates, updates and audits under the caller\'s tenant', async () => {
+  await withBoot(async ({ app, db }) => {
+    await db.putEnquiry(TENANT, { enquiryId: 'e1', name: 'Rahul', phone: '+919876543210', intent: 'rent', temperature: 'hot' });
 
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/overview`);
-    assert.equal(res.status, 200);
-    assert.equal(res.body.counters.devices, 2);
-    assert.equal(res.body.counters.activeDevices, 1);
-    assert.equal(res.body.counters.accounts, 2);
-    assert.equal(res.body.counters.media, 1);
-    // The 2020 enquiry falls outside the 30-day window.
-    assert.equal(res.body.counters.enquiries, 2);
-    assert.equal(res.body.counters.hotEnquiries, 1);
-    assert.equal(res.body.counters.threads, 2);
-    assert.equal(res.body.counters.unansweredThreads, 1);
+    assert.equal((await app.request(`${BASE}/enquiries?status=bogus`)).status, 400);
+    assert.equal((await app.request(`${BASE}/enquiries?temperature=lukewarm`)).status, 400);
+    assert.equal((await app.request(`${BASE}/enquiries?temperature=hot`)).body.enquiries.length, 1);
 
-    // Two accounts on the same date collapse into one summed row.
-    assert.equal(res.body.series.length, 1);
-    assert.equal(res.body.series[0].followersCount, 150);
-    assert.equal(res.body.series[0].reach, 20);
+    const patch = (body, id = 'e1') => app.request(`${BASE}/enquiries/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    assert.equal((await patch({})).status, 400);
+    assert.equal((await patch({ status: 'bogus' })).status, 400);
+    assert.equal((await patch({ notes: 42 })).status, 400);
+    assert.equal((await patch({ status: 'nope' }, 'missing')).status, 400);
+    assert.equal((await patch({ status: 'contacted' }, 'missing')).status, 404);
 
-    assert.ok(db.calls.every((c) => c.args[0] === TENANT));
+    const ok = await patch({ status: 'SITE_VISIT', notes: 'Saturday 11am' });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.body.enquiry.status, 'site_visit');
+    const audit = db.calls.find((c) => c.name === 'putAuditEvent');
+    assert.equal(audit.args[0], TENANT);
+    assert.equal(audit.args[1].notesChanged, true);
+    assert.ok(!JSON.stringify(audit.args[1]).includes('Saturday'), 'note text is not written to the audit trail');
+
+    const pushed = await app.request(`${BASE}/enquiries/e1/push-to-crm`, { method: 'POST' });
+    assert.equal(pushed.status, 200);
+    assert.equal(pushed.body.crmSync.status, 'created');
+    assert.equal((await app.request(`${BASE}/enquiries/missing/push-to-crm`, { method: 'POST' })).status, 404);
   });
 });
 
-test('GET /insights/timeseries maps metric names and rejects unknown ones', async () => {
-  const db = makeFakeDb({
-    listDevices: async () => [{ deviceId: 'd1', status: 'active', igUserId: '1' }],
-    listAccountSnapshots: async () => [
-      { date: '2026-03-02', followersCount: 120, reach: 5 },
-      { date: '2026-03-01', followersCount: 100, reach: 3 },
-      { date: '2026-03-03', followersCount: null, reach: 7 },
-    ],
-  });
+test('an enquiry in another tenant reads as not found', async () => {
+  await withBoot(
+    async ({ app, db }) => {
+      await db.putEnquiry(TENANT, { enquiryId: 'e1', name: 'Rahul' });
+      const res = await app.request(`${BASE}/enquiries/e1`, { method: 'PATCH', body: JSON.stringify({ status: 'won' }) });
+      assert.equal(res.status, 404);
+      assert.equal((await db.getEnquiry(TENANT, 'e1')).status, 'new');
+    },
+    { tenantId: OTHER_TENANT }
+  );
+});
 
-  await withApp(db, async (app) => {
-    const followers = await app.request(`${BASE}/insights/timeseries?metric=followers&days=7`);
-    assert.equal(followers.status, 200);
-    // Null-valued days are dropped, not charted as zero.
-    assert.deepEqual(followers.body.points, [
-      { date: '2026-03-01', value: 100 },
-      { date: '2026-03-02', value: 120 },
+// ---------------------------------------------------------------------------
+// media, rules, overview, insights
+// ---------------------------------------------------------------------------
+
+test('GET /media ranks reels by the enquiries they produced, or by views', async () => {
+  await withBoot(async ({ app, db }) => {
+    await db.putMediaItems(TENANT, [
+      { mediaId: 'm1', igUserId: BUSINESS_IG_ID, metrics: { views: 100 } },
+      { mediaId: 'm2', igUserId: BUSINESS_IG_ID, metrics: { views: 5000 } },
     ]);
+    await db.putEnquiry(TENANT, { enquiryId: 'e1', sourceMediaId: 'm1', temperature: 'hot' });
+    await db.putEnquiry(TENANT, { enquiryId: 'e2', sourceMediaId: 'm1', temperature: 'cold' });
 
-    const reach = await app.request(`${BASE}/insights/timeseries?metric=reach`);
-    assert.equal(reach.body.points.length, 3);
+    const byEnquiries = await app.request(`${BASE}/media`);
+    assert.deepEqual(byEnquiries.body.media.map((m) => m.mediaId), ['m1', 'm2']);
+    assert.equal(byEnquiries.body.media[0].enquiryCount, 2);
+    assert.equal(byEnquiries.body.media[0].hotCount, 1);
 
-    const bogus = await app.request(`${BASE}/insights/timeseries?metric=impressions`);
-    assert.equal(bogus.status, 400);
-    assert.match(bogus.body.details, /Unknown metric/);
+    const byViews = await app.request(`${BASE}/media?sort=views`);
+    assert.deepEqual(byViews.body.media.map((m) => m.mediaId), ['m2', 'm1']);
+
+    assert.equal((await app.request(`${BASE}/media/m1`)).status, 200);
+    assert.equal((await app.request(`${BASE}/media/none`)).status, 404);
   });
 });
 
-test('an igUserId that is not one of the tenant\'s accounts is a 404', async () => {
-  const db = makeFakeDb({
-    listDevices: async () => [{ deviceId: 'd1', status: 'active', igUserId: '1' }],
-  });
+test('POST /rules validates before writing, creates, edits, and ignores a tenantId in the body', async () => {
+  await withBoot(async ({ app, db }) => {
+    for (const bad of [
+      { dmMessage: 'x' },
+      { keyword: 'price', matchType: 'fuzzy', dmMessage: 'x' },
+      { keyword: 'price' },
+      { keyword: '([', matchType: 'regex', dmMessage: 'x' },
+    ]) {
+      assert.equal((await app.request(`${BASE}/rules`, json(bad))).status, 400, JSON.stringify(bad));
+    }
 
-  await withApp(db, async (app) => {
-    const res = await app.request(`${BASE}/insights/timeseries?metric=reach&igUserId=999`);
-    assert.equal(res.status, 404);
-    // The caller-supplied id never reached the table.
-    assert.equal(db.calls.some((c) => c.name === 'listAccountSnapshots'), false);
+    const created = await app.request(`${BASE}/rules`, json({ keyword: ' PRICE ', dmMessage: 'Details bheje', tenantId: OTHER_TENANT }));
+    assert.equal(created.status, 201);
+    assert.equal(created.body.rule.keyword, 'PRICE');
+    assert.equal((await db.listRules(TENANT)).length, 1);
+    assert.equal((await db.listRules(OTHER_TENANT)).length, 0);
+
+    const edited = await app.request(`${BASE}/rules`, json({ ruleId: created.body.rule.ruleId, keyword: 'PRICE', dmMessage: 'Updated', enabled: false }));
+    assert.equal(edited.status, 200);
+    assert.equal((await app.request(`${BASE}/rules`)).body.rules[0].enabled, false);
+
+    assert.equal((await app.request(`${BASE}/rules/${created.body.rule.ruleId}`, { method: 'DELETE' })).status, 200);
+    assert.equal((await db.listRules(TENANT)).length, 0);
+  });
+});
+
+test('GET /overview counts followers, conversations and enquiries into one series', async () => {
+  await withBoot(async (ctx) => {
+    await withConversation(ctx);
+    await ctx.service.analysePendingThreads(await ctx.db.getAccount(TENANT, BUSINESS_IG_ID));
+    await ctx.service.syncProfile(await ctx.db.getAccount(TENANT, BUSINESS_IG_ID));
+
+    const res = await ctx.app.request(`${BASE}/overview`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.counters.accounts, 1);
+    assert.equal(res.body.counters.followers, 1520);
+    // Counters use Meta's 30-day totals; the series keeps the daily values.
+    assert.equal(res.body.counters.reach, 41000);
+    assert.equal(res.body.counters.views, 260000);
+    assert.equal(res.body.counters.accountsEngaged, 2100);
+    assert.equal(res.body.counters.threads, 1);
+    assert.equal(res.body.counters.unansweredThreads, 1);
+    assert.equal(res.body.counters.enquiries, 1);
+    assert.equal(res.body.counters.hotEnquiries, 1);
+    const today = res.body.series.find((p) => p.date === toDateKey());
+    assert.equal(today.followers, 1520);
+    assert.equal(today.reach, 5000);
+    assert.equal(today.enquiries, 1);
+    assert.ok(!JSON.stringify(res.body).includes('tokenCiphertext'));
+  });
+});
+
+test('GET /insights/timeseries maps metric names and validates the account', async () => {
+  await withBoot(async ({ app, service }) => {
+    await connectTestAccount(service);
+    const res = await app.request(`${BASE}/insights/timeseries?metric=followers`);
+    assert.deepEqual(res.body.points, [{ date: toDateKey(), value: 1520 }]);
+    assert.equal((await app.request(`${BASE}/insights/timeseries?metric=impressions`)).status, 400);
+    assert.equal((await app.request(`${BASE}/insights/timeseries?igUserId=someone-else`)).status, 404);
   });
 });

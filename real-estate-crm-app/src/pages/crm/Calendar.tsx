@@ -23,6 +23,7 @@ import { api } from '../../services/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import Toast from '../../components/Toast';
 import { CRMMeeting, CRMCustomerNote, CRMOwnerNote, CRMEnquiryNote, CRMLeadNote } from '../../types/crm';
+import { PhoneNumber, clickToCallEntityFor } from '../../components/PhoneNumber';
 import MeetingHistoryModal from '../../components/MeetingHistoryModal';
 import MeetingRescheduleModal from '../../components/MeetingRescheduleModal';
 
@@ -237,9 +238,15 @@ function MeetingDetailPopup({ meeting, onClose, onUpdate, notes, loadingNotes, o
                 {(meeting.attendeePhone || meeting.relatedEntityPhone) && (
                   <div className="flex items-center gap-2 text-gray-700">
                     <Phone className="w-4 h-4 text-gray-400" />
-                    <a href={`tel:${meeting.attendeePhone || meeting.relatedEntityPhone}`} className="hover:text-blue-600">
-                      {meeting.attendeePhone || meeting.relatedEntityPhone}
-                    </a>
+                    <PhoneNumber
+                      value={meeting.attendeePhone || meeting.relatedEntityPhone}
+                      masked={meeting.phoneMasked}
+                      entityType={clickToCallEntityFor(meeting.relatedEntityType)}
+                      entityId={meeting.relatedEntityId}
+                      showCallButton
+                      linkWhenVisible
+                      className="hover:text-blue-600"
+                    />
                   </div>
                 )}
                 {meeting.attendeeEmail && (
