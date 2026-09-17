@@ -28,11 +28,11 @@ RealEstateFlow (old name RealtyFlow; legacy repo name "Cloudberry Real Estate") 
 | CRM SPA | `agency-app/web/` | Mature (63 page files, 68 component files) | Keep and extend |
 | CRM backend API | `agency-app/api/` | Mature (42 route files, ~270 mounted endpoints) | Keep; fix access patterns |
 | Auth microservice | `platform/auth/` | Mature (Cognito, phone OTP, Google, invites) | Keep; add MANAGER role |
-| Onboarding tool | `apps/onboarding/` | Local tool, still used | Keep as internal tool |
+| Onboarding tool | `apps/onboarding/` (deleted in the 2026-09-17 regroup) | Removed; onboarding runs inside `agency-app/api` (`onboard-agency.js`) | Done |
 | Agent runtime | `agency-app/api/agents/` | Built, flag-gated | Direction for all agents (`04`) |
 | Tool registry | `agency-app/api/shared/toolDefinitions.js`, `agency-app/api/skillInvoker.js` | Built (72 tools) | Single source for agent + MCP tools |
 | Lead ingestion | `agency-app/api/leadIngestion.js` (`POST /api/internal/adapters/leads`) | Built (ManyChat, Instagram) | Add portal and WhatsApp adapters |
-| Instagram service | `apps/instagram/{backend,frontend}_insta_sol_ms/` | Built, dev only | Prod after Meta App Review |
+| Instagram service | `agency-app/instagram-api/` + `agency-app/instagram-web/` | Built, dev only | Prod after Meta App Review |
 | WhatsApp platform | `platform/whatsapp-platform/` | Built (Baileys on ECS Fargate) | Agency command channel only; customer messaging moves to official API (`39`) |
 | AI calling | `agency-app/ai-calling/` | Built, routes mounted in CRM | Outbound at launch |
 | Follow-up calls | `agency-app/followup-agent/` | Built | Keep |
@@ -118,7 +118,7 @@ Paths: `agency-app/api/leadIngestion.js`, `scripts/lead-qualifier-handler.js`, `
 
 ## 7. Instagram, Property Pages, MCP
 
-- **Instagram** (`apps/instagram/`): one Meta app; agencies connect via Connect Instagram; DMs, comments with public reply and one private reply, reels, insights, lead scoring, CRM hand-off. Deployed on dev with sends in dry-run; prod not deployed; Meta App Review pending (`docs/pending-items/instagram-service-status.md`).
+- **Instagram** (`agency-app/instagram-api/`, `agency-app/instagram-web/`): one Meta app; agencies connect via Connect Instagram; DMs, comments with public reply and one private reply, reels, insights, lead scoring, CRM hand-off. Deployed on dev with sends in dry-run; prod not deployed; Meta App Review pending (`docs/pending-items/instagram-service-status.md`).
 - **Property pages** (`public-app/property-pages/`): public tenant-branded listing pages; "Schedule a visit" creates a CRM lead + meeting.
 - **MCP** (`platform/mcp/`): one Streamable HTTP server on Lambda with its own OAuth 2.1 (dynamic client registration + PKCE). 72 tools generated from the CRM registry, proxied to `POST /api/crm/agent/tool`. Agencies can connect Claude/ChatGPT today (`docs/MCP_AGENCY_GUIDE.md`). The service README still says 54 tools.
 

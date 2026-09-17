@@ -75,7 +75,7 @@ The June prerequisite "Phases 0–2 complete, including Postgres" no longer appl
 
 ### 3.3 Instagram DM assistant (draft first, auto later)
 
-**Today:** `apps/instagram/` reads DMs and comments through the Instagram Graph API only (no browser automation of instagram.com). For each thread the lead analyst writes a summary, lead type and score, next action and a **suggested Hinglish reply**; a person sends the reply from the console (`POST /threads/:threadId/reply`). Comment keyword rules exist. Leads flow into the CRM through the adapter pipeline. Deployed to dev; the real-Meta tester test and prod deploy are still pending.
+**Today:** `agency-app/instagram-api/` reads DMs and comments through the Instagram Graph API only (no browser automation of instagram.com). For each thread the lead analyst writes a summary, lead type and score, next action and a **suggested Hinglish reply**; a person sends the reply from the console (`POST /threads/:threadId/reply`). Comment keyword rules exist. Leads flow into the CRM through the adapter pipeline. Deployed to dev; the real-Meta tester test and prod deploy are still pending.
 
 Evidence: `agency-app/instagram-api/services/leadAnalyst.js`, `routes/threads.js`, `services/ruleMatcher.js`, `services/crmBridge.js`.
 
@@ -125,7 +125,7 @@ Evidence: `agency-app/instagram-api/services/leadAnalyst.js`, `routes/threads.js
 
 | Order | Item | Builds on |
 |---|---|---|
-| 1 | Instagram DM assistant to production (tester test, prod deploy), still draft-only | `apps/instagram/` |
+| 1 | Instagram DM assistant to production (tester test, prod deploy), still draft-only | `agency-app/instagram-api/` |
 | 2 | Official WhatsApp Cloud API for customer messages | doc 39 |
 | 3 | WhatsApp nurture journeys + brochure/floor-plan sending | `followup-agent-service`, doc 39 |
 | 4 | Portal lead ingestion adapters | adapter pipeline |

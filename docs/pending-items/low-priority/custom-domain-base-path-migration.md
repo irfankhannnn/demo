@@ -99,7 +99,7 @@ Why new agencies never saw onboarding or pricing:
    without entering `loading`; Google signups never set the onboarding flag, so `/auth/me` 404 logged them out.
 2. No plans step after `RegisterAdmin`; `?plan=` from the marketing site was ignored.
 3. "Buy" in `PaywallModal` passes a plan name as a Razorpay `subscription_id`; no server route creates Razorpay
-   subscriptions. `apps/onboarding/` is a local operator tool, not the user flow.
+   subscriptions. `apps/onboarding/` was a local operator tool (deleted in the 2026-09-17 regroup), not the user flow.
 
 Changes in `real-estate-crm-app` (local): `App.tsx` (loading on auth-changed unless already authenticated; tenant-less
 onboarding users redirected to `/onboarding/role-selection`; new `/onboarding/choose-plan` route),

@@ -21,7 +21,7 @@ So the plan stays accurate, here is what RealEstateFlow actually is, from the re
 | Backend | Node.js + Express on **AWS Lambda + API Gateway** (greedy `{proxy+}` proxy pattern) — `agency-app/api/` (routes, services, middleware) |
 | Data | **DynamoDB single-table, multi-tenant** (`TENANT#` prefix, `x-tenant-id` header, `tenantMiddleware.js`); CRM entities: Buyers, Owners, Tenants/Customers, Properties/Flats, Leads, B2B Leads, Khata book + Settlement, Developers, Areas, Projects |
 | AI calling | `agency-app/ai-calling/` (Lambda + Exotel + ElevenLabs) — **disabled for M1** (commented out in `App.tsx`) |
-| Onboarding | Separate flow — `apps/onboarding/`, `agency-app/api/onboard-agency.js`, `agencyConfigService.js` |
+| Onboarding | Separate flow — `agency-app/api/onboard-agency.js`, `agencyConfigService.js` |
 | Auth | JWT + Phone OTP; invite & member management |
 | Payments | **Razorpay** (UPI/card/netbanking/wallet), GST invoicing |
 | Region / infra | AWS `ap-south-1` (Mumbai); API host `services-api.cloudberrysolutions.in/realestateagency`; marketing site `realestateflow.in` |

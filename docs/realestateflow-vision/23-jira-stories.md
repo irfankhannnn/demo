@@ -41,7 +41,7 @@ As a lead, I want to have agreed before an AI calls me.
 
 ### REF-E23-S1 · Instagram in production — **Partly done**
 As an agency, I want my Instagram DMs and comments in the CRM.
-**Done on dev:** OAuth connect, DM and comment handling, public and private replies, keyword rules, insights, lead scoring and CRM hand-off (`apps/instagram/`).
+**Done on dev:** OAuth connect, DM and comment handling, public and private replies, keyword rules, insights, lead scoring and CRM hand-off (`agency-app/instagram-api/`).
 **AC left:** `realestateflow.in` serves the privacy, terms and data-deletion pages over HTTPS; Meta business verification, reviewer login and screencasts submitted; Advanced Access granted and the app Live; the service deployed to prod (`docs/pending-items/instagram-app-review-actions.md`, `docs/agency-app/instagram/10-APP-REVIEW.md`).
 
 ### REF-E40-S1 · Mobile app in the stores — **Partly done**
@@ -146,7 +146,7 @@ As an agency, I want AI to answer from my brochures with citations.
 | **REF-E15-S1/S2** Rule chain, capacity, SLA timers | Not started | An agent-based router assigns leads (`scripts/lead-router-handler.js`); same D11 note |
 | **REF-E16-S1** Every AI action metered to a credit ledger | Done differently (DynamoDB ledger, not Lago) | `creditService.js`, `middleware/meterCredits.js`, `creditConfig.js` |
 | **REF-E22-S2** Automated follow-up calls | Done | `agency-app/followup-agent/` (site-visit confirmation, post-visit feedback). No 1600-series transactional number. |
-| **REF-E23-S3** Comment → private reply DM | Done on dev | `apps/instagram/` keyword rules and private replies |
+| **REF-E23-S3** Comment → private reply DM | Done on dev | `agency-app/instagram-api/` keyword rules and private replies |
 | **REF-E24-S1** Run the agency from WhatsApp | Done differently | The agency-command channel runs on the in-house agent core, not Strands (`agency-app/api/agents/`, `routes/webhooks.js`). Off unless `AGENTS_ENABLED=true`. |
 | **REF-E33-S1** Pipeline dashboard | Partly done | Team analytics over DynamoDB with Excel export (`src/pages/admin/TeamAnalytics.tsx`, `agency-app/api/utils/excel.js`). No Aurora projection — parked (D8). |
 | **REF-E34-S2** Credit packs and a usage view | Done | Razorpay one-time Orders (`razorpayOrders.js`), balance and ledger (`routes/subscriptions.js`, `components/CreditBalanceCard.tsx`) |

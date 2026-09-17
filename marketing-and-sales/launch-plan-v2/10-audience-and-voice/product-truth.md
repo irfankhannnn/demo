@@ -4,7 +4,7 @@
 
 **Every content claim must trace to a row in this file, and every row cites a repo path.** If a feature is not here, marketing may not claim it. If you add a row, add its path. A row here does not by itself make a claim publishable — see `claims-and-proof-policy.md` §4 for the approved-claims list, which is narrower.
 
-Evidence sources: `apps/crm/`, `apps/instagram/`, `public-app/property-pages/`, `apps/onboarding/`, `agency-app/landing-pages/`, `services/`, `docs/`. Brand values come from `10-audience-and-voice/brand-constants.md`.
+Evidence sources: `agency-app/` (api, web, instagram-api, instagram-web, ai-calling, followup-agent, landing-pages), `platform/`, `public-app/property-pages/`, `docs/`. Brand values come from `10-audience-and-voice/brand-constants.md`.
 
 ---
 
@@ -99,7 +99,7 @@ Razorpay billing and webhooks (`agency-app/api/routes/billing.js`), GST billing 
 `src/utils/rbac.ts`, `src/components/PermissionGuard.tsx`, `agency-app/api/tenantMiddleware.js`. ADMIN full CRUD; MEMBER create/read/update, no delete; agency-scoped.
 
 ### 3.16 Auth and onboarding
-Phone/OTP login, admin login and register, Google auth callback, forgot password, accept invite, profile — `src/pages/auth/` components and `apps/onboarding/`. KYC and document handling documented at `docs/ai_context_management_plan/KYC_IMPLEMENTATION_SUMMARY.md`.
+Phone/OTP login, admin login and register, Google auth callback, forgot password, accept invite, profile — `src/pages/auth/` components and `agency-app/api/onboard-agency.js`. KYC and document handling documented at `docs/ai_context_management_plan/KYC_IMPLEMENTATION_SUMMARY.md`.
 
 ### 3.17 Public grievance page
 `src/pages/public/Grievance.tsx` + `agency-app/api/routes/grievance.js` — required for the India compliance posture.

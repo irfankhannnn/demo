@@ -28,7 +28,7 @@ Most of what the June plan called "Phase 1–3" is already in code. Full detail 
 | Agent runtime (WhatsApp command channel + web chat) | Yes: in-house classify → plan → execute → compose pipeline, model gateway with Gemini as the one adapter, optional bounded tool loop. Off by default (`AGENTS_ENABLED`) | `agency-app/api/agents/` |
 | Lead qualification (Hot/Warm/Cold) and routing | Yes, EventBridge `lead.created` / `lead.qualified` handlers | `agency-app/api/scripts/lead-qualifier-handler.js`, `lead-router-handler.js` |
 | Lead ingestion pipeline | Yes: ManyChat + Instagram adapters → `ingestLead()` | `agency-app/api/leadIngestion.js`, `docs/lead-adapter-architecture.md` |
-| Instagram (DMs, comments, private reply, insights, CRM hand-off) | Yes, on dev; prod not deployed; Meta App Review pending | `apps/instagram/` |
+| Instagram (DMs, comments, private reply, insights, CRM hand-off) | Yes, on dev; prod not deployed; Meta App Review pending | `agency-app/instagram-api/` |
 | WhatsApp | Self-hosted Baileys, agency's own command channel only (non-self messages are dropped). Customer-facing WhatsApp not built | `platform/whatsapp-platform/`, `agency-app/api/routes/webhooks.js` |
 | AI voice | Outbound calls (ElevenLabs + Exotel) and scheduled follow-up calls | `agency-app/ai-calling/`, `agency-app/followup-agent/` |
 | MCP for Claude/ChatGPT | One server, 72 tools, own OAuth 2.1 | `platform/mcp/` |

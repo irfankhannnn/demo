@@ -15,7 +15,7 @@ The serverless CRM (`agency-app/api/`, `agency-app/web/`) stays the core. New ca
 ```mermaid
 flowchart TB
     subgraph Channels
-        IG["Instagram hosted service<br/>apps/instagram/"]
+        IG["Instagram hosted service<br/>agency-app/instagram-api/"]
         MC["ManyChat adapter"]
         PP["Property pages + visit booking<br/>public-app/property-pages/"]
         WA["WhatsApp command channel<br/>platform/whatsapp-platform/ (Baileys)"]
@@ -69,7 +69,7 @@ flowchart TB
 | Evolve | "AI Employee" from human SLA to agent | Partly: WhatsApp agent + follow-up agent with `draft`/`autosend` modes (`agency-app/api/routes/aiEmployeeConfig.js`), still set up by a concierge (`aiEmployeeProvisioningService.js`) |
 | Retire | Hardcoded-secret deploy script | Done (deleted) |
 | Retire | In-memory rate limiter | Not done: still used (`agency-app/api/middleware/rateLimiter.js`); add API Gateway throttling (Phase A, D17) |
-| Retire | `apps/onboarding` | Still present as a local tenant-creation tool |
+| Retire | `apps/onboarding` | Done: deleted in the 2026-09-17 regroup; onboarding runs in `agency-app/api` |
 | Add | Channel adapters, agent runtime, qualification/routing, follow-up calls, credits and metering, one MCP server | Done |
 | Add | Official WhatsApp Business Cloud API for customer messaging | Planned (D9, `39-whatsapp-official-api-plan.md`) |
 | Add | MANAGER role + own-lead scoping, CRM mutation audit (archived, not TTL-deleted), GitHub Actions deploy to dev | Phase B (D15, D17, D19) |

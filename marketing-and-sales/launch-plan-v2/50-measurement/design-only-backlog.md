@@ -33,7 +33,7 @@ This exists so that archiving is safe rather than lossy. None of these documents
 | `growth-platform/activation/milestones-and-score.md` | the weighted 0-100 activation score and `SCORE` entity | when activation is measured automatically **and** the binary definition stops being informative |
 | `growth-platform/activation/implementation.md` | the engineering plan for the score | with its parent |
 | `growth-platform/activation/workflows.md` | WF-ACT-01..05 nudge automations | extend `agency-app/api/scripts/trial-reminder-cron.js` instead; a parallel drip is the failure mode here |
-| `growth-platform/onboarding/onboarding-system.md` | a setup wizard in `onboarding-page/` | never as written — `apps/onboarding` is an internal tenant-provisioning tool, and the real in-app flow is RoleSelection → ConnectWhatsApp → ChoosePlan |
+| `growth-platform/onboarding/onboarding-system.md` | a setup wizard in `onboarding-page/` | never as written — `apps/onboarding` was an internal tenant-provisioning tool (deleted 2026-09-17; onboarding runs in `agency-app/api`), and the real in-app flow is RoleSelection → ConnectWhatsApp → ChoosePlan |
 
 ## 3. Scoring
 

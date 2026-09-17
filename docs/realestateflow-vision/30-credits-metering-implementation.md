@@ -96,7 +96,7 @@ The charge amount comes from the `AGENT_ACTION_CREDITS` environment variable (Cl
 
 ### Not metered today
 
-MCP tool calls (`/api/crm/agent/tool`), Instagram lead analysis (`apps/instagram/`), call-recording analysis (`services/callIntelligence/` calls Gemini directly), knowledge lookups during AI calls, and WhatsApp/email template sends.
+MCP tool calls (`/api/crm/agent/tool`), Instagram lead analysis (`agency-app/instagram-api/`), call-recording analysis (`agency-app/api/services/callIntelligence/` calls Gemini directly), knowledge lookups during AI calls, and WhatsApp/email template sends.
 
 ---
 

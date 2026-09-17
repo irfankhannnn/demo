@@ -127,7 +127,7 @@
 **Not started (Phase C):** inbound answering, human transfer, and reminder calls on a 1600-series number (D14, D16).
 
 ### REF-E23 · Social channels — **Partly done**
-**Done on dev:** the hosted Instagram service — OAuth connect, DMs, comments with public and private replies, keyword rules, reels and insights, lead scoring and CRM hand-off, live reply desk (`apps/instagram/`).
+**Done on dev:** the hosted Instagram service — OAuth connect, DMs, comments with public and private replies, keyword rules, reels and insights, lead scoring and CRM hand-off, live reply desk (`agency-app/instagram-api/`).
 **Not started:** prod deploy and Meta App Review (`docs/pending-items/instagram-app-review-actions.md`, blocked by the domain); the DM assistant that drafts replies (D14); tenant social publishing, which waits for App Review.
 **Open question:** a Facebook Messenger and comments channel is not built and is not in the D14 scope list — still wanted?
 

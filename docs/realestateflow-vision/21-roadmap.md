@@ -26,7 +26,7 @@ June put most of this in Phase 1–3, and the mobile app in Phase 4. It is in th
 | Knowledge / RAG: DynamoDB vector search + Titan v2 embeddings | Done | `agency-app/api/services/embeddings/`, `services/knowledge/`, `infra/create-vector-index.sh` |
 | One MCP server, 72 tools generated from the shared registry, own OAuth | Done | `platform/mcp/`, `agency-app/api/shared/toolDefinitions.js` |
 | Credits: ledger, metering at the call site, 402 on a short balance, Razorpay packs, admin cost editor | Done | `agency-app/api/creditService.js`, `creditConfig.js`, `middleware/meterCredits.js`, `routes/creditAdmin.js` |
-| Instagram hosted service: OAuth connect, DMs, comments + private replies, keyword rules, insights, CRM hand-off | Done on dev; prod not deployed, Meta App Review pending | `apps/instagram/`, `docs/pending-items/instagram-service-status.md` |
+| Instagram hosted service: OAuth connect, DMs, comments + private replies, keyword rules, insights, CRM hand-off | Done on dev; prod not deployed, Meta App Review pending | `agency-app/instagram-api/`, `docs/pending-items/instagram-service-status.md` |
 | Public property pages + site-visit booking | Done | `public-app/property-pages/` |
 | Click-to-call with role-based phone masking | Done | `agency-app/api/routes/clickToCall.js`, `middleware/phoneMasking.js` |
 | Launch compliance and growth plumbing: grievance portal, cookie consent, in-app account deletion, NPS, seat caps, paywall + trial countdown, demo tenant, team analytics with Excel export | Done | `agency-app/api/routes/grievance.js`, `feedback.js`, `admin.js`, `utils/excel.js`; `components/CookieConsentBanner.tsx`, `NpsModal.tsx`, `SeatCounter.tsx`, `PaywallModal.tsx`, `DeleteAccountModal.tsx`; `docs/epics/EPIC-1..13-COMPLETION.md` |

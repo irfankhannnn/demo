@@ -48,7 +48,7 @@ Public web domains: `app.realestateflow.in` (CRM app), `realestateflow.in` (mark
 | WhatsApp platform | `platform/whatsapp-platform/infra/cfn-platform.yaml` | `infra/cicd/platform/whatsapp-platform` | ECS cluster + Fargate service + task definition, session table, session bucket, KMS key, 6 alarms, 4 log metric filters, 3 rules, 1 secret |
 | Shared VPC + artifacts | `infra/cicd/common-infra/vpc-networking.yaml` | *(none)* | VPC, public/app/data subnets, tier security groups, the per-environment artifact bucket |
 
-`agency-app/api/infra/apigw-explicit-routes.yaml` is a source file for the part1/part2 splitter, not a deployed stack. `apps/onboarding` has no template: it is a local-only tool that writes a tenant row into the AgencyConfig table.
+`agency-app/api/infra/apigw-explicit-routes.yaml` is a source file for the part1/part2 splitter, not a deployed stack. `apps/onboarding` (deleted in the 2026-09-17 regroup; onboarding now runs in `agency-app/api`) had no template: it was a local-only tool that wrote a tenant row into the AgencyConfig table.
 
 Known drift, from the 2026-08-12 account audit (`infra/cicd/README.md`): the launch-tables stack has never deployed cleanly — it collided with a table the CRM stack already owns — so five of those tables exist in the account without a stack owning them, and `beta-invites` does not exist at all.
 
