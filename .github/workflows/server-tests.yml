@@ -119,9 +119,13 @@ jobs:
         working-directory: agency-app/api
         run: npm audit --audit-level=critical
 
+      # --omit=dev: the frontend ships a static bundle, so devDependencies
+      # (icon generators, build tooling) never reach production. Without it a
+      # critical in @capacitor/assets' pinned sharp, which has no upstream fix,
+      # blocks every PR.
       - name: Audit CRM dependencies
         working-directory: agency-app/web
-        run: npm audit --audit-level=critical
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Report non-blocking findings (server)
         if: always()
