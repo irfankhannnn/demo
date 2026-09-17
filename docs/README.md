@@ -5,6 +5,7 @@ which stays next to the code it describes.
 
 | Folder | What's in it |
 |---|---|
+| `realestateflow-vision/` | Product vision, architecture and roadmap (docs 00–39). Start at `README.md`; doc 38 is the pricing proposal and doc 39 the plan for moving WhatsApp to the official API. `internal-operations/` holds the internal GTM ops docs |
 | `services/<service>/` | Design notes, runbooks and guides for one service (`server`, `real-estate-crm-app`, `ai-calling-service`, `followup-agent-service`, `reality-flow-authentication`, `whatsapp-platform`) |
 | `insta-sol-ms-docs/` | Instagram lead service: plan, architecture, API, deployment, Meta app review |
 | `property-pages/` | Public property pages: architecture, ManyChat setup, pricing, security |

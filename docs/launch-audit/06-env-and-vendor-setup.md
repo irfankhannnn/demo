@@ -9,7 +9,7 @@ Copy each block below into the matching `.env` file (the apps read per-service `
 
 ## A. `apps/crm/server/.env`  (backend Lambda / Express)
 
-Copy from [`apps/crm/server/.env.example`](../server/.env.example). Launch-critical blanks to fill:
+Copy from [`apps/crm/server/.env.sample`](../../apps/crm/server/.env.sample). Launch-critical blanks to fill:
 
 | Var | Type | Where to get it |
 |---|---|---|
@@ -27,7 +27,7 @@ Copy from [`apps/crm/server/.env.example`](../server/.env.example). Launch-criti
 
 ## B. `apps/crm/real-estate-crm-app/.env`  (CRM SPA on Netlify — `app.realestateflow.in`)
 
-Copy from [`apps/crm/real-estate-crm-app/.env.example`](../real-estate-crm-app/.env.example). Set these in **Netlify → Site settings → Environment variables** (all `VITE_*` are public/baked into the bundle — never put true secrets here):
+Copy from [`apps/crm/real-estate-crm-app/.env.sample`](../../apps/crm/real-estate-crm-app/.env.sample). Set these in **Netlify → Site settings → Environment variables** (all `VITE_*` are public/baked into the bundle — never put true secrets here):
 
 | Var | Type | Where to get it |
 |---|---|---|
@@ -40,7 +40,7 @@ Copy from [`apps/crm/real-estate-crm-app/.env.example`](../real-estate-crm-app/.
 
 ## C. `marketing-and-sales/creative/landing-pages/.env`  (LP site on Netlify — `realestateflow.in`)
 
-Copy from [`apps/landing-pages/.env.example`](../marketing-and-sales/creative/landing-pages/.env.example). Injected at build time by `build/scripts/process-partials.js`. Set in **Netlify → LP site → Environment variables**:
+Copy from [`apps/landing-pages/.env.example`](../../apps/landing-pages/.env.example). Injected at build time by `build/scripts/process-partials.js`. Set in **Netlify → LP site → Environment variables**:
 
 | Var | Type | Where to get it |
 |---|---|---|

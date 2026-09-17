@@ -8,7 +8,7 @@
  *
  * Handlers:
  * - initialize: Returns server info and capabilities
- * - tools/list: Returns all 54 CRM tools
+ * - tools/list: Returns all CRM tools from the shared registry (72 today)
  * - tools/call: Invokes a tool via CRM backend HTTP API
  * - resources/list: Returns available resources
  * - resources/read: Fetches resource data via CRM backend

@@ -1,6 +1,6 @@
 # RealtyFlow MCP Microservice
 
-Isolated MCP (Model Context Protocol) server for the RealtyFlow CRM platform. Exposes 54 CRM tools, 5 resources, and 5 prompts to AI assistants like Claude and ChatGPT via the StreamableHTTP transport.
+Isolated MCP (Model Context Protocol) server for the RealEstateFlow CRM platform. Exposes 72 CRM tools, 5 resources, and 5 prompts to AI assistants like Claude and ChatGPT via the StreamableHTTP transport.
 
 ## Architecture
 
@@ -67,7 +67,7 @@ services/reality-flow-mcp/
 | Method | Description |
 |--------|-------------|
 | `initialize` | Returns server info and capabilities |
-| `tools/list` | Returns all 54 CRM tools |
+| `tools/list` | Returns all 72 CRM tools |
 | `tools/call` | Invokes a tool via CRM backend HTTP API |
 | `resources/list` | Returns 5 resources |
 | `resources/read` | Fetches resource data via CRM backend |
