@@ -195,6 +195,13 @@ TIMESTAMP=$(date -u +"%Y%m%d%H%M%S")
 # -----------------------------------------------------------------------------
 echo "[1/7] Running tests..."
 cd "$PROJECT_DIR"
+# The suite needs devDependencies (the test runner's helpers), which step 2
+# deliberately omits. A fresh checkout has no node_modules at all, so install
+# the full set first; step 2 then prunes it back to production-only.
+if [ ! -d "$PROJECT_DIR/node_modules" ]; then
+  echo "      node_modules missing - installing full dependency set for the tests"
+  "$NPM_BIN" ci --no-audit --no-fund 2>/dev/null || "$NPM_BIN" install --no-audit --no-fund
+fi
 "$NPM_BIN" test
 
 # -----------------------------------------------------------------------------
