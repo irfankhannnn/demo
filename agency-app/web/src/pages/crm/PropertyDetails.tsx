@@ -28,6 +28,7 @@ import NumericInput from '../../components/NumericInput';
 import FullscreenMediaViewer from '../../components/FullscreenMediaViewer';
 import { PermissionGuard } from '../../components/PermissionGuard';
 import PropertyPublishControl from '../../components/PropertyPublishControl';
+import { extractInstagramShortcode, normalizeInstagramUrl } from '../../utils/instagramReel';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
@@ -163,6 +164,7 @@ export default function PropertyDetails() {
     tenantMoveInDate: string;
     leaseEndDate: string;
     tenureMonths: number;
+    reelUrl: string;
   }>({
     ownerId: preselectedOwnerId || '',
     title: '',
@@ -195,6 +197,7 @@ export default function PropertyDetails() {
     tenantMoveInDate: '',
     leaseEndDate: '',
     tenureMonths: 11,
+    reelUrl: '',
   });
   
   // State for staged file uploads during property creation
@@ -405,6 +408,7 @@ export default function PropertyDetails() {
         tenantMoveInDate: leaseStartDate,
         leaseEndDate,
         tenureMonths: data.tenureMonths || 11,
+        reelUrl: data.reelRef?.permalink ?? '',
       });
       await ensureOwnerInDropdown({ ...data, ownerId: currentOwnerId, status: normalizedStatus });
     } catch (error) {
@@ -593,10 +597,18 @@ export default function PropertyDetails() {
       };
     }
 
+    // Instagram reel this property was posted as. The shortcode is what an
+    // incoming DM about the reel is matched on; clearing the field unsets it.
+    const reelUrl = normalizeInstagramUrl(formData.reelUrl);
+    apiData.reelRef = reelUrl
+      ? { postId: extractInstagramShortcode(reelUrl), permalink: reelUrl }
+      : null;
+
     // Remove local-only form fields from API payload
     delete apiData.salePrice;
     delete apiData.rentAmount;
     delete apiData.depositAmount;
+    delete apiData.reelUrl;
 
     try {
       setSaving(true);
@@ -1901,6 +1913,23 @@ export default function PropertyDetails() {
                       <p className="text-sm">{isEditing ? 'No videos yet' : 'Add videos to upload'}</p>
                     </div>
                   ) : null}
+                </div>
+
+                {/* Instagram Reel Link */}
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Instagram Reel Link
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.reelUrl}
+                    onChange={(e) => setFormData({ ...formData, reelUrl: e.target.value })}
+                    className="w-full min-h-[44px] px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="https://www.instagram.com/reel/..."
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Paste the reel you posted this property as, so DMs about that reel are matched to this property.
+                  </p>
                 </div>
               </div>
 

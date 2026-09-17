@@ -5,6 +5,7 @@ import NumericInput from './NumericInput';
 import GoogleMapPicker from './GoogleMapPicker';
 import SearchableSelect from './SearchableSelect';
 import { CRMOwner, CRMCustomer } from '../types/crm';
+import { extractInstagramShortcode, normalizeInstagramUrl } from '../utils/instagramReel';
 
 type PropertyType = 'apartment' | 'house' | 'villa' | 'office';
 type FurnishingType = 'furnished' | 'semi-furnished' | 'unfurnished';
@@ -49,6 +50,7 @@ export default function AddPropertyModal({
     furnishing: 'semi-furnished' as FurnishingType,
     amenities: [] as string[],
     availableFrom: new Date().toISOString().split('T')[0],
+    reelUrl: '',
   });
 
   const resetForm = () => {
@@ -77,6 +79,7 @@ export default function AddPropertyModal({
       furnishing: 'semi-furnished' as FurnishingType,
       amenities: [] as string[],
       availableFrom: new Date().toISOString().split('T')[0],
+      reelUrl: '',
     });
   };
 
@@ -118,10 +121,14 @@ export default function AddPropertyModal({
       return;
     }
 
+    // reelUrl is a local-only field — it is sent as reelRef, never raw.
+    const { reelUrl, ...propertyFields } = formData;
+    const normalizedReelUrl = normalizeInstagramUrl(reelUrl);
+
     try {
       setSaving(true);
       await api.createCRMProperty({
-        ...formData,
+        ...propertyFields,
         ownerId: selectedOwnerId || undefined,
         latitude: formData.latitude ? parseFloat(formData.latitude) : undefined,
         longitude: formData.longitude ? parseFloat(formData.longitude) : undefined,
@@ -130,6 +137,9 @@ export default function AddPropertyModal({
           expectedRent: formData.rentAmount || 0,
           securityDeposit: formData.depositAmount || 0,
         },
+        reelRef: normalizedReelUrl
+          ? { postId: extractInstagramShortcode(normalizedReelUrl), permalink: normalizedReelUrl }
+          : null,
       });
 
       if (addAnother) {
@@ -245,6 +255,20 @@ export default function AddPropertyModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   placeholder="Describe the property..."
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Instagram Reel Link</label>
+                <input
+                  type="text"
+                  value={formData.reelUrl}
+                  onChange={(e) => setFormData({ ...formData, reelUrl: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://www.instagram.com/reel/..."
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Paste the reel you posted this property as, so DMs about that reel are matched to this property.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

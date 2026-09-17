@@ -33,6 +33,22 @@ scheduled task, is on hold — the user does not want DM data collected that
 way for now. No scheduled task is currently registered on this machine.
 CRM push (Section 9) is also paused; stop after the workbook upsert.
 
+**2026-09-18: screenshots are now a second input.** Instead of pasting a text
+export, DMs can be captured with the local screenshot utility — one folder per
+conversation, each holding a stitched `combined.png` — and read by an agent.
+`scripts/ingest_dm_screenshots.py` turns a batch of those transcripts into the
+same `fetched.json` the browser path produces, so everything downstream is
+unchanged. `docs/screenshot-intake.md` is what to hand to whoever captures the
+screenshots.
+
+The one thing this route cannot supply is reel links. Instagram's DM reel card
+shows the author handle and a thumbnail, never a URL, and in the first batch six
+of nine conversations opened with a shared reel. Each reel found is written to
+`<batch>/_processed/reel-links.json` with an empty `url` to be filled in by
+hand; the same link can be stored permanently on the CRM property (the
+`reelRef` field on a property), after which DMs about that reel match without
+anyone being asked.
+
 ## 1. Pipeline
 
 ```

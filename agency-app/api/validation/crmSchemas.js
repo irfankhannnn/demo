@@ -111,6 +111,15 @@ export const createPropertySchema = z.object({
   // documents and must never be publicly reachable.
   brochureS3Key: z.string().max(500).optional().nullable(),
   floorPlanS3Keys: z.array(z.string().max(500)).max(6).optional(),
+
+  // Instagram reel this property was posted as. Declared explicitly rather
+  // than left to .passthrough() so the permalink is validated as a URL — it is
+  // the key an inbound DM sharing the reel gets matched on, and a malformed
+  // one would simply never match anything.
+  reelRef: z.object({
+    postId: z.string().max(100).nullish(),
+    permalink: z.string().url().max(500).nullish(),
+  }).nullish(),
 }).passthrough();
 
 export const updatePropertySchema = createPropertySchema.partial().passthrough();

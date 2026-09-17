@@ -1227,6 +1227,11 @@ export async function createProperty(tenantId, data) {
     images: data.images || [], // Array of {s3Key, url, description}
     videos: data.videos || [],
     
+    // The Instagram reel this property was posted as, pasted in by the agency
+    // owner. A reel shared into a DM arrives as a card with no URL attached,
+    // so this is what lets such a DM be matched back to the property.
+    reelRef: data.reelRef || null,
+    
     // Geolocation
     latitude: data.latitude || null,
     longitude: data.longitude || null,

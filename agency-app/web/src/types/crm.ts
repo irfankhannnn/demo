@@ -277,6 +277,12 @@ export interface CRMProperty {
   agreementExpiryDate?: string; // Computed from moveInDate + tenureMonths
   images: CRMPropertyMedia[];
   videos: CRMPropertyMedia[];
+  /**
+   * The Instagram reel this property was posted as, pasted in by the agency
+   * owner. A reel shared into a DM arrives as a card with no URL, so this is
+   * what lets such a DM be matched back to the property.
+   */
+  reelRef?: LeadReelRef | null;
   featured: boolean;
   verified: boolean;
   views: number;
@@ -452,6 +458,7 @@ export interface CreatePropertyData {
   verified?: boolean;
   ownerSnapshot?: { name?: string | null; phone?: string | null };
   convertedFromLeadId?: string;
+  reelRef?: LeadReelRef | null;
 }
 
 export interface UpdatePropertyData {
@@ -494,6 +501,7 @@ export interface UpdatePropertyData {
   verified?: boolean;
   ownerSnapshot?: { name?: string | null; phone?: string | null };
   publicVisibility?: 'public' | 'private';
+  reelRef?: LeadReelRef | null;
 }
 
 // Agreement Data Types
@@ -781,6 +789,9 @@ export type LeadSourceAdapter = 'manychat' | 'instagram' | 'insta-agent' | 'bail
 export type LeadTemperature = 'HOT' | 'WARM' | 'COLD';
 export type LeadScoreSource = 'ai_call' | 'llm_text' | 'manual' | 'migrated';
 
+// A reel identified by its shortcode and/or permalink. Used on a lead (the
+// reel the lead came in from) and on a property (the reel it was posted as),
+// which is how the two get matched.
 export interface LeadReelRef {
   postId?: string | null;
   permalink?: string | null;

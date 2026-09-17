@@ -124,13 +124,20 @@ def main():
         # Messages before the first separator on the rendered page have no date.
         # They are kept for the analyst's reading but never stored undated when
         # the same text exists dated in the workbook.
+        # A thread really can carry the same words twice at the same shown minute:
+        # three separate "Okay" replies under one date separator. So text counts as
+        # already seen once per occurrence - the first "Okay" in the workbook matches
+        # the first in this run, the second the second, and a genuine third is kept.
         merged, seen = [], set()
-        for msg in history.get(lead_id, []) + fresh:
-            key = (msg["date"] or "", msg["time"] or "", msg["text"])
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(msg)
+        for source in (history.get(lead_id, []), fresh):
+            occurrences = {}
+            for msg in source:
+                key = (msg["date"] or "", msg["time"] or "", msg["text"])
+                occurrences[key] = occurrences.get(key, 0) + 1
+                if key + (occurrences[key],) in seen:
+                    continue
+                seen.add(key + (occurrences[key],))
+                merged.append(msg)
         merged.sort(key=lambda m: ((m["date"] or "0000"), (m["time"] or "")))
 
         phones, links = [], []
@@ -172,10 +179,13 @@ def main():
             "messages": out_messages,
         })
 
-    run_name = os.path.basename(os.path.dirname(os.path.abspath(args.fetched))) or "fetch"
+    # A screenshot batch names itself; a browser run is named after its run folder.
+    screenshots = fetched.get("mode") == "screenshot_transcription"
+    run_name = fetched.get("batch") or os.path.basename(os.path.dirname(os.path.abspath(args.fetched))) or "fetch"
     parsed = {
-        "source_file": "instagram-web-%s" % run_name,
+        "source_file": ("screenshots-%s" if screenshots else "instagram-web-%s") % run_name,
         "source_kind": "instagram_dom_fetch",
+        "source_mode": fetched.get("mode", "instagram_dom_fetch"),
         "fetched_at": fetched["fetched_at"],
         "anchor_date": fetched["fetched_at"][:10],
         "anchor_basis": "fetch time",
