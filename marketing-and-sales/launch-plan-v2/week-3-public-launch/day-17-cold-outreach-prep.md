@@ -4,6 +4,7 @@
 > **Phase:** Week 3
 > **Skill(s):** `cold-email` + `whatsapp-outreach` + `outbound-outreach` + `lead-enrichment` + `messaging-optimizer`
 > **Estimated time:** 0.5h founder + 6h AI
+> **Script:** `../40-sales-and-conversion/qualification.md` (scoring and routing) · `../40-sales-and-conversion/objections.md` (pre-empt in the sequence copy)
 
 ## Objective
 Source 50 fresh Mumbai broker prospects (different from Day-8 cohort), draft 3-channel outbound sequences (email 4-touch, WhatsApp 3-touch, LinkedIn 3-touch) leveraging Day-14 testimonials as social proof, and queue Day 18-21 sends with daily caps.

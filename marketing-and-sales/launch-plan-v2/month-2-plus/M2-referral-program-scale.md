@@ -75,5 +75,5 @@ Stop.
 | Affiliate over-commits + can't deliver | Cap to 2-3 affiliates M2 |
 
 ## Connected files
-- Referral mechanics live: `apps/crm/server/routes/referral.js`, `apps/crm/real-estate-crm-app/src/pages/ReferFriend.tsx`
+- Referral mechanics: **not built as of 17 Sep 2026** — there is no `apps/crm/server/routes/referral.js` and no `apps/crm/real-estate-crm-app/src/pages/ReferFriend.tsx`. M1 runs the programme by hand; see `launch-plan-v2/50-measurement/referral-program.md`
 - Day-30 spec at `launch-plan-v2/week-4-optimize-convert/day-30-month-2-strategy.md`

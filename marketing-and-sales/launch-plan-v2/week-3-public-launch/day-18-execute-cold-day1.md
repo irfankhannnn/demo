@@ -4,6 +4,7 @@
 > **Phase:** Week 3
 > **Skill(s):** `outbound-outreach` + `cold-email` + `whatsapp-outreach`
 > **Estimated time:** 4h founder + 1h AI
+> **Script:** `../40-sales-and-conversion/qualification.md` (what to ask on a reply) · `../30-channels/whatsapp/message-templates.md` (the WhatsApp sends)
 
 ## Objective
 Execute the first day of Day-17 prepared cold sequences: 50 emails (Touch 1, A/B subjects) + 30 WhatsApp messages (text + voice) + 20 LinkedIn connection requests with personalised notes — all tracked in real time.

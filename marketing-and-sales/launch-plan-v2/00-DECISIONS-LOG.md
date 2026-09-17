@@ -4,13 +4,30 @@ Append-only log of every locked decision during the launch. New entries go to th
 
 > Keep entries terse. If a decision changes later, append a new entry rather than editing the old one (history matters).
 
+> **This file holds LOCKED decisions only.** Open, unlocked decisions live in `00-OPEN-DECISIONS.md` (D22–D29, marketing). When one of those closes, append it here as a dated entry, delete its section there, and remove every inline `> Open decision D2x` note that cites it.
+
+> **Dates:** every entry below `2026-09-17` carries the placeholder `2026-MM-DD` — dated logging was never turned on. Treat them all as locked before 2026-09-17, in the order shown.
+
 ---
 
-## 2026-MM-DD · Pricing locked at ₹999 / ₹1,999 + ₹500 / ₹7,999 AI Employee · Founder · Replaces v1 ₹3,000-based model from `creative/landing-pages/` · Linked: `pricing.json`, master plan v2 §0.3
+## 2026-09-17 · Content OS merged into this playbook as one go-to-market playbook · Founder · `content-os/` had four competing entry points and duplicated the roadmap, KPIs, sales scripts and pricing. Flattened into six numbered reference layers (`10-` … `60-`); `README.md` is the only navigation root; retired files kept under `archive/content-os/` · `#scope` · Linked: `README.md`, `archive/content-os/README.md`
+
+## 2026-09-17 · Growth Platform trimmed to a measurement layer on what already exists · Founder · We measure on PostHog + Razorpay + the NPS table + one sheet. We are not building a marketing data platform. Everything unbuilt is marked design-only and indexed with a build trigger · `#scope` `#stack` · Linked: `50-measurement/README.md`, `50-measurement/design-only-backlog.md`
+
+## 2026-09-17 · Roadmap re-baselined as phases, not dates · Founder · No launch date is logged, so forward-looking work is Phase A (M1 launch) → Phase B (hardening) → Phase C (growth). The week folders keep their relative day numbers · `#operations` · Linked: `00-PLAN-OVERVIEW.md` §3, `month-2-plus/README.md`
+
+## 2026-09-17 · Telegram dropped from the product and from all copy · Founder · There is no Telegram code in the repo; the wedge sentence claimed it · `#scope` · Linked: `00-PLAN-OVERVIEW.md` §1
+
+## 2026-09-17 · Team = solo founder + AI agents + contractors; hire after a revenue trigger · Founder · Confirms and extends the existing "no SDR until MRR ≥ ₹2L" entry. Video work is capped by one part-time editor at about 3 videos a week · `#hire` `#operations` · Linked: `20-content-engine/README.md`, `40-sales-and-conversion/README.md`
+
+---
+
+## 2026-MM-DD · Pricing locked at the tiers held in `pricing.json` · Founder · Replaces the v1 ₹3,000-based model from `creative/landing-pages/` · Linked: `pricing.json`, master plan v2 §0.3
+> Superseded in direction, not yet replaced: the pricing model is being re-planned (properties + AI credits + a "Contacts" unit). Proposal: `docs/realestateflow-vision/38-pricing-plan-contacts-and-credits.md`. Until it is accepted, `pricing.json` remains the live source.
 
 ## 2026-MM-DD · Trial = 14 days, no card, AI Employee excluded · Founder · Aligns with master plan v2 §0.3 · Linked: `pricing.json`
 
-## 2026-MM-DD · Refund window = 1 month, first-time subscribers only · Founder · Anti-abuse: deny if >100 records exported or >50 outbound WhatsApp during trial · Linked: `pre-launch-prep/P1-legal-foundation.md`
+## 2026-MM-DD · Refund window = 30 days, first-time subscribers only (`pricing.json` wording; earlier entries said "1 month") · Founder · Anti-abuse: deny if >100 records exported or >50 outbound WhatsApp during trial · Linked: `pre-launch-prep/P1-legal-foundation.md`
 
 ## 2026-MM-DD · M1 city scope = Mumbai only · Founder · Defer Pune until Mumbai shows PMF (≥3 paying, ≥40% activation, ≥10% reply rate)
 

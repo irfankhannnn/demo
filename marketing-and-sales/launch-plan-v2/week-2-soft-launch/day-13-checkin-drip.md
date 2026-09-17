@@ -4,6 +4,7 @@
 > **Phase:** Week 2
 > **Skill(s):** `email-sequence` + `whatsapp-outreach` + `community-marketing`
 > **Estimated time:** 2h founder + 3h AI
+> **Script:** `../40-sales-and-conversion/followup-script.md` (the cadence copy) · `../30-channels/whatsapp/message-templates.md`
 
 ## Objective
 Send a personalised check-in to every active beta tester via their preferred channel — recap the past 4 days of their CRM activity (powered by PostHog stats), surface 3 quick-win nudges, ask 1 testimonial-prep question. The goal is reactivation + testimonial scaffolding for Day 14.
