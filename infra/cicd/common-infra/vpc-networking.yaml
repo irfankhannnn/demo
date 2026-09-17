@@ -2,9 +2,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Cloudberry / RealtyFlow - production-ready shared networking foundation.
   Creates a VPC across 2-3 AZs with public, private (app), and database subnet
-  tiers, NAT gateways for outbound egress, S3/DynamoDB gateway endpoints, flow
-  logs, and four reusable application security groups (ALB, App, Database,
-  Cache). Exports every subnet/SG/route-table id so service stacks (agency-app/api/,
+  tiers, S3/DynamoDB gateway endpoints, flow logs, and four reusable
+  application security groups (ALB, App, Database, Cache). NAT Gateways and
+  their EIPs are commented out for now (cost saving, 2026-09-17): the
+  private-app route tables default-route to the Internet Gateway instead, so
+  only resources that carry a public IP get egress from those subnets.
+  Re-enable the NAT block when a VPC-attached workload needs outbound access. Exports every subnet/SG/route-table id so service stacks (agency-app/api/,
   agency-app/ai-calling/, platform/auth/, platform/whatsapp-platform/) can
   import them instead of building their own networking.
 
@@ -27,14 +30,17 @@ Parameters:
     AllowedValues: [2, 3]
     Description: Number of Availability Zones to span (2 is HA-minimum; use 3 for prod-grade resilience).
 
-  NatGatewayStrategy:
-    Type: String
-    Default: OnePerAz
-    AllowedValues: [OnePerAz, SingleShared]
-    Description: >
-      OnePerAz = one NAT Gateway per AZ (recommended for prod: no cross-AZ
-      single point of failure, but costs more). SingleShared = one NAT Gateway
-      total (cheaper, use for dev/staging only).
+  # NAT Gateways are commented out for now (2026-09-17, cost saving). Restore
+  # this parameter together with the OneNatPerAz/CreateNat2/CreateNat3
+  # conditions, the NatEip*/NatGateway* resources and the NatGatewayId routes.
+  # NatGatewayStrategy:
+  #   Type: String
+  #   Default: OnePerAz
+  #   AllowedValues: [OnePerAz, SingleShared]
+  #   Description: >
+  #     OnePerAz = one NAT Gateway per AZ (recommended for prod: no cross-AZ
+  #     single point of failure, but costs more). SingleShared = one NAT Gateway
+  #     total (cheaper, use for dev/staging only).
 
   PublicSubnet1Cidr:
     Type: String
@@ -89,9 +95,10 @@ Parameters:
 
 Conditions:
   Use3Az: !Equals [!Ref AzCount, 3]
-  OneNatPerAz: !Equals [!Ref NatGatewayStrategy, OnePerAz]
-  CreateNat2: !Or [!Condition OneNatPerAz, !Condition Use3Az]
-  CreateNat3: !And [!Condition OneNatPerAz, !Condition Use3Az]
+  # NAT conditions commented out with the NAT resources (2026-09-17).
+  # OneNatPerAz: !Equals [!Ref NatGatewayStrategy, OnePerAz]
+  # CreateNat2: !Or [!Condition OneNatPerAz, !Condition Use3Az]
+  # CreateNat3: !And [!Condition OneNatPerAz, !Condition Use3Az]
   IsProd: !Equals [!Ref EnvironmentName, prod]
 
 Resources:
@@ -178,7 +185,7 @@ Resources:
           Value: public
 
   # ---------------------------------------------------------------------
-  # Private app subnets (Lambda/ECS/EC2 compute - outbound via NAT only)
+  # Private app subnets (Lambda/ECS/EC2 compute - outbound via IGW for now, NATs commented out)
   # ---------------------------------------------------------------------
   PrivateAppSubnet1:
     Type: AWS::EC2::Subnet
@@ -259,64 +266,68 @@ Resources:
 
   # ---------------------------------------------------------------------
   # NAT Gateways (+ EIPs) for private-app subnet egress
+  # COMMENTED OUT 2026-09-17 (cost saving): nothing VPC-attached needs egress
+  # right now. Private-app route tables point at the IGW instead. To restore,
+  # uncomment this block, the NatGatewayStrategy parameter, the three NAT
+  # conditions and switch PrivateApp*DefaultRoute back to NatGatewayId.
   # ---------------------------------------------------------------------
-  NatEip1:
-    Type: AWS::EC2::EIP
-    DependsOn: VpcGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-1"
+  # NatEip1:
+  #   Type: AWS::EC2::EIP
+  #   DependsOn: VpcGatewayAttachment
+  #   Properties:
+  #     Domain: vpc
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-1"
 
-  NatGateway1:
-    Type: AWS::EC2::NatGateway
-    Properties:
-      AllocationId: !GetAtt NatEip1.AllocationId
-      SubnetId: !Ref PublicSubnet1
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-1"
+  # NatGateway1:
+  #   Type: AWS::EC2::NatGateway
+  #   Properties:
+  #     AllocationId: !GetAtt NatEip1.AllocationId
+  #     SubnetId: !Ref PublicSubnet1
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-1"
 
-  NatEip2:
-    Type: AWS::EC2::EIP
-    Condition: CreateNat2
-    DependsOn: VpcGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-2"
+  # NatEip2:
+  #   Type: AWS::EC2::EIP
+  #   Condition: CreateNat2
+  #   DependsOn: VpcGatewayAttachment
+  #   Properties:
+  #     Domain: vpc
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-2"
 
-  NatGateway2:
-    Type: AWS::EC2::NatGateway
-    Condition: CreateNat2
-    Properties:
-      AllocationId: !GetAtt NatEip2.AllocationId
-      SubnetId: !Ref PublicSubnet2
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-2"
+  # NatGateway2:
+  #   Type: AWS::EC2::NatGateway
+  #   Condition: CreateNat2
+  #   Properties:
+  #     AllocationId: !GetAtt NatEip2.AllocationId
+  #     SubnetId: !Ref PublicSubnet2
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-2"
 
-  NatEip3:
-    Type: AWS::EC2::EIP
-    Condition: CreateNat3
-    DependsOn: VpcGatewayAttachment
-    Properties:
-      Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-3"
+  # NatEip3:
+  #   Type: AWS::EC2::EIP
+  #   Condition: CreateNat3
+  #   DependsOn: VpcGatewayAttachment
+  #   Properties:
+  #     Domain: vpc
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-eip-3"
 
-  NatGateway3:
-    Type: AWS::EC2::NatGateway
-    Condition: CreateNat3
-    Properties:
-      AllocationId: !GetAtt NatEip3.AllocationId
-      SubnetId: !Ref PublicSubnet3
-      Tags:
-        - Key: Name
-          Value: !Sub "${EnvironmentName}-realestateflow-nat-3"
+  # NatGateway3:
+  #   Type: AWS::EC2::NatGateway
+  #   Condition: CreateNat3
+  #   Properties:
+  #     AllocationId: !GetAtt NatEip3.AllocationId
+  #     SubnetId: !Ref PublicSubnet3
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub "${EnvironmentName}-realestateflow-nat-3"
 
   # ---------------------------------------------------------------------
   # Route tables - public (shared, one table + IGW default route)
@@ -357,7 +368,9 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
 
   # ---------------------------------------------------------------------
-  # Route tables - private app (one per AZ, routes 0.0.0.0/0 to that AZ's NAT)
+  # Route tables - private app (one per AZ). Default route goes to the IGW for
+  # now (NATs commented out 2026-09-17); switch back to NatGatewayId when the
+  # NAT block is restored.
   # ---------------------------------------------------------------------
   PrivateAppRouteTable1:
     Type: AWS::EC2::RouteTable
@@ -369,10 +382,12 @@ Resources:
 
   PrivateApp1DefaultRoute:
     Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
     Properties:
       RouteTableId: !Ref PrivateAppRouteTable1
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway1
+      GatewayId: !Ref InternetGateway
+      # NatGatewayId: !Ref NatGateway1
 
   PrivateAppSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -390,10 +405,12 @@ Resources:
 
   PrivateApp2DefaultRoute:
     Type: AWS::EC2::Route
+    DependsOn: VpcGatewayAttachment
     Properties:
       RouteTableId: !Ref PrivateAppRouteTable2
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !If [CreateNat2, !Ref NatGateway2, !Ref NatGateway1]
+      GatewayId: !Ref InternetGateway
+      # NatGatewayId: !If [CreateNat2, !Ref NatGateway2, !Ref NatGateway1]
 
   PrivateAppSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -413,10 +430,12 @@ Resources:
   PrivateApp3DefaultRoute:
     Type: AWS::EC2::Route
     Condition: Use3Az
+    DependsOn: VpcGatewayAttachment
     Properties:
       RouteTableId: !Ref PrivateAppRouteTable3
       DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !If [CreateNat3, !Ref NatGateway3, !Ref NatGateway1]
+      GatewayId: !Ref InternetGateway
+      # NatGatewayId: !If [CreateNat3, !Ref NatGateway3, !Ref NatGateway1]
 
   PrivateAppSubnet3RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -457,7 +476,7 @@ Resources:
       RouteTableId: !Ref PrivateDbRouteTable
 
   # ---------------------------------------------------------------------
-  # Gateway VPC endpoints (S3 + DynamoDB) - free, keep traffic off the NAT
+  # Gateway VPC endpoints (S3 + DynamoDB) - free, keep traffic inside AWS
   # gateways and off the public internet entirely. Attached to every
   # route table so private-app *and* private-db subnets both benefit.
   # ---------------------------------------------------------------------
