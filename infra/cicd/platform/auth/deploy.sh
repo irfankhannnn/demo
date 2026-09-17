@@ -360,8 +360,9 @@ cmd_deploy() {
     fi
 
     # Permanent build+env archive copies (server-side copy where possible —
-    # cfn-backend.yaml is a fresh upload since infra/deploy.sh never puts it
-    # in S3 itself, it's only inline-deployed since it's under 51.2KB. The
+    # cfn-backend.yaml is a fresh upload: infra/deploy.sh stages it in S3 only
+    # under the CLI's own temporary key (it is over the 51.2KB inline limit),
+    # never at a stable path. The
     # routes template is likewise uploaded fresh from this build's local
     # snapshot rather than copied from a "latest" S3 key, for the same reason).
     "$AWS_BIN" s3 cp "s3://${bucket}/${code_key}" "s3://${bucket}/${build_code_key}" --region "$AWS_REGION" --no-cli-pager
@@ -590,6 +591,7 @@ cmd_rollback_config() {
 
   "$AWS_BIN" cloudformation deploy \
     --template-file "$SERVICE_DIR/infra/cfn-backend.yaml" \
+    --s3-bucket "$LAMBDA_PACKAGES_BUCKET_NAME" \
     --stack-name "$stack_name" \
     --parameter-overrides "${PARAM_OVERRIDES[@]}" \
     --capabilities CAPABILITY_NAMED_IAM \
@@ -804,6 +806,7 @@ cmd_rollback_full() {
 
   "$AWS_BIN" cloudformation deploy \
     --template-file "$build_dir/cfn-backend.yaml" \
+    --s3-bucket "$bucket" \
     --stack-name "${ENV}-${SERVICE_NAME}-stack" \
     --parameter-overrides "file://$build_dir/cfn-params.json" \
     --capabilities CAPABILITY_NAMED_IAM \

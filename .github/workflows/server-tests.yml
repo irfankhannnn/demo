@@ -47,6 +47,10 @@ jobs:
           CRM_DYNAMODB_TABLE_NAME: ci-placeholder-crm-table
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: ci-placeholder-agency-config
           AWS_REGION: ap-south-1
+          # emailService.js throws at import time without a sender address;
+          # 8 suites import it transitively. Never sent from — every suite
+          # mocks the SES client.
+          AWS_SES_FROM_EMAIL: ci-placeholder@example.com
 
       # The MCP tool file is now GENERATED from the canonical registry, so the
       # 20-tool gap that made this step non-blocking is closed and it is

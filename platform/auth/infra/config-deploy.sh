@@ -297,8 +297,11 @@ node -e "
 " "${PARAM_OVERRIDES[@]}" "$SCRIPT_DIR/.last-config-params.json"
 
 echo "[4/4] Deploying CFN parameter update to $STACK_NAME (no code/bundle touched)..."
+# cfn-backend.yaml is over CloudFormation's 51,200-byte inline TemplateBody limit,
+# so the CLI stages it in S3 (--s3-bucket) instead of sending it inline.
 "$AWS_BIN" cloudformation deploy \
   --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
+  --s3-bucket "$LAMBDA_PACKAGES_BUCKET_NAME" \
   --stack-name "$STACK_NAME" \
   --parameter-overrides "${PARAM_OVERRIDES[@]}" \
   --capabilities CAPABILITY_NAMED_IAM \

@@ -194,8 +194,11 @@ PARAM_OVERRIDES=()
 for key in "${PARAM_KEYS[@]}"; do
   PARAM_OVERRIDES+=("${key}=${PARAM_VALUES[$key]}")
 done
+# cfn-backend.yaml is over CloudFormation's 51,200-byte inline TemplateBody limit,
+# so the CLI stages it in S3 (--s3-bucket) instead of sending it inline.
 "$AWS_BIN" cloudformation deploy \
   --template-file "$SCRIPT_DIR/cfn-backend.yaml" \
+  --s3-bucket "$LAMBDA_PACKAGES_BUCKET_NAME" \
   --stack-name "$STACK_NAME" \
   --parameter-overrides "${PARAM_OVERRIDES[@]}" \
   --capabilities CAPABILITY_NAMED_IAM \

@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --env-file=.env.local --watch server.js",
-    "test": "node --test \"tests/**/*.test.js\""
+    "test": "node --test"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.600.0",
