@@ -4,6 +4,7 @@
 > **Phase:** Week 4
 > **Skill(s):** `funnel-analysis` + `retention-analysis` + `revops` + `growth-intel`
 > **Estimated time:** 1h founder + 5h AI
+> **Script:** `../40-sales-and-conversion/customer-journey.md` (the funnel this audit measures) · `../40-sales-and-conversion/closing-script.md`
 
 ## Objective
 Run a full Month-1 audit: revenue (gross MRR + invoice + GST + Razorpay-fees + bank settlement), retention (cohort active rate + NPS distribution + churn signals), CAC (zero paid spend; proxy via founder hours × ₹500/hr), customer-LTV proxy. Produce a comprehensive Month-1 report with verdict + Month-2 recommendations.

@@ -4,6 +4,7 @@
 > **Phase:** Week 4
 > **Skill(s):** `email-sequence` + `paywall-upgrade-cro` + `whatsapp-outreach`
 > **Estimated time:** 3h founder + 2h AI
+> **Script:** `../40-sales-and-conversion/closing-script.md` (the close and the discount guardrails) · `../40-sales-and-conversion/objections.md`
 
 ## Objective
 Identify all active trials that have NOT yet converted (Day 21+ trial, still using product), send a personalised "convert before trial ends" message via email + WhatsApp + offer 1-mo half-price for first 3 to commit Day 26-30. Drive ≥3 trial-to-paid conversions.

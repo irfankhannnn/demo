@@ -29,7 +29,7 @@
 ---
 
 ## Project Overview
-Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
+Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealEstateFlow** (`realestateflow.in`) is the go-to-market brand, targeting Indian real-estate agents, Mumbai first. The product is pre-launch with no paying customers, so no marketing asset may show customer counts, testimonials or other invented proof.
 
 ## Tech Stack
 - **Frontend:** React + TypeScript + Vite + TailwindCSS (agency-app/web/)
@@ -70,9 +70,13 @@ When adding a new service, put it under `platform/`, `public-app/` or `agency-ap
 at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 
 ## DynamoDB Tables
-- CRM: Buyers, Sellers, Owners, Customers (Tenants)
-- Real Estate: Developers, Areas, Projects
-- AI Calling: Call sessions, transcripts, knowledge docs
+- **CRM (`<env>-realestateflow-crm`)** — one single table. Leads, buyers, sellers, owners, tenants,
+  contacts, properties, listings, meetings, khatabook and WhatsApp conversations are item types in
+  it, keyed `TENANT#<tenantId>#<ENTITY>#<id>`
+- Separate tables: Projects, Developers, Areas, Subscriptions, Credits + CreditConfig, WebhookLog
+- AI Calling: call sessions, transcripts, knowledge docs (with a `descriptionVector` index for
+  semantic property search)
+- Instagram service: `<env>-realestateflow-insta-data` and `-insta-audit`
 
 ## Coding Conventions
 - Use ES modules in backend (`import`/`export` where supported, otherwise CommonJS)
@@ -83,12 +87,14 @@ at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 - Error responses: `{ error: string, details?: string }`
 - **Hinglish convention:** All marketing copy uses 70% English + 30% Hindi (romanized)
 
-## Agent Teams (6 Teams, 20 Agents)
+## Agent Teams (7 Teams, 30 Agents)
+
+Definitions live in `tools/claude-skills/agents/`; `tools/claude-skills/setup.ps1` copies them into `.claude/`.
 
 ### Team 1: Product & Engineering (The Builders)
 - `architect` — Codebase analysis, module planning
-- `sentry` — Security scanning, vulnerability detection
-- `pr-commander` — PR review, performance, documentation
+- `sentry` — Security scanning of the working tree (PR-time security review belongs to `security`)
+- `pr-commander` — Performance and documentation passes (PR review belongs to `principal-engineer`)
 
 ### Team 2: Market Intelligence (The Strategists)
 - `trend-hunter` — Social listening, competitor tracking
@@ -116,6 +122,14 @@ at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 ### Team 6: Operations (The Trackers)
 - `pipeline-manager` — Pipeline tracking, Google Sheets MCP, daily summaries
 
+### Team 7: Engineering Change Intelligence (PR review)
+Driven by `tools/engineering-change-intelligence/`; run locally with `claude --agent pr-orchestrator "Review PR #N"`.
+- `pr-orchestrator` — Routes a PR to the right reviewers; `pr-intelligence` — change summary and risk
+- `principal-engineer` — Overall review call; `security` — PR-time security review
+- `architecture`, `cicd` — Design and pipeline review (infra readiness defers to `cfn-readiness-auditor`)
+- `database` — DynamoDB single-table review; `finops` — cost impact
+- `release-readiness`, `sre-observability` — Ship/no-ship and operability
+
 ## Agent Team Coordination Rules
 1. **No file conflicts:** Each agent owns specific directories. Check CLAUDE.md before editing.
 2. **Communication:** Use task lists and messages to coordinate between teammates.
@@ -136,27 +150,23 @@ at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 | Converters (sdr, nurture-bot) | `marketing-and-sales/outreach/`, `marketing-and-sales/sequences/` |
 | Trackers (pipeline-manager) | `marketing-and-sales/leads/pipeline.*`, `marketing-and-sales/leads/daily-summary-*` |
 
-## Skills Registry (64 Skills)
+## Skills Registry (32 Skills, in `tools/claude-skills/skills/`)
 
-### Core Skills
 | Category | Skills |
 |----------|--------|
 | Engineering | `codebase-analysis`, `security-audit`, `pr-review` |
+| PR review (Team 7) | `pr-intelligence`, `pr-change-routing`, `principal-engineer-review`, `architecture-review`, `cicd-review`, `database-review`, `finops-review`, `release-readiness`, `sre-observability-review` |
 | Market Intel | `trend-analysis`, `icp-research`, `market-prediction` |
-| Creative | `brand-strategy`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog` |
-| Growth | `ab-testing`, `ab-test-setup`, `lead-enrichment`, `serpapi-scraping` |
+| Creative | `brand-strategy`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog`, `design-assets`, `image-generation` |
+| Growth | `ab-testing`, `lead-enrichment`, `serpapi-scraping`, `meta-ads-setup` |
 | Sales | `outbound-outreach`, `whatsapp-outreach`, `lead-nurture` |
 | Operations | `pipeline-tracker` |
 
-### Marketing Skills (41 from coreyhaines31/marketingskills)
-`ad-creative`, `social-content`, `copywriting`, `copy-editing`, `content-strategy`, `image`, `video`, `paid-ads`, `email-sequence`, `cold-email`, `seo-audit`, `ai-seo`, `programmatic-seo`, `analytics-tracking`, `aso-audit`, `churn-prevention`, `co-marketing`, `community-marketing`, `competitor-alternatives`, `competitor-profiling`, `customer-research`, `directory-submissions`, `form-cro`, `free-tool-strategy`, `launch-strategy`, `lead-magnets`, `marketing-ideas`, `marketing-psychology`, `onboarding-cro`, `page-cro`, `paywall-upgrade-cro`, `popup-cro`, `pricing-strategy`, `product-marketing-context`, `referral-program`, `revops`, `sales-enablement`, `schema-markup`, `signup-flow-cro`, `site-architecture`
+Skills pinned from other repos live in `skills-lock.json` (27 pins: 26 from `heygen-com/hyperframes`,
+1 from `alchaincyf/huashu-design`). The `coreyhaines31/marketingskills` catalogue is a reference list,
+not vendored into this repo.
 
-### AI Generation Skills
-`higgsfield` — Wraps Higgsfield MCP for video/image generation
-`nano-banana-pro` — Google Gemini 3 Pro Image (2K/4K output)
-`prompt-generator` — Optimizes prompts for AI image/video tools
-
-## Scripts (8 Scripts)
+## Scripts (9 Scripts)
 | Script | Purpose |
 |--------|---------|
 | `scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |

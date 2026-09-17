@@ -4,6 +4,7 @@
 > **Phase:** Week 2
 > **Skill(s):** `customer-research`
 > **Estimated time:** 6h founder
+> **Script:** `../40-sales-and-conversion/demo-script.md` (what to show) · `../40-sales-and-conversion/onboarding-script.md` (Day 0 setup) · `../30-channels/whatsapp/customer-success.md`
 
 ## Objective
 Run 15-30 minute onboarding calls with each confirmed beta tester (8-12 calls Day 10 + spillover Day 11), guide them through signup + first record, capture their first impressions live, hand-issue trial extensions or AI Employee comp where it earns goodwill.

@@ -4,6 +4,7 @@
 > **Phase:** Week 4
 > **Skill(s):** `email-sequence` + `whatsapp-outreach` + `customer-research` + `paywall-upgrade-cro`
 > **Estimated time:** 2h founder + 3h AI
+> **Script:** `../40-sales-and-conversion/onboarding-script.md` (stall-recovery plays) · `../30-channels/whatsapp/customer-success.md`
 
 ## Objective
 Identify all trial users active Day 1-21 who have NOT logged in for 3+ days (stalled), send a personalised reactivation message via email + WhatsApp + offer 7-day trial extension or 30-min screen-share to unblock. Goal: 30%+ stalled-trials reactivate.

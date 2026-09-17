@@ -35,12 +35,12 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 - Error responses: `{ error: string, details?: string }`
 - **Hinglish convention:** All marketing copy uses 70% English + 30% Hindi (romanized)
 
-## Agent Teams (6 Teams, 20 Agents)
+## Agent Teams (7 Teams, 30 Agents)
 
 ### Team 1: Product & Engineering (The Builders)
 - `architect` — Codebase analysis, module planning
-- `sentry` — Security scanning, vulnerability detection
-- `pr-commander` — PR review, performance, documentation
+- `sentry` — Standalone security scan of the working tree (PR-time security review is the `security` agent's)
+- `pr-commander` — Documentation steward: doc drift, performance notes (PR review is `principal-engineer`'s)
 
 ### Team 2: Market Intelligence (The Strategists)
 - `trend-hunter` — Social listening, competitor tracking
@@ -68,6 +68,14 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 ### Team 6: Operations (The Trackers)
 - `pipeline-manager` — Pipeline tracking, Google Sheets MCP, daily summaries
 
+### Team 7: Engineering Change Intelligence (PR review)
+Driven by `tools/engineering-change-intelligence/`; run locally with `claude --agent pr-orchestrator "Review PR #N"`.
+- `pr-orchestrator` — routes a PR to reviewers; `pr-intelligence` — change summary and risk
+- `principal-engineer` — the overall review call; `security` — PR-time security review
+- `architecture`, `cicd` — design and pipeline (infra readiness defers to `cfn-readiness-auditor`)
+- `database` — DynamoDB single-table review; `finops` — cost impact
+- `release-readiness`, `sre-observability` — ship/no-ship and operability
+
 ## Agent Team Coordination Rules
 1. **No file conflicts:** Each agent owns specific directories. Check CLAUDE.md before editing.
 2. **Communication:** Use task lists and messages to coordinate between teammates.
@@ -88,17 +96,18 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 | Converters (sdr, nurture-bot) | `marketing-and-sales/outreach/`, `marketing-and-sales/sequences/` |
 | Trackers (pipeline-manager) | `marketing-and-sales/leads/pipeline.*`, `marketing-and-sales/leads/daily-summary-*` |
 
-## Skills Registry (22 Skills)
+## Skills Registry (32 Skills)
 | Category | Skills |
 |----------|--------|
 | Engineering | `codebase-analysis`, `security-audit`, `pr-review` |
+| PR review (Team 7) | `pr-intelligence`, `pr-change-routing`, `principal-engineer-review`, `architecture-review`, `cicd-review`, `database-review`, `finops-review`, `release-readiness`, `sre-observability-review` |
 | Market Intel | `trend-analysis`, `icp-research`, `market-prediction` |
 | Creative | `brand-strategy`, `design-assets`, `image-generation`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog` |
 | Growth | `meta-ads-setup`, `ab-testing`, `lead-enrichment`, `serpapi-scraping` |
 | Sales | `outbound-outreach`, `whatsapp-outreach`, `lead-nurture` |
 | Operations | `pipeline-tracker` |
 
-## Scripts (8 Scripts)
+## Scripts (9 Scripts)
 | Script | Purpose |
 |--------|---------|
 | `scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |

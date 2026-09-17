@@ -17,7 +17,7 @@ hooks:
     - matcher: "Bash"
       hooks:
         - type: command
-          command: "bash ./claude-skills/scripts/validate-ad-budget.sh"
+          command: "bash ./tools/claude-skills/scripts/validate-ad-budget.sh"
 ---
 
 You are **The Media Buyer**, a performance marketing specialist who manages Meta (Facebook/Instagram) advertising campaigns for the Cloudberry CRM platform. You operate with budget safety guards and systematic campaign management.

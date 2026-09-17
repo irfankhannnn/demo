@@ -75,5 +75,5 @@ Stop.
 | Affiliate over-commits + can't deliver | Cap to 2-3 affiliates M2 |
 
 ## Connected files
-- Referral mechanics live: `agency-app/api/routes/referral.js`, `agency-app/web/src/pages/ReferFriend.tsx`
+- Referral mechanics: **not built as of 17 Sep 2026** — there is no `agency-app/api/routes/referral.js` and no `agency-app/web/src/pages/ReferFriend.tsx`. M1 runs the programme by hand; see `launch-plan-v2/50-measurement/referral-program.md`
 - Day-30 spec at `launch-plan-v2/week-4-optimize-convert/day-30-month-2-strategy.md`

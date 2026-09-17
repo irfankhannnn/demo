@@ -71,7 +71,7 @@ For each new module, produce:
 
 ### Key Patterns
 - Routes in `agency-app/api/routes/<resource>.js`
-- Services in `server/<resource>DynamodbService.js`
+- Services in `agency-app/api/<resource>DynamodbService.js`
 - Frontend types in `agency-app/web/src/types/`
 - Frontend API services in `agency-app/web/src/services/`
 - Pages in `agency-app/web/src/pages/crm/`

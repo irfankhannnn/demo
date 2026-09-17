@@ -43,8 +43,8 @@ find . -name ".env.example" -exec cat {} \;
 
 ### Phase 4: Dependency Vulnerabilities
 ```bash
-cd server && npm audit --json 2>/dev/null | head -100
-cd real-estate-crm-app && npm audit --json 2>/dev/null | head -100
+npm audit --json --prefix agency-app/api 2>/dev/null | head -100
+npm audit --json --prefix agency-app/web 2>/dev/null | head -100
 ```
 
 ### Phase 5: Data Security
