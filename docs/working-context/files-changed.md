@@ -6,13 +6,13 @@
   - Added JID normalization, debounce buffer, outbound cache helpers, shutdown flush.
 - `baileys-service/src/config.js`
   - Added `MESSAGE_DEBOUNCE_MS` with validation.
-- `apps/crm/server/bailey.js`
+- `agency-app/api/bailey.js`
   - Added chunking, retry logic, honest queued status handling.
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
   - Uses chunking, releases claim on failure, re-throws for retry.
-- `apps/crm/server/whatsappConversationService.js`
+- `agency-app/api/whatsappConversationService.js`
   - Group context limit, `isGroup` field, `markMessageProcessingFailed`.
-- `apps/crm/server/routes/webhooks.js`
+- `agency-app/api/routes/webhooks.js`
   - Returns 503 on local processing failure.
 
 ## Reliability fixes
@@ -24,13 +24,13 @@
 
 ## Agent budget update fix
 
-- `apps/crm/server/skillInvoker.js`
+- `agency-app/api/skillInvoker.js`
   - Expanded `update_lead` schema with requirement objects and notes.
-- `apps/crm/server/agents/toolContextBuilder.js`
+- `agency-app/api/agents/toolContextBuilder.js`
   - Expanded `allowedFields` for `update_lead`.
-- `apps/crm/server/agents/prompts.js`
+- `agency-app/api/agents/prompts.js`
   - Added explicit instructions for structured updates vs notes.
-- `apps/crm/server/crmDynamodbService.js`
+- `agency-app/api/crmDynamodbService.js`
   - Merges requirement objects in `updateLead`.
 
 ## Third-pass Baileys robustness files (current session)
@@ -88,7 +88,7 @@
 
 ## Fourth-pass: structured WhatsApp responses
 
-- `apps/crm/server/agents/responseFormatter.js` (new)
+- `agency-app/api/agents/responseFormatter.js` (new)
   - Deterministic formatter for CRM entity replies on WhatsApp.
   - Supports lead, buyer, owner, tenant, contact, property, meeting, note, document, and metrics formats.
   - Single entity: bold header + bullets; multiple entities: numbered list.
@@ -96,17 +96,17 @@
   - Handles delete confirmations, phone lookups, and meeting/document results.
   - Validation layer rejects raw JSON and falls back to a safe message.
 
-- `apps/crm/server/agents/responseFormatter.test.js` (new)
+- `agency-app/api/agents/responseFormatter.test.js` (new)
   - Unit tests for all entity formatters, list truncation, validation, and reply sanitization.
 
-- `apps/crm/server/agents/agentRuntime.js`
+- `agency-app/api/agents/agentRuntime.js`
   - Applies `sanitizeAndFormatReply` to the final LLM text before returning it.
 
-- `apps/crm/server/agents/prompts.js`
+- `agency-app/api/agents/prompts.js`
   - Updated whatsapp prompt to instruct the agent to use bullet points / numbered lists instead of paragraphs or raw JSON.
   - Added instructions for delete confirmation, phone lookup, contact role updates, meetings, and note tools.
 
-- `apps/crm/server/skillInvoker.js`
+- `agency-app/api/skillInvoker.js`
   - Expanded tool registry to cover full chat-accessible CRUD:
     - Delete tools for lead, contact, property, owner, tenant.
     - Note read/write tools for lead, contact, owner, tenant, buyer.
@@ -118,47 +118,47 @@
     - CRM metrics (`get_crm_metrics`).
   - All tools are routed to the correct `crmDynamodbService.js` functions.
 
-- `apps/crm/server/skillInvoker.test.js` (new)
+- `agency-app/api/skillInvoker.test.js` (new)
   - Unit tests for tool routing, validation, and the full `ALLOWED_TOOLS` registry.
   - **Updated:** added `delete_buyer` mock, registry check, and routing test.
 
 ## Fifth-pass: CRUD audit code review fixes
 
-- `apps/crm/server/crmDynamodbService.js`
+- `agency-app/api/crmDynamodbService.js`
   - Added `deleteBuyer` function that handles legacy `BUYER` entities and CONTACT-as-buyer records.
 
-- `apps/crm/server/skillInvoker.js`
+- `agency-app/api/skillInvoker.js`
   - **Updated:** added `delete_buyer` tool and import for `deleteBuyer`.
   - **Updated:** `update_contact_role` schema now includes optional `profileData` (type `object`).
   - **Updated:** `get_upcoming_meetings` uses nullish coalescing (`days ?? 7`) for the default window.
 
-- `apps/crm/server/agents/responseFormatter.js`
+- `agency-app/api/agents/responseFormatter.js`
   - **Updated:** `entityTypeFromToolName` now checks `document` before `property` so `create_property_document` / `delete_property_document` are formatted correctly.
   - **Updated:** `formatToolResult` calls `formatMetricsCard` directly for metrics instead of `formatSingleCard`, which lost the entity context.
   - **Updated:** `formatMetricsCard` uses a new `humanize()` helper for camelCase metric labels (e.g., `totalLeads` → `Total Leads`).
   - **Updated:** `formatDocumentCard` capitalizes the document type.
   - **Updated:** `detectEntityType` no longer uses generic `item.id` as a note fallback.
 
-- `apps/crm/server/agents/prompts.js`
+- `agency-app/api/agents/prompts.js`
   - **Updated:** DELETE operations list now includes `delete_buyer`.
 
-- `apps/crm/server/agents/responseFormatter.test.js`
+- `agency-app/api/agents/responseFormatter.test.js`
   - **Updated:** added tests for meetings, notes, documents, metrics, delete confirmation, and the note-misclassification regression.
 
-- `apps/crm/server/skillInvoker.test.js`
+- `agency-app/api/skillInvoker.test.js`
   - **Updated:** added `deleteBuyer` mock, registry check, and routing test.
 
 ## Sixth-pass: Gemini tool schema array items fix
 
-- `apps/crm/server/skillInvoker.js`
+- `agency-app/api/skillInvoker.js`
   - **Updated:** `create_meeting` schema now declares `attendees` as a standard JSON Schema object (`{ type: 'array', items: { type: 'string' } }`) instead of a bare `'array'` type.
   - **Updated:** `validateInput` now handles both string type names and complex type definitions so array/object type definitions are validated correctly.
 
-- `apps/crm/server/agents/agentRuntime.js`
+- `agency-app/api/agents/agentRuntime.js`
   - **Updated:** `buildToolProperties` now emits `items` for array parameters when the schema defines them, supporting both the new nested structure and the legacy `schema.items[key]` shape for backward compatibility.
   - **Updated:** `buildGeminiToolDefinitions` and `buildAnthropicToolDefinitions` are now exported for testing.
 
-- `apps/crm/server/agents/agentRuntime.test.js`
+- `agency-app/api/agents/agentRuntime.test.js`
   - **Updated:** added tests verifying that every Gemini tool declaration with an array parameter includes an `items` schema, and that the `create_meeting` schema is valid for both Gemini and Anthropic.
 
 ## Documentation / context

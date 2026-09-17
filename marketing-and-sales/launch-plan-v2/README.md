@@ -77,7 +77,7 @@ launch-plan-v2/
 ## Conventions (every file enforces)
 
 - File header has 🤖 / 🤝 / 🧍 type so an agent can filter
-- All paths are repo-relative (e.g., `apps/crm/server/routes/grievance.js`)
+- All paths are repo-relative (e.g., `agency-app/api/routes/grievance.js`)
 - AI Prompts are wrapped in a single fenced block, copy-pasteable
 - Success Criteria are numeric or boolean (verifiable)
 - Risks are paired with mitigations (no orphan risks)
@@ -104,4 +104,4 @@ launch-plan-v2/
 
 - The master plan that produced this folder is at `C:\Users\qures\.windsurf\plans\realestateflow-launch-implementation-plan-v2-853037.md`.
 - The file inventory + template spec is at `C:\Users\qures\.windsurf\plans\launch-plan-v2-file-inventory-853037.md`.
-- For decisions not yet logged, default to the founder; for technical conventions, follow `apps/crm/server/routes/leads.js` + `apps/crm/server/tenantMiddleware.js` + `apps/crm/real-estate-crm-app/src/App.tsx`.
+- For decisions not yet logged, default to the founder; for technical conventions, follow `agency-app/api/routes/leads.js` + `agency-app/api/tenantMiddleware.js` + `agency-app/web/src/App.tsx`.

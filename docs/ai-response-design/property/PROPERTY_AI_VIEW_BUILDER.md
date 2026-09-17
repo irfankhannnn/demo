@@ -15,7 +15,7 @@ For the complete operation inventory, see `COMPLETE_PROPERTY_MANAGEMENT.md`.
 ## Location
 
 ```
-apps/crm/server/aiViewBuilders/propertyAIViewBuilder.js
+agency-app/api/aiViewBuilders/propertyAIViewBuilder.js
 ```
 
 ---

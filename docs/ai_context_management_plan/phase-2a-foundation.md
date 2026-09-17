@@ -29,7 +29,7 @@ Phase 2A establishes the foundation for the AI Employee system by enabling Whats
 **Effort:** 3-4 days | **Priority:** CRITICAL
 
 ### Subtask 2A.1.1: Configure Environment Variables
-**File:** `apps/crm/server/.env`
+**File:** `agency-app/api/.env`
 
 **Changes Required:**
 ```bash
@@ -50,7 +50,7 @@ BAILEY_API_PREFIX=              # Optional path prefix
 ---
 
 ### Subtask 2A.1.2: Verify Webhook Endpoint Accessibility
-**File:** `apps/crm/server/routes/webhooks.js`
+**File:** `agency-app/api/routes/webhooks.js`
 
 **Action:**
 1. Check webhook endpoint is accessible from Bailey service
@@ -73,7 +73,7 @@ curl -X POST http://localhost:3001/webhooks/whatsapp \
 ---
 
 ### Subtask 2A.1.3: Test Message Sending
-**File:** `apps/crm/server/bailey.js`
+**File:** `agency-app/api/bailey.js`
 
 **Action:**
 1. Test message sending via `POST /api/whatsapp/conversations/:phone/messages`
@@ -97,7 +97,7 @@ curl -X POST http://localhost:3001/api/whatsapp/conversations/919876543210/messa
 ---
 
 ### Subtask 2A.1.4: Verify Conversation History Storage
-**File:** `apps/crm/server/whatsappConversationService.js`
+**File:** `agency-app/api/whatsappConversationService.js`
 
 **Action:**
 1. Send multiple messages
@@ -123,7 +123,7 @@ curl -X GET http://localhost:3001/api/whatsapp/conversations/919876543210 \
 **Effort:** 2-3 days | **Priority:** HIGH
 
 ### Subtask 2A.2.1: Add Personality-Specific Prompt Templates
-**File:** `apps/crm/server/agents/prompts.js`
+**File:** `agency-app/api/agents/prompts.js`
 
 **Changes:**
 ```javascript
@@ -158,7 +158,7 @@ const personalityPrompts = {
 ---
 
 ### Subtask 2A.2.2: Modify buildSystemPrompt Function
-**File:** `apps/crm/server/agents/prompts.js`
+**File:** `agency-app/api/agents/prompts.js`
 
 **Changes:**
 ```javascript
@@ -194,7 +194,7 @@ CRITICAL RULES:
 ---
 
 ### Subtask 2A.2.3: Load Personality from Agency Config
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript
@@ -309,7 +309,7 @@ test('should use direct personality', async ({ request }) => {
 ---
 
 ### Subtask 2A.3.2: Implement Document Loader
-**File:** `apps/crm/server/agents/prompts.js`
+**File:** `agency-app/api/agents/prompts.js`
 
 **Changes:**
 ```javascript
@@ -346,7 +346,7 @@ async function loadTenantDocs(tenantId) {
 ---
 
 ### Subtask 2A.3.3: Integrate Document Loader into buildSystemPrompt
-**File:** `apps/crm/server/agents/prompts.js`
+**File:** `agency-app/api/agents/prompts.js`
 
 **Changes:**
 ```javascript
@@ -393,7 +393,7 @@ CRITICAL RULES:
 ---
 
 ### Subtask 2A.3.4: Update Agent Runtime to Use Async buildSystemPrompt
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript

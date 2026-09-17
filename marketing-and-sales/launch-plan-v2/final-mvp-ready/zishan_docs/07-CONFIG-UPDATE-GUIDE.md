@@ -5,9 +5,9 @@
 
 ---
 
-## 1. Local Environment Config (`apps/crm/server/.env`)
+## 1. Local Environment Config (`agency-app/api/.env`)
 
-✅ **Already done.** These are now in `apps/crm/server/.env`:
+✅ **Already done.** These are now in `agency-app/api/.env`:
 
 ```bash
 # Credits (E2)
@@ -27,13 +27,13 @@ BAILEY_WEBHOOK_SECRET=
 AGENTS_ENABLED=false
 ```
 
-**Where:** `apps/crm/server/.env` (copied from `apps/crm/server/.env.example`)  
+**Where:** `agency-app/api/.env` (copied from `agency-app/api/.env.example`)  
 **How:** Plain text key=value. No quoting needed unless value has spaces.  
 **Impact:** `deploy.sh` reads these and passes them to CloudFormation.
 
 ---
 
-## 2. CloudFormation Main Stack (`apps/crm/server/infra/cfn-backend.yaml`)
+## 2. CloudFormation Main Stack (`agency-app/api/infra/cfn-backend.yaml`)
 
 ### Parameters Already Added (Verify They Exist)
 These parameters should already be in the `Parameters` section:
@@ -88,12 +88,12 @@ These should be in `ApiLambdaExecutionRole`:
 - `events:PutEvents`
 - `bedrock:InvokeModel` (if agents enabled)
 
-**Where:** `apps/crm/server/infra/cfn-backend.yaml`  
+**Where:** `agency-app/api/infra/cfn-backend.yaml`  
 **How:** YAML edits. Use `aws cloudformation validate-template` after changes.
 
 ---
 
-## 3. Deployment Script (`apps/crm/server/infra/deploy.sh`)
+## 3. Deployment Script (`agency-app/api/infra/deploy.sh`)
 
 ✅ **Already done.** The 8 parameters are now added to `deploy.sh` in both:
 - The `cfn-params.json` heredoc (lines ~198-205)
@@ -110,7 +110,7 @@ DEPLOY_CFN=true
 ./deploy.sh
 ```
 
-**Where:** `apps/crm/server/infra/deploy.sh`  
+**Where:** `agency-app/api/infra/deploy.sh`  
 **How:** Bash heredoc + array edits.  
 **Impact:** Without these, CloudFormation uses defaults and secrets are empty.
 
@@ -133,7 +133,7 @@ DEPLOY_CFN=true
 
 All cron resources (Lambda functions, IAM roles, EventBridge rules) are defined within the main CloudFormation stack.
 
-**Where:** `apps/crm/server/infra/cfn-backend.yaml`  
+**Where:** `agency-app/api/infra/cfn-backend.yaml`  
 **How:** Verify cron resources are in the main template. Validate with `aws cloudformation validate-template`.
 
 ---
@@ -157,7 +157,7 @@ All cron resources (Lambda functions, IAM roles, EventBridge rules) are defined 
 3. Go to Settings → Webhooks
 4. Add webhook URL: `https://api.realestateflow.in/api/billing/webhook`
 5. Select events: `payment.captured`, `subscription.activated`, `subscription.charged`
-6. Save secret in `apps/crm/server/.env` as `RAZORPAY_WEBHOOK_SECRET`
+6. Save secret in `agency-app/api/.env` as `RAZORPAY_WEBHOOK_SECRET`
 
 ### Bailey (Optional — Keep Disabled for Launch)
 Only if `BAILEY_ENABLED=true`:
@@ -172,7 +172,7 @@ Only if `BAILEY_ENABLED=true`:
 
 ---
 
-## 6. Frontend Config (`apps/crm/real-estate-crm-app/.env`)
+## 6. Frontend Config (`agency-app/web/.env`)
 
 ```bash
 VITE_API_URL=https://api.realestateflow.in
@@ -181,7 +181,7 @@ VITE_BAILEY_ENABLED=false
 VITE_RAZORPAY_KEY_ID=your_key_id
 ```
 
-**Where:** `apps/crm/real-estate-crm-app/.env` (production build)  
+**Where:** `agency-app/web/.env` (production build)  
 **How:** Plain text key=value.  
 **Impact:** Frontend needs these to call the right backend.
 
@@ -190,7 +190,7 @@ VITE_RAZORPAY_KEY_ID=your_key_id
 ## 7. Config Verification Checklist
 
 Before deploying:
-- [x] `apps/crm/server/.env` has all 8 new parameters
+- [x] `agency-app/api/.env` has all 8 new parameters
 - [x] `deploy.sh` passes all 8 parameters to CFN
 - [x] `cfn-backend.yaml` defines all 8 parameters and Lambda env vars
 - [x] All 10 cron jobs are merged into cfn-backend.yaml
@@ -205,18 +205,18 @@ Before deploying:
 
 | Config | File/Source | What to Update | Done? |
 |--------|-------------|----------------|-------|
-| Credit tables | `apps/crm/server/.env` | `CREDITS_TABLE_NAME`, `CREDIT_CONFIG_TABLE_NAME` | [x] |
-| Email SES | `apps/crm/server/.env` | `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY` | [x] |
-| Bailey | `apps/crm/server/.env` | `BAILEY_ENABLED=false`, keys blank | [x] |
-| Cron jobs | `apps/crm/server/infra/cfn-backend.yaml` | All 10 cron jobs merged into main template | [x] |
-| Agents | `apps/crm/server/.env` | `AGENTS_ENABLED=false` | [x] |
-| CFN params | `apps/crm/server/infra/deploy.sh` | Add 8 parameters to both sections | [x] |
+| Credit tables | `agency-app/api/.env` | `CREDITS_TABLE_NAME`, `CREDIT_CONFIG_TABLE_NAME` | [x] |
+| Email SES | `agency-app/api/.env` | `AWS_SES_FROM_EMAIL`, `EMAIL_PROVIDER_PRIMARY` | [x] |
+| Bailey | `agency-app/api/.env` | `BAILEY_ENABLED=false`, keys blank | [x] |
+| Cron jobs | `agency-app/api/infra/cfn-backend.yaml` | All 10 cron jobs merged into main template | [x] |
+| Agents | `agency-app/api/.env` | `AGENTS_ENABLED=false` | [x] |
+| CFN params | `agency-app/api/infra/deploy.sh` | Add 8 parameters to both sections | [x] |
 | Cron SES | `cron/trial-reminder.yaml`, `cron/escalate-openclaw.yaml` | Add env + IAM | [ ] |
 | Lead qualifier | `cron/lead-qualifier.yaml` | Add Code/Role/Env | [ ] |
 | Missing crons | `cron/` | Create 3 templates | [ ] |
 | SES verify | AWS Console | Domain verification + production access | [ ] |
 | Razorpay | Razorpay Dashboard | Webhook URL + secret | [ ] |
-| Frontend | `apps/crm/real-estate-crm-app/.env` | API URLs, Razorpay key | [ ] |
+| Frontend | `agency-app/web/.env` | API URLs, Razorpay key | [ ] |
 
 ---
 

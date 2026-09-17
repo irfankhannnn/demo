@@ -12,7 +12,7 @@ That was true at the time. It is no longer: `npm install` in `reality-flow-mcp` 
 
 ## What was generated, and what deliberately was not
 
-`apps/crm/server/scripts/generate-mcp-tools.mjs` emits `services/reality-flow-mcp/src/services/generatedToolDefinitions.ts` — **the tool data only**.
+`agency-app/api/scripts/generate-mcp-tools.mjs` emits `platform/mcp/src/services/generatedToolDefinitions.ts` — **the tool data only**.
 
 The MCP service's own logic stays hand-written in `toolDefinitions.ts`, which imports the generated array: the interfaces, `convertToMcpTools`, and `inferScope`'s OAuth scope mapping.
 

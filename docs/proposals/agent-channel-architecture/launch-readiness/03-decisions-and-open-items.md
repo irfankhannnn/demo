@@ -65,7 +65,7 @@ Bounded at 6 steps / 25s (18s on web), 15 tests. **It has never run against the 
 ### O3. Phase 3c — strict tool schemas
 Blocked on evaluation data, not on code. Turning on `additionalProperties: false` means deleting `coerceQueryToFilters()` and `LEAD_STATUS_TYPOS`, which are load-bearing today; removing them without evidence breaks whatever they were silently repairing.
 
-Needs: a `GEMINI_API_KEY`, and **~100–200 real WhatsApp utterances labelled with the tool that should have been called**. The harness exists (`npm run eval`) but has only 5 hand-written fixtures. Fixture shape is in `apps/crm/server/eval/fixtures/whatsapp-tool-choice.json`. The labelling needs someone who knows the right answer.
+Needs: a `GEMINI_API_KEY`, and **~100–200 real WhatsApp utterances labelled with the tool that should have been called**. The harness exists (`npm run eval`) but has only 5 hand-written fixtures. Fixture shape is in `agency-app/api/eval/fixtures/whatsapp-tool-choice.json`. The labelling needs someone who knows the right answer.
 
 ### O4. Phase R1 — vector-search spike
 R0 is done: the SDK is at 3.1116.0 and `SearchVectorsCommand` is available.

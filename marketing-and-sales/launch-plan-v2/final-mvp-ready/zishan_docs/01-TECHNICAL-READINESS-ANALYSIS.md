@@ -130,7 +130,7 @@
 - CloudFormation template with all new tables ✅
 - IAM permissions (DynamoDB, SES, EventBridge, Bedrock) ✅
 - Lambda environment variables ✅
-- `apps/crm/server/server.js` route mounts ✅
+- `agency-app/api/server.js` route mounts ✅
 - `build.sh` includes root `*.js` + `agents/` ✅
 - `deploy-crons.sh` helper ✅
 
@@ -149,14 +149,14 @@
 ## 2. Critical Blockers to MVP Launch
 
 ### 🔴 1. `deploy.sh` Missing 8 CFN Parameters
-**File:** `apps/crm/server/infra/deploy.sh` (lines ~147-183, ~190-224)  
+**File:** `agency-app/api/infra/deploy.sh` (lines ~147-183, ~190-224)  
 **Impact:** CloudFormation will use defaults; secrets will be empty. Bailey webhook verification and SES custom sender will fail.  
 **Fix:** Add all 8 parameters to both `cfn-params.json` heredoc and `PARAM_OVERRIDES` array.
 
 ---
 
 ### 🔴 2. `escalation-cron.js` Syntax Error
-**File:** `apps/crm/server/scripts/escalation-cron.js` (line 98)  
+**File:** `agency-app/api/scripts/escalation-cron.js` (line 98)  
 **Impact:** Cron Lambda will fail to load.  
 **Fix:** Add missing closing brace `}` after the `finally` block.
 

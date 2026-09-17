@@ -191,7 +191,7 @@ The following documents were removed as they were superseded by newer analysis o
 - `CORS_FIX_COMPLETED.md` — Superseded by CORS_FIX_PRODUCTION_API.md
 - `PHASE_0_COMPLETION_SUMMARY.md`, `PHASE_1_KICKOFF.md` — Old phase documents
 - `PLAN_REVIEW_COMPLETE.md`, `PLAN_REVIEW_ISSUES.md` — Old plan reviews
-- `docs/mcp/PROGRESS_SUMMARY.md`, `progress-tracker.md` — Redundant progress trackers
+- `docs/platform/mcp/PROGRESS_SUMMARY.md`, `progress-tracker.md` — Redundant progress trackers
 - `IMPLEMENTATION_PROGRESS.md`, `IMPLEMENTATION_READY.md`, `IMPLEMENTATION_STATUS.md`, `IMPLEMENTATION_STEPS.md` — Redundant status docs
 - `ARCHITECTURE_INDEX.md`, `ARCHITECTURE_SUMMARY.md` — Superseded by ARCHITECTURE_DESIGN.md
 - `MESSAGE_PROCESSING_SUMMARY.md` — Superseded by MESSAGE_PROCESSING_ARCHITECTURE.md

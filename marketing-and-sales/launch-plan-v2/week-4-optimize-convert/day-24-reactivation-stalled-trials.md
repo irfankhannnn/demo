@@ -81,7 +81,7 @@ Output `marketing-and-sales/launch-implement/week-4/day-24-extension-sop.md`:
 - Admin endpoint: POST /api/admin/subscriptions/{id}/extend-trial { days: 7, reason: "founder reactivation" }
 - Auth: founder admin token
 - Audit log: writes to AuditLog table
-- Backend: apps/crm/server/routes/admin.js subscriptionsExtendTrial handler (verify exists or build)
+- Backend: agency-app/api/routes/admin.js subscriptionsExtendTrial handler (verify exists or build)
 - SPA notification: the user sees a banner "Trial extended +7 days by founder. Welcome back!"
 - Email confirmation auto-sent
 

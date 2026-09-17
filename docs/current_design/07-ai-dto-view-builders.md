@@ -1,6 +1,6 @@
 # Priority 7 — AI DTO View Builders
 
-Source: `apps/crm/server/aiViewBuilders/`, `apps/crm/server/aiDtoMiddleware.js`, `apps/crm/server/normalizers/`
+Source: `agency-app/api/aiViewBuilders/`, `agency-app/api/aiDtoMiddleware.js`, `agency-app/api/normalizers/`
 
 Entity contracts: [`docs/ai-response-design/`](../ai-response-design/)  
 WhatsApp templates: [`docs/interaction-design/`](../interaction-design/)
@@ -37,7 +37,7 @@ normalizer → view builder
 
 Local/dev `.env` and `.env.example` set these to `true`. Production Lambda env should enable per entity after deploy.
 
-Shared recommendations: `apps/crm/server/aiViewBuilders/recommendations.js` (lead, buyer, owner, tenant, property, contact, meeting).
+Shared recommendations: `agency-app/api/aiViewBuilders/recommendations.js` (lead, buyer, owner, tenant, property, contact, meeting).
 
 ---
 

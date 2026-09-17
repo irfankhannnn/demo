@@ -201,7 +201,7 @@ VITE_PORT=8086
 
 ### Frontend Code Check
 
-Verify `apps/crm/real-estate-crm-app/src/services/api.ts` includes credentials handling (Lines 42-43):
+Verify `agency-app/web/src/services/api.ts` includes credentials handling (Lines 42-43):
 
 ```typescript
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
@@ -351,8 +351,8 @@ const CORS_HEADERS = {
 | File | Change | Status |
 |------|--------|--------|
 | `server/cfn/nested/apigw-explicit-routes.yaml` | Add `MethodResponses` to all methods | ❌ TODO |
-| `apps/crm/real-estate-crm-app/.env` | Change to production API URL | ✅ Ready |
+| `agency-app/web/.env` | Change to production API URL | ✅ Ready |
 | `server/deploy-lambda.ps1` | No changes needed | ✅ OK |
 | `server/cfn-template.yaml` | No changes needed | ✅ OK |
-| `apps/crm/server/server.js` | Already has correct CORS | ✅ OK |
-| `apps/crm/server/lambda-handler.js` | Already adds CORS headers | ✅ OK |
+| `agency-app/api/server.js` | Already has correct CORS | ✅ OK |
+| `agency-app/api/lambda-handler.js` | Already adds CORS headers | ✅ OK |

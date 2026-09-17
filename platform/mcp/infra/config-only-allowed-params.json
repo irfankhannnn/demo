@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "ALLOWLIST, not a denylist — fail-closed by design (see",
+    "docs/proposals/config-only-deploy/context.md and",
+    "platform/auth/infra/config-only-allowed-params.json for the",
+    "full rationale). A parameter not named here is unsafe-by-default.",
+    "",
+    "Deliberately NOT listed, and why:",
+    "  ServiceName, Env             — identity of the stack itself.",
+    "  LambdaPackagesBucketName     — bucket identity.",
+    "  LambdaCodeS3Key              — a fixed, never-timestamped key here",
+    "                                 (${ServiceName}/function.zip, same as",
+    "                                 reality-flow-authentication) — excluded",
+    "                                 on principle even though it never",
+    "                                 actually differs.",
+    "  OAuthCodesTableName          — the PHYSICAL resource names of the",
+    "  OAuthConnectionsTableName      DynamoDB tables this template itself",
+    "                                 creates (TableName: !Ref ...) — changing",
+    "                                 either makes CloudFormation try to",
+    "                                 REPLACE that table (data loss).",
+    "  McpApiDomainName, McpApiBasePath, EnableCustomDomainMapping",
+    "                               — create/replace/delete this stack's",
+    "                                 BasePathMapping and change the public",
+    "                                 URL / OAuth issuer — topology, full deploy.",
+    "  (CrmApi*/AuthService* DomainName+BasePath and EnableBasePathStrip ARE",
+    "   allowed: plain Lambda env vars read at runtime.)"
+  ],
+  "allowedParams": [
+    "LambdaMemorySize",
+    "LambdaTimeout",
+    "LogRetentionInDays",
+    "JWTSecret",
+    "JWTRefreshSecret",
+    "CrmApiDomainName",
+    "CrmApiBasePath",
+    "CrmApiInternalKey",
+    "AuthServiceDomainName",
+    "AuthServiceBasePath",
+    "EnableBasePathStrip",
+    "AllowedOrigins",
+    "FrontendUrl"
+  ]
+}

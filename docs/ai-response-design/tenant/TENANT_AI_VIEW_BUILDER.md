@@ -15,7 +15,7 @@ For the complete operation inventory, see `COMPLETE_TENANT_MANAGEMENT.md`.
 ## Location
 
 ```
-apps/crm/server/aiViewBuilders/tenantAIViewBuilder.js
+agency-app/api/aiViewBuilders/tenantAIViewBuilder.js
 ```
 
 ---
@@ -631,7 +631,7 @@ export function buildPhoneLookupResult(tenant, phone) {
 
 Meetings are not tenant-specific. They can be tied to leads, contacts, properties, buyers, sellers, owners, or tenants.
 
-File: `apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js`
+File: `agency-app/api/aiViewBuilders/meetingAIViewBuilder.js`
 
 ```js
 import { formatDate } from './utils.js';

@@ -11,7 +11,7 @@ This document validates whether DynamoDB Vector Search should be adopted, design
 
 ### What search does today
 
-`searchLeads` (`apps/crm/server/crmDynamodbService.js:5823`) and `searchProperties` (`:5934`) are the same shape:
+`searchLeads` (`agency-app/api/crmDynamodbService.js:5823`) and `searchProperties` (`:5934`) are the same shape:
 
 ```js
 const leads = unwrapLeadsList(await getLeads(tenantId));   // load everything
@@ -72,7 +72,7 @@ Store embeddings on your existing items, declare a vector index on the attribute
 | Tables on `PAY_PER_REQUEST` | ✅ Satisfied | `CrmTable` (`cfn-backend.yaml:655`), `PropertiesTable` (`:595`) — in fact **every** table in the stack |
 | Vector index headroom (5/table) | ✅ Satisfied | Both tables have 3 GSIs, 0 vector indexes; GSI and vector limits are separate |
 | Bedrock `InvokeModel` IAM | ✅ Satisfied | `cfn-backend.yaml:1426, 2342` — and a `Resource: '*'` grant already exists, so Titan needs **no IAM change** |
-| Bedrock SDK dependency | ✅ Present | `@aws-sdk/client-bedrock-runtime@^3.1073.0` in `apps/crm/server/package.json`, currently unused for embeddings |
+| Bedrock SDK dependency | ✅ Present | `@aws-sdk/client-bedrock-runtime@^3.1073.0` in `agency-app/api/package.json`, currently unused for embeddings |
 | `tenantId` as a top-level item attribute | ✅ Present | Written on CRM items (e.g. `callRecordingRepository.js:60`); required for tenant-scoped search — see §4 |
 | **DynamoDB SDK new enough** | ❌ **Blocked** | See below |
 
@@ -80,7 +80,7 @@ Store embeddings on your existing items, declare a vector index on the attribute
 
 | | Version | Published |
 |---|---|---|
-| Locked in `apps/crm/server/package-lock.json` | `@aws-sdk/client-dynamodb@3.936.0` | **2025-11-19** |
+| Locked in `agency-app/api/package-lock.json` | `@aws-sdk/client-dynamodb@3.936.0` | **2025-11-19** |
 | First release containing vector search | `3.1103.0` | **2026-08-04** |
 | Current latest | `3.1111.0` | 2026-08-14 |
 
@@ -296,9 +296,9 @@ Set a CloudWatch alarm on `VectorSearchRequestBytes` from day one.
 |---|---|---|
 | **R0** | Bump `@aws-sdk/client-dynamodb` + `lib-dynamodb` to `≥3.1103.0`; confirm `SearchVectors` exists in the client | Existing test suite green |
 | **R1** | Non-prod spike: throwaway table, `tenantId` HASH, 200 real call summaries, measure recall/latency/cost. Confirm the search endpoint is reachable from a Lambda in our networking setup | Cross-tenant isolation test passes |
-| **R2** | `apps/crm/server/services/embeddings/` — `buildEmbeddingSource()`, `embedText()`, `searchVectors()` helper with **mandatory** tenant scoping and score thresholding baked in | Unit tests; no caller can bypass tenant scope |
+| **R2** | `agency-app/api/services/embeddings/` — `buildEmbeddingSource()`, `embedText()`, `searchVectors()` helper with **mandatory** tenant scoping and score thresholding baked in | Unit tests; no caller can bypass tenant scope |
 | **R3** | Tier 1: embedding write in `analysisService.js` + `call-recording-vector-index` via `UpdateTable` + backfill job for existing recordings | `IndexStatus ACTIVE`, `Backfilling false`, eval queries pass |
-| **R4** | `search_calls_semantic` tool in `apps/crm/server/shared/toolDefinitions.js` → available to every flow and to MCP automatically | Tool eval cases added |
+| **R4** | `search_calls_semantic` tool in `agency-app/api/shared/toolDefinitions.js` → available to every flow and to MCP automatically | Tool eval cases added |
 | **R5** | Tier 2: property + lead-requirement embeddings, `match_properties_for_lead` tool, §5 option-A range post-filtering | Product acceptance on real tenant data |
 | **R6** | Tier 3: duplicate detection, conservative threshold, human confirmation only | Precision measured before enabling |
 

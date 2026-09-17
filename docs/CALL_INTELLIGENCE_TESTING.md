@@ -69,7 +69,7 @@ branch (the 135 are pre-existing errors in unrelated components; none mention
 ### A4 — Templates and scripts are valid
 
 ```bash
-cd apps/crm/server/infra
+cd agency-app/api/infra
 bash -n deploy.sh
 python3 -c "import json; json.load(open('cfn-params.sample.json'))"
 aws cloudformation validate-template --template-body file://cfn-backend.yaml

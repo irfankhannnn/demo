@@ -29,7 +29,7 @@ Phase 2B implements the core context management system, enabling the AI to maint
 **Effort:** 3-4 days | **Priority:** CRITICAL
 
 ### Subtask 2B.1.1: Add getConversationContext Function
-**File:** `apps/crm/server/whatsappConversationService.js`
+**File:** `agency-app/api/whatsappConversationService.js`
 
 **Changes:**
 ```javascript
@@ -79,7 +79,7 @@ async function getConversationContext(tenantId, contactPhone, limit = 10) {
 ---
 
 ### Subtask 2B.1.2: Integrate Context Loading into Agent Runtime
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript
@@ -110,7 +110,7 @@ const finalPrompt = systemPrompt + `\n\nRecent conversation:\n${contextPrompt}`;
 ---
 
 ### Subtask 2B.1.3: Add Caching for Conversation History
-**File:** `apps/crm/server/whatsappConversationService.js`
+**File:** `agency-app/api/whatsappConversationService.js`
 
 **Changes:**
 ```javascript
@@ -237,7 +237,7 @@ test.describe('Conversation Context Loading', () => {
 **Effort:** 2-3 days | **Priority:** HIGH
 
 ### Subtask 2B.2.1: Add enrichContextWithLead Function
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes:**
 ```javascript
@@ -276,7 +276,7 @@ async function enrichContextWithLead(tenantId, leadId) {
 ---
 
 ### Subtask 2B.2.2: Integrate Lead Context into Agent Runtime
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript
@@ -376,7 +376,7 @@ test.describe('Lead Context Enrichment', () => {
 **Effort:** 4-5 days | **Priority:** HIGH
 
 ### Subtask 2B.3.1: Add ConversationStateTable to CloudFormation
-**File:** `apps/crm/server/infra/cfn-backend.yaml`
+**File:** `agency-app/api/infra/cfn-backend.yaml`
 
 **Changes:**
 ```yaml
@@ -410,7 +410,7 @@ ConversationStateTable:
 ---
 
 ### Subtask 2B.3.2: Create conversationStateService.js
-**File:** `apps/crm/server/conversationStateService.js` (new file)
+**File:** `agency-app/api/conversationStateService.js` (new file)
 
 **Changes:**
 ```javascript
@@ -544,7 +544,7 @@ export {
 ---
 
 ### Subtask 2B.3.3: Add Environment Variable for Table Name
-**File:** `apps/crm/server/.env`
+**File:** `agency-app/api/.env`
 
 **Changes:**
 ```bash
@@ -559,7 +559,7 @@ CONVERSATION_STATE_TABLE_NAME=conversation-state
 ---
 
 ### Subtask 2B.3.4: Integrate State Management into Agent Runtime
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript

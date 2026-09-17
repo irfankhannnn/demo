@@ -92,14 +92,14 @@
 │     - User onboarding & registration                            │
 │     - Invite management                                         │
 │                                                                  │
-│  2. CRM SERVICE (apps/crm/server/)                                       │
+│  2. CRM SERVICE (agency-app/api/)                                       │
 │     - Contact/Lead/Property management                          │
 │     - Khata book operations                                     │
 │     - Notifications & reminders                                 │
 │     - Subscriptions & billing                                   │
 │     - Grievances & feedback                                     │
 │                                                                  │
-│  3. AI CALLING SERVICE (services/ai-calling-service/)                    │
+│  3. AI CALLING SERVICE (agency-app/ai-calling/)                    │
 │     - Call orchestration                                        │
 │     - Exotel integration (telephony)                            │
 │     - ElevenLabs integration (AI voice)                         │
@@ -158,7 +158,7 @@
 
 ### 3.1 Microservice Structure
 
-#### Authentication Service (`services/reality-flow-authentication/`)
+#### Authentication Service (`platform/auth/`)
 
 **Purpose:** Centralized auth, user onboarding, invite management
 
@@ -185,7 +185,7 @@ AgencyConfigTable (PK: TenantId)
 └─ Agency metadata, subscription info
 ```
 
-#### CRM Service (`apps/crm/server/`)
+#### CRM Service (`agency-app/api/`)
 
 **Purpose:** Core business logic for CRM operations
 
@@ -210,7 +210,7 @@ AgencyConfigTable (PK: TenantId)
 - `subscriptionService.js` - Subscription logic
 - `grievanceDynamodbService.js` - Grievance handling
 
-#### AI Calling Service (`services/ai-calling-service/`)
+#### AI Calling Service (`agency-app/ai-calling/`)
 
 **Purpose:** AI-powered voice calling for leads/customers
 
@@ -332,7 +332,7 @@ GSI3: Search Index
 ### 3.3 API Routes Structure
 
 ```
-apps/crm/server/
+agency-app/api/
 ├── routes/
 │   ├── auth.js                 - Authentication
 │   ├── crm.js                  - CRM dashboard & metrics
@@ -412,7 +412,7 @@ apps/crm/server/
 ### 4.1 React App Structure
 
 ```
-apps/crm/real-estate-crm-app/src/
+agency-app/web/src/
 ├── pages/
 │   ├── AdminLogin.tsx              - Admin authentication
 │   ├── PhoneLogin.tsx              - Phone OTP login

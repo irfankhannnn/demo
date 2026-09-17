@@ -46,8 +46,8 @@ the expensive thing every time).
 2. **Backend runtime env vars, CFN-parameterized into `Environment.Variables`
    on a Lambda.** `ALLOWED_ORIGINS`, `IDENTITY_CALLBACK_URL`,
    `CRM_INTERNAL_API_URL`, feature flags like `AGENTS_ENABLED`, credit costs,
-   rate limits, etc. — everything apps/crm/server/.env.dev, reality-flow-
-   authentication/.env.dev, apps/property-pages-ms/.env.dev, apps/instagram/backend_insta_sol_ms/
+   rate limits, etc. — everything agency-app/api/.env.dev, reality-flow-
+   authentication/.env.dev, public-app/property-pages/.env.dev, agency-app/instagram-api/
    .env.dev carry. These are consumed via `process.env.X` at Lambda runtime,
    not baked into any artifact. **In principle** these should be exactly as
    cheap as category 1 — a CFN parameter update against the already-deployed

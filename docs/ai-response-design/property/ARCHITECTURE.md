@@ -498,7 +498,7 @@ Rollback can be done per tenant, so a global deployment never needs to be revert
 ## File Locations
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     propertyService.js
   normalizers/

@@ -40,10 +40,10 @@ Read inputs:
 - `marketing-and-sales/launch-implement/week-3/day-21-weekly-growth-brief.md` (top drop-points)
 - PostHog: full funnel + session-replay snippets for top drop-stage
 - All 12 LP HTML files
-- `apps/crm/real-estate-crm-app/src/pages/auth/Register.tsx`
-- `apps/crm/real-estate-crm-app/src/pages/onboarding/*.tsx`
-- `apps/crm/real-estate-crm-app/src/pages/leads/AddLead.tsx`
-- `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
+- `agency-app/web/src/pages/auth/Register.tsx`
+- `agency-app/web/src/pages/onboarding/*.tsx`
+- `agency-app/web/src/pages/leads/AddLead.tsx`
+- `agency-app/web/src/components/PaywallModal.tsx`
 
 For each top drop-point:
 1. Hypothesis (UX / copy / friction / trust)

@@ -15,11 +15,11 @@ This work was influenced by OpenClaw's WhatsApp AI agent architecture. The patte
 
 ## 3. Retryable send error detection
 - OpenClaw pattern: classify network/5xx errors as retryable and apply exponential backoff.
-- Applied in `apps/crm/server/bailey.js` `isRetryableSendError` with 5xx status-code checking and text-based network error detection.
+- Applied in `agency-app/api/bailey.js` `isRetryableSendError` with 5xx status-code checking and text-based network error detection.
 
 ## 4. Per-sender context limits
 - OpenClaw pattern: group chats need tighter context windows than 1:1 chats.
-- Applied in `apps/crm/server/whatsappConversationService.js` `getConversationContext` using the latest message's `isGroup` flag.
+- Applied in `agency-app/api/whatsappConversationService.js` `getConversationContext` using the latest message's `isGroup` flag.
 
 ## 5. Pending delivery queue
 - OpenClaw pattern: queue messages while reconnecting and drain when connection is restored.
@@ -42,7 +42,7 @@ The following additions are Baileys-specific fixes rather than OpenClaw patterns
 
 ## Skill-to-Agent Tool Mapping
 
-All OpenClaw skill operations are now exposed to the WhatsApp agent via `apps/crm/server/skillInvoker.js`:
+All OpenClaw skill operations are now exposed to the WhatsApp agent via `agency-app/api/skillInvoker.js`:
 
 | Skill Category | Operations Available in Chat |
 |----------------|--------------------------------|

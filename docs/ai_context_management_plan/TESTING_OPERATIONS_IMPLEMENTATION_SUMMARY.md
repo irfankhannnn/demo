@@ -333,7 +333,7 @@ RealtyFlow/
 ├── OBSERVABILITY_MONITORING_GUIDE.md
 ├── TESTING_OPERATIONS_IMPLEMENTATION_SUMMARY.md (This file)
 │
-├── apps/crm/server/
+├── agency-app/api/
 │   ├── jest.config.js
 │   ├── src/__tests__/
 │   │   ├── unit/
@@ -352,7 +352,7 @@ RealtyFlow/
 │       ├── metrics.ts
 │       └── sentry.ts
 │
-├── apps/crm/real-estate-crm-app/
+├── agency-app/web/
 │   ├── vitest.config.ts
 │   └── src/__tests__/
 │       ├── unit/

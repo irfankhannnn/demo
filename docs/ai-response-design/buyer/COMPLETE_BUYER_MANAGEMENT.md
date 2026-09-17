@@ -15,4 +15,4 @@ Buyer tools exposed to SyncBot / MCP:
 
 WhatsApp templates: [`docs/interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md`](../../interaction-design/SYNC_BOT_INTERACTION_DESIGN_v1.md)
 
-Code: `apps/crm/server/normalizers/buyerNormalizer.js`, `apps/crm/server/aiViewBuilders/buyerAIViewBuilder.js`, flag `USE_AI_DTO_FOR_BUYERS`.
+Code: `agency-app/api/normalizers/buyerNormalizer.js`, `agency-app/api/aiViewBuilders/buyerAIViewBuilder.js`, flag `USE_AI_DTO_FOR_BUYERS`.

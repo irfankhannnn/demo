@@ -12,9 +12,9 @@
 ### 1.1 CRIT-1 + CRIT-3 — Remove Production Auth Bypass + Add Global Middleware
 
 **Files:**
-- `services/reality-flow-authentication/src/utils/cognito.ts`
-- `services/reality-flow-authentication/src/middleware/requireAuth.ts` (NEW)
-- `services/reality-flow-authentication/src/app.ts`
+- `platform/auth/src/utils/cognito.ts`
+- `platform/auth/src/middleware/requireAuth.ts` (NEW)
+- `platform/auth/src/app.ts`
 
 **Actions:**
 1. Create `requireAuth.ts` middleware that calls `extractClaims(req)` and returns 401 on failure.
@@ -29,7 +29,7 @@
 
 ### 1.2 CRIT-4 — Add Audience Validation to Local Auth Middleware
 
-**File:** `services/reality-flow-authentication/src/middleware/authMiddleware.ts`
+**File:** `platform/auth/src/middleware/authMiddleware.ts`
 
 **Action:** Add `audience: config.COGNITO_CLIENT_ID` to `jwt.verify()` options.
 
@@ -40,7 +40,7 @@
 
 ### 1.3 CRIT-2 — Fix Billing Webhook Body Parsing Order
 
-**File:** `apps/crm/server/server.js`
+**File:** `agency-app/api/server.js`
 
 **Action:** Move `app.use('/api/billing', billingRoutes)` to **before** `app.use(express.json())`.
 
@@ -53,9 +53,9 @@
 ### 1.4 CRIT-5 — Move Refresh Tokens to httpOnly Cookies
 
 **Files:**
-- `services/reality-flow-authentication/src/controllers/tokenController.ts`
-- `apps/crm/real-estate-crm-app/src/utils/authStorage.ts`
-- `apps/crm/real-estate-crm-app/src/services/api.ts`
+- `platform/auth/src/controllers/tokenController.ts`
+- `agency-app/web/src/utils/authStorage.ts`
+- `agency-app/web/src/services/api.ts`
 
 **Actions:**
 1. In `exchangeToken` and `refreshToken`, set `res.cookie('refresh_token', ..., { httpOnly: true, secure: true, sameSite: 'strict' })`.
@@ -71,7 +71,7 @@
 
 ### 1.5 CRIT-6 — Remove Hardcoded NPS HMAC Secret
 
-**File:** `apps/crm/server/routes/feedback.js`
+**File:** `agency-app/api/routes/feedback.js`
 
 **Action:** Change fallback to throw on startup:
 ```javascript
@@ -84,13 +84,13 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 ### 1.6 CRIT-7 — Add Input Validation to CRM Update Endpoints
 
 **Files:**
-- `apps/crm/server/routes/crm.js`
-- `apps/crm/server/crmDynamodbService.js`
-- `apps/crm/server/routes/buyers.js`, `apps/crm/server/routes/khata.js`, `apps/crm/server/routes/enquiries.js`, `apps/crm/server/routes/notifications.js`
+- `agency-app/api/routes/crm.js`
+- `agency-app/api/crmDynamodbService.js`
+- `agency-app/api/routes/buyers.js`, `agency-app/api/routes/khata.js`, `agency-app/api/routes/enquiries.js`, `agency-app/api/routes/notifications.js`
 
 **Actions:**
 1. `cd server && npm install zod`
-2. Create `apps/crm/server/validation/crmSchemas.js` with Zod schemas for each entity.
+2. Create `agency-app/api/validation/crmSchemas.js` with Zod schemas for each entity.
 3. In each update route, parse `req.body` with Zod `.safeParse()` before passing to DB.
 4. In DynamoDB service, reject updates to forbidden keys: `PK, SK, tenantId, EntityType, createdAt, createdBy`.
 
@@ -102,7 +102,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 1.7 CRIT-8 — Fix B2B Leads to Use Server-Derived TenantId
 
-**File:** `apps/crm/server/routes/b2bLeads.js:168-191`
+**File:** `agency-app/api/routes/b2bLeads.js:168-191`
 
 **Action:** Replace `req.headers['x-tenant-id']` with `req.tenantId`.
 
@@ -113,7 +113,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 1.8 CRIT-9 — Remove bodyTenantId Fallback in Post-Registration
 
-**File:** `apps/crm/server/routes/auth.js:16-21`
+**File:** `agency-app/api/routes/auth.js:16-21`
 
 **Action:** Remove `|| bodyTenantId` fallback. Return 400 if `req.tenantId` is missing.
 
@@ -123,7 +123,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.1 HIGH-1 — Restrict CORS Origin
 
-**File:** `apps/crm/server/server.js`
+**File:** `agency-app/api/server.js`
 
 **Action:** Replace `origin: '*'` with an allowlist from `ALLOWED_ORIGINS` env var.
 
@@ -131,7 +131,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.2 HIGH-2 — Fix API Key Auth to Use Query
 
-**File:** `apps/crm/server/middleware/apiKeyAuth.js`
+**File:** `agency-app/api/middleware/apiKeyAuth.js`
 
 **Action:** Replace `ScanCommand` with `QueryCommand` on a `KeyHashIndex` GSI. Add rate limiting.
 
@@ -139,7 +139,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.3 HIGH-3 — Add Rate Limiting to CRM Routes
 
-**File:** `apps/crm/server/server.js` (or new middleware)
+**File:** `agency-app/api/server.js` (or new middleware)
 
 **Action:** Add `express-rate-limit` at 200 req/min per IP for all `/api` routes.
 
@@ -148,10 +148,10 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 ### 2.4 HIGH-4 — Remove console.log from Auth Flows
 
 **Files:**
-- `services/reality-flow-authentication/src/controllers/tokenController.ts`
-- `services/reality-flow-authentication/src/controllers/phoneAuthCustomController.ts`
-- `apps/crm/real-estate-crm-app/src/App.tsx`
-- `apps/crm/real-estate-crm-app/src/services/api.ts`
+- `platform/auth/src/controllers/tokenController.ts`
+- `platform/auth/src/controllers/phoneAuthCustomController.ts`
+- `agency-app/web/src/App.tsx`
+- `agency-app/web/src/services/api.ts`
 
 **Action:** Replace all `console.log` in auth flows with a masked logger. Mask tokens, codes, code_verifiers.
 
@@ -159,7 +159,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.5 HIGH-5 — Add Request Size Limits
 
-**File:** `apps/crm/server/server.js`
+**File:** `agency-app/api/server.js`
 
 **Action:** Add `express.json({ limit: '1mb' })`.
 
@@ -167,7 +167,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.6 HIGH-6 — Fix Webhook Error Status Codes
 
-**File:** `apps/crm/server/routes/billing.js`
+**File:** `agency-app/api/routes/billing.js`
 
 **Action:** Return `500` for internal processing errors so Razorpay retries. Return `200` only for confirmed duplicates.
 
@@ -175,7 +175,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.7 HIGH-7 — Remove Duplicate Feedback Route Mount
 
-**File:** `apps/crm/server/server.js`
+**File:** `agency-app/api/server.js`
 
 **Action:** Delete `app.use('/api/nps', feedbackRoutes);`. Keep only `/api/feedback`.
 
@@ -183,7 +183,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.8 HIGH-8 — Standardize Token Storage Keys
 
-**File:** `apps/crm/real-estate-crm-app/src/services/api.ts`
+**File:** `agency-app/web/src/services/api.ts`
 
 **Action:** Replace all `localStorage.getItem('token')` with `getAuthToken()` from `authStorage.ts`.
 
@@ -191,7 +191,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.9 HIGH-9 — Fix Admin Role Check Case
 
-**File:** `apps/crm/server/routes/grievance.js:162`
+**File:** `agency-app/api/routes/grievance.js:162`
 
 **Action:** Change `ADMIN_ROLES` to `new Set(['ADMIN', 'FOUNDER', 'OWNER'])`.
 
@@ -199,7 +199,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.10 HIGH-10 — Fix Public Properties Endpoint
 
-**File:** `apps/crm/server/routes/crm.js`
+**File:** `agency-app/api/routes/crm.js`
 
 **Action:** Remove or protect `/properties/public/list` with `apiKeyAuth`. Never trust `x-tenant-id` from unauthenticated callers.
 
@@ -207,7 +207,7 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 2.11 HIGH-11 — Add Input Validation to Khata, Notifications, Enquiries
 
-**Files:** `apps/crm/server/routes/khata.js`, `apps/crm/server/routes/notifications.js`, `apps/crm/server/routes/enquiries.js`
+**Files:** `agency-app/api/routes/khata.js`, `agency-app/api/routes/notifications.js`, `agency-app/api/routes/enquiries.js`
 
 **Action:** Apply Zod `.strict()` schemas to all write endpoints.
 
@@ -217,55 +217,55 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 ### 3.1 MED-1 — Replace Scan with Query in crmDynamodbService
 
-**File:** `apps/crm/server/crmDynamodbService.js`
+**File:** `agency-app/api/crmDynamodbService.js`
 
 **Action:** Replace `ScanCommand` + `FilterExpression` with `QueryCommand` on `tenant-index` GSI.
 
 ### 3.2 MED-2 — Gate PostHog Init Behind Consent
 
-**File:** `apps/crm/real-estate-crm-app/src/lib/analytics.ts`
+**File:** `agency-app/web/src/lib/analytics.ts`
 
 **Action:** Only call `posthog.init()` if `consent.analytics === true`. Use `persistence: 'memory'`.
 
 ### 3.3 MED-3 — Add Auth Checks to Public S3 Endpoints
 
-**File:** `apps/crm/server/routes/crm.js`
+**File:** `agency-app/api/routes/crm.js`
 
 **Action:** Require `apiKeyAuth` before generating signed S3 URLs in public endpoints.
 
 ### 3.4 MED-4 — Add Webhook Timestamp Validation
 
-**File:** `apps/crm/server/routes/billing.js`
+**File:** `agency-app/api/routes/billing.js`
 
 **Action:** Reject Razorpay webhooks older than 5 minutes based on `x-razorpay-event-timestamp`.
 
 ### 3.5 MED-5 — Shorten Token Cache TTL
 
-**File:** `apps/crm/server/middleware/validateToken.js`
+**File:** `agency-app/api/middleware/validateToken.js`
 
 **Action:** Reduce `TOKEN_CACHE_TTL` from 60s to 5s.
 
 ### 3.6 MED-6 — Make extractTenantId Stricter
 
-**File:** `apps/crm/server/tenantMiddleware.js`
+**File:** `agency-app/api/tenantMiddleware.js`
 
 **Action:** Remove fallback to client `x-tenant-id` header. Only use server-derived `req.tenantId`. Return 400 if missing.
 
 ### 3.7 MED-7 — Validate lastEvaluatedKey Shape
 
-**File:** `apps/crm/server/routes/grievance.js`
+**File:** `agency-app/api/routes/grievance.js`
 
 **Action:** Validate parsed `lastEvaluatedKey` object only contains allowed keys (`grievanceId`, `SK`).
 
 ### 3.8 MED-8 — Fix incrementSeatsPaid Import
 
-**File:** `apps/crm/server/routes/billing.js`
+**File:** `agency-app/api/routes/billing.js`
 
 **Action:** Remove the stub function. Import `incrementSeatsPaid` from `../subscriptionService.js`.
 
 ### 3.9 MED-9 — HTML Escape Email Content
 
-**File:** `apps/crm/server/routes/grievance.js`
+**File:** `agency-app/api/routes/grievance.js`
 
 **Action:** Add `escapeHtml()` helper and use it for all user-submitted fields in Brevo email templates.
 
@@ -273,10 +273,10 @@ if (!NPS_HMAC_SECRET) throw new Error('NPS_HMAC_SECRET required');
 
 | # | File | Action |
 |---|------|--------|
-| LOW-1 | `apps/crm/server/subscriptionService.js:78` | Make trial days configurable via env var |
-| LOW-2 | `apps/crm/server/package.json` | `npm uninstall bcryptjs jsonwebtoken` |
-| LOW-3 | `apps/crm/real-estate-crm-app/package.json` | `npm uninstall @types/react-router-dom` |
-| LOW-4 | `services/reality-flow-authentication/package.json` | Move `dotenv` from `devDependencies` to `dependencies` |
+| LOW-1 | `agency-app/api/subscriptionService.js:78` | Make trial days configurable via env var |
+| LOW-2 | `agency-app/api/package.json` | `npm uninstall bcryptjs jsonwebtoken` |
+| LOW-3 | `agency-app/web/package.json` | `npm uninstall @types/react-router-dom` |
+| LOW-4 | `platform/auth/package.json` | Move `dotenv` from `devDependencies` to `dependencies` |
 | LOW-5 | `server/update-jwt-secret.js` | Delete the file |
 
 ---
@@ -291,9 +291,9 @@ See **2.7 HIGH-7**.
 
 ### 4.3 REG-3 — Remove Legacy Auth Middleware
 
-**Files:** `apps/crm/server/middleware/auth.js`, all imports
+**Files:** `agency-app/api/middleware/auth.js`, all imports
 
-**Action:** Delete `apps/crm/server/middleware/auth.js`. Replace all `authenticateToken` imports/usages with `validateToken`.
+**Action:** Delete `agency-app/api/middleware/auth.js`. Replace all `authenticateToken` imports/usages with `validateToken`.
 
 ### 4.4 REG-4 — Standardize api.ts Token Keys
 See **2.8 HIGH-8**.
@@ -349,7 +349,7 @@ Make `/health` verify DynamoDB, auth service, and S3 connectivity before returni
 ## Deployment Rollout Plan
 
 1. **Stage 1 (Auth Service):** Deploy `reality-flow-authentication` fixes first (CRIT-1, CRIT-3, CRIT-4).
-2. **Stage 2 (CRM Backend):** Deploy `apps/crm/server/` fixes (CRIT-2, CRIT-7, CRIT-8, CRIT-9, HIGH fixes).
+2. **Stage 2 (CRM Backend):** Deploy `agency-app/api/` fixes (CRIT-2, CRIT-7, CRIT-8, CRIT-9, HIGH fixes).
 3. **Stage 3 (Frontend):** Deploy `real-estate-crm-app` fixes (CRIT-5, HIGH-4, HIGH-8, MED-2).
 4. **Stage 4 (Verification):** Run full Playwright suite, manual webhook test, security scan.
 5. **Stage 5 (Monitoring):** Watch error rates for 48 hours after each stage.

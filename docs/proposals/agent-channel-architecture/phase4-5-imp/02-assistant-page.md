@@ -43,7 +43,7 @@ The split is deliberate, because "put everything in both" is the failure mode:
 - **`+` launches flows** — things with a screen, a file picker or a form behind them: upload a call recording, open the WhatsApp inbox, start a lead form.
 - **Chips send prompts** — things the agent answers in the chat.
 
-**Every chip prompt maps to a tool that actually exists.** The list was written against the live registry in `apps/crm/server/shared/toolDefinitions.js`. That check earned its keep immediately: there is no "add a khata entry" chip, because khatabook is deliberately **read-only** to the agent. Offering it would have taught a capability that then refuses. Creating a khata entry sits in the `+` menu instead, where it opens the real form.
+**Every chip prompt maps to a tool that actually exists.** The list was written against the live registry in `agency-app/api/shared/toolDefinitions.js`. That check earned its keep immediately: there is no "add a khata entry" chip, because khatabook is deliberately **read-only** to the agent. Offering it would have taught a capability that then refuses. Creating a khata entry sits in the `+` menu instead, where it opens the real form.
 
 Prompts come in two kinds. `send` fires immediately, for phrasings that are complete. `prefill` drops the text in the composer with the caret at the end, for the ones where the user has to supply a name or an area — sending `"2BHK in "` on its own would just make the agent ask.
 

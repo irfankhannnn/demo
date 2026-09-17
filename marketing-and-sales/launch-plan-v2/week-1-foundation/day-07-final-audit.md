@@ -36,8 +36,8 @@ Read inputs:
 - `marketing-and-sales/launch-implement/pre-launch/16-seo-aeo/seo-audit-checklist.md`
 - `marketing-and-sales/launch-implement/week-1/day-04-event-coverage.csv`
 - `marketing-and-sales/launch-implement/week-1/day-04-analytics-verification.md`
-- All `apps/crm/server/routes/*.js` (re-walk for new routes added Days 1-6)
-- All `apps/crm/real-estate-crm-app/src/pages/**` (re-walk for new pages added Days 1-6)
+- All `agency-app/api/routes/*.js` (re-walk for new routes added Days 1-6)
+- All `agency-app/web/src/pages/**` (re-walk for new pages added Days 1-6)
 - Live LPs at `realestateflow.in` (Lighthouse + schema validation)
 - Razorpay live invoice from Day 3
 

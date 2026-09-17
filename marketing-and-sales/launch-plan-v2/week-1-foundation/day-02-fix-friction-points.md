@@ -44,9 +44,9 @@ Issue from `marketing-and-sales/launch-implement/week-1/day-01-backlog.md`:
 
 Read these files for context:
 - {{ best-guess file path }}
-- `apps/crm/real-estate-crm-app/src/App.tsx` (route + auth context)
-- `apps/crm/server/routes/{{relevant route}}.js`
-- `apps/crm/server/tenantMiddleware.js`
+- `agency-app/web/src/App.tsx` (route + auth context)
+- `agency-app/api/routes/{{relevant route}}.js`
+- `agency-app/api/tenantMiddleware.js`
 
 Produce:
 1. Root-cause analysis (2-4 sentences) — why does this friction happen

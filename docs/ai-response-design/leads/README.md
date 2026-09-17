@@ -22,10 +22,10 @@ Detail cards, lists, confirmations:
 
 | Piece | Location | Status |
 |-------|----------|--------|
-| Normalizer | `apps/crm/server/normalizers/leadNormalizer.js` | Implemented |
-| View builder | `apps/crm/server/aiViewBuilders/leadAIViewBuilder.js` | Implemented |
-| Middleware | `apps/crm/server/aiDtoMiddleware.js` | Flag `USE_AI_DTO_FOR_LEADS` |
-| Mini-profile card | `apps/crm/server/agents/formatting/entityCards.js` | Implemented |
+| Normalizer | `agency-app/api/normalizers/leadNormalizer.js` | Implemented |
+| View builder | `agency-app/api/aiViewBuilders/leadAIViewBuilder.js` | Implemented |
+| Middleware | `agency-app/api/aiDtoMiddleware.js` | Flag `USE_AI_DTO_FOR_LEADS` |
+| Mini-profile card | `agency-app/api/agents/formatting/entityCards.js` | Implemented |
 | Recommendation metadata | `buildLeadDetails` → `metadata.recommendation` | Implemented |
 
 ## Principles

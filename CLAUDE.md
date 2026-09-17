@@ -32,32 +32,42 @@
 Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
 
 ## Tech Stack
-- **Frontend:** React + TypeScript + Vite + TailwindCSS (apps/crm/real-estate-crm-app/)
-- **Backend:** Node.js + Express + DynamoDB (apps/crm/server/)
-- **AI Calling:** Lambda + Exotel + ElevenLabs (services/ai-calling-service/)
+- **Frontend:** React + TypeScript + Vite + TailwindCSS (agency-app/web/)
+- **Backend:** Node.js + Express + DynamoDB (agency-app/api/)
+- **AI Calling:** Lambda + Exotel + ElevenLabs (agency-app/ai-calling/)
 - **Video:** Remotion (React-based programmatic video) (marketing-and-sales/video-projects/my-video/)
 - **Auth:** JWT-based authentication
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 - **Package Manager:** npm
 
 ## Key Directories
-Top-level layout: `apps/` (product frontends + backends, grouped per product), `services/`
-(standalone backend microservices), `infra/cicd/` (deploy wrappers), `docs/` (all documentation),
-`tests/`, `tools/`, `marketing-and-sales/`. See `README.md` for the full tree.
+Top-level layout, grouped by audience: `platform/` (shared foundation: auth, gateway, events,
+contracts, WhatsApp channel, MCP), `public-app/` (consumer marketplace), `agency-app/` (agency
+owners + agents: CRM, Instagram, calling, follow-ups), `infra/cicd/` (deploy wrappers, mirrors the
+tree), `docs/` (all documentation, mirrors the tree), `tests/`, `tools/`, `marketing-and-sales/`.
+See `README.md` for the full tree and the three boundary rules.
 
-- `apps/crm/real-estate-crm-app/src/` — CRM frontend source (components, pages, services, types, contexts)
-- `apps/crm/server/` — CRM Express backend (routes, services, middleware)
-- `apps/instagram/{frontend,backend}_insta_sol_ms/` — Instagram lead console + API
-- `apps/onboarding/`, `apps/landing-pages/`, `apps/property-pages-ms/` — Onboarding flow, marketing site, public property pages
-- `services/` — `reality-flow-authentication`, `reality-flow-mcp`, `whatsapp-platform`, `ai-calling-service`, `followup-agent-service`
-- `infra/cicd/<service>/deploy.sh` — Release-tracked deploy wrapper; folder name matches the service folder's name
-- `docs/` — All documentation (index: `docs/README.md`); service READMEs stay in their service
+- `agency-app/web/src/` — CRM frontend source (components, pages, services, types, contexts)
+- `agency-app/api/` — CRM Express backend (routes, services, middleware); owns the CRM tables
+- `agency-app/instagram-web/`, `agency-app/instagram-api/` — Instagram lead console + API
+- `agency-app/ai-calling/`, `agency-app/followup-agent/` — AI voice calling, follow-up agent
+- `agency-app/landing-pages/` — marketing site for the agency product (static, S3 + CloudFront)
+- `public-app/property-pages/` — public tenant-branded property pages (server-rendered)
+- `platform/auth/`, `platform/mcp/`, `platform/whatsapp-platform/` — Cognito auth, MCP server, Baileys WhatsApp workers
+- `platform/contracts/` — event JSON schemas + API contracts; the only thing units share
+- `platform/gateway/`, `platform/events/` — API Gateway and EventBridge design notes (target state)
+- `infra/cicd/<group>/<name>/deploy.sh` — Release-tracked deploy wrapper; same path as the service, one level down
+- `docs/<group>/<name>/` — design notes per service; `docs/README.md` is the index. Service READMEs stay in their service
 - `marketing-and-sales/video-projects/my-video/` — Remotion video generation project
 - `tools/claude-skills/` — Agent definitions, skills, scripts, templates
 - `marketing-and-sales/` — All marketing outputs (creative, leads, outreach, ads, research)
 
-When adding a new service, put it under `apps/<product>/` (if it has a frontend/backend pair) or
-`services/`, add its wrapper at `infra/cicd/<same-name>/`, and put design docs in `docs/services/<same-name>/`.
+Boundary rules (see README.md): a service touches only its own DynamoDB tables; synchronous calls
+go through the API Gateway custom domain; anything the public app needs from the agency app arrives
+as an event on the bus (schemas in `platform/contracts/events/`).
+
+When adding a new service, put it under `platform/`, `public-app/` or `agency-app/`, add its wrapper
+at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 
 ## DynamoDB Tables
 - CRM: Buyers, Sellers, Owners, Customers (Tenants)
@@ -119,7 +129,7 @@ When adding a new service, put it under `apps/<product>/` (if it has a frontend/
 ## File Ownership Map
 | Team | Owned Paths |
 |------|-------------|
-| Builders (architect, sentry, pr-commander) | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
+| Builders (architect, sentry, pr-commander) | `agency-app/web/src/`, `agency-app/api/`, `agency-app/ai-calling/` |
 | Strategists (trend-hunter, deep-researcher, oracle) | `marketing-and-sales/research/`, `marketing-and-sales/reports/` |
 | Content Factory (brand-strategist, nano-designer, motion-engineer, ugc-planner, orator, landing-page-builder, seo-content-writer) | `marketing-and-sales/creative/`, `marketing-and-sales/assets/` |
 | Scalers (media-buyer, ab-optimizer, lead-scraper) | `marketing-and-sales/ads/`, `marketing-and-sales/leads/` |

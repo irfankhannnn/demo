@@ -9,47 +9,47 @@ Ordered so measurement comes first — later phases need a baseline to be shown 
 - Build a labelled eval set: 200–300 real Hinglish utterances → expected `(tool, args)`, drawn from actual conversation logs (not invented examples). Store as fixtures for CI.
 - Wire the eval set into CI against a recorded-fixture harness (no live token spend per commit).
 - Baseline the current single-shot pipeline against it — this number is the point of the phase.
-- Delete the two debug fetches (`google.com`, Bailey ALB `/health`) from `apps/crm/server/scripts/whatsapp-message-processor.js`'s hot path — each adds up to a 5s abort timeout per message.
+- Delete the two debug fetches (`google.com`, Bailey ALB `/health`) from `agency-app/api/scripts/whatsapp-message-processor.js`'s hot path — each adds up to a 5s abort timeout per message.
 - Replace the tenant-resolution `ScanCommand` (same file) with a GSI query on `connectedWhatsAppPhone`.
-- Remove the 8 `delete_*` tools from `apps/crm/server/shared/toolDefinitions.js` / `ALLOWED_TOOL_NAMES`; add `archive_*` equivalents that flip a status field. Drop the `gateDeleteToolPlan()` / `pendingConfirmation` confirmation subsystem it was guarding.
+- Remove the 8 `delete_*` tools from `agency-app/api/shared/toolDefinitions.js` / `ALLOWED_TOOL_NAMES`; add `archive_*` equivalents that flip a status field. Drop the `gateDeleteToolPlan()` / `pendingConfirmation` confirmation subsystem it was guarding.
 
-**Files touched:** `apps/crm/server/scripts/whatsapp-message-processor.js`, `apps/crm/server/shared/toolDefinitions.js`, `apps/crm/server/agents/agentRuntime.js` (remove delete-gate logic), new `eval/` fixtures + CI job.
+**Files touched:** `agency-app/api/scripts/whatsapp-message-processor.js`, `agency-app/api/shared/toolDefinitions.js`, `agency-app/api/agents/agentRuntime.js` (remove delete-gate logic), new `eval/` fixtures + CI job.
 
 ## Phase 2 — Extract the agent core
 
 **Ships:** WhatsApp running on the restructured core, behavior unchanged. This is the seam the web channel will plug into later.
 
-- Define `Turn` and `Session` types; re-key conversation state to a principal (`wa:<phone>` / `web:<userId>`) instead of phone-only (`apps/crm/server/conversationStateService.js`).
+- Define `Turn` and `Session` types; re-key conversation state to a principal (`wa:<phone>` / `web:<userId>`) instead of phone-only (`agency-app/api/conversationStateService.js`).
 - Move business logic out of `whatsapp-message-processor.js` into the agent core; the processor becomes a thin channel adapter (transport, dedup, delivery only).
 - Hoist the ~20 dynamic `import()` calls in the processor to module scope (cold-start latency).
 - Introduce a model-gateway seam with the current Gemini path as its only adapter for now — no behavior change, just the interface (`classify()`, `plan()`, `compose()`).
 - Replace up-front flat credit deduction with reserve → meter per tool step → settle on completion / release on failure.
 - **Gate:** eval score from Phase 1 must not regress before merging.
 
-**Files touched:** `apps/crm/server/conversationStateService.js`, `apps/crm/server/scripts/whatsapp-message-processor.js`, `apps/crm/server/agents/agentRuntime.js`, new `apps/crm/server/agents/modelGateway/` seam, billing/credit metering code (wherever the current flat deduction lives).
+**Files touched:** `agency-app/api/conversationStateService.js`, `agency-app/api/scripts/whatsapp-message-processor.js`, `agency-app/api/agents/agentRuntime.js`, new `agency-app/api/agents/modelGateway/` seam, billing/credit metering code (wherever the current flat deduction lives).
 
 ## Phase 3 — The reliability fix
 
 **Ships:** the actual "complete flow from WhatsApp" capability. This phase answers the original goal directly.
 
-- Replace single-shot `planTurn()` (`apps/crm/server/agents/llm/planTurn.js`) with a bounded tool loop: ≤6 steps, hard wall-clock budget, feed each tool result back as a tool-result message, let the model decide when it's done.
+- Replace single-shot `planTurn()` (`agency-app/api/agents/llm/planTurn.js`) with a bounded tool loop: ≤6 steps, hard wall-clock budget, feed each tool result back as a tool-result message, let the model decide when it's done.
 - Convert `domainRouter.js` from a hard gate to a ranker: load top domains eagerly, allow the loop to pull in additional domains on demand instead of failing closed. Log every escalation.
-- Turn on strict tool schemas (`additionalProperties: false`, real enums) in `apps/crm/server/shared/toolDefinitions.js`; delete `coerceQueryToFilters()` and the `LEAD_STATUS_TYPOS` map in `apps/crm/server/agents/inputNormalizer.js` once the eval set shows no regression (keep the Hinglish date and lakh/crore money normalizers — those are legitimate input handling, not repair).
-- Add `find_person(name|phone)` and similar resolver tools; remove the ~8 prose disambiguation rules for buyer/seller/tenant/owner from `apps/crm/server/agents/llm/plannerPrompt.js` now that the model can call a tool instead of guessing.
+- Turn on strict tool schemas (`additionalProperties: false`, real enums) in `agency-app/api/shared/toolDefinitions.js`; delete `coerceQueryToFilters()` and the `LEAD_STATUS_TYPOS` map in `agency-app/api/agents/inputNormalizer.js` once the eval set shows no regression (keep the Hinglish date and lakh/crore money normalizers — those are legitimate input handling, not repair).
+- Add `find_person(name|phone)` and similar resolver tools; remove the ~8 prose disambiguation rules for buyer/seller/tenant/owner from `agency-app/api/agents/llm/plannerPrompt.js` now that the model can call a tool instead of guessing.
 - Consolidate the 12 overlapping metrics tools (`get_crm_metrics`, `get_leads_summary`, `get_pipeline_summary`, `get_dashboard_snapshot`, `get_business_health`, `suggest_next_actions`, `get_daily_brief`, ...) down to 3–4 with disjoint trigger conditions.
 - Enable prompt caching on the stable prefix (system prompt + tool schemas); verify a non-zero cache hit rate before relying on the cost saving.
 
-**Files touched:** `apps/crm/server/agents/llm/planTurn.js`, `apps/crm/server/agents/domainRouter.js`, `apps/crm/server/shared/toolDefinitions.js`, `apps/crm/server/agents/inputNormalizer.js`, `apps/crm/server/agents/llm/plannerPrompt.js`.
+**Files touched:** `agency-app/api/agents/llm/planTurn.js`, `agency-app/api/agents/domainRouter.js`, `agency-app/api/shared/toolDefinitions.js`, `agency-app/api/agents/inputNormalizer.js`, `agency-app/api/agents/llm/plannerPrompt.js`.
 
 ## Phase 4 — Channel-aware compose
 
 **Ships:** short WhatsApp replies without truncation, using the same tool results the loop produced.
 
-- Add a `channel: 'whatsapp' | 'web'` parameter to `apps/crm/server/agents/llm/composeReply.js` and `apps/crm/server/agents/llm/composerPrompt.js`, changing the prompt/length budget used, not the underlying tool results.
-- Set a WhatsApp prose budget (~400–700 chars) at the prompt level; keep `chunkWhatsAppText`/`sendWhatsAppMessageChunks` (`apps/crm/server/bailey.js`, 4000-char hard split) purely as a safety net.
-- Extend the existing `RESPONSE_MAX_LIST_ITEMS` capping principle in `apps/crm/server/agents/responseFormatter.js` / `apps/crm/server/agents/formatting/` to prose, not just list rendering (e.g. top-N + "10 more hain, dikhau?" instead of a full dump).
+- Add a `channel: 'whatsapp' | 'web'` parameter to `agency-app/api/agents/llm/composeReply.js` and `agency-app/api/agents/llm/composerPrompt.js`, changing the prompt/length budget used, not the underlying tool results.
+- Set a WhatsApp prose budget (~400–700 chars) at the prompt level; keep `chunkWhatsAppText`/`sendWhatsAppMessageChunks` (`agency-app/api/bailey.js`, 4000-char hard split) purely as a safety net.
+- Extend the existing `RESPONSE_MAX_LIST_ITEMS` capping principle in `agency-app/api/agents/responseFormatter.js` / `agency-app/api/agents/formatting/` to prose, not just list rendering (e.g. top-N + "10 more hain, dikhau?" instead of a full dump).
 
-**Files touched:** `apps/crm/server/agents/llm/composeReply.js`, `apps/crm/server/agents/llm/composerPrompt.js`, `apps/crm/server/agents/responseFormatter.js`, `apps/crm/server/bailey.js` (no logic change, confirm chunking stays as fallback only).
+**Files touched:** `agency-app/api/agents/llm/composeReply.js`, `agency-app/api/agents/llm/composerPrompt.js`, `agency-app/api/agents/responseFormatter.js`, `agency-app/api/bailey.js` (no logic change, confirm chunking stays as fallback only).
 
 ## Phase 5 — In-CRM web chat (second channel)
 
@@ -57,10 +57,10 @@ Ordered so measurement comes first — later phases need a baseline to be shown 
 
 - Add a streaming route on the existing `RealEstateCrmRestApi` with `ResponseTransferMode: STREAM` (API Gateway REST streaming, available since Nov 2025).
 - Dedicated Lambda for this route with a longer timeout and its own reserved concurrency, so a slow multi-step turn can't starve ordinary CRM REST traffic (main API Lambda's 30s timeout stays as-is for everything else).
-- Web channel adapter emits SSE; React chat panel in `apps/crm/real-estate-crm-app/src/` renders streamed tokens plus entity cards (reuse the same card components the WhatsApp deterministic formatter's data shapes already imply).
+- Web channel adapter emits SSE; React chat panel in `agency-app/web/src/` renders streamed tokens plus entity cards (reuse the same card components the WhatsApp deterministic formatter's data shapes already imply).
 - Same session store as WhatsApp (principal from Phase 2) — a conversation started on one channel is visible on the other, if useful; not a hard requirement to ship.
 
-**Files touched:** `apps/crm/server/infra/cfn-backend.yaml` (new route + Lambda), new web channel adapter under `apps/crm/server/agents/`, new chat panel under `apps/crm/real-estate-crm-app/src/pages/` or equivalent, `docs/interaction-design/` update once shipped.
+**Files touched:** `agency-app/api/infra/cfn-backend.yaml` (new route + Lambda), new web channel adapter under `agency-app/api/agents/`, new chat panel under `agency-app/web/src/pages/` or equivalent, `docs/interaction-design/` update once shipped.
 
 ## Phase 5b — Re-mode the background flows (independent, any time after Phase 1)
 
@@ -75,7 +75,7 @@ The lead qualifier, lead router and follow-up cron currently call `invokeAgent()
 - Delete `extractScoreLabel()`'s prose-sniffing fallback once output is schema-constrained.
 - Preserve the `scoreSource` precedence rule (`ai_call` beats `llm_text`).
 
-**Files touched:** `apps/crm/server/scripts/lead-qualifier-handler.js`, `apps/crm/server/scripts/lead-router-handler.js`, `apps/crm/server/scripts/lead-followup-cron.js`, `apps/crm/server/skillInvoker.js`, `apps/crm/server/utils/leadRubric.js`. Detail: [`flows/04-background-automation.md`](flows/04-background-automation.md).
+**Files touched:** `agency-app/api/scripts/lead-qualifier-handler.js`, `agency-app/api/scripts/lead-router-handler.js`, `agency-app/api/scripts/lead-followup-cron.js`, `agency-app/api/skillInvoker.js`, `agency-app/api/utils/leadRubric.js`. Detail: [`flows/04-background-automation.md`](flows/04-background-automation.md).
 
 ## Phase 5c — Voice classifier (independent)
 
@@ -83,7 +83,7 @@ The lead qualifier, lead router and follow-up cron currently call `invokeAgent()
 
 Keep Mode C — no tool loop, realtime latency budget stands. Replace only the classifier: Hinglish patterns in the regex fast-path first (cheap, may be sufficient), then a small-model structured-output fallback with a hard timeout falling through to the existing `SMALL_TALK` default. Mirrors the proven `domainRouter.js` shape.
 
-**Files touched:** `services/ai-calling-service/src/services/intentService.js`, `services/ai-calling-service/src/config/constants.js`. Detail: [`flows/05-voice-exotel.md`](flows/05-voice-exotel.md).
+**Files touched:** `agency-app/ai-calling/src/services/intentService.js`, `agency-app/ai-calling/src/config/constants.js`. Detail: [`flows/05-voice-exotel.md`](flows/05-voice-exotel.md).
 
 ## Phase R — Semantic retrieval (independent track, runs alongside)
 
@@ -95,7 +95,7 @@ Full design and constraints in [`05-retrieval-and-vector-search.md`](05-retrieva
 |---|---|---|
 | **R0** | Bump `@aws-sdk/client-dynamodb` + `lib-dynamodb` to `≥3.1103.0` (locked at `3.936.0`, predates the feature by ~9 months) | Test suite green |
 | **R1** | Non-prod spike: throwaway table, `tenantId` as `SearchSchema` HASH, ~200 real call summaries. Measure recall, latency, cost. Confirm `search-dynamodb.{region}.amazonaws.com` is reachable from a Lambda in our networking setup | **Cross-tenant isolation test passes** |
-| **R2** | `apps/crm/server/services/embeddings/` — `buildEmbeddingSource()`, `embedText()`, and a `searchVectors()` helper with mandatory tenant scoping and score thresholding baked in so no caller can bypass them | No caller can omit tenant scope |
+| **R2** | `agency-app/api/services/embeddings/` — `buildEmbeddingSource()`, `embedText()`, and a `searchVectors()` helper with mandatory tenant scoping and score thresholding baked in so no caller can bypass them | No caller can omit tenant scope |
 | **R3** | Tier 1: embed call summaries in `analysisService.js`; add `call-recording-vector-index` via `UpdateTable`; backfill existing recordings | `IndexStatus: ACTIVE` **and** `Backfilling: false` |
 | **R4** | `search_calls_semantic` in the canonical registry → reaches every flow and MCP automatically | Eval cases added |
 | **R5** | Tier 2: property + lead-requirement embeddings; `match_properties_for_lead`; range post-filtering (inline filters support `=` only) | Product acceptance on real data |
@@ -107,11 +107,11 @@ Full design and constraints in [`05-retrieval-and-vector-search.md`](05-retrieva
 
 **Ships:** `reality-flow-mcp` tool coverage back to parity with the canonical registry, with no future drift.
 
-- Generate `services/reality-flow-mcp/src/services/toolDefinitions.ts` from `apps/crm/server/shared/toolDefinitions.js` at build/deploy time (script or CI step) instead of hand-maintaining a second copy.
+- Generate `platform/mcp/src/services/toolDefinitions.ts` from `agency-app/api/shared/toolDefinitions.js` at build/deploy time (script or CI step) instead of hand-maintaining a second copy.
 - Update the stale doc-comment ("54 CRM tools") as part of the same change.
 - No change to the MCP protocol layer, OAuth flow, or `crmClient.ts` — only the source of the tool schema changes.
 
-**Files touched:** `services/reality-flow-mcp/src/services/toolDefinitions.ts` (becomes generated), new generation script, `services/reality-flow-mcp/package.json` build step.
+**Files touched:** `platform/mcp/src/services/toolDefinitions.ts` (becomes generated), new generation script, `platform/mcp/package.json` build step.
 
 ## Risks (carried from architecture review, still applicable)
 

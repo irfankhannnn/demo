@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.realestateflow.in/events/crm.leads/lead.created.v1.json",
+  "title": "lead.created",
+  "description": "A lead was created in the CRM. Published once per new lead; not published for updates to an existing lead.",
+  "x-source": "crm.leads",
+  "x-detail-type": "lead.created",
+  "x-producer": "agency-app/api (leadIngestion.js, routes/leads.js, routes/aiCallingInternal.js)",
+  "x-consumers": ["agency-app/api LeadQualifierFunction", "agency-app/followup-agent worker"],
+  "type": "object",
+  "required": ["tenantId", "leadId"],
+  "properties": {
+    "tenantId": { "type": "string" },
+    "leadId": { "type": "string" },
+    "leadType": { "type": ["string", "null"], "description": "buyer | seller | tenant | owner" },
+    "name": { "type": ["string", "null"] },
+    "phone": { "type": ["string", "null"], "description": "Normalised phone; agency-internal, never forwarded to public-app" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceAdapter": { "type": ["string", "null"], "description": "Adapter that ingested the lead (instagram, manychat, public-pages, …)" },
+    "source": { "type": ["string", "null"], "description": "Free-text source label from the adapter" },
+    "followUp": {
+      "type": "object",
+      "description": "Optional hint for the follow-up service (site-visit confirmation etc.); shape defined by agency-app/api services/followupService.js normalizeFollowUpHint",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -4,20 +4,19 @@
 Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
 
 ## Tech Stack
-- **Frontend:** React + TypeScript + Vite + TailwindCSS (apps/crm/real-estate-crm-app/)
-- **Backend:** Node.js + Express + DynamoDB (apps/crm/server/)
-- **AI Calling:** Lambda + Exotel + ElevenLabs (services/ai-calling-service/)
+- **Frontend:** React + TypeScript + Vite + TailwindCSS (agency-app/web/)
+- **Backend:** Node.js + Express + DynamoDB (agency-app/api/)
+- **AI Calling:** Lambda + Exotel + ElevenLabs (agency-app/ai-calling/)
 - **Video:** Remotion (React-based programmatic video) (marketing-and-sales/video-projects/my-video/)
 - **Auth:** JWT-based authentication
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 - **Package Manager:** npm
 
 ## Key Directories
-- `apps/crm/real-estate-crm-app/src/` — Frontend source (components, pages, services, types, contexts)
-- `apps/crm/server/` — Express backend (routes, services, middleware)
-- `apps/crm/server/build-lambda/` — Lambda deployment build
-- `services/ai-calling-service/` — AI calling microservice
-- `apps/onboarding/` — Onboarding flow
+- `agency-app/web/src/` — Frontend source (components, pages, services, types, contexts)
+- `agency-app/api/` — Express backend (routes, services, middleware)
+- `agency-app/api/build-lambda/` — Lambda deployment build
+- `agency-app/ai-calling/` — AI calling microservice
 - `marketing-and-sales/video-projects/my-video/` — Remotion video generation project
 - `tools/claude-skills/` — Agent definitions, skills, scripts, templates
 - `marketing-and-sales/` — All marketing outputs (creative, leads, outreach, ads, research)
@@ -82,7 +81,7 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 ## File Ownership Map
 | Team | Owned Paths |
 |------|-------------|
-| Builders (architect, sentry, pr-commander) | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
+| Builders (architect, sentry, pr-commander) | `agency-app/web/src/`, `agency-app/api/`, `agency-app/ai-calling/` |
 | Strategists (trend-hunter, deep-researcher, oracle) | `marketing-and-sales/research/`, `marketing-and-sales/reports/` |
 | Content Factory (brand-strategist, nano-designer, motion-engineer, ugc-planner, orator, landing-page-builder, seo-content-writer) | `marketing-and-sales/creative/`, `marketing-and-sales/assets/` |
 | Scalers (media-buyer, ab-optimizer, lead-scraper) | `marketing-and-sales/ads/`, `marketing-and-sales/leads/` |

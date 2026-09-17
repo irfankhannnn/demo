@@ -32,7 +32,7 @@ AGENT CORE                     ┌───────────────�
                                        ▼                ▼
                              ┌─────────────────┐  ┌──────────────────┐
                              │  Model Gateway   │  │  Tool Registry    │
-                             │  (Gemini today)  │  │  apps/crm/server/shared/   │
+                             │  (Gemini today)  │  │  agency-app/api/shared/   │
                              └────────┬─────────┘  │  toolDefinitions  │
                                       │             └────────┬─────────┘
                                       │                      ▼
@@ -85,7 +85,7 @@ API Gateway REST added response streaming (`ResponseTransferMode: STREAM`) in No
 
 ### 5. MCP boundary (unchanged, but drift fixed separately)
 
-`services/reality-flow-mcp/` stays a separate service for **external** AI clients (Claude Desktop, ChatGPT, etc.). The internal agent core does **not** become an MCP client of its own tools — that would add a network hop and serialization cost for zero benefit, since the core already has direct in-process access via `skillInvoker.js`. The only fix needed here is generating `reality-flow-mcp`'s tool schema from the canonical `apps/crm/server/shared/toolDefinitions.js` at build/deploy time instead of hand-maintaining a second copy — see `03-implementation-plan.md` Phase 5.
+`platform/mcp/` stays a separate service for **external** AI clients (Claude Desktop, ChatGPT, etc.). The internal agent core does **not** become an MCP client of its own tools — that would add a network hop and serialization cost for zero benefit, since the core already has direct in-process access via `skillInvoker.js`. The only fix needed here is generating `reality-flow-mcp`'s tool schema from the canonical `agency-app/api/shared/toolDefinitions.js` at build/deploy time instead of hand-maintaining a second copy — see `03-implementation-plan.md` Phase 5.
 
 ### 6. Semantic retrieval layer
 

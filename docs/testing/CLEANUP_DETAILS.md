@@ -22,7 +22,7 @@ test('new -> contacted', () => {
 
 **Why it's waste:**
 - Tests mock functions, not actual backend code
-- Your backend in `apps/crm/server/crmDynamodbService.js` has different implementations
+- Your backend in `agency-app/api/crmDynamodbService.js` has different implementations
 - If backend has a bug, this test won't catch it
 - Zero connection to production code
 
@@ -153,7 +153,7 @@ test.describe('CRM analytics (PostHog only)', () => {
 ```
 ❌ BEFORE:
 ├── tests/backend-unit/run-tests.cjs (mock functions)
-└── apps/crm/server/crmDynamodbService.js (actual backend)
+└── agency-app/api/crmDynamodbService.js (actual backend)
     ↑ These don't match!
 
 ✅ AFTER:

@@ -8,12 +8,12 @@ See [`syncbot-interaction-design.md`](syncbot-interaction-design.md) and
 ### Open
 
 - [ ] Live WhatsApp verification after CRM Lambda deploy (cards + recommendations end-to-end)
-- [ ] Optional: `npm install` in `apps/crm/server/` so Jest suite runs in CI (`goldenConversations.test.js`)
+- [ ] Optional: `npm install` in `agency-app/api/` so Jest suite runs in CI (`goldenConversations.test.js`)
 
 ### Done (this workstream)
 
 - [x] Mini-profile cards: lead, buyer, owner, tenant, property, contact, meeting
-- [x] Formatter modules under `apps/crm/server/agents/formatting/` (+ compact create confirmations, warm empty/error states)
+- [x] Formatter modules under `agency-app/api/agents/formatting/` (+ compact create confirmations, warm empty/error states)
 - [x] Relative dates + Phone/Email labels; UUID hiding on detail cards
 - [x] Buyer / property / contact AI DTO pipeline + flags enabled in local `.env`
 - [x] Hybrid `metadata.recommendation` for lead, buyer, owner, tenant, property, contact, meeting (`aiViewBuilders/recommendations.js`)

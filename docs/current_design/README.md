@@ -28,12 +28,12 @@ For **entity DTO contracts** (what data the AI receives), see:
 
 | Concern | File |
 |---------|------|
-| System prompt | `apps/crm/server/agents/prompts.js` |
-| Tool definitions | `apps/crm/server/shared/toolDefinitions.js` |
-| Agent loop | `apps/crm/server/agents/agentRuntime.js` |
-| Response formatting | `apps/crm/server/agents/responseFormatter.js`, `apps/crm/server/agents/formatting/` |
-| AI DTO middleware | `apps/crm/server/aiDtoMiddleware.js` |
-| View builders | `apps/crm/server/aiViewBuilders/*.js` |
+| System prompt | `agency-app/api/agents/prompts.js` |
+| Tool definitions | `agency-app/api/shared/toolDefinitions.js` |
+| Agent loop | `agency-app/api/agents/agentRuntime.js` |
+| Response formatting | `agency-app/api/agents/responseFormatter.js`, `agency-app/api/agents/formatting/` |
+| AI DTO middleware | `agency-app/api/aiDtoMiddleware.js` |
+| View builders | `agency-app/api/aiViewBuilders/*.js` |
 | Interaction Design | `docs/interaction-design/` |
 
 ## Feature flags (AI DTO)

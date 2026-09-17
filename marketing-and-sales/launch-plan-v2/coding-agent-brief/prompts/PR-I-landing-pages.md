@@ -29,7 +29,7 @@
 
 ## Architecture Rule
 
-This PR owns ONLY the LP folder (`creative/landing-pages/`). Never touch `apps/crm/real-estate-crm-app/` or `apps/crm/server/`.
+This PR owns ONLY the LP folder (`creative/landing-pages/`). Never touch `agency-app/web/` or `agency-app/api/`.
 
 ---
 
@@ -223,8 +223,8 @@ PR-D created stubs. Update:
 
 ## What NOT to Touch
 
-- `apps/crm/real-estate-crm-app/` — never
-- `apps/crm/server/` — never
+- `agency-app/web/` — never
+- `agency-app/api/` — never
 - `creative/landing-pages/_partials/*.hbs` — created by PR-D; include them but don't rewrite
 - `creative/landing-pages/_partials/cookie-banner.html` — created by PR-C; inject via template but don't modify
 

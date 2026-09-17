@@ -14,6 +14,6 @@ WhatsApp layout for contacts: [`docs/interaction-design/SYNC_BOT_INTERACTION_DES
 
 ## Code targets
 
-- `apps/crm/server/normalizers/contactNormalizer.js`
-- `apps/crm/server/aiViewBuilders/contactAIViewBuilder.js`
+- `agency-app/api/normalizers/contactNormalizer.js`
+- `agency-app/api/aiViewBuilders/contactAIViewBuilder.js`
 - Flag: `USE_AI_DTO_FOR_CONTACTS`

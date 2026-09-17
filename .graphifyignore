@@ -1,7 +1,7 @@
 # ======================================
 # AI / Documentation
 # ======================================
-services/ai-calling-service/
+agency-app/ai-calling/
 docs/ai-response-design/
 docs/ai_context_management_plan/
 tools/claude-skills/
@@ -19,7 +19,6 @@ marketing-and-sales/
 docs/launch-audit/
 marketing-and-sales/video-projects/first-video/
 marketing-and-sales/video-projects/my-video/
-apps/onboarding/
 
 # ======================================
 # Output / Generated

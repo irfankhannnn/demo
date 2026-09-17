@@ -14,7 +14,7 @@ WhatsApp cards: [`docs/interaction-design/`](../../interaction-design/)
 
 | Piece | Path | Status |
 |-------|------|--------|
-| Normalizer | `apps/crm/server/normalizers/buyerNormalizer.js` | Implemented |
-| View builder | `apps/crm/server/aiViewBuilders/buyerAIViewBuilder.js` | Implemented |
-| Recommendations | `apps/crm/server/aiViewBuilders/recommendations.js` | Implemented |
+| Normalizer | `agency-app/api/normalizers/buyerNormalizer.js` | Implemented |
+| View builder | `agency-app/api/aiViewBuilders/buyerAIViewBuilder.js` | Implemented |
+| Recommendations | `agency-app/api/aiViewBuilders/recommendations.js` | Implemented |
 | Middleware | `USE_AI_DTO_FOR_BUYERS` | Implemented (local `.env` = true) |

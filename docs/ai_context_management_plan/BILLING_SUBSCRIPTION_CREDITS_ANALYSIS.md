@@ -24,7 +24,7 @@ The billing, subscription, and credits system has **strong foundational architec
 ## 🔴 CRITICAL ISSUES (Immediate Action Required)
 
 ### 1. Missing Seat Downgrade Handler
-**Location:** `apps/crm/server/routes/billing.js:331-356`  
+**Location:** `agency-app/api/routes/billing.js:331-356`  
 **Severity:** CRITICAL  
 **Impact:** Customer downgrades from 3 seats to 1 seat, but `seatsPaid` stays at 3. Incorrect seat limit enforcement, billing discrepancies.
 
@@ -56,7 +56,7 @@ if (newQuantity > previousQuantity) {
 ---
 
 ### 2. No Grace Period Implementation
-**Location:** `apps/crm/server/subscriptionService.js:121`, `apps/crm/server/routes/billing.js`  
+**Location:** `agency-app/api/subscriptionService.js:121`, `agency-app/api/routes/billing.js`  
 **Severity:** CRITICAL  
 **Impact:** Failed payments immediately suspend AI Employee. No customer recovery window. Churn risk.
 
@@ -92,7 +92,7 @@ if (sub.gracePeriodActive && new Date() > new Date(sub.gracePeriodEndsAt)) {
 ---
 
 ### 3. No Subscription Cancellation in Subscriptions Table
-**Location:** `apps/crm/server/routes/billing.js:306-328`  
+**Location:** `agency-app/api/routes/billing.js:306-328`  
 **Severity:** CRITICAL  
 **Impact:** Subscriptions table shows `isPaying=true` even after cancellation. Trial-status endpoint returns incorrect value. Credit resets continue for cancelled subscriptions.
 
@@ -122,7 +122,7 @@ await docClient.send(new UpdateCommand({
 ---
 
 ### 4. Webhook Retry Logic - Credits Could Be Lost
-**Location:** `apps/crm/server/routes/billing.js:363-368`  
+**Location:** `agency-app/api/routes/billing.js:363-368`  
 **Severity:** CRITICAL  
 **Impact:** If error occurs AFTER idempotency check but BEFORE credit grant, retry skips credit grant. Credits never granted.
 
@@ -145,7 +145,7 @@ await docClient.send(new UpdateCommand({
 ---
 
 ### 5. Credit Reset Race Condition
-**Location:** `apps/crm/server/scripts/credit-reset-cron.js:85-101`  
+**Location:** `agency-app/api/scripts/credit-reset-cron.js:85-101`  
 **Severity:** CRITICAL  
 **Impact:** If cron runs twice simultaneously (Lambda concurrency), both could pass the check. Credits doubled.
 
@@ -168,7 +168,7 @@ ConditionExpression: 'attribute_not_exists(lastCreditResetAt) OR lastCreditReset
 ---
 
 ### 6. Balance vs Ledger Reconciliation Missing
-**Location:** `apps/crm/server/creditService.js:43-48`  
+**Location:** `agency-app/api/creditService.js:43-48`  
 **Severity:** CRITICAL  
 **Impact:** If BALANCE item is accidentally deleted, `getBalance()` returns 0 (silent failure). User cannot spend credits (data loss).
 
@@ -187,7 +187,7 @@ return result.Item?.balance ?? 0;  // ❌ SILENT ZERO IF MISSING
 ---
 
 ### 7. Subscriptions Table in Wrong CloudFormation Stack
-**Location:** `apps/crm/server/infra/cfn-backend.yaml`, `apps/crm/server/infra/launch-tables-cfn.yaml`  
+**Location:** `agency-app/api/infra/cfn-backend.yaml`, `agency-app/api/infra/launch-tables-cfn.yaml`  
 **Severity:** CRITICAL  
 **Impact:** Two separate CFN stacks must be deployed in correct order. Deployment fragility. Missing from main stack. No PITR on Credits table.
 
@@ -201,7 +201,7 @@ return result.Item?.balance ?? 0;  // ❌ SILENT ZERO IF MISSING
 ---
 
 ### 8. Case Sensitivity Mismatch (TenantId vs tenantId)
-**Location:** `apps/crm/server/agencyConfigService.js:42`  
+**Location:** `agency-app/api/agencyConfigService.js:42`  
 **Severity:** CRITICAL  
 **Impact:** AgencyConfigTable uses `TenantId` (PascalCase) but other tables use `tenantId` (camelCase). Query errors, type safety issues, maintenance burden.
 
@@ -214,7 +214,7 @@ return result.Item?.balance ?? 0;  // ❌ SILENT ZERO IF MISSING
 ---
 
 ### 9. Non-Blocking Refund - Credits Can Be Lost
-**Location:** `apps/crm/server/routes/leads.js:311-316`  
+**Location:** `agency-app/api/routes/leads.js:311-316`  
 **Severity:** CRITICAL  
 **Impact:** If lead creation fails after credit deduction, refund is attempted (non-blocking). If refund fails, credits are lost.
 
@@ -238,7 +238,7 @@ try {
 ---
 
 ### 10. Bailey Webhook Signature Skipped in Dev
-**Location:** `apps/crm/server/bailey.js:239-240`  
+**Location:** `agency-app/api/bailey.js:239-240`  
 **Severity:** CRITICAL  
 **Impact:** In development, skips signature verification if `BAILEY_WEBHOOK_SECRET` is not set. Allows unauthenticated webhooks.
 
@@ -249,7 +249,7 @@ try {
 ## 🟠 HIGH-PRIORITY ISSUES (Should Fix Soon)
 
 ### 11. No Rate Limiting on Billing Webhook
-**Location:** `apps/crm/server/routes/billing.js`  
+**Location:** `agency-app/api/routes/billing.js`  
 **Severity:** HIGH  
 **Impact:** Could be abused to trigger credit grants or spam processing.
 
@@ -261,7 +261,7 @@ app.use('/api/billing', webhookRateLimit, billingRoutes);
 ---
 
 ### 12. No Validation for Razorpay Notes
-**Location:** `apps/crm/server/routes/billing.js:139-144`  
+**Location:** `agency-app/api/routes/billing.js:139-144`  
 **Severity:** HIGH  
 **Impact:** If Razorpay notes are malformed, `tenantId` becomes undefined, provisioning fails silently.
 
@@ -276,7 +276,7 @@ if (!tenantId) {
 ---
 
 ### 13. Missing `subscription.paused` and `subscription.resumed` Handlers
-**Location:** `apps/crm/server/routes/billing.js:131-361`  
+**Location:** `agency-app/api/routes/billing.js:131-361`  
 **Severity:** HIGH  
 **Impact:** If customer pauses/resumes subscription, system doesn't know. Continues charging or remains in paused state.
 
@@ -285,7 +285,7 @@ if (!tenantId) {
 ---
 
 ### 14. No Validation of Credit Amount
-**Location:** `apps/crm/server/routes/subscriptions.js:154-169`  
+**Location:** `agency-app/api/routes/subscriptions.js:154-169`  
 **Severity:** HIGH  
 **Impact:** User could request 0 credits or negative credits.
 
@@ -299,7 +299,7 @@ if (!credits || credits <= 0 || credits > 1000000) {
 ---
 
 ### 15. No Credit Admin Endpoint Input Validation
-**Location:** `apps/crm/server/routes/creditAdmin.js:24-42`  
+**Location:** `agency-app/api/routes/creditAdmin.js:24-42`  
 **Severity:** HIGH  
 **Impact:** Allows adding arbitrary new action types. No upper bound on cost values. Could set `lead_add: 1000000` to block feature.
 
@@ -325,7 +325,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 17. IP Spoofing via X-Forwarded-For
-**Location:** `apps/crm/server/middleware/rateLimiter.js`  
+**Location:** `agency-app/api/middleware/rateLimiter.js`  
 **Severity:** HIGH  
 **Impact:** Rate limiting can be bypassed by spoofing X-Forwarded-For header.
 
@@ -334,7 +334,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 18. Billing Anniversary Day Calculation Bug
-**Location:** `apps/crm/server/routes/billing.js:203`  
+**Location:** `agency-app/api/routes/billing.js:203`  
 **Severity:** HIGH  
 **Impact:** Uses `getUTCDate()` which returns 1-31, but doesn't handle month-end edge cases. Credit reset fails on Feb 28/29 for customers with anniversary on 31st.
 
@@ -343,7 +343,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 19. No PITR on Credits/AIEmployeeProvisioning Tables
-**Location:** `apps/crm/server/infra/cfn-backend.yaml`  
+**Location:** `agency-app/api/infra/cfn-backend.yaml`  
 **Severity:** HIGH  
 **Impact:** Critical billing data not protected. No point-in-time recovery.
 
@@ -352,7 +352,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 20. Missing GSI on Subscriptions Table
-**Location:** `apps/crm/server/infra/cfn-backend.yaml`  
+**Location:** `agency-app/api/infra/cfn-backend.yaml`  
 **Severity:** HIGH  
 **Impact:** Trial reminder cron does full table SCAN. Cannot query by `paymentStatus`, `isPaying`, or `createdAt`.
 
@@ -390,7 +390,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 24. No Schema Validation
-**Location:** `apps/crm/server/routes/subscriptions.js`, `apps/crm/server/routes/billing.js`  
+**Location:** `agency-app/api/routes/subscriptions.js`, `agency-app/api/routes/billing.js`  
 **Severity:** MEDIUM  
 **Impact:** Uses ad-hoc validation instead of JSON schema. No length limits on strings.
 
@@ -408,7 +408,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 26. Subscription State Inconsistency
-**Location:** `apps/crm/server/subscriptionService.js`  
+**Location:** `agency-app/api/subscriptionService.js`  
 **Severity:** MEDIUM  
 **Impact:** Subscriptions table can be in inconsistent state (isPaying=true but paymentStatus='cancelled', etc.)
 
@@ -417,7 +417,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 27. Seat Count Synchronization Failures
-**Location:** `apps/crm/server/subscriptionService.js:68-97`  
+**Location:** `agency-app/api/subscriptionService.js:68-97`  
 **Severity:** MEDIUM  
 **Impact:** Auth service unavailability causes fallback to stale data. False positive paywalls.
 
@@ -426,7 +426,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 28. No Audit Trail for Config Changes
-**Location:** `apps/crm/server/creditConfig.js:91-105`  
+**Location:** `agency-app/api/creditConfig.js:91-105`  
 **Severity:** MEDIUM  
 **Impact:** No logging of who changed the config. No timestamp of when change was made. No previous value stored.
 
@@ -435,7 +435,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 29. No Distributed Rate Limiting
-**Location:** `apps/crm/server/middleware/rateLimiter.js`  
+**Location:** `agency-app/api/middleware/rateLimiter.js`  
 **Severity:** MEDIUM  
 **Impact:** In-memory storage. Rate limits lost on server restart. Multiple server instances won't share limits.
 
@@ -462,7 +462,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 32. No Handling for Partial Payment Failures
-**Location:** `apps/crm/server/routes/billing.js:294-303`  
+**Location:** `agency-app/api/routes/billing.js:294-303`  
 **Severity:** MEDIUM  
 **Impact:** `payment.failed` only logs to PostHog, doesn't update subscription state. Subscription remains in `active` state.
 
@@ -471,7 +471,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 33. No Per-Tenant Rate Limiting
-**Location:** `apps/crm/server/middleware/rateLimiter.js`  
+**Location:** `agency-app/api/middleware/rateLimiter.js`  
 **Severity:** MEDIUM  
 **Impact:** Could allow one tenant to DoS others.
 
@@ -480,7 +480,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 34. Incomplete Redaction in Logs
-**Location:** `apps/crm/server/logger.js`  
+**Location:** `agency-app/api/logger.js`  
 **Severity:** MEDIUM  
 **Impact:** Doesn't redact `razorpayPaymentId`, `razorpayOrderId`, `amountPaise`. Phone numbers, emails logged in plaintext.
 
@@ -489,7 +489,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 35. No Circuit Breaker for External Services
-**Location:** `apps/crm/server/routes/billing.js`  
+**Location:** `agency-app/api/routes/billing.js`  
 **Severity:** MEDIUM  
 **Impact:** If email service is down, every webhook tries and fails. No fallback mechanism.
 
@@ -507,7 +507,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 37. DPDP Compliance Gaps
-**Location:** `apps/crm/server/routes/auth.js`  
+**Location:** `agency-app/api/routes/auth.js`  
 **Severity:** MEDIUM  
 **Impact:** No consent withdrawal mechanism. No consent audit trail. No consent version tracking. No consent for billing operations.
 
@@ -534,7 +534,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 40. Trial Email Template IDs Not Configured
-**Location:** `apps/crm/server/scripts/trial-reminder-cron.js:29-46`  
+**Location:** `agency-app/api/scripts/trial-reminder-cron.js:29-46`  
 **Severity:** MEDIUM  
 **Impact:** All template IDs are `null`, so emails won't send.
 
@@ -545,7 +545,7 @@ for (const key of Object.keys(value)) {
 ## 🟢 LOW-PRIORITY ISSUES (Polish)
 
 ### 41. No Webhook Processing Time Metrics
-**Location:** `apps/crm/server/routes/billing.js`  
+**Location:** `agency-app/api/routes/billing.js`  
 **Severity:** LOW  
 **Impact:** No performance metrics for webhook processing.
 
@@ -554,7 +554,7 @@ for (const key of Object.keys(value)) {
 ---
 
 ### 42. No Handling for Subscription Quantity = 0
-**Location:** `apps/crm/server/routes/billing.js:334-355`  
+**Location:** `agency-app/api/routes/billing.js:334-355`  
 **Severity:** LOW  
 **Impact:** Subscription with 0 seats might be created.
 
@@ -818,20 +818,20 @@ for (const key of Object.keys(value)) {
 
 | File | Issues | Severity |
 |------|--------|----------|
-| `apps/crm/server/routes/billing.js` | #1, #2, #3, #4, #11, #12, #13, #18, #32, #41, #42 | 🔴🟠🟡🟢 |
-| `apps/crm/server/subscriptionService.js` | #2, #26, #27 | 🔴🟡 |
-| `apps/crm/server/creditService.js` | #5, #6 | 🔴 |
-| `apps/crm/server/routes/subscriptions.js` | #14 | 🟠 |
-| `apps/crm/server/routes/creditAdmin.js` | #15 | 🟠 |
-| `apps/crm/server/middleware/rateLimiter.js` | #16, #17, #29, #33 | 🟠🟡 |
-| `apps/crm/server/infra/cfn-backend.yaml` | #7, #8, #19, #20 | 🔴🟠 |
-| `apps/crm/server/routes/leads.js` | #9 | 🔴 |
-| `apps/crm/server/bailey.js` | #10 | 🔴 |
-| `apps/crm/server/creditConfig.js` | #28 | 🟡 |
-| `apps/crm/server/logger.js` | #34 | 🟡 |
-| `apps/crm/server/routes/auth.js` | #37 | 🟡 |
-| `apps/crm/server/scripts/credit-reset-cron.js` | #5 | 🔴 |
-| `apps/crm/server/scripts/trial-reminder-cron.js` | #40 | 🟡 |
+| `agency-app/api/routes/billing.js` | #1, #2, #3, #4, #11, #12, #13, #18, #32, #41, #42 | 🔴🟠🟡🟢 |
+| `agency-app/api/subscriptionService.js` | #2, #26, #27 | 🔴🟡 |
+| `agency-app/api/creditService.js` | #5, #6 | 🔴 |
+| `agency-app/api/routes/subscriptions.js` | #14 | 🟠 |
+| `agency-app/api/routes/creditAdmin.js` | #15 | 🟠 |
+| `agency-app/api/middleware/rateLimiter.js` | #16, #17, #29, #33 | 🟠🟡 |
+| `agency-app/api/infra/cfn-backend.yaml` | #7, #8, #19, #20 | 🔴🟠 |
+| `agency-app/api/routes/leads.js` | #9 | 🔴 |
+| `agency-app/api/bailey.js` | #10 | 🔴 |
+| `agency-app/api/creditConfig.js` | #28 | 🟡 |
+| `agency-app/api/logger.js` | #34 | 🟡 |
+| `agency-app/api/routes/auth.js` | #37 | 🟡 |
+| `agency-app/api/scripts/credit-reset-cron.js` | #5 | 🔴 |
+| `agency-app/api/scripts/trial-reminder-cron.js` | #40 | 🟡 |
 | Frontend components | #21, #22, #23, #30, #31, #43, #44, #45, #46, #47, #48, #49, #50 | 🟡🟢 |
 
 ---

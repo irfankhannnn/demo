@@ -4,8 +4,8 @@ Description: >
   Creates a VPC across 2-3 AZs with public, private (app), and database subnet
   tiers, NAT gateways for outbound egress, S3/DynamoDB gateway endpoints, flow
   logs, and four reusable application security groups (ALB, App, Database,
-  Cache). Exports every subnet/SG/route-table id so service stacks (apps/crm/server/,
-  services/ai-calling-service/, services/reality-flow-authentication/, services/whatsapp-platform/) can
+  Cache). Exports every subnet/SG/route-table id so service stacks (agency-app/api/,
+  agency-app/ai-calling/, platform/auth/, platform/whatsapp-platform/) can
   import them instead of building their own networking.
 
 Parameters:
@@ -69,7 +69,7 @@ Parameters:
   AppIngressPort:
     Type: Number
     Default: 3000
-    Description: Port the App tier listens on (behind the ALB) - matches apps/crm/server/ Express port convention.
+    Description: Port the App tier listens on (behind the ALB) - matches agency-app/api/ Express port convention.
 
   DatabasePort:
     Type: Number

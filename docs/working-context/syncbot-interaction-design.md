@@ -20,29 +20,29 @@ Make every WhatsApp response consistent across entities: mini-profile detail car
 - [x] Explicit routing registry (`DETAIL` / `LIST` / `SUMMARY`) in `formatting/routing.js`
 - [x] Interaction Design v1 written; `09-design-goals.md` redirected
 - [x] `docs/ai-response-design/` buyer + contact design docs
-- [x] Formatter extracted to `apps/crm/server/agents/formatting/` (+ compact create, empty/error templates)
+- [x] Formatter extracted to `agency-app/api/agents/formatting/` (+ compact create, empty/error templates)
 - [x] Relative dates + `Phone:` / `Email:` labels; no UUID labels on cards
 - [x] Buyer / property / contact normalizers + view builders + middleware flags (local `.env` = true)
 - [x] Hybrid `metadata.recommendation` for **all** detail entities (`recommendations.js`)
 - [x] Conversation memory (`lastListResults`, `currentEntity`)
 - [x] Prompt alignment (detail-by-name; UUID policy)
-- [x] Golden check: `node apps/crm/server/agents/run-golden-check.mjs`
+- [x] Golden check: `node agency-app/api/agents/run-golden-check.mjs`
 
 ## Still open
 
 - [ ] Live WhatsApp verification after CRM deploy
-- [ ] Optional: Jest via `npm install` in `apps/crm/server/`
+- [ ] Optional: Jest via `npm install` in `agency-app/api/`
 
 ## Key files
 
 | Area | Path |
 |------|------|
 | Spec | `docs/interaction-design/` |
-| Formatter | `apps/crm/server/agents/responseFormatter.js`, `apps/crm/server/agents/formatting/` |
-| DTOs | `apps/crm/server/aiViewBuilders/`, `apps/crm/server/aiDtoMiddleware.js` |
-| Recommendations | `apps/crm/server/aiViewBuilders/recommendations.js` |
-| Prompt | `apps/crm/server/agents/prompts.js` |
-| Golden | `apps/crm/server/agents/run-golden-check.mjs`, `goldenConversations.test.js` |
+| Formatter | `agency-app/api/agents/responseFormatter.js`, `agency-app/api/agents/formatting/` |
+| DTOs | `agency-app/api/aiViewBuilders/`, `agency-app/api/aiDtoMiddleware.js` |
+| Recommendations | `agency-app/api/aiViewBuilders/recommendations.js` |
+| Prompt | `agency-app/api/agents/prompts.js` |
+| Golden | `agency-app/api/agents/run-golden-check.mjs`, `goldenConversations.test.js` |
 
 ## Decisions
 

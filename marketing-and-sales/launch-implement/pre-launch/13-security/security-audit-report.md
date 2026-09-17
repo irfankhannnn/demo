@@ -13,7 +13,7 @@
 
 ## Scope
 
-- **Files audited:** All `apps/crm/server/routes/*.js` files (17 files; 7 disabled/commented out in server.js)
+- **Files audited:** All `agency-app/api/routes/*.js` files (17 files; 7 disabled/commented out in server.js)
 - **Git commit:** `9d5b7c4` (base branch `cursor/launch-plan-v2-architecture-updates-8e67`)
 - **Audit date:** 2026-06-03
 - **Methodology:** Static analysis of route middleware chains + DDB key patterns + Playwright pen-test spec
@@ -29,25 +29,25 @@
 ### P1 Findings (4)
 
 #### P1-1: `b2bLeads.js` — GET/PUT/POST routes missing `extractTenantId`
-- **File:** `apps/crm/server/routes/b2bLeads.js:168,194,226,312`
+- **File:** `agency-app/api/routes/b2bLeads.js:168,194,226,312`
 - **Description:** Authenticated routes (GET/PUT/POST `/b2b-leads/*`) use `validateToken` but NOT `extractTenantId`. Tenant context derived from `req.user.tenantId` set by `validateToken`.
 - **Risk:** Medium — tenant isolation depends on `validateToken` setting correct `tenantId` on `req.user`. If `req.user.tenantId` is spoofable or missing, cross-tenant read is possible.
 - **Fix recommendation:** Add `extractTenantId` middleware to all authenticated b2bLeads routes for defense-in-depth.
 
 #### P1-2: `b2bLeads.js` — POST `/b2b-leads` is public with no rate limiting
-- **File:** `apps/crm/server/routes/b2bLeads.js:62`
+- **File:** `agency-app/api/routes/b2bLeads.js:62`
 - **Description:** Public lead submission endpoint has no IP-based rate limiting.
 - **Risk:** Low-Medium — potential for DDB write amplification via automated spam.
 - **Fix recommendation:** Add `express-rate-limit` (5-10 requests per IP per hour), similar to the grievance endpoint pattern.
 
 #### P1-3: `enquiries.js` — Public POST with no rate limiting
-- **File:** `apps/crm/server/routes/enquiries.js` (public submission route)
+- **File:** `agency-app/api/routes/enquiries.js` (public submission route)
 - **Description:** Public enquiry submission has no rate limiting.
 - **Risk:** Low — same DDB spam risk as P1-2.
 - **Fix recommendation:** Add rate limiter (10 req/IP/hour).
 
 #### P1-4: Disabled route files still present in codebase
-- **File:** `apps/crm/server/routes/{areasBuildings,buildings,flats,aiCallingInternal,developers,projects,realEstateAreas,publicAreas,areas}.js`
+- **File:** `agency-app/api/routes/{areasBuildings,buildings,flats,aiCallingInternal,developers,projects,realEstateAreas,publicAreas,areas}.js`
 - **Description:** 9 route files are disabled (commented out in server.js) but still exist. `areasBuildings.js` routes have NO auth middleware — if accidentally re-enabled, all routes are public.
 - **Risk:** Low (not mounted) but code hygiene issue.
 - **Fix recommendation:** Delete disabled route files or add `validateToken` to all handlers before any re-enablement.
@@ -55,11 +55,11 @@
 ### P2 Findings (2)
 
 #### P2-1: Missing request logging on public B2B leads submission
-- **File:** `apps/crm/server/routes/b2bLeads.js:62`
+- **File:** `agency-app/api/routes/b2bLeads.js:62`
 - **Description:** No explicit IP/user-agent logging on public lead creation. Request logger middleware exists globally but specific abuse tracking would help.
 
 #### P2-2: No input length validation on enquiry description field
-- **File:** `apps/crm/server/routes/enquiries.js` (public POST)
+- **File:** `agency-app/api/routes/enquiries.js` (public POST)
 - **Description:** Public enquiry form doesn't enforce max length on text fields at the route level (relies on DDB item size limit of 400KB).
 - **Fix recommendation:** Add `description.length <= 5000` check.
 

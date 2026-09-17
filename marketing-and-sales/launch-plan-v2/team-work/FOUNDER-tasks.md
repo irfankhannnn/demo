@@ -2,7 +2,7 @@
 ## Role: Architecture Design + Team Management + All Remaining Work
 ## Phases: Pre-Launch (P1–P18) + Week 1 (Day 1–7)
 
-> **Batch update 2026-06-11:** Signup funnel unblocked (self-serve trial). Deploy `apps/crm/server/infra/launch-tables-cfn.yaml` to unblock production. Fill `{{PLACEHOLDER}}` in legal docs before lawyer review. ~40% founder manual tasks complete (base CFN live).
+> **Batch update 2026-06-11:** Signup funnel unblocked (self-serve trial). Deploy `agency-app/api/infra/launch-tables-cfn.yaml` to unblock production. Fill `{{PLACEHOLDER}}` in legal docs before lawyer review. ~40% founder manual tasks complete (base CFN live).
 
 > **How to use this file:**
 > - Each Jira Story has an ID, phase, priority, source reference, and sub-tasks.
@@ -40,7 +40,7 @@
 - **Phase:** Pre-Launch → T-14 (before Zeeshan starts coding)
 - **Priority:** Critical
 - **Source Files:** `pre-launch-prep/P9-grievance-flow.md`, `P11-openclaw-concierge.md`, `P12-seat-cap-enforcement.md`, `P14-paywall-trial-countdown.md`
-- **Context:** Before Zeeshan writes any new service (Grievance, Billing Webhook, Seat-Cap, Paywall), the Founder must design the architecture: DynamoDB table schemas, IAM roles, route structure, cross-service dependencies, and how new services fit the existing `apps/crm/server/` + `apps/crm/real-estate-crm-app/` patterns. This prevents rework.
+- **Context:** Before Zeeshan writes any new service (Grievance, Billing Webhook, Seat-Cap, Paywall), the Founder must design the architecture: DynamoDB table schemas, IAM roles, route structure, cross-service dependencies, and how new services fit the existing `agency-app/api/` + `agency-app/web/` patterns. This prevents rework.
 
 #### Tasks
 - [ ] **FND-001-T1** — Design DynamoDB table schemas for all new tables
@@ -84,7 +84,7 @@
 - [x] **FND-002-T8 (partial)** — API Gateway domain `api.realestateflow.in` mapped
 
 #### Tasks — 🔲 REMAINING (config-only, run in parallel with coding)
-- [x] **FND-002-T3-NEW** — DynamoDB: CloudFormation template ready (`apps/crm/server/infra/launch-tables-cfn.yaml`) — **deploy to AWS Console/CLI**
+- [x] **FND-002-T3-NEW** — DynamoDB: CloudFormation template ready (`agency-app/api/infra/launch-tables-cfn.yaml`) — **deploy to AWS Console/CLI**
 - [ ] **FND-002-T3-DEPLOY** — Run CloudFormation deploy (was FND-002-T3-NEW manual console steps):
   - `Grievances` (PK=grievanceId, from P9)
   - `AIEmployeeProvisioning` (PK=tenantId, from P11)
@@ -220,7 +220,7 @@
   - Capture: `HOTJAR_ID`, `HOTJAR_SV`
   - Hand to Zeeshan: add to LP `.env` ONLY
 - [ ] **FND-005-T7** — Write all IDs to `marketing-and-sales/launch-implement/pre-launch/env-config.md` (reference doc; do NOT commit raw keys to git)
-  - Populate real values in: LP `creative/landing-pages/.env`, CRM `apps/crm/real-estate-crm-app/.env`, Lambda env vars
+  - Populate real values in: LP `creative/landing-pages/.env`, CRM `agency-app/web/.env`, Lambda env vars
 - **Acceptance:** All 6 vendor accounts active; keys in correct env files (GA4/Pixel/LinkedIn/Hotjar LP-only; PostHog all 3; Sentry CRM+Server only); ZEE-003 can run with real IDs.
 
 ---
@@ -248,7 +248,7 @@
 - [ ] **FND-006-T5** — Create **Cal.com** account at https://cal.com; set up `{{FOUNDER_HANDLE}}` handle
   - Create 1 booking type: "15-min RealEstateFlow Demo" (video call)
   - Capture: Cal.com URL → hand to Madhu for email signatures + LP copy
-- [ ] **FND-006-T6** — Add all captured keys to Lambda env vars + `apps/crm/server/.env` + `apps/crm/real-estate-crm-app/.env`
+- [ ] **FND-006-T6** — Add all captured keys to Lambda env vars + `agency-app/api/.env` + `agency-app/web/.env`
 - **Acceptance:** All accounts active; all keys in env; Zeeshan can complete ZEE-002 and ZEE-004.
 
 ---
@@ -271,7 +271,7 @@
   - Add both IDs to Lambda env vars (as demo-specific env vars)
 - [ ] **FND-007-T2** — Generate `DEMO_TENANT_ID` (a fixed ULID, e.g. `01J...`) → add to Lambda env vars
   - All seed data from ZEE-001 uses this fixed tenant ID — no code changes needed, just env var
-- [ ] **FND-007-T3** — ⚠️ **Blocked on ZEE-001 being complete.** Once Zeeshan's `apps/crm/server/scripts/seed-demo-tenant.js` exists:
+- [ ] **FND-007-T3** — ⚠️ **Blocked on ZEE-001 being complete.** Once Zeeshan's `agency-app/api/scripts/seed-demo-tenant.js` exists:
   - Deploy seed script as a one-off Lambda invocation (or run locally with production DDB access)
   - Verify data in DDB console: check buyer count, property count, lead count
 - [ ] **FND-007-T4** — ⚠️ **Blocked on ZEE-001 being complete.** Register EventBridge cron for daily reset from Zeeshan's `cron/reset-demo.yaml`
@@ -501,7 +501,7 @@ All manual task outputs funnel into 4 config locations (no git commits for secre
 ```
 AWS Console actions           → AWS DDB tables + Lambda env vars (via AWS Console)
 Vendor account signups        → creative/landing-pages/.env  (LP build-time IDs)
-                              → apps/crm/real-estate-crm-app/.env     (CRM runtime IDs)
+                              → agency-app/web/.env     (CRM runtime IDs)
                               → Lambda env vars              (Server IDs)
 Founder details (Cal, phone)  → hands to Madhu for LP copy + ZEE-008 placeholders
 Razorpay live plan IDs        → marketing-and-sales/launch-plan-v2/pricing.json (razorpayPlanIds.live)

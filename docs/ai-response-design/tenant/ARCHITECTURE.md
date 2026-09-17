@@ -273,7 +273,7 @@ The LLM can then respond:
 ## File Locations
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     tenantService.js
   normalizers/

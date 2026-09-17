@@ -16,17 +16,17 @@ There are **two completely separate web applications** in this monorepo:
 
 | App | Directory | Domain | Stack | Auth |
 |---|---|---|---|---|
-| **CRM SPA** | `apps/crm/real-estate-crm-app/` | `app.realestateflow.in` | React + TypeScript + Vite + Tailwind | Cognito via `validateToken` middleware |
+| **CRM SPA** | `agency-app/web/` | `app.realestateflow.in` | React + TypeScript + Vite + Tailwind | Cognito via `validateToken` middleware |
 | **Landing Pages** | `creative/landing-pages/` | `realestateflow.in` | Static HTML + Vite build pipeline | None (public) |
 
-**Both deploy to Netlify independently.** They share the same backend API (`apps/crm/server/`).
+**Both deploy to Netlify independently.** They share the same backend API (`agency-app/api/`).
 
 ---
 
 ## 3. Backend Architecture
 
 ```
-apps/crm/server/
+agency-app/api/
 ├── server.js              — Express entry point; mounts all routes
 ├── lambda-handler.js      — AWS Lambda entry wrapping Express
 ├── tenantMiddleware.js    — extractTenantId() middleware
@@ -53,7 +53,7 @@ router.get('/path', validateToken, extractTenantId, async (req, res) => {
 ## 4. Frontend Architecture
 
 ```
-apps/crm/real-estate-crm-app/src/
+agency-app/web/src/
 ├── App.tsx                — React Router + auth state machine + ProtectedRoute
 ├── main.tsx               — Vite entry; PostHog + Sentry init goes here
 ├── pages/
@@ -128,9 +128,9 @@ const dynamodb = wrapAwsClient();
 
 ### Backend
 - ES Modules (`import`/`export`) — already configured
-- Pattern to copy: `apps/crm/server/routes/leads.js` + `apps/crm/server/tenantMiddleware.js`
+- Pattern to copy: `agency-app/api/routes/leads.js` + `agency-app/api/tenantMiddleware.js`
 - Error responses: `res.status(4xx).json({ error: 'string', details?: 'string' })`
-- All routes go in `apps/crm/server/routes/`; all DDB operations in `apps/crm/server/*DynamodbService.js`
+- All routes go in `agency-app/api/routes/`; all DDB operations in `agency-app/api/*DynamodbService.js`
 - Rate limiting: use `express-rate-limit` (check if installed)
 
 ### Frontend
@@ -142,7 +142,7 @@ const dynamodb = wrapAwsClient();
 - Copy pattern from existing pages: `src/pages/crm/BuyerList.tsx` or `src/pages/admin/InviteManagement.tsx`
 
 ### Testing
-- Playwright for E2E tests — existing config in `apps/crm/real-estate-crm-app/test/`
+- Playwright for E2E tests — existing config in `agency-app/web/test/`
 - All test files in `tests/` at repo root
 - Run: `npx playwright test tests/{spec-file}.spec.ts`
 
@@ -152,7 +152,7 @@ const dynamodb = wrapAwsClient();
 
 All agents should use placeholder values for env vars they haven't been given. Never hardcode credentials.
 
-### Backend Lambda (`apps/crm/server/.env`)
+### Backend Lambda (`agency-app/api/.env`)
 ```
 RAZORPAY_WEBHOOK_SECRET=
 RAZORPAY_KEY_SECRET=
@@ -167,7 +167,7 @@ DEMO_TENANT_ID=
 AUTH_SERVICE_URL=         # already exists
 ```
 
-### CRM SPA (`apps/crm/real-estate-crm-app/.env`)
+### CRM SPA (`agency-app/web/.env`)
 ```
 VITE_API_URL=             # already exists
 VITE_POSTHOG_KEY=
@@ -196,7 +196,7 @@ See `01-SHARED-CONTRACTS.md` for all new DynamoDB table schemas, API route specs
 
 ---
 
-## 11. How to Add Routes to apps/crm/server/server.js
+## 11. How to Add Routes to agency-app/api/server.js
 
 Add your import in the `// === [LAUNCH ROUTES IMPORTS] ===` block and your mount in the `// === [LAUNCH ROUTES MOUNTS] ===` block. These are tagged comment sections. Use your PR-ID as the tag so merges are conflict-free:
 
@@ -242,20 +242,20 @@ Each PR only adds its own tagged block. Never reorder or remove existing routes.
 
 | Agent | File | Allowed modification |
 |---|---|---|
-| PR-B | `apps/crm/server/server.js` | Add tagged import + mount block |
+| PR-B | `agency-app/api/server.js` | Add tagged import + mount block |
 | PR-B | `src/App.tsx` | Add tagged route block (public + admin/grievances) |
 | PR-C | `src/App.tsx` | Add `<CookieConsentBanner />` inside authenticated layout |
 | PR-D | `creative/landing-pages/netlify.toml` | Add redirects for new pages; remove enterprise redirect |
-| PR-F | `apps/crm/server/server.js` | Add tagged import + mount block (billing webhook BEFORE auth) |
+| PR-F | `agency-app/api/server.js` | Add tagged import + mount block (billing webhook BEFORE auth) |
 | PR-F | `src/App.tsx` | Add tagged route block (/integrations/ai-employee) |
-| PR-H | `apps/crm/server/server.js` | Add tagged import + mount block (subscriptions) |
-| PR-H | `apps/crm/server/routes/auth.js` | Add seat-cap check in the invite-creation handler ONLY |
+| PR-H | `agency-app/api/server.js` | Add tagged import + mount block (subscriptions) |
+| PR-H | `agency-app/api/routes/auth.js` | Add seat-cap check in the invite-creation handler ONLY |
 | PR-H | `src/App.tsx` | Add tagged route block (/admin/invites, /admin/members updates) |
-| PR-J | `apps/crm/server/server.js` | Add tagged import + mount block (subscriptions trial-status) |
+| PR-J | `agency-app/api/server.js` | Add tagged import + mount block (subscriptions trial-status) |
 | PR-J | `src/App.tsx` | Add `<TrialCountdownBanner />` + `<PaywallModal />` to authenticated layout |
-| PR-K | `apps/crm/server/server.js` | Add tagged import + mount block (feedback) |
+| PR-K | `agency-app/api/server.js` | Add tagged import + mount block (feedback) |
 | PR-K | `src/App.tsx` | Add tagged route block (/nps) |
-| PR-L | `apps/crm/server/routes/auth.js` | Add Brevo contact addition in the register handler ONLY |
+| PR-L | `agency-app/api/routes/auth.js` | Add Brevo contact addition in the register handler ONLY |
 
 **Rule:** Any file not in your allowed modification list — create a new file instead.
 
@@ -274,10 +274,10 @@ Examples:
 ## 15. Source Files to Read for Patterns
 
 Before writing any code, read these files to understand existing patterns:
-- `apps/crm/server/routes/leads.js` — route pattern
-- `apps/crm/server/crmDynamodbService.js` (first 200 lines) — DDB service pattern
-- `apps/crm/server/tenantMiddleware.js` — tenant scoping
-- `apps/crm/server/awsClientWrapper.js` — DDB client wrapper
-- `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` — admin page pattern
-- `apps/crm/real-estate-crm-app/src/pages/crm/BuyerList.tsx` — CRM page pattern
-- `apps/crm/real-estate-crm-app/src/App.tsx` — route + ProtectedRoute pattern
+- `agency-app/api/routes/leads.js` — route pattern
+- `agency-app/api/crmDynamodbService.js` (first 200 lines) — DDB service pattern
+- `agency-app/api/tenantMiddleware.js` — tenant scoping
+- `agency-app/api/awsClientWrapper.js` — DDB client wrapper
+- `agency-app/web/src/pages/admin/InviteManagement.tsx` — admin page pattern
+- `agency-app/web/src/pages/crm/BuyerList.tsx` — CRM page pattern
+- `agency-app/web/src/App.tsx` — route + ProtectedRoute pattern
