@@ -83,6 +83,8 @@ agency-app/instagram-web/infra/cfn-params.json
 agency-app/instagram-web/infra/.last-deploy-artifacts.json
 agency-app/instagram-web/infra/.last-config-diff.json
 agency-app/instagram-web/dist/
+# TypeScript incremental-build cache (tsc --build / vite type-check leaves it next to tsconfig)
+*.tsbuildinfo
 
 # Local build/release index - S3 is the durable source of truth
 infra/cicd/agency-app/instagram-api/deploy-versions/
