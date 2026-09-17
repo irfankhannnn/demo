@@ -3,12 +3,12 @@
 ## Critical Fixes Applied (January 28, 2026)
 
 ### 1. **authMiddleware Export Error** ✅ FIXED
-**File:** `apps/crm/server/middleware/auth.js`
+**File:** `agency-app/api/middleware/auth.js`
 **Issue:** New route files (`developers.js`, `realEstateAreas.js`, `projects.js`) import `authMiddleware`, but only `authenticateToken` was exported.
 **Fix:** Added `export const authMiddleware = authenticateToken;`
 
 ### 2. **getSeller/getSellers Missing Exports** ✅ FIXED
-**File:** `apps/crm/server/routes/aiCallingInternal.js`
+**File:** `agency-app/api/routes/aiCallingInternal.js`
 **Issue:** Importing `getSeller/getSellers` which were removed (replaced by OWNER entity).
 **Fix:** 
 - Removed `getSeller/getSellers` imports
@@ -18,8 +18,8 @@
 
 ### 3. **CRM_TABLE_NAME Export Error** ✅ FIXED
 **Files:** 
-- `apps/crm/server/crmDynamodbService.js`
-- `apps/crm/server/build-lambda/crmDynamodbService.js` (will be regenerated)
+- `agency-app/api/crmDynamodbService.js`
+- `agency-app/api/build-lambda/crmDynamodbService.js` (will be regenerated)
 **Issue:** `crmHelpers.js` imports `{ docClient, CRM_TABLE_NAME }` but they weren't exported.
 **Fix:** Added `export { docClient, CRM_TABLE_NAME };` at end of file
 

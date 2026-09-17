@@ -42,16 +42,16 @@ As a Day-14+ trial/paid user, I want to be asked once "would you recommend RealE
 You are a senior full-stack engineer. Build an in-product NPS modal for RealEstateFlow.
 
 Read:
-- `apps/crm/real-estate-crm-app/src/App.tsx`
-- `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx` (modal pattern)
-- `apps/crm/real-estate-crm-app/src/contexts/AuthContext.tsx`
-- `apps/crm/server/routes/feedback.js` (or create if missing)
-- `apps/crm/server/services/dynamodb.js` (NpsResponses table or create)
+- `agency-app/web/src/App.tsx`
+- `agency-app/web/src/components/PaywallModal.tsx` (modal pattern)
+- `agency-app/web/src/contexts/AuthContext.tsx`
+- `agency-app/api/routes/feedback.js` (or create if missing)
+- `agency-app/api/services/dynamodb.js` (NpsResponses table or create)
 
 Build:
 
 ## Frontend
-- Component: `apps/crm/real-estate-crm-app/src/components/NpsModal.tsx`
+- Component: `agency-app/web/src/components/NpsModal.tsx`
   - Trigger: only show if user.created_at < now()-14*24h AND last NPS ask > 90 days ago AND active session
   - 1 question: "How likely are you to recommend RealEstateFlow to a fellow Mumbai broker?" (0-10 scale, button row)
   - On click: POST `/api/feedback/nps` { score, anonymous: false }
@@ -63,7 +63,7 @@ Build:
   - Re-ask: only after 90 days
 
 ## Backend
-- Route: `apps/crm/server/routes/feedback.js` POST /api/feedback/nps
+- Route: `agency-app/api/routes/feedback.js` POST /api/feedback/nps
 - Auth: requires authenticated user
 - Body: { score: 0-10, free_text?: string, share_testimonial?: bool }
 - Validation: score required, free_text required if score ≤ 6

@@ -5,7 +5,7 @@ name: Server Tests
 # processor) previously ran only on developer machines — playwright.yml
 # builds and tests the CRM frontend but never touches server/. That gap is
 # recorded in docs/working-context/current-issues-and-pending.md ("npm install in
-# apps/crm/server/ so Jest suite runs in CI") and docs/launch-audit/03-production-readiness.md
+# agency-app/api/ so Jest suite runs in CI") and docs/launch-audit/03-production-readiness.md
 # ("Security scans: ❌ No SAST/dependency-audit step in CI").
 #
 # Branch triggers mirror playwright.yml so both run on the same PRs.
@@ -29,14 +29,14 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: apps/crm/server/package-lock.json
+          cache-dependency-path: agency-app/api/package-lock.json
 
       - name: Install server dependencies
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         run: npm ci
 
       - name: Run Jest suite
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         # Jest needs the VM-modules flag because the server is native ESM
         # ("type": "module"); this matches the local `npm test` script.
         run: npm test
@@ -47,6 +47,10 @@ jobs:
           CRM_DYNAMODB_TABLE_NAME: ci-placeholder-crm-table
           AGENCY_CONFIG_DYNAMODB_TABLE_NAME: ci-placeholder-agency-config
           AWS_REGION: ap-south-1
+          # emailService.js throws at import time without a sender address;
+          # 8 suites import it transitively. Never sent from — every suite
+          # mocks the SES client.
+          AWS_SES_FROM_EMAIL: ci-placeholder@example.com
 
       # The MCP tool file is now GENERATED from the canonical registry, so the
       # 20-tool gap that made this step non-blocking is closed and it is
@@ -60,11 +64,11 @@ jobs:
       #                      produces self-consistent but wrong output, which
       #                      the first check cannot see.
       - name: Check MCP tool definitions are regenerated
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         run: npm run check:mcp-tools
 
       - name: Check MCP tool-registry drift
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         run: npm run check:mcp-drift
 
       # Compiles the MCP service and runs its OAuth scope-consistency check
@@ -72,10 +76,28 @@ jobs:
       # the check entirely when a tool has no scope — or a write tool being
       # granted a read scope.
       - name: Build MCP service and verify OAuth scopes
-        working-directory: services/reality-flow-mcp
+        working-directory: platform/mcp
         run: |
           npm ci
           npm run build
+
+  contracts:
+    name: Event schema contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # platform/contracts has no dependencies; this checks every event schema
+      # parses and carries the metadata consumers rely on.
+      - name: Check event schemas
+        working-directory: platform/contracts
+        run: npm test
 
   security-audit:
     name: Dependency audit
@@ -94,14 +116,18 @@ jobs:
       # wedge an unrelated PR. Tighten to --audit-level=high once the current
       # backlog is triaged.
       - name: Audit server dependencies
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         run: npm audit --audit-level=critical
 
+      # --omit=dev: the frontend ships a static bundle, so devDependencies
+      # (icon generators, build tooling) never reach production. Without it a
+      # critical in @capacitor/assets' pinned sharp, which has no upstream fix,
+      # blocks every PR.
       - name: Audit CRM dependencies
-        working-directory: apps/crm/real-estate-crm-app
-        run: npm audit --audit-level=critical
+        working-directory: agency-app/web
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Report non-blocking findings (server)
         if: always()
-        working-directory: apps/crm/server
+        working-directory: agency-app/api
         run: npm audit --audit-level=moderate || true

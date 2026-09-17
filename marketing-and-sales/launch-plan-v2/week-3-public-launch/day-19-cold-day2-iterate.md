@@ -4,6 +4,7 @@
 > **Phase:** Week 3
 > **Skill(s):** `messaging-optimizer` + `cold-email` + `whatsapp-outreach`
 > **Estimated time:** 4h founder + 2h AI
+> **Script:** `../40-sales-and-conversion/objections.md` (what the replies are really saying) · `../40-sales-and-conversion/followup-script.md`
 
 ## Objective
 Read Day-18 metrics, iterate on subject lines / CTAs / opener if needed, send the next batch of cold touches (Touch 1 to remaining prospects + Touch 2 to Day-9 + Day-13 non-replies if applicable), book demos for interested replies.

@@ -29,40 +29,54 @@
 ---
 
 ## Project Overview
-Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
+Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealEstateFlow** (`realestateflow.in`) is the go-to-market brand, targeting Indian real-estate agents, Mumbai first. The product is pre-launch with no paying customers, so no marketing asset may show customer counts, testimonials or other invented proof.
 
 ## Tech Stack
-- **Frontend:** React + TypeScript + Vite + TailwindCSS (apps/crm/real-estate-crm-app/)
-- **Backend:** Node.js + Express + DynamoDB (apps/crm/server/)
-- **AI Calling:** Lambda + Exotel + ElevenLabs (services/ai-calling-service/)
+- **Frontend:** React + TypeScript + Vite + TailwindCSS (agency-app/web/)
+- **Backend:** Node.js + Express + DynamoDB (agency-app/api/)
+- **AI Calling:** Lambda + Exotel + ElevenLabs (agency-app/ai-calling/)
 - **Video:** Remotion (React-based programmatic video) (marketing-and-sales/video-projects/my-video/)
 - **Auth:** JWT-based authentication
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 - **Package Manager:** npm
 
 ## Key Directories
-Top-level layout: `apps/` (product frontends + backends, grouped per product), `services/`
-(standalone backend microservices), `infra/cicd/` (deploy wrappers), `docs/` (all documentation),
-`tests/`, `tools/`, `marketing-and-sales/`. See `README.md` for the full tree.
+Top-level layout, grouped by audience: `platform/` (shared foundation: auth, gateway, events,
+contracts, WhatsApp channel, MCP), `public-app/` (consumer marketplace), `agency-app/` (agency
+owners + agents: CRM, Instagram, calling, follow-ups), `infra/cicd/` (deploy wrappers, mirrors the
+tree), `docs/` (all documentation, mirrors the tree), `tests/`, `tools/`, `marketing-and-sales/`.
+See `README.md` for the full tree and the three boundary rules.
 
-- `apps/crm/real-estate-crm-app/src/` — CRM frontend source (components, pages, services, types, contexts)
-- `apps/crm/server/` — CRM Express backend (routes, services, middleware)
-- `apps/instagram/{frontend,backend}_insta_sol_ms/` — Instagram lead console + API
-- `apps/onboarding/`, `apps/landing-pages/`, `apps/property-pages-ms/` — Onboarding flow, marketing site, public property pages
-- `services/` — `reality-flow-authentication`, `reality-flow-mcp`, `whatsapp-platform`, `ai-calling-service`, `followup-agent-service`
-- `infra/cicd/<service>/deploy.sh` — Release-tracked deploy wrapper; folder name matches the service folder's name
-- `docs/` — All documentation (index: `docs/README.md`); service READMEs stay in their service
+- `agency-app/web/src/` — CRM frontend source (components, pages, services, types, contexts)
+- `agency-app/api/` — CRM Express backend (routes, services, middleware); owns the CRM tables
+- `agency-app/instagram-web/`, `agency-app/instagram-api/` — Instagram lead console + API
+- `agency-app/ai-calling/`, `agency-app/followup-agent/` — AI voice calling, follow-up agent
+- `agency-app/landing-pages/` — marketing site for the agency product (static, S3 + CloudFront)
+- `public-app/property-pages/` — public tenant-branded property pages (server-rendered)
+- `platform/auth/`, `platform/mcp/`, `platform/whatsapp-platform/` — Cognito auth, MCP server, Baileys WhatsApp workers
+- `platform/contracts/` — event JSON schemas + API contracts; the only thing units share
+- `platform/gateway/`, `platform/events/` — API Gateway and EventBridge design notes (target state)
+- `infra/cicd/<group>/<name>/deploy.sh` — Release-tracked deploy wrapper; same path as the service, one level down
+- `docs/<group>/<name>/` — design notes per service; `docs/README.md` is the index. Service READMEs stay in their service
 - `marketing-and-sales/video-projects/my-video/` — Remotion video generation project
 - `tools/claude-skills/` — Agent definitions, skills, scripts, templates
 - `marketing-and-sales/` — All marketing outputs (creative, leads, outreach, ads, research)
 
-When adding a new service, put it under `apps/<product>/` (if it has a frontend/backend pair) or
-`services/`, add its wrapper at `infra/cicd/<same-name>/`, and put design docs in `docs/services/<same-name>/`.
+Boundary rules (see README.md): a service touches only its own DynamoDB tables; synchronous calls
+go through the API Gateway custom domain; anything the public app needs from the agency app arrives
+as an event on the bus (schemas in `platform/contracts/events/`).
+
+When adding a new service, put it under `platform/`, `public-app/` or `agency-app/`, add its wrapper
+at `infra/cicd/<group>/<name>/`, and put design docs in `docs/<group>/<name>/`.
 
 ## DynamoDB Tables
-- CRM: Buyers, Sellers, Owners, Customers (Tenants)
-- Real Estate: Developers, Areas, Projects
-- AI Calling: Call sessions, transcripts, knowledge docs
+- **CRM (`<env>-realestateflow-crm`)** — one single table. Leads, buyers, sellers, owners, tenants,
+  contacts, properties, listings, meetings, khatabook and WhatsApp conversations are item types in
+  it, keyed `TENANT#<tenantId>#<ENTITY>#<id>`
+- Separate tables: Projects, Developers, Areas, Subscriptions, Credits + CreditConfig, WebhookLog
+- AI Calling: call sessions, transcripts, knowledge docs (with a `descriptionVector` index for
+  semantic property search)
+- Instagram service: `<env>-realestateflow-insta-data` and `-insta-audit`
 
 ## Coding Conventions
 - Use ES modules in backend (`import`/`export` where supported, otherwise CommonJS)
@@ -73,12 +87,14 @@ When adding a new service, put it under `apps/<product>/` (if it has a frontend/
 - Error responses: `{ error: string, details?: string }`
 - **Hinglish convention:** All marketing copy uses 70% English + 30% Hindi (romanized)
 
-## Agent Teams (6 Teams, 20 Agents)
+## Agent Teams (7 Teams, 30 Agents)
+
+Definitions live in `tools/claude-skills/agents/`; `tools/claude-skills/setup.ps1` copies them into `.claude/`.
 
 ### Team 1: Product & Engineering (The Builders)
 - `architect` — Codebase analysis, module planning
-- `sentry` — Security scanning, vulnerability detection
-- `pr-commander` — PR review, performance, documentation
+- `sentry` — Security scanning of the working tree (PR-time security review belongs to `security`)
+- `pr-commander` — Performance and documentation passes (PR review belongs to `principal-engineer`)
 
 ### Team 2: Market Intelligence (The Strategists)
 - `trend-hunter` — Social listening, competitor tracking
@@ -106,6 +122,14 @@ When adding a new service, put it under `apps/<product>/` (if it has a frontend/
 ### Team 6: Operations (The Trackers)
 - `pipeline-manager` — Pipeline tracking, Google Sheets MCP, daily summaries
 
+### Team 7: Engineering Change Intelligence (PR review)
+Driven by `tools/engineering-change-intelligence/`; run locally with `claude --agent pr-orchestrator "Review PR #N"`.
+- `pr-orchestrator` — Routes a PR to the right reviewers; `pr-intelligence` — change summary and risk
+- `principal-engineer` — Overall review call; `security` — PR-time security review
+- `architecture`, `cicd` — Design and pipeline review (infra readiness defers to `cfn-readiness-auditor`)
+- `database` — DynamoDB single-table review; `finops` — cost impact
+- `release-readiness`, `sre-observability` — Ship/no-ship and operability
+
 ## Agent Team Coordination Rules
 1. **No file conflicts:** Each agent owns specific directories. Check CLAUDE.md before editing.
 2. **Communication:** Use task lists and messages to coordinate between teammates.
@@ -119,42 +143,38 @@ When adding a new service, put it under `apps/<product>/` (if it has a frontend/
 ## File Ownership Map
 | Team | Owned Paths |
 |------|-------------|
-| Builders (architect, sentry, pr-commander) | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
+| Builders (architect, sentry, pr-commander) | `agency-app/web/src/`, `agency-app/api/`, `agency-app/ai-calling/` |
 | Strategists (trend-hunter, deep-researcher, oracle) | `marketing-and-sales/research/`, `marketing-and-sales/reports/` |
 | Content Factory (brand-strategist, nano-designer, motion-engineer, ugc-planner, orator, landing-page-builder, seo-content-writer) | `marketing-and-sales/creative/`, `marketing-and-sales/assets/` |
 | Scalers (media-buyer, ab-optimizer, lead-scraper) | `marketing-and-sales/ads/`, `marketing-and-sales/leads/` |
 | Converters (sdr, nurture-bot) | `marketing-and-sales/outreach/`, `marketing-and-sales/sequences/` |
 | Trackers (pipeline-manager) | `marketing-and-sales/leads/pipeline.*`, `marketing-and-sales/leads/daily-summary-*` |
 
-## Skills Registry (64 Skills)
+## Skills Registry (32 Skills, in `tools/claude-skills/skills/`)
 
-### Core Skills
 | Category | Skills |
 |----------|--------|
 | Engineering | `codebase-analysis`, `security-audit`, `pr-review` |
+| PR review (Team 7) | `pr-intelligence`, `pr-change-routing`, `principal-engineer-review`, `architecture-review`, `cicd-review`, `database-review`, `finops-review`, `release-readiness`, `sre-observability-review` |
 | Market Intel | `trend-analysis`, `icp-research`, `market-prediction` |
-| Creative | `brand-strategy`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog` |
-| Growth | `ab-testing`, `ab-test-setup`, `lead-enrichment`, `serpapi-scraping` |
+| Creative | `brand-strategy`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog`, `design-assets`, `image-generation` |
+| Growth | `ab-testing`, `lead-enrichment`, `serpapi-scraping`, `meta-ads-setup` |
 | Sales | `outbound-outreach`, `whatsapp-outreach`, `lead-nurture` |
 | Operations | `pipeline-tracker` |
 
-### Marketing Skills (41 from coreyhaines31/marketingskills)
-`ad-creative`, `social-content`, `copywriting`, `copy-editing`, `content-strategy`, `image`, `video`, `paid-ads`, `email-sequence`, `cold-email`, `seo-audit`, `ai-seo`, `programmatic-seo`, `analytics-tracking`, `aso-audit`, `churn-prevention`, `co-marketing`, `community-marketing`, `competitor-alternatives`, `competitor-profiling`, `customer-research`, `directory-submissions`, `form-cro`, `free-tool-strategy`, `launch-strategy`, `lead-magnets`, `marketing-ideas`, `marketing-psychology`, `onboarding-cro`, `page-cro`, `paywall-upgrade-cro`, `popup-cro`, `pricing-strategy`, `product-marketing-context`, `referral-program`, `revops`, `sales-enablement`, `schema-markup`, `signup-flow-cro`, `site-architecture`
+Skills pinned from other repos live in `skills-lock.json` (27 pins: 26 from `heygen-com/hyperframes`,
+1 from `alchaincyf/huashu-design`). The `coreyhaines31/marketingskills` catalogue is a reference list,
+not vendored into this repo.
 
-### AI Generation Skills
-`higgsfield` — Wraps Higgsfield MCP for video/image generation
-`nano-banana-pro` — Google Gemini 3 Pro Image (2K/4K output)
-`prompt-generator` — Optimizes prompts for AI image/video tools
-
-## Scripts (8 Scripts)
+## Scripts (9 Scripts)
 | Script | Purpose |
 |--------|---------|
-| `scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |
-| `scripts/validate-readonly.sh` | Enforces read-only for research agents |
-| `scripts/run-lint-check.sh` | Post-edit linting for PR Commander |
-| `scripts/validate-ad-budget.sh` | Budget safety guard for Media Buyer |
-| `scripts/generate-image.ps1` | AI image generation (DALL-E 3 / Gemini Imagen) |
-| `scripts/render-remotion.ps1` | Remotion video rendering (local + Lambda) |
-| `scripts/elevenlabs-tts.ps1` | ElevenLabs voice generation |
-| `scripts/serpapi-scrape.ps1` | Google Maps agency scraping via SerpApi |
-| `scripts/sheets-update.ps1` | Pipeline tracking (JSON/CSV offline mode) |
+| `tools/claude-skills/scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |
+| `tools/claude-skills/scripts/validate-readonly.sh` | Enforces read-only for research agents |
+| `tools/claude-skills/scripts/run-lint-check.sh` | Post-edit linting for PR Commander |
+| `tools/claude-skills/scripts/validate-ad-budget.sh` | Budget safety guard for Media Buyer |
+| `tools/claude-skills/scripts/generate-image.ps1` | AI image generation (DALL-E 3 / Gemini Imagen) |
+| `tools/claude-skills/scripts/render-remotion.ps1` | Remotion video rendering (local + Lambda) |
+| `tools/claude-skills/scripts/elevenlabs-tts.ps1` | ElevenLabs voice generation |
+| `tools/claude-skills/scripts/serpapi-scrape.ps1` | Google Maps agency scraping via SerpApi |
+| `tools/claude-skills/scripts/sheets-update.ps1` | Pipeline tracking (JSON/CSV offline mode) |

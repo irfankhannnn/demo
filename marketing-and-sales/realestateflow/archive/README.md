@@ -19,7 +19,7 @@ realestateflow/
 │   ├── logos/                     # Brand logos (color, white, etc.)
 │   ├── posters/                   # Marketing posters
 │   ├── social-media/              # Social media templates & assets
-│   ├── apps/landing-pages/             # Landing page designs
+│   ├── agency-app/landing-pages/             # Landing page designs
 │   ├── videos/                    # Video assets & promotional content
 │   └── ui-components/             # UI element library
 └── README.md                      # This file

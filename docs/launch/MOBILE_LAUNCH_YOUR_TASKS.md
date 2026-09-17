@@ -144,7 +144,7 @@ Everything else can be compressed by working harder. These cannot.
 
 **Why you:** AWS deploy credentials.
 
-- [ ] Redeploy the `apps/crm/server/` Lambda stack
+- [ ] Redeploy the `agency-app/api/` Lambda stack
 - [ ] Redeploy the `reality-flow-authentication` stack
 - [ ] Verify the **OPTIONS preflight**, not just GET:
   ```bash
@@ -174,7 +174,7 @@ Everything else can be compressed by working harder. These cannot.
 
 **Why you:** a brand decision, and I am not a designer.
 
-- [ ] Look at `apps/crm/real-estate-crm-app/assets/icon.png`
+- [ ] Look at `agency-app/web/assets/icon.png`
 
 > I generated the whole icon and splash set (156 files) from the house mark in
 > `marketing-and-sales/realestateflow/assets/logos/final/logo.png`, dropping the

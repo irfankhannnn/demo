@@ -4,14 +4,14 @@
 
 ## What was built
 
-- **`apps/crm/server/eval/fixtures/whatsapp-tool-choice.json`** — the fixture format, seeded with 5 hand-written examples (not the real export): a plain search, a greeting, a Hinglish property-area query, and two archive-tool regression cases (`"archive this lead"` and `"delete this lead"` — the second one specifically proving the planner falls back to `archive_lead` now that no `delete_*` tool exists, per Slice 5's added trigger phrases).
-- **`apps/crm/server/eval/whatsapp-tool-choice.eval.js`** — the runner. Imports the real `planTurn()` and runs it against the real Gemini API for each fixture, comparing `{kind, toolName, input}` against `expected`. Reports a pass-rate summary line and per-failure detail in `afterAll()`.
-- **`npm run eval`** — wired into `apps/crm/server/package.json`, pointed at `**/eval/*.eval.js` specifically so it stays out of the default `npm test` path (confirmed: the full suite's test count was unaffected by adding this file, since Jest's default `testMatch` doesn't pick up `.eval.js`).
+- **`agency-app/api/eval/fixtures/whatsapp-tool-choice.json`** — the fixture format, seeded with 5 hand-written examples (not the real export): a plain search, a greeting, a Hinglish property-area query, and two archive-tool regression cases (`"archive this lead"` and `"delete this lead"` — the second one specifically proving the planner falls back to `archive_lead` now that no `delete_*` tool exists, per Slice 5's added trigger phrases).
+- **`agency-app/api/eval/whatsapp-tool-choice.eval.js`** — the runner. Imports the real `planTurn()` and runs it against the real Gemini API for each fixture, comparing `{kind, toolName, input}` against `expected`. Reports a pass-rate summary line and per-failure detail in `afterAll()`.
+- **`npm run eval`** — wired into `agency-app/api/package.json`, pointed at `**/eval/*.eval.js` specifically so it stays out of the default `npm test` path (confirmed: the full suite's test count was unaffected by adding this file, since Jest's default `testMatch` doesn't pick up `.eval.js`).
 - **Credential-gated, not credential-required**: `describe.skip` when `GEMINI_API_KEY` is unset (verified: all 6 tests skip cleanly, not fail, with the key unset) vs. a live `describe` block that actually calls `planTurn()` when it is set (verified: with a key present in this environment's `.env`, it correctly attempted real API calls — they failed on the network layer in this sandbox, which has no outbound internet access; that's an environment limitation of where this was built, not a flaw in the harness itself).
 
 ## Why
 
-Right now there is no way to know whether *any* change to the WhatsApp agent's tool-choice behavior — this proposal's Phase 3 bounded tool loop, in particular — made things better or worse, because nothing measures tool-choice accuracy today. Verified directly: `apps/crm/server/agents/goldenConversations.test.js` and `apps/crm/server/agents/run-golden-check.mjs` test **reply formatting** (given a tool result, is the rendered WhatsApp text correct) — they never invoke the planner and assert nothing about which tool it chose. `apps/crm/server/agents/llm/planTurn.test.js` gets closer (it mocks Gemini and asserts `plan.toolName`), but covers only 3 hand-written cases, not a real corpus.
+Right now there is no way to know whether *any* change to the WhatsApp agent's tool-choice behavior — this proposal's Phase 3 bounded tool loop, in particular — made things better or worse, because nothing measures tool-choice accuracy today. Verified directly: `agency-app/api/agents/goldenConversations.test.js` and `agency-app/api/agents/run-golden-check.mjs` test **reply formatting** (given a tool result, is the rendered WhatsApp text correct) — they never invoke the planner and assert nothing about which tool it chose. `agency-app/api/agents/llm/planTurn.test.js` gets closer (it mocks Gemini and asserts `plan.toolName`), but covers only 3 hand-written cases, not a real corpus.
 
 This confirms [`../01-diagnosis.md`](../01-diagnosis.md)'s finding verbatim: *"No tool-choice eval, only reply-formatting tests. Nothing asserts 'this Hinglish message should call this tool with these args.'"*
 
@@ -21,9 +21,9 @@ Without this, Phase 3 (the bounded tool loop — the actual "complete flow from 
 
 ### 1. Source real utterances (the part that needs a decision)
 
-Good news: the raw material already exists and is richer than a from-scratch label set would be. `apps/crm/server/whatsappConversationService.js` logs every inbound message *and* every outbound reply, and — critically — **the outbound log item already stores `toolCalls: agentResult.result?.toolResults`**, the exact `{tool, input, result}` shape a tool-choice eval needs. Every real conversation the agent has already had is a labelled example of what it actually did (not necessarily what it *should* have done — see the labelling caveat below).
+Good news: the raw material already exists and is richer than a from-scratch label set would be. `agency-app/api/whatsappConversationService.js` logs every inbound message *and* every outbound reply, and — critically — **the outbound log item already stores `toolCalls: agentResult.result?.toolResults`**, the exact `{tool, input, result}` shape a tool-choice eval needs. Every real conversation the agent has already had is a labelled example of what it actually did (not necessarily what it *should* have done — see the labelling caveat below).
 
-Storage shape (`apps/crm/server/whatsappConversationService.js`):
+Storage shape (`agency-app/api/whatsappConversationService.js`):
 ```
 PK = TENANT#<tenantId>#WHATSAPP#<contactPhone>
 SK = MESSAGE#<timestamp>#<messageId>
@@ -79,7 +79,7 @@ describe('tool-choice eval set', () => {
 
 Two modes were planned, per the plan's *"no live token spend per commit"* requirement:
 - **CI mode**: mocked Gemini responses recorded once, so the suite runs with zero API cost/flakiness on every commit. **Not built.** This needs a real recorded Gemini response per fixture to be honest — fabricating a plausible-looking "recorded" response without ever having actually called the model would test nothing real. Deferred until live mode has run at least once against real credentials to produce genuine recordings.
-- **Live mode** (manual/scheduled, not per-commit): actually calls Gemini. **Built** — `apps/crm/server/eval/whatsapp-tool-choice.eval.js`, gated on `GEMINI_API_KEY` being present (`describe.skip` otherwise), run via `npm run eval`. Verified to skip cleanly without a key and to attempt real calls with one (see "What was built" above).
+- **Live mode** (manual/scheduled, not per-commit): actually calls Gemini. **Built** — `agency-app/api/eval/whatsapp-tool-choice.eval.js`, gated on `GEMINI_API_KEY` being present (`describe.skip` otherwise), run via `npm run eval`. Verified to skip cleanly without a key and to attempt real calls with one (see "What was built" above).
 
 ### 4. Baseline the current pipeline
 

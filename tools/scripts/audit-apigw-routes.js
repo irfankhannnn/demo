@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 
 // Resolved from this file (tools/scripts/), so it works from any cwd.
 const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SERVER_DIR = path.join(PROJECT_ROOT, 'apps', 'crm', 'server');
+const SERVER_DIR = path.join(PROJECT_ROOT, 'agency-app', 'api');
 const ROUTES_DIR = path.join(SERVER_DIR, 'routes');
 const YAML_PATH = path.join(SERVER_DIR, 'infra', 'apigw-explicit-routes.yaml');
 

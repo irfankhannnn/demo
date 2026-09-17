@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.realestateflow.in/events/crm.meetings/meeting.completed.v1.json",
+  "title": "meeting.completed / meeting.cancelled",
+  "description": "A meeting moved into completed or cancelled. One schema covers both detail types; the status field says which. Only published when AGENTS_ENABLED=true.",
+  "x-source": "crm.meetings",
+  "x-detail-type": ["meeting.completed", "meeting.cancelled"],
+  "x-producer": "agency-app/api (services/meetingEvents.js buildMeetingEventDetail)",
+  "x-consumers": ["agency-app/followup-agent worker"],
+  "type": "object",
+  "required": ["tenantId", "meetingId", "status"],
+  "properties": {
+    "tenantId": { "type": "string" },
+    "meetingId": { "type": "string" },
+    "status": { "type": "string", "enum": ["completed", "cancelled"] },
+    "meetingType": { "type": ["string", "null"] },
+    "title": { "type": ["string", "null"] },
+    "meetingDate": { "type": ["string", "null"] },
+    "meetingTime": { "type": ["string", "null"] },
+    "relatedEntityType": { "type": ["string", "null"] },
+    "relatedEntityId": { "type": ["string", "null"] },
+    "relatedEntityName": { "type": ["string", "null"] },
+    "propertyId": { "type": ["string", "null"] },
+    "propertyName": { "type": ["string", "null"] },
+    "outcome": { "type": ["string", "null"] },
+    "completedBy": { "type": ["string", "null"] },
+    "completedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

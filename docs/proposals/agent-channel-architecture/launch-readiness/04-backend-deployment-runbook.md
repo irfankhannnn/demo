@@ -12,17 +12,17 @@ Eleven files carry `AWSTemplateFormatVersion`. Only **five** are stacks you crea
 
 | # | Template | Kind | Deploy for backend? |
 |---|---|---|---|
-| 1 | `apps/crm/server/infra/launch-tables-cfn.yaml` | root | ✅ **yes** — Subscriptions, Grievances, WebhookLog, TenantApiKeys, NPSResponses, BetaInvites |
-| 2 | `services/reality-flow-authentication/infra/cfn-backend.yaml` | root | ✅ **yes** — Cognito + auth Lambda + API GW. Login does not work without it |
-| 3 | `apps/crm/server/infra/cfn-backend.yaml` | root | ✅ **yes** — the CRM API, 17 tables, 10 crons, call-intel SQS pipeline, the agent |
-| 4 | `services/reality-flow-mcp/infra/cfn-backend.yaml` | root | ⚠️ **already deployed** as `dev-realestate-flow-mcp-stack`; redeploy only to ship the Phase 6 generated tool definitions |
-| 5 | `services/ai-calling-service/cfn-template.yaml` | root | ⬜ optional — needs Exotel + ElevenLabs keys. See §6 |
-| 6 | `services/whatsapp-platform/infra/cfn-platform.yaml` | root | ⬜ optional — needs an ECR image + a VPC. See §6 |
-| 7 | `apps/crm/server/infra/apigw-explicit-routes-part1.yaml` | **nested** | auto — `deploy.sh` uploads it and passes the URL |
-| 8 | `apps/crm/server/infra/apigw-explicit-routes-part2.yaml` | **nested** | auto — same |
-| 9 | `services/reality-flow-authentication/infra/auth-explicit-routes.yaml` | **nested** | auto — same |
-| 10 | `apps/crm/real-estate-crm-app/infra/cfn-frontend.yaml` | root | ❌ skip — S3 + CloudFront hosting; you are testing locally |
-| 11 | `apps/crm/server/infra/apigw-explicit-routes.yaml` | **dead** | ❌ the 738 KB pre-split monolith. `deploy.sh` references only part1/part2. Nothing loads this file |
+| 1 | `agency-app/api/infra/launch-tables-cfn.yaml` | root | ✅ **yes** — Subscriptions, Grievances, WebhookLog, TenantApiKeys, NPSResponses, BetaInvites |
+| 2 | `platform/auth/infra/cfn-backend.yaml` | root | ✅ **yes** — Cognito + auth Lambda + API GW. Login does not work without it |
+| 3 | `agency-app/api/infra/cfn-backend.yaml` | root | ✅ **yes** — the CRM API, 17 tables, 10 crons, call-intel SQS pipeline, the agent |
+| 4 | `platform/mcp/infra/cfn-backend.yaml` | root | ⚠️ **already deployed** as `dev-realestate-flow-mcp-stack`; redeploy only to ship the Phase 6 generated tool definitions |
+| 5 | `agency-app/ai-calling/cfn-template.yaml` | root | ⬜ optional — needs Exotel + ElevenLabs keys. See §6 |
+| 6 | `platform/whatsapp-platform/infra/cfn-platform.yaml` | root | ⬜ optional — needs an ECR image + a VPC. See §6 |
+| 7 | `agency-app/api/infra/apigw-explicit-routes-part1.yaml` | **nested** | auto — `deploy.sh` uploads it and passes the URL |
+| 8 | `agency-app/api/infra/apigw-explicit-routes-part2.yaml` | **nested** | auto — same |
+| 9 | `platform/auth/infra/auth-explicit-routes.yaml` | **nested** | auto — same |
+| 10 | `agency-app/web/infra/cfn-frontend.yaml` | root | ❌ skip — S3 + CloudFront hosting; you are testing locally |
+| 11 | `agency-app/api/infra/apigw-explicit-routes.yaml` | **dead** | ❌ the 738 KB pre-split monolith. `deploy.sh` references only part1/part2. Nothing loads this file |
 
 Each root stack has a matching `infra/deploy.sh` that packages the Lambda, uploads the artifact and nested templates to S3, generates `cfn-params.json` from `.env`, and calls `cloudformation deploy`. **Use the scripts** — the parameter list is 115 entries long for the server stack and hand-assembling it is not realistic.
 
@@ -59,15 +59,15 @@ These will each fail a deploy or produce a Lambda that runs but is quietly broke
 
 ### B1 — `AIEmployeeProvisioning` is declared in two templates ❗ blocks the deploy
 
-`apps/crm/server/infra/launch-tables-cfn.yaml:56` and `apps/crm/server/infra/cfn-backend.yaml:972` both create a table literally named `AIEmployeeProvisioning`, with identical keys and the same `status-createdAt-index` GSI. Whichever stack goes second fails with `Table already exists`.
+`agency-app/api/infra/launch-tables-cfn.yaml:56` and `agency-app/api/infra/cfn-backend.yaml:972` both create a table literally named `AIEmployeeProvisioning`, with identical keys and the same `status-createdAt-index` GSI. Whichever stack goes second fails with `Table already exists`.
 
 **Fix — give it one owner: the server stack.** It already wires `AI_EMPLOYEE_PROVISIONING_TABLE` into nine Lambda environments and grants IAM on it, and it is the stack you will redeploy most often. The launch-tables copy is referenced by nothing but its own output.
 
-Delete from `apps/crm/server/infra/launch-tables-cfn.yaml`:
+Delete from `agency-app/api/infra/launch-tables-cfn.yaml`:
 - the `AIEmployeeProvisioningTable:` resource (lines 56–88)
 - the `AIEmployeeProvisioningTableArn:` output (lines 253–254)
 
-The launch-tables copy enables point-in-time recovery and the server copy does not. Carry that over — add to `apps/crm/server/infra/cfn-backend.yaml` right under `BillingMode` at line 978:
+The launch-tables copy enables point-in-time recovery and the server copy does not. Carry that over — add to `agency-app/api/infra/cfn-backend.yaml` right under `BillingMode` at line 978:
 
 ```yaml
       PointInTimeRecoverySpecification:
@@ -78,17 +78,17 @@ Every server-stack reference is a `!Sub` ARN string, never a `!GetAtt`, so nothi
 
 ### B2 — `ARTIFACT_BUCKET` points at a bucket that does not exist ❗ blocks the deploy
 
-`apps/crm/server/.env` has `ARTIFACT_BUCKET=rewaro-cicd-artifacts`. There is no such bucket in this account. The `s3 cp` on step 3 of `deploy.sh` dies.
+`agency-app/api/.env` has `ARTIFACT_BUCKET=rewaro-cicd-artifacts`. There is no such bucket in this account. The `s3 cp` on step 3 of `deploy.sh` dies.
 
 **Fix:** `ARTIFACT_BUCKET=realestate-flow-lambda-packages` (exists, and is what auth and MCP already use).
 
 ### B3 — OAuth table names do not match what MCP deployed ⚠️ silent runtime breakage
 
-`apps/crm/server/.env` says `realtyflow-oauth-codes` / `realtyflow-oauth-connections`. The live MCP stack created `realestate-flow-dev-oauth-codes` / `realestate-flow-dev-oauth-connections`.
+`agency-app/api/.env` says `realtyflow-oauth-codes` / `realtyflow-oauth-connections`. The live MCP stack created `realestate-flow-dev-oauth-codes` / `realestate-flow-dev-oauth-connections`.
 
 The stack deploys fine — the names only appear in IAM ARNs and env vars — and then every OAuth/AI-integration route 500s against a table that isn't there. `deploy.sh` prints a warning at step 6 that is easy to scroll past.
 
-**Fix in `apps/crm/server/.env`:**
+**Fix in `agency-app/api/.env`:**
 ```
 OAUTH_CODES_TABLE_NAME=realestate-flow-dev-oauth-codes
 OAUTH_CONNECTIONS_TABLE=realestate-flow-dev-oauth-connections
@@ -96,7 +96,7 @@ OAUTH_CONNECTIONS_TABLE=realestate-flow-dev-oauth-connections
 
 ### B4 — `AUTH_SERVICE_URL` is stale ⚠️ silent runtime breakage
 
-`apps/crm/server/.env` points at `https://61usipojvl.execute-api.ap-south-1.amazonaws.com/dev`. That API ID does not exist in this account — the only REST API here is `i1un5y6xjl` (MCP). It is a leftover from a different account or a deleted stack.
+`agency-app/api/.env` points at `https://61usipojvl.execute-api.ap-south-1.amazonaws.com/dev`. That API ID does not exist in this account — the only REST API here is `i1un5y6xjl` (MCP). It is a leftover from a different account or a deleted stack.
 
 **Fix:** deploy auth **before** the server stack and paste in its real `AuthApiEndpoint`. The ordering in §4 handles this.
 
@@ -104,10 +104,10 @@ The live MCP stack carries the same stale value in its `AuthServiceUrl` paramete
 
 ### B5 — the auth service has no `.env` at all ❗ blocks the deploy
 
-`services/reality-flow-authentication/` ships `sample.env` only. `deploy.sh` hard-fails on nine required vars. You need to supply, at minimum, a **Google OAuth client ID + secret** from the Google Cloud console — there is no way around that one, Cognito is configured with Google as an identity provider.
+`platform/auth/` ships `sample.env` only. `deploy.sh` hard-fails on nine required vars. You need to supply, at minimum, a **Google OAuth client ID + secret** from the Google Cloud console — there is no way around that one, Cognito is configured with Google as an identity provider.
 
 ```bash
-cp services/reality-flow-authentication/sample.env services/reality-flow-authentication/.env
+cp platform/auth/sample.env platform/auth/.env
 ```
 
 Then set:
@@ -132,7 +132,7 @@ In the Google console, add this authorized redirect URI:
 
 ### B6 — the auth stack pins four Lambdas to end-of-life Node runtimes ❗ blocks the deploy
 
-`services/reality-flow-authentication/infra/cfn-backend.yaml` is the only template still on old runtimes. Everything else in the repo is `nodejs20.x`.
+`platform/auth/infra/cfn-backend.yaml` is the only template still on old runtimes. Everything else in the repo is `nodejs20.x`.
 
 | Line | Function | Runtime | Uses the runtime's SDK? |
 |---|---|---|---|
@@ -161,7 +161,7 @@ The main API Lambda at line 951 needs the runtime bump only; it carries its own 
 
 ### Minor — `USER_CATEGORIES_TABLE_NAME` drift
 
-`apps/crm/server/.env` says `cloudberry-dev-real-estate-user-categories`; the CFN parameter default is `cloudberry-real-estate-user-categories` and `deploy.sh` never passes the override, so **the deployed table and Lambda will both use the CFN default**. The stack is self-consistent — only a local `node server.js` run against AWS would look at the wrong table. Align the `.env` value to match.
+`agency-app/api/.env` says `cloudberry-dev-real-estate-user-categories`; the CFN parameter default is `cloudberry-real-estate-user-categories` and `deploy.sh` never passes the override, so **the deployed table and Lambda will both use the CFN default**. The stack is self-consistent — only a local `node server.js` run against AWS would look at the wrong table. Align the `.env` value to match.
 
 ---
 
@@ -184,7 +184,7 @@ Apply B1–B6 above before going further.
 Seven tables, no Lambda, no dependencies. ~2 min.
 
 ```bash
-cd apps/crm/server/infra
+cd agency-app/api/infra
 aws cloudformation deploy \
   --template-file launch-tables-cfn.yaml \
   --stack-name realestate-flow-launch-tables-dev \
@@ -217,7 +217,7 @@ aws cloudformation describe-stacks \
   --output table
 ```
 
-Put `AuthApiEndpoint` into `apps/crm/server/.env` as `AUTH_SERVICE_URL` (**B4**). Keep the Cognito values — the frontend needs them in §5.
+Put `AuthApiEndpoint` into `agency-app/api/.env` as `AUTH_SERVICE_URL` (**B4**). Keep the Cognito values — the frontend needs them in §5.
 
 ### Step 3 — server stack (the big one)
 
@@ -290,7 +290,7 @@ Both `src/services/api.ts:19` and `src/services/agentChatApi.ts:18` read `VITE_A
 
 ### The agent chat endpoint
 
-`/api/crm/agent-chat` (mounted at `apps/crm/server/server.js:139`) is **not** in the explicit-routes templates. It is served by the `{proxy+}` catch-all under `/api` (`apigw-explicit-routes-part1.yaml:41`), which is `AuthorizationType: NONE` at the gateway — authentication happens inside Express, so your JWT flows straight through. Nothing extra to configure.
+`/api/crm/agent-chat` (mounted at `agency-app/api/server.js:139`) is **not** in the explicit-routes templates. It is served by the `{proxy+}` catch-all under `/api` (`apigw-explicit-routes-part1.yaml:41`), which is `AuthorizationType: NONE` at the gateway — authentication happens inside Express, so your JWT flows straight through. Nothing extra to configure.
 
 It streams SSE frames over an authenticated POST. API Gateway REST buffers the response, so frames arrive as one batch rather than incrementally. The client parser handles both and the reply is complete either way; only the typing effect is missing. That is open item **O5**.
 
@@ -298,21 +298,21 @@ It streams SSE frames over an authenticated POST. API Gateway REST buffers the r
 
 ## 6. Optional stacks, and what blocks each
 
-### AI calling — `services/ai-calling-service/cfn-template.yaml`
+### AI calling — `agency-app/ai-calling/cfn-template.yaml`
 
 Needs `ExotelApiKey`, `ExotelApiToken`, `ExotelSid`, `ElevenLabsApiKey` — all `NoEcho`, no defaults.
 
 **Bucket collision:** the template creates `${AICallingKnowledgeBucket}` and `${AICallingKnowledgeBucket}-recordings`. The buckets `realestate-flow-dev-ai-calling-knowledge` and `-recordings` already exist in the account, retained from a deleted stack. Passing those names fails with `BucketAlreadyOwnedByYou`. Either choose a new name, or `aws cloudformation import` the existing pair.
 
-`AI_CALLING_INTERNAL_API_KEY` and `AI_CALLING_SERVICE_URL` are empty in `apps/crm/server/.env`; fill them and redeploy the server stack afterwards.
+`AI_CALLING_INTERNAL_API_KEY` and `AI_CALLING_SERVICE_URL` are empty in `agency-app/api/.env`; fill them and redeploy the server stack afterwards.
 
-### WhatsApp platform — `services/whatsapp-platform/infra/cfn-platform.yaml`
+### WhatsApp platform — `platform/whatsapp-platform/infra/cfn-platform.yaml`
 
 ECS Fargate running Baileys workers. Needs, before anything:
 - a container image pushed to ECR (`ContainerImageUri`)
 - an existing VPC — `VpcId`, `PrivateSubnetIds`, `VpcCidr` are all required with no defaults, and the template creates no networking
 
-`services/whatsapp-platform/.env` targets `devrealestate-flow-whatsapp-session-state`, which does **not** collide with the orphaned `realestate-flow-dev-whatsapp-sessions`.
+`platform/whatsapp-platform/.env` targets `devrealestate-flow-whatsapp-session-state`, which does **not** collide with the orphaned `realestate-flow-dev-whatsapp-sessions`.
 
 The CRM works without this — `BAILEY_MODE=selfhosted` simply has nothing to talk to, so WhatsApp inbound/outbound is inert.
 
@@ -393,8 +393,8 @@ aws logs tail /aws/lambda/dev-real-estate-api --follow --region ap-south-1 \
 |---|---|
 | **Both GSIs `ACTIVE`** | `aws dynamodb describe-table --table-name cloudberry-real-estate-agencies --region ap-south-1 --query "Table.GlobalSecondaryIndexes[].{Name:IndexName,Status:IndexStatus,Backfilling:Backfilling}"` — needs `ACTIVE` **and** `Backfilling: false` on both before the querying code runs (open item **O6**) |
 | **`AgentToolLoopEnabled`** | Ships `false`. Single-tool turns work either way. Flip it in staging and watch cost-per-turn and p95 — it has never run against the real Gemini model (open item **O2**) |
-| **`AGENTS_ENABLED`** | Already `true` in `apps/crm/server/.env`, with `LLM_PROVIDER=gemini`, `GEMINI_MODEL=gemini-2.5-pro`, and a populated `GEMINI_API_KEY` |
-| **Seed a tenant** | See `docs/services/server/seed-demo-tenant-deploy.md` — an empty CRM makes every agent turn look broken |
+| **`AGENTS_ENABLED`** | Already `true` in `agency-app/api/.env`, with `LLM_PROVIDER=gemini`, `GEMINI_MODEL=gemini-2.5-pro`, and a populated `GEMINI_API_KEY` |
+| **Seed a tenant** | See `docs/agency-app/api/seed-demo-tenant-deploy.md` — an empty CRM makes every agent turn look broken |
 
 ---
 
@@ -403,10 +403,10 @@ aws logs tail /aws/lambda/dev-real-estate-api --follow --region ap-south-1 \
 Fix **B1–B6**, then:
 
 ```bash
-cd apps/crm/server/infra && aws cloudformation deploy --template-file launch-tables-cfn.yaml \
+cd agency-app/api/infra && aws cloudformation deploy --template-file launch-tables-cfn.yaml \
   --stack-name realestate-flow-launch-tables-dev --parameter-overrides EnvironmentName=dev \
   --region ap-south-1 --no-fail-on-empty-changeset
-cd ../../reality-flow-authentication && ./infra/deploy.sh          # → copy AuthApiEndpoint into apps/crm/server/.env
+cd ../../reality-flow-authentication && ./infra/deploy.sh          # → copy AuthApiEndpoint into agency-app/api/.env
 cd ../server && ./infra/deploy.sh                                  # 20–35 min on first create
 cd ../real-estate-crm-app && npm run dev                           # localhost:3000
 ```

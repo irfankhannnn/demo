@@ -8,7 +8,7 @@
 > - Each Jira Story has an ID, phase, priority, source reference, and sub-tasks.
 > - "Source File" = the exact `.md` file in `marketing-and-sales/launch-plan-v2/` to read before starting.
 > - Work order follows the dependency chain in `pre-launch-prep/README.md` and `week-1-foundation/README.md`.
-> - All code must follow existing patterns: `apps/crm/server/tenantMiddleware.js`, `apps/crm/server/crmDynamodbService.js`, `apps/crm/real-estate-crm-app/src/App.tsx`.
+> - All code must follow existing patterns: `agency-app/api/tenantMiddleware.js`, `agency-app/api/crmDynamodbService.js`, `agency-app/web/src/App.tsx`.
 
 ---
 
@@ -23,18 +23,18 @@
 - **Context:** Spin up `demo.realestateflow.in` with a fully populated fake-data tenant so prospects can self-tour the product. The demo tenant must reset itself daily at 2:00 AM IST so it's always clean and doesn't accumulate junk. This is the AI Employee wedge showcase environment.
 
 #### Tasks
-- [x] **ZEE-001-T1** — Write `apps/crm/server/scripts/seed-demo-tenant.js`
+- [x] **ZEE-001-T1** — Write `agency-app/api/scripts/seed-demo-tenant.js`
   - Generates 1 agency, 3 agents, 5 buyers, 4 properties (Andheri/Bandra/Powai/Thane), 8 leads (mixed pipeline stages), 2 Khata entries, 1 pending commission
   - Uses Mumbai-realistic data (localities, property names, INR prices)
   - Idempotent: wipes existing demo-tenant DDB rows before re-seeding
   - Reads `DEMO_TENANT_ID` from env var
-- [x] **ZEE-001-T2** — Write `apps/crm/server/scripts/reset-demo-tenant.js`
+- [x] **ZEE-001-T2** — Write `agency-app/api/scripts/reset-demo-tenant.js`
   - Deletes all records for `DEMO_TENANT_ID` then calls `seed-demo-tenant.js`
   - Designed to be invoked by Lambda cron
 - [x] **ZEE-001-T3** — Write `cron/reset-demo.yaml` (EventBridge / Lambda cron definition)
   - Schedule: `cron(30 20 * * ? *)` = 2:00 AM IST daily
   - Wraps `reset-demo-tenant.js` in a Lambda handler
-- [x] **ZEE-001-T4** — Write `apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx`
+- [x] **ZEE-001-T4** — Write `agency-app/web/src/components/DemoBanner.tsx`
   - Sticky yellow banner: "You're viewing a demo account — data resets daily at 2 AM"
   - Reads `VITE_IS_DEMO` env flag; hides on production
 - [x] **ZEE-001-T5** — Unit test: run seed → confirm DDB has exactly the expected record counts
@@ -49,22 +49,22 @@
 - **Context:** DPDP Act 2023 mandates a public grievance portal. Build the `/grievance` public page (hCaptcha-gated form), a Lambda route to store submissions in DynamoDB, an admin UI in the CRM to view/resolve tickets, and auto-acknowledgement email via Brevo. No auth required to submit — this is a public form.
 
 #### Tasks
-- [x] **ZEE-002-T1** — Write `apps/crm/server/grievanceDynamodbService.js`
+- [x] **ZEE-002-T1** — Write `agency-app/api/grievanceDynamodbService.js`
   - `createGrievance({name, email, phone, description, category})` → stores in `Grievances` DDB table with `PK=grievanceId (ULID), status=open, createdAt, tenantId=null (public)`
   - `listGrievances({status, page})` → admin read (requires auth)
   - `updateGrievanceStatus(grievanceId, {status, resolution, resolvedBy})`
-- [x] **ZEE-002-T2** — Write `apps/crm/server/routes/grievance.js`
+- [x] **ZEE-002-T2** — Write `agency-app/api/routes/grievance.js`
   - `POST /api/grievance` — public, rate-limited (6/hr per IP), hCaptcha verify, calls `createGrievance`, triggers Brevo auto-ack email
   - `GET /api/grievance` — admin-only (validateToken + role=ADMIN), calls `listGrievances`
   - `PUT /api/grievance/:id` — admin-only, updates status + resolution
-  - Mount in `apps/crm/server/server.js`
-- [x] **ZEE-002-T3** — Write `apps/crm/real-estate-crm-app/src/pages/public/Grievance.tsx`
+  - Mount in `agency-app/api/server.js`
+- [x] **ZEE-002-T3** — Write `agency-app/web/src/pages/public/Grievance.tsx`
   - Public page at route `/grievance` (no auth wrapper)
   - Form fields: Name, Email, Phone, Category (dropdown), Description (textarea)
   - hCaptcha widget integration (key from env `VITE_HCAPTCHA_SITE_KEY`)
   - Success state: "Your grievance #GRIEVANCE-ID has been logged. We will respond within 7 working days."
   - Footer must show Grievance Officer name, email, address (provided by Founder — placeholder `{{GO_NAME}}`, `{{GO_EMAIL}}`, `{{GO_ADDRESS}}`)
-- [x] **ZEE-002-T4** — Write `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
+- [x] **ZEE-002-T4** — Write `agency-app/web/src/pages/admin/GrievanceList.tsx`
   - Admin-only page at `/admin/grievances`
   - Table: ID, name, email, category, date, status badge (open/in-review/resolved)
   - "Resolve" action opens inline form for resolution text + status update
@@ -88,12 +88,12 @@
 | What | Where | Tools |
 |---|---|---|
 | LP analytics snippet | `creative/landing-pages/_partials/head-analytics.hbs` (vanilla JS) | PostHog + GA4 + Pixel + LinkedIn + Hotjar (all consent-gated) |
-| CRM analytics module | `apps/crm/real-estate-crm-app/src/lib/analytics.ts` (TypeScript) | **PostHog ONLY** — no GA4, no Pixel, no LinkedIn, no Hotjar |
-| Server analytics | `apps/crm/server/lib/posthog.js` (Node) | PostHog Node SDK |
-| Error tracking | `src/main.tsx` + `apps/crm/server/lambda-handler.js` | Sentry (CRM + Server only) |
+| CRM analytics module | `agency-app/web/src/lib/analytics.ts` (TypeScript) | **PostHog ONLY** — no GA4, no Pixel, no LinkedIn, no Hotjar |
+| Server analytics | `agency-app/api/lib/posthog.js` (Node) | PostHog Node SDK |
+| Error tracking | `src/main.tsx` + `agency-app/api/lambda-handler.js` | Sentry (CRM + Server only) |
 
 #### Tasks
-- [x] **ZEE-003-T1** — Write `apps/crm/real-estate-crm-app/src/lib/analytics.ts` **(PostHog ONLY)** _(PR-E)_
+- [x] **ZEE-003-T1** — Write `agency-app/web/src/lib/analytics.ts` **(PostHog ONLY)** _(PR-E)_
   - [x] `initAnalytics()`, `trackEvent()`, `identifyUser()`, `resetAnalytics()` — PostHog only
   - [x] `src/types/analytics.ts` — `AnalyticsEvent` union (26 events) + `UserTraits` interface from §3.4
 - [x] **ZEE-003-T2** — LP analytics snippet (via P10 AI prompt output) _(PR-E)_
@@ -110,7 +110,7 @@
   - [x] `buyer_added` (first-use flag) in BuyerDetails.tsx
   - [x] `resetAnalytics()` in CRMDashboard.tsx logout handler
   - _Remaining: `trial_paywall_shown` (PR-J), `subscription_started` (PR-F), `seat_limit_hit` (PR-H) — added by those PRs_
-- [x] **ZEE-003-T5** — Write `apps/crm/server/lib/posthog.js` (server-side PostHog) _(PR-E)_
+- [x] **ZEE-003-T5** — Write `agency-app/api/lib/posthog.js` (server-side PostHog) _(PR-E)_
   - [x] PostHog Node SDK wrapper: `serverTrack()` + `shutdownPostHog()`
   - _Note: grievance.js PostHog stub replacement deferred — grievance.js lives on PR-B branch, not yet merged to integration_
 - [x] **ZEE-003-T6** — Wire Sentry into CRM _(PR-E — CRM only; server Lambda Sentry is out of scope per PR-E spec)_
@@ -133,31 +133,31 @@
 - **Context:** When an agency pays for AI Employee (₹7,999/mo), a Razorpay `subscription.activated` webhook must auto-create a provisioning row in DynamoDB, email the founder, add the tenant to an AiSensy broadcast list, and fire a PostHog event. A status page in the CRM shows the tenant their setup progress. A 6-hour escalation cron auto-escalates if 24h SLA is missed.
 
 #### Tasks
-- [x] **ZEE-004-T1** — Write `apps/crm/server/routes/billing.js`
+- [x] **ZEE-004-T1** — Write `agency-app/api/routes/billing.js`
   - `POST /api/billing/webhook` — public, HMAC-SHA256 signature verify using `RAZORPAY_WEBHOOK_SECRET`
   - Idempotent: store each `event.id` in `WebhookLog` DDB table before processing; skip if already processed
   - Branches: `subscription.activated` (AI Employee plan) → create `AIEmployeeProvisioning` row + email + AiSensy + PostHog; `subscription.charged` → `subscription_paid` event; `payment.captured/failed` → PostHog events; `subscription.cancelled` → update `Subscriptions` + PostHog; `subscription.updated` (seat add) → call `incrementSeatsPaid`
-  - Mount in `apps/crm/server/server.js` BEFORE auth middleware (must be public)
-- [x] **ZEE-004-T2** — Write `apps/crm/server/aiEmployeeProvisioningService.js`
+  - Mount in `agency-app/api/server.js` BEFORE auth middleware (must be public)
+- [x] **ZEE-004-T2** — Write `agency-app/api/aiEmployeeProvisioningService.js`
   - DDB table: `AIEmployeeProvisioning` PK=`tenantId`
   - `createProvisioningRow({tenantId, agencyOwnerId, agencyName, contactPhone, contactEmail, paidAt, planId, razorpaySubscriptionId})`
   - `getProvisioningByTenant(tenantId)`
   - `updateProvisioning(tenantId, {status, internalNotes, loomUrl, liveAt})`
   - `listPendingProvisioning()` (for escalation cron)
-- [x] **ZEE-004-T3** — Write `apps/crm/server/routes/aiEmployeeStatus.js`
+- [x] **ZEE-004-T3** — Write `agency-app/api/routes/aiEmployeeStatus.js`
   - `GET /api/ai-employee/status` — validateToken + extractTenantId
   - Returns provisioning row for current tenant or 404 if tenant has not paid
-- [x] **ZEE-004-T4** — Write `apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx`
+- [x] **ZEE-004-T4** — Write `agency-app/web/src/pages/crm/AIEmployeeStatus.tsx`
   - Route: `/integrations/ai-employee`
   - Fetches `/api/ai-employee/status`
   - 3 states: 🟡 pending (progress bar + "we're setting up your AI Employee"), 🟢 live (Loom embed + WhatsApp/Telegram numbers), 🔴 escalated ("We missed our 24h SLA — ₹500 credited")
   - Read-only; no mutation buttons
   - Footer: "Need help? WhatsApp us" + Crisp trigger
-- [x] **ZEE-004-T5** — Write `apps/crm/server/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
+- [x] **ZEE-004-T5** — Write `agency-app/api/scripts/escalation-cron.js` + `cron/escalate-openclaw.yaml`
   - Every 6h: scan `AIEmployeeProvisioning` where `status=pending` AND `now > expectedSLAEnd`
   - On breach: update `status=escalated`, send escalation email to founder + customer apology, Razorpay ₹500 credit note, PostHog `ai_employee_escalated`
   - Runs as scheduled Lambda (mirror P5 cron pattern)
-- [x] **ZEE-004-T6** — Write `apps/crm/server/middleware/apiKeyAuth.js`
+- [x] **ZEE-004-T6** — Write `agency-app/api/middleware/apiKeyAuth.js`
   - Validates `Bearer` token from OpenClaw HTTP requests via `TenantApiKeys` DDB lookup
   - Sets `req.tenantId` on match; 401 on failure
 - **Acceptance:** Test webhook → DDB row created + email sent + PostHog event fired in <60s; status page renders all 3 states correctly; escalation cron updates status.
@@ -171,20 +171,20 @@
 - **Context:** Without seat enforcement, a Team plan (₹1,999 for 3 seats) can have 10 members for free — pure revenue leakage. Block invite creation at the API layer when `seatsUsed >= seatsPaid`. Show a clear upgrade modal. Handle the `subscription.updated` webhook to increment seats when ₹500/seat is paid.
 
 #### Tasks
-- [x] **ZEE-005-T1** — Write `apps/crm/server/subscriptionService.js`
+- [x] **ZEE-005-T1** — Write `agency-app/api/subscriptionService.js`
   - `getSubscription(tenantId)` → `{plan, seatsPaid, seatsUsed, nextBillingDate, razorpaySubscriptionId, status}`
   - `incrementSeatsPaid(tenantId, by=1)` (called by billing webhook on seat-add)
   - `decrementSeatsPaid(tenantId, by=1)`
   - `recomputeSeatsUsed(tenantId)` — counts active members in DDB
-  - Write `apps/crm/server/routes/subscriptions.js` → `GET /api/subscriptions/current` (validateToken + extractTenantId)
+  - Write `agency-app/api/routes/subscriptions.js` → `GET /api/subscriptions/current` (validateToken + extractTenantId)
 - [x] **ZEE-005-T2** — Seat check via `POST /api/subscriptions/check-seat` (auth.js is empty; invite goes to external Cognito service)
   - Before invite: `getSubscription(tenantId)` → compute `seatsUsed`
   - If `seatsUsed >= seatsPaid`: return HTTP 402 `{error: "paywall_seat_limit", currentSeats, paidSeats, tier, upgradeOptions}` + fire PostHog `paywall_seat_limit_hit`
-- [x] **ZEE-005-T3** — Write `apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx`
+- [x] **ZEE-005-T3** — Write `agency-app/web/src/components/SeatCounter.tsx`
   - Fetches `/api/subscriptions/current`
   - Displays: `{seatsUsed} of {seatsPaid} seats used` with colour-coded progress bar (green <70%, yellow 70–90%, red ≥90%)
   - "Upgrade" CTA when at or near cap
-- [x] **ZEE-005-T4** — Write `apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
+- [x] **ZEE-005-T4** — Write `agency-app/web/src/components/SeatUpgradeModal.tsx`
   - Triggered on 402 response OR manual "Upgrade" CTA
   - Solo at-cap: "Upgrade to Team — ₹1,999/mo (3 seats)" CTA → Razorpay Team checkout
   - Team at-cap: "Add 1 seat — ₹500/month prorated" CTA → Razorpay add_seat checkout
@@ -198,7 +198,7 @@
   - Invite 3 on Team → 200; invite 4 on Team → 402
   - Pay ₹500 test → seatsPaid increments → invite 4 → 200
   - Deactivate member → seatsUsed decrements → invite new member → 200
-- [x] **ZEE-005-T7** — Write `apps/crm/server/scripts/backfill-seats-paid.js`
+- [x] **ZEE-005-T7** — Write `agency-app/api/scripts/backfill-seats-paid.js`
   - Idempotent: for existing tenants, set `seatsPaid` based on plan (Solo=1, Team=3)
 - **Acceptance:** All 5 Playwright scenarios pass; no agency can exceed seatsPaid; modal opens on 402.
 
@@ -219,7 +219,7 @@
   - On Accept: dispatches `cookie-consent-analytics`, `cookie-consent-marketing`, `cookie-consent-functional` custom events → `head-analytics.hbs` snippet listens + loads corresponding trackers
   - On Reject: only `cookie-consent-analytics` fired with all false → PostHog runs with `disable_session_recording: true`; GA4/Pixel/LinkedIn/Hotjar do NOT load
   - ARIA roles, keyboard-navigable (Tab/Enter/Esc), dark mode, mobile bottom-sheet
-- [x] **ZEE-006-T2** — Write `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` **(CRM variant — PostHog only)**
+- [x] **ZEE-006-T2** — Write `agency-app/web/src/components/CookieConsentBanner.tsx` **(CRM variant — PostHog only)**
   - React component with same 3 buttons
   - "Customize" modal: **only 2 toggles** — Essential (locked) + Analytics ("Product usage analytics via PostHog — no ads, no retargeting")
   - **NO Marketing toggle** — GA4/Pixel/LinkedIn are not loaded in the CRM
@@ -229,7 +229,7 @@
   - Renders as bottom-fixed bar in `App.tsx` layout; re-prompts only on `version` increment
   - "Cookie preferences" link in app footer → re-opens Customize modal
 - [ ] **ZEE-006-T3** — Inject LP banner via the partial into all 12 LP pages (done via ZEE-008 LP rewrite template) — _out of PR-C scope; handled in LP rewrite (PR-I)_
-- [x] **ZEE-006-T4** — Mount `<CookieConsentBanner />` in `apps/crm/real-estate-crm-app/src/App.tsx`
+- [x] **ZEE-006-T4** — Mount `<CookieConsentBanner />` in `agency-app/web/src/App.tsx`
 - [x] **ZEE-006-T5** — Tests `tests/cookie-consent.spec.ts`: _(7/7 pass — 4 LP + 3 CRM; tracker-load network assertions deferred to PR-E where head-analytics.hbs / analytics.ts are created)_
   - LP: first visit → banner shows; Accept → GA4 + Pixel + LinkedIn + Hotjar + PostHog all load
   - LP: Reject → only PostHog loads (restricted); GA4/Pixel/LinkedIn/Hotjar do NOT load
@@ -246,32 +246,32 @@
 - **Context:** Trials silently lapse without an in-product paywall. Add a sticky countdown banner (Day 8–14 of trial) that turns red at Day 12, then a full-page blocking modal at Day 15 (trial expired). The modal shows 3 plan tiers from `pricing.json` and opens Razorpay checkout. Wire 3 trial reminder emails via a daily cron. Paywall MUST NOT block: `/profile`, `/billing`, `/legal/*`, `/grievance`, `/integrations/ai-employee`.
 
 #### Tasks
-- [x] **ZEE-007-T1** — Update `apps/crm/server/routes/subscriptions.js` — add `GET /api/subscriptions/trial-status`
+- [x] **ZEE-007-T1** — Update `agency-app/api/routes/subscriptions.js` — add `GET /api/subscriptions/trial-status`
   - Returns: `{trialDaysLeft, trialEndsAt, plan, isPaying, gracePeriodActive, paymentStatus}`
   - `trialDaysLeft = ceil((trialEndsAt - now) / 86400000)`, clamped to 0
-- [x] **ZEE-007-T2** — Write `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`
+- [x] **ZEE-007-T2** — Write `agency-app/web/src/hooks/useSubscription.ts`
   - Fetches `/api/subscriptions/trial-status` on mount + every 5 min
   - Exposes: `{subscription, isPaying, isTrialing, trialDaysLeft, isTrialExpired, refetch}`
   - Cached in React context (wrap in provider in `App.tsx`)
-- [x] **ZEE-007-T3** — Write `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
+- [x] **ZEE-007-T3** — Write `agency-app/web/src/components/TrialCountdownBanner.tsx`
   - Returns null if `isPaying` OR `trialDaysLeft > 7`
   - Yellow (7≥days>3): neutral copy + "Upgrade now" CTA
   - Red (3≥days>0): bold copy + "Upgrade for ₹{Solo.price}/month"
   - Clicking CTA → opens `PaywallModal`
-- [x] **ZEE-007-T4** — Write `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
+- [x] **ZEE-007-T4** — Write `agency-app/web/src/components/PaywallModal.tsx`
   - Renders when `isTrialExpired && !isPaying && !gracePeriodActive`
   - Route whitelist: allow `/profile`, `/billing`, `/legal/*`, `/grievance`, `/integrations/ai-employee`, `/auth/logout`
   - Content: Annual/Monthly toggle + 3 tier cards from `pricing.json` + "Add AI Employee ₹7,999/mo" toggle
   - "What happens to my data?" expandable FAQ + WhatsApp CTA
   - On CTA: call `openRazorpayCheckout(planId)` → on success: `refetch()` → close modal
   - If AI Employee toggle ON: chain second Razorpay subscription after main plan succeeds; redirect to `/integrations/ai-employee`
-- [x] **ZEE-007-T5** — Write `apps/crm/real-estate-crm-app/src/lib/razorpay.ts`
+- [x] **ZEE-007-T5** — Write `agency-app/web/src/lib/razorpay.ts`
   - `openCheckout({planId, name, email, prefill, onSuccess, onFailure})` — loads Razorpay.js dynamically, wraps subscription checkout
   - Key from `import.meta.env.VITE_RAZORPAY_KEY_ID`
 - [x] **ZEE-007-T6** — Mount in `App.tsx`
   - `<TrialCountdownBanner />` at top of authenticated layout
   - `<PaywallModal />` at root level with route whitelist check
-- [x] **ZEE-007-T7** — Write `apps/crm/server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
+- [x] **ZEE-007-T7** — Write `agency-app/api/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
   - Daily 09:00 IST: query `Subscriptions` for `isTrialing && trialEndsAt` within window
   - Sends Day-10, Day-12, Day-14 emails via Brevo; Day-3-post-expiry reactivation email
   - Idempotent via `last_email_sent` flag per user
@@ -364,7 +364,7 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
 - **Context:** "Implemented" ≠ "uniformly applied". One missed `extractTenantId` on a route = full data breach. Run a static analysis of every route and DDB call, produce the coverage CSV, write the cross-tenant Playwright pen-test, and fix every P0 finding before Day 1. The Founder signs off the report after Zeeshan delivers the artefacts.
 
 #### Tasks
-- [x] **ZEE-010-T1** — Static analysis: walk every `apps/crm/server/routes/*.js` file
+- [x] **ZEE-010-T1** — Static analysis: walk every `agency-app/api/routes/*.js` file
   - For each route: note `hasValidateToken`, `hasExtractTenantId`, `isPublic`, DDB call count, DDB calls with `tenantId` in key
   - Produce `marketing-and-sales/launch-implement/pre-launch/13-security/route-tenant-coverage.csv`
   - Mark severity: P0 if non-public + missing validateToken or extractTenantId; P1 if missing rate limit on public endpoint
@@ -433,7 +433,7 @@ Secondary Netlify lead-capture form (for non-trial-ready visitors) posts to Netl
 - **Context:** Day 6 deploys all 12 LPs to production and activates the welcome drip. Zeeshan owns the backend code change that fires signup events to Brevo + the final deploy pipeline execution.
 
 #### Tasks
-- [x] **ZEE-013-T1** — Update `apps/crm/server/routes/auth.js` registration success handler
+- [x] **ZEE-013-T1** — Update `agency-app/api/routes/auth.js` registration success handler
   - On successful signup: `POST https://api.brevo.com/v3/contacts` with list ID `BREVO_TRIAL_LIST_ID` (env var)
   - Fields: `email`, `firstName`, `phone`, `SIGNUP_DATE` (Brevo contact attribute)
   - Fire PostHog `signup_completed` server-side event here
@@ -501,10 +501,10 @@ ZEE-009 (SEO/schema)                   ──►  ZEE-008 (LP rewrite + correct 
 |---|---|---|
 | `creative/landing-pages/_partials/head-analytics.hbs` | LP (vanilla JS) | PostHog + GA4 + Meta Pixel + LinkedIn + Hotjar |
 | `creative/landing-pages/_partials/cookie-banner.html` | LP (vanilla JS) | Gates all 5 LP trackers |
-| `apps/crm/real-estate-crm-app/src/lib/analytics.ts` | CRM SPA (TypeScript) | **PostHog ONLY** |
-| `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` | CRM SPA (React) | Gates PostHog session recording only |
-| `apps/crm/server/lib/posthog.js` | Server (Node) | PostHog Node SDK |
+| `agency-app/web/src/lib/analytics.ts` | CRM SPA (TypeScript) | **PostHog ONLY** |
+| `agency-app/web/src/components/CookieConsentBanner.tsx` | CRM SPA (React) | Gates PostHog session recording only |
+| `agency-app/api/lib/posthog.js` | Server (Node) | PostHog Node SDK |
 | `src/main.tsx` | CRM SPA | Sentry (error tracking) |
-| `apps/crm/server/lambda-handler.js` | Server | Sentry (error tracking) |
+| `agency-app/api/lambda-handler.js` | Server | Sentry (error tracking) |
 
-**Rule:** Never add GA4 gtag, Meta Pixel fbq, LinkedIn lintrk, or Hotjar to any file in `apps/crm/real-estate-crm-app/`. These are LP-only.
+**Rule:** Never add GA4 gtag, Meta Pixel fbq, LinkedIn lintrk, or Hotjar to any file in `agency-app/web/`. These are LP-only.

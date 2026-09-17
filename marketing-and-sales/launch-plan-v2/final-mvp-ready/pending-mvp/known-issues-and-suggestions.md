@@ -15,7 +15,7 @@
 7. ✅ **GlassDataTable columns** — Fixed to use `header:` + correct `render(_, item)` signatures
 8. ✅ **Team summary per-member** — Calls `GET /internal/users/list` with INTERNAL_API_KEY fallback
 9. ✅ **Rate limiting** — `webhookRateLimit` (20/min per IP) applied to POST /whatsapp
-10. ✅ **CloudWatch metrics** — `apps/crm/server/observability/cloudwatch.js` created, wired into services
+10. ✅ **CloudWatch metrics** — `agency-app/api/observability/cloudwatch.js` created, wired into services
 
 ---
 

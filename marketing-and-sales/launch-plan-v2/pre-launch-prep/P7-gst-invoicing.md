@@ -107,7 +107,7 @@ What the founder's CA must verify on the test invoice. Bullet list:
 - Format complies with CGST Rule 46
 
 ## 4. `marketing-and-sales/launch-implement/pre-launch/07-gst/billing-history-spec.md`
-React component spec for `apps/crm/real-estate-crm-app/src/pages/admin/BillingHistory.tsx`:
+React component spec for `agency-app/web/src/pages/admin/BillingHistory.tsx`:
 - Fetch past invoices from `GET /billing/invoices` (server route to add — references Razorpay API)
 - Table: invoice number, date, amount, status (Paid/Failed/Refunded), PDF download link (Razorpay-hosted URL)
 - Empty state: "No invoices yet — your first invoice generates after Day-15 of trial when you upgrade"

@@ -42,19 +42,19 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 - `baileys-service/src/routes/pairing.js`
 - `baileys-service/src/middleware/apiKeyAuth.js` (new)
 - `baileys-service/src/config.js`
-- `apps/crm/server/bailey.js`
+- `agency-app/api/bailey.js`
 
 **Sub-tasks:**
 1. Add a new `BAILEY_SERVICE_API_KEY` environment variable to `baileys-service/sample.env` and `.env`.
 2. Create `baileys-service/src/middleware/apiKeyAuth.js` that checks `Authorization: Bearer <key>` or `x-api-key` header against `BAILEY_SERVICE_API_KEY`.
 3. Apply the middleware to all routes in `baileys-service/src/routes/pairing.js` (`/qr`, `/status/:phone`, `/logout`).
-4. Update `apps/crm/server/bailey.js` to send the API key in all outgoing requests to the Bailey service (`getPairingQr`, `sendWhatsAppMessage`, `disconnectWhatsApp`, `getConnectionStatus`).
+4. Update `agency-app/api/bailey.js` to send the API key in all outgoing requests to the Bailey service (`getPairingQr`, `sendWhatsAppMessage`, `disconnectWhatsApp`, `getConnectionStatus`).
 5. Add rate-limiting middleware to `/qr` and `/logout` (max 5 requests per phone per minute).
 6. Add tests for unauthorized requests returning 401/403.
 
 **Acceptance criteria:**
 - Requests without a valid API key to `/pairing/*` return 401.
-- `apps/crm/server/bailey.js` always sends the API key.
+- `agency-app/api/bailey.js` always sends the API key.
 - Rate limit kicks in after 5 requests per minute per phone.
 
 **Estimated effort:** 3–4 hours  
@@ -65,8 +65,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P0.3 — Revert or Version the WhatsApp API Endpoint Path Change
 
 **Files:**
-- `apps/crm/real-estate-crm-app/src/services/api.ts`
-- `apps/crm/server/routes/whatsappConversations.js`
+- `agency-app/web/src/services/api.ts`
+- `agency-app/api/routes/whatsappConversations.js`
 - `server/index.js` or wherever the router is mounted
 
 **Sub-tasks:**
@@ -89,7 +89,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P0.4 — Fix Silent API Failures in `ConnectWhatsApp.tsx`
 
 **Files:**
-- `apps/crm/real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx`
+- `agency-app/web/src/pages/onboarding/ConnectWhatsApp.tsx`
 
 **Sub-tasks:**
 1. Update `saveConnectedPhone()` to await `api.updateAiEmployeeConfig()` and show a warning toast if it fails.
@@ -108,14 +108,14 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 
 ---
 
-### P0.5 — Add Unit Tests for `apps/crm/server/utils/whatsapp.js`
+### P0.5 — Add Unit Tests for `agency-app/api/utils/whatsapp.js`
 
 **Files:**
-- `apps/crm/server/utils/whatsapp.js`
-- `apps/crm/server/utils/whatsapp.test.js` (new)
+- `agency-app/api/utils/whatsapp.js`
+- `agency-app/api/utils/whatsapp.test.js` (new)
 
 **Sub-tasks:**
-1. Create `apps/crm/server/utils/whatsapp.test.js` using the project's test framework (Jest/Vitest).
+1. Create `agency-app/api/utils/whatsapp.test.js` using the project's test framework (Jest/Vitest).
 2. Add test cases for `normalizeWhatsAppPhone` covering:
    - `+91 98765 43210`
    - `918291537522@s.whatsapp.net`
@@ -139,7 +139,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P0.6 — Normalize Phone Validation in `aiEmployeeConfig.js`
 
 **Files:**
-- `apps/crm/server/routes/aiEmployeeConfig.js`
+- `agency-app/api/routes/aiEmployeeConfig.js`
 
 **Sub-tasks:**
 1. Strip all non-digit characters and leading `+` before validating `connectedWhatsAppPhone`.
@@ -160,7 +160,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P0.7 — Use UUID for Outbound Message IDs
 
 **Files:**
-- `apps/crm/server/routes/whatsappConversations.js`
+- `agency-app/api/routes/whatsappConversations.js`
 
 **Sub-tasks:**
 1. Replace `Date.now() - Math.random()` with `crypto.randomUUID()` for `messageId`.
@@ -189,9 +189,9 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 **Files:**
 - `baileys-service/src/prekey-recovery.js` (new)
 - `baileys-service/src/config.js`
-- `apps/crm/server/routes/auth.js` (or new webhook route)
-- `apps/crm/server/services/notificationService.js` (modify if exists)
-- `apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx`
+- `agency-app/api/routes/auth.js` (or new webhook route)
+- `agency-app/api/services/notificationService.js` (modify if exists)
+- `agency-app/web/src/pages/crm/CRMDashboard.tsx`
 
 **Sub-tasks:**
 1. Create `prekey-recovery.js` with:
@@ -207,7 +207,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
      - Emits a `fresh_link_required` event.
      - Calls the CRM webhook with phone, QR, and reason.
 2. Add `CRYPTO_ERROR_FRESH_SESSION_THRESHOLD` (default 3) and `FRESH_SESSION_RATE_LIMIT_MS` (default 30 minutes) to `baileys-service/src/config.js` and `sample.env`.
-3. Add `POST /webhooks/bailey/fresh-link-required` in `apps/crm/server/routes/auth.js` (or a dedicated webhook route) that:
+3. Add `POST /webhooks/bailey/fresh-link-required` in `agency-app/api/routes/auth.js` (or a dedicated webhook route) that:
    - Validates the Bailey webhook signature.
    - Stores an alert in DynamoDB (`TENANT#<tenantId>#ALERT#WHATSAPP_FRESH_LINK`).
    - Emits a Socket.IO event or publishes to a real-time channel for the CRM dashboard.
@@ -536,8 +536,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P2.5 — Frontend Optimistic UI for Message Sending
 
 **Files:**
-- `apps/crm/real-estate-crm-app/src/pages/crm/WhatsAppInbox.tsx`
-- `apps/crm/real-estate-crm-app/src/components/WhatsAppChatThread.tsx`
+- `agency-app/web/src/pages/crm/WhatsAppInbox.tsx`
+- `agency-app/web/src/components/WhatsAppChatThread.tsx`
 
 **Sub-tasks:**
 1. In `WhatsAppInbox.tsx`, update `handleSendMessage` to immediately add a pending message to the local `messages` state with `status: 'pending'` and a generated UUID.
@@ -597,15 +597,15 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P3.2 — Implement Category Resolution Service
 
 **Files:**
-- `apps/crm/server/services/userCategoryService.js` (new)
-- `apps/crm/server/utils/whatsapp.js`
+- `agency-app/api/services/userCategoryService.js` (new)
+- `agency-app/api/utils/whatsapp.js`
 
 **Sub-tasks:**
 1. Create `userCategoryService.js` with:
    - `resolveCategory(tenantId, phone)` that checks the connected owner phone first, then the whitelist, then defaults to `external`.
    - In-memory cache with 5-minute TTL and max 10,000 entries with LRU eviction.
    - Cache invalidation on manual category updates.
-2. Integrate with `apps/crm/server/utils/whatsapp.js` for normalization.
+2. Integrate with `agency-app/api/utils/whatsapp.js` for normalization.
 3. Add unit tests for owner, whitelisted, external, and unknown numbers.
 4. Add tests for cache TTL and eviction.
 
@@ -623,7 +623,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P3.3 — Implement Feature Toggle Service
 
 **Files:**
-- `apps/crm/server/services/featureToggleService.js` (new)
+- `agency-app/api/services/featureToggleService.js` (new)
 - `server/models/agencyConfig.js` (modify if needed)
 
 **Sub-tasks:**
@@ -647,9 +647,9 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P3.4 — Implement Access Control Service
 
 **Files:**
-- `apps/crm/server/services/whatsappAccessControl.js` (new)
-- `apps/crm/server/services/userCategoryService.js`
-- `apps/crm/server/services/featureToggleService.js`
+- `agency-app/api/services/whatsappAccessControl.js` (new)
+- `agency-app/api/services/userCategoryService.js`
+- `agency-app/api/services/featureToggleService.js`
 
 **Sub-tasks:**
 1. Create `whatsappAccessControl.js` with policies:
@@ -673,9 +673,9 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P3.5 — Integrate Category System into Message Processor
 
 **Files:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
-- `apps/crm/server/routes/webhooks.js`
-- `apps/crm/server/whatsappConversationService.js`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
+- `agency-app/api/routes/webhooks.js`
+- `agency-app/api/whatsappConversationService.js`
 
 **Sub-tasks:**
 1. Before processing any incoming message, call `resolveCategory()` and `canReceive()`.
@@ -730,7 +730,7 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P4.2 — Design WhatsApp Agent Prompt
 
 **Files:**
-- `apps/crm/server/agents/whatsapp-agent-prompt.js` (new)
+- `agency-app/api/agents/whatsapp-agent-prompt.js` (new)
 
 **Sub-tasks:**
 1. Create `whatsapp-agent-prompt.js` that composes a system prompt from:
@@ -755,8 +755,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P4.3 — Implement REST API Tool Executor
 
 **Files:**
-- `apps/crm/server/agents/whatsapp-tool-executor.js` (new)
-- `apps/crm/server/services/apiClient.js` (new or modify existing)
+- `agency-app/api/agents/whatsapp-tool-executor.js` (new)
+- `agency-app/api/services/apiClient.js` (new or modify existing)
 
 **Sub-tasks:**
 1. Create `whatsapp-tool-executor.js` that:
@@ -781,8 +781,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P4.4 — Integrate Agent Runtime
 
 **Files:**
-- `apps/crm/server/agents/agentRuntime.js`
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
+- `agency-app/api/agents/agentRuntime.js`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
 
 **Sub-tasks:**
 1. Modify `agentRuntime.js` to:
@@ -806,8 +806,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P4.5 — Test AI Integration End-to-End
 
 **Files:**
-- All files under `apps/crm/server/agents/`
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
+- All files under `agency-app/api/agents/`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
 
 **Sub-tasks:**
 1. Run end-to-end tests with sample WhatsApp messages:
@@ -894,8 +894,8 @@ This is the executable, phase-by-phase implementation plan derived from `WHATSAP
 ### P5.3 — User Category and AI Integration Tests
 
 **Files:**
-- `apps/crm/server/services/__tests__/` (create/update tests)
-- `apps/crm/server/agents/__tests__/` (create/update tests)
+- `agency-app/api/services/__tests__/` (create/update tests)
+- `agency-app/api/agents/__tests__/` (create/update tests)
 
 **Sub-tasks:**
 1. Test category resolution (owner, whitelisted, external, cache behavior).

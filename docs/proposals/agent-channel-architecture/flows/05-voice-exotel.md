@@ -16,16 +16,16 @@ Exotel (telephony)  ◀──▶  ElevenLabs (STT / TTS / turn-taking)
     │                            │
     │ status webhooks            │ intent webhooks
     ▼                            ▼
-services/ai-calling-service/src/routes/webhooks.js
+agency-app/ai-calling/src/routes/webhooks.js
     ▼
-services/ai-calling-service/src/handlers/callOrchestration.js
+agency-app/ai-calling/src/handlers/callOrchestration.js
     │
     ├─▶ intentService.classifyIntent()      ⚠ REGEX patterns — no LLM
     │      9 intents, ordered by priority
     │      + extractEntities(): BHK, budget (lakh/crore), location, date, time
     │
     ├─▶ intentService.routeAndFetchData()   deterministic switch/case
-    │      CRM_API   → apps/crm/server/routes/aiCallingInternal.js
+    │      CRM_API   → agency-app/api/routes/aiCallingInternal.js
     │      VECTOR_DB → ragService (knowledge base)
     │      HYBRID    → both, CRM preferred
     │
@@ -34,9 +34,9 @@ services/ai-calling-service/src/handlers/callOrchestration.js
 DynamoDB: call session, transcript entries, intents detected, actions performed
 ```
 
-**Intents** (`services/ai-calling-service/src/config/constants.js`): `PROPERTY_AVAILABILITY`, `PROPERTY_DETAILS`, `SCHEDULE_SITE_VISIT`, `FAQ_POLICY`, `AGENCY_INFO`, `PRICING_INFO`, `SMALL_TALK`, `HANDOFF_HUMAN`, `CALL_END`, `UNKNOWN`.
+**Intents** (`agency-app/ai-calling/src/config/constants.js`): `PROPERTY_AVAILABILITY`, `PROPERTY_DETAILS`, `SCHEDULE_SITE_VISIT`, `FAQ_POLICY`, `AGENCY_INFO`, `PRICING_INFO`, `SMALL_TALK`, `HANDOFF_HUMAN`, `CALL_END`, `UNKNOWN`.
 
-**Status correction:** the CRM bridge `apps/crm/server/routes/aiCallingInternal.js` was disabled pre-launch but has been **re-enabled** (commit `f65f6bf`) to serve Hot/Warm/Cold qualification calls. It is live, not dormant.
+**Status correction:** the CRM bridge `agency-app/api/routes/aiCallingInternal.js` was disabled pre-launch but has been **re-enabled** (commit `f65f6bf`) to serve Hot/Warm/Cold qualification calls. It is live, not dormant.
 
 ---
 
@@ -63,7 +63,7 @@ A caller saying *"kal dekhne aa sakta hoon kya?"* or *"do bedroom chahiye Andher
 
 Entity extraction has the same problem. `extractEntities()` handles `lakh`/`crore` and `N BHK` well, but its location regex (`/(?:in|at|near|around)\s+([a-zA-Z\s]+?)/i`) requires an English preposition — *"Andheri mein"* yields nothing.
 
-Note the internal contradiction: `apps/crm/server/agents/llm/planTurn.js` opens with *"one Gemini turn with function calling (**no regex NLU**)"*. The WhatsApp flow deliberately rejected regex NLU. The voice flow is entirely regex NLU. Same product, opposite conclusions, neither aware of the other.
+Note the internal contradiction: `agency-app/api/agents/llm/planTurn.js` opens with *"one Gemini turn with function calling (**no regex NLU**)"*. The WhatsApp flow deliberately rejected regex NLU. The voice flow is entirely regex NLU. Same product, opposite conclusions, neither aware of the other.
 
 ---
 
@@ -97,7 +97,7 @@ transcript turn
    elevenlabs.injectContext()
 ```
 
-This mirrors `apps/crm/server/agents/domainRouter.js` exactly — rules fast-path, LLM fallback, safe default — which is already proven in this codebase. **Reuse that shape rather than inventing a second one.**
+This mirrors `agency-app/api/agents/domainRouter.js` exactly — rules fast-path, LLM fallback, safe default — which is already proven in this codebase. **Reuse that shape rather than inventing a second one.**
 
 Hard requirements for step 2: a strict timeout with fallback (never let classification stall a live call), a constrained enum output, and no tool access.
 
@@ -107,7 +107,7 @@ Hard requirements for step 2: a strict timeout with fallback (never let classifi
 |---|---|---|
 | Hinglish patterns in the regex layer (`dikhao`, `chahiye`, `kitna`, `mein`, `kal`) | Cheap; catches common cases without any model call | Low — do this first, it may be sufficient |
 | Semantic search over the knowledge base | `ragService` currently answers FAQ/policy; embeddings would improve recall | Medium — but this is a **read-only** path, so it is a safe place to use vector search |
-| Share the CRM tool registry with `apps/crm/server/skillInvoker.js` | Removes a second data path | Medium — `ai-calling-service` is a separate deployable; only worth it if the duplication grows |
+| Share the CRM tool registry with `agency-app/api/skillInvoker.js` | Removes a second data path | Medium — `ai-calling-service` is a separate deployable; only worth it if the duplication grows |
 
 ### What must not change
 

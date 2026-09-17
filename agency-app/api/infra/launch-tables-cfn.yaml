@@ -1,0 +1,242 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  RealEstateFlow launch tables — Grievances, Subscriptions, webhook
+  idempotency, tenant API keys, NPS responses, beta invites. AI Employee
+  provisioning is NOT here — it's owned by agency-app/api/infra/cfn-backend.yaml.
+  Deploy in ap-south-1 before launch PRs go live.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: ['dev', 'prod']
+    Description: >-
+      Deployment environment. Every table this stack creates is named
+      <EnvironmentName>-realestateflow-<table>, so dev and prod never share
+      data.
+
+Resources:
+  GrievancesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-grievances"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: grievanceId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: grievanceId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: email-createdAt-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # AIEmployeeProvisioning is intentionally NOT declared here. The server
+  # stack (agency-app/api/infra/cfn-backend.yaml, AiEmployeeProvisioningTable
+  # resource) owns and creates it — declaring it in both places makes
+  # whichever stack deploys second fail with "Table already exists".
+
+  WebhookLogTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-webhook-log"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: webhookEventId
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: processedAt
+          AttributeType: S
+        - AttributeName: eventType
+          AttributeType: S
+      KeySchema:
+        - AttributeName: webhookEventId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: tenantId-processedAt-index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: processedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: eventType-processedAt-index
+          KeySchema:
+            - AttributeName: eventType
+              KeyType: HASH
+            - AttributeName: processedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  TenantApiKeysTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-tenant-api-keys"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: keyHash
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: keyHash-index
+          KeySchema:
+            - AttributeName: keyHash
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-subscriptions"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: paymentStatus
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: updatedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: paymentStatus-createdAt-index
+          KeySchema:
+            - AttributeName: paymentStatus
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: updatedAt-index
+          KeySchema:
+            - AttributeName: updatedAt
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  NPSResponsesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-nps-responses"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: responseId
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: respondedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: responseId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: tenantId-respondedAt-index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: respondedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  BetaInvitesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-beta-invites"
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: email
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+Outputs:
+  GrievancesTableArn:
+    Value: !GetAtt GrievancesTable.Arn
+  SubscriptionsTableArn:
+    Value: !GetAtt SubscriptionsTable.Arn
+  WebhookLogTableArn:
+    Value: !GetAtt WebhookLogTable.Arn
+  TenantApiKeysTableArn:
+    Value: !GetAtt TenantApiKeysTable.Arn
+  NPSResponsesTableArn:
+    Value: !GetAtt NPSResponsesTable.Arn
+  BetaInvitesTableArn:
+    Value: !GetAtt BetaInvitesTable.Arn

@@ -1,6 +1,6 @@
 # ContactAIViewBuilder
 
-Location: `apps/crm/server/aiViewBuilders/contactAIViewBuilder.js`
+Location: `agency-app/api/aiViewBuilders/contactAIViewBuilder.js`
 
 ## API
 

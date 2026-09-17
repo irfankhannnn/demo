@@ -1,0 +1,22 @@
+{
+  "name": "property-pages-ms",
+  "version": "1.0.0",
+  "description": "Public tenant-branded property pages — server-rendered Express on Lambda, reads the CRM only through its internal API",
+  "type": "module",
+  "main": "lambda.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "serverless-http": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -114,7 +114,7 @@ PROCEED
 
 **Implementation:**
 ```javascript
-// apps/crm/server/agents/agentRuntime.js
+// agency-app/api/agents/agentRuntime.js
 import { getProvisioningByTenant } from '../aiEmployeeProvisioningService.js';
 import { getAgencyConfig } from '../agencyConfigService.js';
 import { getBalance, deductCredits } from '../creditService.js';
@@ -274,9 +274,9 @@ Returns: {ok: true, data: {...}}
 6. Update `.env.example`
 
 **Files Modified:**
-- `apps/crm/server/infra/cfn-backend.yaml`
-- `apps/crm/server/infra/deploy.sh`
-- `apps/crm/server/.env.example`
+- `agency-app/api/infra/cfn-backend.yaml`
+- `agency-app/api/infra/deploy.sh`
+- `agency-app/api/.env.example`
 
 ---
 
@@ -284,29 +284,29 @@ Returns: {ok: true, data: {...}}
 
 **Tasks:**
 1. Refactor `agentAuditService.js` → log to dedicated table
-2. Create `apps/crm/server/agents/prompts.js` → compose system prompts
+2. Create `agency-app/api/agents/prompts.js` → compose system prompts
 3. Refactor `agentRuntime.js` → add tenant opt-in checks, Bedrock loop, error handling
 
 **Files Modified/Created:**
-- `apps/crm/server/agents/agentAuditService.js`
-- `apps/crm/server/agents/prompts.js` (NEW)
-- `apps/crm/server/agents/agentRuntime.js`
+- `agency-app/api/agents/agentAuditService.js`
+- `agency-app/api/agents/prompts.js` (NEW)
+- `agency-app/api/agents/agentRuntime.js`
 
 ---
 
 ### Phase 3: EventBridge & Handlers (3-4 days)
 
 **Tasks:**
-1. Update `apps/crm/server/routes/leads.js` → publish `lead.created` event
+1. Update `agency-app/api/routes/leads.js` → publish `lead.created` event
 2. Complete `lead-qualifier-handler.js` → emit `lead.qualified` event + add tenant opt-in check
 3. Complete `lead-router-handler.js` → assign to best member + add tenant opt-in check
 4. Complete `lead-followup-cron.js` → draft/autosend messages + get tenant list
 
 **Files Modified:**
-- `apps/crm/server/routes/leads.js`
-- `apps/crm/server/scripts/lead-qualifier-handler.js`
-- `apps/crm/server/scripts/lead-router-handler.js`
-- `apps/crm/server/scripts/lead-followup-cron.js`
+- `agency-app/api/routes/leads.js`
+- `agency-app/api/scripts/lead-qualifier-handler.js`
+- `agency-app/api/scripts/lead-router-handler.js`
+- `agency-app/api/scripts/lead-followup-cron.js`
 
 **CRITICAL:** Add tenant opt-in check as FIRST step in each handler:
 ```javascript
@@ -370,23 +370,23 @@ export async function handler(event) {
 1. Update `whatsapp-message-processor.js` → route free-text to agent
 
 **Files Modified:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
 
 ---
 
 ### Phase 5: MCP Server & Route Mounts (2-3 days)
 
 **Tasks:**
-1. Create `apps/crm/server/routes/agentTools.js` → `/api/crm/agent/tool` endpoint with JWT validation
-2. Update `apps/crm/server/mcp-server/index.js` → sign JWT, call endpoint
+1. Create `agency-app/api/routes/agentTools.js` → `/api/crm/agent/tool` endpoint with JWT validation
+2. Update `agency-app/api/mcp-server/index.js` → sign JWT, call endpoint
 3. Update `.mcp.json` → register `nabi-crm` server
-4. **CRITICAL:** Mount routes in `apps/crm/server/server.js`
+4. **CRITICAL:** Mount routes in `agency-app/api/server.js`
 
 **Files Modified/Created:**
-- `apps/crm/server/routes/agentTools.js` (NEW)
-- `apps/crm/server/mcp-server/index.js`
+- `agency-app/api/routes/agentTools.js` (NEW)
+- `agency-app/api/mcp-server/index.js`
 - `.mcp.json`
-- `apps/crm/server/server.js` (add route mounts)
+- `agency-app/api/server.js` (add route mounts)
 
 **Route Mount in server.js:**
 ```javascript
@@ -446,11 +446,11 @@ router.post('/agent/tool', validateServiceToken, async (req, res) => {
 ### Phase 6: Billing Webhook Integration (1-2 days)
 
 **Tasks:**
-1. Update `apps/crm/server/routes/billing.js` → on `subscription.activated` with `plan_ai_employee_monthly`, set `aiEmployeeEnabled=true`
+1. Update `agency-app/api/routes/billing.js` → on `subscription.activated` with `plan_ai_employee_monthly`, set `aiEmployeeEnabled=true`
 2. Verify provisioning row creation (already exists)
 
 **Files Modified:**
-- `apps/crm/server/routes/billing.js`
+- `agency-app/api/routes/billing.js`
 
 **Implementation:**
 ```javascript
@@ -477,10 +477,10 @@ if (event.event === 'subscription.activated' && event.payload.plan_id === 'plan_
 5. Update trial banner → highlight AI Employee feature
 
 **Files Modified/Created:**
-- `apps/crm/real-estate-crm-app/src/components/AgentActivityLog.tsx` (NEW)
-- `apps/crm/server/routes/admin.js` (add agent-activity + ai-employee/config endpoints)
-- `apps/crm/real-estate-crm-app/src/pages/crm/BillingSettings.tsx`
-- `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
+- `agency-app/web/src/components/AgentActivityLog.tsx` (NEW)
+- `agency-app/api/routes/admin.js` (add agent-activity + ai-employee/config endpoints)
+- `agency-app/web/src/pages/crm/BillingSettings.tsx`
+- `agency-app/web/src/components/TrialCountdownBanner.tsx`
 
 **Admin Endpoints:**
 ```javascript
@@ -649,7 +649,7 @@ router.put('/ai-employee/config', validateToken, extractTenantId, requireRole('A
 To safely roll out AI Employee, implement a percentage-based rollout using tenant ID hash:
 
 ```javascript
-// apps/crm/server/agents/agentRuntime.js
+// agency-app/api/agents/agentRuntime.js
 function isEnabledForRollout(tenantId, rolloutPercentage) {
   if (rolloutPercentage >= 100) return true;
   if (rolloutPercentage <= 0) return false;
@@ -807,7 +807,7 @@ Queryable by: tenantId, agentId, createdAt, status
 ### JWT Secret Management
 
 ✅ **Storage (MVP):**
-- Stored in `apps/crm/server/.env` as `JWT_SECRET`
+- Stored in `agency-app/api/.env` as `JWT_SECRET`
 - Generated with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 - Never logged or exposed
 - Commit placeholder to `.env.example`, not actual secret

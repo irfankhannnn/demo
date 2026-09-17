@@ -25,7 +25,7 @@ $ErrorActionPreference = "Stop"
 # Auto-detect Remotion project path
 if (-not $RemotionProjectPath) {
     $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-    $repoRoot = Split-Path -Parent (Split-Path -Parent $scriptDir)  # tools/claude-skills/scripts -> repo root
+    $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $scriptDir))  # tools/claude-skills/scripts -> repo root
     $candidates = @(
         (Join-Path $repoRoot "marketing-and-sales/video-projects/my-video"),
         (Join-Path $repoRoot "marketing-and-sales/video-projects/first-video")

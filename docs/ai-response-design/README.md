@@ -18,7 +18,7 @@ crmDynamodbService
 
 ## Entity folders
 
-| Entity | Docs | Code (`apps/crm/server/`) | Feature flag |
+| Entity | Docs | Code (`agency-app/api/`) | Feature flag |
 |--------|------|------------------|--------------|
 | Lead | [`leads/`](leads/) | `aiViewBuilders/leadAIViewBuilder.js`, `normalizers/leadNormalizer.js` | `USE_AI_DTO_FOR_LEADS` |
 | Owner | [`owner/`](owner/) | `ownerAIViewBuilder.js`, `ownerNormalizer.js` | `USE_AI_DTO_FOR_OWNERS` |

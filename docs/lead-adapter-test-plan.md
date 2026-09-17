@@ -18,7 +18,7 @@ Two halves:
 # Instagram microservice — 91 tests (80 pre-existing + 11 new)
 cd backend_insta_sol_ms && npm test
 
-# CRM server — jest is NOT in apps/crm/server/node_modules, so use npx
+# CRM server — jest is NOT in agency-app/api/node_modules, so use npx
 cd server
 NODE_OPTIONS=--experimental-vm-modules npx jest leadIngestion.test.js
 NODE_OPTIONS=--experimental-vm-modules npx jest aiCallBilling.test.js
@@ -33,8 +33,8 @@ cd frontend_insta_sol_ms && npx tsc --noEmit
 | Suite | Tests | What it proves |
 |---|---|---|
 | `backend_insta_sol_ms` | **91 pass** | Bridge mapping, retry-safety, chunking, kill switch, and that the 80 pre-existing tests still pass |
-| `apps/crm/server/leadIngestion.test.js` | **16 pass** | Budget parsing (both vocabularies), intent→leadType, rental-vs-buyer split, seller price mapping, quality bar, dedupe, notification/EventBridge failure isolation |
-| `apps/crm/server/aiCallBilling.test.js` | **9 pass** | Per-started-minute rounding, no double-charge, no charge without a session id, unanswered calls free, zero-rate disable, never throws |
+| `agency-app/api/leadIngestion.test.js` | **16 pass** | Budget parsing (both vocabularies), intent→leadType, rental-vs-buyer split, seller price mapping, quality bar, dedupe, notification/EventBridge failure isolation |
+| `agency-app/api/aiCallBilling.test.js` | **9 pass** | Per-started-minute rounding, no double-charge, no charge without a session id, unanswered calls free, zero-rate disable, never throws |
 
 ### A3. Type-check baseline (important)
 
@@ -67,11 +67,11 @@ The same three lines must appear. `frontend_insta_sol_ms` type-checks **clean**.
 ### B0. Setup
 
 ```bash
-# apps/crm/server/.env
+# agency-app/api/.env
 ADAPTER_INTERNAL_API_KEY=$(openssl rand -hex 32)   # note this value
 AGENTS_ENABLED=true
 
-# apps/instagram/backend_insta_sol_ms/.env — the key MUST match the one above
+# agency-app/instagram-api/.env — the key MUST match the one above
 CRM_INTERNAL_API_URL=http://localhost:3000
 ADAPTER_INTERNAL_API_KEY=<same value>
 INSTA_PROMOTE_ENQUIRIES_TO_LEADS=true
@@ -268,14 +268,14 @@ microservice starts sending it.
 
 ```bash
 # 1. CRM first — adds the adapter route + ADAPTER_INTERNAL_API_KEY
-cd apps/crm/server/infra && ./deploy.sh <env>
+cd agency-app/api/infra && ./deploy.sh <env>
 
 # 2. Verify the route exists and rejects a bad key
 curl -i -X POST https://<crm-api>/api/internal/adapters/leads \
   -H "x-api-key: wrong" -H "x-tenant-id: t" -d '{"leads":[]}'   # expect 401
 
 # 3. Microservice second
-cd apps/instagram/backend_insta_sol_ms/infra && ./deploy.sh <env>
+cd agency-app/instagram-api/infra && ./deploy.sh <env>
 
 # 4. Frontends
 cd real-estate-crm-app && npm run build && <deploy>

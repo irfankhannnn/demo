@@ -8,7 +8,7 @@ Eliminate tool definition duplication, create unified tool definition system, an
 ### Deliverables Completed
 
 #### ✅ TASK 1: Create Shared Tool Definitions File
-- **File Created:** `apps/crm/server/shared/toolDefinitions.js` (968 lines)
+- **File Created:** `agency-app/api/shared/toolDefinitions.js` (968 lines)
 - **Content:** 54 CRM tools in neutral format
 - **Converter Functions:**
   - `convertToSkillSchemas()` → TOOL_SCHEMAS for WhatsApp SyncBot
@@ -31,10 +31,10 @@ Eliminate tool definition duplication, create unified tool definition system, an
 - **Result:** Code reduced from 750+ lines to ~450 lines, 40% reduction
 
 #### ✅ TASK 3: Update MCP Server Tools List
-- **File:** `apps/crm/server/mcp-server/tools.js`
+- **File:** `agency-app/api/mcp-server/tools.js`
 - **Changes:**
   - Removed 282 lines of hardcoded tool definitions
-  - Now imports from `apps/crm/server/shared/toolDefinitions.js`
+  - Now imports from `agency-app/api/shared/toolDefinitions.js`
   - File reduced from 282 lines to 13 lines
 - **Result:** All 54 tools now available on MCP (previously only 22)
 
@@ -58,7 +58,7 @@ Eliminate tool definition duplication, create unified tool definition system, an
 
 **Single Source of Truth Structure:**
 ```
-apps/crm/server/shared/toolDefinitions.js
+agency-app/api/shared/toolDefinitions.js
 ├── toolDefinitions[] (54 tools in neutral format)
 ├── convertToSkillSchemas() → TOOL_SCHEMAS
 ├── convertToMcpTools() → TOOLS
@@ -85,9 +85,9 @@ Consumers:
 
 ### Files Modified
 
-1. `apps/crm/server/shared/toolDefinitions.js` — Created (968 lines)
-2. `apps/crm/server/skillInvoker.js` — Updated (removed 356 lines, updated imports)
-3. `apps/crm/server/mcp-server/tools.js` — Updated (removed 282 lines)
+1. `agency-app/api/shared/toolDefinitions.js` — Created (968 lines)
+2. `agency-app/api/skillInvoker.js` — Updated (removed 356 lines, updated imports)
+3. `agency-app/api/mcp-server/tools.js` — Updated (removed 282 lines)
 
 ### Backward Compatibility
 
@@ -128,7 +128,7 @@ Build OAuth authentication system (authorization page, token generation, token v
   - Professional branding with RealtyFlow colors
 
 #### ✅ TASK 3: Create OAuth Token Endpoint
-- **File:** `apps/crm/server/routes/oauth.js` (339 lines)
+- **File:** `agency-app/api/routes/oauth.js` (339 lines)
 - **Endpoints:**
   - `GET /oauth/authorize` — Authorization page
   - `POST /oauth/authorize` — Process approval/denial
@@ -143,7 +143,7 @@ Build OAuth authentication system (authorization page, token generation, token v
   - Support for both Anthropic and OpenAI
 
 #### ✅ TASK 4: Create OAuth Token Validation Logic
-- **File:** `apps/crm/server/oauth/tokenValidator.js` (150 lines)
+- **File:** `agency-app/api/oauth/tokenValidator.js` (150 lines)
 - **Functions:**
   - `validateAccessToken(token)` — Validate JWT signature and expiry
   - `extractTenantId(token)` — Extract tenantId from token
@@ -155,7 +155,7 @@ Build OAuth authentication system (authorization page, token generation, token v
   - `validateTokenDetailed(token)` — Full validation with all details
 
 #### ✅ TASK 5: Add OAuth Routes to Express Server
-- **File:** `apps/crm/server/routes/oauth.js` (339 lines)
+- **File:** `agency-app/api/routes/oauth.js` (339 lines)
 - **Integration:** Ready to register in main Express app
 - **Usage:** `app.use('/oauth', oauthRoutes);`
 
@@ -174,7 +174,7 @@ Build OAuth authentication system (authorization page, token generation, token v
 ### Additional Components Created
 
 #### ✅ Token Generator
-- **File:** `apps/crm/server/oauth/tokenGenerator.js` (113 lines)
+- **File:** `agency-app/api/oauth/tokenGenerator.js` (113 lines)
 - **Functions:**
   - `generateAccessToken()` — Create 1-hour access token
   - `generateRefreshToken()` — Create 7-day refresh token
@@ -256,9 +256,9 @@ Build OAuth authentication system (authorization page, token generation, token v
 
 ### Files Created/Modified
 
-1. `apps/crm/server/oauth/tokenGenerator.js` — Created (113 lines)
-2. `apps/crm/server/oauth/tokenValidator.js` — Created (150 lines)
-3. `apps/crm/server/routes/oauth.js` — Created (339 lines)
+1. `agency-app/api/oauth/tokenGenerator.js` — Created (113 lines)
+2. `agency-app/api/oauth/tokenValidator.js` — Created (150 lines)
+3. `agency-app/api/routes/oauth.js` — Created (339 lines)
 4. `server/views/oauth-authorize.ejs` — Created (311 lines)
 5. `server/authorizers/jwtAuthorizer.js` — Created (87 lines)
 6. `tools/mcp-oauth-debug/.env.oauth.example` — Created (74 lines)
@@ -287,7 +287,7 @@ Rewrite MCP server to use StreamableHTTP transport (instead of stdio), implement
 ### Deliverables Completed
 
 #### ✅ TASK 1: Rewrite MCP Server for HTTP Transport
-- **File:** `apps/crm/server/mcp-server/httpServer.js` (262 lines)
+- **File:** `agency-app/api/mcp-server/httpServer.js` (262 lines)
 - **Features:**
   - StreamableHTTPServerTransport (MCP SDK v1.29.0)
   - Stateless architecture (new server instance per request)
@@ -297,12 +297,12 @@ Rewrite MCP server to use StreamableHTTP transport (instead of stdio), implement
   - Error handling with proper MCP error codes
 
 #### ✅ TASK 2: Create Lambda Handler Wrapper
-- **File:** `apps/crm/server/mcp-server/lambdaHandler.js` (23 lines)
+- **File:** `agency-app/api/mcp-server/lambdaHandler.js` (23 lines)
 - **Purpose:** Adapts Express app to Lambda via @vendia/serverless-express
 - **Handler:** `mcp-server/lambdaHandler.handler`
 
 #### ✅ TASK 3: Create Local Dev Server
-- **File:** `apps/crm/server/mcp-server/localServer.js` (65 lines)
+- **File:** `agency-app/api/mcp-server/localServer.js` (65 lines)
 - **Features:**
   - Loads .env variables
   - Starts Express on port 4001
@@ -310,7 +310,7 @@ Rewrite MCP server to use StreamableHTTP transport (instead of stdio), implement
   - Logs startup info and health check URL
 
 #### ✅ TASK 4: Implement MCP Resources
-- **File:** `apps/crm/server/mcp-server/resources.js` (301 lines)
+- **File:** `agency-app/api/mcp-server/resources.js` (301 lines)
 - **Resources Implemented:**
   - `crm://recent-leads` — Last 10 leads (summary)
   - `crm://upcoming-meetings` — Meetings in next 7 days
@@ -324,7 +324,7 @@ Rewrite MCP server to use StreamableHTTP transport (instead of stdio), implement
   - Handlers for resources/list and resources/read
 
 #### ✅ TASK 5: Implement MCP Prompts
-- **File:** `apps/crm/server/mcp-server/prompts.js` (364 lines)
+- **File:** `agency-app/api/mcp-server/prompts.js` (364 lines)
 - **Prompts Implemented:**
   - `qualify-lead` — Analyze lead qualification (arg: leadId)
   - `draft-followup` — Draft followup message (args: leadId, channel)
@@ -339,11 +339,11 @@ Rewrite MCP server to use StreamableHTTP transport (instead of stdio), implement
   - Argument validation
 
 #### ✅ TASK 6: Fix agentTools.js Import (CRITICAL BUG)
-- **File:** `apps/crm/server/routes/agentTools.js`
+- **File:** `agency-app/api/routes/agentTools.js`
 - **Changes:**
   - Changed import from `ALLOWED_TOOLS` (non-existent) to `ALLOWED_TOOL_NAMES`
   - Updated all references to use correct constant
-  - Imports from `apps/crm/server/shared/toolDefinitions.js`
+  - Imports from `agency-app/api/shared/toolDefinitions.js`
 - **Impact:** Fixes broken CRM Lambda that was importing non-existent constant
 
 ### MCP Protocol Support
@@ -384,12 +384,12 @@ crmDynamodbService.js (CRM operations)
 
 ### Files Created/Modified
 
-1. `apps/crm/server/mcp-server/httpServer.js` — Created (262 lines)
-2. `apps/crm/server/mcp-server/lambdaHandler.js` — Created (23 lines)
-3. `apps/crm/server/mcp-server/localServer.js` — Created (65 lines)
-4. `apps/crm/server/mcp-server/resources.js` — Created (301 lines)
-5. `apps/crm/server/mcp-server/prompts.js` — Created (364 lines)
-6. `apps/crm/server/routes/agentTools.js` — Modified (fixed import)
+1. `agency-app/api/mcp-server/httpServer.js` — Created (262 lines)
+2. `agency-app/api/mcp-server/lambdaHandler.js` — Created (23 lines)
+3. `agency-app/api/mcp-server/localServer.js` — Created (65 lines)
+4. `agency-app/api/mcp-server/resources.js` — Created (301 lines)
+5. `agency-app/api/mcp-server/prompts.js` — Created (364 lines)
+6. `agency-app/api/routes/agentTools.js` — Modified (fixed import)
 
 **Total New Code:** 1,015 lines
 
@@ -550,35 +550,35 @@ After the OAuth/MCP handshake succeeded, `tools/call` (e.g., `search_leads`) hun
 
 #### 1. Double `/api` in CRM backend URL
 
-- **File:** `services/reality-flow-mcp/infra/cfn-params.json`
+- **File:** `platform/mcp/infra/cfn-params.json`
 - **Problem:** `CrmApiUrl` was set to `https://services-api.cloudberrysolutions.in/devrealestatecrm/api`, and `crmClient.ts` appends `/api/crm/agent/tool`, producing `/api/api/crm/agent/tool`.
 - **Fix:** Changed `CrmApiUrl` to `https://services-api.cloudberrysolutions.in/devrealestatecrm`.
 
 #### 2. OAuth userId lost at CRM backend
 
-- **File:** `apps/crm/server/routes/agentTools.js`
+- **File:** `agency-app/api/routes/agentTools.js`
 - **Problem:** The route passed `userId: 'mcp-agent'` hardcoded to `invokeSkill`, ignoring the `x-user-id` header from the MCP service.
 - **Fix:** Route now reads `req.headers['x-user-id']` and passes it through to `invokeSkill`.
 
 #### 3. Test user permission denied
 
-- **File:** `apps/crm/server/userCategoryService.js`
+- **File:** `agency-app/api/userCategoryService.js`
 - **Problem:** `canUserAccessTool()` fails closed when no user category record exists. The test user `test-user-123` (used when `MCP_TEST_MODE=true`) has no category record.
-- **Fix:** Added `AllowUserCategoryDefaultFallback` CloudFormation parameter to `apps/crm/server/infra/cfn-backend.yaml` and `apps/crm/server/infra/cfn-params.sample.json`. Set to `true` in dev to fall back to the default category for unknown users; production must keep it `false` and provision explicit categories.
+- **Fix:** Added `AllowUserCategoryDefaultFallback` CloudFormation parameter to `agency-app/api/infra/cfn-backend.yaml` and `agency-app/api/infra/cfn-params.sample.json`. Set to `true` in dev to fall back to the default category for unknown users; production must keep it `false` and provision explicit categories.
 
 #### 4. Observability gap
 
-- **File:** `services/reality-flow-mcp/src/services/crmClient.ts`
+- **File:** `platform/mcp/src/services/crmClient.ts`
 - **Fix:** Added `crmClient.invoke.request` log line that records the exact URL, tenantId, and toolName before calling the CRM backend.
 
 ### Files Modified
 
-1. `services/reality-flow-mcp/infra/cfn-params.json` — removed `/api` from `CrmApiUrl`.
-2. `apps/crm/server/routes/agentTools.js` — pass `x-user-id` header to `invokeSkill`.
-3. `apps/crm/server/infra/cfn-backend.yaml` — added `AllowUserCategoryDefaultFallback` parameter and Lambda env var.
-4. `apps/crm/server/infra/cfn-params.sample.json` — added sample value for the new parameter.
-5. `services/reality-flow-mcp/src/services/crmClient.ts` — added request URL logging.
-6. `services/reality-flow-mcp/dist/services/crmClient.js` — rebuilt via `npm run build`.
+1. `platform/mcp/infra/cfn-params.json` — removed `/api` from `CrmApiUrl`.
+2. `agency-app/api/routes/agentTools.js` — pass `x-user-id` header to `invokeSkill`.
+3. `agency-app/api/infra/cfn-backend.yaml` — added `AllowUserCategoryDefaultFallback` parameter and Lambda env var.
+4. `agency-app/api/infra/cfn-params.sample.json` — added sample value for the new parameter.
+5. `platform/mcp/src/services/crmClient.ts` — added request URL logging.
+6. `platform/mcp/dist/services/crmClient.js` — rebuilt via `npm run build`.
 
 ### Redeploy Steps
 
@@ -647,7 +647,7 @@ Transition from hardcoded test-user bypass to a production-grade OAuth flow supp
 | Public callback blocked by auth | server.js | Public callback mounted before validateToken middleware |
 | Scope hardcoded to all | oauthController.ts | Uses requested scope from form body; falls back to all |
 | Scope display hardcoded | oauth-authorize.ejs | Dynamic scope rendering with human-readable labels |
-| Placeholder MCP URL | apps/crm/server/.env | Updated to actual API Gateway invoke URL |
+| Placeholder MCP URL | agency-app/api/.env | Updated to actual API Gateway invoke URL |
 | Port 4000 blocked for localhost | clientRegistry.ts | Added 4000 to allowed localhost redirect ports |
 | No Claude Desktop UX | AiIntegrations.tsx | Banner with Approve/Cancel for mcp_oauth_callback param |
 
@@ -655,37 +655,37 @@ Transition from hardcoded test-user bypass to a production-grade OAuth flow supp
 
 | File | Purpose |
 |------|---------|
-| apps/crm/server/routes/aiIntegrationsPublic.js | Public OAuth callback handler (GET /api/ai-integrations/callback) |
+| agency-app/api/routes/aiIntegrationsPublic.js | Public OAuth callback handler (GET /api/ai-integrations/callback) |
 
 ### Modified Files
 
 | File | Change |
 |------|--------|
-| services/reality-flow-mcp/infra/cfn-backend.yaml | Removed MCP_TEST_MODE/MCP_TENANT_ID; added FrontendUrl param |
-| services/reality-flow-mcp/infra/cfn-params.json | Added FrontendUrl value |
-| services/reality-flow-mcp/src/middleware/validateToken.ts | Removed test mode; added login redirect for unauthenticated GET |
-| services/reality-flow-mcp/src/services/clientRegistry.ts | Added port 4000 to allowed localhost ports |
-| services/reality-flow-mcp/src/controllers/oauthController.ts | scope from form body; not OAUTH_SCOPES.join in postAuthorize |
-| services/reality-flow-mcp/src/views/oauth-authorize.ejs | Dynamic scope display + scope hidden field in form |
-| services/reality-flow-mcp/.env | Removed MCP_TENANT_ID; added FRONTEND_URL |
-| apps/crm/server/.env | Fixed MCP_BASE_URL to API Gateway URL; added OAUTH_CALLBACK_URL |
-| apps/crm/server/oauth/oauthProviders.js | Removed static redirectUri; added getOAuthCallbackUrl() |
-| apps/crm/server/routes/aiIntegrations.js | Full rewrite: DCR, proper PKCE, pending state, desktop-session endpoint |
-| apps/crm/server/server.js | Added public callback route before validateToken middleware |
-| apps/crm/real-estate-crm-app/src/pages/crm/AiIntegrations.tsx | Desktop flow UI, trusted host list, mcp_oauth_callback handling |
+| platform/mcp/infra/cfn-backend.yaml | Removed MCP_TEST_MODE/MCP_TENANT_ID; added FrontendUrl param |
+| platform/mcp/infra/cfn-params.json | Added FrontendUrl value |
+| platform/mcp/src/middleware/validateToken.ts | Removed test mode; added login redirect for unauthenticated GET |
+| platform/mcp/src/services/clientRegistry.ts | Added port 4000 to allowed localhost ports |
+| platform/mcp/src/controllers/oauthController.ts | scope from form body; not OAUTH_SCOPES.join in postAuthorize |
+| platform/mcp/src/views/oauth-authorize.ejs | Dynamic scope display + scope hidden field in form |
+| platform/mcp/.env | Removed MCP_TENANT_ID; added FRONTEND_URL |
+| agency-app/api/.env | Fixed MCP_BASE_URL to API Gateway URL; added OAUTH_CALLBACK_URL |
+| agency-app/api/oauth/oauthProviders.js | Removed static redirectUri; added getOAuthCallbackUrl() |
+| agency-app/api/routes/aiIntegrations.js | Full rewrite: DCR, proper PKCE, pending state, desktop-session endpoint |
+| agency-app/api/server.js | Added public callback route before validateToken middleware |
+| agency-app/web/src/pages/crm/AiIntegrations.tsx | Desktop flow UI, trusted host list, mcp_oauth_callback handling |
 
 ### Environment Variables Required
 
 MCP Server (cfn-params.json / .env):
   FRONTEND_URL = https://app.realestateflow.in (or http://localhost:5173 for dev)
 
-CRM Backend (apps/crm/server/.env):
+CRM Backend (agency-app/api/.env):
   MCP_BASE_URL = https://i1un5y6xjl.execute-api.ap-south-1.amazonaws.com/dev
   OAUTH_CALLBACK_URL = https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback
 
 ### Deployment Checklist
 
-1. Run npm run build in services/reality-flow-mcp/ (already passing - zero TS errors)
+1. Run npm run build in platform/mcp/ (already passing - zero TS errors)
 2. Package: zip -r function.zip node_modules dist package.json
 3. Upload to S3: realestate-flow-lambda-packages/realestate-flow-mcp/function.zip
 4. Deploy: aws cloudformation deploy --template-file infra/cfn-backend.yaml --parameter-overrides file://infra/cfn-params.json --capabilities CAPABILITY_NAMED_IAM
@@ -698,8 +698,8 @@ After the initial implementation, the following additional fixes were applied:
 
 | Issue | File | Fix |
 |-------|------|-----|
-| Hardcoded secrets in test files | `D:\test_mcp_call.js`, `D:\test_mcp_axios.js`, `services/reality-flow-mcp/test_mcp_axios.js` | Deleted all test files containing production JWT secret |
-| Production secrets in .env | `.gitignore` | Added `services/reality-flow-mcp/.env` to root `.gitignore` explicitly |
+| Hardcoded secrets in test files | `D:\test_mcp_call.js`, `D:\test_mcp_axios.js`, `platform/mcp/test_mcp_axios.js` | Deleted all test files containing production JWT secret |
+| Production secrets in .env | `.gitignore` | Added `platform/mcp/.env` to root `.gitignore` explicitly |
 | API Gateway timeout 29s | `cfn-backend.yaml` | Restored to 58s (Lambda timeout is 60s) |
 | Dual-write to connections table | `oauthController.ts` | Removed MCP-side writes; CRM backend is the single source of truth |
 | Missing scope defaults to all scopes | `oauthController.ts` | Reject authorization with 400 if `scope` is missing |

@@ -257,7 +257,7 @@ GET    /api/billing/credits/config/:id (admin)
 
 **Responsibility:** Voice calling, transcription, knowledge base  
 **Entities:** Call Sessions, Transcripts, Knowledge Docs, Call Recordings  
-**Current Code:** `services/ai-calling-service/` (already separate)
+**Current Code:** `agency-app/ai-calling/` (already separate)
 
 **API Endpoints:**
 ```
@@ -772,7 +772,7 @@ services/
 │   ├── infra/
 │   └── tests/
 
-├── services/ai-calling-service/
+├── agency-app/ai-calling/
 │   ├── src/
 │   ├── infra/
 │   └── tests/

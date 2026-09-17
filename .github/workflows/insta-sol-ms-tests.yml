@@ -12,18 +12,18 @@ on:
   pull_request:
     branches: [main, auth_rbac_feature, 'cursor/*', 'claude/*']
     paths:
-      - 'apps/instagram/backend_insta_sol_ms/**'
-      - 'apps/instagram/frontend_insta_sol_ms/**'
-      - 'infra/cicd/backend_insta_sol_ms/**'
-      - 'infra/cicd/frontend_insta_sol_ms/**'
+      - 'agency-app/instagram-api/**'
+      - 'agency-app/instagram-web/**'
+      - 'infra/cicd/agency-app/instagram-api/**'
+      - 'infra/cicd/agency-app/instagram-web/**'
       - '.github/workflows/insta-sol-ms-tests.yml'
   push:
     branches: [main, auth_rbac_feature, 'claude/instagram-*']
     paths:
-      - 'apps/instagram/backend_insta_sol_ms/**'
-      - 'apps/instagram/frontend_insta_sol_ms/**'
-      - 'infra/cicd/backend_insta_sol_ms/**'
-      - 'infra/cicd/frontend_insta_sol_ms/**'
+      - 'agency-app/instagram-api/**'
+      - 'agency-app/instagram-web/**'
+      - 'infra/cicd/agency-app/instagram-api/**'
+      - 'infra/cicd/agency-app/instagram-web/**'
       - '.github/workflows/insta-sol-ms-tests.yml'
 
 jobs:
@@ -37,20 +37,20 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: apps/instagram/backend_insta_sol_ms/package-lock.json
+          cache-dependency-path: agency-app/instagram-api/package-lock.json
       - name: Install
-        working-directory: apps/instagram/backend_insta_sol_ms
+        working-directory: agency-app/instagram-api
         run: npm ci
       - name: Test
-        working-directory: apps/instagram/backend_insta_sol_ms
+        working-directory: agency-app/instagram-api
         run: npm test
       - name: Deploy scripts parse
         run: |
-          bash -n apps/instagram/backend_insta_sol_ms/infra/deploy.sh
-          bash -n apps/instagram/backend_insta_sol_ms/infra/config-deploy.sh
-          bash -n infra/cicd/backend_insta_sol_ms/deploy.sh
+          bash -n agency-app/instagram-api/infra/deploy.sh
+          bash -n agency-app/instagram-api/infra/config-deploy.sh
+          bash -n infra/cicd/agency-app/instagram-api/deploy.sh
       - name: Audit dependencies (critical only)
-        working-directory: apps/instagram/backend_insta_sol_ms
+        working-directory: agency-app/instagram-api
         run: npm audit --omit=dev --audit-level=critical
 
   frontend:
@@ -63,12 +63,12 @@ jobs:
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: apps/instagram/frontend_insta_sol_ms/package-lock.json
+          cache-dependency-path: agency-app/instagram-web/package-lock.json
       - name: Install
-        working-directory: apps/instagram/frontend_insta_sol_ms
+        working-directory: agency-app/instagram-web
         run: npm ci
       - name: Build
-        working-directory: apps/instagram/frontend_insta_sol_ms
+        working-directory: agency-app/instagram-web
         env:
           VITE_INSTA_API_DOMAIN_NAME: services-api.cloudberrysolutions.in
           VITE_INSTA_API_BASE_PATH: devrealestateinsta
@@ -76,5 +76,5 @@ jobs:
         run: npm run build
       - name: Deploy scripts parse
         run: |
-          bash -n apps/instagram/frontend_insta_sol_ms/infra/deploy.sh
-          bash -n infra/cicd/frontend_insta_sol_ms/deploy.sh
+          bash -n agency-app/instagram-web/infra/deploy.sh
+          bash -n infra/cicd/agency-app/instagram-web/deploy.sh

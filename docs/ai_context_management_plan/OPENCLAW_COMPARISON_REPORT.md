@@ -95,11 +95,11 @@ The current implementation has **significantly evolved** beyond OpenClaw pattern
 
 ### Recommendations
 
-1. **Implement Session Key Construction** (`apps/crm/server/services/sessionKeyService.js`) - enables flexible DM collapsing and isolation
+1. **Implement Session Key Construction** (`agency-app/api/services/sessionKeyService.js`) - enables flexible DM collapsing and isolation
 2. **Add Group Chat Support with Isolation** - remove group blocking, add group context
-3. **Implement Agent Route Resolution** (`apps/crm/server/services/agentRouteService.js`) - enables multi-agent routing
+3. **Implement Agent Route Resolution** (`agency-app/api/services/agentRouteService.js`) - enables multi-agent routing
 4. **Enrich Inbound Context** - add BodyForAgent, CommandBody, ReplyTo context, Sender metadata
-5. **Add Echo Detection** (`apps/crm/server/utils/echoDetection.js`) - prevents agent responding to itself
+5. **Add Echo Detection** (`agency-app/api/utils/echoDetection.js`) - prevents agent responding to itself
 
 ---
 
@@ -133,7 +133,7 @@ Current implementation: Single `invokeAgent(tenantId, 'whatsapp', text, context)
 
 ### Recommendations
 
-1. **Implement Agent Routing Layer** (`apps/crm/server/agents/agentRouter.js`) - channel/intent/category-based routing
+1. **Implement Agent Routing Layer** (`agency-app/api/agents/agentRouter.js`) - channel/intent/category-based routing
 2. **Add Tool Streaming Support** - stream tool results as they arrive for faster UX
 3. **Implement Session Key Encoding** - track agent identity across sessions
 4. **Add Channel Plugin Architecture** - abstract channel adapters for future extensibility
@@ -352,7 +352,7 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
 ### Recommendations
 
 1. **Add Pre-commit Hooks & CI Quality Gates** - husky + lint-staged for lint/format checks
-2. **Standardize on TypeScript** - migrate `apps/crm/server/` from JS to TS with strict mode
+2. **Standardize on TypeScript** - migrate `agency-app/api/` from JS to TS with strict mode
 3. **Add Docker Support for Main Services** - Dockerfile + docker-compose for full stack
 4. **Add ESLint/Prettier Configuration** - consistent code style across services
 5. **Add Build Smoke Tests** - validate build artifacts work before deployment
@@ -455,7 +455,7 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
    - Change the `whatsapp` agent to return JSON: `{ "reply": "final message", "requires_followup": false, "internal_notes": "..." }`
    - Use Anthropic's `tools` or `response_format` / JSON mode to enforce the schema.
    - Extract only the `reply` field and send it to the user. This prevents leaked reasoning and multiple outputs.
-   - **Files:** `apps/crm/server/agents/agentRuntime.js`, `apps/crm/server/agents/prompts.js`
+   - **Files:** `agency-app/api/agents/agentRuntime.js`, `agency-app/api/agents/prompts.js`
 
 2. **Enforce "One Message Per Turn" in the Reply Pipeline** (High Priority)
    - Build a `sendReply()` pipeline that takes exactly one text string and:
@@ -463,7 +463,7 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
      - Chunks it into WhatsApp-compatible segments if needed
      - Sends one segment at a time, but only after the full agent response is finalized
      - Logs and tracks the outbound message ID
-   - **Files:** `server/messaging/replyPipeline.js`, `apps/crm/server/scripts/whatsapp-message-processor.js`
+   - **Files:** `server/messaging/replyPipeline.js`, `agency-app/api/scripts/whatsapp-message-processor.js`
 
 3. **Clean the Inbound Body Before Sending to the LLM** (High Priority)
    - Create `buildBodyForAgent(text)` that:
@@ -471,7 +471,7 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
      - Strips bot mentions in group messages
      - Normalizes quoted replies to a clean format
      - Removes LID suffixes and JID metadata
-   - **Files:** `apps/crm/server/scripts/whatsapp-message-processor.js`, `apps/crm/server/utils/whatsapp.js`
+   - **Files:** `agency-app/api/scripts/whatsapp-message-processor.js`, `agency-app/api/utils/whatsapp.js`
 
 4. **Improve Context Depth and Add Summarization** (Medium Priority)
    - Increase history from 5 to 10-15 messages.
@@ -479,38 +479,38 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
      - Store a `conversationSummary` in `conversationStateService`
      - Update summary after each turn using a cheap model or rule-based extraction
      - Inject summary into the system prompt instead of full history
-   - **Files:** `apps/crm/server/whatsappConversationService.js`, `apps/crm/server/conversationStateService.js`
+   - **Files:** `agency-app/api/whatsappConversationService.js`, `agency-app/api/conversationStateService.js`
 
 5. **Add Echo Detection** (High Priority)
    - Compare inbound text against the last 3-5 outbound messages sent to the same contact.
    - Skip AI processing if similarity > 0.85 or if `fromMe === true`.
-   - **Files:** `apps/crm/server/utils/echoDetection.js`, `apps/crm/server/scripts/whatsapp-message-processor.js`
+   - **Files:** `agency-app/api/utils/echoDetection.js`, `agency-app/api/scripts/whatsapp-message-processor.js`
 
 6. **Constrain `max_tokens` for WhatsApp** (Medium Priority)
    - Reduce from 1024 to 400-500 tokens for the `whatsapp` agent.
    - Reserve higher token budgets only for `qualifier`/`router` agents that return JSON.
-   - **File:** `apps/crm/server/agents/agentRuntime.js`
+   - **File:** `agency-app/api/agents/agentRuntime.js`
 
 7. **Add Output Validation Before Sending** (Medium Priority)
    - Reject replies that contain forbidden patterns:
      - `"The user said"`, `"I should"`, `"Let's go with"`, JSON blocks, markdown lists
    - If validation fails, fall back to a generic safe reply and log the incident.
-   - **Files:** `server/messaging/replyValidator.js`, `apps/crm/server/scripts/whatsapp-message-processor.js`
+   - **Files:** `server/messaging/replyValidator.js`, `agency-app/api/scripts/whatsapp-message-processor.js`
 
 8. **Inject Conversation State into System Prompt** (Medium Priority)
    - Include `intent`, `topic`, `lastAction`, `messageCount` from `conversationStateService` in the prompt.
    - Helps the model stay on topic and avoid repeating questions.
-   - **Files:** `apps/crm/server/agents/agentRuntime.js`, `apps/crm/server/conversationStateService.js`
+   - **Files:** `agency-app/api/agents/agentRuntime.js`, `agency-app/api/conversationStateService.js`
 
 9. **Separate Reasoning from Output (for models that support it)** (Low Priority)
    - Use Claude's `thinking`/`reasoning` blocks or Gemini's `thinkingBudget` if available.
    - Keep reasoning hidden and only expose the final reply.
-   - **Files:** `apps/crm/server/agents/agentRuntime.js`
+   - **Files:** `agency-app/api/agents/agentRuntime.js`
 
 10. **Add A/B Testing for Prompt Variants** (Low Priority)
     - Track reply quality metrics (sanitization rate, user follow-up rate, sentiment) per prompt variant.
     - Use this to continuously improve the system prompt.
-    - **Files:** `apps/crm/server/agents/prompts.js`, `apps/crm/server/agents/agentAuditService.js`
+    - **Files:** `agency-app/api/agents/prompts.js`, `agency-app/api/agents/agentAuditService.js`
 
 ---
 
@@ -555,7 +555,7 @@ Current implementation: Hardcoded `TOOL_SCHEMAS` in `skillInvoker.js` with 22 st
 | 23 | Add multi-agent orchestration | High | 3-4 weeks | `agents/orchestrator.js` |
 | 24 | Add WebSocket control plane | Medium | 2-3 weeks | `services/websocketBroadcaster.js` |
 | 25 | Add AWS X-Ray distributed tracing | Medium | 3-5 days | `index.ts`, `package.json` |
-| 26 | Standardize on TypeScript across server | Medium | 2-3 weeks | `apps/crm/server/` migration |
+| 26 | Standardize on TypeScript across server | Medium | 2-3 weeks | `agency-app/api/` migration |
 | 27 | Add Docker support for all services | Medium | 3-5 days | `Dockerfile`, `docker-compose.yml` |
 | 28 | Add pre-commit hooks and CI gates | Medium | 1-2 days | `.husky/`, `.github/workflows/` |
 
@@ -570,9 +570,9 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.1 Root Cause #1: No Output Schema Enforcement — Models Return Free Text
 
 **Evidence:**
-- `apps/crm/server/agents/agentRuntime.js:279-327` (Bedrock loop) and `:246-274` (Gemini loop) accept any `text` from the model and then run a heuristic cleanup.
-- `apps/crm/server/agents/prompts.js:81-113` tells the WhatsApp agent to "Reply with ONLY the final message text" but provides no JSON schema or structured output contract.
-- `apps/crm/server/agents/agentRuntime.js:93` sets `max_tokens: 1024`, leaving room for rambling, reasoning, and multiple sentences.
+- `agency-app/api/agents/agentRuntime.js:279-327` (Bedrock loop) and `:246-274` (Gemini loop) accept any `text` from the model and then run a heuristic cleanup.
+- `agency-app/api/agents/prompts.js:81-113` tells the WhatsApp agent to "Reply with ONLY the final message text" but provides no JSON schema or structured output contract.
+- `agency-app/api/agents/agentRuntime.js:93` sets `max_tokens: 1024`, leaving room for rambling, reasoning, and multiple sentences.
 
 **Why this causes failure:**
 - The model is asked to be a conversationalist, a tool operator, and a formatter at the same time, with no enforced structure.
@@ -585,7 +585,7 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.2 Root Cause #2: The Sanitizer is a Reactive, Heuristic Band-Aid
 
 **Evidence:**
-- `apps/crm/server/agents/agentRuntime.js:120-231` contains `scoreResponseCandidate()` and `sanitizeAgentReply()`.
+- `agency-app/api/agents/agentRuntime.js:120-231` contains `scoreResponseCandidate()` and `sanitizeAgentReply()`.
 - The sanitizer uses 42 hardcoded English keywords (`"the user said"`, `"i should"`, etc.), a position bonus that assumes the real reply is at the end, and no Hinglish support.
 - If no candidate scores above 0, the original corrupted text is returned to the user (`return text` at line 230).
 
@@ -600,9 +600,9 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.3 Root Cause #3: Tenant Context is Never Loaded into the Prompt
 
 **Evidence:**
-- `apps/crm/server/agents/prompts.js:186-202` defines `buildSystemPromptWithContext()`, which loads business context and team members from `.devin/ai-employee/tenant-templates/`.
-- `apps/crm/server/agents/agentRuntime.js:10` imports `buildSystemPrompt`, **not** `buildSystemPromptWithContext`.
-- `apps/crm/server/agents/agentRuntime.js:393` calls `buildSystemPrompt(agentId, tenantId, personality)` — the tenant context is never injected.
+- `agency-app/api/agents/prompts.js:186-202` defines `buildSystemPromptWithContext()`, which loads business context and team members from `.devin/ai-employee/tenant-templates/`.
+- `agency-app/api/agents/agentRuntime.js:10` imports `buildSystemPrompt`, **not** `buildSystemPromptWithContext`.
+- `agency-app/api/agents/agentRuntime.js:393` calls `buildSystemPrompt(agentId, tenantId, personality)` — the tenant context is never injected.
 
 **Why this causes failure:**
 - The agent is generic. It does not know the tenant's business, tone, team members, or value propositions, so it falls back to generic or hallucinated responses.
@@ -613,7 +613,7 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.4 Root Cause #4: Negative-Instruction Overload in the Prompt
 
 **Evidence:**
-- `apps/crm/server/agents/prompts.js:87-94` and `:139-150` contain 15+ "NEVER" instructions.
+- `agency-app/api/agents/prompts.js:87-94` and `:139-150` contain 15+ "NEVER" instructions.
 - The prompt also mixes personality (professional/friendly/direct), channel constraints (WhatsApp), and tool usage instructions.
 
 **Why this causes failure:**
@@ -627,7 +627,7 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.5 Root Cause #5: No Inbound Body Cleaning — Model Sees Raw Commands and Metadata
 
 **Evidence:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js:164` passes raw `text` to `invokeAgent`.
+- `agency-app/api/scripts/whatsapp-message-processor.js:164` passes raw `text` to `invokeAgent`.
 - Raw text can include `lead:` prefixes, `@bot` mentions, quoted reply headers, and JID/LID metadata.
 - There is no `BodyForAgent` / `CommandBody` / `RawBody` separation.
 
@@ -641,10 +641,10 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.6 Root Cause #6: Hardcoded Single Agent Handles All Tasks
 
 **Evidence:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js:164` hardcodes `agentId = 'whatsapp'`.
-- `apps/crm/server/agents/prompts.js:50-80` defines specialized agents (`qualifier`, `router`, `followup`, `mcp`), but they are only used in separate Lambda handlers, not the main WhatsApp flow.
-- `apps/crm/server/skillInvoker.js:175` exposes all 24 tools to every agent via `ALLOWED_TOOLS`.
-- `apps/crm/server/agents/agentRuntime.js:39-60` builds the same tool definitions for every agent.
+- `agency-app/api/scripts/whatsapp-message-processor.js:164` hardcodes `agentId = 'whatsapp'`.
+- `agency-app/api/agents/prompts.js:50-80` defines specialized agents (`qualifier`, `router`, `followup`, `mcp`), but they are only used in separate Lambda handlers, not the main WhatsApp flow.
+- `agency-app/api/skillInvoker.js:175` exposes all 24 tools to every agent via `ALLOWED_TOOLS`.
+- `agency-app/api/agents/agentRuntime.js:39-60` builds the same tool definitions for every agent.
 
 **Why this causes failure:**
 - One prompt cannot optimize for lead creation, qualification, routing, property search, Q&A, and conversation.
@@ -657,9 +657,9 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.7 Root Cause #7: Tool Loop is Single-Call, No Validation, No Deduplication
 
 **Evidence:**
-- `apps/crm/server/agents/agentRuntime.js:254` (Gemini) and `:297` (Bedrock) only process the **first** tool call per turn.
-- `apps/crm/server/agents/agentRuntime.js:268-273` and `:314-321` feed raw tool results back to the LLM without checking `toolResult.ok`.
-- `apps/crm/server/agents/agentRuntime.js:21` hardcodes `MAX_TOOL_TURNS = 5`.
+- `agency-app/api/agents/agentRuntime.js:254` (Gemini) and `:297` (Bedrock) only process the **first** tool call per turn.
+- `agency-app/api/agents/agentRuntime.js:268-273` and `:314-321` feed raw tool results back to the LLM without checking `toolResult.ok`.
+- `agency-app/api/agents/agentRuntime.js:21` hardcodes `MAX_TOOL_TURNS = 5`.
 - No tool-call deduplication exists in the agent loop.
 
 **Why this causes failure:**
@@ -674,9 +674,9 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.8 Root Cause #8: Conversation State Exists but Is Never Used
 
 **Evidence:**
-- `apps/crm/server/conversationStateService.js:29-64` defines a rich state object with `intent`, `topic`, `status`, `messageCount`, and `context`.
-- `apps/crm/server/agents/agentRuntime.js:392-409` loads only the last 5 messages; it never imports or injects `getConversationState`.
-- `apps/crm/server/whatsappConversationService.js:374-381` maps roles using the unreliable `fromMe` boolean.
+- `agency-app/api/conversationStateService.js:29-64` defines a rich state object with `intent`, `topic`, `status`, `messageCount`, and `context`.
+- `agency-app/api/agents/agentRuntime.js:392-409` loads only the last 5 messages; it never imports or injects `getConversationState`.
+- `agency-app/api/whatsappConversationService.js:374-381` maps roles using the unreliable `fromMe` boolean.
 
 **Why this causes failure:**
 - The agent sees only 5 raw messages with no intent, topic, or summary.
@@ -690,10 +690,10 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.9 Root Cause #9: No Echo Detection / Multiple-Reply Protection
 
 **Evidence:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js:58-74` has no echo detection and no Lambda-level idempotency.
-- `apps/crm/server/routes/webhooks.js:126-129` deduplicates at the webhook layer but does not propagate to EventBridge or the Lambda.
-- `apps/crm/server/scripts/whatsapp-message-processor.js:200-228` sends a reply without checking whether a reply was already sent for this inbound `messageId`.
-- `apps/crm/server/infra/cfn-backend.yaml:2308-2322` has no EventBridge `RetryPolicy` or DeadLetterQueue (default = 185 retries over 24 hours).
+- `agency-app/api/scripts/whatsapp-message-processor.js:58-74` has no echo detection and no Lambda-level idempotency.
+- `agency-app/api/routes/webhooks.js:126-129` deduplicates at the webhook layer but does not propagate to EventBridge or the Lambda.
+- `agency-app/api/scripts/whatsapp-message-processor.js:200-228` sends a reply without checking whether a reply was already sent for this inbound `messageId`.
+- `agency-app/api/infra/cfn-backend.yaml:2308-2322` has no EventBridge `RetryPolicy` or DeadLetterQueue (default = 185 retries over 24 hours).
 - `baileys-service/src/baileysClient.js:35-54` tracks sent message IDs in an in-memory LRU, but the CRM has no visibility into this cache.
 
 **Why this causes failure:**
@@ -707,10 +707,10 @@ The AI Behavior & Context Fidelity score of **4.0/10** is not a single bug; it i
 ### 12.10 Root Cause #10: No Command Authorization or Body Separation
 
 **Evidence:**
-- `apps/crm/server/scripts/whatsapp-message-processor.js:9-34` parses only two commands (`lead:...` and `search leads...`).
+- `agency-app/api/scripts/whatsapp-message-processor.js:9-34` parses only two commands (`lead:...` and `search leads...`).
 - If parsing fails, the raw command string is still passed to the AI.
-- `apps/crm/server/whatsappAccessControl.js:43-74` checks `canReceiveMessage()` and `canAutoReply()`, but there is no `canExecuteCommands()` or `CommandAuthorized` flag.
-- `apps/crm/server/scripts/whatsapp-message-processor.js:140` passes `userId: 'whatsapp'` as a hardcoded placeholder.
+- `agency-app/api/whatsappAccessControl.js:43-74` checks `canReceiveMessage()` and `canAutoReply()`, but there is no `canExecuteCommands()` or `CommandAuthorized` flag.
+- `agency-app/api/scripts/whatsapp-message-processor.js:140` passes `userId: 'whatsapp'` as a hardcoded placeholder.
 
 **Why this causes failure:**
 - Unauthorized commands can execute; the AI can see command syntax and generate command-like responses; groups have no command isolation.

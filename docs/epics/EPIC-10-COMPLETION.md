@@ -12,18 +12,18 @@
 - `tests/paywall.spec.ts` — 6 Playwright scenarios (banner visibility thresholds, modal blocking, whitelist bypass, Razorpay mock)
 
 ## Files Created
-1. `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx`
-2. `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`
-3. `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
-4. `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
-5. `apps/crm/real-estate-crm-app/src/lib/razorpay.ts`
-6. `apps/crm/server/scripts/trial-reminder-cron.js`
+1. `agency-app/web/src/contexts/SubscriptionContext.tsx`
+2. `agency-app/web/src/hooks/useSubscription.ts`
+3. `agency-app/web/src/components/TrialCountdownBanner.tsx`
+4. `agency-app/web/src/components/PaywallModal.tsx`
+5. `agency-app/web/src/lib/razorpay.ts`
+6. `agency-app/api/scripts/trial-reminder-cron.js`
 7. `cron/trial-reminder.yaml`
 8. `marketing-and-sales/launch-implement/pre-launch/14-paywall/trial-emails.md`
 9. `tests/paywall.spec.ts`
 
 ## Files Modified
-- `apps/crm/real-estate-crm-app/src/App.tsx` — PR-J imports + SubscriptionProvider wrap + TrialCountdownBanner + PaywallModal mount
+- `agency-app/web/src/App.tsx` — PR-J imports + SubscriptionProvider wrap + TrialCountdownBanner + PaywallModal mount
 
 ## Known Constraints
 - `GET /api/subscriptions/trial-status` endpoint: PR-H already created this endpoint; PR-J only consumes it

@@ -1,4 +1,4 @@
-# RealtyFlow MCP — Agency Owner Guide
+# RealEstateFlow MCP — Agency Owner Guide
 
 **Last Updated:** June 28, 2026  
 **Version:** 1.0.0
@@ -7,7 +7,7 @@
 
 ## What is MCP?
 
-MCP (Model Context Protocol) is an open standard that lets AI applications like Claude and ChatGPT access your RealtyFlow data and perform actions.
+MCP (Model Context Protocol) is an open standard that lets AI applications like Claude and ChatGPT access your RealEstateFlow data and perform actions.
 
 Think of it like giving Claude or ChatGPT a "window" into your CRM. They can see your leads, properties, meetings, and more — and help you with tasks like qualifying leads, drafting messages, and analyzing data.
 
@@ -19,9 +19,9 @@ Think of it like giving Claude or ChatGPT a "window" into your CRM. They can see
 
 1. Go to **CRM Dashboard** → **AI Integrations**
 2. Click **"Connect to Claude"**
-3. You'll be redirected to Claude to authorize RealtyFlow
+3. You'll be redirected to Claude to authorize RealEstateFlow
 4. Review the permissions and click **"Allow"**
-5. You're done! Claude now has access to your RealtyFlow data
+5. You're done! Claude now has access to your RealEstateFlow data
 
 ### 2. Connect ChatGPT
 
@@ -30,7 +30,7 @@ Same process as Claude:
 1. Go to **CRM Dashboard** → **AI Integrations**
 2. Click **"Connect to ChatGPT"**
 3. Authorize and allow permissions
-4. Start using ChatGPT with your RealtyFlow data
+4. Start using ChatGPT with your RealEstateFlow data
 
 ### 3. Start Using
 
@@ -44,9 +44,9 @@ Once connected, you can ask Claude or ChatGPT questions like:
 
 ---
 
-## Available Tools (54 Total)
+## Available Tools (72 Total)
 
-Claude and ChatGPT can use any of your RealtyFlow tools:
+Claude and ChatGPT can use any of your RealEstateFlow tools:
 
 ### Lead Management
 - Create, read, update, delete leads
@@ -305,7 +305,7 @@ Matches:
 
 **Solutions:**
 1. Check your internet connection
-2. Make sure you're logged into RealtyFlow
+2. Make sure you're logged into RealEstateFlow
 3. Try again in a few minutes
 4. Clear browser cache and cookies
 
@@ -363,11 +363,11 @@ Matches:
 
 ### Q: How much does it cost?
 
-**A:** MCP is included with your RealtyFlow subscription. No additional cost.
+**A:** MCP is included with your RealEstateFlow subscription. No additional cost.
 
 ### Q: Can I use MCP with other CRM systems?
 
-**A:** MCP is specific to RealtyFlow. Other CRMs may have their own integrations.
+**A:** MCP is specific to RealEstateFlow. Other CRMs may have their own integrations.
 
 ### Q: How do I report a bug or issue?
 

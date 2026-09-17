@@ -108,7 +108,7 @@ All marketing outputs go under the workspace folder:
 ```
 marketing-outputs/
 ├── brand/              # Brand manifesto, guidelines, messaging
-├── apps/landing-pages/      # HTML landing pages
+├── agency-app/landing-pages/      # HTML landing pages
 ├── blog/               # SEO articles, editorial calendar
 ├── images/             # Generated banners, posts, ads
 ├── videos/             # Rendered MP4 videos

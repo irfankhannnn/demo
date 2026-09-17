@@ -16,7 +16,7 @@ Cold outreach replies that ask "can I see it first" need a 30-second click-throu
 As a Mumbai broker who clicked a `/demo` link from cold outreach, I want a live, populated, no-signup-required demo of the CRM, so I can decide in 60 seconds whether to book a real call.
 
 ## Acceptance Criteria
-- [x] `apps/crm/server/scripts/seed-demo-tenant.js` exists (idempotent — re-running drops existing demo data and re-seeds)
+- [x] `agency-app/api/scripts/seed-demo-tenant.js` exists (idempotent — re-running drops existing demo data and re-seeds)
 - [x] Seed tenant ID = `DEMO_REALESTATEFLOW`
 - [x] 20 buyers with realistic Mumbai context (locality, budget ₹50L-₹4Cr, status mix)
 - [x] 15 owners with realistic property listings
@@ -39,7 +39,7 @@ As a Mumbai broker who clicked a `/demo` link from cold outreach, I want a live,
 2. **Create demo user** `demo@realestateflow.in` with permanent password `RealEstateDemo2026!` (or rotate quarterly).
 3. **Provision DynamoDB tables** mirroring production (or use same tables with `tenantId = DEMO_REALESTATEFLOW`). Confirm `extractTenantId` middleware will scope correctly.
 4. **Run AI Prompt below** to produce `seed-demo-tenant.js`, `cron/reset-demo.yaml`, and a deploy script.
-5. **Test the seed locally**: `node apps/crm/server/scripts/seed-demo-tenant.js --reset --tenant=DEMO_REALESTATEFLOW`. Verify no errors, all 20+15+10+8+5 records created.
+5. **Test the seed locally**: `node agency-app/api/scripts/seed-demo-tenant.js --reset --tenant=DEMO_REALESTATEFLOW`. Verify no errors, all 20+15+10+8+5 records created.
 6. **Deploy demo CloudFront + Lambda** at `demo.realestateflow.in` (subdomain of main app). Use the same SPA bundle but inject `VITE_DEMO_MODE=true` env var so the SPA shows the demo banner + read-only mode flags.
 7. **Configure CloudWatch Events** (or EventBridge) cron rule `rate(1 day)` at `cron(30 21 * * ? *)` (= 03:00 IST) → triggers Lambda that runs the seed script with `--reset`.
 8. **Smoke test** at `demo.realestateflow.in` from incognito + slow-4G throttle: load <5s, click into Buyers / Properties / Khata / AI Employee transcript, verify all show data. Try writing a record — succeeds (we allow writes within tenant). Logout + log back in — data persists until 03:00 IST.
@@ -52,17 +52,17 @@ As a Mumbai broker who clicked a `/demo` link from cold outreach, I want a live,
 You are a senior Node.js/TypeScript backend engineer. Your task is to write a seed script + cron config for the RealEstateFlow demo tenant.
 
 Read for context:
-- `apps/crm/server/routes/leads.js` (route conventions: validateToken + extractTenantId)
-- `apps/crm/server/routes/owners.js`, `apps/crm/server/routes/buyers.js`, `apps/crm/server/routes/tenants.js`, `apps/crm/server/routes/properties.js`, `apps/crm/server/routes/khata.js` (route patterns)
-- `apps/crm/server/crmDynamodbService.js` (the 108KB service file — find each entity's create function and infer the data shape)
-- `apps/crm/server/tenantMiddleware.js` (tenant scoping)
-- `apps/crm/real-estate-crm-app/src/App.tsx` (frontend routes that demo data must populate)
+- `agency-app/api/routes/leads.js` (route conventions: validateToken + extractTenantId)
+- `agency-app/api/routes/owners.js`, `agency-app/api/routes/buyers.js`, `agency-app/api/routes/tenants.js`, `agency-app/api/routes/properties.js`, `agency-app/api/routes/khata.js` (route patterns)
+- `agency-app/api/crmDynamodbService.js` (the 108KB service file — find each entity's create function and infer the data shape)
+- `agency-app/api/tenantMiddleware.js` (tenant scoping)
+- `agency-app/web/src/App.tsx` (frontend routes that demo data must populate)
 - `marketing-and-sales/research/icp-report-mumbai-launch.md` (realistic Mumbai broker context)
 - `marketing-and-sales/research/buyer-personas-summary.md` (Priya / Arjun / Suresh personas)
 
 Produce these 4 files:
 
-## 1. `apps/crm/server/scripts/seed-demo-tenant.js`
+## 1. `agency-app/api/scripts/seed-demo-tenant.js`
 Self-contained Node ES module. CLI: `node seed-demo-tenant.js [--reset] [--tenant=DEMO_REALESTATEFLOW]`
 
 Behaviour:
@@ -86,14 +86,14 @@ Add JSDoc + inline comments explaining how to extend the seed.
 ## 2. `cron/reset-demo.yaml`
 EventBridge rule + Lambda permissions. Markdown spec the founder pastes into AWS console + corresponding `serverless.yaml` snippet if applicable. Schedule: `cron(30 21 * * ? *)` UTC (= 03:00 IST). Target: invoke a Lambda that exec's `node /var/task/server/scripts/seed-demo-tenant.js --reset`.
 
-## 3. `docs/services/server/seed-demo-tenant-deploy.md`
+## 3. `docs/agency-app/api/seed-demo-tenant-deploy.md`
 Step-by-step deploy guide for the founder:
 - Build the seed Lambda (or run via existing API Lambda in a separate handler)
 - Set CloudWatch alarm if reset fails (Lambda error count >0 in 5 min window)
 - Test invocation manually before scheduling
 - Verify timezone math (UTC vs IST)
 
-## 4. `apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx`
+## 4. `agency-app/web/src/components/DemoBanner.tsx`
 React component showing the yellow "🟡 DEMO TENANT — data resets at 03:00 IST daily. Do not enter real data." banner at top of all pages when `VITE_DEMO_MODE === 'true'`. Tailwind-styled, dismissable per session, but reappears on next session.
 
 Constraints:
@@ -106,14 +106,14 @@ Constraints:
 
 ## Inputs
 - AWS access (DynamoDB + Cognito + Lambda + EventBridge)
-- DynamoDB schema knowledge (from `apps/crm/server/crmDynamodbService.js`)
+- DynamoDB schema knowledge (from `agency-app/api/crmDynamodbService.js`)
 - Mumbai persona context (from `research/`)
 
 ## Outputs
-- `apps/crm/server/scripts/seed-demo-tenant.js`
-- `docs/services/server/seed-demo-tenant-deploy.md`
+- `agency-app/api/scripts/seed-demo-tenant.js`
+- `docs/agency-app/api/seed-demo-tenant-deploy.md`
 - `cron/reset-demo.yaml`
-- `apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx`
+- `agency-app/web/src/components/DemoBanner.tsx`
 
 ## Success Criterion
 `demo.realestateflow.in` loads in <5s on slow 4G, shows ₹12.5Cr pipeline + populated CRM, resets clean every 03:00 IST without manual intervention for 7 consecutive days.
@@ -137,7 +137,7 @@ If EventBridge cron is finicky, fall back to GitHub Actions cron (`schedule: '30
 
 ## Dependencies
 - **Blocks:** Cold outreach (links to `demo.realestateflow.in`), `/demo` LP (links to it)
-- **Depends on:** AWS access (founder), `apps/crm/server/crmDynamodbService.js` (already in repo)
+- **Depends on:** AWS access (founder), `agency-app/api/crmDynamodbService.js` (already in repo)
 
 ## Connected Skills
 - `codebase-analysis` — write the seed script

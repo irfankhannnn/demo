@@ -10,7 +10,7 @@
 
 ### 1.1 Jest Configuration
 
-**File:** `apps/crm/server/jest.config.js`
+**File:** `agency-app/api/jest.config.js`
 
 ```javascript
 export default {
@@ -105,7 +105,7 @@ global.testUtils = {
 
 ### 1.2 NPM Scripts
 
-**File:** `apps/crm/server/package.json`
+**File:** `agency-app/api/package.json`
 
 ```json
 {
@@ -772,7 +772,7 @@ describe('Validators', () => {
 
 ### 5.1 Vitest Configuration
 
-**File:** `apps/crm/real-estate-crm-app/vitest.config.ts`
+**File:** `agency-app/web/vitest.config.ts`
 
 ```typescript
 import { defineConfig } from 'vitest/config';
@@ -810,7 +810,7 @@ export default defineConfig({
 });
 ```
 
-**File:** `apps/crm/real-estate-crm-app/src/__tests__/setup.ts`
+**File:** `agency-app/web/src/__tests__/setup.ts`
 
 ```typescript
 import { expect, afterEach, vi } from 'vitest';
@@ -851,7 +851,7 @@ global.IntersectionObserver = class IntersectionObserver {
 
 ### 5.2 Component Tests
 
-**File:** `apps/crm/real-estate-crm-app/src/__tests__/unit/components/LeadCard.test.tsx`
+**File:** `agency-app/web/src/__tests__/unit/components/LeadCard.test.tsx`
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest';
@@ -913,7 +913,7 @@ describe('LeadCard Component', () => {
 
 ### 5.3 Hook Tests
 
-**File:** `apps/crm/real-estate-crm-app/src/__tests__/unit/hooks/useBuyers.test.ts`
+**File:** `agency-app/web/src/__tests__/unit/hooks/useBuyers.test.ts`
 
 ```typescript
 import { describe, it, expect, beforeEach, vi } from 'vitest';

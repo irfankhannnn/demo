@@ -85,15 +85,15 @@
 1. Start with: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md)
 2. Read: [phase-2-implementation/IMPLEMENTATION_COMPLETE.md](./phase-2-implementation/IMPLEMENTATION_COMPLETE.md)
 3. Review code:
-   - `apps/crm/server/conversationStateService.js`
-   - `apps/crm/server/userCategoryService.js`
-   - `apps/crm/server/agents/toolContextBuilder.js`
-   - `apps/crm/server/observability/phase2Metrics.js`
+   - `agency-app/api/conversationStateService.js`
+   - `agency-app/api/userCategoryService.js`
+   - `agency-app/api/agents/toolContextBuilder.js`
+   - `agency-app/api/observability/phase2Metrics.js`
 4. Run tests: `npm test`
 
 #### For DevOps/Infrastructure
 1. Start with: [phase-2-implementation/CLOUDFORMATION_UPDATES.md](./phase-2-implementation/CLOUDFORMATION_UPDATES.md)
-2. Review: `apps/crm/server/infra/cfn-backend.yaml`
+2. Review: `agency-app/api/infra/cfn-backend.yaml`
 3. Check: Environment variables in `.env.example`
 4. Follow: Deployment steps in CLOUDFORMATION_UPDATES.md
 
@@ -106,9 +106,9 @@
 #### For QA/Testing
 1. Start with: [phase-2-implementation/phase-2d-testing.md](./phase-2-implementation/phase-2d-testing.md)
 2. Review test files:
-   - `apps/crm/server/agents/agentRuntime.test.js`
-   - `apps/crm/server/conversationStateService.test.js`
-   - `apps/crm/server/userCategoryService.test.js`
+   - `agency-app/api/agents/agentRuntime.test.js`
+   - `agency-app/api/conversationStateService.test.js`
+   - `agency-app/api/userCategoryService.test.js`
 3. Run: `npm test`
 4. Check: Test coverage report
 
@@ -123,42 +123,42 @@
 #### Personality Injection
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Key Features Explained"
 - **Implementation**: [phase-2-implementation/phase-2a-foundation.md](./phase-2-implementation/phase-2a-foundation.md)
-- **Code**: `apps/crm/server/agents/prompts.js`, `apps/crm/server/agents/agentRuntime.js`
-- **Tests**: `apps/crm/server/agents/agentRuntime.test.js`
+- **Code**: `agency-app/api/agents/prompts.js`, `agency-app/api/agents/agentRuntime.js`
+- **Tests**: `agency-app/api/agents/agentRuntime.test.js`
 
 #### Conversation Context
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Key Features Explained"
 - **Implementation**: [phase-2-implementation/phase-2b-context.md](./phase-2-implementation/phase-2b-context.md)
-- **Code**: `apps/crm/server/whatsappConversationService.js`
-- **Tests**: `apps/crm/server/conversationStateService.test.js`
+- **Code**: `agency-app/api/whatsappConversationService.js`
+- **Tests**: `agency-app/api/conversationStateService.test.js`
 
 #### Lead Context Enrichment
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Key Features Explained"
 - **Implementation**: [phase-2-implementation/phase-2b-context.md](./phase-2-implementation/phase-2b-context.md)
-- **Code**: `apps/crm/server/skillInvoker.js`
-- **Tests**: `apps/crm/server/userCategoryService.test.js`
+- **Code**: `agency-app/api/skillInvoker.js`
+- **Tests**: `agency-app/api/userCategoryService.test.js`
 
 #### Conversation State
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Key Features Explained"
 - **Implementation**: [phase-2-implementation/phase-2b-context.md](./phase-2-implementation/phase-2b-context.md)
-- **Code**: `apps/crm/server/conversationStateService.js`
-- **Tests**: `apps/crm/server/conversationStateService.test.js`
+- **Code**: `agency-app/api/conversationStateService.js`
+- **Tests**: `agency-app/api/conversationStateService.test.js`
 
 #### User Categories & Access Control
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Key Features Explained"
 - **Implementation**: [phase-2-implementation/phase-2c-tools.md](./phase-2-implementation/phase-2c-tools.md)
-- **Code**: `apps/crm/server/userCategoryService.js`, `apps/crm/server/skillInvoker.js`
-- **Tests**: `apps/crm/server/userCategoryService.test.js`
+- **Code**: `agency-app/api/userCategoryService.js`, `agency-app/api/skillInvoker.js`
+- **Tests**: `agency-app/api/userCategoryService.test.js`
 
 #### Tool Context Builder
 - **Overview**: [phase-2-implementation/phase-2c-tools.md](./phase-2-implementation/phase-2c-tools.md)
-- **Code**: `apps/crm/server/agents/toolContextBuilder.js`
-- **Tests**: `apps/crm/server/agents/agentRuntime.test.js`
+- **Code**: `agency-app/api/agents/toolContextBuilder.js`
+- **Tests**: `agency-app/api/agents/agentRuntime.test.js`
 
 #### Monitoring & Observability
 - **Overview**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Monitoring & Observability"
 - **Implementation**: [phase-2-implementation/CLOUDFORMATION_UPDATES.md](./phase-2-implementation/CLOUDFORMATION_UPDATES.md)
-- **Code**: `apps/crm/server/observability/phase2Metrics.js`
+- **Code**: `agency-app/api/observability/phase2Metrics.js`
 
 #### Deployment
 - **Checklist**: [PHASE_2_DELIVERY_SUMMARY.md](PHASE_2_DELIVERY_SUMMARY.md) - "Deployment Ready"
@@ -195,7 +195,7 @@ nabi-app-git-bkp/
 │   │       ├── business-context.md
 │   │       └── team-members.md
 │   └── examples/
-├── apps/crm/server/
+├── agency-app/api/
 │   ├── conversationStateService.js           ← NEW
 │   ├── userCategoryService.js                ← NEW
 │   ├── agents/

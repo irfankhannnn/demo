@@ -4,6 +4,7 @@
 > **Phase:** Week 4
 > **Skill(s):** `cold-email` + `whatsapp-outreach` + `social-content`
 > **Estimated time:** 4h founder + 2h AI
+> **Script:** `../40-sales-and-conversion/followup-script.md` (Touch 2 and 3 copy) · `../30-channels/whatsapp/message-templates.md`
 
 ## Objective
 Send Touch-2 of cold sequences to all Day 17-19 non-responders + publish the Day-20-drafted Twitter thread + cross-post on LinkedIn as carousel + open 1 new community engagement loop.

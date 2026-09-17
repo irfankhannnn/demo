@@ -34,14 +34,14 @@
 
 1. Incoming message arrives at Baileys socket.
 2. `baileysClient.js` deduplicates, debounces, and forwards to CRM webhook.
-3. `apps/crm/server/routes/webhooks.js` receives the webhook.
+3. `agency-app/api/routes/webhooks.js` receives the webhook.
    - In local dev, calls `whatsapp-message-processor.js` directly.
    - In production, publishes to EventBridge; Lambda invokes the processor.
 4. Processor:
    - Claims the message via DynamoDB conditional write.
    - Loads agency config and conversation state.
    - Invokes the WhatsApp agent (Bedrock Claude / Gemini).
-   - Sends the reply via `apps/crm/server/bailey.js`.
+   - Sends the reply via `agency-app/api/bailey.js`.
    - Logs inbound and outbound messages.
    - Marks the claim complete.
 
@@ -91,4 +91,4 @@
   - `DEFAULT_QUERY_TIMEOUT_MS` (default 30000)
   - `PREKEY_ROTATION_INTERVAL_MS` (default 21600000)
   - `SOFT_RESET_MAX_RETRIES` (default 2)
-- `apps/crm/server/bailey.js` — lazy config for Bailey API endpoint/mode/key.
+- `agency-app/api/bailey.js` — lazy config for Bailey API endpoint/mode/key.

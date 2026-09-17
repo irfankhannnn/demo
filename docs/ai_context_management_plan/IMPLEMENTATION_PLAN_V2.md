@@ -32,7 +32,7 @@
 **Goal:** Make WhatsApp connection reliable, persistent, and properly tracked.
 
 #### 1.1 Add Missing Backend Endpoints
-**Files:** `apps/crm/server/routes/auth.js`, `apps/crm/server/bailey.js`
+**Files:** `agency-app/api/routes/auth.js`, `agency-app/api/bailey.js`
 
 - `GET /api/auth/whatsapp/status/:phone` — Check if WhatsApp session is connected
   - Calls baileys-service `GET /v1/pairing/status/:phone`
@@ -48,7 +48,7 @@
   - Used by UI to show connection status in sidebar
 
 #### 1.2 Fix ConnectWhatsApp UI Logic
-**File:** `apps/crm/real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx`
+**File:** `agency-app/web/src/pages/onboarding/ConnectWhatsApp.tsx`
 
 Current bug: Always shows QR pairing flow even when already connected.
 
@@ -61,7 +61,7 @@ Fix:
 - Persist connected phone in localStorage for quick check on next visit
 
 #### 1.3 Add WhatsApp Session Status to CRM Dashboard
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx`
+**File:** `agency-app/web/src/pages/crm/CRMDashboard.tsx`
 
 - Replace the "Connect WhatsApp" button with a status indicator:
   - Green dot + "WhatsApp Connected" (if connected)
@@ -75,7 +75,7 @@ Fix:
 **Goal:** Store and retrieve all WhatsApp messages for UI display.
 
 #### 2.1 Create WhatsApp Conversation Service
-**File:** `apps/crm/server/whatsappConversationService.js` (NEW)
+**File:** `agency-app/api/whatsappConversationService.js` (NEW)
 
 DynamoDB schema (in existing CRM table `cloudberry-dev-real-estate-crm`):
 ```
@@ -92,7 +92,7 @@ Functions:
 - `getConversationSummary(tenantId, contactPhone)` — Last message + unread count
 
 #### 2.2 Enable WhatsApp Audit Logging
-**File:** `apps/crm/server/scripts/whatsapp-message-processor.js`
+**File:** `agency-app/api/scripts/whatsapp-message-processor.js`
 
 - Uncomment lines 38, 51, 117 (logMessage, logOutcome calls)
 - Replace with new `whatsappConversationService.logMessage()` calls
@@ -100,7 +100,7 @@ Functions:
 - Include `toolCalls` array in outcome logging
 
 #### 2.3 Add Conversation API Routes
-**File:** `apps/crm/server/routes/whatsappConversations.js` (NEW)
+**File:** `agency-app/api/routes/whatsappConversations.js` (NEW)
 
 ```
 GET  /api/whatsapp/conversations              — List all conversations
@@ -112,7 +112,7 @@ PATCH /api/whatsapp/conversations/:phone/read  — Mark conversation as read
 Auth: JWT + tenant extraction (all roles can view)
 
 #### 2.4 Add AI Reply Prefix/Symbol
-**File:** `apps/crm/server/scripts/whatsapp-message-processor.js`
+**File:** `agency-app/api/scripts/whatsapp-message-processor.js`
 
 - Prefix all AI replies with `🤖 ` (robot emoji) so user can distinguish AI from human
 - This makes it clear in WhatsApp which messages are AI-generated
@@ -124,7 +124,7 @@ Auth: JWT + tenant extraction (all roles can view)
 **Goal:** Show WhatsApp conversations in the CRM with a chat interface.
 
 #### 3.1 Create WhatsApp Inbox Page
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/WhatsAppInbox.tsx` (NEW)
+**File:** `agency-app/web/src/pages/crm/WhatsAppInbox.tsx` (NEW)
 
 Layout (WhatsApp Web style):
 ```
@@ -153,17 +153,17 @@ Features:
 - Empty state: "No WhatsApp conversations yet"
 
 #### 3.2 Add Navigation
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx`
+**File:** `agency-app/web/src/pages/crm/CRMDashboard.tsx`
 
 - Add "WhatsApp Inbox" button with MessageCircle icon
 - Show unread count badge if there are unread conversations
 - Route: `/crm/whatsapp-inbox`
 
-**File:** `apps/crm/real-estate-crm-app/src/App.tsx`
+**File:** `agency-app/web/src/App.tsx`
 - Add route: `<Route path="/crm/whatsapp-inbox" element={<WhatsAppInbox />} />`
 
 #### 3.3 Add API Service Methods
-**File:** `apps/crm/real-estate-crm-app/src/services/api.ts`
+**File:** `agency-app/web/src/services/api.ts`
 
 ```typescript
 async getWhatsAppConversations(): Promise<Conversation[]>
@@ -178,7 +178,7 @@ async markWhatsAppConversationRead(phone: string): Promise<void>
 **Goal:** Polish the AI Employee management and monitoring UI.
 
 #### 4.1 Redesign AI Employee Page
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/AiEmployee.tsx`
+**File:** `agency-app/web/src/pages/crm/AiEmployee.tsx`
 
 Current: Basic Settings + Activity Log tabs
 New: 3 tabs with richer UI:
@@ -204,7 +204,7 @@ New: 3 tabs with richer UI:
 - Add: Business hours (AI only responds during set hours)
 
 #### 4.2 Fix AI Response Verbosity
-**File:** `apps/crm/server/agents/prompts.js`
+**File:** `agency-app/api/agents/prompts.js`
 
 Current issue: Gemma model produces verbose responses despite prompt instructions.
 
@@ -219,7 +219,7 @@ Options (implement in order):
    - Add 3-4 examples in the system prompt showing concise responses
 
 #### 4.3 Add Agent Activity to Lead Detail
-**File:** `apps/crm/real-estate-crm-app/src/components/ContactActivityTimeline.tsx`
+**File:** `agency-app/web/src/components/ContactActivityTimeline.tsx`
 
 - Add WhatsApp messages to the activity timeline
 - Show: "AI created this lead via WhatsApp" with timestamp
@@ -232,7 +232,7 @@ Options (implement in order):
 **Goal:** Properly handle lead assignment to team members with UI.
 
 #### 5.1 Fix `/api/leads/agents` Endpoint
-**File:** `apps/crm/server/routes/leads.js`
+**File:** `agency-app/api/routes/leads.js`
 
 Current bug: Returns only current user.
 ```javascript
@@ -263,7 +263,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 ```
 
 #### 5.2 Add Lead Assignment UI
-**File:** `apps/crm/real-estate-crm-app/src/components/LeadDrawer.tsx` (or equivalent)
+**File:** `agency-app/web/src/components/LeadDrawer.tsx` (or equivalent)
 
 - Add "Assigned To" dropdown in lead detail view
 - Dropdown shows all team members (fetched from `/api/leads/agents`)
@@ -272,7 +272,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 - Color code: Green (assigned to me), Blue (assigned to others), Gray (unassigned)
 
 #### 5.3 Add "My Leads" Filter
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/LeadsList.tsx` (or equivalent)
+**File:** `agency-app/web/src/pages/crm/LeadsList.tsx` (or equivalent)
 
 - Add filter dropdown: "All Leads" / "My Leads" / "Unassigned"
 - "My Leads" filters by `assignedTo === currentUserId`
@@ -280,7 +280,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 - Add bulk assignment: Select multiple leads → assign to member
 
 #### 5.4 Add Assignment Activity Logging
-**File:** `apps/crm/server/crmDynamodbService.js`
+**File:** `agency-app/api/crmDynamodbService.js`
 
 - When `assignedTo` changes, log an activity entry:
   ```
@@ -299,7 +299,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 **Goal:** Make credits UI clear and actionable.
 
 #### 6.1 Enhance Credit Balance Card
-**File:** `apps/crm/real-estate-crm-app/src/components/CreditBalanceCard.tsx`
+**File:** `agency-app/web/src/components/CreditBalanceCard.tsx`
 
 - Show breakdown: "AI Employee: 45 credits | WhatsApp: 12 credits | Lead Creation: 30 credits"
 - Add "This month" vs "Last month" comparison
@@ -307,14 +307,14 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 - Add low-credit alert banner when < 20% remaining
 
 #### 6.2 Add AI Employee Cost Tracking
-**File:** `apps/crm/real-estate-crm-app/src/components/AgentActivityLog.tsx`
+**File:** `agency-app/web/src/components/AgentActivityLog.tsx`
 
 - Show total credits spent on AI Employee this month
 - Show per-agent breakdown (WhatsApp Bot: 45 credits, Qualifier: 15 credits, etc.)
 - Show cost per conversation (average credits per WhatsApp exchange)
 
 #### 6.3 Fix Billing Settings Page
-**File:** `apps/crm/real-estate-crm-app/src/pages/crm/BillingSettings.tsx`
+**File:** `agency-app/web/src/pages/crm/BillingSettings.tsx`
 
 - Ensure credit balance, ledger, and plan info all load correctly
 - Add "AI Employee" section showing:
@@ -338,7 +338,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 - Add max reconnection attempts (5) before giving up
 
 #### 7.2 Fix Webhook Signature Verification
-**File:** `apps/crm/server/bailey.js`
+**File:** `agency-app/api/bailey.js`
 
 - In production, reject webhooks if `BAILEY_WEBHOOK_SECRET` is not set
 - Currently returns `true` (accepts all) if secret is missing — security risk
@@ -353,7 +353,7 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
   - Return session count and states
 
 #### 7.4 Remove Hardcoded Dev Values
-**File:** `apps/crm/server/routes/webhooks.js`
+**File:** `agency-app/api/routes/webhooks.js`
 
 - Move `HARDCODED_TENANT_BY_PHONE` to env var `DEV_TENANT_MAPPING`
 - Guard all dev-only code with `IS_LOCAL_DEV` check
@@ -376,28 +376,28 @@ router.get('/agents', validateToken, extractTenantId, async (req, res) => {
 ## File Change Summary
 
 ### New Files (8)
-- `apps/crm/server/whatsappConversationService.js`
-- `apps/crm/server/routes/whatsappConversations.js`
-- `apps/crm/real-estate-crm-app/src/pages/crm/WhatsAppInbox.tsx`
-- `apps/crm/real-estate-crm-app/src/components/WhatsAppChatThread.tsx`
-- `apps/crm/real-estate-crm-app/src/components/WhatsAppConversationList.tsx`
-- `apps/crm/real-estate-crm-app/src/components/LeadAssignmentDropdown.tsx`
-- `apps/crm/real-estate-crm-app/src/components/AiEmployeeDashboard.tsx`
-- `apps/crm/real-estate-crm-app/src/types/whatsapp.ts`
+- `agency-app/api/whatsappConversationService.js`
+- `agency-app/api/routes/whatsappConversations.js`
+- `agency-app/web/src/pages/crm/WhatsAppInbox.tsx`
+- `agency-app/web/src/components/WhatsAppChatThread.tsx`
+- `agency-app/web/src/components/WhatsAppConversationList.tsx`
+- `agency-app/web/src/components/LeadAssignmentDropdown.tsx`
+- `agency-app/web/src/components/AiEmployeeDashboard.tsx`
+- `agency-app/web/src/types/whatsapp.ts`
 
 ### Modified Files (12)
-- `apps/crm/server/routes/auth.js` — Add status/disconnect/sessions endpoints
-- `apps/crm/server/routes/webhooks.js` — Fix auth logic, remove hardcoded values
-- `apps/crm/server/scripts/whatsapp-message-processor.js` — Enable audit, add AI prefix
-- `apps/crm/server/routes/leads.js` — Fix `/agents` endpoint
-- `apps/crm/server/agents/prompts.js` — Improve conciseness, add few-shot examples
-- `apps/crm/server/bailey.js` — Fix signature verification
+- `agency-app/api/routes/auth.js` — Add status/disconnect/sessions endpoints
+- `agency-app/api/routes/webhooks.js` — Fix auth logic, remove hardcoded values
+- `agency-app/api/scripts/whatsapp-message-processor.js` — Enable audit, add AI prefix
+- `agency-app/api/routes/leads.js` — Fix `/agents` endpoint
+- `agency-app/api/agents/prompts.js` — Improve conciseness, add few-shot examples
+- `agency-app/api/bailey.js` — Fix signature verification
 - `baileys-service/src/baileysClient.js` — Stability fixes
-- `apps/crm/real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx` — Fix QR logic
-- `apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx` — Add nav + status
-- `apps/crm/real-estate-crm-app/src/pages/crm/AiEmployee.tsx` — Redesign with 3 tabs
-- `apps/crm/real-estate-crm-app/src/services/api.ts` — Add conversation APIs
-- `apps/crm/real-estate-crm-app/src/App.tsx` — Add routes
+- `agency-app/web/src/pages/onboarding/ConnectWhatsApp.tsx` — Fix QR logic
+- `agency-app/web/src/pages/crm/CRMDashboard.tsx` — Add nav + status
+- `agency-app/web/src/pages/crm/AiEmployee.tsx` — Redesign with 3 tabs
+- `agency-app/web/src/services/api.ts` — Add conversation APIs
+- `agency-app/web/src/App.tsx` — Add routes
 
 ## Key Design Decisions
 

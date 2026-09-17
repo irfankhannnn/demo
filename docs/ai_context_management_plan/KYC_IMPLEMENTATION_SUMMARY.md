@@ -8,7 +8,7 @@
 Updated all CRM entity schemas to include KYC document S3 keys:
 
 **Files Modified:**
-- `apps/crm/server/crmDynamodbService.js`
+- `agency-app/api/crmDynamodbService.js`
 
 **Entities Updated:**
 - ✅ **Customers/Tenants**: Added `photoS3Key`, `panDocS3Key`, `aadharDocS3Key` (lines 81-83)
@@ -20,9 +20,9 @@ Updated all CRM entity schemas to include KYC document S3 keys:
 Created document upload endpoints for all entities:
 
 **Files Modified:**
-- `apps/crm/server/routes/crm.js` - Customer/Owner routes
-- `apps/crm/server/routes/buyers.js` - Buyer routes
-- `apps/crm/server/routes/sellers.js` - Seller routes
+- `agency-app/api/routes/crm.js` - Customer/Owner routes
+- `agency-app/api/routes/buyers.js` - Buyer routes
+- `agency-app/api/routes/sellers.js` - Seller routes
 
 **Endpoints Created:**
 ```
@@ -61,7 +61,7 @@ crm/
 ### Frontend Changes
 
 #### 1. Reusable Component Created
-**File:** `apps/crm/real-estate-crm-app/src/components/DocumentUploadSection.tsx`
+**File:** `agency-app/web/src/components/DocumentUploadSection.tsx`
 
 **Features:**
 - ✅ Upload UI for PAN Card, Aadhar Card, and Photo
@@ -74,7 +74,7 @@ crm/
 - ✅ Responsive grid layout
 
 #### 2. API Service Methods
-**File:** `apps/crm/real-estate-crm-app/src/services/api.ts`
+**File:** `agency-app/web/src/services/api.ts`
 
 **Methods Added:**
 ```typescript

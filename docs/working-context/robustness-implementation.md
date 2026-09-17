@@ -5,12 +5,12 @@
 | # | Issue | File | Fix |
 |---|-------|------|-----|
 | 1 | Outbound cache key mismatch / echo loops | `baileysClient.js` | Added `normalizeJidForKey()`; all outbound cache helpers normalize `sessionPhone` and `remoteJid` |
-| 2 | Send retry missed 5xx status codes | `apps/crm/server/bailey.js` | `isRetryableSendError` checks `err.response.status` as number (500–599) |
-| 3 | Chunk retry duplicate-delivery risk | `apps/crm/server/bailey.js` | Documented in JSDoc; partial success tracked |
+| 2 | Send retry missed 5xx status codes | `agency-app/api/bailey.js` | `isRetryableSendError` checks `err.response.status` as number (500–599) |
+| 3 | Chunk retry duplicate-delivery risk | `agency-app/api/bailey.js` | Documented in JSDoc; partial success tracked |
 | 4 | Debounce buffer unbounded | `baileysClient.js` | Added `MAX_DEBOUNCE_BUFFER_SIZE = 100`; drops oldest on overflow |
 | 5 | Debounce shutdown flush not awaited | `baileysClient.js` | `flushDebounceBuffer` returns Promise; `shutdownAllSessions` awaits all |
 | 6 | Group context limit logic wrong | `whatsappConversationService.js` | Uses latest message's `isGroup` flag instead of `some()` |
-| 7 | Chunk send partial success not tracked | `apps/crm/server/bailey.js` | Returns `sentChunks`, `totalChunks`, `messageIds` |
+| 7 | Chunk send partial success not tracked | `agency-app/api/bailey.js` | Returns `sentChunks`, `totalChunks`, `messageIds` |
 | 8 | Debounce key not normalized | `baileysClient.js` | `buildDebounceKey` normalizes both `sessionPhone` and `remoteJid` |
 | 9 | `MESSAGE_DEBOUNCE_MS` no max | `config.js` | Validates ≤ 60000 ms |
 | 10 | Extra blank lines | `baileysClient.js` | Cleaned up |
@@ -26,11 +26,11 @@ During manual testing, a reply was generated but never delivered because the Bai
    - `baileys-service/src/routes/messages.js` returns `queued: true, sent: false, HTTP 202` when the connection is not ready.
 
 2. **Server propagates queued status**
-   - `apps/crm/server/bailey.js` `sendWhatsAppMessage` returns `queued: true`.
+   - `agency-app/api/bailey.js` `sendWhatsAppMessage` returns `queued: true`.
    - `sendWhatsAppMessageChunks` throws if nothing was actually delivered.
 
 3. **Processor releases claim on failure**
-   - Added `markMessageProcessingFailed` in `apps/crm/server/whatsappConversationService.js`.
+   - Added `markMessageProcessingFailed` in `agency-app/api/whatsappConversationService.js`.
    - Processor calls it when a reply cannot be sent.
    - Removed the `hasMessage()` fallback that blocked legitimate retries.
 

@@ -56,8 +56,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No `<thinking>` tag stripping or reasoning suppression
 
 **Evidence:**
-- File: `apps/crm/server/agents/agentRuntime.js:442-444` — tool result accumulation without schema
-- File: `apps/crm/server/routes/webhooks.js:210-230` — `sanitizeAgentReply()` heuristic
+- File: `agency-app/api/agents/agentRuntime.js:442-444` — tool result accumulation without schema
+- File: `agency-app/api/routes/webhooks.js:210-230` — `sanitizeAgentReply()` heuristic
 - No structured `ReplyPayload` type defined
 
 **Impact:** Users see internal reasoning, tool call traces, and AI uncertainty  
@@ -70,8 +70,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - Personality setting is read from `agencyConfig` but not used in prompt construction
 
 **Evidence:**
-- File: `apps/crm/server/agents/prompts.js:158-176` — `loadTenantDocs()` function exists but is never called
-- File: `apps/crm/server/agents/agentRuntime.js:382-393` — personality is loaded but `buildSystemPrompt()` doesn't use it
+- File: `agency-app/api/agents/prompts.js:158-176` — `loadTenantDocs()` function exists but is never called
+- File: `agency-app/api/agents/agentRuntime.js:382-393` — personality is loaded but `buildSystemPrompt()` doesn't use it
 - File: `.devin/ai-employee/README.md` — documents the tenant template structure
 
 **Impact:** AI has no knowledge of tenant's business, team, or personality  
@@ -84,8 +84,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - `sanitizeAgentReply()` doesn't look for `<thinking>` tags or reasoning patterns
 
 **Evidence:**
-- File: `apps/crm/server/agents/prompts.js:81-113` — agent prompt says "NEVER output reasoning" but no enforcement
-- File: `apps/crm/server/routes/webhooks.js:210-230` — sanitizer only looks for specific keywords
+- File: `agency-app/api/agents/prompts.js:81-113` — agent prompt says "NEVER output reasoning" but no enforcement
+- File: `agency-app/api/routes/webhooks.js:210-230` — sanitizer only looks for specific keywords
 
 **Impact:** Users see AI's internal thought process  
 **Fix Effort:** Small (1 day)
@@ -101,8 +101,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No summarization of older messages
 
 **Evidence:**
-- File: `apps/crm/server/agents/agentRuntime.js:397` — calls `getConversationContext(tenantId, contactPhone, 5)`
-- File: `apps/crm/server/whatsappConversationService.js:197-250` — `getConversation()` method with hardcoded limit
+- File: `agency-app/api/agents/agentRuntime.js:397` — calls `getConversationContext(tenantId, contactPhone, 5)`
+- File: `agency-app/api/whatsappConversationService.js:197-250` — `getConversation()` method with hardcoded limit
 
 **Impact:** Long conversations lose context; agent can't remember earlier context  
 **Fix Effort:** Tiny (change constant + add config)
@@ -114,7 +114,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No memory tool for agent to search/retrieve past context
 
 **Evidence:**
-- File: `apps/crm/server/whatsappConversationService.js:12` — `TTL_SECONDS = 90 * 24 * 60 * 60`
+- File: `agency-app/api/whatsappConversationService.js:12` — `TTL_SECONDS = 90 * 24 * 60 * 60`
 - No summarization code anywhere in the codebase
 - No memory search tool defined
 
@@ -128,8 +128,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No separation between raw input, command input, and agent input
 
 **Evidence:**
-- File: `apps/crm/server/scripts/whatsapp-message-processor.js:61-107` — only `text` field extracted
-- File: `apps/crm/server/agents/agentRuntime.js:393-410` — single body passed to agent
+- File: `agency-app/api/scripts/whatsapp-message-processor.js:61-107` — only `text` field extracted
+- File: `agency-app/api/agents/agentRuntime.js:393-410` — single body passed to agent
 - No `BodyForAgent` or `CommandBody` fields defined
 
 **Impact:** Commands can be confused with agent input; agent sees command syntax  
@@ -143,7 +143,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No thread support
 
 **Evidence:**
-- File: `apps/crm/server/whatsappConversationService.js:34-36` — `buildPk()` uses only `tenantId + phone`
+- File: `agency-app/api/whatsappConversationService.js:34-36` — `buildPk()` uses only `tenantId + phone`
 - No session key construction logic anywhere
 - No group session isolation
 
@@ -161,7 +161,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - EventBridge retry policy not configured for idempotency
 
 **Evidence:**
-- File: `apps/crm/server/routes/webhooks.js` — no `WebhookLog` query/insert
+- File: `agency-app/api/routes/webhooks.js` — no `WebhookLog` query/insert
 - AWS CloudFormation: `WebhookLog` table exists but unused
 - No webhook event deduplication logic
 
@@ -176,9 +176,9 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No webhook idempotency scope matching
 
 **Evidence:**
-- File: `apps/crm/server/whatsappConversationService.js` — no outbound ID tracking
-- File: `apps/crm/server/routes/webhooks.js` — no self-reply detection
-- File: `apps/crm/server/scripts/whatsapp-message-processor.js` — no LID format handling
+- File: `agency-app/api/whatsappConversationService.js` — no outbound ID tracking
+- File: `agency-app/api/routes/webhooks.js` — no self-reply detection
+- File: `agency-app/api/scripts/whatsapp-message-processor.js` — no LID format handling
 
 **Impact:** Agent replies to its own messages, creating infinite loops  
 **Fix Effort:** Medium (2-3 days)
@@ -191,7 +191,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - Webhook deduplication scope mismatch
 
 **Evidence:**
-- File: `apps/crm/server/routes/webhooks.js` — no idempotency key in Lambda
+- File: `agency-app/api/routes/webhooks.js` — no idempotency key in Lambda
 - CloudFormation: EventBridge rule has no retry policy
 - No request deduplication logic
 
@@ -205,8 +205,8 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No command authorization layer
 
 **Evidence:**
-- File: `apps/crm/server/scripts/whatsapp-message-processor.js:61-107` — only raw text extracted
-- File: `apps/crm/server/agents/agentRuntime.js:393-410` — single body used for both
+- File: `agency-app/api/scripts/whatsapp-message-processor.js:61-107` — only raw text extracted
+- File: `agency-app/api/agents/agentRuntime.js:393-410` — single body used for both
 - No command authorization checks
 
 **Impact:** Commands can be confused with agent input; no access control  
@@ -224,7 +224,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No agent specialization
 
 **Evidence:**
-- File: `apps/crm/server/agents/agentRuntime.js:340` — `const agentId = 'whatsapp';`
+- File: `agency-app/api/agents/agentRuntime.js:340` — `const agentId = 'whatsapp';`
 - No agent router or intent classifier
 - All tools registered globally
 
@@ -239,7 +239,7 @@ RealtyFlow CRM's WhatsApp integration is a **serverless, multi-tenant, cloud-nat
 - No tool deduplication
 
 **Evidence:**
-- File: `apps/crm/server/agents/agentRuntime.js:442-444` — `for (let turn = 0; turn < 5; turn++)`
+- File: `agency-app/api/agents/agentRuntime.js:442-444` — `for (let turn = 0; turn < 5; turn++)`
 - No tool result validation
 - No deduplication logic
 
@@ -500,7 +500,7 @@ const agents = {
 **Objective:** Fix critical issues with minimal code changes
 
 #### 0.1: Tenant Context Injection (2 lines)
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 ```javascript
 // Change line 393 from:
 let systemPrompt = buildSystemPrompt(agentId, tenantId, personality);
@@ -516,7 +516,7 @@ import { buildSystemPromptWithContext } from './prompts.js';
 **Risk:** None (function already exists)
 
 #### 0.2: Webhook Idempotency (1-2 days)
-**File:** `apps/crm/server/routes/webhooks.js`
+**File:** `agency-app/api/routes/webhooks.js`
 ```javascript
 // Before processing webhook, check WebhookLog
 const logEntry = await dynamodb.get({
@@ -556,7 +556,7 @@ await dynamodb.update({
 **Risk:** Low (new table already exists)
 
 #### 0.3: Output Schema Definition (1 day)
-**File:** `apps/crm/server/agents/types.ts` (new file)
+**File:** `agency-app/api/agents/types.ts` (new file)
 ```typescript
 export interface ReplyPayload {
   replyText: string;
@@ -577,7 +577,7 @@ export interface ReplyPayload {
 **Risk:** None (new type)
 
 #### 0.4: Reasoning Suppression (1 day)
-**File:** `apps/crm/server/routes/webhooks.js`
+**File:** `agency-app/api/routes/webhooks.js`
 ```javascript
 // After receiving agent output, strip reasoning
 function stripReasoning(output) {
@@ -619,8 +619,8 @@ function stripReasoning(output) {
 #### 1.1: Context Envelope (MsgContext) — 2 weeks
 **Files:** 
 - `server/types/msgContext.ts` (new)
-- `apps/crm/server/scripts/whatsapp-message-processor.js` (update)
-- `apps/crm/server/agents/agentRuntime.js` (update)
+- `agency-app/api/scripts/whatsapp-message-processor.js` (update)
+- `agency-app/api/agents/agentRuntime.js` (update)
 
 **Key Changes:**
 1. Define `MsgContext` type with all fields
@@ -633,8 +633,8 @@ function stripReasoning(output) {
 
 #### 1.2: Session Key Grammar — 1 week
 **Files:**
-- `apps/crm/server/services/sessionKeyService.ts` (new)
-- `apps/crm/server/whatsappConversationService.js` (update)
+- `agency-app/api/services/sessionKeyService.ts` (new)
+- `agency-app/api/whatsappConversationService.js` (update)
 
 **Key Changes:**
 1. Define session key grammar: `tenant:{phone}:direct` or `tenant:{groupId}:group`
@@ -647,8 +647,8 @@ function stripReasoning(output) {
 
 #### 1.3: Command Authorization — 1 week
 **Files:**
-- `apps/crm/server/services/commandAuthService.ts` (new)
-- `apps/crm/server/routes/webhooks.js` (update)
+- `agency-app/api/services/commandAuthService.ts` (new)
+- `agency-app/api/routes/webhooks.js` (update)
 
 **Key Changes:**
 1. Define command authorization rules
@@ -673,9 +673,9 @@ function stripReasoning(output) {
 
 #### 2.1: Echo Detection & Suppression — 2 weeks
 **Files:**
-- `apps/crm/server/services/outboundTrackingService.ts` (new)
-- `apps/crm/server/routes/webhooks.js` (update)
-- `apps/crm/server/agents/agentRuntime.js` (update)
+- `agency-app/api/services/outboundTrackingService.ts` (new)
+- `agency-app/api/routes/webhooks.js` (update)
+- `agency-app/api/agents/agentRuntime.js` (update)
 
 **Key Changes:**
 1. Track outbound messages in DynamoDB
@@ -688,8 +688,8 @@ function stripReasoning(output) {
 
 #### 2.2: Conversation Summarization — 2 weeks
 **Files:**
-- `apps/crm/server/services/summarizationService.ts` (new)
-- `apps/crm/server/whatsappConversationService.js` (update)
+- `agency-app/api/services/summarizationService.ts` (new)
+- `agency-app/api/whatsappConversationService.js` (update)
 
 **Key Changes:**
 1. Implement compaction algorithm (summarize old messages)
@@ -702,7 +702,7 @@ function stripReasoning(output) {
 
 #### 2.3: Tool Result Validation — 1 week
 **Files:**
-- `apps/crm/server/agents/agentRuntime.js` (update)
+- `agency-app/api/agents/agentRuntime.js` (update)
 
 **Key Changes:**
 1. Validate tool results before sending to agent
@@ -737,8 +737,8 @@ function stripReasoning(output) {
 
 #### 3.2: Intent Classification — 2 weeks
 **Files:**
-- `apps/crm/server/services/intentClassifier.ts` (new)
-- `apps/crm/server/agents/agentRouter.ts` (new)
+- `agency-app/api/services/intentClassifier.ts` (new)
+- `agency-app/api/agents/agentRouter.ts` (new)
 
 **Key Changes:**
 1. Implement intent classifier (using Claude or Gemini)

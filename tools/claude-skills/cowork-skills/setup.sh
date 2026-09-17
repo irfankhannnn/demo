@@ -6,7 +6,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CLAUDE_SKILLS_DIR="$(dirname "$SCRIPT_DIR")/../.claude/skills"
+CLAUDE_SKILLS_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)/.claude/skills"  # tools/claude-skills/cowork-skills -> repo root
 
 echo "=== RealtyFlow Marketing System — Cowork Setup ==="
 echo ""

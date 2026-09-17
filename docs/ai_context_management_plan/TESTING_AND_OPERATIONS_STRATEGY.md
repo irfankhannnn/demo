@@ -141,11 +141,11 @@ server/src/__tests__/
 
 ### 2.2 Frontend Unit Tests (Vitest)
 
-**Location:** `apps/crm/real-estate-crm-app/src/__tests__/`
+**Location:** `agency-app/web/src/__tests__/`
 
 **Structure:**
 ```
-apps/crm/real-estate-crm-app/src/__tests__/
+agency-app/web/src/__tests__/
 ├── unit/
 │   ├── components/
 │   │   ├── LeadCard.test.tsx
@@ -516,7 +516,7 @@ Sentry.captureException(error, {
 
 **Frontend Integration:**
 ```typescript
-// apps/crm/real-estate-crm-app/src/instrumentation/rum.ts
+// agency-app/web/src/instrumentation/rum.ts
 import { BrowserTracer } from '@opentelemetry/instrumentation-browser';
 import { WebTracerProvider } from '@opentelemetry/web';
 
@@ -941,7 +941,7 @@ npm run analyze-logs -- --file combined.log --report daily
 ### Jest Configuration (Backend)
 
 ```javascript
-// apps/crm/server/jest.config.js
+// agency-app/api/jest.config.js
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
@@ -970,7 +970,7 @@ export default {
 ### Vitest Configuration (Frontend)
 
 ```typescript
-// apps/crm/real-estate-crm-app/vitest.config.ts
+// agency-app/web/vitest.config.ts
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import path from 'path';

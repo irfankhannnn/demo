@@ -34,8 +34,8 @@ After a detailed code review, the following issues were identified and fixed:
 ## What Was Changed
 
 ### Phase 1: Removed Regex Fallback ✅
-- Deleted `apps/crm/server/agents/intentResolver.js`
-- Deleted `apps/crm/server/agents/intentResolver.test.js`
+- Deleted `agency-app/api/agents/intentResolver.js`
+- Deleted `agency-app/api/agents/intentResolver.test.js`
 - Removed `resolveListIntent` import from `agentRuntime.js`
 - Removed fallback block from `invokeAgent` function
 - Updated `agentRuntime.test.js` to reflect new architecture
@@ -127,7 +127,7 @@ Implemented validation and retry in `agentRuntime.js`:
 ---
 
 ### Phase 6: Input Normalization ✅
-Created `apps/crm/server/agents/inputNormalizer.js` with:
+Created `agency-app/api/agents/inputNormalizer.js` with:
 
 **Money Normalization:**
 - "80L" → 8000000
@@ -221,18 +221,18 @@ LLM (with strong prompt + tool descriptions)
 ## Files Changed
 
 ### Deleted
-- `apps/crm/server/agents/intentResolver.js`
-- `apps/crm/server/agents/intentResolver.test.js`
+- `agency-app/api/agents/intentResolver.js`
+- `agency-app/api/agents/intentResolver.test.js`
 
 ### Created
-- `apps/crm/server/agents/inputNormalizer.js` (241 lines) — money, date, phone normalization
-- `apps/crm/server/agents/inputNormalizer.test.js` (164 lines) — unit tests for normalization
+- `agency-app/api/agents/inputNormalizer.js` (241 lines) — money, date, phone normalization
+- `agency-app/api/agents/inputNormalizer.test.js` (164 lines) — unit tests for normalization
 
 ### Modified
-- `apps/crm/server/agents/agentRuntime.js` — removed fallback, fixed retry logic, added `rawText` return from LLM loops, exported `shouldRetryForToolCall` and `validateJsonOutput`
-- `apps/crm/server/agents/prompts.js` — completely rewrote WhatsApp prompt (147 new lines)
-- `apps/crm/server/agents/agentRuntime.test.js` — fixed 1 test expectation, added retry logic and JSON validation tests
-- `apps/crm/server/skillInvoker.js` — enhanced all tool descriptions, integrated input normalizer
+- `agency-app/api/agents/agentRuntime.js` — removed fallback, fixed retry logic, added `rawText` return from LLM loops, exported `shouldRetryForToolCall` and `validateJsonOutput`
+- `agency-app/api/agents/prompts.js` — completely rewrote WhatsApp prompt (147 new lines)
+- `agency-app/api/agents/agentRuntime.test.js` — fixed 1 test expectation, added retry logic and JSON validation tests
+- `agency-app/api/skillInvoker.js` — enhanced all tool descriptions, integrated input normalizer
 
 ---
 

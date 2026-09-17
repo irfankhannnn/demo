@@ -16,20 +16,20 @@ Because the agent did not see budget/requirement fields as updatable through `up
 
 ## Fixes applied
 1. **Tool schema expanded**
-   - `apps/crm/server/skillInvoker.js` `TOOL_SCHEMAS.update_lead` now includes `notes`, `buyerRequirement`, `sellerRequirement`, `ownerRequirement`, `tenantRequirement`.
+   - `agency-app/api/skillInvoker.js` `TOOL_SCHEMAS.update_lead` now includes `notes`, `buyerRequirement`, `sellerRequirement`, `ownerRequirement`, `tenantRequirement`.
    - Added a description explaining that structured requirement updates should use `update_lead`, not notes.
 
 2. **Allowed fields expanded**
-   - `apps/crm/server/agents/toolContextBuilder.js` `buildLeadUpdateContext` now includes requirement objects in `allowedFields`.
+   - `agency-app/api/agents/toolContextBuilder.js` `buildLeadUpdateContext` now includes requirement objects in `allowedFields`.
 
 3. **Prompt updated**
-   - `apps/crm/server/agents/prompts.js` WhatsApp agent prompt now has a "CRITICAL RULES for tool use" section:
+   - `agency-app/api/agents/prompts.js` WhatsApp agent prompt now has a "CRITICAL RULES for tool use" section:
      - Update structured fields via `update_lead` when asked.
      - Example: "budget 2.8 crore update kardo" means update `buyerRequirement.budget`.
      - Only use `create_lead_note` for free-form info.
 
 4. **Requirement merging**
-   - `apps/crm/server/crmDynamodbService.js` `updateLead` now merges incoming requirement objects with existing requirement objects.
+   - `agency-app/api/crmDynamodbService.js` `updateLead` now merges incoming requirement objects with existing requirement objects.
    - This prevents a partial update (e.g., only budget) from wiping out `preferredArea`, `bhk`, `propertyType`, etc.
 
 ## Verification

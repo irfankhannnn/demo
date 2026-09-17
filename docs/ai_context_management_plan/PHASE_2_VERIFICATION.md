@@ -6,14 +6,14 @@
 
 | File | Size | Status | Purpose |
 |------|------|--------|---------|
-| `apps/crm/server/conversationStateService.js` | 8.8 KB | ✅ | Conversation state management |
-| `apps/crm/server/userCategoryService.js` | 8.6 KB | ✅ | User category and access control |
-| `apps/crm/server/agents/toolContextBuilder.js` | 7.6 KB | ✅ | Tool context enrichment |
-| `apps/crm/server/observability/phase2Metrics.js` | 13.2 KB | ✅ | Metrics and monitoring |
-| `apps/crm/server/agents/agentRuntime.test.js` | 8.0 KB | ✅ | Agent runtime tests |
-| `apps/crm/server/conversationStateService.test.js` | 9.7 KB | ✅ | Conversation state tests |
-| `apps/crm/server/userCategoryService.test.js` | 10.8 KB | ✅ | User category tests |
-| `apps/crm/server/agents/toolContextBuilder.js` | 7.6 KB | ✅ | Tool context builder |
+| `agency-app/api/conversationStateService.js` | 8.8 KB | ✅ | Conversation state management |
+| `agency-app/api/userCategoryService.js` | 8.6 KB | ✅ | User category and access control |
+| `agency-app/api/agents/toolContextBuilder.js` | 7.6 KB | ✅ | Tool context enrichment |
+| `agency-app/api/observability/phase2Metrics.js` | 13.2 KB | ✅ | Metrics and monitoring |
+| `agency-app/api/agents/agentRuntime.test.js` | 8.0 KB | ✅ | Agent runtime tests |
+| `agency-app/api/conversationStateService.test.js` | 9.7 KB | ✅ | Conversation state tests |
+| `agency-app/api/userCategoryService.test.js` | 10.8 KB | ✅ | User category tests |
+| `agency-app/api/agents/toolContextBuilder.js` | 7.6 KB | ✅ | Tool context builder |
 
 **Total Code Size**: ~74 KB (production code + tests)
 
@@ -21,10 +21,10 @@
 
 | File | Changes | Status |
 |------|---------|--------|
-| `apps/crm/server/agents/prompts.js` | Personality injection, async doc loading | ✅ |
-| `apps/crm/server/agents/agentRuntime.js` | Context loading integration | ✅ |
-| `apps/crm/server/skillInvoker.js` | Tool access control, context enrichment | ✅ |
-| `apps/crm/server/whatsappConversationService.js` | Conversation context loading | ✅ |
+| `agency-app/api/agents/prompts.js` | Personality injection, async doc loading | ✅ |
+| `agency-app/api/agents/agentRuntime.js` | Context loading integration | ✅ |
+| `agency-app/api/skillInvoker.js` | Tool access control, context enrichment | ✅ |
+| `agency-app/api/whatsappConversationService.js` | Conversation context loading | ✅ |
 
 ### Documentation Files Created (7 files)
 

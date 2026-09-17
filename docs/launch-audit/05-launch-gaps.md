@@ -30,7 +30,7 @@ Gaps ranked **Critical / High / Medium / Low** by launch impact. "Code-fixable" 
 | Gap | Type | Impact | Resolution |
 |---|---|---|---|
 | **Incomplete P10 event instrumentation** (BUG-007) | Code-fixable | Funnel/CRO analysis incomplete (paywall, NPS, demo, otp_verified) | **Fixed** — key funnel `trackEvent`/`serverTrack` added |
-| **grievance.js PostHog stub** (BUG-006) | Code-fixable | Grievance funnel invisible in analytics | **Fixed** — imports real `apps/crm/server/lib/posthog.js` |
+| **grievance.js PostHog stub** (BUG-006) | Code-fixable | Grievance funnel invisible in analytics | **Fixed** — imports real `agency-app/api/lib/posthog.js` |
 | **Billing signature compare not constant-time** | Code-fixable | Minor timing side-channel on webhook HMAC | **Fixed** — `crypto.timingSafeEqual` |
 | **Lint not enforced in CI; server has no lint** | Process | Style/type regressions | Add CRM lint to CI; add server lint (P2) |
 | **No CD pipeline** | Process | Manual deploys, drift risk | Add deploy workflow post-launch |

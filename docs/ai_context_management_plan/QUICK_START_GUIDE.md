@@ -53,7 +53,7 @@ Agent: "What's your budget?" ← REPEATS QUESTION (no context!)
 
 **Solution:** Load last N messages from WhatsApp conversation into agent prompt
 
-**File to Modify:** `apps/crm/server/agents/agentRuntime.js` (line 210)
+**File to Modify:** `agency-app/api/agents/agentRuntime.js` (line 210)
 
 **Effort:** 3-4 days
 
@@ -71,7 +71,7 @@ Should be: "Hey! Found a nice 2BHK in Bandra for 50L. Interested?" ← FRIENDLY
 
 **Solution:** Create personality-specific prompts and inject into system prompt
 
-**File to Modify:** `apps/crm/server/agents/prompts.js` (line 80-96)
+**File to Modify:** `agency-app/api/agents/prompts.js` (line 80-96)
 
 **Effort:** 2-3 days
 
@@ -140,7 +140,7 @@ cd nabi-app-git-bkp
 npm install
 
 # Copy environment file
-cp apps/crm/server/.env.example apps/crm/server/.env
+cp agency-app/api/.env.example agency-app/api/.env
 
 # Update .env with your credentials
 # BAILEY_ENABLED=true
@@ -157,7 +157,7 @@ cp apps/crm/server/.env.example apps/crm/server/.env
    - Verify webhook signature
 
 2. **Task 2A.2:** Implement personality (2-3 days)
-   - Modify `apps/crm/server/agents/prompts.js`
+   - Modify `agency-app/api/agents/prompts.js`
    - Add personality-specific templates
    - Test all 3 personalities
 
@@ -184,7 +184,7 @@ npm run test -- --ui
 
 ### Agent System
 ```
-apps/crm/server/agents/
+agency-app/api/agents/
 ├── agentRuntime.js      ← Main agent execution (line 201)
 ├── prompts.js           ← System prompts (line 80-96)
 └── agentAuditService.js ← Audit logging
@@ -192,7 +192,7 @@ apps/crm/server/agents/
 
 ### WhatsApp
 ```
-apps/crm/server/
+agency-app/api/
 ├── bailey.js                        ← Bailey integration
 ├── whatsappConversationService.js   ← Conversation storage
 └── routes/webhooks.js               ← Webhook handler
@@ -200,14 +200,14 @@ apps/crm/server/
 
 ### Tools
 ```
-apps/crm/server/
+agency-app/api/
 ├── skillInvoker.js      ← 22 CRM tools
 └── agents/agentRuntime.js (line 150-192) ← Tool invocation loop
 ```
 
 ### Configuration
 ```
-apps/crm/server/
+agency-app/api/
 ├── agencyConfigService.js           ← Agency settings
 └── routes/aiEmployeeConfig.js       ← Config endpoints
 ```
@@ -344,24 +344,24 @@ USER_CATEGORIES_TABLE_NAME=cloudberry-real-estate-user-categories
 
 ### Phase 2A Changes
 ```
-apps/crm/server/agents/prompts.js          ← Add personality templates
-apps/crm/server/agents/agentRuntime.js     ← Inject personality
+agency-app/api/agents/prompts.js          ← Add personality templates
+agency-app/api/agents/agentRuntime.js     ← Inject personality
 .devin/ai-employee/               ← Create directory
 ```
 
 ### Phase 2B Changes
 ```
-apps/crm/server/agents/agentRuntime.js     ← Load conversation history
-apps/crm/server/whatsappConversationService.js  ← Add context function
-apps/crm/server/conversationStateService.js     ← Create new file
-apps/crm/server/infra/cfn-backend.yaml     ← Add ConversationState table
+agency-app/api/agents/agentRuntime.js     ← Load conversation history
+agency-app/api/whatsappConversationService.js  ← Add context function
+agency-app/api/conversationStateService.js     ← Create new file
+agency-app/api/infra/cfn-backend.yaml     ← Add ConversationState table
 ```
 
 ### Phase 2C Changes
 ```
-apps/crm/server/skillInvoker.js            ← Enhance context
-apps/crm/server/agents/agentRuntime.js     ← Pass rich context
-apps/crm/server/whatsappAccessControl.js   ← Tool filtering
+agency-app/api/skillInvoker.js            ← Enhance context
+agency-app/api/agents/agentRuntime.js     ← Pass rich context
+agency-app/api/whatsappAccessControl.js   ← Tool filtering
 ```
 
 ### Phase 2D Changes
@@ -373,7 +373,7 @@ tests/playwright/api/context-management.spec.ts    ← Create new
 
 ### Phase 2E Changes
 ```
-apps/crm/server/infra/cfn-backend.yaml     ← Update parameters
+agency-app/api/infra/cfn-backend.yaml     ← Update parameters
 observability/cloudwatch.js       ← Add metrics
 CONTEXT_MANAGEMENT_GUIDE.md       ← Create documentation
 ```
@@ -407,7 +407,7 @@ CONTEXT_MANAGEMENT_GUIDE.md       ← Create documentation
 Refer to:
 - `CODEBASE_ANALYSIS_SUMMARY.md` - Architecture overview
 - `IMPLEMENTATION_PLAN_PHASE_2.md` - Detailed implementation guide
-- Code comments in `apps/crm/server/agents/` - Implementation details
+- Code comments in `agency-app/api/agents/` - Implementation details
 
 ---
 

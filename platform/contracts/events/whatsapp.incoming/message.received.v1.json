@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.realestateflow.in/events/whatsapp.incoming/message.received.v1.json",
+  "title": "message.received",
+  "description": "A text message arrived on an agency's connected WhatsApp number. Non-text and undecryptable messages are skipped at the source. Carries no tenantId: the consumer resolves the tenant from `phone`, the agency's connected number.",
+  "x-source": "whatsapp.incoming",
+  "x-detail-type": "message.received",
+  "x-producer": "platform/whatsapp-platform (src/baileysClient.js -> src/events/index.js)",
+  "x-consumers": ["agency-app/api WhatsAppProcessorFunction"],
+  "x-tenant-resolution": "phone (the agency's connected WhatsApp number) -> tenant, looked up by agency-app/api scripts/whatsapp-message-processor.js",
+  "type": "object",
+  "required": ["messageId", "from", "to", "phone", "text", "timestamp"],
+  "properties": {
+    "messageId": { "type": "string", "description": "WhatsApp message id; consumers dedupe on it" },
+    "from": { "type": "string", "description": "Sender phone, digits only" },
+    "to": { "type": "string", "description": "Receiving (agency) phone, digits only" },
+    "phone": { "type": "string", "description": "Same as `to`; the agency's connected number" },
+    "text": { "type": "string" },
+    "fromMe": { "type": "boolean" },
+    "isSelfChat": { "type": "boolean" },
+    "isGroup": { "type": "boolean" },
+    "fromJid": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "publishedAt": { "type": "string", "format": "date-time", "description": "Added by the publisher" }
+  },
+  "additionalProperties": true
+}

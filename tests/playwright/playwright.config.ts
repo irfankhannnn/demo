@@ -122,7 +122,7 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'cd ../../apps/crm/real-estate-crm-app && npm run dev',
+    command: 'cd ../../agency-app/web && npm run dev',
     url: BASE_URL,
     timeout: 120_000,
     reuseExistingServer: !IS_CI,
