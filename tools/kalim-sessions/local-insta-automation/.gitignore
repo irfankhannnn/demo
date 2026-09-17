@@ -26,6 +26,10 @@ chrome-extension/page_lib.js
 # Raw DM exports carry real names and mobile numbers.
 sample-dm-file*.txt
 
+# Screenshot batches: the stitched DM images, the transcripts read from them
+# and everything built per batch. Same private data as the exports above.
+screenshots-dm/
+
 # CRM credentials for scripts/push_leads_to_crm.py. Copy crm-push.sample.json.
 config/crm-push.json
 

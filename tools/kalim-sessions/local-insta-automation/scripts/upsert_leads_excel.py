@@ -576,19 +576,24 @@ def main():
         else:
             stats["unchanged"] += 1
 
-    seen_messages = {
-        (as_text(m.get("lead_id")), as_text(m.get("date")),
-         as_text(m.get("time")), as_text(m.get("text")))
-        for m in messages
-    }
+    # Counted per occurrence, not per text: a lead really can send "Okay" three
+    # times in the minute one date separator covers, and all three belong in the
+    # sheet. Re-running the same file still adds nothing, because the nth copy
+    # matches the nth copy already stored.
+    seen_messages = {}
+    for m in messages:
+        key = (as_text(m.get("lead_id")), as_text(m.get("date")),
+               as_text(m.get("time")), as_text(m.get("text")))
+        seen_messages[key] = seen_messages.get(key, 0) + 1
     added_messages = 0
     for _, parsed_lead in incoming:
+        occurrences = {}
         for message in parsed_lead["messages"]:
             key = (parsed_lead["lead_id"], as_text(message["date"]),
                    as_text(message["time"]), message["text"])
-            if key in seen_messages:
+            occurrences[key] = occurrences.get(key, 0) + 1
+            if occurrences[key] <= seen_messages.get(key, 0):
                 continue
-            seen_messages.add(key)
             messages.append({
                 "lead_id": parsed_lead["lead_id"],
                 "lead_name": parsed_lead["lead_name"],
