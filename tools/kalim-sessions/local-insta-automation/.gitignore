@@ -32,3 +32,9 @@ config/crm-push.json
 # Test and tool caches.
 __pycache__/
 .pytest_cache/
+
+# The SQLite store. Same private lead data the workbook held.
+db/
+*.db
+*.db-wal
+*.db-shm

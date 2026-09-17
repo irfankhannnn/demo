@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Read-only property search API for the Instagram Lead Desk desktop app.
+  A single Lambda behind a Function URL, guarded by a static api key, reading
+  the CRM properties table and the Bedrock Titan embedding model. It writes
+  nothing: the role has Query, Scan, GetItem and SearchVectors only.
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues: [dev, prod]
+    Default: dev
+    Description: Environment this stack serves. Only used for naming.
+
+  PropertiesTableName:
+    Type: String
+    Default: dev-realestateflow-crm
+    Description: >
+      The CRM single table holding property items
+      (PK TENANT#<tenantId>#PROPERTY#<id>, SK PROFILE, EntityType PROPERTY).
+
+  VectorIndexName:
+    Type: String
+    Default: ''
+    Description: >
+      DynamoDB vector index to search, normally property-vector-index. Leave
+      blank when the index was never created for this environment: the function
+      then embeds the query and compares against descriptionVector in the
+      Lambda, and falls back to keyword scoring when no row carries a vector.
+
+  TenantId:
+    Type: String
+    Description: >
+      The single tenant this API is allowed to read. Baked in rather than taken
+      per request, so a leaked api key cannot be pointed at another agency.
+
+  ApiKey:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    Description: >
+      Static key the caller sends as x-api-key. This is the only thing between
+      the internet and the inventory, so make it long and random.
+
+  EmbeddingModelId:
+    Type: String
+    Default: amazon.titan-embed-text-v2:0
+    Description: Must match the model the CRM embedded the listings with.
+
+  EmbeddingDimensions:
+    Type: Number
+    Default: 1024
+    Description: Must match the stored descriptionVector length.
+
+  CodeS3Bucket:
+    Type: String
+    Description: Bucket holding the deployment zip. infra/deploy.ps1 uploads it.
+
+  CodeS3Key:
+    Type: String
+    Description: Key of the deployment zip inside CodeS3Bucket.
+
+  AllowedOrigins:
+    Type: CommaDelimitedList
+    Default: 'http://127.0.0.1:8931,http://localhost:8931'
+    Description: >
+      Browser origins allowed by the Function URL. Function URL CORS takes exact
+      origins only, there is no port wildcard, so add the port the desk app runs
+      on if you changed PORT in .env. The handler additionally echoes any
+      loopback origin back, which covers the rest.
+
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+    Description: CloudWatch retention. Nothing here is worth keeping long.
+
+Conditions:
+  HasVectorIndex: !Not [!Equals [!Ref VectorIndexName, '']]
+
+Resources:
+  FunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-lead-desk-property-search'
+      RetentionInDays: !Ref LogRetentionDays
+
+  FunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Env}-lead-desk-property-search-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: read-properties
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Read-only on purpose. No PutItem, UpdateItem or DeleteItem: the
+              # desk app must never be able to edit CRM inventory by accident.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:SearchVectors
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${PropertiesTableName}'
+                  - !Sub 'arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${PropertiesTableName}/index/*'
+        - PolicyName: invoke-embedding-model
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}::foundation-model/${EmbeddingModelId}'
+                  # Cross-region inference profiles resolve to a different ARN
+                  # shape; allow the account-scoped form too.
+                  - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/*'
+        - PolicyName: write-own-logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !GetAtt FunctionLogGroup.Arn
+
+  SearchFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: FunctionLogGroup
+    Properties:
+      FunctionName: !Sub '${Env}-lead-desk-property-search'
+      Description: Read-only property search for the Instagram Lead Desk app
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Architectures: [arm64]
+      MemorySize: 512
+      # A cold start plus one Bedrock embedding plus a paged read of the
+      # inventory. 30s is comfortable; anything slower is a real fault.
+      Timeout: 30
+      Role: !GetAtt FunctionRole.Arn
+      Code:
+        S3Bucket: !Ref CodeS3Bucket
+        S3Key: !Ref CodeS3Key
+      Environment:
+        Variables:
+          PROPERTIES_TABLE_NAME: !Ref PropertiesTableName
+          VECTOR_INDEX_NAME: !If [HasVectorIndex, !Ref VectorIndexName, '']
+          TENANT_ID: !Ref TenantId
+          API_KEY: !Ref ApiKey
+          EMBEDDING_MODEL_ID: !Ref EmbeddingModelId
+          EMBEDDING_DIMENSIONS: !Ref EmbeddingDimensions
+          NODE_OPTIONS: '--enable-source-maps'
+
+  SearchFunctionUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt SearchFunction.Arn
+      # This IS the public API. The api key in the handler is the auth; IAM
+      # signing would need credentials the desktop app does not have.
+      AuthType: NONE
+      InvokeMode: BUFFERED
+      Cors:
+        AllowOrigins: !Ref AllowedOrigins
+        AllowMethods: [GET, POST, OPTIONS]
+        AllowHeaders: [content-type, x-api-key]
+        MaxAge: 3600
+
+  # A Function URL with AuthType NONE still needs this to be reachable.
+  SearchFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt SearchFunction.Arn
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+Outputs:
+  ApiUrl:
+    Description: Paste this into .env as PROPERTY_API_BASE (no trailing slash)
+    Value: !GetAtt SearchFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  FunctionName:
+    Description: Lambda function name, for logs and manual invokes
+    Value: !Ref SearchFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionName'

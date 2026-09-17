@@ -1,1619 +1,231 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
 <title>Instagram Lead Desk</title>
-<link rel="stylesheet" href="lead-dashboard.css">
+<link rel="stylesheet" href="app.css">
 </head>
 <body>
 
-<header class="app-header">
-  <div class="header-inner">
-    <div class="brand-block">
+<div class="app">
+
+  <!-- ============================ rail ============================ -->
+  <aside class="rail">
+    <div class="brand">
       <div class="brand-mark">IG</div>
-      <div>
-        <h1>Instagram Lead Desk</h1>
-        <p>Read-only view of <strong>master/hp-insta-leads.xlsx</strong>, the source of truth</p>
+      <div class="brand-text">
+        <h1>Lead Desk</h1>
+        <p id="brandAccount"></p>
       </div>
     </div>
-    <div class="header-meta" id="headerMeta"></div>
-    <div class="live-wrap" id="liveBadge"></div>
-  </div>
-  <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" aria-selected="true"  data-panel="pipeline">Pipeline</button>
-    <button class="tab" role="tab" aria-selected="false" data-panel="requirements">Requirements</button>
-    <button class="tab" role="tab" aria-selected="false" data-panel="sourcing">Sourcing (Sameer)</button>
-    <button class="tab" role="tab" aria-selected="false" data-panel="activity">Activity</button>
-    <button class="tab" role="tab" aria-selected="false" data-panel="history">Change history</button>
-    <button class="tab" role="tab" aria-selected="false" data-panel="guide">Data guide</button>
-  </nav>
-</header>
 
-<main>
-  <!-- ============================ PIPELINE ============================ -->
-  <section class="panel" id="panel-pipeline">
-    <p class="section-intro">
-      Every row is one Instagram conversation, keyed on the handle. <strong>Click any row</strong>
-      to read the full thread, the summary, and the reply drafted for it. Hover the
-      <i class="info" data-tip="This is the info marker. Wherever you see it, it explains what a field means, what type it holds, and which stage of the pipeline produced it.">i</i>
-      marker next to any field for its meaning and data type.
-    </p>
+    <nav class="nav" aria-label="Sections">
+      <button data-view="pipeline" title="Pipeline" aria-current="true">
+        <span class="nav-ico" aria-hidden="true">&#9776;</span>
+        <span class="nav-label">Pipeline</span>
+        <span class="nav-short">Pipeline</span>
+        <span class="nav-count"></span>
+      </button>
+      <button data-view="sourcing" title="Sourcing board" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">&#9873;</span>
+        <span class="nav-label">Sourcing</span>
+        <span class="nav-short">Sourcing</span>
+        <span class="nav-count"></span>
+      </button>
+      <button data-view="inventory" title="Inventory" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">&#8962;</span>
+        <span class="nav-label">Inventory</span>
+        <span class="nav-short">Inventory</span>
+        <span class="nav-count"></span>
+      </button>
+      <button data-view="requirements" title="Requirements" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">&#9636;</span>
+        <span class="nav-label">Requirements</span>
+        <span class="nav-short">Needs</span>
+        <span class="nav-count"></span>
+      </button>
+      <button data-view="activity" title="Activity" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">&#9650;</span>
+        <span class="nav-label">Activity</span>
+        <span class="nav-short">Activity</span>
+        <span class="nav-count"></span>
+      </button>
+      <button data-view="guide" title="How it works" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">?</span>
+        <span class="nav-label">How it works</span>
+        <span class="nav-short">Help</span>
+        <span class="nav-count"></span>
+      </button>
+    </nav>
+  </aside>
 
-    <div class="kpi-grid" id="kpiGrid"></div>
-
-    <div class="filter-bar">
+  <!-- ============================ main ============================ -->
+  <div class="main">
+    <header class="topbar">
       <div class="search-wrap">
-        <span class="search-icon">&#9906;</span>
-        <input type="search" id="search" placeholder="Search name, handle, locality, summary, phone..."
+        <span class="ico" aria-hidden="true">&#8981;</span>
+        <input type="search" id="search" placeholder="Search leads"
                aria-label="Search leads">
+        <span class="kbd" aria-hidden="true">/</span>
       </div>
-      <div class="chip-row" id="scoreChips">
-        <span class="chip-label">Score</span>
+      <div class="status" id="status">
+        <span class="stat" id="statGemini"><i class="dot"></i><b>AI</b><em>checking</em></span>
+        <span class="stat" id="statProps"><i class="dot"></i><b>Inventory</b><em>checking</em></span>
+        <span class="stat" id="statDb"><i class="dot"></i><b>Data</b><em>checking</em></span>
       </div>
-      <div class="chip-row" id="flagChips">
-        <span class="chip-label">Only</span>
+      <div class="topbar-actions">
+        <button class="icon-btn" data-act="refresh" title="Reload from the database"
+                aria-label="Refresh">&#8635;</button>
+        <button class="icon-btn" data-act="theme" title="Light or dark"
+                aria-label="Switch theme">&#9681;</button>
       </div>
-      <button class="btn-reset" id="resetFilters">Reset</button>
-    </div>
+    </header>
 
-    <p class="result-count" id="resultCount"></p>
-
-    <div class="card">
-      <div class="table-wrap">
-        <table class="leads">
-          <thead><tr id="leadHead"></tr></thead>
-          <tbody id="leadBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ========================== REQUIREMENTS =========================== -->
-  <section class="panel" id="panel-requirements" hidden>
-    <p class="section-intro">
-      What buyers and tenants are actually asking for, pulled straight from the
-      workbook's <strong>locality</strong>, <strong>city</strong>,
-      <strong>building_name</strong>, <strong>budget</strong> and
-      <strong>units_required</strong> columns &mdash; nothing here is guessed.
-      A field that is blank has simply never been said; it fills in the next time
-      that lead is analysed from a fresh export or handled in a live chat.
-    </p>
-
-    <div class="kpi-grid" id="reqKpiGrid"></div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head">
-        <div>
-          <h2>Consolidated requirement list</h2>
-          <p>One line per distinct area + deal combination, with how many leads want it</p>
+    <!-- ------------------------- pipeline ------------------------- -->
+    <section class="view" data-view="pipeline">
+      <div class="view-head">
+        <div class="view-title">
+          <h2>Pipeline</h2>
+          <span class="count" id="resultCount"></span>
         </div>
+        <p>One row per Instagram conversation. Copy the reply straight from the row,
+           or open it to draft, paste the reels the lead shared, search live inventory
+           and put a requirement on the sourcing board. Nothing opens a popup.</p>
       </div>
-      <div class="table-wrap"><table class="plain" id="reqGroupTable"></table></div>
-    </div>
-
-    <div class="req-split">
-      <div class="card">
-        <div class="card-head">
-          <div><h2>Demand by area</h2><p>Locality as the lead said it</p></div>
-        </div>
-        <div class="table-wrap"><table class="plain" id="reqAreaTable"></table></div>
+      <div class="kpis" id="kpis"></div>
+      <div class="filter-bar">
+        <div class="chips" id="scoreChips"></div>
+        <div class="chips" id="flagChips"></div>
       </div>
-      <div class="card">
-        <div class="card-head">
-          <div><h2>Demand by city</h2><p>Only when a city was actually named</p></div>
-        </div>
-        <div class="table-wrap"><table class="plain" id="reqCityTable"></table></div>
+      <div class="lead-list" id="leadList">
+        <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
       </div>
-      <div class="card">
-        <div class="card-head">
-          <div><h2>Demand by building / society</h2><p>Only when a specific building was named</p></div>
-        </div>
-        <div class="table-wrap"><table class="plain" id="reqBuildingTable"></table></div>
+    </section>
+
+    <!-- ------------------------- sourcing ------------------------- -->
+    <section class="view" data-view="sourcing" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>Sourcing board</h2></div>
+        <p>Everything assigned for sourcing, newest first. Status is yours alone: an
+           import never moves it back.</p>
       </div>
-    </div>
+      <div class="kpis" id="sourcingKpis"></div>
+      <div id="sourcingList"></div>
+    </section>
 
-    <div class="card" style="margin-top:16px">
-      <div class="card-head">
-        <div>
-          <h2>Full requirement list, one row per lead</h2>
-          <p id="reqListCount"></p>
-        </div>
+    <!-- ------------------------ inventory ------------------------- -->
+    <section class="view" data-view="inventory" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>Inventory</h2></div>
+        <p>The same live search the pipeline uses. Describe what you want in plain
+           words &mdash; it goes to the semantic search first and falls back to filters.</p>
       </div>
-      <div class="table-wrap"><table class="plain" id="reqListTable"></table></div>
-    </div>
-  </section>
-
-  <!-- ============================ SOURCING ============================= -->
-  <section class="panel" id="panel-sourcing" hidden>
-    <p class="section-intro">
-      Every requirement a property search could not fill, raised automatically as
-      <i class="info" data-tip="Written into sourcing_action_for_sameer by the live chat runner when a property search finds nothing. An export upsert only carries this forward, it never opens or closes a task on its own.">sourcing_action_for_sameer</i>.
-      This is Sameer's action list. Marking a task <strong>done</strong> or
-      <strong>dropped</strong> here writes straight back to the workbook and an
-      export re-run will not reopen it.
-    </p>
-
-    <div class="kpi-grid" id="sourcingKpiGrid"></div>
-
-    <div class="filter-bar">
-      <div class="chip-row" id="sourcingChips">
-        <span class="chip-label">Status</span>
+      <div class="inv-search">
+        <input type="text" id="invSearch"
+               placeholder="Describe the requirement in your own words, then press Enter">
       </div>
-    </div>
+      <p class="mini" id="invMeta"></p>
+      <div id="invList"><div class="mini">Type a requirement above and press Enter.</div></div>
+    </section>
 
-    <p class="result-count" id="sourcingCount"></p>
+    <!-- ----------------------- requirements ----------------------- -->
+    <section class="view" data-view="requirements" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>Requirements</h2></div>
+        <p>Live demand, grouped by deal type, configuration and area. This is the
+           list to hand a sourcing partner.</p>
+      </div>
+      <div id="reqList"></div>
+    </section>
 
-    <div class="card">
-      <div class="table-wrap"><table class="plain" id="sourcingTable"></table></div>
-    </div>
-  </section>
-
-  <!-- ============================ ACTIVITY ============================ -->
-  <section class="panel" id="panel-activity" hidden>
-    <p class="section-intro">
-      Conversation volume by day and by ISO week, rebuilt from every message ever
-      parsed, not just the latest export. Bars are split by who sent the message.
-      The export does not label most senders, so the grey
-      <strong>unattributed</strong> segment is messages whose direction could not be
-      proven. Threads carrying no timestamp at all are not counted here.
-    </p>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head">
-        <div>
-          <h2>Daily activity</h2>
-          <p>One row per calendar date with at least one dated message</p>
-        </div>
+    <!-- ------------------------- activity ------------------------- -->
+    <section class="view" data-view="activity" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>Activity</h2></div>
+        <p>Message volume by day and by week, and every field change ever made.</p>
+      </div>
+      <div class="block">
+        <h3>Messages per day</h3>
         <div class="legend">
-          <span><i style="background:#2563eb"></i> From lead</span>
-          <span><i style="background:#22c55e"></i> From us</span>
-          <span><i style="background:#cbd5e1"></i> Unattributed</span>
+          <span><i style="background:var(--accent)"></i> from the lead</span>
+          <span><i style="background:var(--good)"></i> from us</span>
+          <span><i style="background:var(--cool)"></i> sender not proven</span>
         </div>
+        <div class="bars" id="dailyBars"></div>
       </div>
-      <div class="bar-chart" id="dailyChart"></div>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head">
-        <div>
-          <h2>Weekly activity</h2>
-          <p>ISO weeks, Monday to Sunday</p>
+      <div class="split">
+        <div class="block">
+          <h3>By week</h3>
+          <div class="table-wrap"><table class="plain" id="weeklyTable"></table></div>
         </div>
-      </div>
-      <div class="table-wrap">
-        <table class="plain" id="weeklyTable"></table>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <h2>Overview counters</h2>
-          <p>The consolidated summary exactly as the workbook's Overview sheet holds it</p>
-        </div>
-      </div>
-      <div class="table-wrap">
-        <table class="plain" id="overviewTable"></table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================ HISTORY ============================= -->
-  <section class="panel" id="panel-history" hidden>
-    <p class="section-intro">
-      The workbook never loses a value. When a re-run changes a field, the Leads sheet
-      shows the new value and the old one is written here, with the run that changed it.
-      <strong>Re-running the same export adds nothing</strong>, so anything listed below is a real change.
-    </p>
-
-    <div class="card" style="margin-bottom:16px">
-      <div class="card-head">
-        <div>
-          <h2>Run log</h2>
-          <p>Every execution of the upsert, newest first</p>
-        </div>
-      </div>
-      <div class="table-wrap"><table class="plain" id="runsTable"></table></div>
-    </div>
-
-    <div class="card">
-      <div class="card-head">
-        <div>
-          <h2>Field changes</h2>
-          <p id="changeCount"></p>
-        </div>
-      </div>
-      <div class="table-wrap"><table class="plain" id="changelogTable"></table></div>
-    </div>
-  </section>
-
-  <!-- ============================= GUIDE ============================== -->
-  <section class="panel" id="panel-guide" hidden>
-    <div class="guide-grid">
-
-      <div class="card guide-card">
-        <h3>Where this data comes from</h3>
-        <p>
-          Three stages. Anything a machine can decide exactly is done in Python and is
-          reproducible. Anything needing reading comprehension is done by a model. Neither
-          stage does the other's job, which is why every field below carries an origin tag.
-        </p>
-        <div class="pipeline-steps">
-          <div class="step">
-            <div class="step-num">1</div>
-            <h4>Parse</h4>
-            <p><code>parse_dm_export.py</code> splits the raw export on its separator lines and pulls out handles, timestamps, Indian mobile numbers and reel links. No judgement.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">2</div>
-            <h4>Analyse</h4>
-            <p>The <code>insta-lead-analyst</code> agent reads each thread and writes the summary, next action, Hinglish reply, score and lead type.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">3</div>
-            <h4>Upsert</h4>
-            <p><code>upsert_leads_excel.py</code> merges on the handle, updates existing rows in place, appends new ones, and logs every change.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">4</div>
-            <h4>This page</h4>
-            <p><code>build_dashboard_data.py</code> exports the workbook to <code>lead-dashboard-data.js</code>. This page only reads it.</p>
-          </div>
-          <div class="step">
-            <div class="step-num">5</div>
-            <h4>Live conversation</h4>
-            <p><code>lead_desk_server.py</code> is the optional runner. Paste a lead's reply and it drafts the next DM, searches real inventory, and writes the exchange back on Save.</p>
+        <div class="block">
+          <h3>Change history</h3>
+          <div class="table-wrap tall">
+            <table class="plain" id="historyTable"></table>
           </div>
         </div>
       </div>
+    </section>
 
-      <div class="card guide-card">
-        <h3>Every field, its type and its meaning</h3>
-        <p>
-          The origin tag tells you who can change a field. A <span class="origin origin-parser">parser</span>
-          field is mechanical. An <span class="origin origin-analyst">analyst</span> field is a judgement and
-          can be argued with. A <span class="origin origin-computed">computed</span> field is derived by a
-          rule and cannot be edited by hand, it will be recalculated. A
-          <span class="origin origin-you">you</span> field is yours to set in Excel.
-        </p>
-        <div class="table-wrap"><table class="plain" id="dictTable"></table></div>
+    <!-- --------------------------- guide -------------------------- -->
+    <section class="view" data-view="guide" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>How it works</h2></div>
+        <p>The rules this app follows, so nothing it does is a surprise.</p>
       </div>
-
-      <div class="card guide-card">
-        <h3>Rules worth knowing before you trust a number</h3>
-        <ul class="rule-list" id="rulesList"></ul>
+      <div class="block">
+        <h3>What is connected right now</h3>
+        <div class="kpis" id="envCards"></div>
       </div>
-
-    </div>
-  </section>
-</main>
-
-<div class="drawer-scrim" id="scrim"></div>
-<aside class="drawer" id="drawer" aria-hidden="true" aria-label="Lead detail">
-  <div class="drawer-head">
-    <div>
-      <h3 id="dName"></h3>
-      <div class="handle" id="dHandle"></div>
-      <div class="badges" id="dBadges"></div>
-    </div>
-    <button class="drawer-close" id="drawerClose" aria-label="Close">&times;</button>
+      <ul class="guide-list">
+        <li><b>SQLite is the source of truth.</b>
+          Everything lives in <code>db/lead-desk.db</code>. The Excel workbook was
+          imported once by <code>scripts/migrate_to_sqlite.py</code> and is no longer
+          read. Open the database with any SQLite browser if you want the raw rows.</li>
+        <li><b>The Instagram handle is the key.</b>
+          Every import matches on it, so a re-run updates a conversation instead of
+          duplicating it, and messages de-duplicate on handle, date, time and text.</li>
+        <li><b>A blank never clears a known value.</b>
+          An import with a shorter thread leaves the budget already on file alone.
+          Typing a blank into a field in this app <em>does</em> clear it, because you
+          meant it &mdash; and the old value is kept in the history.</li>
+        <li><b>Every change is recorded.</b>
+          Field edits, reel links, assignments and status moves all append to the
+          changelog with the old and the new value. Nothing is overwritten silently.</li>
+        <li><b>A drafted reply is a draft.</b>
+          The model is given the real matching properties and told explicitly when
+          there are none, so it will not invent a listing or a price. Read it before
+          you send it. Nothing is ever sent for you.</li>
+        <li><b>You are never shown sample inventory.</b>
+          If no property backend is connected, the inventory lane says so and stays
+          empty. The sample file in <code>config/</code> is used only when
+          <code>ALLOW_SAMPLE_INVENTORY</code> is set in <code>.env</code>, so an
+          invented flat cannot reach a real conversation by accident.</li>
+        <li><b>An empty property search is not proof of nothing.</b>
+          The semantic search returns an empty list rather than an error when its
+          vector index was never built, so the app falls through to a filter search,
+          and always names which one answered.</li>
+        <li><b>Reel links are context, not decoration.</b>
+          Paste the reels a lead shared and tag one with a property id. The draft and
+          the answer are then written about the listing the lead actually saw, and the
+          links travel with the sourcing assignment.</li>
+        <li><b>Answers come only from the property record.</b>
+          Ask about a property and the model may use nothing but the fields inventory
+          returned. Whatever it does not know is listed as unknown rather than guessed.</li>
+        <li><b>Sourcing status is yours.</b>
+          An import carries it forward untouched. Marking a task done will not be
+          undone by processing another DM export.</li>
+        <li><b>Nothing leaves this laptop except the model call.</b>
+          Credentials live in <code>.env</code> and never reach the browser. The page
+          talks only to <code>127.0.0.1</code>.</li>
+      </ul>
+    </section>
   </div>
-  <div class="drawer-body" id="drawerBody"></div>
-</aside>
+</div>
 
-<script src="lead-dashboard-data.js"></script>
-<script>
-(function () {
-  'use strict';
-
-  var DATA = window.LEAD_DATA || {};
-  var leads = DATA.leads || [];
-  var messages = DATA.messages || [];
-  var daily = DATA.daily || [];
-  var weekly = DATA.weekly || [];
-  var changelog = DATA.changelog || [];
-  var runs = DATA.runs || [];
-  var overview = DATA.overview || [];
-
-  /* ---------------------------------------------------------------------
-     Field dictionary. This is documentation, not data: it is what makes the
-     sheet self-explanatory to someone who did not build it.
-     --------------------------------------------------------------------- */
-  var FIELD_DOCS = {
-    lead_id: ['Lead ID', 'text, lowercase Instagram handle', 'parser',
-      'The Instagram handle, used as the primary key. Every re-run matches on this, which is how an existing lead is updated instead of duplicated.'],
-    lead_name: ['Name', 'text', 'parser',
-      'Display name exactly as Instagram shows it, emoji included. Not reliable as an identity, people change it.'],
-    instagram_link: ['Profile', 'URL', 'parser',
-      'Direct link to the profile, built from the handle.'],
-    mobile_number: ['Mobile', 'text, 10 digits, semicolon separated', 'parser + analyst',
-      'Indian mobile numbers found in the thread. Validated as 10 digits starting 6 to 9, with 91, 091 or 0 prefixes stripped. Accumulates across runs, a new number is added rather than replacing the old one. Landlines are not picked up.'],
-    whatsapp_available: ['WhatsApp', 'enum: yes / no / not_mentioned', 'analyst',
-      'Whether WhatsApp was actually mentioned in the conversation. It is not an assumption that the mobile number has WhatsApp, so not_mentioned is the normal value.'],
-    lead_type: ['Lead type', 'enum: buyer / seller / tenant / landlord / not_a_lead / unknown', 'analyst',
-      'Which side of the deal the person is on. tenant wants to rent, buyer wants to purchase, landlord and seller are offering property, not_a_lead is collab or spam, unknown means intent never surfaced. Heavy deposit enquiries are tenant.'],
-    lead_score: ['Score', 'enum: very_hot / hot / cold', 'analyst',
-      'very_hot: a number on record with a real requirement, or a fixed meeting. hot: a clear requirement with recent activity but no number. cold: vague, stale, dead or declined. Recency counts, a number that has gone quiet for weeks drops to hot.'],
-    deal_type: ['Deal type', 'text: rent / buy / heavy_deposit, or blank', 'analyst',
-      'The transaction shape. heavy_deposit is the Mumbai arrangement of a large refundable deposit against little or no monthly rent. Blank means the conversation never said.'],
-    property_type: ['Configuration', 'text, e.g. 1 BHK', 'analyst',
-      'Configuration as the lead stated it. Blank means never stated, it is not a guess.'],
-    locality: ['Locality', 'free text', 'analyst',
-      'Area or building as the lead said it, not normalised to a master list. Blank means never stated.'],
-    city: ['City', 'free text', 'analyst',
-      'The city the locality sits in, only when the lead or thread actually named it. Never inferred, so this is blank far more often than locality.'],
-    building_name: ['Building / society', 'free text', 'analyst',
-      'An actual society, project or building name mentioned by either side. Blank unless a specific one was named, not filled from a vague phrase.'],
-    budget: ['Budget', 'free text', 'analyst',
-      'Kept as the lead phrased it, for example "40k to 42k" or "5 to 10 lakh deposit", because the unit carries meaning. Deliberately not converted to a number.'],
-    units_required: ['Units required', 'free text, usually a small number', 'analyst',
-      'How many properties or units the lead wants, only when they actually said a number greater than one. Blank is treated as one property wanted.'],
-    possession_timeline: ['Possession', 'free text', 'analyst',
-      'When they need it. Often a date that has already passed, which is itself a signal the lead may be gone.'],
-    requirement_complete: ['Requirement complete', 'computed enum: yes / no', 'computed',
-      'yes only when deal type, configuration, locality and budget are all present. This is one of the three conditions for closing a DM.'],
-    summary: ['Summary', 'text, 3 to 5 sentences', 'analyst',
-      'What the lead wants, what we told them, and where the thread stopped, naming the blocker. Written so you can act without opening Instagram.'],
-    next_action: ['Next action', 'text', 'analyst',
-      'The single most useful next step and why that one, including what to capture and what not to repeat.'],
-    action_channel: ['Channel', 'enum: dm / call / whatsapp / meeting / none', 'analyst',
-      'Where that next action should happen. call means a number is on record. whatsapp means the lead asked for WhatsApp specifically.'],
-    suggested_reply: ['Suggested reply', 'text, Hinglish', 'analyst',
-      'Ready to paste, roughly 70 percent English and 30 percent romanized Hindi, referencing the specific thing the lead asked about.'],
-    meeting_schedule: ['Meeting', 'free text with a resolved date', 'analyst',
-      'Only what was actually agreed. A vague "will visit tomorrow" is recorded here with the ambiguity stated.'],
-    dm_can_be_closed: ['Can close DM', 'computed enum: yes / no', 'computed',
-      'yes needs all three: a mobile number, requirement_complete = yes, and a scheduled personal meeting. It marks the conversations that can leave the DM queue for phone or in-person handling.'],
-    close_reason: ['Close reason', 'computed text', 'computed',
-      'Either the rule that was satisfied, or the exact list of what is still missing.'],
-    sourcing_action_for_sameer: ['Sourcing task', 'text', 'computed',
-      'Raised automatically when a property search finds nothing for this lead. It states the configuration, locality, deal type and budget Sameer needs to source. It is written by the live chat runner, never by an export, so a re-run of the DM export will not wipe it.'],
-    sourcing_status: ['Sourcing status', 'enum: open / done / dropped / blank', 'you',
-      'Yours to set, either in Excel or from the buttons in this panel. Nothing else overwrites it: once you mark a task done, later runs leave it alone. Blank means no sourcing task has ever been raised for this lead.'],
-    sourcing_raised_on: ['Sourcing raised', 'date, YYYY-MM-DD', 'computed',
-      'When the sourcing task was first raised. Set once and not moved by later runs, so the age of an open task is real.'],
-    conversation_start_date: ['First message', 'date, YYYY-MM-DD', 'parser',
-      'Earliest dated message across every export processed. Blank when the thread carried no timestamp at all.'],
-    conversation_end_date: ['Last message', 'date, YYYY-MM-DD', 'parser',
-      'Latest dated message across every export. Instagram groups messages under one timestamp, so times are accurate to the group, not the message.'],
-    days_since_last_message: ['Days quiet', 'integer', 'computed',
-      'Recalculated on every run from the last dated message. A large number next to a very_hot score means someone has been left waiting.'],
-    message_count: ['Messages', 'integer', 'parser',
-      'Messages seen for this lead. Timestamp separators and Instagram UI noise are not counted.'],
-    reel_links: ['Reels', 'URLs, semicolon separated', 'parser',
-      'Reels or posts shared in the thread. This is usually the listing the enquiry is about. Accumulates across runs.'],
-    needs_review: ['Needs review', 'enum: yes / no', 'analyst',
-      'yes when the reading could be wrong: ambiguous sender direction, an unclear budget unit, a thread with no timestamps, or a lead another team member may be handling.'],
-    notes: ['Notes', 'text', 'analyst', 'One line a human should know that does not belong in the summary.'],
-    manual_override: ['Manual override', 'enum: yes / blank', 'you',
-      'Type yes into this column in Excel and later runs stop overwriting the score, type, summary, next action, reply, meeting, notes, budget and locality. Use it once you have spoken to the lead and know more than the thread does.'],
-    first_seen_run: ['First seen', 'run id', 'script', 'The run that created this row.'],
-    last_updated_run: ['Last updated', 'run id', 'script', 'The run that last changed any field on this row.'],
-    source_files: ['Source files', 'text, semicolon separated', 'script',
-      'Every export this lead has appeared in. Accumulates, so you can see a lead that recurs across weeks.']
-  };
-
-  var RULES = [
-    ['Blank never clears a known value.', 'If a later export produces a shorter thread with no budget, the budget already in the sheet stays. That is what makes partial exports safe to re-run.'],
-    ['Re-running the same export changes nothing.', 'Second run reports zero new, zero updated and writes no history rows. If a re-run does report changes, the analysis file changed, not the workbook.'],
-    ['Sender direction is only partly known.', 'The export does not say who sent most messages. Direction is proven from Instagram reply markers, from your team\'s standard phrases, from bare phone numbers, and from the first message of a thread. Everything else shows as unattributed in the timeline and in the activity charts.'],
-    ['Relative dates are resolved, not invented.', 'Instagram writes "Mon 18:50" with no date for the trailing week. Those resolve against the export file\'s modified date, and each message records which rule dated it. Some threads carry no timestamp at all and have blank dates.'],
-    ['Budgets stay as text.', 'A budget is stored the way the lead said it because "20 lakh" as a deposit and "20k" as rent are different things. Do not sort on this column expecting numbers.'],
-    ['Scores are a reading, not a calculation.', 'lead_score, lead_type and the summary come from a model reading the thread. The needs_review flag marks the ones where that reading could be wrong. Set manual_override once you know better.'],
-    ['This page is a snapshot.', 'It reads lead-dashboard-data.js, exported from the workbook. Re-run build_dashboard_data.py after every upsert to refresh it. The Excel file always wins.'],
-    ['A drafted reply is a draft.', 'Read it before sending. The model is given the real matching properties and is told explicitly when there are none, so it will not invent a listing or a price, but it is still writing on your behalf and nothing is sent automatically.'],
-    ['An empty property search is not proof of nothing.', 'The CRM\'s semantic search returns an empty list rather than an error when its vector index has not been built for that environment, so the runner falls through to an exact-filter search before declaring no match, and names the path that answered.'],
-    ['The sourcing status is yours alone.', 'An export re-run carries the three sourcing columns forward untouched. Marking a task done will not be undone by processing another DM export.']
-  ];
-
-  var TABLE_COLUMNS = ['lead_name', 'lead_score', 'lead_type', 'requirement', 'mobile_number',
-                       'action_channel', 'sourcing_action_for_sameer', 'next_action',
-                       'conversation_end_date'];
-
-  /* ---------------------------------------------------------------------
-     helpers
-     --------------------------------------------------------------------- */
-  function esc(value) {
-    return String(value === undefined || value === null ? '' : value)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function el(id) { return document.getElementById(id); }
-
-  function tip(field) {
-    var doc = FIELD_DOCS[field];
-    if (!doc) return '';
-    return '<i class="info" tabindex="0" data-tip="' + esc(doc[0] + ' — ' + doc[1] + '. ' + doc[3]) + '">i</i>';
-  }
-
-  function labelOf(field) { return FIELD_DOCS[field] ? FIELD_DOCS[field][0] : field; }
-
-  function scoreBadge(score) {
-    return '<span class="badge badge-' + esc(score) + '">' + esc(String(score).replace('_', ' ')) + '</span>';
-  }
-
-  function channelCell(channel) {
-    var c = channel || 'dm';
-    return '<span class="channel channel-' + esc(c) + '"><span class="dot"></span>' + esc(c) + '</span>';
-  }
-
-  function sourcingCell(lead) {
-    var task = esc(lead.sourcing_action_for_sameer || '');
-    var status = String(lead.sourcing_status || '').toLowerCase();
-    if (!task && !status) return '<span class="muted">none</span>';
-    var badge = status === 'done' ? '<span class="badge badge-yes">done</span>'
-              : status === 'dropped' ? '<span class="badge badge-no">dropped</span>'
-              : '<span class="badge badge-review">open for Sameer</span>';
-    return badge + (task ? '<div class="truncate-2 sourcing-text">' + task + '</div>' : '');
-  }
-
-  function requirementText(lead) {
-    var parts = [lead.property_type, lead.deal_type, lead.building_name || lead.locality,
-                 lead.city, lead.budget]
-      .filter(function (p) { return p; });
-    return parts.length ? parts.join(' · ') : '';
-  }
-
-  function fmtDate(iso) {
-    if (!iso) return '';
-    var d = new Date(iso + 'T00:00:00');
-    if (isNaN(d)) return iso;
-    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-
-  /* ---------------------------------------------------------------------
-     header + KPIs
-     --------------------------------------------------------------------- */
-  function renderHeader() {
-    var lastRun = runs.length ? runs[runs.length - 1] : null;
-    var starts = leads.map(function (l) { return l.conversation_start_date; }).filter(Boolean).sort();
-    var ends = leads.map(function (l) { return l.conversation_end_date; }).filter(Boolean).sort();
-    var undated = leads.filter(function (l) { return !l.conversation_end_date; }).length;
-    var items = [
-      ['Leads tracked', leads.length + (undated ? ' (' + undated + ' undated)' : '')],
-      ['Oldest conversation', starts.length ? fmtDate(starts[0]) : 'n/a'],
-      ['Latest message', ends.length ? fmtDate(ends[ends.length - 1]) : 'n/a'],
-      ['Last run', lastRun ? lastRun.run_id : 'n/a'],
-      ['Snapshot taken', (DATA.generated_at || '').replace('T', ' ')]
-    ];
-    el('headerMeta').innerHTML = items.map(function (it) {
-      return '<div><span>' + esc(it[0]) + '</span><strong>' + esc(it[1]) + '</strong></div>';
-    }).join('');
-    renderLiveBadge();
-  }
-
-  function renderLiveBadge() {
-    var host = el('liveBadge');
-    if (!host) return;
-    if (!HEALTH) {
-      host.innerHTML = '<span class="live-badge off" title="Open this page from ' +
-        'the local runner to draft replies and search inventory">' +
-        '<i></i>read only</span>';
-      return;
-    }
-    var parts = [];
-    parts.push(HEALTH.gemini_configured
-      ? 'AI ' + esc(HEALTH.model || '')
-      : 'no AI key');
-    parts.push(HEALTH.crm_configured
-      ? 'CRM ' + esc(HEALTH.crm_mode)
-      : 'mock inventory');
-    var healthy = HEALTH.gemini_configured;
-    host.innerHTML = '<span class="live-badge ' + (healthy ? 'on' : 'warn') +
-      '" title="' + esc(HEALTH.inventory_source || '') + '"><i></i>' +
-      parts.join(' · ') + '</span>';
-  }
-
-  function countBy(field, value) {
-    return leads.filter(function (l) { return String(l[field] || '').toLowerCase() === value; }).length;
-  }
-
-  function renderKpis() {
-    var withPhone = leads.filter(function (l) { return l.mobile_number; }).length;
-    var canClose = countBy('dm_can_be_closed', 'yes');
-    var review = countBy('needs_review', 'yes');
-    var meetings = leads.filter(function (l) { return l.meeting_schedule; }).length;
-
-    var tiles = [
-      ['Total leads', leads.length, 'One row per Instagram handle', '', 'lead_id'],
-      ['Very hot', countBy('lead_score', 'very_hot'), 'Number on record or a meeting fixed', 'is-hot', 'lead_score'],
-      ['Hot', countBy('lead_score', 'hot'), 'Clear requirement, no number yet', 'is-warm', 'lead_score'],
-      ['Cold', countBy('lead_score', 'cold'), 'Vague, stale or declined', '', 'lead_score'],
-      ['Mobile captured', withPhone, Math.round(withPhone / Math.max(leads.length, 1) * 100) + '% of all leads', 'is-brand', 'mobile_number'],
-      ['Meetings set', meetings, 'A visit or office meeting was agreed', 'is-brand', 'meeting_schedule'],
-      ['Ready to close DM', canClose, 'Number + full requirement + meeting', 'is-good', 'dm_can_be_closed'],
-      ['Sourcing open', countBy('sourcing_status', 'open'),
-       'Waiting on Sameer to find stock', 'is-warm', 'sourcing_status'],
-      ['Needs review', review, 'The reading could be wrong', '', 'needs_review']
-    ];
-
-    el('kpiGrid').innerHTML = tiles.map(function (t) {
-      return '<div class="kpi ' + t[3] + '">' +
-             '<div class="kpi-label">' + esc(t[0]) + tip(t[4]) + '</div>' +
-             '<div class="kpi-value">' + esc(t[1]) + '</div>' +
-             '<div class="kpi-sub">' + esc(t[2]) + '</div></div>';
-    }).join('');
-  }
-
-  /* ---------------------------------------------------------------------
-     filters + lead table
-     --------------------------------------------------------------------- */
-  var state = { search: '', scores: [], flags: [] };
-
-  var FLAGS = {
-    has_phone: ['Has mobile', function (l) { return !!l.mobile_number; }],
-    can_close: ['Ready to close', function (l) { return l.dm_can_be_closed === 'yes'; }],
-    has_meeting: ['Meeting set', function (l) { return !!l.meeting_schedule; }],
-    needs_review: ['Needs review', function (l) { return l.needs_review === 'yes'; }],
-    sourcing_open: ['Sourcing open', function (l) {
-      return String(l.sourcing_status || '').toLowerCase() === 'open';
-    }],
-    unanswered: ['Quiet 14+ days', function (l) { return Number(l.days_since_last_message) >= 14; }]
-  };
-
-  function renderChips() {
-    var scores = ['very_hot', 'hot', 'cold'];
-    el('scoreChips').insertAdjacentHTML('beforeend', scores.map(function (s) {
-      return '<button class="chip" data-score="' + s + '" aria-pressed="false">' +
-             esc(s.replace('_', ' ')) + '</button>';
-    }).join(''));
-
-    el('flagChips').insertAdjacentHTML('beforeend', Object.keys(FLAGS).map(function (k) {
-      return '<button class="chip" data-flag="' + k + '" aria-pressed="false">' +
-             esc(FLAGS[k][0]) + '</button>';
-    }).join(''));
-  }
-
-  function visibleLeads() {
-    var q = state.search.trim().toLowerCase();
-    return leads.filter(function (l) {
-      if (state.scores.length && state.scores.indexOf(l.lead_score) === -1) return false;
-      for (var i = 0; i < state.flags.length; i++) {
-        if (!FLAGS[state.flags[i]][1](l)) return false;
-      }
-      if (!q) return true;
-      return ['lead_name', 'lead_id', 'locality', 'city', 'building_name', 'summary',
-              'mobile_number', 'budget',
-              'property_type', 'next_action', 'notes'].some(function (f) {
-        return String(l[f] || '').toLowerCase().indexOf(q) !== -1;
-      });
-    });
-  }
-
-  function renderTableHead() {
-    el('leadHead').innerHTML = TABLE_COLUMNS.map(function (col) {
-      if (col === 'requirement') {
-        return '<th>Requirement <i class="info" tabindex="0" data-tip="Configuration, deal type, locality and budget joined together. All four present is what makes requirement_complete yes.">i</i></th>';
-      }
-      return '<th>' + esc(labelOf(col)) + ' ' + tip(col) + '</th>';
-    }).join('');
-  }
-
-  function renderTable() {
-    var rows = visibleLeads();
-    el('resultCount').innerHTML = 'Showing <strong>' + rows.length + '</strong> of ' +
-      leads.length + ' leads' + (rows.length !== leads.length ? ' (filtered)' : '') +
-      '. Sorted hottest first, most recently active on top.';
-
-    if (!rows.length) {
-      el('leadBody').innerHTML = '<tr><td colspan="' + TABLE_COLUMNS.length +
-        '"><div class="empty-state">No lead matches these filters.</div></td></tr>';
-      return;
-    }
-
-    el('leadBody').innerHTML = rows.map(function (l) {
-      var req = requirementText(l);
-      var quiet = Number(l.days_since_last_message);
-      return '<tr data-id="' + esc(l.lead_id) + '" tabindex="0">' +
-        '<td class="cell-lead"><div class="name">' + esc(l.lead_name || l.lead_id) + '</div>' +
-          '<div class="handle">@' + esc(l.lead_id) + '</div></td>' +
-        '<td>' + scoreBadge(l.lead_score) +
-          (l.needs_review === 'yes' ? ' <span class="badge badge-review">review</span>' : '') + '</td>' +
-        '<td><span class="badge badge-type">' + esc(l.lead_type) + '</span></td>' +
-        '<td class="cell-req"><div class="truncate-2">' + (req ? esc(req) : '<span class="muted">nothing captured</span>') + '</div>' +
-          (l.requirement_complete === 'yes' ? ' <span class="badge badge-yes">complete</span>' : '') + '</td>' +
-        '<td class="mono">' + (l.mobile_number ? esc(l.mobile_number) : '<span class="muted">none</span>') + '</td>' +
-        '<td>' + channelCell(l.action_channel) + '</td>' +
-        '<td class="cell-sourcing">' + sourcingCell(l) + '</td>' +
-        '<td class="cell-action"><div class="truncate-2">' + esc(l.next_action) + '</div></td>' +
-        '<td class="mono">' + (l.conversation_end_date
-            ? esc(fmtDate(l.conversation_end_date)) +
-              (quiet >= 0 ? '<div class="handle">' + quiet + 'd quiet</div>' : '')
-            : '<span class="muted">no date</span>') + '</td>' +
-        '</tr>';
-    }).join('');
-  }
-
-  /* ---------------------------------------------------------------------
-     detail drawer
-     --------------------------------------------------------------------- */
-  function messagesFor(id) {
-    return messages.filter(function (m) { return m.lead_id === id; });
-  }
-
-  function field(key, value) {
-    var empty = value === '' || value === null || value === undefined;
-    return '<div class="field"><dt>' + esc(labelOf(key)) + tip(key) + '</dt>' +
-           '<dd' + (empty ? ' class="empty"' : '') + '>' +
-           (empty ? 'not captured' : esc(value)) + '</dd></div>';
-  }
-
-  function renderTimeline(id) {
-    var rows = messagesFor(id);
-    if (!rows.length) {
-      return '<div class="empty-state">No messages parsed for this thread.</div>';
-    }
-    var html = '', lastDate = null;
-    rows.forEach(function (m) {
-      if (m.date !== lastDate) {
-        lastDate = m.date;
-        html += '<div class="day-divider">' + (m.date ? esc(fmtDate(m.date)) : 'date unknown') + '</div>';
-      }
-      var who = m.direction === 'business' ? 'Us'
-              : m.direction === 'lead' ? 'Them' : 'Sender not stated';
-      html += '<div class="msg ' + esc(m.direction) + '">' +
-              '<div class="msg-bubble">' + esc(m.text) + '</div>' +
-              '<div class="msg-meta">' + esc(who) + (m.time ? ' · ' + esc(m.time) : '') + '</div></div>';
-    });
-    return '<div class="timeline">' + html + '</div>';
-  }
-
-  /* ---------------------------------------------------------------------
-     Live conversation. Paste what the lead replied, the runner extracts the
-     requirement, searches inventory, and drafts the next DM aimed at booking
-     a meeting. Nothing is written to the workbook until Save is pressed.
-     --------------------------------------------------------------------- */
-  var HEALTH = null;
-  var currentLeadId = null;
-
-  function chatSectionHtml(lead) {
-    if (!HEALTH || !HEALTH.gemini_configured) {
-      return '<div class="drawer-section"><h4>Continue the conversation</h4>' +
-        '<div class="offline-note">' +
-        (HEALTH
-          ? 'The runner is up but no Gemini key is set. Add GEMINI_API_KEY to ' +
-            '<code>.env</code> and restart it to draft replies here.'
-          : 'Live replies need the local runner. Start it with ' +
-            '<code>python scripts/lead_desk_server.py</code> and open the page ' +
-            'from the address it prints.') +
-        '</div></div>';
-    }
-    return '<div class="drawer-section chat-block">' +
-      '<h4>Continue the conversation' +
-      '<i class="info" tabindex="0" data-tip="Paste the lead\'s latest reply. The runner reads the whole thread, updates the requirement, searches real inventory and drafts the next message. The goal it is steering towards is a booked meeting.">i</i></h4>' +
-      '<textarea id="chatInput" class="chat-input" rows="3" ' +
-      'placeholder="Paste what the lead just replied, then press Draft next reply"></textarea>' +
-      '<div class="chat-actions">' +
-        '<button class="btn-primary" id="chatDraft">Draft next reply</button>' +
-        '<span class="chat-status" id="chatStatus"></span>' +
-      '</div>' +
-      '<div id="chatResult"></div>' +
-    '</div>';
-  }
-
-  function sourcingSectionHtml(lead) {
-    var status = String(lead.sourcing_status || '').toLowerCase();
-    var task = lead.sourcing_action_for_sameer || '';
-    if (!task && !status) {
-      return '<p class="prose muted-note">No sourcing task. One is raised ' +
-        'automatically when a property search finds nothing for this ' +
-        'requirement.</p>';
-    }
-    var buttons = HEALTH ? '<div class="chat-actions">' +
-      ['open', 'done', 'dropped'].map(function (value) {
-        return '<button class="chip' + (status === value ? ' is-on' : '') +
-               '" data-sourcing="' + value + '">' + value + '</button>';
-      }).join('') +
-      '<span class="chat-status" id="sourcingStatus"></span></div>'
-      : '<p class="muted-note">Start the runner to change this status here, ' +
-        'or edit the column in Excel.</p>';
-    return '<div class="sourcing-box">' +
-      '<div class="sourcing-head">Status: <strong>' + esc(status || 'not raised') +
-      '</strong>' + (lead.sourcing_raised_on
-        ? ' <span class="muted">raised ' + esc(fmtDate(lead.sourcing_raised_on)) +
-          '</span>' : '') + '</div>' +
-      (task ? '<p class="prose">' + esc(task) + '</p>' : '') +
-      '</div>' + buttons;
-  }
-
-  function renderChatResult(data) {
-    var matches = data.matches || [];
-    var propertyHtml = matches.length
-      ? '<div class="prop-list">' + matches.map(function (p) {
-          return '<div class="prop"><div class="prop-title">' +
-            esc(p.title || p.id) + '</div>' +
-            '<div class="prop-meta">' +
-            [p.config ? esc(p.config) + ' BHK' : '', esc(p.society), esc(p.locality),
-             esc(p.headline)].filter(Boolean).join(' · ') + '</div>' +
-            '<div class="prop-why">matched on ' + esc(p.matched_on) + '</div></div>';
-        }).join('') + '</div>'
-      : '<div class="no-match">No property in inventory fits this requirement. ' +
-        'A sourcing task for Sameer is drafted below.</div>';
-
-    var extracted = data.extracted || {};
-    var learned = ['deal_type', 'property_type', 'locality', 'budget',
-                   'possession_timeline', 'mobile_number', 'meeting_schedule']
-      .filter(function (f) { return extracted[f]; })
-      .map(function (f) {
-        return '<span class="pill"><b>' + esc(labelOf(f)) + ':</b> ' +
-               esc(extracted[f]) + '</span>';
-      }).join('');
-
-    var notes = (data.search_notes || []).concat(
-      data.search_error ? ['property lookup failed: ' + data.search_error] : []);
-
-    el('chatResult').innerHTML =
-      '<div class="chat-out">' +
-        '<div class="chat-goal">Aiming for: ' + esc(data.goal_this_turn || '') + '</div>' +
-        '<div class="reply-box" id="draftReply">' + esc(data.reply || '') + '</div>' +
-        '<div class="chat-actions">' +
-          '<button class="btn-copy" id="copyDraft">Copy reply</button>' +
-          '<button class="btn-primary" id="saveDraft">Save to workbook</button>' +
-          '<span class="chat-status" id="saveStatus"></span>' +
-        '</div>' +
-        (data.meeting_proposal
-          ? '<div class="meeting-note"><b>Meeting being proposed:</b> ' +
-            esc(data.meeting_proposal) + '</div>' : '') +
-        '<h5 class="chat-sub">Inventory checked' +
-          '<i class="info" tabindex="0" data-tip="Where the property data came from. The embeddings path is the CRM\'s own semantic search over Bedrock Titan vectors. If that is unavailable the runner falls back to exact filters, then to the local mock inventory, and says so here.">i</i></h5>' +
-        '<div class="source-line">' + esc(data.match_source || '') +
-          ' · ' + esc(String(data.inventory_size || 0)) + ' records considered</div>' +
-        propertyHtml +
-        (notes.length ? '<div class="search-notes">' + notes.map(esc).join('<br>') +
-          '</div>' : '') +
-        (data.sourcing_action_for_sameer
-          ? '<h5 class="chat-sub">Sourcing task drafted for Sameer</h5>' +
-            '<div class="sourcing-box">' + esc(data.sourcing_action_for_sameer) +
-            '</div>' : '') +
-        (learned ? '<h5 class="chat-sub">Read from this reply</h5>' +
-          '<div class="pill-row">' + learned + '</div>' : '') +
-        '<div class="model-line">drafted by ' + esc(data.model || '') + '</div>' +
-      '</div>';
-
-    el('copyDraft').addEventListener('click', function () {
-      copyText(data.reply, el('copyDraft'), 'Copy reply');
-    });
-    el('saveDraft').addEventListener('click', function () {
-      saveExchange(data);
-    });
-  }
-
-  function saveExchange(data) {
-    var button = el('saveDraft');
-    var status = el('saveStatus');
-    button.disabled = true;
-    status.textContent = 'saving...';
-    fetch('/api/chat/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        lead_id: data.lead_id,
-        lead_message: data.lead_message || '',
-        reply: data.reply,
-        extracted: data.extracted,
-        next_action: data.next_action,
-        meeting_proposal: data.meeting_proposal,
-        sourcing_action_for_sameer: data.sourcing_action_for_sameer
-      })
-    }).then(function (r) { return r.json(); }).then(function (out) {
-      if (out.error) {
-        status.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
-        button.disabled = false;
-        return;
-      }
-      status.innerHTML = '<span class="ok">saved, ' + out.changes +
-        ' field(s) updated. Reload to see it in the table.</span>';
-    }).catch(function (err) {
-      status.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
-      button.disabled = false;
-    });
-  }
-
-  function bindChatSection(lead) {
-    var draft = el('chatDraft');
-    if (draft) {
-      draft.addEventListener('click', function () {
-        var message = el('chatInput').value.trim();
-        var status = el('chatStatus');
-        draft.disabled = true;
-        status.textContent = 'reading the thread, searching inventory...';
-        el('chatResult').innerHTML = '';
-        fetch('/api/chat/reply', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lead_id: lead.lead_id, message: message })
-        }).then(function (r) { return r.json(); }).then(function (data) {
-          draft.disabled = false;
-          if (data.error) {
-            status.innerHTML = '<span class="err">' + esc(data.error) + '</span>';
-            return;
-          }
-          status.textContent = '';
-          data.lead_message = message;
-          renderChatResult(data);
-        }).catch(function (err) {
-          draft.disabled = false;
-          status.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
-        });
-      });
-    }
-
-    Array.prototype.forEach.call(
-      document.querySelectorAll('[data-sourcing]'), function (button) {
-        button.addEventListener('click', function () {
-          var status = el('sourcingStatus');
-          status.textContent = 'saving...';
-          fetch('/api/sourcing/status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lead_id: lead.lead_id,
-                                   status: button.dataset.sourcing })
-          }).then(function (r) { return r.json(); }).then(function (out) {
-            if (out.error) {
-              status.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
-              return;
-            }
-            Array.prototype.forEach.call(
-              document.querySelectorAll('[data-sourcing]'), function (other) {
-                other.classList.toggle('is-on',
-                  other.dataset.sourcing === button.dataset.sourcing);
-              });
-            lead.sourcing_status = button.dataset.sourcing;
-            status.innerHTML = '<span class="ok">set to ' +
-              esc(button.dataset.sourcing) + '</span>';
-          });
-        });
-      });
-  }
-
-  function copyText(text, button, label) {
-    var done = function () {
-      button.textContent = 'Copied';
-      button.classList.add('done');
-      setTimeout(function () {
-        button.textContent = label;
-        button.classList.remove('done');
-      }, 1600);
-    };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () {
-        fallbackCopy(text, done);
-      });
-    } else {
-      fallbackCopy(text, done);
-    }
-  }
-
-  function openLead(id) {
-    var lead = leads.filter(function (l) { return l.lead_id === id; })[0];
-    if (!lead) return;
-    currentLeadId = id;
-
-    el('dName').textContent = lead.lead_name || lead.lead_id;
-    el('dHandle').innerHTML = '<a href="' + esc(lead.instagram_link) + '" target="_blank" rel="noopener">@' +
-      esc(lead.lead_id) + '</a>';
-    el('dBadges').innerHTML = scoreBadge(lead.lead_score) +
-      '<span class="badge badge-type">' + esc(lead.lead_type) + '</span>' +
-      (lead.deal_type ? '<span class="badge badge-neutral">' + esc(lead.deal_type) + '</span>' : '') +
-      (lead.needs_review === 'yes' ? '<span class="badge badge-review">needs review</span>' : '');
-
-    var canClose = lead.dm_can_be_closed === 'yes';
-    var unattributed = messagesFor(id).filter(function (m) { return m.direction === 'unknown'; }).length;
-
-    el('drawerBody').innerHTML =
-      '<div class="drawer-section"><h4>What happened' + tip('summary') + '</h4>' +
-        '<p class="prose">' + esc(lead.summary) + '</p></div>' +
-
-      '<div class="drawer-section"><h4>Next action' + tip('next_action') + '</h4>' +
-        '<div class="action-box">' + esc(lead.next_action) +
-        '<div style="margin-top:8px;font-size:12.5px;color:#475569">Channel: ' +
-        channelCell(lead.action_channel) + '</div></div></div>' +
-
-      (lead.suggested_reply
-        ? '<div class="drawer-section"><h4>Suggested reply' + tip('suggested_reply') + '</h4>' +
-          '<div class="reply-box" id="replyText">' + esc(lead.suggested_reply) + '</div>' +
-          '<button class="btn-copy" id="copyReply">Copy reply</button></div>'
-        : '') +
-
-      chatSectionHtml(lead) +
-
-      '<div class="drawer-section"><h4>Sourcing task for Sameer' +
-        tip('sourcing_action_for_sameer') + '</h4>' + sourcingSectionHtml(lead) + '</div>' +
-
-      '<div class="drawer-section"><h4>Can this DM be closed?' + tip('dm_can_be_closed') + '</h4>' +
-        '<div class="close-banner ' + (canClose ? 'can' : 'cannot') + '">' +
-        '<strong>' + (canClose ? 'Yes, ready to hand off' : 'Not yet') + '</strong>' +
-        esc(lead.close_reason) + '</div></div>' +
-
-      '<div class="drawer-section"><h4>Requirement</h4><div class="field-grid">' +
-        field('deal_type', lead.deal_type) +
-        field('property_type', lead.property_type) +
-        field('locality', lead.locality) +
-        field('city', lead.city) +
-        field('building_name', lead.building_name) +
-        field('budget', lead.budget) +
-        field('units_required', lead.units_required) +
-        field('possession_timeline', lead.possession_timeline) +
-        field('requirement_complete', lead.requirement_complete) +
-      '</div></div>' +
-
-      '<div class="drawer-section"><h4>Contact</h4><div class="field-grid">' +
-        field('mobile_number', lead.mobile_number) +
-        field('whatsapp_available', lead.whatsapp_available) +
-        field('meeting_schedule', lead.meeting_schedule) +
-      '</div></div>' +
-
-      '<div class="drawer-section"><h4>Timing</h4><div class="field-grid">' +
-        field('conversation_start_date', fmtDate(lead.conversation_start_date)) +
-        field('conversation_end_date', fmtDate(lead.conversation_end_date)) +
-        field('days_since_last_message', lead.days_since_last_message) +
-        field('message_count', lead.message_count) +
-      '</div></div>' +
-
-      (lead.notes ? '<div class="drawer-section"><h4>Notes' + tip('notes') + '</h4>' +
-        '<p class="prose">' + esc(lead.notes) + '</p></div>' : '') +
-
-      (lead.reel_links ? '<div class="drawer-section"><h4>Listing shared in the thread' + tip('reel_links') + '</h4>' +
-        lead.reel_links.split(';').map(function (u) {
-          u = u.trim();
-          return u ? '<div><a href="' + esc(u) + '" target="_blank" rel="noopener" style="font-size:12.5px;word-break:break-all">' + esc(u) + '</a></div>' : '';
-        }).join('') + '</div>' : '') +
-
-      '<div class="drawer-section"><h4>Conversation' +
-        '<i class="info" tabindex="0" data-tip="Blue on the right is us, grey on the left is the lead. A dashed bubble means the export did not say who sent it and it could not be proven from content.">i</i></h4>' +
-        (unattributed ? '<p class="prose" style="font-size:12.5px;color:#64748b;margin-bottom:10px">' +
-          unattributed + ' of these messages have no proven sender and are shown dashed.</p>' : '') +
-        renderTimeline(id) + '</div>' +
-
-      '<div class="drawer-section"><h4>Record keeping</h4><div class="field-grid">' +
-        field('first_seen_run', lead.first_seen_run) +
-        field('last_updated_run', lead.last_updated_run) +
-        field('source_files', lead.source_files) +
-        field('manual_override', lead.manual_override) +
-      '</div></div>';
-
-    var copyBtn = el('copyReply');
-    if (copyBtn) {
-      copyBtn.addEventListener('click', function () {
-        copyText(lead.suggested_reply, copyBtn, 'Copy reply');
-      });
-    }
-    bindChatSection(lead);
-
-    el('drawer').classList.add('open');
-    el('drawer').setAttribute('aria-hidden', 'false');
-    el('scrim').classList.add('open');
-    el('drawerBody').scrollTop = 0;
-    document.body.classList.add('drawer-locked');
-  }
-
-  function fallbackCopy(text, done) {
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.opacity = '0';
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand('copy'); done(); } catch (e) { /* nothing to do */ }
-    document.body.removeChild(ta);
-  }
-
-  function closeDrawer() {
-    el('drawer').classList.remove('open');
-    el('drawer').setAttribute('aria-hidden', 'true');
-    el('scrim').classList.remove('open');
-    document.body.classList.remove('drawer-locked');
-  }
-
-  /* ---------------------------------------------------------------------
-     requirements: what buyers/tenants are asking for, and demand counts by
-     area, city and building. Every number here is derived from leads[]
-     already loaded above, straight from the workbook's own columns.
-     --------------------------------------------------------------------- */
-  function dealCategory(lead) {
-    var dt = String(lead.deal_type || '').toLowerCase();
-    if (dt === 'buy') return 'sale';
-    if (dt === 'rent' || dt === 'heavy_deposit') return 'rent';
-    var lt = String(lead.lead_type || '').toLowerCase();
-    if (lt === 'buyer') return 'sale';
-    if (lt === 'tenant') return 'rent';
-    return '';
-  }
-
-  function isDemandLead(lead) {
-    var lt = String(lead.lead_type || '').toLowerCase();
-    return lt === 'buyer' || lt === 'tenant';
-  }
-
-  function hasRequirementSignal(lead) {
-    return !!(lead.property_type || lead.locality || lead.budget ||
-              lead.city || lead.building_name);
-  }
-
-  function requirementLeads() {
-    return leads.filter(function (l) { return isDemandLead(l) && hasRequirementSignal(l); });
-  }
-
-  function unitsFor(lead) {
-    var n = parseInt(lead.units_required, 10);
-    return (!n || n < 1) ? 1 : n;
-  }
-
-  function computeRequirementGroups() {
-    var groups = {};
-    requirementLeads().forEach(function (l) {
-      var category = dealCategory(l);
-      if (!category) return;
-      var locDisplay = (l.locality || '').trim() || 'Area not stated';
-      var key = locDisplay.toLowerCase() + '|' + category;
-      var g = groups[key] || (groups[key] = {
-        locality: locDisplay, category: category,
-        configs: {}, budgets: {}, cities: {}, leads: []
-      });
-      g.leads.push(l);
-      if (l.property_type) g.configs[l.property_type] = true;
-      if (l.budget) g.budgets[l.budget] = true;
-      if (l.city) g.cities[l.city] = true;
-    });
-    return Object.keys(groups).map(function (k) { return groups[k]; })
-      .sort(function (a, b) { return b.leads.length - a.leads.length; });
-  }
-
-  function groupSentence(g) {
-    var units = g.leads.reduce(function (sum, l) { return sum + unitsFor(l); }, 0);
-    var people = g.leads.length;
-    var configs = Object.keys(g.configs);
-    var configText = configs.length === 1 ? configs[0]
-                    : configs.length > 1 ? 'mixed configurations' : '';
-    var budgets = Object.keys(g.budgets);
-    var budgetText = budgets.length
-      ? 'budget ' + budgets.slice(0, 4).join(', ') +
-        (budgets.length > 4 ? ' (+' + (budgets.length - 4) + ' more)' : '')
-      : 'budget not stated';
-    var cities = Object.keys(g.cities);
-    var placeText = esc(g.locality) + (cities.length ? ', ' + esc(cities.join(' / ')) : '');
-    var unitWord = units === 1 ? 'property' : 'properties';
-    var actionWord = g.category === 'sale' ? 'for sale' : 'for rent';
-    var peopleText = people + ' lead' + (people === 1 ? '' : 's') +
-      (people !== units ? ', ' + units + ' units total' : '');
-    return '<strong>' + units + ' ' + esc(unitWord) + ' ' + esc(actionWord) +
-      '</strong> required in <strong>' + placeText + '</strong>' +
-      (configText ? ' &middot; ' + esc(configText) : '') +
-      ' &mdash; ' + esc(budgetText) +
-      ' <span class="muted">(' + esc(peopleText) + ')</span>';
-  }
-
-  function renderReqGroups() {
-    var groups = computeRequirementGroups();
-    if (!groups.length) {
-      el('reqGroupTable').innerHTML = '<tbody><tr><td>' +
-        '<div class="empty-state">No requirements captured yet.</div></td></tr></tbody>';
-      return;
-    }
-    var head = '<thead><tr><th>Requirement</th><th>Category</th></tr></thead>';
-    var body = '<tbody>' + groups.map(function (g) {
-      var chips = g.leads.map(function (l) {
-        return '<span class="req-lead-chip" data-id="' + esc(l.lead_id) + '">' +
-          esc(l.lead_name || l.lead_id) + '</span>';
-      }).join('');
-      return '<tr><td>' + groupSentence(g) +
-        '<details class="req-group-toggle"><summary>' + g.leads.length +
-        ' lead' + (g.leads.length === 1 ? '' : 's') + '</summary>' +
-        '<div class="req-lead-chips">' + chips + '</div></details></td>' +
-        '<td><span class="badge ' + (g.category === 'sale' ? 'badge-type' : 'badge-neutral') +
-        '">' + esc(g.category) + '</span></td></tr>';
-    }).join('') + '</tbody>';
-    el('reqGroupTable').innerHTML = head + body;
-  }
-
-  function computeDemandBy(getter, blankLabel) {
-    var map = {};
-    requirementLeads().forEach(function (l) {
-      var category = dealCategory(l);
-      if (!category) return;
-      var key = (getter(l) || '').trim();
-      if (!key) {
-        if (!blankLabel) return;
-        key = blankLabel;
-      }
-      var bucket = map[key] || (map[key] = { label: key, sale: 0, rent: 0 });
-      bucket[category] += 1;
-    });
-    return Object.keys(map).map(function (k) { return map[k]; })
-      .sort(function (a, b) { return (b.sale + b.rent) - (a.sale + a.rent); });
-  }
-
-  function renderDemandTable(targetId, rows, labelHeader, emptyNote) {
-    if (!rows.length) {
-      el(targetId).innerHTML = '<tbody><tr><td><div class="empty-state">' +
-        esc(emptyNote) + '</div></td></tr></tbody>';
-      return;
-    }
-    var head = '<thead><tr><th>' + esc(labelHeader) +
-      '</th><th>Sale</th><th>Rent</th><th>Total</th></tr></thead>';
-    var body = '<tbody>' + rows.map(function (r) {
-      return '<tr><td>' + esc(r.label) + '</td><td>' + r.sale + '</td><td>' + r.rent +
-        '</td><td><strong>' + (r.sale + r.rent) + '</strong></td></tr>';
-    }).join('') + '</tbody>';
-    el(targetId).innerHTML = head + body;
-  }
-
-  function renderReqKpis() {
-    var rows = requirementLeads();
-    var sale = rows.filter(function (l) { return dealCategory(l) === 'sale'; }).length;
-    var rent = rows.filter(function (l) { return dealCategory(l) === 'rent'; }).length;
-    function distinct(field) {
-      var seen = {};
-      rows.forEach(function (l) { if (l[field]) seen[l[field].trim().toLowerCase()] = true; });
-      return Object.keys(seen).length;
-    }
-    var tiles = [
-      ['Requirements captured', rows.length, 'Buyers and tenants with something captured', ''],
-      ['Wanting to buy', sale, 'Sale-side demand', 'is-brand'],
-      ['Wanting to rent', rent, 'Rent-side demand, includes heavy deposit', 'is-warm'],
-      ['Distinct areas', distinct('locality'), 'As the lead phrased the locality', ''],
-      ['Cities named', distinct('city'), 'Only when actually stated', ''],
-      ['Buildings named', distinct('building_name'), 'Only when a specific one was named', '']
-    ];
-    el('reqKpiGrid').innerHTML = tiles.map(function (t) {
-      return '<div class="kpi ' + t[3] + '"><div class="kpi-label">' + esc(t[0]) + '</div>' +
-        '<div class="kpi-value">' + esc(t[1]) + '</div><div class="kpi-sub">' + esc(t[2]) +
-        '</div></div>';
-    }).join('');
-  }
-
-  function renderReqList() {
-    var rows = requirementLeads();
-    el('reqListCount').textContent = rows.length + ' lead' + (rows.length === 1 ? '' : 's') +
-      ' with a captured requirement, in the order the Leads sheet holds them.';
-    if (!rows.length) {
-      el('reqListTable').innerHTML = '<tbody><tr><td>' +
-        '<div class="empty-state">Nothing captured yet.</div></td></tr></tbody>';
-      return;
-    }
-    var notStated = '<span class="muted">not stated</span>';
-    var head = '<thead><tr><th>Lead</th><th>Deal</th><th>Configuration</th><th>Locality</th>' +
-      '<th>City</th><th>Building</th><th>Budget</th><th>Units</th><th>Score</th></tr></thead>';
-    var body = '<tbody>' + rows.map(function (l) {
-      return '<tr class="req-row" data-id="' + esc(l.lead_id) + '" tabindex="0">' +
-        '<td><div class="name">' + esc(l.lead_name || l.lead_id) + '</div>' +
-        '<div class="handle">@' + esc(l.lead_id) + '</div></td>' +
-        '<td><span class="badge ' + (dealCategory(l) === 'sale' ? 'badge-type' : 'badge-neutral') +
-        '">' + esc(dealCategory(l)) + '</span></td>' +
-        '<td>' + (l.property_type ? esc(l.property_type) : notStated) + '</td>' +
-        '<td>' + (l.locality ? esc(l.locality) : notStated) + '</td>' +
-        '<td>' + (l.city ? esc(l.city) : notStated) + '</td>' +
-        '<td>' + (l.building_name ? esc(l.building_name) : notStated) + '</td>' +
-        '<td>' + (l.budget ? esc(l.budget) : notStated) + '</td>' +
-        '<td>' + esc(unitsFor(l)) + '</td>' +
-        '<td>' + scoreBadge(l.lead_score) + '</td></tr>';
-    }).join('') + '</tbody>';
-    el('reqListTable').innerHTML = head + body;
-  }
-
-  function bindRequirementEvents() {
-    el('reqGroupTable').addEventListener('click', function (e) {
-      var chip = e.target.closest('.req-lead-chip');
-      if (chip) openLead(chip.dataset.id);
-    });
-    el('reqListTable').addEventListener('click', function (e) {
-      var row = e.target.closest('tr[data-id]');
-      if (row) openLead(row.dataset.id);
-    });
-    el('reqListTable').addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      var row = e.target.closest('tr[data-id]');
-      if (row) { e.preventDefault(); openLead(row.dataset.id); }
-    });
-  }
-
-  function renderRequirementsPanel() {
-    renderReqKpis();
-    renderReqGroups();
-    renderDemandTable('reqAreaTable', computeDemandBy(function (l) { return l.locality; },
-      'Area not stated'), 'Area', 'No requirements captured yet.');
-    renderDemandTable('reqCityTable', computeDemandBy(function (l) { return l.city; }, null),
-      'City', 'No city has been named yet. It fills in once a lead or a live chat states one explicitly.');
-    renderDemandTable('reqBuildingTable', computeDemandBy(function (l) { return l.building_name; }, null),
-      'Building / society', 'No specific building or society has been named yet.');
-    renderReqList();
-  }
-
-  /* ---------------------------------------------------------------------
-     sourcing: Sameer's action list, one row per open/done/dropped task.
-     --------------------------------------------------------------------- */
-  function sourcingLeads() {
-    return leads.filter(function (l) { return l.sourcing_action_for_sameer || l.sourcing_status; });
-  }
-
-  function daysSince(iso) {
-    if (!iso) return null;
-    var d = new Date(iso + 'T00:00:00');
-    if (isNaN(d)) return null;
-    return Math.floor((Date.now() - d.getTime()) / 86400000);
-  }
-
-  var sourcingState = { status: 'open' };
-
-  function visibleSourcing() {
-    var rows = sourcingLeads();
-    if (sourcingState.status === 'all') return rows;
-    return rows.filter(function (l) {
-      var s = String(l.sourcing_status || '').toLowerCase();
-      return sourcingState.status === 'open' ? (s === 'open' || !s) : s === sourcingState.status;
-    });
-  }
-
-  function renderSourcingKpis() {
-    var rows = sourcingLeads();
-    function count(s) {
-      return rows.filter(function (l) { return String(l.sourcing_status || '').toLowerCase() === s; }).length;
-    }
-    var stale = rows.filter(function (l) {
-      return String(l.sourcing_status || '').toLowerCase() === 'open' &&
-        (daysSince(l.sourcing_raised_on) || 0) >= 7;
-    }).length;
-    var tiles = [
-      ['Open tasks', count('open'), 'Waiting on Sameer to find stock', 'is-warm'],
-      ['Open 7+ days', stale, 'Getting old, worth a nudge', 'is-hot'],
-      ['Done', count('done'), 'Sourced and closed out', 'is-good'],
-      ['Dropped', count('dropped'), 'No longer being chased', '']
-    ];
-    el('sourcingKpiGrid').innerHTML = tiles.map(function (t) {
-      return '<div class="kpi ' + t[3] + '"><div class="kpi-label">' + esc(t[0]) + '</div>' +
-        '<div class="kpi-value">' + esc(t[1]) + '</div><div class="kpi-sub">' + esc(t[2]) +
-        '</div></div>';
-    }).join('');
-  }
-
-  function renderSourcingChips() {
-    var opts = [['open', 'Open'], ['done', 'Done'], ['dropped', 'Dropped'], ['all', 'All']];
-    el('sourcingChips').innerHTML = '<span class="chip-label">Status</span>' +
-      opts.map(function (o) {
-        return '<button class="chip' + (sourcingState.status === o[0] ? ' is-on' : '') +
-          '" data-status="' + o[0] + '" aria-pressed="' + (sourcingState.status === o[0]) +
-          '">' + esc(o[1]) + '</button>';
-      }).join('');
-  }
-
-  function renderSourcingTable() {
-    var rows = visibleSourcing().slice().sort(function (a, b) {
-      return (daysSince(b.sourcing_raised_on) || 0) - (daysSince(a.sourcing_raised_on) || 0);
-    });
-    el('sourcingCount').innerHTML = 'Showing <strong>' + rows.length + '</strong> of ' +
-      sourcingLeads().length + ' sourcing tasks.';
-    if (!rows.length) {
-      el('sourcingTable').innerHTML = '<tbody><tr><td>' +
-        '<div class="empty-state">No sourcing tasks match this filter.</div></td></tr></tbody>';
-      return;
-    }
-    var head = '<thead><tr><th>Lead</th><th>Score</th><th>Requirement</th>' +
-      '<th>Task for Sameer</th><th>Status</th><th>Raised</th></tr></thead>';
-    var body = '<tbody>' + rows.map(function (l) {
-      var status = String(l.sourcing_status || '').toLowerCase();
-      var age = daysSince(l.sourcing_raised_on);
-      var buttons = HEALTH ? ['open', 'done', 'dropped'].map(function (v) {
-        return '<button class="chip' + (status === v ? ' is-on' : '') +
-          '" data-sourcing-lead="' + esc(l.lead_id) + '" data-sourcing-value="' + v +
-          '">' + v + '</button>';
-      }).join('') + '<span class="chat-status" data-sourcing-status="' + esc(l.lead_id) + '"></span>'
-        : '<span class="muted-note">start the runner to change status here</span>';
-      return '<tr>' +
-        '<td class="cell-lead lead-link" data-id="' + esc(l.lead_id) + '"><div class="name">' +
-          esc(l.lead_name || l.lead_id) + '</div><div class="handle">@' + esc(l.lead_id) +
-          '</div></td>' +
-        '<td>' + scoreBadge(l.lead_score) + '</td>' +
-        '<td><div class="truncate-2">' + (requirementText(l) || '<span class="muted">nothing captured</span>') + '</div></td>' +
-        '<td><div class="truncate-2 sourcing-text">' + esc(l.sourcing_action_for_sameer || '') + '</div></td>' +
-        '<td><div class="chat-actions">' + buttons + '</div></td>' +
-        '<td class="mono">' + (l.sourcing_raised_on
-            ? esc(fmtDate(l.sourcing_raised_on)) + (age !== null ? '<div class="handle">' + age + 'd open</div>' : '')
-            : '<span class="muted">n/a</span>') + '</td>' +
-        '</tr>';
-    }).join('') + '</tbody>';
-    el('sourcingTable').innerHTML = head + body;
-  }
-
-  function bindSourcingEvents() {
-    el('sourcingChips').addEventListener('click', function (e) {
-      var btn = e.target.closest('.chip');
-      if (!btn) return;
-      sourcingState.status = btn.dataset.status;
-      renderSourcingChips();
-      renderSourcingTable();
-    });
-
-    el('sourcingTable').addEventListener('click', function (e) {
-      var link = e.target.closest('.lead-link');
-      if (link) { openLead(link.dataset.id); return; }
-      var btn = e.target.closest('[data-sourcing-value]');
-      if (!btn || !HEALTH) return;
-      var leadId = btn.dataset.sourcingLead;
-      var value = btn.dataset.sourcingValue;
-      var statusEl = el('sourcingTable').querySelector('[data-sourcing-status="' + leadId + '"]');
-      if (statusEl) statusEl.textContent = 'saving...';
-      fetch('/api/sourcing/status', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: leadId, status: value })
-      }).then(function (r) { return r.json(); }).then(function (out) {
-        if (out.error) {
-          if (statusEl) statusEl.innerHTML = '<span class="err">' + esc(out.error) + '</span>';
-          return;
-        }
-        var lead = leads.filter(function (l) { return l.lead_id === leadId; })[0];
-        if (lead) lead.sourcing_status = value;
-        renderSourcingKpis();
-        renderSourcingTable();
-      }).catch(function (err) {
-        if (statusEl) statusEl.innerHTML = '<span class="err">' + esc(String(err)) + '</span>';
-      });
-    });
-  }
-
-  function renderSourcingPanel() {
-    renderSourcingKpis();
-    renderSourcingChips();
-    renderSourcingTable();
-  }
-
-  /* ---------------------------------------------------------------------
-     activity
-     --------------------------------------------------------------------- */
-  function renderDaily() {
-    if (!daily.length) {
-      el('dailyChart').innerHTML = '<div class="empty-state">No dated messages.</div>';
-      return;
-    }
-    var max = Math.max.apply(null, daily.map(function (d) { return Number(d.messages) || 0; }));
-    el('dailyChart').innerHTML = daily.slice().reverse().map(function (d) {
-      var total = Number(d.messages) || 0;
-      var width = total / max * 100;
-      function seg(cls, n) {
-        n = Number(n) || 0;
-        return n ? '<div class="bar-seg ' + cls + '" style="width:' + (n / total * 100) + '%"></div>' : '';
-      }
-      return '<div class="bar-row" title="' + esc(d.conversations_active) + ' conversations, ' +
-             esc(d.new_conversations) + ' new">' +
-        '<div class="bar-label">' + esc(fmtDate(d.date)) + '</div>' +
-        '<div class="bar-track" style="width:' + width + '%">' +
-          seg('lead', d.from_lead) + seg('us', d.from_us) + seg('unattributed', d.unattributed) +
-        '</div>' +
-        '<div class="bar-value">' + total + '</div></div>';
-    }).join('');
-  }
-
-  function renderPlainTable(target, columns, rows, tips) {
-    if (!rows.length) {
-      el(target).innerHTML = '<tbody><tr><td><div class="empty-state">Nothing recorded yet.</div></td></tr></tbody>';
-      return;
-    }
-    var head = '<thead><tr>' + columns.map(function (c) {
-      var t = tips && tips[c[0]] ? ' <i class="info" tabindex="0" data-tip="' + esc(tips[c[0]]) + '">i</i>' : '';
-      return '<th>' + esc(c[1]) + t + '</th>';
-    }).join('') + '</tr></thead>';
-    var body = '<tbody>' + rows.map(function (r) {
-      return '<tr>' + columns.map(function (c) {
-        return '<td>' + (c[2] ? c[2](r) : esc(r[c[0]])) + '</td>';
-      }).join('') + '</tr>';
-    }).join('') + '</tbody>';
-    el(target).innerHTML = head + body;
-  }
-
-  function renderWeekly() {
-    renderPlainTable('weeklyTable', [
-      ['iso_week', 'ISO week'],
-      ['week_start', 'Starts', function (r) { return esc(fmtDate(r.week_start)); }],
-      ['week_end', 'Ends', function (r) { return esc(fmtDate(r.week_end)); }],
-      ['days_with_activity', 'Active days'],
-      ['conversations_active', 'Conversations'],
-      ['new_conversations', 'New'],
-      ['messages', 'Messages'],
-      ['from_lead', 'From lead'],
-      ['from_us', 'From us'],
-      ['unattributed', 'Unattributed']
-    ], weekly.slice().reverse(), {
-      conversations_active: 'Summed across the days in the week, so one thread active on three days counts three times.',
-      new_conversations: 'Threads whose first ever message falls in this week.',
-      unattributed: 'Messages whose sender could not be proven from the export.'
-    });
-  }
-
-  function renderOverview() {
-    renderPlainTable('overviewTable', [
-      ['section', 'Section'],
-      ['metric', 'Metric'],
-      ['value', 'Value', function (r) { return '<strong>' + esc(r.value) + '</strong>'; }]
-    ], overview);
-  }
-
-  /* ---------------------------------------------------------------------
-     history
-     --------------------------------------------------------------------- */
-  function renderRuns() {
-    renderPlainTable('runsTable', [
-      ['run_id', 'Run'],
-      ['run_timestamp', 'When', function (r) { return esc(String(r.run_timestamp).replace('T', ' ')); }],
-      ['source_file', 'Export'],
-      ['anchor_date', 'Anchor date', function (r) { return esc(fmtDate(r.anchor_date)); }],
-      ['leads_in_file', 'In file'],
-      ['new_leads', 'New'],
-      ['updated_leads', 'Updated'],
-      ['unchanged_leads', 'Unchanged'],
-      ['messages_added', 'Messages added']
-    ], runs.slice().reverse(), {
-      anchor_date: 'The date used to resolve relative weekday timestamps like "Mon 18:50" in that export.',
-      unchanged_leads: 'Leads present in the export whose every field already matched. A full re-run of the same file makes this equal to In file.'
-    });
-  }
-
-  function renderChangelog() {
-    el('changeCount').textContent = changelog.length +
-      ' recorded changes across ' + runs.length + ' run' + (runs.length === 1 ? '' : 's');
-    renderPlainTable('changelogTable', [
-      ['run_timestamp', 'When', function (r) { return esc(String(r.run_timestamp).replace('T', ' ')); }],
-      ['lead_name', 'Lead', function (r) {
-        return '<strong>' + esc(r.lead_name || r.lead_id) + '</strong><br><span class="muted">@' +
-               esc(r.lead_id) + '</span>';
-      }],
-      ['change_type', 'Type', function (r) {
-        return '<span class="badge ' + (r.change_type === 'new' ? 'badge-yes' : 'badge-neutral') + '">' +
-               esc(r.change_type) + '</span>';
-      }],
-      ['field', 'Field', function (r) { return '<code>' + esc(r.field) + '</code>'; }],
-      ['old_value', 'Was', function (r) {
-        return r.old_value ? '<span class="val-old">' + esc(r.old_value) + '</span>'
-                           : '<span class="muted">empty</span>';
-      }],
-      ['new_value', 'Now', function (r) { return '<span class="val-new">' + esc(r.new_value) + '</span>'; }]
-    ], changelog.slice().reverse());
-  }
-
-  /* ---------------------------------------------------------------------
-     guide
-     --------------------------------------------------------------------- */
-  function renderDictionary() {
-    var rows = Object.keys(FIELD_DOCS).map(function (key) {
-      var d = FIELD_DOCS[key];
-      var origins = d[2].split(' + ').map(function (o) {
-        return '<span class="origin origin-' + esc(o.trim()) + '">' + esc(o.trim()) + '</span>';
-      }).join(' ');
-      return '<tr>' +
-        '<td><strong>' + esc(d[0]) + '</strong><br><code style="font-size:11px">' + esc(key) + '</code></td>' +
-        '<td><span class="type-tag">' + esc(d[1]) + '</span></td>' +
-        '<td>' + origins + '</td>' +
-        '<td style="max-width:52ch">' + esc(d[3]) + '</td></tr>';
-    }).join('');
-    el('dictTable').innerHTML =
-      '<thead><tr><th>Field</th><th>Type and allowed values</th><th>Produced by</th><th>What it means</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody>';
-  }
-
-  function renderRules() {
-    el('rulesList').innerHTML = RULES.map(function (r) {
-      return '<li><strong>' + esc(r[0]) + '</strong> ' + esc(r[1]) + '</li>';
-    }).join('');
-  }
-
-  /* ---------------------------------------------------------------------
-     wiring
-     --------------------------------------------------------------------- */
-  function bindEvents() {
-    Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (tab) {
-      tab.addEventListener('click', function () {
-        Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
-          t.setAttribute('aria-selected', String(t === tab));
-        });
-        Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (p) {
-          p.hidden = p.id !== 'panel-' + tab.dataset.panel;
-        });
-        // Panels swap after this handler, so the scroll reset has to wait a
-        // frame or it runs against the old, taller panel's height.
-        requestAnimationFrame(function () {
-          window.scrollTo(0, 0);
-          document.documentElement.scrollTop = 0;
-          document.body.scrollTop = 0;
-        });
-      });
-    });
-
-    el('search').addEventListener('input', function (e) {
-      state.search = e.target.value;
-      renderTable();
-    });
-
-    el('scoreChips').addEventListener('click', function (e) {
-      var btn = e.target.closest('.chip');
-      if (!btn) return;
-      toggle(state.scores, btn.dataset.score, btn);
-    });
-
-    el('flagChips').addEventListener('click', function (e) {
-      var btn = e.target.closest('.chip');
-      if (!btn) return;
-      toggle(state.flags, btn.dataset.flag, btn);
-    });
-
-    function toggle(list, value, btn) {
-      var i = list.indexOf(value);
-      if (i === -1) { list.push(value); } else { list.splice(i, 1); }
-      btn.setAttribute('aria-pressed', String(i === -1));
-      renderTable();
-    }
-
-    el('resetFilters').addEventListener('click', function () {
-      state = { search: '', scores: [], flags: [] };
-      el('search').value = '';
-      Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (c) {
-        c.setAttribute('aria-pressed', 'false');
-      });
-      renderTable();
-    });
-
-    el('leadBody').addEventListener('click', function (e) {
-      var row = e.target.closest('tr[data-id]');
-      if (row) openLead(row.dataset.id);
-    });
-
-    el('leadBody').addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      var row = e.target.closest('tr[data-id]');
-      if (row) { e.preventDefault(); openLead(row.dataset.id); }
-    });
-
-    el('drawerClose').addEventListener('click', closeDrawer);
-    el('scrim').addEventListener('click', closeDrawer);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeDrawer();
-    });
-  }
-
-  function boot() {
-    if (!leads.length) {
-      document.querySelector('main').innerHTML =
-        '<div class="card"><div class="empty-state">' +
-        'No data loaded. Run <code>python scripts/build_dashboard_data.py</code> to generate ' +
-        'lead-dashboard-data.js from the workbook, then reload this page.</div></div>';
-      return;
-    }
-    // The page is useful on its own, so the runner is probed rather than
-    // required: if nothing answers, the live sections explain how to start it.
-    fetch('/api/health').then(function (r) {
-      return r.ok ? r.json() : null;
-    }).then(function (health) {
-      HEALTH = health && health.ok ? health : null;
-      renderLiveBadge();
-      // A lead opened before this resolved would be showing the offline note,
-      // so redraw it now that we know the runner is there.
-      if (currentLeadId) openLead(currentLeadId);
-      renderSourcingTable();
-    }).catch(function () {
-      HEALTH = null;
-      renderLiveBadge();
-    });
-
-    renderHeader();
-    renderKpis();
-    renderChips();
-    renderTableHead();
-    renderTable();
-    renderRequirementsPanel();
-    bindRequirementEvents();
-    renderSourcingPanel();
-    bindSourcingEvents();
-    renderDaily();
-    renderWeekly();
-    renderOverview();
-    renderRuns();
-    renderChangelog();
-    renderDictionary();
-    renderRules();
-    bindEvents();
-  }
-
-  boot();
-})();
-</script>
+<div class="toasts" id="toasts"></div>
+<script src="app.js"></script>
 </body>
 </html>

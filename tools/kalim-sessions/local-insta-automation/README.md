@@ -1,5 +1,13 @@
 # HP Instagram lead automation
 
+> **2026-09-18: the workbook is no longer the source of truth.** Leads now live
+> in `db/lead-desk.db` (SQLite) and the dashboard is an app that reads and
+> writes it: `start-lead-desk.cmd`. Read **[APP.md](APP.md)** for the app and
+> **[docs/INGESTION.md](docs/INGESTION.md)** for how DMs and screenshots get in.
+> The workbook was imported once by `scripts/migrate_to_sqlite.py`; the rest of
+> this document still describes the Excel pipeline that produced it, and the
+> parser, the analyst and the incremental fetch it describes are all unchanged.
+
 Turns a raw Instagram DM export into a maintained lead sheet. The Excel file is
 the source of truth. Every run decides, per Instagram handle, whether to update
 an existing row or add a new one, keeps what was already known, and records
