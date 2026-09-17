@@ -12,11 +12,13 @@ anything in `scripts/`.
 
 ## 0. How it runs now
 
-Every 6 hours a Windows scheduled task reads the Instagram inbox of
-@happyproperties99 straight from instagram.com, and only the threads that
-changed get analysed and written into the workbook. Nobody pastes anything.
-Section 12 covers that automated path. Sections 1 and 2 describe the older
-manual path from a pasted text export, which still works as a fallback.
+**As of 2026-09-17, the primary path is manual: paste a DM export into a
+`.txt` file (e.g. `sample-dm-file.txt`) and run the three-stage pipeline in
+Sections 1 and 2.** The Chrome-extension automated path (Section 13), which
+reads the inbox straight from instagram.com every 6 hours via a Windows
+scheduled task, is on hold — the user does not want DM data collected that
+way for now. No scheduled task is currently registered on this machine.
+CRM push (Section 9) is also paused; stop after the workbook upsert.
 
 ## 1. Pipeline
 
@@ -456,6 +458,9 @@ you have closed.
 
 ## 9. Push to CRM
 
+**Paused per user instruction (2026-09-17).** Do not run this stage unless
+the user explicitly asks to push leads to the CRM again.
+
 `scripts/push_leads_to_crm.py` is the only stage that leaves the laptop. It
 sends the leads that are ready for a phone call to the CRM's adapter intake
 (`POST /api/internal/adapters/leads`, header `x-adapter: insta-excel`) with a
@@ -628,6 +633,12 @@ under `tools/kalim-sessions/` which the repository already ignores. Do not commi
 this data, and do not upload the workbook to any external service.
 
 ## 13. Automated fetch from Instagram web
+
+**On hold per user instruction (2026-09-17).** Do not run this path or
+re-register its scheduled task unless the user asks to switch back. The
+accuracy trade-off below (sender misattribution in pasted exports) still
+applies to the manual path now in primary use — treat any lead whose score
+or contact number rests on an unattributed message as `needs_review`.
 
 ### Why not the pasted export
 

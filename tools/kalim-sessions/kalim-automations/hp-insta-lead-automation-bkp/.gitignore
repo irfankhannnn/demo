@@ -1,0 +1,34 @@
+# Private personal data: real names, phone numbers and DM content.
+# Never commit any of this.
+master/
+parsed/
+analysis/
+*.xlsx
+~$*.xlsx
+
+# Generated from the workbook, so it carries the same lead data.
+lead-dashboard-data.js
+
+# Local credentials for the lead desk runner.
+.env
+__pycache__/
+
+# Automated fetch runs: fetched DMs, per-run parsed/analysis files, logs, state.
+runs/
+state/
+logs/
+archive/
+
+# Chrome extension: local token and generated page library.
+chrome-extension/bridge-config.js
+chrome-extension/page_lib.js
+
+# Raw DM exports carry real names and mobile numbers.
+sample-dm-file*.txt
+
+# CRM credentials for scripts/push_leads_to_crm.py. Copy crm-push.sample.json.
+config/crm-push.json
+
+# Test and tool caches.
+__pycache__/
+.pytest_cache/
