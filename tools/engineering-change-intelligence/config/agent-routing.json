@@ -1,125 +1,123 @@
 {
-  "version": "1.0.0",
-  "description": "Determines which specialist agents run based on changed file paths",
-  "always_run": [
+  "version": "2.0.0",
+  "description": "Changed-path globs -> review agents for this repo (apps/, services/, infra/cicd/, docs/, tools/, marketing-and-sales/, .github/). Read only by scripts/route-agents.sh.",
+  "match_semantics": "Each pattern is matched with Python fnmatch.fnmatchcase against the whole repo-relative path (forward slashes). '*' also matches '/'. There is no substring matching: 'apps/*' matches apps/crm/server/x.js but not docs/apps/x.md, and 'app/*' would not match apps/.",
+  "docs_only_globs": [
+    "docs/*",
+    "marketing-and-sales/*",
+    "*.md",
+    "*.png",
+    "*.jpg",
+    "*.jpeg",
+    "*.webp",
+    "*.gif",
+    "*.svg",
+    "*.mp4",
+    "*.mp3",
+    "*.pdf"
+  ],
+  "docs_only_rule": "If every changed file matches docs_only_globs, only always_run agents run and diff_regex triggers are ignored.",
+  "diff_regex_ignore_globs": ["tools/*", ".claude/*"],
+  "diff_regex_rule": "diff_regex is searched only in added/removed lines of files that match neither docs_only_globs nor diff_regex_ignore_globs.",
+  "always_run": ["pr-intelligence", "security", "release-readiness"],
+  "order": [
     "pr-intelligence",
+    "architecture",
+    "cicd",
+    "database",
     "security",
     "sre-observability",
+    "finops",
+    "principal-engineer",
     "release-readiness"
-],
+  ],
   "conditional": {
     "architecture": {
-      "agent": "architecture",
       "patterns": [
-        "cloudformation/",
-        "terraform/",
-        "cdk/",
-        "pulumi/",
-        "sam/",
-        "serverless/",
-        "cfn-",
-        ".tf",
-        "cdk.json",
-        "serverless.yml",
-        "serverless.yaml"
-      ]
-    },
-    "kubernetes-helm": {
-      "agent": "kubernetes-helm",
-      "patterns": [
-        "helm/",
-        "k8s/",
-        "kubernetes/",
-        "deployment.yaml",
-        "deployment.yml",
-        "statefulset.yaml",
-        "statefulset.yml",
-        "daemonset.yaml",
-        "daemonset.yml",
-        "hpa.yaml",
-        "pdb.yaml",
-        "values.yaml"
-      ]
+        "*/infra/*.yaml",
+        "*/infra/*.yml",
+        "infra/*.yaml",
+        "infra/*.yml",
+        "*/infra/cfn-params*.json",
+        "*/infra/config-only-allowed-params.json",
+        "*/Dockerfile",
+        "*/docker-compose.yml",
+        "*/docker-compose.yaml"
+      ],
+      "exclude": ["tools/*", "docs/*", "marketing-and-sales/*", ".claude/*", "*/node_modules/*"]
     },
     "cicd": {
-      "agent": "cicd",
       "patterns": [
-        "Jenkinsfile",
-        ".github/workflows",
-        "buildspec.yml",
-        "buildspec.yaml",
-        "gitlab-ci.yml",
-        ".gitlab-ci.yml",
-        "argo/",
-        "tekton/",
-        "azure-pipelines.yml",
-        "bitbucket-pipelines.yml"
-      ]
-    },
-    "finops": {
-      "agent": "finops",
-      "patterns": [
-        "cloudformation/",
-        "terraform/",
-        "cfn-",
-        ".tf",
-        "helm/",
-        "k8s/",
-        "lambda",
-        "rds",
-        "opensearch",
-        "elasticache",
-        "vpc",
-        "nat-gateway",
-        "api-gateway",
-        "cloudfront",
-        "s3",
-        "dynamodb",
-        "infra/"
-      ]
+        ".github/workflows/*",
+        "infra/cicd/*",
+        "*/infra/*.sh",
+        "*/infra/lib/*",
+        "*/infra/*.mjs",
+        "*/infra/*.js",
+        "*/infra/*.py",
+        "*/infra/ssm-param-map.txt"
+      ],
+      "exclude": ["*.md", "infra/cicd/common-infra/*.yaml", "tools/*", ".claude/*", "*/node_modules/*"]
     },
     "database": {
-      "agent": "database",
       "patterns": [
-        "migration",
-        "migrations/",
-        ".sql",
-        "schema",
-        "prisma/",
-        "drizzle/",
-        "knex/",
-        "sequelize/"
-      ]
+        "*/infra/launch-tables*",
+        "infra/cicd/launch-tables/*",
+        "*[Dd]ynamo[Dd][Bb]*"
+      ],
+      "exclude": ["*.md", "docs/*", "marketing-and-sales/*", "tools/*", ".claude/*", "*/node_modules/*"],
+      "diff_regex": "AWS::DynamoDB::Table|GlobalSecondaryIndexes|LocalSecondaryIndexes|KeySchema|AttributeDefinitions|TimeToLiveSpecification|PointInTimeRecovery|StreamSpecification|BillingMode|ScanCommand|IndexName|TENANT#"
+    },
+    "sre-observability": {
+      "patterns": [
+        "apps/*",
+        "services/*",
+        "infra/cicd/common-infra/*"
+      ],
+      "exclude": ["*.md", "*.test.*", "*.spec.*", "*.sample", "*.env*", "*package.json", "*package-lock.json", "*/infra/*.sh", "*/infra/lib/*", "*/node_modules/*", "*/dist/*"]
+    },
+    "finops": {
+      "patterns": [
+        "*/infra/*.yaml",
+        "*/infra/*.yml",
+        "infra/cicd/common-infra/*",
+        "*/infra/cfn-params*.json",
+        "*/Dockerfile"
+      ],
+      "exclude": ["tools/*", "docs/*", "marketing-and-sales/*", ".claude/*", "*/node_modules/*"],
+      "diff_regex": "(?i)MemorySize|ReservedConcurrentExecutions|ProvisionedConcurrency|DesiredCount|AWS::EC2::NatGateway|RetentionInDays|client-bedrock|InvokeModel|ConverseCommand|elevenlabs|exotel|generativelanguage\\.googleapis\\.com"
     },
     "principal-engineer": {
-      "agent": "principal-engineer",
       "patterns": [
-        "src/",
-        "lib/",
-        "app/",
-        "server/",
-        "api/",
-        "services/",
-        "components/",
-        "routes/",
-        "handlers/",
-        ".ts",
-        ".tsx",
-        ".js",
-        ".jsx",
-        ".py",
-        ".go",
-        ".rs"
+        "apps/*.js",
+        "apps/*.mjs",
+        "apps/*.cjs",
+        "apps/*.ts",
+        "apps/*.tsx",
+        "apps/*.jsx",
+        "apps/*.py",
+        "services/*.js",
+        "services/*.mjs",
+        "services/*.cjs",
+        "services/*.ts",
+        "services/*.tsx",
+        "services/*.py",
+        "apps/*package.json",
+        "services/*package.json",
+        "tests/*.ts",
+        "tests/*.js"
       ],
-      "exclude_if_only": ["architecture", "kubernetes-helm", "cicd", "database"]
+      "exclude": ["*/infra/*", "*/dist/*", "*/node_modules/*"]
     }
   },
   "file_categories": {
-    "application": ["src/", "lib/", "app/", "components/", "pages/", "services/", "routes/", "handlers/"],
-    "infrastructure": ["cloudformation/", "terraform/", "cdk/", "pulumi/", "sam/", "serverless/", "infra/", "cfn-"],
-    "kubernetes": ["helm/", "k8s/", "kubernetes/", "deployment.yaml", "statefulset.yaml", "daemonset.yaml"],
-    "cicd": [".github/workflows", "Jenkinsfile", "buildspec.yml", "gitlab-ci.yml", "argo/", "tekton/"],
-    "database": ["migration", "migrations/", ".sql", "schema", "prisma/"],
-    "security": ["auth", "iam", "policy", "secrets", "cors", "jwt", "oauth", "rbac", "acl"]
+    "application": ["apps/*", "services/*"],
+    "infrastructure": ["*/infra/*.yaml", "*/infra/*.yml", "infra/cicd/common-infra/*", "*/Dockerfile", "*/docker-compose.yml"],
+    "cicd": [".github/workflows/*", "infra/cicd/*", "*/infra/*.sh", "*/infra/lib/*"],
+    "database": ["*/infra/launch-tables*", "infra/cicd/launch-tables/*", "*[Dd]ynamo[Dd][Bb]*"],
+    "security": ["*auth*", "*Auth*", "*jwt*", "*cors*", "*secret*", "*.env*", "*/middleware/*", "*cognito*", "*rbac*", "*permission*", "*requireRole*", "*validateToken*"],
+    "tests": ["tests/*", "*.test.*", "*.spec.*"],
+    "tooling": ["tools/*", ".claude/*"],
+    "docs": ["docs/*", "marketing-and-sales/*"]
   }
 }

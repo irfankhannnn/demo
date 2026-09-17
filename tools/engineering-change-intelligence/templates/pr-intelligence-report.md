@@ -1,5 +1,7 @@
 # PR Intelligence Report Template
 
+<!-- File categories match file_groups in agent-routing.json (config/agent-routing.json file_categories). -->
+
 ## Metadata
 - **PR:** #{{PR_NUMBER}}
 - **URL:** {{PR_URL}}
@@ -30,9 +32,6 @@
 ### Infrastructure
 {{INFRA_FILES}}
 
-### Kubernetes
-{{K8S_FILES}}
-
 ### CI/CD
 {{CICD_FILES}}
 
@@ -41,6 +40,12 @@
 
 ### Security
 {{SEC_FILES}}
+
+### Tests
+{{TEST_FILES}}
+
+### Tooling/Docs
+{{TOOLING_DOCS_FILES}}
 
 ## Impact Analysis
 

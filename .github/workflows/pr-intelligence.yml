@@ -1,8 +1,10 @@
 name: PR Engineering Change Intelligence
 
-# Manual only for now. On pull_request it would fail (the comment step needs
-# pull-requests: write) and comment on every PR; turn it back on once the
-# Slack secret and permissions are decided.
+# Manual only. Gathers a PR's diff/commits/stats, routes the review agents and
+# uploads the result as an artifact. It does not run the AI review, post PR
+# comments or post to Slack: the review runs locally in Claude Code
+# (claude --agent pr-orchestrator "Review PR #N"), see
+# tools/engineering-change-intelligence/README.md.
 on:
   workflow_dispatch:
     inputs:
@@ -24,31 +26,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup context
+      - name: Validate input
         id: context
+        env:
+          PR_INPUT: ${{ inputs.pr_number }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PR_NUM="${{ inputs.pr_number }}"
-          else
-            PR_NUM="${{ github.event.pull_request.number }}"
-          fi
-          echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
-          echo "pr_url=${{ github.event.pull_request.html_url || format('https://github.com/{0}/pull/{1}', github.repository, inputs.pr_number) }}" >> $GITHUB_OUTPUT
+          [[ "$PR_INPUT" =~ ^[0-9]+$ ]] || { echo "pr_number must be numeric"; exit 1; }
+          echo "pr_number=$PR_INPUT" >> "$GITHUB_OUTPUT"
 
       - name: Gather PR context
         env:
-          ECI_OUTPUT_DIR: tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
         run: |
           bash tools/engineering-change-intelligence/scripts/gather-pr-context.sh \
-            --pr ${{ steps.context.outputs.pr_number }} \
-            --output "$ECI_OUTPUT_DIR"
+            --pr "$PR_NUMBER" \
+            --output "tools/engineering-change-intelligence/reports/pr-$PR_NUMBER"
 
       - name: Route agents
         env:
-          ECI_OUTPUT_DIR: tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
         run: |
           bash tools/engineering-change-intelligence/scripts/route-agents.sh \
-            "$ECI_OUTPUT_DIR/files-changed.txt"
+            "tools/engineering-change-intelligence/reports/pr-$PR_NUMBER/files-changed.txt"
 
       - name: Upload context artifacts
         uses: actions/upload-artifact@v4
@@ -56,42 +56,3 @@ jobs:
           name: pr-intelligence-context-${{ steps.context.outputs.pr_number }}
           path: tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}/
           retention-days: 30
-
-      - name: Post to Slack (if report exists)
-        if: env.SLACK_PR_WEBHOOK_URL != ''
-        env:
-          SLACK_PR_WEBHOOK_URL: ${{ secrets.SLACK_PR_WEBHOOK_URL }}
-          ECI_CONTEXT: tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}/context.json
-        run: |
-          REPORT="tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}/release-readiness.md"
-          if [ -f "$REPORT" ]; then
-            bash tools/engineering-change-intelligence/scripts/post-to-slack.sh "$REPORT"
-          else
-            echo "No release-readiness.md yet — run agent analysis to generate report"
-          fi
-
-      - name: Comment PR with routing info
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const routingPath = 'tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}/agent-routing.json';
-            let body = '## 🤖 Engineering Change Intelligence\n\n';
-            body += 'Context gathered. Agents to run:\n\n';
-            try {
-              const routing = JSON.parse(fs.readFileSync(routingPath, 'utf8'));
-              body += routing.agents.map(a => `- \`${a}\``).join('\n');
-              body += `\n\n**Files changed:** ${routing.total_files}`;
-              body += '\n\n---\n';
-              body += 'To complete analysis, invoke the **PR Orchestrator** agent in Cursor Cloud:\n';
-              body += '```\nReview PR #${{ steps.context.outputs.pr_number }} with Engineering Change Intelligence\n```';
-            } catch (e) {
-              body += 'Context gathering complete. Run agent analysis for full report.';
-            }
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: body
-            });

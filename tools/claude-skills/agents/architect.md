@@ -71,7 +71,7 @@ For each new module, produce:
 
 ### Key Patterns
 - Routes in `apps/crm/server/routes/<resource>.js`
-- Services in `server/<resource>DynamodbService.js`
+- Services in `apps/crm/server/<resource>DynamodbService.js`
 - Frontend types in `apps/crm/real-estate-crm-app/src/types/`
 - Frontend API services in `apps/crm/real-estate-crm-app/src/services/`
 - Pages in `apps/crm/real-estate-crm-app/src/pages/crm/`

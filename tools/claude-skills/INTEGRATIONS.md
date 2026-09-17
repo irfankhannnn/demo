@@ -406,25 +406,41 @@ GOOGLE_SHEETS_SERVICE_ACCOUNT=path/to/service-account.json
 
 ---
 
-## Engineering Change Intelligence — Slack Integration
+## Engineering Change Intelligence (PR review)
 
-### Slack Incoming Webhook (PR Intelligence)
+Local-first. The review runs in Claude Code on your machine; GitHub Actions only gathers context, and nothing is posted anywhere unless you ask for it.
 
-- **What:** Posts PR review reports to a Slack channel
-- **Setup:**
-  1. Go to [Slack API Apps](https://api.slack.com/apps) → Create New App
-  2. Enable **Incoming Webhooks**
-  3. Add webhook to `#engineering-reviews` (or your channel)
-  4. Copy the webhook URL
-- **Env:** `SLACK_PR_WEBHOOK_URL`
-- **Optional:** `SLACK_BOT_NAME` (default: PR Intelligence Bot)
-- **Used by:** Engineering Change Intelligence Platform (`tools/engineering-change-intelligence/`)
-- **Agent:** `pr-orchestrator` → `release-readiness`
-- **Script:** `tools/engineering-change-intelligence/scripts/post-to-slack.sh`
-- **GitHub Actions:** Set `SLACK_PR_WEBHOOK_URL` as repository secret
+### Run a review
 
-### GitHub CLI (PR Context)
+```bash
+# once, to copy the agents and skills into .claude/ so Claude Code discovers them
+pwsh tools/claude-skills/setup.ps1
 
-- **What:** Fetches PR diffs, metadata, and file lists
-- **Setup:** `gh auth login` (local) or `GITHUB_TOKEN` (CI)
-- **Used by:** `tools/engineering-change-intelligence/scripts/gather-pr-context.sh --pr`
+claude --agent pr-orchestrator "Review PR #42"
+claude --agent pr-orchestrator "Review branch feat/lead-scoring"
+```
+
+Reports land in `tools/engineering-change-intelligence/reports/<target>/`, which is gitignored.
+
+### Prerequisites
+
+- **bash** (Git Bash on Windows), **git**, **Python 3.8+** (`python3` or `python` on PATH). `jq` is not needed.
+- **GitHub CLI**, authenticated, for `--pr` mode: `gh auth login`. The scripts only read (`gh pr view`, `gh pr diff`).
+  - In CI, `gh` needs `GH_TOKEN` set in the step's own `env:` — `GITHUB_TOKEN` is not picked up automatically. `.github/workflows/pr-intelligence.yml` sets `GH_TOKEN: ${{ github.token }}` on the steps that call `gh`.
+- No `ANTHROPIC_API_KEY` is needed: the model calls happen inside your Claude Code session.
+
+### Slack (optional, local opt-in)
+
+- **What:** posts one release-readiness summary to a Slack channel. Off by default and never automatic.
+- **Setup:** [Slack API Apps](https://api.slack.com/apps) → Create New App → enable **Incoming Webhooks** → add a webhook to your channel → copy the URL.
+- **Env:** `SLACK_PR_WEBHOOK_URL`. Optional: `SLACK_BOT_NAME`. The webhook posts to the channel it was created for; it cannot be redirected.
+- **Usage:** `bash tools/engineering-change-intelligence/scripts/post-to-slack.sh <output_dir>/release-readiness.md` previews the message, and only `--send` posts it. Ask for Slack explicitly; a webhook URL sitting in the environment is not a request to post.
+- **Not used by CI:** `pr-intelligence.yml` is `workflow_dispatch` only, has no Slack step and posts no PR comment. It uploads the gathered context as an artifact. See `tools/engineering-change-intelligence/README.md`.
+
+### Env file
+
+`tools/engineering-change-intelligence/.env` is gitignored and **not** auto-loaded. Source it yourself when you need it:
+
+```bash
+set -a; . tools/engineering-change-intelligence/.env; set +a
+```
