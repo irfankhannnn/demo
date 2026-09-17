@@ -1,5 +1,5 @@
 // EventBridge consumers — turn CRM and calling-service events into jobs or
-// job outcomes. Payload shapes: docs/CONTRACTS.md section 1.
+// job outcomes. Payload shapes: docs/agency-app/followup-agent/CONTRACTS.md section 1.
 //
 // Errors are deliberate: a SchedulingError (business reason not to call) is
 // logged and swallowed, while a transport failure (CRM unreachable) is thrown

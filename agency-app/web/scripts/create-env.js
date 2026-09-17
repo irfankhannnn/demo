@@ -18,7 +18,7 @@ function question(query) {
 
 async function main() {
   console.log('\n🚀 Real Estate CRM - Environment Setup\n');
-  console.log('This CRM app uses the SHARED backend from ../server\n');
+  console.log('This CRM app uses the SHARED backend from ../api\n');
   
   const defaultApiDomain = 'http://localhost:4000';
   const defaultApiBasePath = '';
@@ -41,7 +41,7 @@ async function main() {
   const finalPort = portInput.trim() || defaultPort;
   
   const envContent = `# CRM Frontend Environment
-# Points to the SHARED backend in ../server
+# Points to the SHARED backend in ../api
 
 # CRM API: custom domain + base path (the app appends /api itself)
 VITE_CRM_API_DOMAIN_NAME=${apiDomain}
@@ -70,7 +70,7 @@ VITE_PORT=${finalPort}
   console.log('  Password: admin123');
   console.log('\n⚠️  Change password after first login via Settings page.');
   console.log('\n📌 Make sure the shared backend is running:');
-  console.log('  cd ../server && npm run dev\n');
+  console.log('  cd ../api && npm run dev\n');
   
   rl.close();
 }

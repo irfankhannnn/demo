@@ -1,6 +1,6 @@
 // ai-calling-service client — places the actual phone call.
 //
-// Payload: docs/CONTRACTS.md section 2.1. Authenticated with
+// Payload: docs/agency-app/followup-agent/CONTRACTS.md section 2.1. Authenticated with
 // AI_CALLING_CALLER_API_KEY (== that service's CRM_CALLER_API_KEY), a
 // tenant-crossing credential; x-tenant-id scopes each request.
 

@@ -25,8 +25,8 @@ You are the review gate. `pr-commander` keeps only the "update the docs after a 
 ## Codebase shape
 
 - `agency-app/api/`: Node/Express on Lambda + API Gateway. CommonJS, `*DynamodbService.js` data modules, `routes/` per resource, `middleware/` for auth, tenancy and credit metering. REST paths are `/api/crm/<resource>`.
-- `agency-app/web/`, `apps/onboarding/`, `agency-app/landing-pages/`, `public-app/property-pages/`: React + TypeScript + Vite, TailwindCSS, TypeScript **strict** mode.
-- `apps/instagram/{backend,frontend}_insta_sol_ms/`: Instagram lead console and API. Graph API only — browser scraping of instagram.com is forbidden.
+- `agency-app/web/`, `agency-app/landing-pages/`, `public-app/property-pages/`: React + TypeScript + Vite, TailwindCSS, TypeScript **strict** mode.
+- `agency-app/instagram-api/` and `agency-app/instagram-web/`: Instagram lead console and API. Graph API only — browser scraping of instagram.com is forbidden.
 - `services/*`: standalone backends; `reality-flow-authentication` and `reality-flow-mcp` are TypeScript.
 - Error responses follow `{ error: string, details?: string }`.
 

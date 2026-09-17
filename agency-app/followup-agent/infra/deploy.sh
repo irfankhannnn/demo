@@ -325,7 +325,7 @@ cat <<EOF
 The CRM reaches this service at
   https://${FOLLOWUP_API_DOMAIN_NAME}/${FOLLOWUP_API_BASE_PATH}
 Set FOLLOWUP_SERVICE_DOMAIN_NAME / FOLLOWUP_SERVICE_BASE_PATH in agency-app/api/.env.${DEPLOY_ENV}
-to those two values (see docs/RUNBOOK.md).
+to those two values (see docs/agency-app/followup-agent/RUNBOOK.md).
 EOF
 
 echo ""

@@ -15,7 +15,7 @@
  *    key in a `/api/crm/*` request body is dropped before the route sees it,
  *    so a masked user's save can never overwrite a real number with stars.
  *
- * How it is wired (see docs/PHONE-MASKING-AND-CLICK-TO-CALL.md):
+ * How it is wired (see docs/agency-app/api/PHONE-MASKING-AND-CLICK-TO-CALL.md):
  *
  *   app.use('/api/crm', phoneMaskingMiddleware());   // BEFORE any /api/crm router
  *

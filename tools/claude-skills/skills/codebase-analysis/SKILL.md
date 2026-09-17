@@ -65,5 +65,5 @@ Output a structured report:
 ```
 
 ## Additional Resources
-- For architecture decisions, see [architecture-template.md](../templates/pr-review-template.md)
+- For architecture decisions, see [architecture-template.md](../../templates/pr-review-template.md)
 - For security concerns, delegate to the `sentry` agent

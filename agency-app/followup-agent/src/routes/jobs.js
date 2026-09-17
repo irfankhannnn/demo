@@ -1,4 +1,4 @@
-// Job management routes — called by the CRM backend only (docs/CONTRACTS.md §4).
+// Job management routes — called by the CRM backend only (docs/agency-app/followup-agent/CONTRACTS.md §4).
 
 import express from 'express';
 import * as engine from '../domain/jobEngine.js';

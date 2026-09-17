@@ -1,7 +1,7 @@
 {
   "version": "2.0.0",
-  "description": "Changed-path globs -> review agents for this repo (apps/, services/, infra/cicd/, docs/, tools/, marketing-and-sales/, .github/). Read only by scripts/route-agents.sh.",
-  "match_semantics": "Each pattern is matched with Python fnmatch.fnmatchcase against the whole repo-relative path (forward slashes). '*' also matches '/'. There is no substring matching: 'apps/*' matches agency-app/api/x.js but not docs/apps/x.md, and 'app/*' would not match apps/.",
+  "description": "Changed-path globs -> review agents for this repo (platform/, public-app/, agency-app/, infra/cicd/, docs/, tools/, marketing-and-sales/, .github/). Read only by scripts/route-agents.sh.",
+  "match_semantics": "Each pattern is matched with Python fnmatch.fnmatchcase against the whole repo-relative path (forward slashes). '*' also matches '/'. There is no substring matching: 'agency-app/*' matches agency-app/api/x.js but not docs/agency-app/x.md, and 'agency/*' would not match agency-app/.",
   "docs_only_globs": [
     "docs/*",
     "marketing-and-sales/*",
@@ -70,8 +70,9 @@
     },
     "sre-observability": {
       "patterns": [
-        "apps/*",
-        "services/*",
+        "platform/*",
+        "public-app/*",
+        "agency-app/*",
         "infra/cicd/common-infra/*"
       ],
       "exclude": ["*.md", "*.test.*", "*.spec.*", "*.sample", "*.env*", "*package.json", "*package-lock.json", "*/infra/*.sh", "*/infra/lib/*", "*/node_modules/*", "*/dist/*"]
@@ -89,21 +90,30 @@
     },
     "principal-engineer": {
       "patterns": [
-        "apps/*.js",
-        "apps/*.mjs",
-        "apps/*.cjs",
-        "apps/*.ts",
-        "apps/*.tsx",
-        "apps/*.jsx",
-        "apps/*.py",
-        "services/*.js",
-        "services/*.mjs",
-        "services/*.cjs",
-        "services/*.ts",
-        "services/*.tsx",
-        "services/*.py",
-        "apps/*package.json",
-        "services/*package.json",
+        "platform/*.js",
+        "platform/*.mjs",
+        "platform/*.cjs",
+        "platform/*.ts",
+        "platform/*.tsx",
+        "platform/*.jsx",
+        "platform/*.py",
+        "public-app/*.js",
+        "public-app/*.mjs",
+        "public-app/*.cjs",
+        "public-app/*.ts",
+        "public-app/*.tsx",
+        "public-app/*.jsx",
+        "public-app/*.py",
+        "agency-app/*.js",
+        "agency-app/*.mjs",
+        "agency-app/*.cjs",
+        "agency-app/*.ts",
+        "agency-app/*.tsx",
+        "agency-app/*.jsx",
+        "agency-app/*.py",
+        "platform/*package.json",
+        "public-app/*package.json",
+        "agency-app/*package.json",
         "tests/*.ts",
         "tests/*.js"
       ],
@@ -111,7 +121,7 @@
     }
   },
   "file_categories": {
-    "application": ["apps/*", "services/*"],
+    "application": ["platform/*", "public-app/*", "agency-app/*"],
     "infrastructure": ["*/infra/*.yaml", "*/infra/*.yml", "infra/cicd/common-infra/*", "*/Dockerfile", "*/docker-compose.yml"],
     "cicd": [".github/workflows/*", "infra/cicd/*", "*/infra/*.sh", "*/infra/lib/*"],
     "database": ["*/infra/launch-tables*", "infra/cicd/agency-app/launch-tables/*", "*[Dd]ynamo[Dd][Bb]*"],

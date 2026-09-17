@@ -26,7 +26,7 @@ Do not just review code style. From the diff, determine:
 - **Region:** AWS `ap-south-1`. Accounts are separate for dev and prod.
 - **CRM API:** Node/Express on Lambda + API Gateway, `agency-app/api/`. API Gateway routes are explicit CFN methods in `agency-app/api/infra/apigw-explicit-routes*.yaml`.
 - **CRM web:** React + Vite + TypeScript (also packaged with Capacitor for Android), `agency-app/web/`, served from S3 + CloudFront.
-- **Other apps:** `apps/instagram/{backend,frontend}_insta_sol_ms/` (Instagram lead service, Graph API only), `apps/onboarding/`, `agency-app/landing-pages/`, `public-app/property-pages/`.
+- **Other apps:** `agency-app/instagram-api/` + `agency-app/instagram-web/` (Instagram lead service, Graph API only), `agency-app/landing-pages/`, `public-app/property-pages/`.
 - **Services:** `agency-app/ai-calling/` (Lambda, Exotel + ElevenLabs), `agency-app/followup-agent/`, `platform/auth/` (TypeScript, Cognito), `platform/mcp/` (MCP server), `platform/whatsapp-platform/` (ECS Fargate, Dockerfile + docker-compose).
 - **Data:** DynamoDB only. Single-table design with a `TENANT#` partition-key prefix for multi-tenancy, GSIs, `PAY_PER_REQUEST` billing. Tables are defined in CloudFormation (for example `agency-app/api/infra/launch-tables-cfn.yaml`). There is no SQL database, ORM or migration framework. CRM data is never deleted; designs archive instead.
 - **IaC:** CloudFormation only, `<app-or-service>/infra/*.yaml`, plus the shared VPC in `infra/cicd/common-infra/vpc-networking.yaml` (3 NAT gateways). No Kubernetes, Helm, Terraform, CDK, SAM or Serverless Framework.

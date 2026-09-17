@@ -58,7 +58,6 @@ Use `file_groups` from `agent-routing.json`. The categories come from `config/ag
 - `agency-app/instagram-api/`, `agency-app/instagram-web/`: Instagram lead service
 - `public-app/property-pages/`: public property pages
 - `agency-app/landing-pages/`: marketing site
-- `apps/onboarding/`: onboarding flow
 - `agency-app/ai-calling/`: AI calling (Exotel + ElevenLabs)
 - `agency-app/followup-agent/`: follow-up agent
 - `platform/auth/`: auth (TypeScript, Cognito)

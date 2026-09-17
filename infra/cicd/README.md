@@ -59,17 +59,17 @@ location" table reflects the new interface.
 
 | Local template | Deployed AWS stack | Match status |
 |---|---|---|
-| `server/cfn-backend.yaml` | `cloudberry-dev-real-estate-agency` | ⚠️ Ahead of live stack — Call Intelligence resources (SQS queue/DLQ, worker Lambda, ~15 params) from PR #40 + #39's AI-calling params not yet deployed. See Discrepancy 7 |
-| `server/apigw-explicit-routes-part1.yaml` | nested `PublicApiResourcesStack` + `CrmApiResourcesStackV2` | ✅ identical |
-| `server/apigw-explicit-routes-part2.yaml` | nested `PublicApiResourcesStackPart2` + `CrmApiResourcesStackPart2` | ✅ identical |
-| `agency-app/ai-calling/cfn-template.yaml` | `cloudberry-dev-ai-calling-service` | ✅ identical |
-| `platform/mcp/cfn-backend.yaml` | `dev-realestate-flow-mcp-stack` | ✅ identical |
-| `platform/auth/cfn-backend.yaml` | `dev-reality-flow-auth-stack` | ✅ identical |
-| `platform/auth/auth-explicit-routes.yaml` | nested `ApiGatewayRoutesStack` (under `dev-reality-flow-auth-stack`) | ✅ identical |
-| `platform/whatsapp-platform/cfn-platform.yaml` | `dev-realestate-flow-whatsapp-platform` | ✅ identical |
-| `server/launch-tables-cfn.yaml` | *(none — see Discrepancy 1)* | ❌ no live stack |
-| `server/apigw-explicit-routes.yaml` | *(none directly — superseded by the part1/part2 split)* | ℹ️ source file for `split-apigw-routes.py`, not deployed on its own |
-| `agency-app/web/cfn-frontend.yaml` | *(none)* | ❌ no live stack — never deployed (new in PR #37, see Discrepancy 7) |
+| `agency-app/api/infra/cfn-backend.yaml` | `cloudberry-dev-real-estate-agency` | ⚠️ Ahead of live stack — Call Intelligence resources (SQS queue/DLQ, worker Lambda, ~15 params) from PR #40 + #39's AI-calling params not yet deployed. See Discrepancy 7 |
+| `agency-app/api/infra/apigw-explicit-routes-part1.yaml` | nested `PublicApiResourcesStack` + `CrmApiResourcesStackV2` | ✅ identical |
+| `agency-app/api/infra/apigw-explicit-routes-part2.yaml` | nested `PublicApiResourcesStackPart2` + `CrmApiResourcesStackPart2` | ✅ identical |
+| `agency-app/ai-calling/infra/cfn-ai-calling.yaml` | `cloudberry-dev-ai-calling-service` | ✅ identical |
+| `platform/mcp/infra/cfn-backend.yaml` | `dev-realestate-flow-mcp-stack` | ✅ identical |
+| `platform/auth/infra/cfn-backend.yaml` | `dev-reality-flow-auth-stack` | ✅ identical |
+| `platform/auth/infra/auth-explicit-routes.yaml` | nested `ApiGatewayRoutesStack` (under `dev-reality-flow-auth-stack`) | ✅ identical |
+| `platform/whatsapp-platform/infra/cfn-platform.yaml` | `dev-realestate-flow-whatsapp-platform` | ✅ identical |
+| `agency-app/api/infra/launch-tables-cfn.yaml` | *(none — see Discrepancy 1)* | ❌ no live stack |
+| `agency-app/api/infra/apigw-explicit-routes.yaml` | *(none directly — superseded by the part1/part2 split)* | ℹ️ source file for `split-apigw-routes.py`, not deployed on its own |
+| `agency-app/web/infra/cfn-frontend.yaml` | *(none)* | ❌ no live stack — never deployed (new in PR #37, see Discrepancy 7) |
 
 "Identical" means a full structural diff (Parameters block, Resources block, and every resource's properties, normalized through a CFN-aware YAML parser) found zero differences between the checked-in template and the template CloudFormation is currently running.
 
@@ -109,7 +109,7 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 
 - **`server/cfn-backend.yaml`** gained a whole new "Call Intelligence" section: `CallRecordingDlq` + `CallRecordingQueue` (SQS), a worker Lambda, supporting IAM policies, and ~15 new parameters (`AsrProvider`, `TranscribeLanguageOptions`, `CallIntelWorkerMemorySize`, etc. — full list in the file), plus `AiCallingInternalApiKey`/`AiCallingServiceUrl` from PR #39. **Verified via `describe-stack-resources`: `CallRecordingQueue` does not exist on the live `cloudberry-dev-real-estate-agency` stack** — this feature has never been deployed.
 - **`server/cfn-params.sample.json`** and **`server/deploy.sh`** gained matching entries for all the same new parameters, plus `deploy.sh` now also refreshes a `<env>-real-estate-call-recording-worker` Lambda (if it exists) on code-only deploys, and includes `workers/` in the Lambda zip.
-- **`agency-app/web/`** (S3 + CloudFront static frontend hosting — `cfn-frontend.yaml`, `deploy.ps1`, `README.md`) is entirely new to this registry; it didn't exist in the source branch at all. **Verified via `list-stacks`: no `crm-frontend` stack exists in the account** — never deployed. Its `deploy.ps1` had the same self-relative-path fragility as the others; fixed the same way (`$projectDir` now resolves explicitly to `../../real-estate-crm-app`).
+- **`agency-app/web/`** (S3 + CloudFront static frontend hosting — `cfn-frontend.yaml`, `deploy.sh`, `README.md`) is entirely new to this registry; it didn't exist in the source branch at all. **Verified via `list-stacks`: no `crm-frontend` stack exists in the account** — never deployed. Its deploy script had the same self-relative-path fragility as the others; the wrapper now resolves `SERVICE_DIR` to `../../../../agency-app/web`.
 - `agency-app/web/package.json` on `main` wires `npm run deploy:nonprod`/`deploy:prod` to the old `infra/deploy.ps1` path — this repo's copy of `package.json` predates that PR and doesn't have the scripts yet, so there was nothing to fix here, but it will need the same path update once `main` is merged into this branch.
 
 **Recommendation:** before running `server/deploy.sh` against the live `cloudberry-dev-real-estate-agency` stack again, be aware it will now also create the Call Intelligence SQS queues, IAM policies, and worker Lambda — review the new resources and required env vars (`AI_CALLING_INTERNAL_API_KEY`, `AI_CALLING_SERVICE_URL`, `ASR_PROVIDER`, etc.) first. Deploy `agency-app/web/cfn-frontend.yaml` separately/independently whenever frontend hosting is ready to go live.
@@ -135,10 +135,10 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 
 | Service | Command | Notes |
 |---|---|---|
-| server | `cd infra/cicd/agency-app/api && ./deploy.sh` | Reads `.env` from `agency-app/api/`; toggle `DEPLOY_LAMBDA`/`DEPLOY_INSTALL`/`DEPLOY_ZIP`/`DEPLOY_CFN` at top of script. Now also provisions the Call Intelligence SQS/Lambda resources — see Discrepancy 7 before running against a live stack |
-| ai-calling-service | `cd infra/cicd/agency-app/ai-calling && ./deploy-lambda.ps1` | Packages source from `agency-app/ai-calling/` via the new `-SourceDir` param (auto-resolved); pass CLI params for secrets rather than relying on the hardcoded defaults in the script |
-| real-estate-crm-app | `cd infra/cicd/agency-app/web && .\deploy.ps1 -Environment nonprod` | Builds + deploys the frontend from `agency-app/web/`; reads `.env.<Environment>` there; never deployed yet — see Discrepancy 7 |
-| reality-flow-authentication | `cd infra/cicd/platform/auth && ./deploy.sh` | Reads `.env` from `platform/auth/` |
-| reality-flow-mcp | `cd infra/cicd/platform/mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `platform/mcp/`; supports `--skip-package` / `--skip-cfn` |
-| whatsapp-platform | `cd infra/cicd/platform/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `platform/whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `platform/whatsapp-platform/infra/` |
-| property-pages-ms | `cd infra/cicd/public-app/property-pages && ./deploy.sh <dev\|prod>` | Delegates to `public-app/property-pages/infra/deploy.sh`; records a numbered build and invalidates CloudFront (`/*`) when the stack has a distribution. Reads `.env.<env>` from `public-app/property-pages/`; `list`/`show`/`rollback-code`/`rollback-full` manage build history |
+| agency-app/api | `cd infra/cicd/agency-app/api && ./deploy.sh <dev\|prod>` | Reads `.env` from `agency-app/api/`; toggle `DEPLOY_LAMBDA`/`DEPLOY_INSTALL`/`DEPLOY_ZIP`/`DEPLOY_CFN` at top of script. Now also provisions the Call Intelligence SQS/Lambda resources — see Discrepancy 7 before running against a live stack |
+| agency-app/ai-calling | `cd infra/cicd/agency-app/ai-calling && ./deploy.sh <dev\|prod>` | Packages source from `agency-app/ai-calling/` via the new `-SourceDir` param (auto-resolved); pass CLI params for secrets rather than relying on the hardcoded defaults in the script |
+| agency-app/web | `cd infra/cicd/agency-app/web && ./deploy.sh <dev\|prod>` | Builds + deploys the frontend from `agency-app/web/`; reads `.env.<Environment>` there; never deployed yet — see Discrepancy 7 |
+| platform/auth | `cd infra/cicd/platform/auth && ./deploy.sh <dev\|prod>` | Reads `.env` from `platform/auth/` |
+| platform/mcp | `cd infra/cicd/platform/mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `platform/mcp/`; supports `--skip-package` / `--skip-cfn` |
+| platform/whatsapp-platform | `cd infra/cicd/platform/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `platform/whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `platform/whatsapp-platform/infra/` |
+| public-app/property-pages | `cd infra/cicd/public-app/property-pages && ./deploy.sh <dev\|prod>` | Delegates to `public-app/property-pages/infra/deploy.sh`; records a numbered build and invalidates CloudFront (`/*`) when the stack has a distribution. Reads `.env.<env>` from `public-app/property-pages/`; `list`/`show`/`rollback-code`/`rollback-full` manage build history |

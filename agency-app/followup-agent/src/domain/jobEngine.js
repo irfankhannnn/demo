@@ -6,7 +6,7 @@
 // what to do about it. That keeps retry/escalation behaviour unit-testable
 // without a phone or an LLM in the loop.
 //
-// State machine (docs/CONTRACTS.md section 4):
+// State machine (docs/agency-app/followup-agent/CONTRACTS.md section 4):
 //   scheduled → calling → connected → done | needs_human
 //   calling → not_reached → scheduled (retry) … → escalated
 //   any open → cancelled
@@ -145,7 +145,7 @@ export async function scheduleJob({
   return { job, duplicate };
 }
 
-/** What we hand ai-calling-service for one attempt (docs/CONTRACTS.md 2.1). */
+/** What we hand ai-calling-service for one attempt (docs/agency-app/followup-agent/CONTRACTS.md 2.1). */
 export function buildCallPayload(job, snapshot, attemptNumber) {
   const lead = snapshot.lead || {};
   const isPostVisit = job.jobType === JOB_TYPE.POST_VISIT_FEEDBACK;

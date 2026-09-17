@@ -23,7 +23,6 @@ Analyze the change-set context in: $ARGUMENTS
    - `agency-app/instagram-api/`, `agency-app/instagram-web/` — Instagram lead service (Graph API only)
    - `public-app/property-pages/` — public property pages
    - `agency-app/landing-pages/` — marketing site
-   - `apps/onboarding/` — onboarding flow
    - `agency-app/ai-calling/` — AI calling (Exotel + ElevenLabs)
    - `agency-app/followup-agent/` — follow-up agent
    - `platform/auth/` — auth (TypeScript, Cognito)

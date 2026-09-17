@@ -5,7 +5,7 @@
 // since these calls originate from another service, not a logged-in user.
 //
 // History: this router was fully built and working, then intentionally
-// disabled before launch to reduce surface area (see ../DISABLED_FEATURES.md).
+// disabled before launch to reduce surface area (see docs/agency-app/api/DISABLED_FEATURES.md).
 // It is re-enabled here as part of the Lead Temperature migration, which
 // reuses this calling infrastructure for Hot/Warm/Cold qualification calls
 // instead of building a new integration.

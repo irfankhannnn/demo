@@ -215,7 +215,7 @@ export async function notifyHotLead(tenantId, lead) {
  *
  * Deliberately never includes the lead's phone number in any outbound text:
  * team members see masked numbers in the CRM and call through click-to-call
- * (docs/PHONE-MASKING-AND-CLICK-TO-CALL.md), and an escalation email is the
+ * (docs/agency-app/api/PHONE-MASKING-AND-CLICK-TO-CALL.md), and an escalation email is the
  * easiest place to leak one by accident.
  *
  * @returns {Promise<{ notified: string[] }>} user ids the in-app notification targets

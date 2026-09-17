@@ -169,12 +169,12 @@ not vendored into this repo.
 ## Scripts (9 Scripts)
 | Script | Purpose |
 |--------|---------|
-| `scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |
-| `scripts/validate-readonly.sh` | Enforces read-only for research agents |
-| `scripts/run-lint-check.sh` | Post-edit linting for PR Commander |
-| `scripts/validate-ad-budget.sh` | Budget safety guard for Media Buyer |
-| `scripts/generate-image.ps1` | AI image generation (DALL-E 3 / Gemini Imagen) |
-| `scripts/render-remotion.ps1` | Remotion video rendering (local + Lambda) |
-| `scripts/elevenlabs-tts.ps1` | ElevenLabs voice generation |
-| `scripts/serpapi-scrape.ps1` | Google Maps agency scraping via SerpApi |
-| `scripts/sheets-update.ps1` | Pipeline tracking (JSON/CSV offline mode) |
+| `tools/claude-skills/scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |
+| `tools/claude-skills/scripts/validate-readonly.sh` | Enforces read-only for research agents |
+| `tools/claude-skills/scripts/run-lint-check.sh` | Post-edit linting for PR Commander |
+| `tools/claude-skills/scripts/validate-ad-budget.sh` | Budget safety guard for Media Buyer |
+| `tools/claude-skills/scripts/generate-image.ps1` | AI image generation (DALL-E 3 / Gemini Imagen) |
+| `tools/claude-skills/scripts/render-remotion.ps1` | Remotion video rendering (local + Lambda) |
+| `tools/claude-skills/scripts/elevenlabs-tts.ps1` | ElevenLabs voice generation |
+| `tools/claude-skills/scripts/serpapi-scrape.ps1` | Google Maps agency scraping via SerpApi |
+| `tools/claude-skills/scripts/sheets-update.ps1` | Pipeline tracking (JSON/CSV offline mode) |

@@ -1,6 +1,6 @@
 // CRM internal API client — lead snapshot, escalations, notes.
 //
-// Routes and payloads: docs/CONTRACTS.md section 3. Authenticated with
+// Routes and payloads: docs/agency-app/followup-agent/CONTRACTS.md section 3. Authenticated with
 // CRM_INTERNAL_API_KEY (== the CRM's FOLLOWUP_INTERNAL_API_KEY) plus an
 // explicit x-tenant-id header per request.
 //

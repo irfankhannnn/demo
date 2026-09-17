@@ -157,9 +157,9 @@ The server will start on `http://localhost:3001`
 The backend can send and receive WhatsApp messages via two modes:
 
 1. **Hosted (`BAILEY_MODE=hosted`)** — third-party `api.bailey.ai` service (paid/vendor).
-2. **Self-hosted (`BAILEY_MODE=selfhosted`)** — your own Baileys service in `../whatsapp-platform/` using the open-source `@whiskeysockets/baileys` library.
+2. **Self-hosted (`BAILEY_MODE=selfhosted`)** — your own Baileys service in `../../platform/whatsapp-platform/` using the open-source `@whiskeysockets/baileys` library.
 
-See [`../whatsapp-platform/README.md`](../../../platform/whatsapp-platform/README.md) for setup and deployment instructions.
+See [`../../platform/whatsapp-platform/README.md`](../../platform/whatsapp-platform/README.md) for setup and deployment instructions.
 
 # real-estate-backend
 

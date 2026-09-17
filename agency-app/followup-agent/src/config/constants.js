@@ -1,7 +1,7 @@
 // Follow-up Agent Service constants.
 //
 // Contracts with the CRM and ai-calling-service are documented in
-// docs/CONTRACTS.md — string values here must match that file.
+// docs/agency-app/followup-agent/CONTRACTS.md — string values here must match that file.
 
 export const JOB_TYPE = {
   SITE_VISIT_CONFIRMATION: 'site_visit_confirmation',
