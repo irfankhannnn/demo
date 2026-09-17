@@ -35,29 +35,29 @@ As a trial user on Day 12 of my 14-day free trial, I want a clear in-product ban
 
 ```
 You are a senior full-stack engineer + B2B SaaS conversion-rate-optimizer. Read inputs:
-- `apps/crm/server/routes/auth.js`
-- `apps/crm/server/routes/billing.js` (P11 created)
-- `apps/crm/server/subscriptionService.js` (P12 created)
-- `apps/crm/server/middleware/validateToken.js`
-- `apps/crm/real-estate-crm-app/src/App.tsx` (auth context, route patterns)
-- `apps/crm/real-estate-crm-app/src/pages/**/*.tsx`
-- `apps/crm/real-estate-crm-app/src/components/Header.tsx` (or wherever the top bar lives)
+- `agency-app/api/routes/auth.js`
+- `agency-app/api/routes/billing.js` (P11 created)
+- `agency-app/api/subscriptionService.js` (P12 created)
+- `agency-app/api/middleware/validateToken.js`
+- `agency-app/web/src/App.tsx` (auth context, route patterns)
+- `agency-app/web/src/pages/**/*.tsx`
+- `agency-app/web/src/components/Header.tsx` (or wherever the top bar lives)
 - `marketing-and-sales/launch-plan-v2/pricing.json`
 - `marketing-and-sales/launch-implement/pre-launch/02-pricing/page-copy.md` (P2 output — for FAQ snippets)
 
 Produce:
 
-## 1. Backend route `apps/crm/server/routes/subscriptions.js` — `GET /api/subscriptions/trial-status`
+## 1. Backend route `agency-app/api/routes/subscriptions.js` — `GET /api/subscriptions/trial-status`
 - validateToken + extractTenantId
 - Reads Subscriptions row + computes trialDaysLeft
 - Returns `{trialDaysLeft, trialEndsAt, plan, isPaying, gracePeriodActive, paymentStatus}`
 
-## 2. Frontend hook `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`
+## 2. Frontend hook `agency-app/web/src/hooks/useSubscription.ts`
 - Fetches /api/subscriptions/trial-status on mount + every 5 min
 - Caches in React context
 - Exposes `subscription, refetch, isPaying, isTrialing, trialDaysLeft, isTrialExpired`
 
-## 3. `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
+## 3. `agency-app/web/src/components/TrialCountdownBanner.tsx`
 - Reads useSubscription
 - Returns null if `isPaying` OR `trialDaysLeft > 7`
 - Banner styles:
@@ -66,7 +66,7 @@ Produce:
   - days == 0: don't render banner; PaywallModal handles
 - "Upgrade now" → opens PaywallModal
 
-## 4. `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
+## 4. `agency-app/web/src/components/PaywallModal.tsx`
 - Reads useSubscription
 - Renders if `isTrialExpired && !isPaying && !gracePeriodActive`
 - Modal blocks all routes EXCEPT (whitelist):
@@ -86,7 +86,7 @@ Produce:
   - On success: refetch subscription, close modal, navigate to previously-attempted route
   - On AI Employee toggle ON: chain a second Razorpay subscription for `ai_employee_addon` plan after main plan succeeds; on success, redirect to `/integrations/ai-employee` (concierge status page from P11)
 
-## 5. Razorpay Checkout helper `apps/crm/real-estate-crm-app/src/lib/razorpay.ts`
+## 5. Razorpay Checkout helper `agency-app/web/src/lib/razorpay.ts`
 - Loads Razorpay JS dynamically
 - `openCheckout({planId, name, email, prefill, onSuccess, onFailure, onDismiss})` — wraps Razorpay subscription checkout
 - Reads keys from `import.meta.env.VITE_RAZORPAY_KEY_ID`
@@ -104,7 +104,7 @@ Output `marketing-and-sales/launch-implement/pre-launch/14-paywall/trial-emails.
 
 Each email has: subject line (≤50 chars), preheader (≤90), body markdown, CTA URL, expected open rate target (35-50% for trial cohort).
 
-## 8. Backend cron `apps/crm/server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
+## 8. Backend cron `agency-app/api/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
 - Daily 09:00 IST: queries Subscriptions where `isTrialing && trialEndsAt - now between 4d and 4d+24h` → sends day-10 email
 - Same for day-12 (2d window) and day-14 (0-24h window)
 - Day-3-expiry: queries `isTrialExpired && now - trialEndsAt between 3d and 3d+24h && !isPaying`
@@ -147,19 +147,19 @@ Stop here. Do not deploy. Do not run real Razorpay payments.
 
 ## Inputs
 - `pricing.json`
-- `apps/crm/server/subscriptionService.js` (P12)
+- `agency-app/api/subscriptionService.js` (P12)
 - React component patterns
 - Razorpay test/live keys (P7)
 - Brevo API key
 
 ## Outputs
-- `apps/crm/server/routes/subscriptions.js`
-- `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`
-- `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx`
-- `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`
-- `apps/crm/real-estate-crm-app/src/lib/razorpay.ts`
+- `agency-app/api/routes/subscriptions.js`
+- `agency-app/web/src/hooks/useSubscription.ts`
+- `agency-app/web/src/components/TrialCountdownBanner.tsx`
+- `agency-app/web/src/components/PaywallModal.tsx`
+- `agency-app/web/src/lib/razorpay.ts`
 - `marketing-and-sales/launch-implement/pre-launch/14-paywall/trial-emails.md`
-- `apps/crm/server/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
+- `agency-app/api/scripts/trial-reminder-cron.js` + `cron/trial-reminder.yaml`
 - `tests/paywall.spec.ts`
 - Updated `pricing.json`
 

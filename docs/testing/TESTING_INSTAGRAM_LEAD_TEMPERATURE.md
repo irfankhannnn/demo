@@ -10,7 +10,7 @@ follow it end to end with real commands and expected output.
 
 ## 0. Prerequisites
 
-### Environment variables (`apps/crm/server/.env`)
+### Environment variables (`agency-app/api/.env`)
 
 ```bash
 CRM_DYNAMODB_TABLE_NAME=...
@@ -103,7 +103,7 @@ curl -X POST http://localhost:3000/api/webhooks/instagram/test-webhook-token-123
 
 ### 1e. Budget bracket parsing — check a few shapes manually
 
-`<50L` → 4,900,000 (lower bound minus 1L, conservative) · `50L-80L` → 5,000,000 · `1Cr+` → 10,000,000. If these look wrong for your actual ManyChat bracket copy, adjust `parseBudgetBracket()` in `apps/crm/server/routes/webhooks.js` — it's a pure function, easy to unit test in isolation.
+`<50L` → 4,900,000 (lower bound minus 1L, conservative) · `50L-80L` → 5,000,000 · `1Cr+` → 10,000,000. If these look wrong for your actual ManyChat bracket copy, adjust `parseBudgetBracket()` in `agency-app/api/routes/webhooks.js` — it's a pure function, easy to unit test in isolation.
 
 ### 1f. In-app notification fired
 
@@ -218,10 +218,10 @@ curl -X PATCH "http://localhost:3000/api/internal/leads/<leadId>/call-outcome" \
 
 ### 4b. With a deployed `ai-calling-service` — full loop
 
-1. Deploy `services/ai-calling-service/cfn-template.yaml` with real Exotel + ElevenLabs credentials.
+1. Deploy `agency-app/ai-calling/cfn-template.yaml` with real Exotel + ElevenLabs credentials.
 2. In the CRM UI, open a lead's detail page or drawer and click **"Call now to qualify"**.
 3. Expected: a toast "Qualification call started"; a real phone call should ring the lead's number within seconds.
-4. During the call, the agent should ask 2-3 short questions per the rubric (`apps/crm/server/utils/leadRubric.js`) and end within ~90 seconds.
+4. During the call, the agent should ask 2-3 short questions per the rubric (`agency-app/api/utils/leadRubric.js`) and end within ~90 seconds.
 5. After the call ends, poll the lead (`GET /api/crm/leads/<leadId>`) — `score` should update within a few seconds of the call ending. If it doesn't, check `ai-calling-service` logs for `Qualification call ended without a parseable result` — this means the agent didn't emit `[QUALIFICATION_RESULT: {...}]`; the lead stays unscored, which is the intended fail-safe (no guessing).
 
 ### Regression check — `aiEmployeeEnabled` gate
@@ -253,12 +253,12 @@ import('./server/scripts/lead-qualifier-handler.js').then(({handler}) =>
 
 ```bash
 # Dry run first — always
-node apps/crm/server/scripts/backfill-lead-temperature.js --tenant=<tenantId>
+node agency-app/api/scripts/backfill-lead-temperature.js --tenant=<tenantId>
 
 # Review the printed JSON summary: migrated / leftUnscored / skippedAlreadyScored counts
 
 # Then actually write
-node apps/crm/server/scripts/backfill-lead-temperature.js --apply --tenant=<tenantId>
+node agency-app/api/scripts/backfill-lead-temperature.js --apply --tenant=<tenantId>
 ```
 
 **Expected mapping** (conservative — nothing becomes HOT automatically):
@@ -308,6 +308,6 @@ Run it a second time (without `--apply`, or with) — leads that already have a 
 
 ## 9. Known follow-ups (not blocking, tracked as open items)
 
-- `services/ai-calling-service/cfn-template.yaml` doesn't wire a `WEBHOOK_BASE_URL` env var — pre-existing gap, needed before ElevenLabs intent webhooks work live, unrelated to this migration.
+- `agency-app/ai-calling/cfn-template.yaml` doesn't wire a `WEBHOOK_BASE_URL` env var — pre-existing gap, needed before ElevenLabs intent webhooks work live, unrelated to this migration.
 - No email notification for "new lead" to the tenant owner specifically (only in-app) — resolving a reliable owner-contact-email source (Subscriptions table) was deliberately deferred rather than guessed at.
 - Backfill's `high→WARM` / `medium→WARM` / `low→COLD` mapping is a starting judgment call — revisit after watching real qualification-call results for a few weeks.

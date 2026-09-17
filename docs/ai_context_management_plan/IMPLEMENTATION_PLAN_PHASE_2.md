@@ -1005,7 +1005,7 @@ test.describe('Context Management', () => {
 #### Task 2E.1: Update CloudFormation Templates
 **Objective:** Add new tables and configurations to CFN
 
-**Changes to `apps/crm/server/infra/cfn-backend.yaml`:**
+**Changes to `agency-app/api/infra/cfn-backend.yaml`:**
 
 1. Add ConversationStateTable
 2. Add environment variables for new features
@@ -1193,19 +1193,19 @@ function conversationStateUpdateFailure(tenantId, reason) {
 ## Appendix: Code References
 
 ### Key Files to Modify
-- `apps/crm/server/agents/prompts.js` - Personality injection
-- `apps/crm/server/agents/agentRuntime.js` - Context loading
-- `apps/crm/server/whatsappConversationService.js` - Conversation history
-- `apps/crm/server/skillInvoker.js` - Tool enhancement
-- `apps/crm/server/routes/aiEmployeeConfig.js` - Configuration
+- `agency-app/api/agents/prompts.js` - Personality injection
+- `agency-app/api/agents/agentRuntime.js` - Context loading
+- `agency-app/api/whatsappConversationService.js` - Conversation history
+- `agency-app/api/skillInvoker.js` - Tool enhancement
+- `agency-app/api/routes/aiEmployeeConfig.js` - Configuration
 - `tests/playwright/api/whatsapp.spec.ts` - New tests
 - `tests/playwright/api/ai-agent.spec.ts` - New tests
 - `tests/playwright/api/context-management.spec.ts` - New tests
 
 ### New Files to Create
-- `apps/crm/server/conversationStateService.js` - State management
+- `agency-app/api/conversationStateService.js` - State management
 - `.devin/ai-employee/` - Knowledge base directory
-- `apps/crm/server/infra/cfn-conversation-state.yaml` - CloudFormation
+- `agency-app/api/infra/cfn-conversation-state.yaml` - CloudFormation
 - `CONTEXT_MANAGEMENT_GUIDE.md` - Documentation
 
 ---

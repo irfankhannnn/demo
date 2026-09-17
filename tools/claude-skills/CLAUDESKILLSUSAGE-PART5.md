@@ -222,7 +222,7 @@ foreach ($city in $cities) {
 
 ## 12. AI Outbound Calling
 
-**Service:** `services/ai-calling-service/` | **Agent:** `orator` + `sdr`
+**Service:** `agency-app/ai-calling/` | **Agent:** `orator` + `sdr`
 **Backend:** Exotel (telephony) + ElevenLabs (AI voice) + RAG (knowledge base)
 **API:** `POST /api/ai-calling/calls/start`, `GET /api/ai-calling/calls/:id/status`
 
@@ -666,7 +666,7 @@ All outputs are saved under `marketing-and-sales/`:
 marketing-and-sales/
 ├── creative/
 │   ├── brand/          # Brand manifesto, guidelines, messaging
-│   ├── apps/landing-pages/  # HTML landing pages
+│   ├── agency-app/landing-pages/  # HTML landing pages
 │   ├── images/         # Generated banners, posts, ads
 │   ├── videos/         # Rendered MP4 videos
 │   └── media/          # YOUR uploaded photos/videos/audio

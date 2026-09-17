@@ -48,8 +48,8 @@ This plan covers **complete owner management**: CRUD, notes, properties lookup, 
 **Goal:** Create a normalization layer that enriches raw owner models with derived fields.
 
 ### Deliverables
-- `apps/crm/server/normalizers/ownerNormalizer.js`
-- Unit tests in `apps/crm/server/normalizers/ownerNormalizer.test.js`
+- `agency-app/api/normalizers/ownerNormalizer.js`
+- Unit tests in `agency-app/api/normalizers/ownerNormalizer.test.js`
 
 ### Responsibilities
 - Remove internal fields
@@ -116,8 +116,8 @@ Output:
 **Goal:** Create the projection layer that builds AI DTOs.
 
 ### Deliverables
-- `apps/crm/server/aiViewBuilders/ownerAIViewBuilder.js`
-- Unit tests in `apps/crm/server/aiViewBuilders/ownerAIViewBuilder.test.js`
+- `agency-app/api/aiViewBuilders/ownerAIViewBuilder.js`
+- Unit tests in `agency-app/api/aiViewBuilders/ownerAIViewBuilder.test.js`
 
 ### Responsibilities
 - Accept normalized owners.
@@ -141,7 +141,7 @@ Output:
 **Goal:** Separate business logic from the tool layer.
 
 ### Deliverables
-- `apps/crm/server/services/ownerService.js`
+- `agency-app/api/services/ownerService.js`
 - Unit tests
 
 ### Responsibilities
@@ -163,7 +163,7 @@ For the first iteration, this can be thin. Each method calls `crmDynamodbService
 
 **Goal:** Change all owner-related tools to use the new AI DTO pipeline.
 
-### Changes in `apps/crm/server/skillInvoker.js`
+### Changes in `agency-app/api/skillInvoker.js`
 
 Add missing tool schemas:
 - `update_owner_note`
@@ -217,7 +217,7 @@ Use `USE_AI_DTO_FOR_OWNERS=true` to enable the new path. Default to old behavior
 
 **Goal:** Simplify the WhatsApp system prompt now that the AI receives clean DTOs.
 
-### Changes to `apps/crm/server/agents/prompts.js`
+### Changes to `agency-app/api/agents/prompts.js`
 
 Remove:
 - JSON output requirement
@@ -370,7 +370,7 @@ If Phase E (wiring `search_owners`) causes problems in production:
 2. Use a feature flag or environment variable to toggle between old and new behavior:
    - `USE_AI_DTO_FOR_OWNERS=true` enables the new path.
    - `USE_AI_DTO_FOR_OWNERS=false` reverts to the original path.
-3. In `apps/crm/server/skillInvoker.js`, branch on the flag:
+3. In `agency-app/api/skillInvoker.js`, branch on the flag:
    ```js
    if (process.env.USE_AI_DTO_FOR_OWNERS === 'true') {
      return OwnerAIViewBuilder.buildSearchResults(...);

@@ -124,7 +124,7 @@
 ### Team 1: Builders (Engineering & QA)
 | Agent | Title | Responsibilities | Tools | Reports To | Owns |
 |-------|-------|------------------|-------|------------|------|
-| **architect** | Senior Software Architect | Codebase analysis, module planning, design decisions | Read, Grep, Bash, Write, Edit | orchestrator | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
+| **architect** | Senior Software Architect | Codebase analysis, module planning, design decisions | Read, Grep, Bash, Write, Edit | orchestrator | `agency-app/web/src/`, `agency-app/api/`, `agency-app/ai-calling/` |
 | **sentry** | Security Specialist | Vulnerability scanning, JWT auth, encryption, secret detection | Read, Grep, Glob, Bash | orchestrator | Auth & API security |
 | **pr-commander** | PR Review Specialist | Code quality, performance, test coverage, documentation | Read, Grep, Glob, Bash, Write, Edit | orchestrator | PR quality gates |
 

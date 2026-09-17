@@ -5,7 +5,7 @@
 1. Each batch is a group of PRs that can be worked on **in parallel** — agents start at the same time
 2. A batch starts only after ALL PRs from the previous batch are **merged to main**
 3. Each PR has a precise file ownership list — agents only touch their owned files
-4. `apps/crm/server/server.js` and `App.tsx` are modified by multiple PRs — agents use tagged comment blocks (see `00-MASTER-BRIEF.md §11, §12`)
+4. `agency-app/api/server.js` and `App.tsx` are modified by multiple PRs — agents use tagged comment blocks (see `00-MASTER-BRIEF.md §11, §12`)
 5. The Founder reviews and merges each batch before starting the next
 
 ---
@@ -14,7 +14,7 @@
 
 The Founder must add placeholder extension blocks to 2 shared files so agents can insert without conflicts:
 
-### apps/crm/server/server.js — add these 2 tagged blocks (one at import section, one at routes section):
+### agency-app/api/server.js — add these 2 tagged blocks (one at import section, one at routes section):
 
 ```js
 // === [LAUNCH ROUTES IMPORTS] ===
@@ -60,19 +60,19 @@ And inside the authenticated layout wrapper (around where `<TrialCountdownBanner
 
 **Creates (new files only):**
 ```
-apps/crm/server/scripts/seed-demo-tenant.js
-apps/crm/server/scripts/reset-demo-tenant.js
+agency-app/api/scripts/seed-demo-tenant.js
+agency-app/api/scripts/reset-demo-tenant.js
 cron/reset-demo.yaml
-apps/crm/real-estate-crm-app/src/components/DemoBanner.tsx
+agency-app/web/src/components/DemoBanner.tsx
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → Add <DemoBanner /> inside {/* === [LAUNCH LAYOUT COMPONENTS] === */} block
 ```
 
-**Does NOT touch:** `apps/crm/server/server.js`, any other existing file
+**Does NOT touch:** `agency-app/api/server.js`, any other existing file
 
 ---
 
@@ -83,19 +83,19 @@ apps/crm/real-estate-crm-app/src/App.tsx
 
 **Creates (new files only):**
 ```
-apps/crm/server/routes/grievance.js
-apps/crm/server/grievanceDynamodbService.js
-apps/crm/real-estate-crm-app/src/pages/public/Grievance.tsx
-apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx
+agency-app/api/routes/grievance.js
+agency-app/api/grievanceDynamodbService.js
+agency-app/web/src/pages/public/Grievance.tsx
+agency-app/web/src/pages/admin/GrievanceList.tsx
 tests/grievance.spec.ts
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/server/server.js
+agency-app/api/server.js
   → {LAUNCH ROUTES IMPORTS} block: add import
   → {LAUNCH ROUTES MOUNTS} block: add mount
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → {LAUNCH PUBLIC ROUTES}: add /grievance route
   → {LAUNCH PROTECTED ROUTES}: add /admin/grievances route
 ```
@@ -110,13 +110,13 @@ apps/crm/real-estate-crm-app/src/App.tsx
 **Creates (new files only):**
 ```
 creative/landing-pages/_partials/cookie-banner.html
-apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx
+agency-app/web/src/components/CookieConsentBanner.tsx
 tests/cookie-consent.spec.ts
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → {LAUNCH LAYOUT COMPONENTS}: add <CookieConsentBanner /> (before DemoBanner)
 ```
 
@@ -168,21 +168,21 @@ creative/landing-pages/netlify.toml
 
 **Creates (new files only):**
 ```
-apps/crm/real-estate-crm-app/src/lib/analytics.ts
+agency-app/web/src/lib/analytics.ts
 creative/landing-pages/_partials/head-analytics.hbs
-apps/crm/server/lib/posthog.js
+agency-app/api/lib/posthog.js
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/real-estate-crm-app/src/main.tsx
+agency-app/web/src/main.tsx
   → Add PostHog init (import analytics.ts; call initAnalytics())
   → Add Sentry init
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → In initAuth callback: add identifyUser(userId, traits) call after auth confirmed
 ```
 
-**Does NOT touch:** `apps/crm/server/server.js`, any pages
+**Does NOT touch:** `agency-app/api/server.js`, any pages
 
 ---
 
@@ -194,22 +194,22 @@ apps/crm/real-estate-crm-app/src/App.tsx
 
 **Creates (new files only):**
 ```
-apps/crm/server/routes/billing.js
-apps/crm/server/routes/aiEmployeeStatus.js
-apps/crm/server/aiEmployeeProvisioningService.js
-apps/crm/server/scripts/escalation-cron.js
+agency-app/api/routes/billing.js
+agency-app/api/routes/aiEmployeeStatus.js
+agency-app/api/aiEmployeeProvisioningService.js
+agency-app/api/scripts/escalation-cron.js
 cron/escalate-openclaw.yaml
-apps/crm/real-estate-crm-app/src/pages/crm/AIEmployeeStatus.tsx
-apps/crm/server/middleware/apiKeyAuth.js
+agency-app/web/src/pages/crm/AIEmployeeStatus.tsx
+agency-app/api/middleware/apiKeyAuth.js
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/server/server.js
+agency-app/api/server.js
   → {LAUNCH ROUTES IMPORTS}: add billing + aiEmployeeStatus imports
   → {LAUNCH ROUTES MOUNTS}: add /api/billing/webhook mount (MUST be before validateToken)
   →                          add /api/ai-employee route mount (after auth middleware)
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → {LAUNCH PROTECTED ROUTES}: add /integrations/ai-employee route
 ```
 
@@ -243,30 +243,30 @@ marketing-and-sales/launch-implement/pre-launch/13-security/sentry-cloudwatch-al
 
 **Creates (new files only):**
 ```
-apps/crm/server/subscriptionService.js
-apps/crm/server/routes/subscriptions.js
-apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx
-apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx
-apps/crm/server/scripts/backfill-seats-paid.js
+agency-app/api/subscriptionService.js
+agency-app/api/routes/subscriptions.js
+agency-app/web/src/components/SeatCounter.tsx
+agency-app/web/src/components/SeatUpgradeModal.tsx
+agency-app/api/scripts/backfill-seats-paid.js
 tests/seat-cap.spec.ts
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/server/server.js
+agency-app/api/server.js
   → {LAUNCH ROUTES IMPORTS}: add subscriptions import
   → {LAUNCH ROUTES MOUNTS}: add /api/subscriptions mount
-apps/crm/server/routes/billing.js  ← PR-F created this; PR-H adds ONE branch to existing webhook handler
+agency-app/api/routes/billing.js  ← PR-F created this; PR-H adds ONE branch to existing webhook handler
   → In subscription.updated branch: add call to incrementSeatsPaid()
   → Do NOT rewrite the file — add ONE case block only
-apps/crm/server/routes/auth.js    ← add seat check in invite creation handler ONLY
+agency-app/api/routes/auth.js    ← add seat check in invite creation handler ONLY
   → Find the invite-creation POST handler
   → Add getSubscription check BEFORE invite creation
   → Return 402 with upgradeOptions if seatsUsed >= seatsPaid
-apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx
+agency-app/web/src/pages/admin/InviteManagement.tsx
   → Add <SeatCounter /> import + mount at top of page
   → Wrap "Invite Member" button: disable when at cap + open SeatUpgradeModal on 402
-apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx
+agency-app/web/src/pages/admin/MemberManagement.tsx
   → Same SeatCounter mount
 ```
 
@@ -305,7 +305,7 @@ creative/landing-pages/sitemap.xml       (PR-D created stub; PR-I fills real URL
 creative/landing-pages/llms.txt          (PR-D created stub; PR-I fills AEO answer page links)
 ```
 
-**Does NOT touch:** Any `apps/crm/server/` or `apps/crm/real-estate-crm-app/` files
+**Does NOT touch:** Any `agency-app/api/` or `agency-app/web/` files
 
 ---
 
@@ -319,12 +319,12 @@ creative/landing-pages/llms.txt          (PR-D created stub; PR-I fills AEO answ
 
 **Creates (new files only):**
 ```
-apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts
-apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx
-apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx
-apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx
-apps/crm/real-estate-crm-app/src/lib/razorpay.ts
-apps/crm/server/scripts/trial-reminder-cron.js
+agency-app/web/src/hooks/useSubscription.ts
+agency-app/web/src/contexts/SubscriptionContext.tsx
+agency-app/web/src/components/TrialCountdownBanner.tsx
+agency-app/web/src/components/PaywallModal.tsx
+agency-app/web/src/lib/razorpay.ts
+agency-app/api/scripts/trial-reminder-cron.js
 cron/trial-reminder.yaml
 marketing-and-sales/launch-implement/pre-launch/14-paywall/trial-emails.md
 tests/paywall.spec.ts
@@ -332,9 +332,9 @@ tests/paywall.spec.ts
 
 **Modifies (exact location):**
 ```
-apps/crm/server/routes/subscriptions.js  ← PR-H created this
+agency-app/api/routes/subscriptions.js  ← PR-H created this
   → Add GET /api/subscriptions/trial-status endpoint
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → {LAUNCH LAYOUT COMPONENTS}: add <TrialCountdownBanner /> + <PaywallModal />
   → Wrap authenticated routes in <SubscriptionContext.Provider>
 ```
@@ -349,17 +349,17 @@ apps/crm/real-estate-crm-app/src/App.tsx
 
 **Creates (new files only):**
 ```
-apps/crm/server/routes/feedback.js
-apps/crm/real-estate-crm-app/src/components/NpsModal.tsx
+agency-app/api/routes/feedback.js
+agency-app/web/src/components/NpsModal.tsx
 tests/nps.spec.ts
 ```
 
 **Modifies (exact location):**
 ```
-apps/crm/server/server.js
+agency-app/api/server.js
   → {LAUNCH ROUTES IMPORTS}: add feedback import
   → {LAUNCH ROUTES MOUNTS}: add /api/feedback mount
-apps/crm/real-estate-crm-app/src/App.tsx
+agency-app/web/src/App.tsx
   → {LAUNCH LAYOUT COMPONENTS}: add <NpsModal /> (triggers after 14 days)
   → {LAUNCH PUBLIC ROUTES}: add /nps (email link NPS landing page)
 ```
@@ -380,14 +380,14 @@ apps/crm/real-estate-crm-app/src/App.tsx
 
 **Modifies (exact location):**
 ```
-apps/crm/server/routes/auth.js
+agency-app/api/routes/auth.js
   → In the register/signup success handler: add Brevo contact POST (list: BREVO_TRIAL_LIST_ID)
-  → Add PostHog server-side signup_completed event via apps/crm/server/lib/posthog.js
-apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx
+  → Add PostHog server-side signup_completed event via agency-app/api/lib/posthog.js
+agency-app/web/src/pages/PhoneLogin.tsx
   → On mount: read utm_source, utm_campaign, utm_medium from window.location.search
   → Store to sessionStorage keys: 'utm_source', 'utm_campaign', 'utm_medium'
   → Pass utm_source as property to trackEvent('signup_started')
-apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx (or wherever final registration completes)
+agency-app/web/src/pages/RegisterAdmin.tsx (or wherever final registration completes)
   → After successful registration: call identifyUser(userId, {...traits, utm_source: sessionStorage.getItem('utm_source')})
   → Clear sessionStorage UTM keys after identify
 ```

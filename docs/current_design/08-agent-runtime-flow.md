@@ -1,6 +1,6 @@
 # Agent Runtime Flow (Bonus)
 
-Source: `apps/crm/server/scripts/whatsapp-message-processor.js`, `apps/crm/server/agents/agentRuntime.js`, `apps/crm/server/agents/responseFormatter.js`
+Source: `agency-app/api/scripts/whatsapp-message-processor.js`, `agency-app/api/agents/agentRuntime.js`, `agency-app/api/agents/responseFormatter.js`
 
 End-to-end path from WhatsApp message to reply.
 

@@ -4,8 +4,8 @@
 **Base branch:** `main` (after Batch 2 is merged)
 **Batch:** 3 (Day 3) — runs in parallel with PR-I
 **Hard dependencies:**
-- PR-F merged (`apps/crm/server/routes/billing.js` exists — you add to it)
-- Batch 1 merged (`apps/crm/server/routes/auth.js` extension point must exist)
+- PR-F merged (`agency-app/api/routes/billing.js` exists — you add to it)
+- Batch 1 merged (`agency-app/api/routes/auth.js` extension point must exist)
 
 ---
 
@@ -13,10 +13,10 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§1.5 Subscriptions table)
-3. `apps/crm/server/routes/auth.js` (find the invite-creation handler)
-4. `apps/crm/server/routes/billing.js` (created by PR-F — understand the webhook structure to add seat increment)
-5. `apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx` (you will modify this)
-6. `apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx` (you will modify this)
+3. `agency-app/api/routes/auth.js` (find the invite-creation handler)
+4. `agency-app/api/routes/billing.js` (created by PR-F — understand the webhook structure to add seat increment)
+5. `agency-app/web/src/pages/admin/InviteManagement.tsx` (you will modify this)
+6. `agency-app/web/src/pages/admin/MemberManagement.tsx` (you will modify this)
 7. `marketing-and-sales/launch-plan-v2/pricing.json` (seat limits + prices)
 8. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P12-seat-cap-enforcement.md`
 
@@ -24,7 +24,7 @@
 
 ## What to Build
 
-### 1. `apps/crm/server/subscriptionService.js`
+### 1. `agency-app/api/subscriptionService.js`
 
 DDB service for `Subscriptions` table. Schema from `01-SHARED-CONTRACTS.md §1.5`.
 
@@ -45,7 +45,7 @@ export async function recomputeSeatsUsed(tenantId)
 export async function createTrialSubscription(tenantId, plan = 'solo')
 ```
 
-### 2. `apps/crm/server/routes/subscriptions.js`
+### 2. `agency-app/api/routes/subscriptions.js`
 
 ```js
 // GET /api/subscriptions/current — validateToken + extractTenantId
@@ -56,7 +56,7 @@ export async function createTrialSubscription(tenantId, plan = 'solo')
 // trialDaysLeft = Math.ceil((trialEndsAt - Date.now()) / 86400000), clamped to 0 if negative
 ```
 
-### 3. Update `apps/crm/server/routes/auth.js` — invite creation handler ONLY
+### 3. Update `agency-app/api/routes/auth.js` — invite creation handler ONLY
 
 Find the POST endpoint that creates an invite/team member. Add seat cap check before the invite is created:
 
@@ -91,7 +91,7 @@ if (seatsUsed >= subscription.seatsPaid) {
 
 **Only add to the invite creation handler. Do not touch any other function in auth.js.**
 
-### 4. Update `apps/crm/server/routes/billing.js` — subscription.updated branch ONLY
+### 4. Update `agency-app/api/routes/billing.js` — subscription.updated branch ONLY
 
 In the existing `subscription.updated` case in the billing webhook (created by PR-F), add the seat increment call:
 
@@ -114,7 +114,7 @@ import { incrementSeatsPaid } from '../subscriptionService.js';
 
 **Only add to the subscription.updated case. Do not restructure billing.js.**
 
-### 5. `apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx`
+### 5. `agency-app/web/src/components/SeatCounter.tsx`
 
 Reusable component:
 - Fetches `GET /api/subscriptions/current` (wrapped in `useEffect`)
@@ -123,7 +123,7 @@ Reusable component:
 - "Add seats →" CTA button when at cap or 1 seat remaining
 - CTA triggers `SeatUpgradeModal`
 
-### 6. `apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx`
+### 6. `agency-app/web/src/components/SeatUpgradeModal.tsx`
 
 Modal triggered when: (a) 402 received from invite POST, (b) "Add seats" CTA in SeatCounter.
 
@@ -152,7 +152,7 @@ const [upgradeOptions, setUpgradeOptions] = useState(null);
 // Mount: <SeatUpgradeModal open={showUpgradeModal} options={upgradeOptions} onClose={() => setShowUpgradeModal(false)} />
 ```
 
-### 8. `apps/crm/server/scripts/backfill-seats-paid.js`
+### 8. `agency-app/api/scripts/backfill-seats-paid.js`
 
 Idempotent one-off script. For existing tenants, set `seatsPaid` based on plan:
 - `solo` → `seatsPaid = 1`
@@ -170,7 +170,7 @@ Idempotent one-off script. For existing tenants, set `seatsPaid` based on plan:
 
 ---
 
-## apps/crm/server/server.js Modification
+## agency-app/api/server.js Modification
 
 In `// === [LAUNCH ROUTES IMPORTS] ===`:
 ```js
@@ -199,7 +199,7 @@ In `{/* === [LAUNCH PROTECTED ROUTES] === */}`:
 
 ## What NOT to Touch
 
-- `apps/crm/server/aiEmployeeProvisioningService.js` (PR-F created this)
+- `agency-app/api/aiEmployeeProvisioningService.js` (PR-F created this)
 - `src/lib/razorpay.ts` (PR-J creates this; use window.Razorpay or link to /billing as fallback)
 - Any LP files
 
@@ -224,19 +224,19 @@ Batch 3 | Day 3 | Parallel with PR-I
 Depends on: PR-F merged (billing.js exists)
 
 Files created:
-- apps/crm/server/subscriptionService.js — Subscriptions DDB service
-- apps/crm/server/routes/subscriptions.js — GET /current + GET /trial-status
-- apps/crm/real-estate-crm-app/src/components/SeatCounter.tsx
-- apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx
-- apps/crm/server/scripts/backfill-seats-paid.js
+- agency-app/api/subscriptionService.js — Subscriptions DDB service
+- agency-app/api/routes/subscriptions.js — GET /current + GET /trial-status
+- agency-app/web/src/components/SeatCounter.tsx
+- agency-app/web/src/components/SeatUpgradeModal.tsx
+- agency-app/api/scripts/backfill-seats-paid.js
 - tests/seat-cap.spec.ts
 
 Files modified:
-- apps/crm/server/routes/auth.js — seat check in invite-creation handler (invite POST only)
-- apps/crm/server/routes/billing.js — seat increment in subscription.updated case (one case only)
-- apps/crm/real-estate-crm-app/src/pages/admin/InviteManagement.tsx — SeatCounter + SeatUpgradeModal mount
-- apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx — SeatCounter mount
-- apps/crm/server/server.js — subscriptions route mount
+- agency-app/api/routes/auth.js — seat check in invite-creation handler (invite POST only)
+- agency-app/api/routes/billing.js — seat increment in subscription.updated case (one case only)
+- agency-app/web/src/pages/admin/InviteManagement.tsx — SeatCounter + SeatUpgradeModal mount
+- agency-app/web/src/pages/admin/MemberManagement.tsx — SeatCounter mount
+- agency-app/api/server.js — subscriptions route mount
 
 Source task: ZEE-005 (pre-launch-prep/P12-seat-cap-enforcement.md)
 ```

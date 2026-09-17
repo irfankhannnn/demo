@@ -21,7 +21,7 @@ server/viewBuilders/leadAIViewBuilder.js
 Or, if preferred:
 
 ```
-apps/crm/server/aiViewBuilders/leadAIViewBuilder.js
+agency-app/api/aiViewBuilders/leadAIViewBuilder.js
 ```
 
 ---
@@ -667,7 +667,7 @@ export function buildEmptySearchResults() {
 
 Meetings are not lead-specific. They can be tied to leads, contacts, properties, buyers, sellers, owners, or tenants.
 
-File: `apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js`
+File: `agency-app/api/aiViewBuilders/meetingAIViewBuilder.js`
 
 ```js
 import { formatDate } from './utils.js';

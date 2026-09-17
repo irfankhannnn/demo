@@ -44,7 +44,7 @@ cat .gitignore | grep -i env
 
 ### Phase 2: Authentication Review
 ```
-- Read apps/crm/server/middleware/auth.js — JWT verification logic
+- Read agency-app/api/middleware/auth.js — JWT verification logic
 - Check token expiration settings
 - Verify refresh token rotation
 - Check for JWT algorithm confusion attacks (alg: none)
@@ -54,7 +54,7 @@ cat .gitignore | grep -i env
 
 ### Phase 3: API Endpoint Security
 ```
-For each route file in apps/crm/server/routes/:
+For each route file in agency-app/api/routes/:
 - Auth middleware applied to all protected routes?
 - Input validation on request body/params?
 - Rate limiting configured?

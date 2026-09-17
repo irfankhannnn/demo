@@ -29,10 +29,10 @@ find . -name ".env.example" -exec cat {} \;
 ```
 
 ### Phase 2: Authentication & Authorization
-- Review `apps/crm/server/middleware/auth.js` for JWT implementation
+- Review `agency-app/api/middleware/auth.js` for JWT implementation
 - Check token expiration and refresh logic
 - Verify auth middleware on all protected routes
-- Check CORS configuration in `apps/crm/server/server.js`
+- Check CORS configuration in `agency-app/api/server.js`
 - Verify `x-api-key` validation on internal API routes
 
 ### Phase 3: Input Validation

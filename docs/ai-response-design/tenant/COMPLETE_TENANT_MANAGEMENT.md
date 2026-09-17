@@ -636,7 +636,7 @@ Meetings are not tenant-specific. They can be tied to leads, contacts, propertie
 Therefore, meeting views should live in a separate file:
 
 ```
-apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js
+agency-app/api/aiViewBuilders/meetingAIViewBuilder.js
 ```
 
 The `TenantAIViewBuilder` can import and delegate to `MeetingAIViewBuilder` when a tenant-related meeting operation is performed.
@@ -801,7 +801,7 @@ getTenantsByRentRange(tenantId, minRent, maxRent, options)
 ## File Structure
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     tenantService.js              # Tenant business logic
   normalizers/

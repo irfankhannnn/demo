@@ -39,7 +39,7 @@
 
 ## Known Constraints
 - `incrementSeatsPaid` is a stub — PR-H creates the real `subscriptionService`
-- `serverTrack` dynamically imports `apps/crm/server/lib/posthog.js` (created by PR-E; falls back to logging)
+- `serverTrack` dynamically imports `agency-app/api/lib/posthog.js` (created by PR-E; falls back to logging)
 - M1 cap (3 AI Employee signups/week) is manual — support toggles Razorpay plan availability
 - Razorpay ₹500 credit note on SLA breach is a manual step (cron sends email reminder)
 - Tenant-scoped API key auto-issuance on activation (AC P11-9) is documented in SOP but not auto-generated — founder manually provisions via DDB

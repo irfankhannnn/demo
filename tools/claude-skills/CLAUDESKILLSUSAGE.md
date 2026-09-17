@@ -224,7 +224,7 @@ WhatsApp, sales calls. Scoring 1-5 per item."
 testimonials, pricing, FAQ, lead capture form. Hinglish copy, mobile-first."
 ```
 - Generates full HTML with TailwindCSS, Meta Pixel, structured data
-- Output: `apps/landing-pages/mumbai-main.html`
+- Output: `agency-app/landing-pages/mumbai-main.html`
 
 ### 2.2 City-Specific Landing Page (Pune)
 ```
@@ -232,7 +232,7 @@ testimonials, pricing, FAQ, lead capture form. Hinglish copy, mobile-first."
 "Clone Mumbai page for Pune. Change testimonials, update pricing to Pune rates,
 include Marathi phrases."
 ```
-- Output: `apps/landing-pages/pune-main.html`
+- Output: `agency-app/landing-pages/pune-main.html`
 
 ### 2.3 Feature-Focused Page (AI Follow-Up)
 ```
@@ -240,7 +240,7 @@ include Marathi phrases."
 "Landing page focused on AI follow-up feature only. Hero: 'Aapka CRM Automatically
 Follow-up Karega', demo video placeholder, trial signup form."
 ```
-- Output: `apps/landing-pages/feature-ai-followup.html`
+- Output: `agency-app/landing-pages/feature-ai-followup.html`
 
 ### 2.4 Webinar Registration Page
 ```
@@ -248,7 +248,7 @@ Follow-up Karega', demo video placeholder, trial signup form."
 "Webinar landing page: 'How to 3X Your Closings with CRM'. Countdown timer, speaker
 bio, agenda, registration form with calendar link."
 ```
-- Output: `apps/landing-pages/webinar-registration.html`
+- Output: `agency-app/landing-pages/webinar-registration.html`
 
 ### 2.5 Comparison Page (vs Sell.Do)
 ```
@@ -256,7 +256,7 @@ bio, agenda, registration form with calendar link."
 "Comparison page: RealtyFlow vs Sell.Do. Feature-by-feature table, pricing comparison,
 'Switch Now' CTA with form."
 ```
-- Output: `apps/landing-pages/vs-selldo.html`
+- Output: `agency-app/landing-pages/vs-selldo.html`
 
 ### 2.6 Free Trial Signup (Minimal)
 ```
@@ -264,7 +264,7 @@ bio, agenda, registration form with calendar link."
 "Minimal page for 14-day free trial. Hero + 3 bullet benefits + 1 testimonial +
 signup form (name, email, phone). No pricing."
 ```
-- Output: `apps/landing-pages/free-trial.html`
+- Output: `agency-app/landing-pages/free-trial.html`
 
 ### 2.7 Case Study Page
 ```
@@ -272,7 +272,7 @@ signup form (name, email, phone). No pricing."
 "Case study: 'How Sharma Properties Increased Closings by 40%'. Metrics, timeline,
 challenges → solution → results, quote pullouts."
 ```
-- Output: `apps/landing-pages/case-study-sharma.html`
+- Output: `agency-app/landing-pages/case-study-sharma.html`
 
 ### 2.8 Pricing Page (3 Tiers)
 ```
@@ -280,7 +280,7 @@ challenges → solution → results, quote pullouts."
 "Pricing page: Starter ₹999/mo, Pro ₹2499/mo, Enterprise custom. Feature comparison,
 FAQ accordion, 'Talk to Sales' form."
 ```
-- Output: `apps/landing-pages/pricing.html`
+- Output: `agency-app/landing-pages/pricing.html`
 
 ### 2.9 Demo Booking Page
 ```
@@ -288,7 +288,7 @@ FAQ accordion, 'Talk to Sales' form."
 "'Book a Free Demo' page. Calendly embed placeholder, 3 things they'll learn,
 urgency: 'Is hafte sirf 10 slots bache hain'."
 ```
-- Output: `apps/landing-pages/book-demo.html`
+- Output: `agency-app/landing-pages/book-demo.html`
 
 ### 2.10 Thank You / Post-Signup Page
 ```
@@ -296,7 +296,7 @@ urgency: 'Is hafte sirf 10 slots bache hain'."
 "Thank-you page: next steps, WhatsApp group link, 'Share with a friend' social buttons.
 Conversion tracking fires on load."
 ```
-- Output: `apps/landing-pages/thank-you.html`
+- Output: `agency-app/landing-pages/thank-you.html`
 
 ### 2.11 Mobile-Only Page (WhatsApp Traffic)
 ```
@@ -304,7 +304,7 @@ Conversion tracking fires on load."
 "Mobile-only page for WhatsApp link clicks. Under 50KB, large tap buttons,
 tap-to-call, tap-to-WhatsApp. No desktop version."
 ```
-- Output: `apps/landing-pages/mobile-whatsapp.html`
+- Output: `agency-app/landing-pages/mobile-whatsapp.html`
 
 ### 2.12 A/B Test Variants (3 Hero Sections)
 ```
@@ -312,7 +312,7 @@ tap-to-call, tap-to-WhatsApp. No desktop version."
 "3 hero section variants: A: Pain ('Tired of losing leads?'), B: Solution ('AI follows
 up for you'), C: Social proof ('500+ agents'). Separate files."
 ```
-- Output: `apps/landing-pages/mumbai-variant-a.html`, `-b.html`, `-c.html`
+- Output: `agency-app/landing-pages/mumbai-variant-a.html`, `-b.html`, `-c.html`
 
 ### 2.13 Event/Conference Page
 ```
@@ -320,7 +320,7 @@ up for you'), C: Social proof ('500+ agents'). Separate files."
 "RECon India 2025 booth page. Booth number, demo schedule, 'Visit for free CRM setup',
 QR code placeholder, lead scan form."
 ```
-- Output: `apps/landing-pages/recon-india-2025.html`
+- Output: `agency-app/landing-pages/recon-india-2025.html`
 
 ### 2.14 Multilingual Page (Hindi + English Toggle)
 ```
@@ -328,7 +328,7 @@ QR code placeholder, lead scan form."
 "Landing page with JS language toggle. Full Hindi and full English. Toggle switches
 content without reload. Stores preference in localStorage."
 ```
-- Output: `apps/landing-pages/multilingual.html`
+- Output: `agency-app/landing-pages/multilingual.html`
 
 ### 2.15 Video Sales Letter (VSL) Page
 ```
@@ -336,7 +336,7 @@ content without reload. Stores preference in localStorage."
 "VSL page: large video player, no nav, minimal text. CTA button appears after 60
 seconds via JS timer. Exit-intent popup."
 ```
-- Output: `apps/landing-pages/vsl-page.html`
+- Output: `agency-app/landing-pages/vsl-page.html`
 
 ### 2.16 Integration Partners Page
 ```
@@ -344,7 +344,7 @@ seconds via JS timer. Exit-intent popup."
 "Integration showcase: WhatsApp, 99acres, MagicBricks, Housing.com, IndiaMART.
 Logo grid + accordion 'How it works' per integration."
 ```
-- Output: `apps/landing-pages/integrations.html`
+- Output: `agency-app/landing-pages/integrations.html`
 
 ### 2.17 ROI Calculator Page
 ```
@@ -352,7 +352,7 @@ Logo grid + accordion 'How it works' per integration."
 "Interactive ROI calculator. Sliders: number of agents, leads/month, close rate.
 Real-time calculation shows revenue increase. Pre-filled form CTA."
 ```
-- Output: `apps/landing-pages/roi-calculator.html`
+- Output: `agency-app/landing-pages/roi-calculator.html`
 
 ### 2.18 Testimonial Wall Page
 ```
@@ -360,7 +360,7 @@ Real-time calculation shows revenue increase. Pre-filled form CTA."
 "Masonry grid testimonial page. 12 cards with photo placeholders, company, city, quote.
 Filter buttons by city. 'Add Your Story' CTA."
 ```
-- Output: `apps/landing-pages/testimonials.html`
+- Output: `agency-app/landing-pages/testimonials.html`
 
 ### 2.19 Dubai Waitlist Page
 ```
@@ -368,7 +368,7 @@ Filter buttons by city. 'Add Your Story' CTA."
 "'Coming to Dubai' waitlist page. Countdown to launch, early bird pricing teaser,
 email signup. Arabic + English."
 ```
-- Output: `apps/landing-pages/dubai-waitlist.html`
+- Output: `agency-app/landing-pages/dubai-waitlist.html`
 
 ### 2.20 Reusable Exit-Intent Popup Module
 ```
@@ -376,7 +376,7 @@ email signup. Arabic + English."
 "Standalone exit-intent popup: 'Wait! Get 20% off', email form, dismiss button.
 Cookie-based frequency cap. Embeddable via single <script> tag."
 ```
-- Output: `apps/landing-pages/exit-popup-module.html`
+- Output: `agency-app/landing-pages/exit-popup-module.html`
 
 ---
 

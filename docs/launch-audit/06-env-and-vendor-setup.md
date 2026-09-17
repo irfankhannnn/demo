@@ -7,9 +7,9 @@ Copy each block below into the matching `.env` file (the apps read per-service `
 
 ---
 
-## A. `apps/crm/server/.env`  (backend Lambda / Express)
+## A. `agency-app/api/.env`  (backend Lambda / Express)
 
-Copy from [`apps/crm/server/.env.example`](../server/.env.example). Launch-critical blanks to fill:
+Copy from [`agency-app/api/.env.example`](../server/.env.example). Launch-critical blanks to fill:
 
 | Var | Type | Where to get it |
 |---|---|---|
@@ -22,12 +22,12 @@ Copy from [`apps/crm/server/.env.example`](../server/.env.example). Launch-criti
 | `HCAPTCHA_SECRET_KEY` | 🔴 | hCaptcha dashboard → secret key |
 | `NPS_HMAC_SECRET` / `INTERNAL_API_KEY` | 🔴 | Generate yourself: `openssl rand -hex 32` |
 | `S3_BUCKET_NAME` | 🟢 | Your AWS S3 bucket (created with the infra stack) |
-| DynamoDB `*_TABLE*` names | 🟢 | Match the CloudFormation stack outputs (`apps/crm/server/infra/launch-tables-cfn.yaml`) |
+| DynamoDB `*_TABLE*` names | 🟢 | Match the CloudFormation stack outputs (`agency-app/api/infra/launch-tables-cfn.yaml`) |
 | `GRIEVANCE_OFFICER_EMAIL`, `FOUNDER_*` | 🟢 | Your details |
 
-## B. `apps/crm/real-estate-crm-app/.env`  (CRM SPA on Netlify — `app.realestateflow.in`)
+## B. `agency-app/web/.env`  (CRM SPA on Netlify — `app.realestateflow.in`)
 
-Copy from [`apps/crm/real-estate-crm-app/.env.example`](../real-estate-crm-app/.env.example). Set these in **Netlify → Site settings → Environment variables** (all `VITE_*` are public/baked into the bundle — never put true secrets here):
+Copy from [`agency-app/web/.env.example`](../real-estate-crm-app/.env.example). Set these in **Netlify → Site settings → Environment variables** (all `VITE_*` are public/baked into the bundle — never put true secrets here):
 
 | Var | Type | Where to get it |
 |---|---|---|
@@ -40,7 +40,7 @@ Copy from [`apps/crm/real-estate-crm-app/.env.example`](../real-estate-crm-app/.
 
 ## C. `marketing-and-sales/creative/landing-pages/.env`  (LP site on Netlify — `realestateflow.in`)
 
-Copy from [`apps/landing-pages/.env.example`](../marketing-and-sales/creative/landing-pages/.env.example). Injected at build time by `build/scripts/process-partials.js`. Set in **Netlify → LP site → Environment variables**:
+Copy from [`agency-app/landing-pages/.env.example`](../marketing-and-sales/creative/landing-pages/.env.example). Injected at build time by `build/scripts/process-partials.js`. Set in **Netlify → LP site → Environment variables**:
 
 | Var | Type | Where to get it |
 |---|---|---|

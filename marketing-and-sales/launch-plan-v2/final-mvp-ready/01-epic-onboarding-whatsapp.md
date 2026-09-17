@@ -3,14 +3,14 @@
 **Outcome:** A new agency owner can sign up (Google OAuth → RegisterAdmin → trial), see their trial status, upgrade in-app, and (optionally) connect their WhatsApp so inbound messages reach the MCP/skills system.
 
 **Architecture anchors (do not deviate):**
-- Frontend routing: `apps/crm/real-estate-crm-app/src/App.tsx`, React Router v7, `ProtectedRoute` HOC.
-- Signup page: `apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx` — **ALREADY EXISTS**, only needs a route.
+- Frontend routing: `agency-app/web/src/App.tsx`, React Router v7, `ProtectedRoute` HOC.
+- Signup page: `agency-app/web/src/pages/RegisterAdmin.tsx` — **ALREADY EXISTS**, only needs a route.
   Submits `agencyName`, `displayName`, `consentAccepted` to `POST {VITE_AUTH_API_URL}/auth/register-admin`.
 - Role selection (`src/pages/RoleSelection.tsx`) navigates to `/onboarding/register-admin` — **route is missing**, caught by `*` → `/crm`.
-- Existing upgrade UI: `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx` + `apps/crm/real-estate-crm-app/src/lib/razorpay.ts` → `openCheckout({ planId, name, email, phone?, onSuccess, onFailure, onDismiss? })`.
-- Trial countdown: `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx` — **ALREADY EXISTS**. Reuse/extend; do NOT create a duplicate.
-- Subscription state: `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx`, hook `useSubscriptionContext()`, polls `GET /api/subscriptions/trial-status` every 5 min. Exposes: `{ subscription, isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, refetch }`.
-- Server webhook pattern: `apps/crm/server/routes/billing.js` — HMAC timing-safe compare + `express.raw()` per-route. Copy this exact pattern for Bailey webhook.
+- Existing upgrade UI: `agency-app/web/src/components/PaywallModal.tsx` + `agency-app/web/src/lib/razorpay.ts` → `openCheckout({ planId, name, email, phone?, onSuccess, onFailure, onDismiss? })`.
+- Trial countdown: `agency-app/web/src/components/TrialCountdownBanner.tsx` — **ALREADY EXISTS**. Reuse/extend; do NOT create a duplicate.
+- Subscription state: `agency-app/web/src/contexts/SubscriptionContext.tsx`, hook `useSubscriptionContext()`, polls `GET /api/subscriptions/trial-status` every 5 min. Exposes: `{ subscription, isPaying, isTrialing, trialDaysLeft, isTrialExpired, gracePeriodActive, refetch }`.
+- Server webhook pattern: `agency-app/api/routes/billing.js` — HMAC timing-safe compare + `express.raw()` per-route. Copy this exact pattern for Bailey webhook.
 - Server auth URL env: `AUTH_SERVICE_URL` (server-side) / `VITE_AUTH_API_URL` (frontend).
 - See `notes/codebase-reference.md` for all exact paths, function signatures, and env vars.
 
@@ -23,10 +23,10 @@
 **Goal:** Make `/onboarding/register-admin` reachable so ADMIN signup completes.
 
 **Files**
-- MODIFY `apps/crm/real-estate-crm-app/src/App.tsx`
+- MODIFY `agency-app/web/src/App.tsx`
 
 **Detail**
-- `RegisterAdmin` page already exists at `apps/crm/real-estate-crm-app/src/pages/RegisterAdmin.tsx`. Do NOT recreate it.
+- `RegisterAdmin` page already exists at `agency-app/web/src/pages/RegisterAdmin.tsx`. Do NOT recreate it.
 - Import it (lazy-load to match other page imports — check if other onboarding pages use `lazy()`):
   ```tsx
   const RegisterAdmin = lazy(() => import('./pages/RegisterAdmin'));
@@ -62,11 +62,11 @@
 **Goal:** Trial users always see days remaining and a working "Upgrade" path (reusing PaywallModal).
 
 **Files**
-- CHECK FIRST: `apps/crm/real-estate-crm-app/src/components/TrialCountdownBanner.tsx` — **this already exists**. Read it before creating anything new.
+- CHECK FIRST: `agency-app/web/src/components/TrialCountdownBanner.tsx` — **this already exists**. Read it before creating anything new.
   - If it already shows trial days + upgrade CTA → just wire it up (mount it in the layout).
   - If it lacks days-left display or upgrade button → extend it in place; do NOT create a duplicate file.
   - Only create `TrialBanner.tsx` as a new file if the existing one is architecturally incompatible.
-- MODIFY `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx` — verify `trialDaysLeft`, `isTrialExpired`, `gracePeriodActive` are exported from `useSubscriptionContext()`. They are already in the `SubscriptionStatus` type — confirm they're in the hook return.
+- MODIFY `agency-app/web/src/contexts/SubscriptionContext.tsx` — verify `trialDaysLeft`, `isTrialExpired`, `gracePeriodActive` are exported from `useSubscriptionContext()`. They are already in the `SubscriptionStatus` type — confirm they're in the hook return.
 - MODIFY the CRM shell/layout that renders the dashboard header (locate the component that wraps `/crm` routes in `App.tsx`) to mount the trial banner component.
 
 **Detail**
@@ -104,8 +104,8 @@
 **Goal:** A `/crm/settings/billing` page showing current plan, next billing date, trial state, and upgrade button; later hosts credit balance (E2-T7) and Buy-Credits (E2-T8).
 
 **Files**
-- NEW `apps/crm/real-estate-crm-app/src/pages/crm/BillingSettings.tsx`
-- MODIFY `apps/crm/real-estate-crm-app/src/App.tsx` (add protected route)
+- NEW `agency-app/web/src/pages/crm/BillingSettings.tsx`
+- MODIFY `agency-app/web/src/App.tsx` (add protected route)
 - Reuse `apiService` pattern from `src/services/api.ts` to call `GET /api/subscriptions/current`.
 
 **Detail**
@@ -135,7 +135,7 @@
 **Goal:** Let an admin connect their WhatsApp Business number via Bailey. Entirely behind `BAILEY_ENABLED`.
 
 **Files**
-- MODIFY `services/reality-flow-authentication/src/models/usersModel.ts` — add optional fields to `UserItem`:
+- MODIFY `platform/auth/src/models/usersModel.ts` — add optional fields to `UserItem`:
   ```ts
   whatsAppPhoneNumber?: string;
   whatsAppBusinessAccountId?: string;
@@ -143,9 +143,9 @@
   whatsAppConnectedAt?: string;
   ```
   (Also extend the update function used by the users controller; keep backward compatible — all optional.)
-- NEW `apps/crm/real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx` — shows Bailey QR / pairing, polls verification.
-- MODIFY `apps/crm/real-estate-crm-app/src/App.tsx` — add `/onboarding/connect-whatsapp` (ProtectedRoute). Make it a **skippable** step after RegisterAdmin.
-- NEW `apps/crm/server/bailey.js` — root-level (ships via `*.js` in zip, consistent with `apps/crm/server/subscriptionService.js`). Exports: `getPairingQr(phone)`, `sendWhatsAppMessage(to, text, media?)`, `verifyBaileySignature(rawBody, sig, ts)`. All return no-op shapes when `process.env.BAILEY_ENABLED !== 'true'`.
+- NEW `agency-app/web/src/pages/onboarding/ConnectWhatsApp.tsx` — shows Bailey QR / pairing, polls verification.
+- MODIFY `agency-app/web/src/App.tsx` — add `/onboarding/connect-whatsapp` (ProtectedRoute). Make it a **skippable** step after RegisterAdmin.
+- NEW `agency-app/api/bailey.js` — root-level (ships via `*.js` in zip, consistent with `agency-app/api/subscriptionService.js`). Exports: `getPairingQr(phone)`, `sendWhatsAppMessage(to, text, media?)`, `verifyBaileySignature(rawBody, sig, ts)`. All return no-op shapes when `process.env.BAILEY_ENABLED !== 'true'`.
 
   **CFN env vars to add (07):** `BAILEY_ENABLED`, `BAILEY_API_KEY` (NoEcho), `BAILEY_WEBHOOK_SECRET` (NoEcho), `BAILEY_API_ENDPOINT` (default `https://api.bailey.ai`).
 
@@ -175,11 +175,11 @@
 **Goal:** Receive WhatsApp messages and enqueue them for processing, with verified signatures.
 
 **Files**
-- NEW `apps/crm/server/routes/webhooks.js` — `POST /api/webhooks/whatsapp`
-- MODIFY `apps/crm/server/server.js` — mount `webhooksRoutes` **before** `express.json()` using `express.raw({ type: 'application/json' })` (same ordering trick as billing).
+- NEW `agency-app/api/routes/webhooks.js` — `POST /api/webhooks/whatsapp`
+- MODIFY `agency-app/api/server.js` — mount `webhooksRoutes` **before** `express.json()` using `express.raw({ type: 'application/json' })` (same ordering trick as billing).
 
 **Detail**
-- Verify `x-bailey-signature` + `x-bailey-timestamp` via `verifyBaileySignature` (HMAC-SHA256, timing-safe — copy the timing-safe compare pattern from `apps/crm/server/routes/billing.js` which already does this for Razorpay).
+- Verify `x-bailey-signature` + `x-bailey-timestamp` via `verifyBaileySignature` (HMAC-SHA256, timing-safe — copy the timing-safe compare pattern from `agency-app/api/routes/billing.js` which already does this for Razorpay).
 - Resolve tenant by the destination number (`to`) → look up user with `whatsAppPhoneNumber` in `UsersTable` via auth svc. Since no internal list endpoint exists, use a DynamoDB query on the auth svc's UsersTable with a GSI on `whatsAppPhoneNumber` (add to E1-T4 schema as an indexed field) OR store a reverse-lookup in a separate DynamoDB item. Reject unknown numbers with 200 (ack) but no-op.
 - Publish an EventBridge event `source: 'whatsapp.incoming'`, `detailType: 'message.received'` with `{messageId, from, to, text, media, tenantId, receivedAt}`. (EventBridge client = v3 `@aws-sdk/client-eventbridge`, new dep.)
 - Always return 200 quickly; processing is async.
@@ -205,9 +205,9 @@
 **Goal:** Turn an inbound WhatsApp message into a CRM action via the MCP/skills layer, then reply.
 
 **Files**
-- NEW `apps/crm/server/scripts/whatsapp-message-processor.js` (Lambda handler `handler`, placed in `scripts/` so it ships via existing zip).
+- NEW `agency-app/api/scripts/whatsapp-message-processor.js` (Lambda handler `handler`, placed in `scripts/` so it ships via existing zip).
 - NEW cron/event CFN: see `07-infra-cfn-deploy.md` (`whatsapp-processor.yaml`).
-- NEW `apps/crm/server/whatsappAuditService.js` — persist message + outcome in CRM table under `PK=TENANT#{t}#WHATSAPP#{messageId}`.
+- NEW `agency-app/api/whatsappAuditService.js` — persist message + outcome in CRM table under `PK=TENANT#{t}#WHATSAPP#{messageId}`.
 
 **Detail**
 - Parse a deterministic command grammar first (cheap, no LLM):
@@ -220,7 +220,7 @@
 
 **Security**
 - All actions execute under the resolved `tenantId` only.
-- Validate parsed fields before calling skills (reuse server validation utils in `apps/crm/server/validation/`).
+- Validate parsed fields before calling skills (reuse server validation utils in `agency-app/api/validation/`).
 
 **Tests**
 - Unit: command parser table-driven tests; processor calls invoker with correct tenant + deducts credits (mock creditService).

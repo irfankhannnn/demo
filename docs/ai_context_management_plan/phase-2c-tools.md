@@ -29,7 +29,7 @@ Phase 2C enhances the tool system to pass rich context to tools, implement categ
 **Effort:** 3-4 days | **Priority:** HIGH
 
 ### Subtask 2C.1.1: Modify invokeSkill to Enrich Context
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes:**
 ```javascript
@@ -69,7 +69,7 @@ async function invokeSkill(tenantId, toolName, rawInput, context = {}) {
 ---
 
 ### Subtask 2C.1.2: Implement executeToolWithContext
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes:**
 ```javascript
@@ -106,7 +106,7 @@ async function executeToolWithContext(tenantId, toolName, rawInput, enrichedCont
 ---
 
 ### Subtask 2C.1.3: Update Tool Handlers to Use Context
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes for create_lead:**
 ```javascript
@@ -270,7 +270,7 @@ test.describe('Tool Context Enhancement', () => {
 **Effort:** 2-3 days | **Priority:** HIGH
 
 ### Subtask 2C.2.1: Define Tool Category Permissions
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes:**
 ```javascript
@@ -308,7 +308,7 @@ const TOOL_CATEGORY_PERMISSIONS = {
 ---
 
 ### Subtask 2C.2.2: Add Permission Check to invokeSkill
-**File:** `apps/crm/server/skillInvoker.js`
+**File:** `agency-app/api/skillInvoker.js`
 
 **Changes:**
 ```javascript
@@ -481,7 +481,7 @@ test.describe('Tool Filtering by User Category', () => {
 **Effort:** 2-3 days | **Priority:** HIGH
 
 ### Subtask 2C.3.1: Add Rate Limiting per Category
-**File:** `apps/crm/server/middleware/rateLimiter.js`
+**File:** `agency-app/api/middleware/rateLimiter.js`
 
 **Changes:**
 ```javascript
@@ -513,7 +513,7 @@ function createCategoryRateLimiter(category) {
 ---
 
 ### Subtask 2C.3.2: Add Audit Logging for Access Denials
-**File:** `apps/crm/server/agents/agentAuditService.js`
+**File:** `agency-app/api/agents/agentAuditService.js`
 
 **Changes:**
 ```javascript

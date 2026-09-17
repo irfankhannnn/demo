@@ -5,9 +5,11 @@ which stays next to the code it describes.
 
 | Folder | What's in it |
 |---|---|
-| `services/<service>/` | Design notes, runbooks and guides for one service (`server`, `real-estate-crm-app`, `ai-calling-service`, `followup-agent-service`, `reality-flow-authentication`, `whatsapp-platform`) |
-| `insta-sol-ms-docs/` | Instagram lead service: plan, architecture, API, deployment, Meta app review |
-| `property-pages/` | Public property pages: architecture, ManyChat setup, pricing, security |
+| `platform/auth/`, `platform/mcp/`, `platform/whatsapp-platform/` | Design notes, runbooks, phase summaries and fixes for the shared services |
+| `public-app/property-pages/` | Public property pages: architecture, ManyChat setup, pricing, security |
+| `agency-app/api/`, `agency-app/web/` | CRM backend and frontend: deployment guide, API Gateway structure, hardening, setup |
+| `agency-app/instagram/` | Instagram lead service: plan, architecture, API, deployment, Meta app review |
+| `agency-app/ai-calling/`, `agency-app/followup-agent/` | Go-live runbooks, setup briefs, approval plans |
 | `proposals/` | Design proposals (agent channel architecture, agency config, config-only deploy, …) |
 | `pending-items/` | Open work: deploys, branches, follow-ups (`low-priority/` for the backlog) |
 | `current_design/` | Current AI agent design: system prompt, tools, response shapes, runtime flow |
@@ -15,8 +17,6 @@ which stays next to the code it describes.
 | `ai-response-design/` | AI response DTO contracts and view builders per entity |
 | `ai_context_management_plan/` | AI context/memory plan, architecture and analysis reports (start at `AI_CONTEXT_REFERENCE.md`) |
 | `ai-agent/` | AI agent intent-resolution refactor summary |
-| `mcp/` | MCP server + OAuth implementation: plan, phase summaries, quick reference |
-| `whatsapp/` | WhatsApp connection edge cases and fixes: summaries, verification, deployment readiness |
 | `launch/`, `launch-audit/` | Launch tasks (mobile store listing) and the pre-launch audit |
 | `testing/` | Test guides and manual checklists |
 | `working-context/` | Session notes: architecture decisions, current issues, timeline |

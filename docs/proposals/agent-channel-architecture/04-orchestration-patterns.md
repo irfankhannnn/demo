@@ -52,7 +52,7 @@ The question this file answers: *should we design a pattern per tool, a pattern 
 
 Complexity is the intuitive axis and it is the wrong one. A lead-qualification decision is *cognitively* simple and a WhatsApp search is *cognitively* simple, but they carry completely different blast radii: the WhatsApp answer is read by a human one second later, while the qualifier writes a score to a record nobody looks at until a salesperson acts on it a week later.
 
-The codebase already contains the correct instinct, written by whoever built Call Intelligence. `apps/crm/server/services/callIntelligence/actionPlanner.js` opens with:
+The codebase already contains the correct instinct, written by whoever built Call Intelligence. `agency-app/api/services/callIntelligence/actionPlanner.js` opens with:
 
 > *"This mapping is deterministic on purpose. The LLM reports what was said; the rules here decide what the CRM may be asked to do. That keeps tool arguments schema-valid and makes the behaviour unit-testable without an LLM."*
 
@@ -114,11 +114,11 @@ These are **never** forked per pattern. Forking them is the failure mode this do
 
 | Shared component | Source of truth |
 |---|---|
-| Tool definitions and schemas | `apps/crm/server/shared/toolDefinitions.js` |
-| Tool execution + authorisation | `apps/crm/server/skillInvoker.js` → `canUserAccessTool()` |
-| Data access | `apps/crm/server/crmDynamodbService.js` |
+| Tool definitions and schemas | `agency-app/api/shared/toolDefinitions.js` |
+| Tool execution + authorisation | `agency-app/api/skillInvoker.js` → `canUserAccessTool()` |
+| Data access | `agency-app/api/crmDynamodbService.js` |
 | Semantic retrieval | `05-retrieval-and-vector-search.md` (proposed) |
-| Audit trail | `apps/crm/server/agents/agentAuditService.js` |
+| Audit trail | `agency-app/api/agents/agentAuditService.js` |
 
 A tool is written **once** and consumed by every mode. The mode decides *who chooses to call it* and *whether the result is applied or proposed* — never *what the tool is*.
 
@@ -137,6 +137,6 @@ The specific anti-pattern to avoid: **granting an unattended cron job the same o
 
 ## Where AI is correctly absent
 
-Twenty of the twenty-six scripts in `apps/crm/server/scripts/` use no LLM at all — credit reconciliation, trial reminders, grace-period expiry, escalation, expiring agreements, data backfills. That is correct and should stay that way. A deterministic business rule with a known answer does not become better by asking a model. Adding AI to these would add cost, latency and non-determinism to code whose whole value is being predictable.
+Twenty of the twenty-six scripts in `agency-app/api/scripts/` use no LLM at all — credit reconciliation, trial reminders, grace-period expiry, escalation, expiring agreements, data backfills. That is correct and should stay that way. A deterministic business rule with a known answer does not become better by asking a model. Adding AI to these would add cost, latency and non-determinism to code whose whole value is being predictable.
 
 **Mode E, implicitly: no AI.** It is the right answer more often than the other four combined.

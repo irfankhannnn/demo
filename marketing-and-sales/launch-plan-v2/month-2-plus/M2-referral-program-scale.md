@@ -75,5 +75,5 @@ Stop.
 | Affiliate over-commits + can't deliver | Cap to 2-3 affiliates M2 |
 
 ## Connected files
-- Referral mechanics live: `apps/crm/server/routes/referral.js`, `apps/crm/real-estate-crm-app/src/pages/ReferFriend.tsx`
+- Referral mechanics live: `agency-app/api/routes/referral.js`, `agency-app/web/src/pages/ReferFriend.tsx`
 - Day-30 spec at `launch-plan-v2/week-4-optimize-convert/day-30-month-2-strategy.md`

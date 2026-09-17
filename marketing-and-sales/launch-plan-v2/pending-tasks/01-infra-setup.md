@@ -4,7 +4,7 @@
 > **Owner file to read:** `team-work/FOUNDER-tasks.md` (every task here maps to an `FND-0xx` item).
 >
 > **Already done — no action needed (removed from this list):**
-> - CloudFormation template for the 7 launch tables — `apps/crm/server/infra/launch-tables-cfn.yaml` (only the `deploy` run below is left).
+> - CloudFormation template for the 7 launch tables — `agency-app/api/infra/launch-tables-cfn.yaml` (only the `deploy` run below is left).
 > - Sentry/PostHog server wiring, analytics events, cookie banner — shipped + env-guarded (no-op until keys are set).
 
 ---
@@ -22,7 +22,7 @@
 **Example**
 ```bash
 aws cloudformation deploy \
-  --template-file apps/crm/server/infra/launch-tables-cfn.yaml \
+  --template-file agency-app/api/infra/launch-tables-cfn.yaml \
   --stack-name realestateflow-launch-tables \
   --region ap-south-1
 # verify
@@ -41,7 +41,7 @@ Tables created: `Grievances`, `AIEmployeeProvisioning`, `WebhookLog`, `TenantApi
 1. AWS Console → Cognito → create user pool `realestateflow-demo` in `ap-south-1` (SRP auth, MFA optional, password ≥10 chars).
 2. Create user `demo@realestateflow.in` with a permanent password.
 3. Capture `DEMO_USER_POOL_ID`, `DEMO_CLIENT_ID`; set `DEMO_TENANT_ID` to a fixed string (e.g. `DEMO_REALESTATEFLOW`).
-4. Add all three to Lambda env (never commit). Seed once: `node apps/crm/server/scripts/seed-demo-tenant.js --reset`.
+4. Add all three to Lambda env (never commit). Seed once: `node agency-app/api/scripts/seed-demo-tenant.js --reset`.
 
 **Example** — demo SPA build flag: `VITE_IS_DEMO=true` + the three `DEMO_*` IDs above.
 
@@ -112,7 +112,7 @@ Tables created: `Grievances`, `AIEmployeeProvisioning`, `WebhookLog`, `TenantApi
 
 **Steps** — after the vendor accounts exist (see `02-external-accounts.md`), fill three places (consolidated template: `docs/launch-audit/06-env-and-vendor-setup.md`):
 - `creative/landing-pages/.env` → `GA4_ID`, `META_PIXEL_ID`, `LINKEDIN_PARTNER_ID`, `HOTJAR_ID`, `POSTHOG_KEY`
-- `apps/crm/real-estate-crm-app/.env` → `VITE_POSTHOG_KEY`, `VITE_SENTRY_DSN`, `VITE_RAZORPAY_KEY_ID`, `VITE_HCAPTCHA_SITE_KEY`, `VITE_IS_DEMO=false`
+- `agency-app/web/.env` → `VITE_POSTHOG_KEY`, `VITE_SENTRY_DSN`, `VITE_RAZORPAY_KEY_ID`, `VITE_HCAPTCHA_SITE_KEY`, `VITE_IS_DEMO=false`
 - Lambda env → `POSTHOG_KEY_SERVER`, `SENTRY_DSN_SERVER`, `RAZORPAY_WEBHOOK_SECRET`, `BREVO_API_KEY` (+ template IDs), `HCAPTCHA_SECRET_KEY`, `AISENSY_API_KEY`, `AISENSY_BROADCAST_LIST_ID`
 
 Store raw values in 1Password/Bitwarden — never commit to git.

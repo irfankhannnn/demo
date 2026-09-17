@@ -38,7 +38,7 @@ if (!provisioning || provisioning.status !== 'live') {
 
 **Added to Phase 5:**
 ```javascript
-// In apps/crm/server/server.js:
+// In agency-app/api/server.js:
 import agentToolsRoutes from './routes/agentTools.js';
 app.use('/api/crm/agent/tool', agentToolsRoutes);
 ```
@@ -110,7 +110,7 @@ export async function handler(event) {
 
 **Added to Phase 6:**
 ```javascript
-// In apps/crm/server/routes/billing.js webhook handler:
+// In agency-app/api/routes/billing.js webhook handler:
 if (event.event === 'subscription.activated' && event.payload.plan_id === 'plan_ai_employee_monthly') {
   await createProvisioningRow({ ... }); // Already exists
   await updateAgencyConfig(tenantId, { aiEmployeeEnabled: true }); // NEW

@@ -553,7 +553,7 @@ export const idempotencyService = new IdempotencyService();
 
 ### Step 1.4: Update Webhook Handler
 
-**File:** `apps/crm/server/routes/webhooks.js` (updated)
+**File:** `agency-app/api/routes/webhooks.js` (updated)
 
 ```javascript
 import { MessageVariantDetector } from '../src/utils/messageVariantDetector.js';

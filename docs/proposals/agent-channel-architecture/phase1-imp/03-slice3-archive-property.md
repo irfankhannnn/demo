@@ -6,13 +6,13 @@
 
 The proposal's target architecture ([`../02-target-architecture.md`](../02-target-architecture.md) §"Deletes stay out of AI reach") wants the 8 `delete_*` tools gone from what the AI agent can call, replaced with reversible `archive_*` tools — because an LLM-driven agent hard-deleting a CRM record on a misread instruction is unrecoverable, while an agent flipping a status field is a one-line undo.
 
-Verified against the actual entity schemas (`apps/crm/server/crmDynamodbService.js`): of the 8 delete-able entities, **only `property` already had an `archived` value in its status enum** (`PROPERTY_STATUS_ENUM` in `apps/crm/server/shared/toolDefinitions.js`: `['not-listed', 'for-sale', 'for-rent', 'rented', 'sold', 'archived']`), and `update_property` already exposed that enum to the tool layer. Every other entity needed either a new enum value or, for `contact` and `property_document`, a new stored field entirely (see Slice 4).
+Verified against the actual entity schemas (`agency-app/api/crmDynamodbService.js`): of the 8 delete-able entities, **only `property` already had an `archived` value in its status enum** (`PROPERTY_STATUS_ENUM` in `agency-app/api/shared/toolDefinitions.js`: `['not-listed', 'for-sale', 'for-rent', 'rented', 'sold', 'archived']`), and `update_property` already exposed that enum to the tool layer. Every other entity needed either a new enum value or, for `contact` and `property_document`, a new stored field entirely (see Slice 4).
 
 That made `property` the correct one to build **first**: it proved the pattern with zero schema-design risk, so Slice 4's 7 remaining entities repeated a proven shape rather than inventing one under time pressure.
 
 ## What changed
 
-### 1. `archive_property` in `apps/crm/server/shared/toolDefinitions.js`
+### 1. `archive_property` in `agency-app/api/shared/toolDefinitions.js`
 
 The actual tool definitions in this file use a flat `parameters: [{name, type, required, enum, description}, ...]` array, not a JSON-schema `input: {type:'object', properties:...}` shape (an earlier draft of this doc guessed the wrong shape before the file was actually read — corrected here). Modeled directly on the existing `update_property` tool:
 
@@ -34,7 +34,7 @@ The actual tool definitions in this file use a flat `parameters: [{name, type, r
 
 Note the `"delete property"` trigger phrase deliberately added to the description: once Slice 5 removed `delete_property` entirely, the model needed to be told explicitly that a user saying "delete" should map to `archive_property`, not fail to find a matching tool.
 
-### 2. `archiveProperty` in `apps/crm/server/crmDynamodbService.js`
+### 2. `archiveProperty` in `agency-app/api/crmDynamodbService.js`
 
 ```js
 export async function archiveProperty(tenantId, propertyId) {
@@ -42,7 +42,7 @@ export async function archiveProperty(tenantId, propertyId) {
 }
 ```
 
-Verified `updateProperty`'s internal status-transition guard (`isValidPropertyStatusTransition` in `apps/crm/server/domain/crmDomainModel.js`) before writing this: it only rejects transitions to *unknown* statuses, and `'archived'` was already a member of `ALL_PROPERTY_STATUSES` — so this one-line delegation works correctly from any current property status with no further changes needed. This reuses `updateProperty`'s existing validation, GSI2 bookkeeping, and area/timeline sync rather than duplicating any of it.
+Verified `updateProperty`'s internal status-transition guard (`isValidPropertyStatusTransition` in `agency-app/api/domain/crmDomainModel.js`) before writing this: it only rejects transitions to *unknown* statuses, and `'archived'` was already a member of `ALL_PROPERTY_STATUSES` — so this one-line delegation works correctly from any current property status with no further changes needed. This reuses `updateProperty`'s existing validation, GSI2 bookkeeping, and area/timeline sync rather than duplicating any of it.
 
 ### 3. `delete_property`
 

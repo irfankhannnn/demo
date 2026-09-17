@@ -1,6 +1,6 @@
 # Priority 1 — Current System Prompt
 
-Source: `apps/crm/server/agents/prompts.js` + `apps/crm/server/agents/agentRuntime.js`
+Source: `agency-app/api/agents/prompts.js` + `agency-app/api/agents/agentRuntime.js`
 
 Agent ID for WhatsApp: **`whatsapp`**
 

@@ -15,16 +15,16 @@
 - `PATCH /api/admin/grievances/:id` — `validateToken` + role gate. Updates status/assignedTo/resolutionNotes/internalNotes/resolvedAt (auto-stamps `resolvedAt` on resolve).
 
 ## Database Changes
-- New service `apps/crm/server/grievanceDynamodbService.js` against the **public** `Grievances` table (table provisioned by founder per shared-contracts).
+- New service `agency-app/api/grievanceDynamodbService.js` against the **public** `Grievances` table (table provisioned by founder per shared-contracts).
   - PK `grievanceId` (UUID); user-facing `trackingId = GR-{first 6 hex, uppercased}`.
   - GSIs used: `status-createdAt-index`, `email-createdAt-index`.
   - `tenantId` always `null` (intentionally NOT tenant-scoped). Default `status = 'new'`.
 - No migrations required.
 
 ## Infrastructure Changes
-- Added dependency `express-rate-limit` to `apps/crm/server/package.json`.
-- `apps/crm/server/server.js`: introduced tagged `// === [LAUNCH ROUTES IMPORTS] ===` and `// === [LAUNCH ROUTES MOUNTS] ===` blocks (first epic to need them) and mounted `grievanceRoutes` at `/api`.
-- `apps/crm/real-estate-crm-app/src/App.tsx`: introduced tagged `LAUNCH COMPONENT IMPORTS` / `LAUNCH PUBLIC ROUTES` / `LAUNCH PROTECTED ROUTES` blocks and added the `/grievance` + `/admin/grievances` routes.
+- Added dependency `express-rate-limit` to `agency-app/api/package.json`.
+- `agency-app/api/server.js`: introduced tagged `// === [LAUNCH ROUTES IMPORTS] ===` and `// === [LAUNCH ROUTES MOUNTS] ===` blocks (first epic to need them) and mounted `grievanceRoutes` at `/api`.
+- `agency-app/web/src/App.tsx`: introduced tagged `LAUNCH COMPONENT IMPORTS` / `LAUNCH PUBLIC ROUTES` / `LAUNCH PROTECTED ROUTES` blocks and added the `/grievance` + `/admin/grievances` routes.
 
 ## Security Enhancements
 - Public endpoint hardened: IP rate limiting (5/hr), honeypot, hCaptcha verification.
@@ -48,4 +48,4 @@
 - hCaptcha/Brevo/PostHog activate only when their env vars are set; absent keys are logged and skipped so local/dev stays testable.
 
 ## Rollback Notes
-Remove the PR-B lines inside the tagged blocks in `apps/crm/server/server.js` and `App.tsx`, delete the 5 new files, and drop `express-rate-limit` from `apps/crm/server/package.json`. No DB migrations to revert (the `Grievances` table is managed out-of-band).
+Remove the PR-B lines inside the tagged blocks in `agency-app/api/server.js` and `App.tsx`, delete the 5 new files, and drop `express-rate-limit` from `agency-app/api/package.json`. No DB migrations to revert (the `Grievances` table is managed out-of-band).

@@ -30,12 +30,12 @@ broken", so it looks like a product limitation rather than a bug.
 - **AI Assistant chat** — every message returned `agent.invoke.not_provisioned`
   then, once provisioning was faked, `agent.invoke.disabled_by_tenant` —
   because `agentRuntime.js`'s `getAgencyConfig(tenantId)` call
-  (`apps/crm/server/agencyConfigService.js`) always returned `null` for this tenant.
+  (`agency-app/api/agencyConfigService.js`) always returned `null` for this tenant.
 
 **Almost certainly also broken for the same reason** (not directly
 reproduced this session, but these all read the same `server`-side
 `AgencyConfig` row that never existed):
-- Public property pages setup (`publicListingService.js`, `apps/crm/server/routes/publicPagesSettings.js`)
+- Public property pages setup (`publicListingService.js`, `agency-app/api/routes/publicPagesSettings.js`)
 - ManyChat/Instagram webhook token resolution (`getTenantIdByInstagramWebhookToken`)
 - WhatsApp connection resolution (`getTenantIdByConnectedWhatsAppPhone`)
 - Notification/reminder recipients (`meetingReminderRecipients.js`)
@@ -69,7 +69,7 @@ login, for a value that direct DynamoDB access already fetches in 5-20ms
 today. Given `reality-flow-authentication` already handles equivalent PII
 (users, phone/email identity) at the same trust level, granting it IAM access
 to a second business-config table already trusted by every other CRM service
-is a materially smaller trust expansion than the apps/property-pages-ms/
+is a materially smaller trust expansion than the public-app/property-pages/
 adapter-ingestion pattern (public-internet-facing, zero-trust services) this
 repo otherwise follows for cross-service data access — that pattern was built
 for a different threat model and doesn't fit two already-privileged backend
@@ -77,7 +77,7 @@ peers sharing one config table.
 
 ### Changes made
 
-**`apps/crm/server/infra/cfn-backend.yaml`** — `AgencyConfigTable` gained:
+**`agency-app/api/infra/cfn-backend.yaml`** — `AgencyConfigTable` gained:
 - Two new attributes: `adminEmail`, `adminPhone` (both `S`)
 - Two new GSIs: `adminEmail-index`, `adminPhone-index` (simple hash-key
   lookups, `Projection: ALL`) — these replace the `AdminEmailIndex`/
@@ -87,7 +87,7 @@ peers sharing one config table.
   is already `${AgencyConfigTable.Arn}/index/*` (wildcard), so it covers the
   new indexes automatically
 
-**`services/reality-flow-authentication/infra/cfn-backend.yaml`**:
+**`platform/auth/infra/cfn-backend.yaml`**:
 - Removed the `AgencyConfigTable` resource entirely (`DeletionPolicy: Retain`,
   so the physical table is orphaned, not deleted — see "What's left" below)
 - Removed the now-dangling `AgencyConfigTableName`/`AgencyConfigTableArn`
@@ -119,7 +119,7 @@ Fixed by adding `AgencyConfigTableName` (and confirming `ServerStackName`/
 `PARAM_KEYS`/`PARAM_VALUES` — the parameter-generation module the other
 in-flight config-only-deploy work already extracted from `deploy.sh`.
 
-**Config files** — `services/reality-flow-authentication/.env.dev`, `.env.prod`,
+**Config files** — `platform/auth/.env.dev`, `.env.prod`,
 `sample.env`: `AGENCY_CONFIG_TABLE` now points at `server`'s table name
 (`dev-realestateflow-agencies` / `prod-realestateflow-agencies`); `.env.dev`'s
 previously-blank `SERVER_STACK_NAME` is now set to
@@ -146,7 +146,7 @@ agent.router.result  source=rules.keyword.leads  domains=[leads]
 this is the exact call that always returned `null` before, for any
 organically-signed-up tenant. The turn then failed one step later, but on a
 **completely unrelated, pre-existing** issue: the configured Gemini model
-(`gemini-2.5-pro`, `GEMINI_MODEL` in `apps/crm/server/.env.dev`) has been deprecated by
+(`gemini-2.5-pro`, `GEMINI_MODEL` in `agency-app/api/.env.dev`) has been deprecated by
 Google (`This model models/gemini-2.5-pro is no longer available to new
 users`). Credits were correctly auto-refunded on that failure. This is a
 separate follow-up (update `GEMINI_MODEL` to a currently-supported model) —
@@ -184,9 +184,9 @@ a model swap carries no compatibility risk here.
 
 Updated in all env files (`.env`, `.env.dev`, `.env.prod`, `.env.sample`),
 the CFN template defaults (`GeminiModel`/`GeminiClassifierModel` Parameters
-in `apps/crm/server/infra/cfn-backend.yaml`), and `generate-cfn-params.sh`'s
+in `agency-app/api/infra/cfn-backend.yaml`), and `generate-cfn-params.sh`'s
 fallbacks. Both variables are SSM-Parameter-Store-mapped
-(`apps/crm/server/infra/ssm-param-map.txt`), so deployed to dev via the fast
+(`agency-app/api/infra/ssm-param-map.txt`), so deployed to dev via the fast
 config-only path (`infra/config-deploy.sh dev`) — no full stack redeploy
 needed. Verified live via `aws ssm get-parameter --with-decryption` against
 both SSM parameters post-deploy.
@@ -215,8 +215,8 @@ for now — see the caveat below.
 `prod-realestateflow-agencies` in the real prod account
 (`cloudberry-prod-new`): it exists, but its only GSIs are
 `instagramWebhookToken-index`/`connectedWhatsAppPhone-index` — no
-`adminEmail-index`/`adminPhone-index`. Neither `apps/crm/server/infra/cfn-backend.yaml`
-nor `services/reality-flow-authentication/infra/cfn-backend.yaml`'s consolidation
+`adminEmail-index`/`adminPhone-index`. Neither `agency-app/api/infra/cfn-backend.yaml`
+nor `platform/auth/infra/cfn-backend.yaml`'s consolidation
 changes have been deployed to prod; prod's `reality-flow-authentication`
 stack still owns its own separate `AgencyConfigTable`. So
 `apps/onboarding/.env`'s prod value was deliberately left as
@@ -254,7 +254,7 @@ goes through the same CFN migration + verification this dev environment did.
   prod value to `prod-realestateflow-agencies`, then delete
   `prod-realestateflow-auth-agency-config` (take a backup first, same as
   dev).
-- **`apps/crm/server/agencyConfigService.js` does not yet have
+- **`agency-app/api/agencyConfigService.js` does not yet have
   `findAgencyByAdminEmail`/`findAgencyByAdminPhone`/`createAgencyConfig`/
   `markAgencyForDeletion` equivalents.** They weren't added because nothing on
   the `server` side currently needs them — `reality-flow-authentication`'s own

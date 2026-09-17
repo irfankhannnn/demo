@@ -6,7 +6,7 @@ This document records the detection half and remains accurate about what it ship
 
 ## Why
 
-[`../flows/06-mcp-external.md`](../flows/06-mcp-external.md): `services/reality-flow-mcp/src/services/toolDefinitions.ts` is a hand-maintained **copy** of the canonical registry. Its own header says so, and it had already drifted twice over — 74 exposed vs 87 canonical, with a doc-comment still claiming 54.
+[`../flows/06-mcp-external.md`](../flows/06-mcp-external.md): `platform/mcp/src/services/toolDefinitions.ts` is a hand-maintained **copy** of the canonical registry. Its own header says so, and it had already drifted twice over — 74 exposed vs 87 canonical, with a doc-comment still claiming 54.
 
 ## What shipped
 
@@ -18,7 +18,7 @@ It wasn't live (archive tools were never added to the MCP copy), but it was a **
 
 Fixed: `archive` added to every write-detection pattern, with a comment explaining why archiving is a write (reversible ≠ read-only).
 
-### 2. `apps/crm/server/scripts/check-mcp-tool-drift.mjs` + `npm run check:mcp-drift`
+### 2. `agency-app/api/scripts/check-mcp-tool-drift.mjs` + `npm run check:mcp-drift`
 
 Compares the canonical registry against the MCP copy and exits non-zero on any difference, in either direction:
 - **canonical-but-not-in-MCP** — a capability external clients can't reach
@@ -52,7 +52,7 @@ The plan's fix is to **generate** the MCP file from the canonical registry at bu
 
 ## What's left for the generation half (post-launch)
 
-1. Write `generate-mcp-tools.mjs` emitting the tool array from `apps/crm/server/shared/toolDefinitions.js`.
+1. Write `generate-mcp-tools.mjs` emitting the tool array from `agency-app/api/shared/toolDefinitions.js`.
 2. Wire it into `reality-flow-mcp`'s `prebuild` so a stale copy can't be deployed.
 3. Add `npm run check:mcp-drift` to CI so the committed output is verified in sync.
 4. Update the stale "54 CRM tools" header comment.

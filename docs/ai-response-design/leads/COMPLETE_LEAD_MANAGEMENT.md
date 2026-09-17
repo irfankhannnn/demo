@@ -660,7 +660,7 @@ Meetings are not lead-specific. They can be tied to leads, contacts, properties,
 Therefore, meeting views should live in a separate file:
 
 ```
-apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js
+agency-app/api/aiViewBuilders/meetingAIViewBuilder.js
 ```
 
 The `LeadAIViewBuilder` can import and delegate to `MeetingAIViewBuilder` when a lead-related meeting operation is performed.
@@ -815,7 +815,7 @@ getConversionCandidates(tenantId, options)
 ## File Structure
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     leadService.js              # Lead business logic
     meetingService.js           # Meeting business logic (shared)

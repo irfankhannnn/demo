@@ -11,7 +11,7 @@
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md` (§5 Analytics, §6 Cookie Consent)
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§3.5 CookieConsent interface)
 3. `marketing-and-sales/launch-plan-v2/pre-launch-prep/P17-cookie-consent-banner.md`
-4. `apps/crm/real-estate-crm-app/src/App.tsx`
+4. `agency-app/web/src/App.tsx`
 
 ---
 
@@ -68,7 +68,7 @@ window.dispatchEvent(new CustomEvent('cookie-consent-done', { detail: consent })
 
 **Footer link:** The partial must also expose a `window.openCookiePreferences = function()` for the footer "Cookie preferences" link to call.
 
-### 2. `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`
+### 2. `agency-app/web/src/components/CookieConsentBanner.tsx`
 
 React component — **different from the LP banner — only 2 meaningful toggles**.
 
@@ -134,7 +134,7 @@ import CookieConsentBanner from './components/CookieConsentBanner';
 
 ## What NOT to Touch
 
-- `apps/crm/server/server.js` — no server changes needed
+- `agency-app/api/server.js` — no server changes needed
 - `creative/landing-pages/_partials/head-analytics.hbs` — created by PR-E
 - Any LP HTML files — they'll inject the cookie-banner.html partial (PR-I's job)
 - `src/lib/analytics.ts` — created by PR-E
@@ -161,11 +161,11 @@ Batch 1 | Day 1 | Parallel with PR-A, PR-B, PR-D
 
 Files created:
 - creative/landing-pages/_partials/cookie-banner.html — LP vanilla JS banner (4 toggles, gates 5 trackers)
-- apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx — CRM React banner (2 toggles, gates PostHog only)
+- agency-app/web/src/components/CookieConsentBanner.tsx — CRM React banner (2 toggles, gates PostHog only)
 - tests/cookie-consent.spec.ts — Playwright tests for both variants
 
 Files modified:
-- apps/crm/real-estate-crm-app/src/App.tsx — added CookieConsentBanner to LAUNCH LAYOUT COMPONENTS block
+- agency-app/web/src/App.tsx — added CookieConsentBanner to LAUNCH LAYOUT COMPONENTS block
 
 Architecture: LP banner (5 tracker toggles) ≠ CRM banner (PostHog-only toggle)
 Both store to same localStorage.cookieConsent key with same schema version 1.

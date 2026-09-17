@@ -15,8 +15,8 @@ One document per flow. Each states its trigger, its orchestration mode (per `../
 
 Every flow, without exception:
 
-- Calls tools through `apps/crm/server/skillInvoker.js` — never a bespoke data path.
-- Uses tool definitions from `apps/crm/server/shared/toolDefinitions.js` — the single registry.
+- Calls tools through `agency-app/api/skillInvoker.js` — never a bespoke data path.
+- Uses tool definitions from `agency-app/api/shared/toolDefinitions.js` — the single registry.
 - Passes `tenantId` explicitly; tenant scoping is never implicit.
 - Writes an audit entry with a before-image on every mutation.
 - Uses the deterministic formatter for lists and entity cards; the LLM writes prose only.

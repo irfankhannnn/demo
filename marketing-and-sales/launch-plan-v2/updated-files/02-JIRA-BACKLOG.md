@@ -57,7 +57,7 @@ Suggested CSV columns: `Issue Type, Epic Name, Epic Link, Summary, Story Points,
 
 ## EPIC-02 — CRM Foundation & Data Layer
 *Goal: the broker CRM (mostly built). Stories cover scoring/routing/dedupe gaps + launch-hardening.*
-**Primary existing files:** product (`apps/crm/server/`, `apps/crm/real-estate-crm-app/`), `P5`, `P12`, `P13`
+**Primary existing files:** product (`agency-app/api/`, `agency-app/web/`), `P5`, `P12`, `P13`
 
 | Story ID | Title | Pri | Pts | Labels | Status | Linked file |
 |---|---|---|---|---|---|---|

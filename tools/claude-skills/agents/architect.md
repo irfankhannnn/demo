@@ -66,15 +66,15 @@ For each new module, produce:
 - **Frontend:** React 18 + TypeScript + Vite + TailwindCSS + shadcn/ui
 - **Backend:** Node.js + Express + AWS SDK v3
 - **Database:** DynamoDB with single-table design, `TENANT#` prefix
-- **Auth:** JWT middleware in `apps/crm/server/middleware/auth.js`
+- **Auth:** JWT middleware in `agency-app/api/middleware/auth.js`
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 
 ### Key Patterns
-- Routes in `apps/crm/server/routes/<resource>.js`
+- Routes in `agency-app/api/routes/<resource>.js`
 - Services in `server/<resource>DynamodbService.js`
-- Frontend types in `apps/crm/real-estate-crm-app/src/types/`
-- Frontend API services in `apps/crm/real-estate-crm-app/src/services/`
-- Pages in `apps/crm/real-estate-crm-app/src/pages/crm/`
+- Frontend types in `agency-app/web/src/types/`
+- Frontend API services in `agency-app/web/src/services/`
+- Pages in `agency-app/web/src/pages/crm/`
 
 ### Existing Modules
 - **Buyers** — Requirements, budget, status tracking

@@ -10,7 +10,7 @@
 
 The public website (`realestateflow.in`) and the CRM app (`app.realestateflow.in`) are **two separate Netlify deployments**:
 - LPs live in `creative/landing-pages/` → deployed to `realestateflow.in`
-- CRM SPA lives in `apps/crm/real-estate-crm-app/` → deployed to `app.realestateflow.in`
+- CRM SPA lives in `agency-app/web/` → deployed to `app.realestateflow.in`
 
 All LP "Start trial" CTAs must deep-link to the CRM signup with UTM params so PostHog can stitch the LP session to the CRM signup session:
 ```
@@ -231,7 +231,7 @@ Stop here. Do NOT replace placeholders with values you don't have — leave `{{H
 - Updated `netlify.toml`
 - `sitemap.xml`, `robots.txt`, `llms.txt` (stub — P16 fills llms.txt)
 
-**Not in outputs (lives in CRM, not LP):** `apps/crm/real-estate-crm-app/src/lib/analytics.ts`, `CookieConsentBanner.tsx` — those are CRM-only and built by P10/ZEE-003/ZEE-006.
+**Not in outputs (lives in CRM, not LP):** `agency-app/web/src/lib/analytics.ts`, `CookieConsentBanner.tsx` — those are CRM-only and built by P10/ZEE-003/ZEE-006.
 
 ## Success Criterion
 12 URLs return 200; Lighthouse mobile ≥90 across all 4 categories; OG previews render correctly; analytics fires; cookie banner blocks until consent.

@@ -26,7 +26,7 @@ that point is shared.
      │      POST /api/internal/adapters/leads              │
      ▼                   ▼                ▼                ▼
   ┌────────────────────────────────────────────────────────────┐
-  │            apps/crm/server/leadIngestion.js  →  ingestLead()        │
+  │            agency-app/api/leadIngestion.js  →  ingestLead()        │
   │   dedupe → createLead() → notifyNewLead() → lead.created   │
   └────────────────────────────────────────────────────────────┘
                               │
@@ -50,7 +50,7 @@ quality bar*. That is all `ingestLead()` is.
 
 ### The single table already existed
 
-`CrmTable` (`apps/crm/server/infra/cfn-backend.yaml`) is single-table design. Leads are
+`CrmTable` (`agency-app/api/infra/cfn-backend.yaml`) is single-table design. Leads are
 `EntityType: 'LEAD'`, PK `TENANT#<t>#LEAD#<id>`, SK `PROFILE`. Buyers, Owners and
 Customers are item types in that same table — **CLAUDE.md's claim that they are
 separate tables is wrong.** The only real outsider was the Instagram Solution's
@@ -62,12 +62,12 @@ separate tables is wrong.** The only real outsider was the Instagram Solution's
 
 | Phase | Change | Files |
 |---|---|---|
-| 0 | `getLeads` full-table Scan → Query on `search-index` | `apps/crm/server/crmDynamodbService.js` |
+| 0 | `getLeads` full-table Scan → Query on `search-index` | `agency-app/api/crmDynamodbService.js` |
 | 1 | `sourceAdapter`, `externalRef`, `dedupeKey` columns; `site_visit` + `spam` statuses | `crmDynamodbService.js`, `agents/inputNormalizer.js`, `normalizers/leadNormalizer.js` |
-| 2 | Shared `ingestLead()`; ManyChat webhook refactored onto it | `apps/crm/server/leadIngestion.js`, `apps/crm/server/routes/webhooks.js` |
-| 3 | Internal adapter route; Instagram bridge | `apps/crm/server/routes/adapterIngestionInternal.js`, `apps/instagram/backend_insta_sol_ms/services/crmBridge.js`, `routes/agent.js` |
-| 4 | Status/adapter fields in the CRM UI; "Open in CRM" from the Instagram dashboard | `apps/crm/real-estate-crm-app/src/...`, `apps/instagram/frontend_insta_sol_ms/src/pages/Enquiries.tsx` |
-| — | Billing model rework | `apps/crm/server/creditConfig.js`, `apps/crm/server/aiCallBilling.js`, `routes/aiCallingInternal.js`, `routes/leads.js` |
+| 2 | Shared `ingestLead()`; ManyChat webhook refactored onto it | `agency-app/api/leadIngestion.js`, `agency-app/api/routes/webhooks.js` |
+| 3 | Internal adapter route; Instagram bridge | `agency-app/api/routes/adapterIngestionInternal.js`, `agency-app/instagram-api/services/crmBridge.js`, `routes/agent.js` |
+| 4 | Status/adapter fields in the CRM UI; "Open in CRM" from the Instagram dashboard | `agency-app/web/src/...`, `agency-app/instagram-web/src/pages/Enquiries.tsx` |
+| — | Billing model rework | `agency-app/api/creditConfig.js`, `agency-app/api/aiCallBilling.js`, `routes/aiCallingInternal.js`, `routes/leads.js` |
 
 ### Phase 0 — the scan that would have bitten us
 
@@ -157,7 +157,7 @@ were deliberately left alone.
 
 ### AI call billing correctness
 
-Charged in `apps/crm/server/aiCallBilling.js`, hooked into `PATCH /leads/:id/call-outcome`.
+Charged in `agency-app/api/aiCallBilling.js`, hooked into `PATCH /leads/:id/call-outcome`.
 
 - **Per started minute** (`ceil`), like telecom billing. A 10-second call is 1 minute.
 - **Never double-charged.** Exotel's status webhook *and* ElevenLabs' post-call
@@ -249,7 +249,7 @@ conditional write on a phone-uniqueness item is the proper fix if it shows up.
 ## 4. Phase 5 — WhatsApp adapter (PLAN ONLY, no code written)
 
 **Important finding: WhatsApp is not a lead adapter today.** The Bailey webhook
-(`apps/crm/server/routes/webhooks.js` `POST /whatsapp`) never calls `createLead`. It
+(`agency-app/api/routes/webhooks.js` `POST /whatsapp`) never calls `createLead`. It
 publishes to EventBridge for the message processor, which runs a *conversation*.
 So this is new work, not a rewire — which is why nothing here was touched.
 

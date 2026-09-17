@@ -56,7 +56,7 @@
 
 ### Step 1: Define the Tool
 
-Add the tool to `apps/crm/server/shared/toolDefinitions.js`:
+Add the tool to `agency-app/api/shared/toolDefinitions.js`:
 
 ```javascript
 {
@@ -81,7 +81,7 @@ Add the tool to `apps/crm/server/shared/toolDefinitions.js`:
 
 ### Step 2: Implement the Handler
 
-Add the handler to `apps/crm/server/crmDynamodbService.js`:
+Add the handler to `agency-app/api/crmDynamodbService.js`:
 
 ```javascript
 export async function myNewTool(tenantId, param1, param2) {
@@ -129,7 +129,7 @@ curl -X POST http://localhost:4001/mcp \
 
 ### Step 1: Define the Resource
 
-Add to `apps/crm/server/mcp-server/resources.js`:
+Add to `agency-app/api/mcp-server/resources.js`:
 
 ```javascript
 {
@@ -180,7 +180,7 @@ export const RESOURCE_HANDLERS = {
 
 ### Step 1: Define the Prompt
 
-Add to `apps/crm/server/mcp-server/prompts.js`:
+Add to `agency-app/api/mcp-server/prompts.js`:
 
 ```javascript
 {
@@ -398,7 +398,7 @@ Test end-to-end with local server:
 
 ```bash
 # Start local server
-MCP_TENANT_ID=test-agency node apps/crm/server/mcp-server/localServer.js
+MCP_TENANT_ID=test-agency node agency-app/api/mcp-server/localServer.js
 
 # In another terminal, run tests
 npm test -- --testPathPattern=mcp
@@ -456,7 +456,7 @@ await recordToolCall(tenantId, 'create_lead', true);
 
 ### "Tool not found"
 
-Check that tool is in `apps/crm/server/shared/toolDefinitions.js` and handler exists in `crmDynamodbService.js`
+Check that tool is in `agency-app/api/shared/toolDefinitions.js` and handler exists in `crmDynamodbService.js`
 
 ### "Missing x-tenant-id header"
 

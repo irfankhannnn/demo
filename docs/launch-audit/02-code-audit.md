@@ -1,7 +1,7 @@
 # Phase 2 — Code Validation Audit
 
 **Branch:** `auth_rbac_feature` @ `5890183`
-**Method:** static review of `apps/crm/server/`, `apps/crm/real-estate-crm-app/`, `services/reality-flow-authentication/`, `tests/`. Findings reference exact files/lines verified during the audit.
+**Method:** static review of `agency-app/api/`, `agency-app/web/`, `platform/auth/`, `tests/`. Findings reference exact files/lines verified during the audit.
 
 Legend: ✅ verified working · ⚠️ partial / risk · ❌ broken or missing.
 
@@ -42,7 +42,7 @@ Legend: ✅ verified working · ⚠️ partial / risk · ❌ broken or missing.
 | Validation | ✅ | `middleware/validateBody.js` + `zod`; grievance/feedback validate inputs. |
 | Error handling | ✅ | Central error middleware in `server.js`; routes return `{ error, message }`; `validateToken` catch → 500 with safe body. |
 | Transaction safety | ⚠️ | DDB single-item writes are atomic; multi-step flows (webhook → provisioning → seat increment) are **not** wrapped in a transaction and rely on idempotency (`webhookLogService.logEventIfNotProcessed`). Acceptable for launch; documented. P2. |
-| Logging | ✅ | `apps/crm/server/logger.js` structured logs; `requestLogger.js` correlation IDs from `x-request-id`. |
+| Logging | ✅ | `agency-app/api/logger.js` structured logs; `requestLogger.js` correlation IDs from `x-request-id`. |
 | Billing webhook integrity | ✅ (with hardening) | `routes/billing.js` mounted before `express.json()` (`server.js:70`); uses `express.raw`, HMAC-SHA256 over raw body, replay window 5 min. **Hardening applied in Phase 6:** signature compare changed from `!==` to `crypto.timingSafeEqual` to remove a timing side-channel. |
 
 ---
@@ -64,10 +64,10 @@ Legend: ✅ verified working · ⚠️ partial / risk · ❌ broken or missing.
 
 | Area | Status | Evidence / Notes |
 |---|---|---|
-| Migrations / IaC | ✅ | `apps/crm/server/infra/launch-tables-cfn.yaml` defines all 7 launch tables (`Grievances`, `AIEmployeeProvisioning`, `WebhookLog`, `TenantApiKeys`, `Subscriptions`, `NPSResponses`, `BetaInvites`). |
+| Migrations / IaC | ✅ | `agency-app/api/infra/launch-tables-cfn.yaml` defines all 7 launch tables (`Grievances`, `AIEmployeeProvisioning`, `WebhookLog`, `TenantApiKeys`, `Subscriptions`, `NPSResponses`, `BetaInvites`). |
 | Indexes (GSIs) | ✅ | GSIs declared per table in the CFN template. |
 | Constraints | ✅ | `BillingMode: PAY_PER_REQUEST`, PITR enabled, TTL on `WebhookLog`. |
-| Seed scripts | ✅ | `apps/crm/server/scripts/seed-demo-tenant.js` / `reset-demo-tenant.js` (idempotent). |
+| Seed scripts | ✅ | `agency-app/api/scripts/seed-demo-tenant.js` / `reset-demo-tenant.js` (idempotent). |
 | Provisioning | ⚠️ | Tables exist only as IaC — must be `cloudformation deploy`-ed (human, INFRA-01). Fresh env throws `ResourceNotFoundException` until deployed. P0 (ops). |
 
 ---

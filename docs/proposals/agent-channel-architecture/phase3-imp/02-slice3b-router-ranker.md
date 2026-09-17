@@ -45,7 +45,7 @@ That was a deliberate trade. Incremental widening needs the model to somehow exp
 
 ## How it was tested
 
-Two tests added to `apps/crm/server/agents/llm/runToolLoop.test.js` (15 total in that file now):
+Two tests added to `agency-app/api/agents/llm/runToolLoop.test.js` (15 total in that file now):
 
 - **`a mis-scoped turn escalates to the full registry and recovers`** — router scoped to `['search_leads']`, user asks about properties. Model's first response has no tool call; the loop escalates, and the second attempt calls `search_properties` and succeeds. Asserts the tool actually executed with the right args.
 - **`escalation happens at most once, and not at all when disabled`** — with `allowScopeEscalation: false`, exactly one round-trip happens and the model's text is returned as-is (no retry).

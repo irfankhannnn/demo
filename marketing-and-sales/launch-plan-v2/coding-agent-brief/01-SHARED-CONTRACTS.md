@@ -137,31 +137,31 @@ BillingMode: PAY_PER_REQUEST
 
 ## 2. API Route Specifications
 
-### PR-B: Grievance Routes (`apps/crm/server/routes/grievance.js`)
+### PR-B: Grievance Routes (`agency-app/api/routes/grievance.js`)
 ```
 POST   /api/grievance              — PUBLIC, rate-limit 5/IP/hour, hCaptcha, creates Grievances row
 GET    /api/admin/grievances       — validateToken + role=founder/admin
 PATCH  /api/admin/grievances/:id   — validateToken + role=founder/admin
 ```
 
-### PR-F: Billing Routes (`apps/crm/server/routes/billing.js`)
+### PR-F: Billing Routes (`agency-app/api/routes/billing.js`)
 ```
 POST   /api/billing/webhook        — PUBLIC, no validateToken, HMAC-SHA256 sig verify
                                      MUST be mounted BEFORE auth middleware in server.js
 ```
 
-### PR-F: AI Employee Status (`apps/crm/server/routes/aiEmployeeStatus.js`)
+### PR-F: AI Employee Status (`agency-app/api/routes/aiEmployeeStatus.js`)
 ```
 GET    /api/ai-employee/status     — validateToken + extractTenantId
 ```
 
-### PR-H: Subscription Routes (`apps/crm/server/routes/subscriptions.js`)
+### PR-H: Subscription Routes (`agency-app/api/routes/subscriptions.js`)
 ```
 GET    /api/subscriptions/current      — validateToken + extractTenantId
 GET    /api/subscriptions/trial-status — validateToken + extractTenantId
 ```
 
-### PR-K: Feedback Routes (`apps/crm/server/routes/feedback.js`)
+### PR-K: Feedback Routes (`agency-app/api/routes/feedback.js`)
 ```
 POST   /api/feedback/nps           — validateToken (auth required for NPS)
 GET    /api/nps                    — PUBLIC, HMAC token validation (email link NPS)

@@ -336,8 +336,8 @@ Sitemap: https://realestateflow.in/sitemap.xml
 ## What NOT to Touch
 
 - Any LP HTML content files (those are PR-I's job)
-- `apps/crm/real-estate-crm-app/` — never
-- `apps/crm/server/` — never
+- `agency-app/web/` — never
+- `agency-app/api/` — never
 - `creative/landing-pages/_partials/cookie-banner.html` — PR-C creates this; you reference it
 
 ---

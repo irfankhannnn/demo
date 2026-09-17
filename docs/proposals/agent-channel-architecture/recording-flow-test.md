@@ -9,7 +9,7 @@ Companion to [`flows/03-call-intelligence.md`](flows/03-call-intelligence.md). T
 ## 1. Understanding the flow (recap)
 
 ```
-Browser              API (apps/crm/server/routes/callRecordings.js)         Pipeline (services/callIntelligence/)
+Browser              API (agency-app/api/routes/callRecordings.js)         Pipeline (services/callIntelligence/)
   │ upload-url  ─────────────▶  create DynamoDB row (PENDING_UPLOAD)
   │                             phoneExtractor + entityResolver match
   │◀──── pre-signed PUT URL ───
@@ -26,16 +26,16 @@ Browser              API (apps/crm/server/routes/callRecordings.js)         Pipe
 Key files:
 | Layer | File |
 |---|---|
-| Routes | `apps/crm/server/routes/callRecordings.js` |
-| Orchestration | `apps/crm/server/services/callIntelligence/pipeline.js` |
-| Transcription | `apps/crm/server/services/callIntelligence/transcription/amazonTranscribeProvider.js` |
-| Analysis (LLM) | `apps/crm/server/services/callIntelligence/analysisService.js`, `analysisPrompt.js` |
-| Action planning (rules, no LLM) | `apps/crm/server/services/callIntelligence/actionPlanner.js` |
-| Action execution (CRM write) | `apps/crm/server/services/callIntelligence/actionExecutor.js` |
+| Routes | `agency-app/api/routes/callRecordings.js` |
+| Orchestration | `agency-app/api/services/callIntelligence/pipeline.js` |
+| Transcription | `agency-app/api/services/callIntelligence/transcription/amazonTranscribeProvider.js` |
+| Analysis (LLM) | `agency-app/api/services/callIntelligence/analysisService.js`, `analysisPrompt.js` |
+| Action planning (rules, no LLM) | `agency-app/api/services/callIntelligence/actionPlanner.js` |
+| Action execution (CRM write) | `agency-app/api/services/callIntelligence/actionExecutor.js` |
 | Phone/entity matching | `phoneExtractor.js`, `entityResolver.js` |
 | Storage | `callRecordingRepository.js` (DynamoDB), `s3Service.js` (S3) |
-| Async worker (prod) | `apps/crm/server/workers/callRecordingWorker.js`, SQS queue in `apps/crm/server/infra/cfn-backend.yaml` |
-| Frontend | `apps/crm/real-estate-crm-app/src/pages/crm/CallRecordings.tsx`, `CallRecordingReviewDrawer.tsx` |
+| Async worker (prod) | `agency-app/api/workers/callRecordingWorker.js`, SQS queue in `agency-app/api/infra/cfn-backend.yaml` |
+| Frontend | `agency-app/web/src/pages/crm/CallRecordings.tsx`, `CallRecordingReviewDrawer.tsx` |
 
 Two run modes, same code:
 - **Inline** (`CALL_RECORDING_QUEUE_URL` unset): pipeline runs synchronously in-process, nudged forward on every list/detail GET (`nudgeInlinePipeline`). This is what local testing uses.
@@ -49,7 +49,7 @@ Two run modes, same code:
 2. **DynamoDB table** — the existing CRM single-table (`CRM_DYNAMODB_TABLE_NAME`) with GSI `owner-property-index`. No new table needed.
 3. **S3 bucket** — `S3_BUCKET_NAME`, with CORS allowing `PUT`/`POST` from your dev origin (see the `cfn-backend.yaml` diff — `AllowedOrigins` param, not `"*"` in real deployments).
 4. **Gemini** — `GEMINI_API_KEY`, `GEMINI_MODEL` (e.g. `gemini-2.5-flash`).
-5. **`apps/crm/server/.env`** — copy relevant keys from `apps/crm/server/.env.sample`:
+5. **`agency-app/api/.env`** — copy relevant keys from `agency-app/api/.env.sample`:
    ```
    CRM_DYNAMODB_TABLE_NAME=...
    S3_BUCKET_NAME=...
@@ -199,7 +199,7 @@ curl -X POST .../approve -d '{"arguments":{"leadId":"someone-elses-lead","status
 
 ### 4.16 S3 presign regression check (relevant to your current uncommitted diff)
 
-Since `s3Service.js` / `services/ai-calling-service/src/routes/knowledge.js` were just changed to fix `BadDigest` on presigned PUTs (SDK checksum defaults), explicitly re-run 4.1 step 2 (the raw `curl -X PUT` upload) and confirm it succeeds with `200`, not `400 BadDigest`. This is the regression the diff is fixing — do not skip it.
+Since `s3Service.js` / `agency-app/ai-calling/src/routes/knowledge.js` were just changed to fix `BadDigest` on presigned PUTs (SDK checksum defaults), explicitly re-run 4.1 step 2 (the raw `curl -X PUT` upload) and confirm it succeeds with `200`, not `400 BadDigest`. This is the regression the diff is fixing — do not skip it.
 
 ### 4.17 UI walkthrough (browser)
 

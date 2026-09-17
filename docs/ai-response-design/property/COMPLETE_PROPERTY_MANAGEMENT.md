@@ -753,7 +753,7 @@ updatePropertyVerification(tenantId, propertyId, verificationId, data)
 ## File Structure
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     propertyService.js              # Property business logic
   normalizers/

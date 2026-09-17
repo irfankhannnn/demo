@@ -44,9 +44,9 @@ Backlog entry:
 
 Read for context:
 - {{ best-guess file path }}
-- `apps/crm/real-estate-crm-app/src/App.tsx`
-- `apps/crm/server/routes/{{relevant route}}.js`
-- `apps/crm/server/tenantMiddleware.js`
+- `agency-app/web/src/App.tsx`
+- `agency-app/api/routes/{{relevant route}}.js`
+- `agency-app/api/tenantMiddleware.js`
 - `marketing-and-sales/launch-implement/week-2/day-10-call-notes/{{tester-slug}}.md` (the original tester observation)
 
 Produce:

@@ -32,7 +32,7 @@ This is a **cross-origin request**:
 
 ### ✅ Backend CORS Configuration (Correct)
 
-**File**: `apps/crm/server/server.js` (Lines 38-45)
+**File**: `agency-app/api/server.js` (Lines 38-45)
 ```javascript
 app.use(cors({
   origin: '*',                    // Allow all origins
@@ -43,7 +43,7 @@ app.use(cors({
 }));
 ```
 
-**File**: `apps/crm/server/lambda-handler.js` (Lines 6-11)
+**File**: `agency-app/api/lambda-handler.js` (Lines 6-11)
 ```javascript
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -76,7 +76,7 @@ PublicApiGatewayResponseDefault4XX:
 
 ### ❌ Frontend API Configuration (WRONG)
 
-**File**: `apps/crm/real-estate-crm-app/.env` (Lines 5-6)
+**File**: `agency-app/web/.env` (Lines 5-6)
 ```env
 VITE_API_URL=https://services-api.cloudberrysolutions.in/devrealestatecrm/api
 VITE_API_BASE_URL=https://services-api.cloudberrysolutions.in/devrealestatecrm/api
@@ -90,7 +90,7 @@ VITE_API_BASE_URL=https://services-api.cloudberrysolutions.in/devrealestatecrm/a
 
 ❌ **Status**: Frontend points to production API instead of local backend
 
-**File**: `apps/crm/real-estate-crm-app/src/services/api.ts` (Line 11)
+**File**: `agency-app/web/src/services/api.ts` (Line 11)
 ```typescript
 const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL;
 ```
@@ -134,7 +134,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BA
    npm start  # Runs on http://localhost:3001
    ```
 
-2. Update `.env` in `apps/crm/real-estate-crm-app/`:
+2. Update `.env` in `agency-app/web/`:
    ```env
    # Change these lines:
    VITE_API_URL=http://localhost:3001/api

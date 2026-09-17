@@ -15,13 +15,13 @@ For the complete operation inventory, see `COMPLETE_OWNER_MANAGEMENT.md`.
 ## Location
 
 ```
-apps/crm/server/aiViewBuilders/ownerAIViewBuilder.js
+agency-app/api/aiViewBuilders/ownerAIViewBuilder.js
 ```
 
 Or, if preferred:
 
 ```
-apps/crm/server/aiViewBuilders/ownerAIViewBuilder.js
+agency-app/api/aiViewBuilders/ownerAIViewBuilder.js
 ```
 
 ---
@@ -582,7 +582,7 @@ export function buildProfileNotesProtectedError(owner, noteId) {
 
 Meetings are not owner-specific. They can be tied to leads, contacts, properties, buyers, sellers, owners, or tenants.
 
-File: `apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js`
+File: `agency-app/api/aiViewBuilders/meetingAIViewBuilder.js`
 
 ```js
 import { formatDate } from './utils.js';

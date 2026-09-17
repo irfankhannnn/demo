@@ -31,11 +31,11 @@ Source: `coding-agent-brief/02-PR-SCHEDULE.md`, `coding-agent-brief/AUDIT-REPORT
 
 | Task | Owner | Status | Evidence | Blocking dependency | Criticality |
 |---|---|---|---|---|---|
-| PR-A Demo environment (seed/reset/cron/DemoBanner) | Zeeshan | COMPLETE | `apps/crm/server/scripts/seed-demo-tenant.js`, `reset-demo-tenant.js`, `cron/reset-demo.yaml`, `components/DemoBanner.tsx` present | Demo Cognito pool (INFRA-02, founder) | P1 |
+| PR-A Demo environment (seed/reset/cron/DemoBanner) | Zeeshan | COMPLETE | `agency-app/api/scripts/seed-demo-tenant.js`, `reset-demo-tenant.js`, `cron/reset-demo.yaml`, `components/DemoBanner.tsx` present | Demo Cognito pool (INFRA-02, founder) | P1 |
 | PR-B Grievance flow (public form + admin triage) | Zeeshan | PARTIALLY_COMPLETE | Route/service/UI present; `grievance.js` still uses a local PostHog **stub** (BUG-006) | `Grievances` table (INFRA-01) | P0 (DPDP) |
 | PR-C Cookie consent banners (LP + CRM) | Zeeshan | PARTIALLY_COMPLETE | `CookieConsentBanner.tsx` + `_partials/cookie-banner.html` present; **LP banner not injected into LP pages** (BUG-004) | — | P0 (DPDP) |
 | PR-D LP build pipeline + SEO stubs | Zeeshan | COMPLETE | `creative/landing-pages/build/*`, partials, `sitemap.xml`, `robots.txt`, `llms.txt`, `netlify.toml` present | — | P1 |
-| PR-E Analytics layer (PostHog + Sentry) | Zeeshan | PARTIALLY_COMPLETE | `lib/analytics.ts`, `apps/crm/server/lib/posthog.js`, CRM Sentry present; **server Lambda Sentry missing** (BUG-010); event coverage partial (BUG-007) | — | P1 |
+| PR-E Analytics layer (PostHog + Sentry) | Zeeshan | PARTIALLY_COMPLETE | `lib/analytics.ts`, `agency-app/api/lib/posthog.js`, CRM Sentry present; **server Lambda Sentry missing** (BUG-010); event coverage partial (BUG-007) | — | P1 |
 | PR-F Razorpay billing webhook | Zeeshan | COMPLETE | `routes/billing.js` mounted **before** `express.json()` (`server.js:70`); real `incrementSeatsPaid` imported (`billing.js:6,258`) | `WebhookLog`/`Subscriptions`/`AIEmployeeProvisioning` tables | P0 |
 | PR-G Security audit (CORS, rate-limit, error handling) | Zeeshan | COMPLETE | `middleware/{rateLimiter,csp,requestLogger,validateBody,apiKeyAuth}.js`; commit `8079683` security fixes | — | P0 |
 | PR-H Seat-cap subscription service | Zeeshan | PARTIALLY_COMPLETE | `subscriptionService.js` + `POST /api/subscriptions/check-seat` present; **not enforced at invite API** (BUG-009) | `Subscriptions` table | P1 |
@@ -49,14 +49,14 @@ Source: `coding-agent-brief/02-PR-SCHEDULE.md`, `coding-agent-brief/AUDIT-REPORT
 
 ## 2. Authentication & RBAC
 
-Source: branch name, `apps/crm/server/middleware/`, `services/reality-flow-authentication/`.
+Source: branch name, `agency-app/api/middleware/`, `platform/auth/`.
 
 | Task | Owner | Status | Evidence | Blocking dependency | Criticality |
 |---|---|---|---|---|---|
-| Token validation middleware | Zeeshan | COMPLETE | `apps/crm/server/middleware/validateToken.js` calls `AUTH_SERVICE_URL/auth/me`, 5s cache, sets `req.user`/`req.tenantId` | `AUTH_SERVICE_URL` env | P0 |
-| RBAC role gate | Zeeshan | COMPLETE | `apps/crm/server/middleware/requireRole.js` — `requireRole()`, `requireAdmin` (ADMIN/FOUNDER/OWNER), 401/403 + `rbac.denied` log | — | P0 |
+| Token validation middleware | Zeeshan | COMPLETE | `agency-app/api/middleware/validateToken.js` calls `AUTH_SERVICE_URL/auth/me`, 5s cache, sets `req.user`/`req.tenantId` | `AUTH_SERVICE_URL` env | P0 |
+| RBAC role gate | Zeeshan | COMPLETE | `agency-app/api/middleware/requireRole.js` — `requireRole()`, `requireAdmin` (ADMIN/FOUNDER/OWNER), 401/403 + `rbac.denied` log | — | P0 |
 | Tenant isolation | Zeeshan | COMPLETE | `extractTenantId` from `tenantMiddleware.js`; routes scope DDB by `tenantId`; pentest spec exists | — | P0 |
-| Auth microservice (signup/signin/OTP/invites) | Zeeshan | COMPLETE | `services/reality-flow-authentication/src/controllers/{authController,phoneAuthCustomController,inviteController}.ts` | Cognito pool | P0 |
+| Auth microservice (signup/signin/OTP/invites) | Zeeshan | COMPLETE | `platform/auth/src/controllers/{authController,phoneAuthCustomController,inviteController}.ts` | Cognito pool | P0 |
 | Seat-cap at invite creation API | Zeeshan | NOT_STARTED | `inviteController.createInviteHandler` enforces ADMIN only — no seat check (BUG-009) | Subscriptions data access from auth svc | P1 |
 | Password reset / OAuth | Zeeshan | COMPLETE | Cognito-managed flows in `reality-flow-authentication` | Cognito config | P1 |
 
@@ -66,11 +66,11 @@ Source: branch name, `apps/crm/server/middleware/`, `services/reality-flow-authe
 
 | Task | Owner | Status | Evidence | Blocking dependency | Criticality |
 |---|---|---|---|---|---|
-| Express entry + route mounting | Zeeshan | COMPLETE | `apps/crm/server/server.js`; tagged LAUNCH ROUTES blocks present | — | P0 |
+| Express entry + route mounting | Zeeshan | COMPLETE | `agency-app/api/server.js`; tagged LAUNCH ROUTES blocks present | — | P0 |
 | Public routes rate-limited | Zeeshan | COMPLETE | `grievance.js` (6/hr/IP), `billing.js` webhook, `publicAreas.js`, `aiCallingInternal.js` | — | P0 |
 | Input validation | Zeeshan | COMPLETE | `middleware/validateBody.js` + `zod` dep | — | P1 |
-| Structured logging | Zeeshan | COMPLETE | `apps/crm/server/logger.js`, `requestLogger.js` | — | P1 |
-| Server error tracking (Sentry) | Zeeshan | NOT_STARTED | No Sentry in `lambda-handler.js`; `@sentry/node` not in `apps/crm/server/package.json` (BUG-010) | `SENTRY_DSN_SERVER` env | P1 |
+| Structured logging | Zeeshan | COMPLETE | `agency-app/api/logger.js`, `requestLogger.js` | — | P1 |
+| Server error tracking (Sentry) | Zeeshan | NOT_STARTED | No Sentry in `lambda-handler.js`; `@sentry/node` not in `agency-app/api/package.json` (BUG-010) | `SENTRY_DSN_SERVER` env | P1 |
 
 ---
 
@@ -90,7 +90,7 @@ Source: branch name, `apps/crm/server/middleware/`, `services/reality-flow-authe
 
 | Task | Owner | Status | Evidence | Blocking dependency | Criticality |
 |---|---|---|---|---|---|
-| 7 launch DDB tables (IaC) | Zeeshan | COMPLETE | `apps/crm/server/infra/launch-tables-cfn.yaml` — all 7 tables, PITR, GSIs, WebhookLog TTL | Founder `cloudformation deploy` (INFRA-01) | P0 |
+| 7 launch DDB tables (IaC) | Zeeshan | COMPLETE | `agency-app/api/infra/launch-tables-cfn.yaml` — all 7 tables, PITR, GSIs, WebhookLog TTL | Founder `cloudformation deploy` (INFRA-01) | P0 |
 | Single-table conventions | Zeeshan | COMPLETE | `awsClientWrapper.js`, `crmDynamodbService.js` | — | P0 |
 | Tables provisioned in AWS | Founder | BLOCKED | IaC ready; deploy is a human AWS task | AWS account | P0 |
 
@@ -100,10 +100,10 @@ Source: branch name, `apps/crm/server/middleware/`, `services/reality-flow-authe
 
 | Task | Owner | Status | Evidence | Blocking dependency | Criticality |
 |---|---|---|---|---|---|
-| Backend CFN stack | Zeeshan | COMPLETE | `apps/crm/server/infra/cfn-backend.yaml`, `launch-tables-cfn.yaml`, `deploy.sh` | AWS creds | P0 |
+| Backend CFN stack | Zeeshan | COMPLETE | `agency-app/api/infra/cfn-backend.yaml`, `launch-tables-cfn.yaml`, `deploy.sh` | AWS creds | P0 |
 | Netlify config (LP + CRM) | Zeeshan | PARTIALLY_COMPLETE | `netlify.toml` redirects incl. `/grievance` but no target page (BUG-008) | Netlify env vars (DEPLOY-02) | P1 |
 | CI workflow (Playwright) | Zeeshan | COMPLETE | `.github/workflows/playwright.yml` builds CRM + runs specs | — | P0 |
-| Server lint/test scripts | Zeeshan | NOT_STARTED | `apps/crm/server/package.json` has no `lint`/`test` scripts | — | P2 |
+| Server lint/test scripts | Zeeshan | NOT_STARTED | `agency-app/api/package.json` has no `lint`/`test` scripts | — | P2 |
 | Demo cron deploy / WAF / CloudWatch / DNS | Founder | BLOCKED | `pending-tasks/01-infra-setup.md` INFRA-02–07 human tasks | AWS/Cloudflare consoles | P1 |
 
 ---

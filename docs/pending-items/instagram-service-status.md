@@ -3,7 +3,7 @@
 Context for anyone picking this up. Action items live in
 [instagram-app-review-actions.md](instagram-app-review-actions.md) and
 [deploys-and-branches.md](deploys-and-branches.md). The full reference is
-`docs/insta-sol-ms-docs/`.
+`docs/agency-app/instagram/`.
 
 ## What it is
 
@@ -71,4 +71,4 @@ Read-only scripts used to prove where the gap was (Graph API only, never
 browser scraping, and the token is decrypted in-process and never printed) are
 in the session scratchpad, not the repo: `insta-verify.sh` (stored rows plus
 Lambda log) and `insta-diag*.mjs` (calls the Lambda's own API functions).
-Recreate them from `apps/instagram/backend_insta_sol_ms/services/instagramApi.js` if needed.
+Recreate them from `agency-app/instagram-api/services/instagramApi.js` if needed.

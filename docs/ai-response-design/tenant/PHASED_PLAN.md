@@ -51,8 +51,8 @@ The backend entity is `customer` (with `customerId`), but the AI agent tool name
 **Goal:** Create a normalization layer that enriches raw tenant models with derived fields.
 
 ### Deliverables
-- `apps/crm/server/normalizers/tenantNormalizer.js`
-- Unit tests in `apps/crm/server/normalizers/tenantNormalizer.test.js`
+- `agency-app/api/normalizers/tenantNormalizer.js`
+- Unit tests in `agency-app/api/normalizers/tenantNormalizer.test.js`
 
 ### Responsibilities
 - Remove internal fields
@@ -121,8 +121,8 @@ Output:
 **Goal:** Create the projection layer that builds AI DTOs.
 
 ### Deliverables
-- `apps/crm/server/aiViewBuilders/tenantAIViewBuilder.js`
-- Unit tests in `apps/crm/server/aiViewBuilders/tenantAIViewBuilder.test.js`
+- `agency-app/api/aiViewBuilders/tenantAIViewBuilder.js`
+- Unit tests in `agency-app/api/aiViewBuilders/tenantAIViewBuilder.test.js`
 
 ### Responsibilities
 - Accept normalized tenants.
@@ -147,7 +147,7 @@ Output:
 **Goal:** Separate business logic from the tool layer.
 
 ### Deliverables
-- `apps/crm/server/services/tenantService.js`
+- `agency-app/api/services/tenantService.js`
 - Unit tests
 
 ### Responsibilities
@@ -169,7 +169,7 @@ For the first iteration, this can be thin. Each method calls `crmDynamodbService
 
 **Goal:** Change all tenant-related tools to use the new AI DTO pipeline.
 
-### Changes in `apps/crm/server/skillInvoker.js`
+### Changes in `agency-app/api/skillInvoker.js`
 
 Add missing tool schemas:
 - `update_tenant_note`
@@ -228,7 +228,7 @@ Use `USE_AI_DTO_FOR_TENANTS=true` to enable the new path. Default to old behavio
 
 **Goal:** Simplify the WhatsApp system prompt now that the AI receives clean DTOs.
 
-### Changes to `apps/crm/server/agents/prompts.js`
+### Changes to `agency-app/api/agents/prompts.js`
 
 Remove:
 - JSON output requirement
@@ -264,7 +264,7 @@ For tenant details, mention KYC status, current rental, and lease dates.
 
 **Goal:** Remove the complex formatting logic since the LLM now receives clean DTOs.
 
-### Changes to `apps/crm/server/agents/responseFormatter.js`
+### Changes to `agency-app/api/agents/responseFormatter.js`
 - Remove tenant-specific formatting
 - Keep only generic WhatsApp formatting (bold, line breaks)
 - Remove fake pagination logic
@@ -279,7 +279,7 @@ For tenant details, mention KYC status, current rental, and lease dates.
 
 **Goal:** The sanitizer only removes leaked reasoning.
 
-### Changes to `apps/crm/server/agents/sanitizeAgentReply`
+### Changes to `agency-app/api/agents/sanitizeAgentReply`
 - Remove the quick-pass logic that lets short reasoning through.
 - Expand negative signals to catch:
   - "One more check"

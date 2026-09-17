@@ -46,8 +46,8 @@ This plan covers **complete lead management**: CRUD, notes, conversion, meetings
 **Goal:** Create a normalization layer that enriches raw lead models with derived fields.
 
 ### Deliverables
-- `apps/crm/server/normalizers/leadNormalizer.js`
-- Unit tests in `apps/crm/server/normalizers/leadNormalizer.test.js`
+- `agency-app/api/normalizers/leadNormalizer.js`
+- Unit tests in `agency-app/api/normalizers/leadNormalizer.test.js`
 
 ### Responsibilities
 - Remove internal fields
@@ -96,8 +96,8 @@ Output:
 **Goal:** Create the projection layer that builds AI DTOs.
 
 ### Deliverables
-- `apps/crm/server/aiViewBuilders/leadAIViewBuilder.js`
-- Unit tests in `apps/crm/server/aiViewBuilders/leadAIViewBuilder.test.js`
+- `agency-app/api/aiViewBuilders/leadAIViewBuilder.js`
+- Unit tests in `agency-app/api/aiViewBuilders/leadAIViewBuilder.test.js`
 
 ### Responsibilities
 - Accept normalized leads.
@@ -119,7 +119,7 @@ Output:
 **Goal:** Separate business logic from the tool layer.
 
 ### Deliverables
-- `apps/crm/server/services/leadService.js`
+- `agency-app/api/services/leadService.js`
 - Unit tests
 
 ### Responsibilities
@@ -141,7 +141,7 @@ For the first iteration, this can be thin. Each method calls `crmDynamodbService
 
 **Goal:** Change all lead-related tools to use the new AI DTO pipeline.
 
-### Changes in `apps/crm/server/skillInvoker.js`
+### Changes in `agency-app/api/skillInvoker.js`
 
 Add missing tool schemas:
 - `update_lead_note`
@@ -194,7 +194,7 @@ Use `USE_AI_DTO_FOR_LEADS=true` to enable the new path. Default to old behavior 
 
 **Goal:** Simplify the WhatsApp system prompt now that the AI receives clean DTOs.
 
-### Changes to `apps/crm/server/agents/prompts.js`
+### Changes to `agency-app/api/agents/prompts.js`
 
 Remove:
 - JSON output requirement
@@ -348,7 +348,7 @@ If Phase E (wiring `search_leads`) causes problems in production:
 2. Use a feature flag or environment variable to toggle between old and new behavior:
    - `USE_AI_DTO_FOR_LEADS=true` enables the new path.
    - `USE_AI_DTO_FOR_LEADS=false` reverts to the original path.
-3. In `apps/crm/server/skillInvoker.js`, branch on the flag:
+3. In `agency-app/api/skillInvoker.js`, branch on the flag:
    ```js
    if (process.env.USE_AI_DTO_FOR_LEADS === 'true') {
      return LeadAIViewBuilder.buildSearchResults(...);

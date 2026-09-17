@@ -4,7 +4,7 @@
 
 Three dashboards covering business KPIs, infrastructure health, and security.  
 CloudWatch namespace: `RealEstateFlow/MVP`  
-All metrics emitted via `apps/crm/server/observability/cloudwatch.js` (gated: `CLOUDWATCH_METRICS_ENABLED=true`).
+All metrics emitted via `agency-app/api/observability/cloudwatch.js` (gated: `CLOUDWATCH_METRICS_ENABLED=true`).
 
 ---
 
@@ -146,7 +146,7 @@ aws sns subscribe --topic-arn <arn> --protocol email --notification-endpoint ops
 ```
 
 ### 3. Deploy CloudWatch dashboards (CDK/CFN)
-Add `AWS::CloudWatch::Dashboard` resource in `apps/crm/server/infra/cfn-backend.yaml` referencing the widgets above.
+Add `AWS::CloudWatch::Dashboard` resource in `agency-app/api/infra/cfn-backend.yaml` referencing the widgets above.
 
 ### 4. Log metric filters
 ```bash
@@ -159,12 +159,12 @@ aws logs put-metric-filter \
 
 ### 5. Existing metrics auto-emitted
 Once `CLOUDWATCH_METRICS_ENABLED=true`:
-- `creditService.deductCredits.insufficient` — from `apps/crm/server/middleware/meterCredits.js`
-- `emailService.fallback_to_brevo` — from `apps/crm/server/emailService.js`
-- `emailService.both_failed` — from `apps/crm/server/emailService.js`
-- `emailService.sent_via_ses` — from `apps/crm/server/emailService.js`
-- `webhooks.whatsapp.*` — from `apps/crm/server/observability/cloudwatch.js`
-- `agentAction.*` — from `apps/crm/server/agents/agentRuntime.js`
+- `creditService.deductCredits.insufficient` — from `agency-app/api/middleware/meterCredits.js`
+- `emailService.fallback_to_brevo` — from `agency-app/api/emailService.js`
+- `emailService.both_failed` — from `agency-app/api/emailService.js`
+- `emailService.sent_via_ses` — from `agency-app/api/emailService.js`
+- `webhooks.whatsapp.*` — from `agency-app/api/observability/cloudwatch.js`
+- `agentAction.*` — from `agency-app/api/agents/agentRuntime.js`
 - `cron.tenantFailed` — from all cron scripts (to be wired)
 
 ---
