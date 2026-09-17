@@ -1,265 +1,209 @@
 # 31 — Internal Operations System Overview
 
-> **Phase:** 4 (after core product Phases 0–3 launch) · **Duration:** Weeks 21–32 (Q3 2026+) · **Team:** 8–12 people + 20 agent personas · **Status:** Architecture & sequencing design
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. None of this is built. The June header (Phase 4, Weeks 21–32, 8–12 people, 7 internal MCP servers, Strands, Postgres, Slack) is replaced by what actually exists: a solo founder with AI agents defined as Claude Code sub-agents in `tools/claude-skills/agents/`, five MCP servers in `.mcp.json`, and the operating-agent design in Content OS. **Start trigger: after the M1 PMF gate** (D21).
+
+> **Scope:** the boundary between the internal go-to-market machinery and the product, and the design for the internal side when it starts. It is **not** part of what agencies buy. Product phases: `../21-roadmap.md`. The detailed operating-agent design: `marketing-and-sales/launch-plan-v2/content-os/growth-platform/ai-agents/ai-agent-architecture.md`.
 
 ---
 
-## What Is This System?
+## 1. Status and Start Trigger
 
-The **internal operations system** is the AI-powered machinery Cloudberry runs to acquire, convert, and retain customers. It is **not part of what we sell** — it is how we build the business.
+Nothing in this document is running today. The launch plan is a solo founder plus AI agents and contractors (D20), with no SDR hire until MRR reaches ₹2L and no paid ads in M1 (`marketing-and-sales/launch-plan-v2/00-DECISIONS-LOG.md`).
 
-**Example flows:**
-- Marketing team: brief agent → agent researches competitor, writes campaign copy, designs banner, creates reel, schedules on IG/FB, reports ROAS
-- Sales team: lead scoring ML model runs on CRM → agent identifies hot prospects → drafts outreach → sends WhatsApp → monitors reply rate
-- Operations team: daily dashboard agent wakes up, pulls Razorpay revenue, pipeline velocity, churn rate, publishes to Slack + Sheets
-- Product team: customer feedback researcher monitors Reddit/Twitter/ProductHunt → extracts themes → drafts feature bullets for roadmap meeting
+**Internal operations start after the M1 PMF gate** (D21). The gate as recorded in the decisions log is: at least 3 paying agencies, at least 40% activation, at least 10% reply rate, Mumbai only.
+
+> Open decision D27 (what counts as "activation") — see `marketing-and-sales/launch-plan-v2/00-OPEN-DECISIONS.md`.
+
+Until then, the founder runs marketing and sales directly with the Claude Code agents and scripts already in the repo.
 
 ---
 
-## System Architecture
+## 2. What This System Is
+
+The internal operations system is the AI-powered machinery used to acquire, convert and retain customers. It is how the business is run, not what is sold.
+
+Intended flows, once it starts:
+- **Marketing:** a brief goes to an agent, which researches, writes copy, generates creative, and prepares posts for review before publishing.
+- **Sales:** hot prospects are surfaced from the pipeline, outreach is drafted, and replies are tracked.
+- **Operations:** a daily summary pulls revenue, pipeline velocity and churn into one place.
+- **Product:** customer feedback is collected and turned into roadmap input.
+
+---
+
+## 3. Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Internal Operations Layer                     │
-│                                                                   │
-│  20 Agent Personas × 6 Teams                                     │
-│  ├─ Product & Engineering (architect, sentry, pr-commander)      │
-│  ├─ Market Intelligence (trend-hunter, deep-researcher, oracle)  │
-│  ├─ Creative (brand-strategist, designer, video, voice, copy)   │
-│  ├─ Growth (media-buyer, ab-optimizer, lead-scraper)            │
-│  ├─ Sales & Nurture (sdr, nurture-bot)                          │
-│  └─ Operations (pipeline-manager, analytics, finance-tracker)    │
-│                           ↓                                       │
-│  7 Internal MCP Servers  (Content, Campaign, Analytics, etc.)    │
-│                           ↓                                       │
-│  External Tools          (Higgsfield, Meta-Ads, Blotato,        │
-│                           Razorpay, PostHog, Brevo, etc.)       │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Internal operations (founder tooling — not built yet)       │
+│                                                              │
+│  Claude Code sub-agents: tools/claude-skills/agents/         │
+│    (30 definitions: the CLAUDE.md GTM personas plus          │
+│     engineering reviewers used by the PR pipeline)           │
+│                        ↓                                     │
+│  Project MCP servers (.mcp.json): higgsfield, meta-ads,      │
+│    blotato, nabi-crm, git                                    │
+│  Local scripts: tools/claude-skills/scripts/*.ps1 (image,    │
+│    TTS, Remotion render, SerpApi scrape, Sheets update)      │
+│                        ↓                                     │
+│  Outputs in git: marketing-and-sales/{creative,leads,ads,    │
+│    outreach,reports}/                                        │
+└──────────────────────────────────────────────────────────────┘
                             ↓
-                    Cloudberry's GTM
-              (content, leads, campaigns, decisions)
+              RealEstateFlow go-to-market
                             ↓
-┌─────────────────────────────────────────────────────────────────┐
-│                    Product Layer (Phases 0–3)                    │
-│                                                                   │
-│  10 Agent Personas (Router, Sales Asst, Qualifier, Scorer, etc.) │
-│  ├─ Tenant-facing (agencies buy these)                           │
-│  ├─ 11 Business Domain MCP Servers                               │
-│  ├─ Conversation backbone (EventBridge + SQS)                    │
-│  └─ Multi-tenant CRM + Subscriptions                             │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Product (what agencies buy — built)                         │
+│                                                              │
+│  One agent core (classify → plan → tools → compose) serving  │
+│    the WhatsApp command channel and in-CRM web chat          │
+│  One MCP server, 72 tools generated from the shared registry │
+│  Lead ingestion → EventBridge → qualifier + router Lambdas   │
+│  Outbound AI calling + follow-up call service                │
+│  Multi-tenant CRM on DynamoDB                                │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-**Key property:** Operations agents have access to **different data** than product agents:
-- Operations: Razorpay (revenue), PostHog (usage), Brevo (email), Google Sheets (sales pipeline), Slack (team)
-- Product: Tenant CRM (leads, contacts, properties), conversation history, audit log
+Evidence for the product box: `apps/crm/server/agents/`, `services/reality-flow-mcp/`, `apps/crm/server/leadIngestion.js`, `scripts/lead-qualifier-handler.js`, `lead-router-handler.js`, `services/ai-calling-service/`, `services/followup-agent-service/`.
 
-Both systems are in the same AWS account, same Lambda infra, same Cognito (but different role/policy).
+**Different data, deliberately.** Operations agents read business data (Razorpay revenue, PostHog usage, the lead sheet, ad accounts). Product agents read a tenant's CRM. Operations never writes to a tenant's CRM.
 
----
-
-## 6 Teams & 20 Agent Personas
-
-### Team 1: Product & Engineering (The Builders)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **architect** | Codebase analysis, module planning, tech debt tracking | Level 0 (draft only) | Git, GitHub Issues, Slack |
-| **sentry** | Security scanning, vulnerability detection, dependency audits | Level 0 | GitHub Security, SAST tools, Slack |
-| **pr-commander** | PR review, performance regression detection, test coverage | Level 1 (auto-approves docs-only PRs) | GitHub, Slack, Analytics |
-
-**Workstream:** Product release cycle. Architect spikes features; sentry scans; pr-commander gates merges.
+**Different accounts.** Product runs in separate dev and prod AWS accounts (`infra/cicd/README.md`, `docs/pending-items/instagram-service-status.md`). Internal operations, when it starts, should not share a prod account with tenant data.
 
 ---
 
-### Team 2: Market Intelligence (The Strategists)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **trend-hunter** | Social listening, competitor tracking, feature gap analysis | Level 1–2 | Twitter, Reddit, Hacker News, Research MCP |
-| **deep-researcher** | ICP firmographic mapping, cohort analysis, market sizing | Level 1 | SerpAPI, Perplexity, Google Sheets, Research MCP |
-| **oracle** | Predictive: churn risk, feature ROI, TAM expansion | Level 0–1 | PostHog, Razorpay, Postgres analytics | 
+## 4. The Agents That Exist
 
-**Workstream:** Monthly competitive snapshot. Trend-hunter monitors, deep-researcher investigates, oracle scores opportunities.
+Agent definitions live in `tools/claude-skills/agents/` — 30 files today. They are Claude Code sub-agents with tool permissions, not deployed services. `CLAUDE.md` lists 20 GTM personas across 6 teams; the rest are engineering reviewers used by the PR pipeline (`architecture`, `cicd`, `database`, `finops`, `principal-engineer`, `release-readiness`, `security`, `sre-observability`, `pr-intelligence`, `pr-orchestrator`, `orchestrator`).
 
----
-
-### Team 3: Creative Production (The Content Factory)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **brand-strategist** | Brand identity, Hinglish manifesto, tagline direction | Level 0 | Content MCP, Slack, Figma |
-| **nano-designer** | Ad banners, carousel images, TikTok thumbnails | Level 0 | Higgsfield MCP, Remotion, Slack |
-| **motion-engineer** | Reels, short-form videos (Remotion + ElevenLabs + FFmpeg) | Level 0 | Remotion, ElevenLabs, Blotato, Slack |
-| **ugc-planner** | UGC script direction, actor/voice casting, storyboards | Level 0 | Content MCP, Slack, Google Docs |
-| **orator** | Voiceovers (ElevenLabs), subtitle generation, regional dubs | Level 0–1 | ElevenLabs MCP, Blotato, Slack |
-| **landing-page-builder** | Static HTML/CSS landing pages, conversion optimization | Level 0 | Content MCP, Figma, Vercel, Slack |
-| **seo-content-writer** | Blog posts, SEO keyword targeting, editorial calendar | Level 0–1 | Content MCP, Workspace MCP (Sheets), Slack |
-
-**Workstream:** Campaign sprints. Brand-strategist sets direction; team produces assets in parallel; motion-engineer orchestrates video delivery.
-
----
-
-### Team 4: Growth & Ad Ops (The Scalers)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **media-buyer** | Meta/Google Ads campaigns, budget allocation, audience testing | Level 1 | Meta-Ads MCP, Analytics MCP, Slack |
-| **ab-optimizer** | ROAS/CPA monitoring, creative rotations, winner scaling | Level 1–2 | Analytics MCP, Campaign MCP, Slack |
-| **lead-scraper** | Lead generation (Google Maps, B2B databases), enrichment | Level 1 | Research MCP, Razorpay (credits tracking), Slack |
-
-**Workstream:** Campaign performance loop. Media-buyer launches; ab-optimizer monitors daily; lead-scraper feeds prospecting list.
-
----
-
-### Team 5: Sales & Lead Nurture (The Converters)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **sdr** | Outbound prospecting (WhatsApp, email, LinkedIn), objection handling | Level 2 | Workspace MCP (Sheets + Slack), Brevo, AiSensy |
-| **nurture-bot** | Automated follow-ups, trial signup → paid conversion sequences | Level 2 | Workspace MCP, Brevo, Analytics MCP |
-
-**Workstream:** Pipeline management. SDR sends outreach; nurture-bot follows up; operations pipeline-manager tracks conversion.
-
----
-
-### Team 6: Operations (The Trackers)
-| Persona | Role | Autonomy | Primary Tools |
-|---|---|---|---|
-| **pipeline-manager** | CRM pipeline tracking, daily/weekly summaries, velocity metrics | Level 2 | Workspace MCP (Sheets), Razorpay MCP, Analytics MCP, Slack |
-| **finance-tracker** | Revenue tracking, cohort LTV, CAC, runway calculation | Level 1 | Razorpay MCP, Campaign MCP, Workspace MCP, Slack |
-| **analytics-reporter** | Dashboards, KPI snapshots, monthly business review deck | Level 1 | Analytics MCP, PostHog, Google Sheets, Slack |
-
-**Workstream:** Daily/weekly health checks. Trackers wake up, pull data, push summaries to Slack + dashboards.
-
----
-
-## Data Sources & MCP Interfaces
-
-### Operational Data (What the MCPs connect to)
-
-| Data Source | Owned By | How Accessed | Via MCP |
-|---|---|---|---|
-| **Razorpay** | Revenue engine | REST API (verified webhook + balance) | Campaign MCP (spend), Finance MCP (revenue) |
-| **PostHog** | Product analytics | REST API | Analytics MCP (events, funnels, cohorts) |
-| **Brevo** | Email / SMS outreach | REST API | (future: Brevo MCP for list mgmt, campaigns) |
-| **Google Sheets** | Sales pipeline, roadmap, planning | Google Sheets API | Workspace MCP (read/write) |
-| **Slack** | Team communication | Slack API | Workspace MCP (alerts, summaries) |
-| **Meta Ads** | Paid campaigns | Meta Marketing API | (external: Meta-Ads MCP) |
-| **Blotato** | Social scheduling | Blotato API | Scheduling MCP (queue, post) |
-| **Git repo** | Content templates, prompts, brand kit | S3 (via Content MCP) | Content MCP (read templates) |
-
-### Agents' Read/Write Patterns
-
-**Read:**
-- Analytics agent reads PostHog (daily stats)
-- SDR reads Sheets (prospect list) + Brevo (email history)
-- Trend-hunter reads Research MCP (competitor feeds)
-
-**Write:**
-- Pipeline-manager writes Sheets (move deals)
-- Media-buyer writes Campaign MCP (log ad spend)
-- Motion-engineer writes Blotato (queue video)
-
----
-
-## Agent Autonomy Model
-
-Starts **conservative** (humans approve everything); graduates to autonomy with evidence.
-
-```
-Level 0 — Suggest
-  Agent drafts → human edits + approves → executes
-  Default for: copy, design, social posts, outreach, financial decisions
-
-Level 1 — Approve
-  Agent composes → human one-tap approves → auto-executes
-  For: research summaries, simple metric reports, campaign scheduling
-
-Level 2 — Auto + Notify
-  Agent acts autonomously → human notified → can undo
-  For: pipeline updates, social posts (scheduled), follow-up emails, routine reports
-
-Level 3 — Auto (Earned, Rare)
-  Fully autonomous; no review needed
-  Only for: simple metric calculations, scheduled task execution
-```
-
-**Graduation criteria (per workflow):**
-- 30–50 successful executions with zero human intervention
-- <2% error rate (evaluated monthly)
-- Zero "bad outcomes" (spam complaints, incorrect data, policy violations)
-- Agent evals pass (task completion, quality gates)
-
-Example: Media-buyer campaign scheduling
-- Weeks 1–2: Level 0 (agent drafts, human approves each campaign)
-- Weeks 3–6: Level 1 (agent schedules, human approves once; auto-launches)
-- Weeks 7–8: Level 2 (agent schedules autonomously; human reviews daily dashboard)
-- Week 9+: Level 1–2 (human decides based on track record)
-
----
-
-## Governance & Approval Gates
-
-### High-Risk Actions (Always Level 0 or 1)
-
-- **Financial:** Anything touching Razorpay (refunds, budget allocation, credits)
-- **Legal:** Public commitments, terms/privacy changes, customer support escalations
-- **Compliance:** Data access logs, regulatory responses
-- **Public presence:** Blog posts, official social accounts, ads targeting specific groups
-
-### Medium-Risk (Level 1 or higher)
-
-- **Marketing:** Campaign briefs (brand fit), reel scripts (quality gate), email sequences (tone check)
-- **Sales:** Prospect lists (data accuracy), outreach templates (objection handling), follow-up timing
-
-### Low-Risk (Level 2+)
-
-- **Operations:** Pipeline updates, metric calculations, routine reports, scheduled posts
-
----
-
-## Success Metrics (Phase 4)
-
-| Metric | Target | Owner |
+| Team | Personas with a definition file | Missing / planned |
 |---|---|---|
-| Time from brief to campaign live | <2 days | Creative + Growth |
-| Campaign ROAS | >3:1 (payback) | Media-buyer + ab-optimizer |
-| Lead cost | <$10/qualified lead | Lead-scraper + ab-optimizer |
-| Sales pipeline velocity | +20% contacts → +10% conversion | SDR + nurture-bot |
-| Content production cadence | 4 reels/week + 8 posts/week | Creative factory |
-| Churn insights latency | <24h (trended) | Operations team |
+| 1 · Product & Engineering | `architect`, `sentry`, `pr-commander` | — (the PR pipeline now uses `principal-engineer` and `security`, D30) |
+| 2 · Market Intelligence | `trend-hunter`, `deep-researcher`, `oracle` | — |
+| 3 · Creative Production | `brand-strategist`, `nano-designer`, `motion-engineer`, `ugc-planner`, `orator`, `landing-page-builder`, `seo-content-writer` | — |
+| 4 · Growth & Ad Ops | `media-buyer`, `ab-optimizer`, `lead-scraper` | — |
+| 5 · Sales & Nurture | `sdr`, `nurture-bot` | — |
+| 6 · Operations | `pipeline-manager` | `finance-tracker` and `analytics-reporter` were in the June design and do not exist |
+
+The June document also described `analytics`, `finance-tracker` and `analytics-reporter` as a three-agent operations team. Only `pipeline-manager` was ever written.
+
+**Tool reality per persona, corrected:**
+- `nano-designer` and `motion-engineer`: production runs on Higgsfield (`marketing-and-sales/launch-plan-v2/content-os/higgsfield/`), not Remotion. The Remotion project referenced in `CLAUDE.md` is not in the repo; Remotion survives only as `tools/claude-skills/skills/remotion-video/SKILL.md` and `tools/claude-skills/scripts/render-remotion.ps1`.
+- `orator`: ElevenLabs through `tools/claude-skills/scripts/elevenlabs-tts.ps1`. There is no ElevenLabs MCP configured.
+- `landing-page-builder`: landing pages deploy to S3 + CloudFront through `infra/cicd/landing-pages/deploy.sh`. No Vercel.
+- `sdr`: email is Amazon SES with Brevo as fallback (`apps/crm/server/emailService.js`). AiSensy appears only as a founder-side broadcast in the Razorpay webhook (`apps/crm/server/routes/billing.js`).
+- `pipeline-manager`: the pipeline is tracked through `tools/claude-skills/scripts/sheets-update.ps1` in offline JSON/CSV mode. There is no Razorpay MCP, Analytics MCP or Workspace MCP.
+- There is no Slack integration anywhere in the repo.
 
 ---
 
-## Technology Stack (Reuses Phases 0–3)
+## 5. MCP Servers: What Exists
 
-**Runtime:** AWS Lambda + Fargate (same as product)  
-**Auth:** Cognito M2M (machine-to-machine for agents)  
-**Framework:** Strands Agents SDK (T2 agents for complex workflows)  
-**External APIs:** Meta, Blotato, Higgsfield, Razorpay, PostHog, Brevo, SerpAPI, Perplexity  
-**Storage:** S3 (content templates), DynamoDB (audit log of agent actions), PostgreSQL (analytics)  
-**Orchestration:** Step Functions (multi-step workflows, approvals, retries)
+The June design called for **7 internal MCP servers** (Content, Campaign, Analytics, Scheduling, Research, Workspace, Events). **None were built**, and none are planned before the start trigger.
+
+What `.mcp.json` actually configures:
+
+| Server | Purpose |
+|---|---|
+| `higgsfield` | AI image and video generation |
+| `meta-ads` | Facebook/Instagram campaign management |
+| `blotato` | Social scheduling and publishing |
+| `nabi-crm` | The product MCP server (`services/reality-flow-mcp/`), 72 CRM tools |
+| `git` | Repository access |
+
+Everything else is a local script under `tools/claude-skills/scripts/` or a direct API call.
+
+> Open decision D22 (which scheduling tool — Blotato or manual upload) — see `marketing-and-sales/launch-plan-v2/00-OPEN-DECISIONS.md`. The operational Content OS docs currently describe manual upload (`content-os/distribution-os/instagram.md`), while `.mcp.json` and `CLAUDE.md` still list `blotato`. These need to agree before the internal system starts.
+
+**Where content lives:** in git, at `marketing-and-sales/launch-plan-v2/content-os/` and `marketing-and-sales/creative/`, read directly by agents. There is no Content MCP and no S3 content store.
 
 ---
 
-## Comparison: Operations vs. Product
+## 6. Data Sources
+
+| Source | Used for | How it is reached today |
+|---|---|---|
+| Razorpay | Revenue, subscriptions, credit packs | REST API from the CRM backend (`apps/crm/server/routes/billing.js`, `razorpayOrders.js`) |
+| PostHog | Product analytics | SDK in the CRM app and server |
+| SES / Brevo | Outbound email | `apps/crm/server/emailService.js` |
+| Google Sheets | Lead and pipeline tracking | `tools/claude-skills/scripts/sheets-update.ps1`, offline JSON/CSV mode |
+| Meta Ads | Paid campaigns | `meta-ads` MCP |
+| Higgsfield | Image and video generation | `higgsfield` MCP |
+| Git repo | Brand kit, prompts, templates, content plans | Read directly from the working tree |
+
+---
+
+## 7. Autonomy Model
+
+Start conservative and graduate with evidence. This model is unchanged from June and is the right shape; it just has nothing running on it yet.
+
+```
+Level 0 — Suggest.  Agent drafts → human edits and approves → executes.
+  Default for: copy, design, social posts, outreach, anything financial.
+Level 1 — Approve.  Agent composes → human one-tap approves → auto-executes.
+  For: research summaries, metric reports, scheduling.
+Level 2 — Auto + notify.  Agent acts → human is notified → can undo.
+  For: pipeline updates, routine reports.
+Level 3 — Auto.  Rare; only for deterministic calculations and scheduled tasks.
+```
+
+**Graduation:** 30–50 clean executions, under 2% error rate, zero bad outcomes (spam complaints, wrong data, policy violations), evals passing. The same rule governs product agents (`../21-roadmap.md` §7).
+
+**Always Level 0 or 1, no exceptions:** anything touching money, anything legally binding, anything published under the company name, and any reply sent to a real prospect.
+
+---
+
+## 8. Success Metrics
+
+The June targets assumed a paid-ads motion and were written in dollars. Corrected, and only meaningful once the system starts:
+
+| Metric | Target | Applies from |
+|---|---|---|
+| Brief → publish-ready content | Under 2 days | Start |
+| Content cadence | Set by the Content OS calendar, not by this doc | Start |
+| Sales pipeline velocity | Contacted → replied → demo, trended weekly | Start |
+| Churn and usage insight latency | Under 24 hours | Start |
+| Cost per qualified lead (₹) | Set when a paid channel is switched on | M2+ |
+| Return on ad spend | Set when a paid channel is switched on | M2+ |
+
+No paid ads run in M1 (`00-DECISIONS-LOG.md`), so cost-per-lead and ROAS have nothing to measure until then.
+
+> Open decision D23 (which channels) and D29 (analytics, referrals, prospect WhatsApp) — see `marketing-and-sales/launch-plan-v2/00-OPEN-DECISIONS.md`.
+
+---
+
+## 9. Technology, When It Starts
+
+Reuse what the product already runs on. Nothing here is a new platform commitment.
+
+- **Agents:** Claude Code sub-agents over repo files, the same way the PR pipeline runs today (`claude --agent <name>`, D30). Not Strands — it was considered and not adopted (`../20-technology-decisions.md` ADR-02).
+- **Events, if any are needed:** EventBridge and DynamoDB, like the product. Not Step Functions.
+- **Storage:** git for content and prompts; DynamoDB for any agent action log. **Not Postgres** — it is parked with no date (D8).
+- **Scheduling:** whatever D22 settles.
+
+---
+
+## 10. Operations Versus Product
 
 | Aspect | Operations | Product |
 |---|---|---|
-| **Tenancy** | Single-tenant (Cloudberry only) | Multi-tenant (agencies) |
-| **Agents** | 20 personas, T2 (Strands) | 10 domain agents, T0–T2 |
-| **RBAC** | Simple (team-based) | Strict (tenant + user + role) |
-| **Approval flow** | Human in loop, graduated autonomy | Approval queue, tenant-controlled |
-| **Data** | Business ops (Razorpay, PostHog, etc.) | Tenant CRM (leads, etc.) |
-| **Compliance** | Minimal (internal use) | High (DPDP, financial, DLT) |
-| **Monetization** | Cost center (overhead) | Revenue driver (subscription + credits) |
-| **Iteration speed** | Fast (no customer impact) | Measured (production constraints) |
+| Tenancy | Single tenant (us) | Multi-tenant (agencies) |
+| Agents | GTM personas as Claude Code sub-agents | One agent core, tenant-scoped tools |
+| Access control | Founder only | Tenant from token, role checks server-side |
+| Data | Business data (revenue, usage, ad accounts) | Tenant CRM data |
+| Compliance | Internal, but real prospects' data is still personal data under DPDP | DPDP, DLT, Meta policy |
+| Cost | Overhead | Revenue |
+| Risk of a mistake | Low, reversible | High, customer-visible |
+
+Operations data is not risk-free: prospect lists are personal data, so the same "archive, never delete" and consent rules apply.
 
 ---
 
-## Why Phase 4, Not Phase 0?
+## 11. Why It Waits
 
-1. **Dependency:** Operations agents need stable product APIs (MCP tools from Phase 1–3) to read metadata
-2. **ROI:** Spend 3 weeks building ops is opportunity cost when Phase 1 (customer acquisition engine) is open
-3. **Decoupling:** Ops can iterate independently; doesn't risk product release
-4. **Hiring:** Ops team composition different (marketers, sales, ops) from product team (engineers)
+1. **The product has to be sold first.** With one founder, time spent on internal automation is time not spent on the Phase A launch list (`../21-roadmap.md`).
+2. **There is nothing to automate yet.** Automating a go-to-market motion before it has run manually optimises the wrong thing.
+3. **The design already moved.** The operating-agent model now lives in Content OS (AG-1 Marketing, AG-2 Content, AG-3 Distribution and the rest) over a DynamoDB event backbone: `marketing-and-sales/launch-plan-v2/content-os/growth-platform/ai-agents/ai-agent-architecture.md`. That is the document to build from; this one is the boundary and the start trigger.
 
-**Decision:** Complete Phases 0–3, hit product-market fit with 10 agencies, then scale ops in parallel to 100 agencies.
+**Trigger:** after the M1 PMF gate (D21).
+
+> **Open question:** does the internal system get its own AWS account, or does founder tooling stay local (scripts plus Claude Code) indefinitely? Nothing in it needs to be deployed to run.

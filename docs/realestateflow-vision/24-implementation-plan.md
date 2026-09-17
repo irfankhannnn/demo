@@ -1,5 +1,7 @@
 # 24 — Implementation Plan
 
+> **Archived (17 Sep 2026):** June 2026 design record, kept for history. Not the current plan. The "first 90 days", the team shape and most of the build-vs-integrate cheat sheet describe tools the code never adopted (Chatwoot, Strands, AgentCore Gateway, Bedrock Knowledge Bases, Lago, Langfuse, Aurora, Redis, Step Functions). Current sources: `docs/realestateflow-vision/21-roadmap.md` (Phase A/B/C), `docs/realestateflow-vision/00-phase-0-prerequisites.md` (hardening checklist with status), `docs/realestateflow-vision/20-technology-decisions.md` (what was adopted and what was not), `docs/proposals/agent-channel-architecture/` (the agent design being implemented), `docs/pending-items/` and `marketing-and-sales/launch-plan-v2/`. **REF-E04** below was never defined in `22-jira-epics.md` and no Postgres migration is planned.
+
 > **Scope:** the concrete "how we actually start" — first 90 days in detail, team shape, sprint cadence, environment/tooling setup, and the pragmatic build-vs-integrate cheat sheet the user explicitly asked for ("architecture that can be implemented without rewriting everything; what integrations and open-source/third-party tools we can use"). Builds on `18`,`21`,`22`,`23`.
 
 ---
@@ -102,7 +104,7 @@ Run **2-week sprints**, one engine to GA at a time, others in flag-gated beta. W
 ---
 
 ## 7. Immediate Next Actions (this week)
-1. **Rotate the exposed secrets** in `ai-calling-service/deploy-lambda.ps1` and purge history (REF-E00-S1).
+1. **Rotate the exposed secrets** in `services/ai-calling-service/deploy-lambda.ps1` and purge history (REF-E00-S1).
 2. Stand up the **feature-flag + audit-log** primitives (REF-E02-S3, E03-S2).
 3. Spike **AgentCore Gateway** over the Lead + Property endpoints → first MCP tools (REF-E02-S1).
 4. Deploy **Chatwoot** in staging and wire one WhatsApp number (AiSensy) → a stub backbone (REF-E11-S1).

@@ -1,87 +1,92 @@
 # 05 — MCP Architecture
 
-> **Scope:** how RealEstateFlow exposes its business capabilities to AI agents (and partners) as **Model Context Protocol** servers, organized by business domain. Builds on `03` (L5 tool layer) and `04` (agents that consume these). Research basis: MCP spec + AgentCore Gateway, verified June 2026 (`20`).
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. Built: one MCP server (`services/reality-flow-mcp`, 72 tools generated from the CRM tool registry, own OAuth 2.1, Lambda). The June design of 11 domain servers behind AgentCore Gateway is kept below as "considered, not adopted"; we split only if clients struggle.
+
+> **Scope:** how RealEstateFlow exposes its business capabilities to AI agents and to customers' own AI tools through the **Model Context Protocol**. Builds on `03` (L5 tool layer) and `04`.
 
 ---
 
-## 1. Why MCP, and Why Domain-Oriented
+## 1. Why MCP
 
-The existing **SyncBot** already proves the core idea: skills that are thin CLI wrappers calling the CRM REST API (`ai-employee/skills/*`). MCP formalizes that pattern into a **standard, discoverable, auth-aware tool interface** any agent (ours, or a customer's own tooling, or a partner) can consume.
+The domain is already exposed as **one tool registry** (`apps/crm/server/shared/toolDefinitions.js`) that the in-house agent runtime runs in-process via `apps/crm/server/skillInvoker.js`. The older SyncBot CLI skills (now reference only in `tools/openclaw_workspace_reference/skills/*`) were retired in its favour. MCP publishes the same tools through a **standard, discoverable, auth-aware interface** that Claude, ChatGPT and partner tools can use.
 
-**Decision: business-domain-oriented MCP servers, not one mega-server and not one-server-per-endpoint.** Rationale:
-- **Tool-count hygiene:** agents degrade when given dozens of flat tools. Grouping by domain keeps each agent's working tool set small and its prompt cacheable (`04`).
-- **Bounded blast radius & ownership:** each MCP server maps to a domain module and team; failures, permissions, and rate limits are scoped.
-- **Composability:** an agent loads only the MCP servers its charter needs (Sales Assistant → Property + Knowledge + Visit; Scorer → Lead only).
-- **Multi-tenant safety:** tenancy and RBAC are enforced *inside* each server against the existing domain layer, so no agent can bypass isolation.
+## 2. As Built: One Server
 
-## 2. The MCP Domain Map
+| Property | Today |
+|---|---|
+| Server | `services/reality-flow-mcp` (TypeScript, Express), Streamable HTTP, on Lambda + API Gateway (`services/reality-flow-mcp/infra/cfn-backend.yaml`) |
+| Tools | **72**, generated from the CRM registry into `src/services/generatedToolDefinitions.ts` (`npm run generate:mcp-tools`). The WhatsApp agent, CRM backend and MCP server expose the same 72 tools. |
+| Categories | lead 8, buyer 7, tenant 8, owner 8, property 9, contact 10, meeting 5, metrics 15, khata 2 |
+| Execution | Each call is proxied to the CRM backend `POST /api/crm/agent/tool` (`src/services/crmClient.ts`); no direct DynamoDB access |
+| Auth | Own OAuth 2.1 authorization server: dynamic client registration (rate-limited), PKCE, HS256 access/refresh tokens (`src/routes/oauth.ts`, `src/services/tokenService.ts`) |
+| Tenancy | `tenantId` comes from the token claim; a token without it is rejected (`src/middleware/jwtAuth.ts`) |
+| Scopes | Every tool maps to `read_<noun>` / `write_<noun>` by category and read-only flag; unknown categories fall back to `crm`, never unrestricted (`src/services/toolDefinitions.ts`) |
+| Drift control | CI regenerates the tool file and fails on any difference (`.github/workflows/server-tests.yml`) |
+| Customer use | Agencies can connect Claude/ChatGPT today (`docs/MCP_AGENCY_GUIDE.md`, `apps/crm/server/routes/aiIntegrations.js`) |
 
-Eleven domain servers, each wrapping existing (or near-existing) domain services:
+Known gap: `services/reality-flow-mcp/README.md` still says 54 tools.
 
-| MCP Server | Wraps (today's code) | Representative tools | Consumers |
-|---|---|---|---|
-| **Lead MCP** | `routes/leads.js`, `crmDynamodbService` | `create_lead`, `update_lead`, `search_leads`, `score_lead`, `set_qualification`, `convert_lead`, `lead_metrics` | Qualifier, Scorer, Sales |
-| **Property/Inventory MCP** | `crm` properties, `projects`, `developers`, `buildings`/`flats` | `search_inventory`, `get_property`, `get_project`, `get_pricing`, `get_payment_plan`, `check_availability` | Sales, Voice, Marketing |
-| **CRM/Contact MCP** | `contacts.js`, `crm.js` | `resolve_contact_by_phone`, `upsert_contact`, `assign_role`, `add_note`, `get_timeline` | Router, all agents |
-| **Visit MCP** | meetings in `crm`, site-visit flows | `schedule_visit`, `reschedule_visit`, `list_upcoming_visits`, `visit_reminder` | Sales, Voice, Follow-Up |
-| **Task MCP** | tasks/notifications | `create_task`, `assign_task`, `list_tasks`, `complete_task` | Assignment, all agents (HITL) |
-| **Marketing MCP** | Higgsfield/Meta-Ads/Blotato MCPs + `marketing-and-sales` | `generate_image`, `generate_reel`, `create_campaign`, `schedule_post`, `get_campaign_metrics` | Marketing agent |
-| **Voice MCP** | `ai-calling-service` | `start_call`, `get_call_status`, `get_transcript`, `schedule_callback` | Voice, Follow-Up |
-| **Analytics MCP** | metrics endpoints + (later) Aurora reporting | `pipeline_summary`, `agent_performance`, `lead_funnel`, `revenue_report` | Agency-Command, dashboards |
-| **Automation MCP** | new (portal/browser) | `enqueue_portal_post`, `get_automation_run`, `list_credentials`, `request_2fa` | Automation agent (HITL) |
-| **Document MCP** | `s3Service`, KYC doc flows | `get_brochure`, `get_floor_plan`, `upload_document`, `get_signed_url` | Sales, Voice, Automation |
-| **Knowledge MCP** | Bedrock KB (`ragService`) | `query_knowledge`, `list_sources`, `ingest_document` | Sales, Voice, Follow-Up |
+**Decision:** keep one server, grouped by category and OAuth scope. Split into separate servers **only if clients struggle** with the tool count (tool-choice errors, context limits). Scopes already let a client be granted a subset.
 
-These boundaries are intentionally the **same seams** as the agent roster (`04`) and the future domain-service refactor (`18`) — one mental model across agents, tools, and code.
+## 3. Considered, Not Adopted: Eleven Domain Servers
 
-## 3. How MCP Servers Are Built & Hosted
+The June 2026 plan proposed eleven domain servers. Kept for reference; the "wraps" column is corrected to today's code.
 
-**Two complementary mechanisms** (use the cheaper/simpler one per server):
+| June domain server | Maps to today | Representative tools (June) |
+|---|---|---|
+| Lead | registry category `lead`; `routes/leads.js` | `create_lead`, `update_lead`, `search_leads`, `convert_lead` |
+| Property/Inventory | category `property`; `projects`/`developers`/`buildings`/`flats` routes are **not mounted** | `search_inventory`, `get_property`, `check_availability` |
+| CRM/Contact | categories `contact`, `buyer`, `tenant`, `owner` | `resolve_contact_by_phone`, `upsert_contact`, `add_note` |
+| Visit | category `meeting` | `schedule_visit`, `list_upcoming_visits` |
+| Task | notifications; no task category yet | `create_task`, `list_tasks` |
+| Marketing | not built; tenant marketing agent **dropped** | — |
+| Voice | `services/ai-calling-service` (not in MCP) | `start_call`, `get_transcript` |
+| Analytics | category `metrics` | `pipeline_summary`, `lead_funnel` |
+| Automation | not built; portal posting **dropped** | — |
+| Document | `s3Service`, KYC flows (not in MCP) | `get_brochure`, `get_signed_url` |
+| Knowledge | `apps/crm/server/services/knowledge/*` + vector search (not in MCP) | `query_knowledge` |
 
-1. **AgentCore Gateway (preferred for existing APIs):** point Gateway at our **OpenAPI specs / Lambda functions** and it produces MCP tools with **zero MCP-server code**, handling ingress/egress auth and tool discovery. Most CRM-backed servers (Lead, Property, CRM, Visit, Task, Analytics, Document) start here — we already have the REST endpoints. This is the fastest path and avoids maintaining server processes.
-2. **Custom MCP servers (TypeScript/Python SDK) on Lambda/Fargate (Streamable HTTP):** for servers needing bespoke logic, composition across services, or third-party orchestration (Marketing wrapping 3 external MCPs; Automation with queue + browser; Knowledge with custom retrieval). Hosted as Streamable HTTP behind API Gateway/ALB.
+The domain boundaries survive as **tool categories and scopes** inside the one server.
 
-**Transport:** Streamable HTTP (not stdio) for all hosted servers — they're network services consumed by cloud agents. **Auth:** OAuth 2.1 resource-server pattern; each server validates the caller's (agent's) Cognito M2M token and **derives tenant + scope from it** — identical to how `validateToken`/`extractTenantId` work today, reused.
+## 4. How the Server Is Built & Hosted
 
-## 4. Multi-Tenancy & Security in MCP
+- **Built:** a custom TypeScript MCP server on Lambda, Streamable HTTP, generated tool definitions, business logic left in the CRM backend.
+- **Considered, not adopted:** AgentCore Gateway turning OpenAPI specs / Lambdas into MCP tools with zero server code.
+- **Transport:** Streamable HTTP for hosted use; `src/local-server.ts` for local runs.
+- **Service identity:** internal calls without a user token run as `mcp-agent`. Cognito M2M is not used.
 
-Every tool call carries an authenticated identity (user via dashboard, or agent via M2M). Inside each server:
+## 5. Multi-Tenancy & Security
 
 ```
 tool(args, authContext):
-  tenantId = authContext.tenantId          # server-derived, never from args
-  assert authContext.scopes ⊇ required_scope(tool)   # RBAC (15)
-  enforce per-tenant rate/budget caps      # cost control (17)
-  call domain service (already tenant-scoped: TENANT# keys)
-  audit(tenant, identity, tool, args-redacted, result-summary, cost)
+  tenantId = authContext.tenantId             # from the token, never from args
+  assert authContext.scopes ⊇ TOOL_SCOPES[tool] # read_/write_<noun>
+  per-client rate limit
+  POST /api/crm/agent/tool  (CRM enforces TENANT# keys)
 ```
 
-This means an MCP tool is **never more privileged than the principal calling it**: an agent serving a Team-Lead's request sees only that team's data; the Automation MCP resolves portal credentials only for the calling tenant from Secrets Manager. Tenant id is **always** derived from the token, never accepted as a tool argument — directly carrying forward today's anti-spoofing posture.
+- Tenant id is **never** accepted as a tool argument.
+- A tool is never more privileged than the caller. Today the caller's access is tenant-wide (ADMIN/MEMBER, no lead scoping). When MANAGER and "members see only their own leads" land (before Team plans), the CRM tool endpoint must apply the same scoping to MCP calls.
+- **Open:** a per-call audit record for MCP tool use (today agent-runtime actions go to `AgentAuditTable`; there is no general CRM mutation audit, see `00` §7).
 
-## 5. Tool Design Guidance (house rules)
+## 6. Tool Design Guidance (house rules)
 
-- **Few, high-level, intent-shaped tools** beat many CRUD primitives. Prefer `qualify_lead(budget, timeline, …)` over five field setters; prefer `search_inventory(criteria)` returning ranked results over raw scans.
-- **Structured, quotable returns** (so agents ground answers, `04 §5`), with source/citation fields where relevant.
-- **Idempotency keys** on mutating tools (reuse the `WebhookLog` idempotency pattern) — agents retry.
-- **Cost/latency budgets** declared per tool; expensive tools (reel generation, browser runs) are async (return a run id; poll/event).
-- **Stable schemas** — tool definitions are part of the cached prompt; churn = cache misses + agent confusion.
+- **Few, intent-shaped tools** beat many CRUD primitives.
+- **Structured, quotable returns** so agents ground answers (`04` §5).
+- **Idempotency** on mutating tools (reuse the `WebhookLog` pattern).
+- **Async for long work** (calls, media): return a run id and poll or emit an event.
+- **Stable schemas:** definitions are generated from one registry; change the registry, never the generated file.
 
-## 6. Beyond Internal Agents: MCP as a Product Surface
+## 7. MCP as a Product Surface
 
-Because the domain is exposed as standard MCP, three external surfaces come nearly for free later:
-- **Customer power-users / their own AI tools** can be granted scoped MCP access to their tenant (e.g. connect their Claude/agent to their RealEstateFlow data).
-- **Partners/integrations** (a developer's CRM, a portal) consume specific servers under contract.
-- **A2A interop** (`04`): our agents can call partner agents and vice-versa over standard protocols.
-This is a strategic reason to invest in clean MCP boundaries now, not just an internal plumbing choice.
-
-## 7. Migration from SyncBot Skills → MCP (detail in `06`, `18`)
-
-The 6 SyncBot skills map almost 1:1 onto Lead/CRM/Property/Visit MCP tools. Path: (1) extract the REST calls the skill scripts make; (2) expose those endpoints via Gateway as MCP tools; (3) retire the CLI scripts, keeping the *business rules* (money normalization, confirmation gating, response modes) as tool-layer validation/prompt guidance. Net: same capability, now consumable by any agent, governed and audited.
+- **Customers' own AI tools — live:** agencies connect Claude/ChatGPT to their tenant through OAuth with scoped access.
+- **Partners/integrations — later:** specific scopes under contract.
+- **Agent-to-agent interop — later**, only if a partner needs it.
 
 ## 8. What We Avoid
 
-- **One mega-MCP** (too many flat tools → agent degradation, uncacheable prompts).
-- **One-MCP-per-endpoint** (explosion of servers, ops overhead).
-- **Tenant id as a tool argument** (spoofing risk).
-- **Synchronous long-running tools** (browser/reel/voice are async via run ids + events).
-- **Duplicating business logic in the MCP layer** — servers wrap the single domain layer; rules live once.
+- **Splitting servers before there is a problem** (more deploys and auth surfaces for no gain today).
+- **One-server-per-endpoint.**
+- **Tenant id as a tool argument.**
+- **Synchronous long-running tools.**
+- **Duplicating business logic in the MCP layer** — the server proxies to the CRM, rules live once.

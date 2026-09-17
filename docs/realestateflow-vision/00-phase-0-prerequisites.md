@@ -1,236 +1,184 @@
-# Phase 0 — Prerequisites (Must Complete Before Everything Else)
+# Phase 0 — Prerequisites (Hardening Checklist)
 
-> **Status:** Foundational security & infrastructure work · **Duration:** 2–3 weeks · **Team:** 1–2 engineers · **Gate:** All Phase 1 work blocks on Phase 0 completion.
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. Several June "facts" are fixed (cancel webhook, grace on payment failure, secrets out of the deploy script, server jest in CI); the remaining items are now assigned to Phase A (before taking payment) or Phase B (hardening).
 
 ---
 
 ## Overview
 
-Phase 0 is not an optional optimization — it is **day 1 work that unblocks the entire roadmap.** Skipping it means deploying agent code on an insecure, untestable, under-specified foundation.
+In June 2026 "Phase 0" was a 2–3 week gate before any product work. Since then much of the product was built in parallel, so this doc is now a **checklist with status**. Each open item is assigned to a phase:
+
+- **Phase A — M1 launch:** must be done before taking payment.
+- **Phase B — Hardening:** before selling Team plans or scaling up.
+
+No dates. See `QUICK-START.md` and `21-roadmap.md`.
+
+## Summary
+
+| # | Item | Done | Still open | Phase |
+|---|---|---|---|---|
+| 1 | Billing webhooks + grace period | Cancel/halt update DB; `payment.failed` starts grace | Clear grace on charge; schedule expiry cron in CFN; server-side read-only | A |
+| 2 | Secrets | ai-calling deploy script removed; NoEcho params + Secrets Manager; SSM sync for the CRM | Confirm rotation; gitleaks in CI | A |
+| 3 | CI | Server jest + MCP drift checks run | Playwright E2E not run in CI | B |
+| 4 | RBAC | Most mounted DELETEs guarded | MANAGER role, own-leads scoping, 2 unguarded DELETEs, align auth roles | B |
+| 5 | Pagination | limit/offset on leads/customers | Cursor pagination on all lists | B |
+| 6 | IaC | 17 CFN templates, `infra/cicd/<service>/deploy.sh` wrappers with build tracking | GitHub Actions deploy to dev | B |
+| 7 | Audit log | Agent audit table | CRM mutation audit; archive instead of TTL delete | B |
+| 8 | API protection | App-level in-memory rate limiter; security headers | API Gateway throttling, access logs, CORS fix; WAF after first customers | A (WAF: B) |
 
 ---
 
-## Mandatory Work Items
+## 1. Billing Webhooks and Grace Period — Phase A
 
-### 1. 🔴 Fix Billing Webhook Gaps (2 days)
+**Done (in `apps/crm/server/routes/billing.js`):**
+- `subscription.cancelled` and `subscription.halted` update the Subscriptions table (`isPaying: false`, `paymentStatus`).
+- `payment.failed` sets `gracePeriodActive: true` and `gracePeriodEndsAt` (default 7 days, `GRACE_PERIOD_DAYS`) for paying tenants and emails the founder.
+- The frontend paywall respects grace (`apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`).
+- The expiry script exists: `apps/crm/server/scripts/grace-period-expiry-cron.js` (sets `isPaying: false` once `gracePeriodEndsAt` has passed).
 
-**Status: CRITICAL — Revenue leakage**
+**Still open:**
+1. `subscription.charged` does not clear grace; `subscription.resumed` sets `isPaying: true` but leaves grace fields untouched.
+2. The expiry script is **not scheduled**: add `GracePeriodExpiryFunction` + an EventBridge rule to `apps/crm/server/infra/cfn-backend.yaml`.
+3. No server-enforced read-only mode after grace ends; today only the frontend paywall blocks.
+4. The expiry script scans the Subscriptions table. There is no `razorpay-subscription-index` GSI; existing GSIs are `paymentStatus-createdAt-index` and `updatedAt-index` (`apps/crm/server/infra/launch-tables-cfn.yaml`). A GSI is optional at pre-launch volume.
 
-**The facts (from `server/routes/billing.js` + `server/subscriptionService.js`):**
+Full specs: `29-payment-system-implementation.md`.
 
-1. `subscription.cancelled` webhook is received but **never updates the Subscriptions DynamoDB table**. Tenants who cancel still show as `isPaying = true`.
-2. `gracePeriodActive` field exists but is **never set to `true`** by any code path. When payment fails, tenants lose access immediately instead of getting a 7-day grace period.
-3. `payment.failed` webhook fires but doesn't activate grace period — only logs a PostHog event.
-4. No cron enforces grace period expiry (no Lambda, no EventBridge rule).
+**Definition of done:** failed payment → 7-day grace → read-only after expiry, enforced on the server; successful charge clears grace. Verified with Razorpay test events.
 
-**The risk:** Cancelled tenants keep full access. Failed-payment tenants are immediately locked out (churn risk). This will cause direct revenue leakage as the user base grows.
+---
+
+## 2. Secrets — Phase A
+
+**Done:**
+- `ai-calling-service/deploy-lambda.ps1` (which held Exotel, ElevenLabs, CRM internal API key and Bedrock KB id as defaults) is deleted. The AI calling stack now takes NoEcho parameters with no defaults into Secrets Manager (`services/ai-calling-service/infra/cfn-ai-calling.yaml`, `src/config/secretsBootstrap.js`).
+- The CRM server syncs SSM SecureStrings (`apps/crm/server/infra/sync-ssm-params.sh`).
+- The files that exposed Gemini and Baileys keys are untracked (`docs/security-key-rotation.md`).
+
+**Still open:**
+1. The old Exotel, ElevenLabs, Gemini, Baileys and CRM API keys are still in git history. **Rotation status is unconfirmed.** Rotate each one and record it in `docs/security-key-rotation.md`.
+2. **No history rewrite** and never force-push. Rotation is what makes the leaked values useless.
+3. Add `gitleaks` to CI (none today).
+
+**Definition of done:** every leaked key rotated and recorded; gitleaks runs on every PR.
+
+---
+
+## 3. CI — Phase B
+
+**Done:** four workflows exist: `playwright.yml`, `server-tests.yml`, `insta-sol-ms-tests.yml`, `pr-intelligence.yml`. `server-tests.yml` runs jest for `apps/crm/server` (`apps/crm/server/jest.config.js`) plus MCP tool-drift checks.
+
+**Still open:** the Playwright suite (31 specs under `tests/playwright/api` and `tests/playwright/ui`, config `tests/playwright/playwright.config.ts`) is not run in CI. The `playwright.yml` guard `ls tests/*.spec.ts` never matches, and the specs need a live backend. Decide on a dev-backend target, then run the suite on PRs.
+
+**Definition of done:** Playwright E2E runs in CI against dev and blocks merge on failure.
+
+---
+
+## 4. RBAC — Phase B
+
+**Today:**
+- The auth model has only `'ADMIN' | 'MEMBER'` (`services/reality-flow-authentication/src/models/usersModel.ts`).
+- The server also accepts FOUNDER/OWNER/MANAGER (`apps/crm/server/middleware/requireRole.js`); PLATFORM_OPERATOR/SUPER_ADMIN are used only for credit admin (`requirePlatformOperator.js`).
+- Most mounted DELETE routes are guarded. Two mounted ones are not: `apps/crm/server/routes/aiIntegrations.js` (`DELETE /:clientId`) and `apps/crm/server/routes/notifications.js` (`DELETE /devices/:token`).
+- No team/region/assigned-lead scoping; `assignedTo` is only a list filter (`apps/crm/server/routes/leads.js`).
+
+**Decision:** ADMIN/MEMBER is enough for M1. Before selling Team plans, add a MANAGER role and "members see only their own leads".
 
 **Actions:**
-1. Fix `subscription.cancelled` handler to update Subscriptions table (`isPaying = false`, `gracePeriodActive = true`).
-2. Fix `payment.failed` handler to activate grace period (7 days, stored as `gracePeriodEndsAt`).
-3. Fix `subscription.charged` to clear grace period on successful payment.
-4. Add `razorpay-subscription-index` GSI to Subscriptions table (CFN change to `cfn-backend.yaml`).
-5. Create `grace-period-expiry-cron.js` Lambda + EventBridge rule (hourly) to lock out expired grace tenants.
-6. See `29-payment-system-implementation.md` for full code specs.
+1. Add MANAGER to the auth model so it matches the roles the server checks.
+2. Scope lead reads and writes for MEMBER to `assignedTo = caller` (plus unassigned leads, if the agency allows).
+3. Add role checks to the two unguarded DELETE routes.
+4. Tests: a MEMBER cannot delete and sees only their own leads; a MANAGER and ADMIN see all.
 
-**CFN changes:** Add GSI to SubscriptionsTable, add `GracePeriodExpiryFunction` Lambda + `GracePeriodExpiryRule` EventBridge rule to `server/infra/cfn-backend.yaml`.
-
-**Definition of done:** Cancelled → DB updated within seconds. Failed payment → 7-day grace. Expired grace → locked. All verified with Razorpay webhook test events.
+**Definition of done:** no mounted DELETE without a role check; member scoping enforced on the server and tested.
 
 ---
 
-### 2. 🔴 Rotate & Remove Hardcoded Secrets (3 days)
+## 5. Pagination — Phase B
 
-**Status: CRITICAL**
-
-**The fact:** Production secrets (Exotel API key/SID, ElevenLabs key, CRM internal API key, Bedrock KB id) are committed in `ai-calling-service/deploy-lambda.ps1` as default parameter values.
-
-**The risk:** Anyone with access to the repo (or who clones it) has live credentials to Exotel, ElevenLabs, and Bedrock. Exotel can be abused to send charges to your account; ElevenLabs can consume your TTS quota; the CRM internal API key bypasses auth.
+**Today:** leads and customers accept `limit`/`offset`, but slice in memory after a scan (e.g. `apps/crm/server/routes/crm.js`). Contacts, owners, properties and meetings are unpaginated scans. `TODO(MED-1)` (replace Scan + FilterExpression with a Query) is still open in `apps/crm/server/crmDynamodbService.js`.
 
 **Actions:**
-1. Generate new credentials for **Exotel, ElevenLabs, Bedrock, CRM internal API** (Cognito for internal calls).
-2. Move all secrets to AWS Secrets Manager (or Parameter Store).
-3. Update `deploy-lambda.ps1` to fetch from Secrets Manager at deploy time (NO defaults).
-4. Force-push git history to remove old secrets (or use BFG to scrub).
-5. Rotate the old credentials (mark as inactive, set expiry, monitor for abuse).
-6. Add `gitleaks` pre-commit hook + CI check to block any future secret commits.
+1. Replace scans with Queries on the tenant partition (MED-1).
+2. Cursor pagination using `LastEvaluatedKey`: `{ items, nextCursor, hasMore }`, default 50, max 1000.
+3. Update the frontend lists and add tests for empty, single-page and multi-page cases.
 
-**Definition of done:** Zero secrets in any `.ps1`, `.js`, `.ts`, `.json` config files. All infra uses Secrets Manager. `gitleaks` passes CI.
+**Definition of done:** every list endpoint is Query-based and cursor-paginated.
 
 ---
 
-### 3. Fix CI/CD So Tests Actually Run (2 days)
+## 6. IaC and Deploys — Phase B
 
-**Status: BLOCKER FOR TESTING**
+**Today:** CloudFormation only. 17 templates across `apps/*/infra`, `services/*/infra` and `infra/cicd/common-infra`. Each service deploys through a bash wrapper `infra/cicd/<service>/deploy.sh` with build tracking (`infra/cicd/README.md`). CRM backend resources live in `apps/crm/server/infra/cfn-backend.yaml`. There is no Makefile and no PowerShell deploy.
 
-**The fact:** The only GitHub Actions workflow (`playwright.yml`) guards test execution on a path glob that doesn't match the actual test location:
-```yaml
-if: ls tests/*.spec.ts
-# But tests live in tests/playwright/ui/**/*.spec.ts
-# So the guard fails silently and tests NEVER run in CI
-```
+**Decision:** deploys stay manual through the wrappers. A GitHub Actions deploy to dev comes later. The June plan's `make deploy`, `scripts/deploy.sh` and `cfn-aurora.yaml` are dropped.
 
-**The risk:** You can commit broken code, and CI won't catch it. Rewriting the data layer without executing test coverage is reckless.
+**Definition of done (later):** merge to main deploys to dev via GitHub Actions using the same wrappers.
+
+---
+
+## 7. Audit Log — Phase B
+
+**Today:** agent actions go to `AgentAuditTable` (`apps/crm/server/infra/cfn-backend.yaml`, `apps/crm/server/agents/agentAuditService.js`) with a 90-day TTL. WhatsApp audit rows go to the CRM table (`apps/crm/server/whatsappAuditService.js`). There is **no audit of general CRM mutations**.
 
 **Actions:**
-1. Fix the path glob in `.github/workflows/playwright.yml` to `tests/playwright/**/*.spec.ts`.
-2. Verify tests actually execute on a PR.
-3. Add unit test scaffolding (Jest or Vitest) for `server/` — even if empty, establish the pattern.
-4. Add a `scripts/test.sh` that runs all test suites locally (pre-commit friendly).
+1. Add an audit record for every CRM mutation (POST/PUT/PATCH/DELETE): `{ tenantId, userId, action, entityType, entityId, before, after, timestamp }`, written async.
+2. Admin-only read endpoint, filterable by date, user and entity.
+3. **Archive old rows (e.g. export to S3) instead of TTL delete.** Apply the same rule to the agent audit table.
 
-**Definition of done:** `npm test` runs Playwright E2E + any new unit tests. CI runs the same. A PR cannot merge without passing tests.
-
----
-
-### 4. Fix RBAC: Enforce Role Checks Uniformly (5 days)
-
-**Status: SECURITY + ARCHITECTURE PREREQUISITE**
-
-**The fact:** RBAC is binary (`ADMIN` / `MEMBER` only) and unevenly enforced:
-- Frontend enforces "members can't delete" via UI (not secure).
-- Backend `crm.js` has 10+ DELETE routes with **no `requireRole` check**.
-- `requireRole` middleware references roles (`FOUNDER`, `OWNER`, `MANAGER`) that **don't exist** in the user model.
-- The vision calls for agent-scoped data access (an agent can only see/modify data it's assigned to), but today there's no assignment/scoping at all.
-
-**The risk:** Anyone with a `MEMBER` account can DELETE customer data (via direct API call, bypassing the UI). Agents have no scoping. The system can't enforce "agent can only access assigned leads."
-
-**Actions:**
-1. **Unify the role model.** Define: SUPER_ADMIN, ADMIN, AGENT, MEMBER. Update `usersModel.ts` in auth service.
-2. **Add data-scoping columns:** `assigned_agent_id` on leads/contacts, `region` on user/agent, `team_id` on user/agent. Update CRM schema to include these.
-3. **Enforce role checks on DELETE.** Add `requireAdmin` to all `router.delete()` in `server/routes/*.js`.
-4. **Agent scoping middleware:** After `validateToken, extractTenantId`, add `validateAgentScope(req)` that ensures agent can only query `WHERE assigned_to = req.user.id OR assigned_to IS NULL`.
-5. **Test:** Playwright tests that a MEMBER cannot DELETE, an AGENT can only see assigned leads, an ADMIN sees all.
-
-**Definition of done:** No DELETE endpoint without role check. Agent queries are scoped. Playwright tests pass. Role model is consistent (no phantom roles in middleware).
+**Definition of done:** every CRM mutation audited; admins can query it; nothing is deleted by TTL.
 
 ---
 
-### 5. Add Pagination to List Operations (4 days)
+## 8. API Protection — Phase A (WAF in Phase B)
 
-**Status: SCALABILITY PREREQUISITE**
+**Today:** app-level rate limiter is in-memory per Lambda instance (`apps/crm/server/middleware/rateLimiter.js`), so it does not hold across concurrent invocations. API Gateway gateway responses still return `Access-Control-Allow-Origin: '*'` (`apps/crm/server/infra/cfn-backend.yaml`). No API Gateway access logs, no stage throttling, no WAF. PITR is on for all CRM tables.
 
-**The fact:** Zero pagination in the current codebase. Every `getCustomers`, `getLeads`, `getMeetings` call reads the **entire tenant partition** from DynamoDB (via `ScanCommand` with no `Limit`).
-
-At 10,000+ leads per tenant, a single "list leads" query scans 10k+ items. At 100k leads (your stated scale), it breaks.
-
-**The risk:** The system cannot scale to the target (100k leads) without this.
-
-**Actions:**
-1. Add `limit` (default 50, max 1000) and `offset`/`cursor` support to all list endpoints.
-2. In DynamoDB, use `Limit` parameter and `LastEvaluatedKey` (cursor-based pagination).
-3. Return pagination metadata: `{ items: [...], nextCursor: "...", hasMore: true }`.
-4. Update frontend to handle pagination (infinite scroll or pages).
-5. Add Playwright tests for pagination edge cases (empty, single page, multi-page).
-
-**Definition of done:** All list endpoints support pagination. A request to `GET /api/crm/leads?limit=50&cursor=...` returns at most 50 items. Pagination tests pass.
+**Actions before paid launch:** API Gateway stage throttling, access logs, restrict gateway-response CORS to allowed origins. **WAF** after the first customers.
 
 ---
 
-### 6. Consolidate & Publish IaC — CloudFormation Only (3 days)
+## Success Criteria
 
-**Status: INFRASTRUCTURE CLARITY**
-
-**The fact:** CloudFormation templates exist (`server/infra/cfn-backend.yaml`, plus separate templates for auth, AI calling), but:
-- No centralized registry of what's deployed where.
-- Deploy scripts are PowerShell (not cross-platform).
-- All infra must use **CloudFormation exclusively** — no Terraform, Pulumi, CDK, or SAM.
-
-**The risk:** Hard to reason about infrastructure; hard to replicate; hard to add new services.
-
-**Actions:**
-1. Make `server/infra/cfn-backend.yaml` the single source of truth for all backend AWS resources.
-2. Create companion templates: `server/infra/cfn-aurora.yaml` (Phase 2 Aurora/RDS Proxy), `server/infra/cfn-agents.yaml` (Phase 1 agent Lambdas).
-3. Document which CFN stack owns which table, function, role, and its dependencies.
-4. Create a `scripts/deploy.sh` (bash) that runs `aws cloudformation deploy` for each stack in order.
-5. Add a `Makefile` for `make deploy`, `make destroy`, `make validate-stack`.
-6. Document the deploy path: code → git push → CI runs tests → manual approval → `make deploy`.
-
-**Definition of done:** All infra is in CFN templates. `make deploy` successfully deploys to staging. `aws cloudformation validate-template` passes for all templates. No Terraform/CDK/SAM files exist.
-
----
-
-### 7. Add Immutable Audit Log (2 days)
-
-**Status: COMPLIANCE + DEBUGGING**
-
-**The fact:** The vision requires audit trails (for billing, governance, compliance). Currently there's no audit log.
-
-**The risk:** Cannot trace who did what, when, why. Compliance frameworks (DPDP, financial audit) require this.
-
-**Actions:**
-1. Create an `AuditLog` DynamoDB table: `{ id, tenantId, userId, action, entityType, entityId, before, after, timestamp }`.
-2. Add middleware to log every state-changing operation (POST, PUT, DELETE) to the audit table (async, non-blocking).
-3. Expose read-only audit log endpoint (admin-only).
-4. Implement TTL on audit log (keep 1–2 years, then auto-delete per compliance).
-
-**Definition of done:** Every CRM mutation is logged. Admin can query audit by date/user/entity. No test failures.
-
----
-
-## Phase 0 Success Criteria
-
-| Item | Pass/Fail |
-|---|---|
-| Billing webhooks update DB correctly (cancel, failed, recovered) | ✅ Pass |
-| Grace period activates on failed payment; expiry cron locks out tenants | ✅ Pass |
-| No secrets in version control; all in Secrets Manager | ✅ Pass |
-| CI pipeline runs tests and they pass | ✅ Pass |
-| All DELETE endpoints enforce `requireAdmin` | ✅ Pass |
-| All list endpoints support pagination + cursor | ✅ Pass |
-| All infra in CFN; `make deploy` deploys to staging | ✅ Pass |
-| Audit log captures all mutations | ✅ Pass |
-| Playwright suite runs in CI and passes | ✅ Pass |
-
----
-
-## Estimated Timeline
-
-| Work | Duration | FTE |
+| Item | Target | Status today |
 |---|---|---|
-| Fix billing webhook gaps (+ CFN GSI + cron Lambda) | 2 days | 1 |
-| Secrets rotation | 3 days | 1 |
-| Fix CI tests | 2 days | 0.5 |
-| RBAC enforcement | 5 days | 1 |
-| Pagination | 4 days | 1 |
-| IaC consolidation (CFN only) | 3 days | 1 |
-| Audit log | 2 days | 0.5 |
-| **Total** | **~21 days** | **~6 FTE-days** |
-
-If one engineer works full-time: **4 weeks**. If parallelized across two engineers: **2–3 weeks**.
-
----
-
-## Why This Comes First
-
-- **Secrets:** Can't ship anything insecure.
-- **CI:** Can't refactor data layer without test coverage.
-- **RBAC:** Agents need to know they can't see each other's data; users need to know deletions are protected.
-- **Pagination:** Scale foundation; without it, the system fails at 100k leads.
-- **IaC & Audit:** Enables safe, auditable deployments for everything after Phase 0.
+| Billing webhooks update DB (cancel, failed, charged) | All three | Cancel + failed done; charged does not clear grace |
+| Grace expiry enforced | Scheduled cron + server read-only | Script exists, not scheduled; no server read-only |
+| Leaked keys | Rotated + gitleaks in CI | Rotation unconfirmed; no gitleaks |
+| Unit tests in CI | Run on every PR | Done (server jest) |
+| Playwright E2E in CI | Run on every PR | Not run |
+| DELETE routes guarded | All | 2 mounted routes unguarded |
+| Member lead scoping | Enforced on server | Not built |
+| Cursor pagination | All list endpoints | Partial limit/offset only |
+| All infra in CFN, scripted deploys | Yes | Done (manual wrappers) |
+| CRM mutation audit, archived not deleted | Yes | Agent audit only (TTL) |
+| API throttling, access logs, CORS | Yes | Not done |
 
 ---
 
-## Why This Comes First
+## Why These Come First
 
-- **Billing gaps:** Revenue is already leaking. Cancelled tenants keep access. Failed payments cause instant churn. Must fix before adding more paying customers.
-- **Secrets:** Can't ship anything new on an insecure foundation.
-- **CI:** Can't refactor data layer without test coverage.
-- **RBAC:** Agents need to know they can't see each other's data; users need to know deletions are protected.
-- **Pagination:** Scale foundation; without it, the system fails at 100k leads.
-- **IaC (CFN) & Audit:** Enables safe, auditable deployments for everything after Phase 0.
+- **Billing:** a failed payment must give grace, then read-only, without relying on the browser.
+- **Keys:** leaked keys stay valid until rotated.
+- **API protection:** the in-memory limiter does not protect a Lambda fleet.
+- **RBAC and scoping:** a team plan is not sellable if every member sees every lead.
+- **Pagination:** scans get slower and costlier as tenants grow.
+- **Audit:** needed to trace who changed what, for DPDP and support.
 
 ---
 
-## Gate: Proceed to Phase 1 Only After
+## Gate Checklists
 
-- [ ] Billing webhooks tested with Razorpay test events; DB updates confirmed.
-- [ ] Grace period cron deployed via CFN; tested by manually setting `gracePeriodEndsAt` to past.
-- [ ] All committed secrets removed; Secrets Manager in use.
-- [ ] Tests run in CI without false-negatives; local `npm test` passes.
-- [ ] RBAC roles & scoping middleware added; agent queries scoped; DELETE endpoints protected.
-- [ ] Pagination working on all list endpoints.
-- [ ] All infra in CFN; `make deploy` successfully deploys staging stack.
-- [ ] Audit log capturing mutations; tested.
-- [ ] Security review passed (no CORS/XSS/SQLi/timing-attack regressions).
+**Before taking payment (Phase A):**
+- [ ] `subscription.charged` clears grace; tested with Razorpay test events.
+- [ ] Grace expiry Lambda + rule deployed via CFN; tested by setting `gracePeriodEndsAt` in the past.
+- [ ] Server-enforced read-only after grace.
+- [ ] Leaked keys rotated and recorded; gitleaks in CI.
+- [ ] API Gateway throttling, access logs, CORS fix deployed.
 
-**Once all above are done, Phase 1 (WhatsApp wedge on DynamoDB) can begin.**
+**Before selling Team plans (Phase B):**
+- [ ] MANAGER role in the auth model; member lead scoping enforced and tested.
+- [ ] Both unguarded DELETE routes protected.
+- [ ] Cursor pagination on all list endpoints.
+- [ ] CRM mutation audit with archiving.
+- [ ] Playwright E2E running in CI.

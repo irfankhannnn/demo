@@ -1,5 +1,7 @@
 # 32 — Marketing Agent Architecture
 
+> **Archived (17 Sep 2026):** June 2026 design record, kept for history. Not the current plan. A tenant-facing marketing agent is dropped (D14), Strands was considered and not adopted, and the budgets, cities and channels below (₹5L/month paid ads, Bangalore and Delhi NCR, TikTok, Blotato scheduling) contradict the M1 decisions — Mumbai only, no paid ads in M1, manual upload. Current source: `marketing-and-sales/launch-plan-v2/content-os/growth-platform/ai-agents/ai-agent-architecture.md` (the AG-1 Marketing / AG-2 Content / AG-3 Distribution operating agents) and `marketing-and-sales/launch-plan-v2/00-DECISIONS-LOG.md`.
+
 > **Tier:** T2 (Strands Framework Agent) · **Phase:** 4 · **Role:** Autonomous AI marketing lead (brief → campaign → publish → measure)
 
 ---

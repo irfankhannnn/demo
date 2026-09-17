@@ -1,59 +1,81 @@
 # Phase 2 — PostgreSQL for Agent & Analytics Workloads
 
-> **Status:** New operational requirement · **Duration:** Weeks 3–4 (parallel to Phase 1) · **Scope:** Build net-new Postgres tables for agent audit, conversation metadata, credits, analytics, and compliance. **CRM stays on DynamoDB.**
+> **Status (17 Sep 2026): Parked (D8).** Nothing in this doc is built and there is no date for it. All product data runs on DynamoDB (`apps/crm/server/infra/cfn-backend.yaml`, `apps/crm/server/infra/launch-tables-cfn.yaml`). Postgres/Aurora is kept only as a possible future **reporting store fed from DynamoDB** (exports or Streams). Four of the twelve tables below already exist on DynamoDB in another form (see "What exists today"). The content is kept as the design to start from if the idea is un-parked; facts, paths and SQL were corrected against the code.
+
+> Original June 2026 header: New operational requirement · Scope: Build net-new Postgres tables for agent audit, conversation metadata, credits, analytics, and compliance. **CRM stays on DynamoDB.**
+
+---
+
+## What exists today (Sep 2026)
+
+| Doc 27 table | Today | Evidence |
+|---|---|---|
+| `credits`, `credit_ledger` | **Exists on DynamoDB.** One table: balance item `sk=BALANCE`, ledger items `sk=LEDGER#<iso-ts>#<rand>`, GSI `actionType-index`, 12-month TTL. See doc 30. | `apps/crm/server/creditService.js`; `CreditsTable` in `apps/crm/server/infra/cfn-backend.yaml` |
+| credit costs and packs (not in doc 27) | **Exists on DynamoDB**, editable at runtime. | `apps/crm/server/creditConfig.js`; `CreditConfigTable` in `cfn-backend.yaml` |
+| `agent_actions` | **Exists on DynamoDB** as the agent audit table (90-day TTL by default). | `apps/crm/server/agents/agentAuditService.js`; `AgentAuditTable` in `cfn-backend.yaml` |
+| `grievances` | **Exists on DynamoDB.** | `apps/crm/server/grievanceDynamodbService.js`, `apps/crm/server/routes/grievance.js`; `GrievancesTable` in `launch-tables-cfn.yaml` |
+| `agent_approvals`, `conversations_meta`, `agent_usage`, `lead_analytics_daily`, `agent_performance_daily`, `conversion_funnel_daily`, `grievance_responses`, `audit_log` | **Not built.** | — |
+| Analytics dashboards | Built on DynamoDB reads, not on projections. | `apps/crm/server/teamAnalyticsService.js`, `businessAnalyticsHelpers.js`, `routes/admin.js` (`/team-analytics`, `/agent-activity`), `routes/agentActivity.js`; page `apps/crm/real-estate-crm-app/src/pages/crm/BusinessAnalytics.tsx` |
+
+Two notes that matter if this is un-parked:
+- Audit rows currently expire through DynamoDB TTL. The founder decision is to **archive audit rows instead of deleting them** (D17), which is a natural first job for a reporting store.
+- The CRM access-pattern fix this doc relies on is still open: `TODO(MED-1)` (add a tenant index, Query instead of Scan) at the top of `apps/crm/server/crmDynamodbService.js`.
 
 ---
 
 ## Strategic Shift from Earlier Design
 
-**Earlier docs (25–26) proposed migrating the entire CRM from DynamoDB to PostgreSQL.** Codebase analysis showed:
-- The CRM's DynamoDB problems stem from **improper access patterns** (full-partition scans, no pagination, missing GSI), not DynamoDB's limits.
-- Fixing those patterns (add `tenant-index` GSI, `Query` instead of `Scan`, pagination) solves 70% of the stated pain at a fraction of the cost.
-- PostgreSQL should be added **narrowly** for genuinely relational/analytical workloads (agent audit, conversation indexing, credits/metering, dashboards).
+**Doc 26 and the summary section of doc 25 proposed migrating the entire CRM from DynamoDB to PostgreSQL.** Both are now archived. Codebase analysis showed:
+- The CRM's DynamoDB problems stem from **improper access patterns** (full-partition scans, partial pagination, missing tenant GSI), not DynamoDB's limits.
+- Fixing those patterns (add a `tenant-index` GSI, `Query` instead of `Scan`, pagination) solves most of the stated pain at a fraction of the cost.
+- PostgreSQL should be added **narrowly**, if at all, for genuinely relational/analytical workloads (dashboards, long-term audit).
 
 **This document describes that narrower, lower-risk path: Aurora for agent/analytics only.**
 
 ---
 
-## 1. Scope: What Goes to PostgreSQL
+## 1. Scope: What Would Go to PostgreSQL
 
-### New tables required for the vision
+### Tables in the June design
 
-Postgres will own **12 new tables** that didn't exist on DynamoDB. The CRM (leads, contacts, properties, khata, enquiries, projects, developers, areas) **stays on DynamoDB and stays optimized in place.**
+The June design gave Postgres **12 new tables**. Four of them (`credits`, `credit_ledger`, `agent_actions`, `grievances`) have since been built on DynamoDB. The CRM (leads, contacts, properties, khata, enquiries, projects, developers, areas) **stays on DynamoDB.**
 
 | Purpose | Postgres Tables | Why (relational need) |
 |---|---|---|
-| **Agent audit & billing** | `agent_actions`, `agent_approvals` | Every AI action must be logged (cost, compliance, eval). Join with credits for billing. |
-| **Conversation metadata** | `conversations_meta` | Index for "find all conversations for contact X" — easier in SQL than scanning a DDB table. (Message bodies stay in DynamoDB.) |
-| **Credits & metering** | `credits`, `credit_ledger`, `agent_usage` | Track balance, transactions, usage rates; enable "pause at $X" caps. Complex accounting, needs transactions. |
-| **Analytics projection** | `lead_analytics_daily`, `agent_performance_daily`, `conversion_funnel` | Denormalized summaries: leads created/qualified/converted per day, agent efficiency. Built from DDB events via projection. |
-| **Compliance & support** | `grievances`, `grievance_responses`, `audit_log` | Immutable logs for DPDP Act compliance. Easier to enforce immutability in Postgres. |
+| **Agent audit & billing** | `agent_actions` (exists on DynamoDB), `agent_approvals` | Every AI action must be logged (cost, compliance, eval). Join with credits for billing. |
+| **Conversation metadata** | `conversations_meta` | Index for "find all conversations for contact X". |
+| **Credits & metering** | `credits`, `credit_ledger` (both exist on DynamoDB), `agent_usage` | Track balance, transactions, usage rates; enable "pause at ₹X" caps. |
+| **Analytics projection** | `lead_analytics_daily`, `agent_performance_daily`, `conversion_funnel_daily` | Denormalized summaries: leads created/qualified/converted per day, agent efficiency. Built from DynamoDB data via projection. |
+| **Compliance & support** | `grievances` (exists on DynamoDB), `grievance_responses`, `audit_log` | Long-lived logs for DPDP Act compliance. |
 
 ### Tables that stay on DynamoDB
 
+Names are the CloudFormation defaults for `dev`; each is a parameter (`${Env}-realestateflow-*`).
+
 | Table | Why |
 |---|---|
-| `cloudberry-real-estate-crm` | CRM core; has established access patterns (once pagination is added). |
-| `cloudberry-real-estate-projects` | Projects & developers; bulk data, rarely filtered. GSI-able. |
-| `cloudberry-real-estate-developers` | Same; low-query volume. |
-| `cloudberry-real-estate-areas` | Reference data; seldom written. |
-| `cloudberry-real-estate-khata` | Accounting; simple CRUD, no complex joins. |
-| `Conversations` (new) | High write-rate event stream; append-only; DynamoDB Streams → EventBridge. |
-| `Messages` (new) | Immutable message log; TTL cleanup; query pattern is `(conversation_id, timestamp)` — DynamoDB native. |
-| `WebhookLog` | Idempotency checks; ephemeral. |
-| `Notifications` | Scheduled reminders; ephemeral. |
+| `dev-realestateflow-crm` | CRM core single table (leads, contacts, buyers, owners, tenants, notes; WhatsApp conversation records also live here, `apps/crm/server/whatsappConversationService.js`). GSIs: owner-property, status, search, marketplace. |
+| `dev-realestateflow-projects` | Projects; bulk data, rarely filtered. |
+| `dev-realestateflow-developers` | Same; low query volume. |
+| `dev-realestateflow-areas`, `dev-realestateflow-communities` | Reference data; seldom written. |
+| `dev-realestateflow-khata` | Accounting; simple CRUD, no complex joins. |
+| `dev-realestateflow-webhook-log` | Idempotency checks. |
+| `dev-realestateflow-notifications` | Notifications and reminders. |
 
-**Key principle: DynamoDB for transactional, event-stream, and high-write workloads. PostgreSQL for analytical, complex-query, and auditable workloads.**
+There are no separate `Conversations` or `Messages` tables. Lead events are published straight to EventBridge with `PutEvents` (for example `apps/crm/server/scripts/lead-qualifier-handler.js`), not through DynamoDB Streams.
+
+**Key principle: DynamoDB for transactional, event-stream, and high-write workloads. PostgreSQL, if ever added, for analytical and complex-query workloads.**
 
 ---
 
 ## 2. PostgreSQL Schema (Narrower Edition)
 
+Corrections from the June draft: PostgreSQL has no inline `INDEX` clause inside `CREATE TABLE` (indexes are separate statements); `uuid-ossp` must be quoted and is not needed because `pgcrypto` provides `gen_random_uuid()`; tenant IDs are strings, not UUIDs (`TENANT_ID_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/` in `apps/crm/server/routes/billing.js`), and there is no `tenants` table to reference. User IDs also come from the auth service as strings.
+
 ### Setup
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-CREATE EXTENSION IF NOT EXISTS uuid-ossp;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;  -- gen_random_uuid()
 
 -- All tables include tenant isolation
 -- Primary enforcer: WHERE tenant_id = $1 (application level)
@@ -65,39 +87,37 @@ CREATE EXTENSION IF NOT EXISTS uuid-ossp;
 ```sql
 CREATE TABLE agent_actions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  agent_type VARCHAR(100) NOT NULL, -- sales_assistant, qualifier, voice_agent, marketing_agent, follow_up_engine
-  action VARCHAR(255) NOT NULL, -- replied_to_lead, asked_question, booked_visit, generated_content, sent_email
-  entity_type VARCHAR(50), -- lead, contact, property, visit, campaign
-  entity_id UUID,
-  
+  tenant_id VARCHAR(128) NOT NULL,
+  agent_type VARCHAR(100) NOT NULL, -- whatsapp, web, qualifier, router, followup, call-recording-analyzer
+  action VARCHAR(255) NOT NULL,     -- invoke, tool call name, ...
+  entity_type VARCHAR(50),          -- lead, contact, property, meeting
+  entity_id VARCHAR(128),
+
   -- What happened
-  input JSONB, -- user message, query, parameters
-  output JSONB, -- agent response, decision, output artifact
-  
+  input JSONB,
+  output JSONB,
+
   -- Billing & governance
-  credits_used DECIMAL(10, 2) DEFAULT 0,
+  credits_used INTEGER DEFAULT 0,   -- credits are whole numbers
   approval_status VARCHAR(50) DEFAULT 'auto', -- auto, pending_approval, approved, rejected
-  approved_by UUID, -- admin user who approved, if manual
+  approved_by VARCHAR(128),
   approval_notes TEXT,
-  
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  INDEX idx_tenant_created (tenant_id, created_at DESC),
-  INDEX idx_tenant_agent_type (tenant_id, agent_type, created_at DESC),
-  INDEX idx_entity (entity_type, entity_id)
+
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+CREATE INDEX idx_agent_actions_tenant_created ON agent_actions (tenant_id, created_at DESC);
+CREATE INDEX idx_agent_actions_tenant_agent ON agent_actions (tenant_id, agent_type, created_at DESC);
+CREATE INDEX idx_agent_actions_entity ON agent_actions (entity_type, entity_id);
 
 CREATE TABLE agent_approvals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id VARCHAR(128) NOT NULL,
   agent_action_id UUID REFERENCES agent_actions(id),
   status VARCHAR(50) DEFAULT 'pending', -- pending, approved, rejected
-  reviewer_id UUID NOT NULL, -- admin or manager
+  reviewer_id VARCHAR(128) NOT NULL,    -- admin or manager
   review_notes TEXT,
   reviewed_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL)
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
@@ -106,188 +126,175 @@ CREATE TABLE agent_approvals (
 ```sql
 CREATE TABLE conversations_meta (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  contact_id UUID NOT NULL, -- FK to DynamoDB contact; stored for indexing
-  channel VARCHAR(50) NOT NULL, -- whatsapp, instagram_dm, facebook_msg, telegram, web_chat, sms
-  source VARCHAR(100), -- ad_id, post_id, portal_name, organic
+  tenant_id VARCHAR(128) NOT NULL,
+  contact_id VARCHAR(128) NOT NULL, -- DynamoDB contact id; stored for indexing
+  channel VARCHAR(50) NOT NULL,     -- whatsapp, instagram_dm, web_chat, voice
+  source VARCHAR(100),              -- ad_id, post_id, organic
   status VARCHAR(50) DEFAULT 'open', -- open, closed, escalated, archived
-  
-  -- Link to CRM lead (if conversion happened)
-  lead_id UUID,
-  
-  -- Timing
+
+  lead_id VARCHAR(128),             -- link to CRM lead (if conversion happened)
+
   opened_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   closed_at TIMESTAMP WITH TIME ZONE,
   last_message_at TIMESTAMP WITH TIME ZONE,
   message_count INT DEFAULT 0,
-  
-  -- Agent activity
   last_agent_response_at TIMESTAMP WITH TIME ZONE,
-  
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  INDEX idx_tenant_contact (tenant_id, contact_id, opened_at DESC),
-  INDEX idx_tenant_lead (tenant_id, lead_id),
-  INDEX idx_tenant_status (tenant_id, status)
+
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
--- Messages (bodies, attachments) stay in DynamoDB for high write rate
--- Query pattern: SELECT * FROM conversations_meta WHERE contact_id = ?
--- Then fetch message bodies from DDB via conversation_id
+CREATE INDEX idx_conv_tenant_contact ON conversations_meta (tenant_id, contact_id, opened_at DESC);
+CREATE INDEX idx_conv_tenant_lead ON conversations_meta (tenant_id, lead_id);
+CREATE INDEX idx_conv_tenant_status ON conversations_meta (tenant_id, status);
+-- Message bodies stay in DynamoDB (CRM single table)
 ```
 
-### Credits & Metering
+### Credits & Metering (reporting copy only)
+
+The live ledger is DynamoDB (doc 30). If a reporting store is built, these tables would be read-only copies fed from it.
 
 ```sql
 CREATE TABLE credits (
-  id UUID PRIMARY KEY,
-  tenant_id UUID NOT NULL UNIQUE REFERENCES tenants(id),
-  balance DECIMAL(12, 2) DEFAULT 0, -- current credits available
-  total_purchased DECIMAL(12, 2) DEFAULT 0,
-  total_used DECIMAL(12, 2) DEFAULT 0,
+  tenant_id VARCHAR(128) PRIMARY KEY,
+  balance INTEGER DEFAULT 0,
+  total_purchased INTEGER DEFAULT 0,
+  total_used INTEGER DEFAULT 0,
   last_recharged_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE credit_ledger (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  transaction_type VARCHAR(50) NOT NULL, -- purchase, usage, refund, adjustment
-  amount DECIMAL(12, 2) NOT NULL, -- positive (credit) or negative (debit)
-  reason VARCHAR(255), -- "lead_qualified", "voice_call_1min", "marketing_post_created"
-  agent_action_id UUID REFERENCES agent_actions(id), -- which agent action caused this
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  INDEX idx_tenant_created (tenant_id, created_at DESC)
+  id VARCHAR(128) PRIMARY KEY,          -- DynamoDB sk, e.g. LEDGER#<ts>#<rand>
+  tenant_id VARCHAR(128) NOT NULL,
+  action_type VARCHAR(100) NOT NULL,    -- agent_action, ai_call_per_minute, purchase, monthly_reset, refund.agent_action, ...
+  amount INTEGER NOT NULL,              -- positive (grant) or negative (deduct)
+  balance_before INTEGER,
+  balance_after INTEGER,
+  meta JSONB,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
+CREATE INDEX idx_ledger_tenant_created ON credit_ledger (tenant_id, created_at DESC);
 
 CREATE TABLE agent_usage (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id VARCHAR(128) NOT NULL,
   agent_type VARCHAR(100) NOT NULL,
   metric VARCHAR(100) NOT NULL, -- "actions", "approvals", "errors"
   value INT NOT NULL,
-  period_date DATE NOT NULL, -- daily aggregation
+  period_date DATE NOT NULL,    -- daily aggregation
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  UNIQUE(tenant_id, agent_type, metric, period_date),
-  INDEX idx_tenant_period (tenant_id, period_date DESC)
+  UNIQUE (tenant_id, agent_type, metric, period_date)
 );
+CREATE INDEX idx_agent_usage_tenant_period ON agent_usage (tenant_id, period_date DESC);
 ```
 
-### Analytics Projection (Denormalized from DDB events)
+### Analytics Projection (denormalized from DynamoDB)
 
 ```sql
 CREATE TABLE lead_analytics_daily (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id VARCHAR(128) NOT NULL,
   date DATE NOT NULL,
-  
+
   leads_created INT DEFAULT 0,
   leads_qualified INT DEFAULT 0,
   leads_converted INT DEFAULT 0,
   leads_lost INT DEFAULT 0,
   avg_time_to_qualify INT, -- minutes
-  
-  by_source JSONB DEFAULT '{}', -- {"whatsapp": 10, "web": 5, "portal": 3}
-  
+
+  by_source JSONB DEFAULT '{}', -- {"whatsapp": 10, "instagram": 5, "web": 3}
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  UNIQUE(tenant_id, date)
+  UNIQUE (tenant_id, date)
 );
 
 CREATE TABLE agent_performance_daily (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id VARCHAR(128) NOT NULL,
   agent_type VARCHAR(100) NOT NULL,
   date DATE NOT NULL,
-  
+
   actions_executed INT DEFAULT 0,
   actions_approved INT DEFAULT 0,
   actions_rejected INT DEFAULT 0,
-  avg_latency_ms INT, -- milliseconds to execute
+  avg_latency_ms INT,
   error_rate DECIMAL(5, 2), -- percentage
-  credits_consumed DECIMAL(12, 2) DEFAULT 0,
-  
+  credits_consumed INTEGER DEFAULT 0,
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  UNIQUE(tenant_id, agent_type, date)
+  UNIQUE (tenant_id, agent_type, date)
 );
 
 CREATE TABLE conversion_funnel_daily (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+  tenant_id VARCHAR(128) NOT NULL,
   date DATE NOT NULL,
-  
-  inbound_conversations INT DEFAULT 0, -- new conversations opened
-  leads_created INT DEFAULT 0, -- contact → lead
-  qualified INT DEFAULT 0, -- lead.score = hot
-  visits_scheduled INT DEFAULT 0, -- visit.status = scheduled
-  conversions INT DEFAULT 0, -- buyer/owner created
-  
-  conversion_rate DECIMAL(5, 2), -- conversions / inbound_conversations
-  avg_conversion_days INT, -- days from inbound to conversion
-  
+
+  inbound_conversations INT DEFAULT 0,
+  leads_created INT DEFAULT 0,
+  qualified INT DEFAULT 0,        -- lead.score = HOT
+  visits_scheduled INT DEFAULT 0,
+  conversions INT DEFAULT 0,      -- buyer/owner/tenant created
+
+  conversion_rate DECIMAL(5, 2),
+  avg_conversion_days INT,
+
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  UNIQUE(tenant_id, date)
+  UNIQUE (tenant_id, date)
 );
 ```
 
 ### Compliance & Audit
 
 ```sql
-CREATE TABLE grievances (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
+CREATE TABLE grievances (             -- reporting copy; live table is DynamoDB
+  id VARCHAR(128) PRIMARY KEY,
+  tenant_id VARCHAR(128),
   contact_email VARCHAR(255) NOT NULL,
-  category VARCHAR(100) NOT NULL, -- data_access, data_deletion, data_correction, complaint
+  category VARCHAR(100) NOT NULL,     -- data_access, data_deletion, data_correction, complaint
   description TEXT,
-  status VARCHAR(50) DEFAULT 'open', -- open, in_progress, resolved, rejected
+  status VARCHAR(50) DEFAULT 'open',
   resolution_notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  resolved_at TIMESTAMP WITH TIME ZONE,
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  INDEX idx_tenant_status (tenant_id, status)
+  resolved_at TIMESTAMP WITH TIME ZONE
 );
+CREATE INDEX idx_grievances_status ON grievances (status, created_at DESC);
 
 CREATE TABLE grievance_responses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  grievance_id UUID REFERENCES grievances(id),
+  tenant_id VARCHAR(128),
+  grievance_id VARCHAR(128) REFERENCES grievances(id),
   response_body TEXT,
-  responder_id UUID, -- admin user
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL)
+  responder_id VARCHAR(128),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE TABLE audit_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL,
-  action_type VARCHAR(100) NOT NULL, -- create, update, delete, export, login
-  entity_type VARCHAR(50), -- lead, contact, property
-  entity_id UUID,
-  user_id UUID, -- admin, agent, or system
-  before_state JSONB, -- what changed from
-  after_state JSONB, -- what changed to
+  tenant_id VARCHAR(128) NOT NULL,
+  action_type VARCHAR(100) NOT NULL, -- create, update, archive, export, login
+  entity_type VARCHAR(50),
+  entity_id VARCHAR(128),
+  user_id VARCHAR(128),
+  before_state JSONB,
+  after_state JSONB,
   ip_address INET,
   user_agent VARCHAR(1000),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  CONSTRAINT tenant_isolation CHECK (tenant_id IS NOT NULL),
-  INDEX idx_tenant_created (tenant_id, created_at DESC),
-  INDEX idx_entity (entity_type, entity_id)
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+CREATE INDEX idx_audit_tenant_created ON audit_log (tenant_id, created_at DESC);
+CREATE INDEX idx_audit_entity ON audit_log (entity_type, entity_id);
 ```
 
 ---
 
 ## 3. Knex.js Service Layer (JavaScript)
 
-### Setup (no TypeScript required)
+`apps/crm/server` is plain JavaScript (ES modules), so Knex rather than a TypeScript ORM. **None of the files in this section exist.** Paths show where they would go.
+
+### Setup
 
 ```javascript
-// server/db/analytics.js
+// apps/crm/server/db/analytics.js  (not built)
 import knex from 'knex';
 
 const analyticsDb = knex({
@@ -299,91 +306,54 @@ const analyticsDb = knex({
     password: process.env.ANALYTICS_DB_PASSWORD,
     database: process.env.ANALYTICS_DB_NAME,
   },
-  pool: {
-    min: 0,
-    max: 10,
-    idleTimeoutMillis: 30000,
-  },
-  migrations: {
-    directory: './db/migrations',
-  },
+  pool: { min: 0, max: 10, idleTimeoutMillis: 30000 },
+  migrations: { directory: './db/migrations' },
 });
 
 export default analyticsDb;
 ```
 
-### Example: Agent Action Service
+### Example: projecting agent audit rows
+
+The live writer is `logAgentAction` in `apps/crm/server/agents/agentAuditService.js` (DynamoDB). A reporting store would copy from it, not replace it.
 
 ```javascript
-// server/services/agentActionService.js
-import analyticsDb from '../db/analytics.js';
+// apps/crm/server/db/projectAgentAudit.js  (not built)
+import analyticsDb from './analytics.js';
 
-export async function logAgentAction(tenantId, {
-  agentType,
-  action,
-  entityType,
-  entityId,
-  input,
-  output,
-  creditsUsed,
-}) {
+export async function upsertAgentAction(tenantId, auditItem) {
   if (!tenantId) throw new Error('Tenant ID required');
-
-  const [actionRecord] = await analyticsDb('agent_actions')
+  await analyticsDb('agent_actions')
     .insert({
       tenant_id: tenantId,
-      agent_type: agentType,
-      action,
-      entity_type: entityType,
-      entity_id: entityId,
-      input: JSON.stringify(input),
-      output: JSON.stringify(output),
-      credits_used: creditsUsed,
-    })
-    .returning('*');
-
-  // Also increment credit ledger
-  await analyticsDb('credit_ledger').insert({
-    tenant_id: tenantId,
-    transaction_type: 'usage',
-    amount: -creditsUsed,
-    reason: `${agentType}_${action}`,
-    agent_action_id: actionRecord.id,
-  });
-
-  return actionRecord;
+      agent_type: auditItem.agentId,
+      action: auditItem.action,
+      input: JSON.stringify(auditItem.input),
+      output: JSON.stringify(auditItem.output),
+      credits_used: auditItem.creditsCharged ?? 0,
+      created_at: auditItem.createdAt,
+    });
 }
 
 export async function getAgentActionsForTenant(tenantId, { startDate, endDate, agentType }) {
-  return analyticsDb('agent_actions')
+  const q = analyticsDb('agent_actions')
     .where('tenant_id', tenantId)
     .andWhere('created_at', '>=', startDate)
-    .andWhere('created_at', '<=', endDate)
-    .andWhere(agentType ? 'agent_type' : true, agentType || true)
-    .orderBy('created_at', 'desc')
-    .limit(1000);
-}
-
-export async function getAgentUsageDaily(tenantId, agentType, date) {
-  return analyticsDb('agent_usage')
-    .where({ tenant_id: tenantId, agent_type: agentType, period_date: date })
-    .first();
+    .andWhere('created_at', '<=', endDate);
+  if (agentType) q.andWhere('agent_type', agentType);
+  return q.orderBy('created_at', 'desc').limit(1000);
 }
 ```
 
 ### Example: Conversation Metadata Service
 
 ```javascript
-// server/services/conversationMetaService.js
+// apps/crm/server/db/conversationMeta.js  (not built)
+import analyticsDb from './analytics.js';
+
 export async function openConversation(tenantId, { contactId, channel, source }) {
   const [conv] = await analyticsDb('conversations_meta')
-    .insert({
-      tenant_id: tenantId,
-      contact_id: contactId,
-      channel,
-      source,
-      status: 'open',
-    })
+    .insert({ tenant_id: tenantId, contact_id: contactId, channel, source, status: 'open' })
     .returning('*');
   return conv;
 }
@@ -394,129 +364,68 @@ export async function getConversationsForContact(tenantId, contactId) {
     .orderBy('opened_at', 'desc');
 }
 
-export async function linkConversationToLead(conversationId, leadId) {
+export async function linkConversationToLead(tenantId, conversationId, leadId) {
   return analyticsDb('conversations_meta')
-    .where('id', conversationId)
+    .where({ tenant_id: tenantId, id: conversationId })
     .update({ lead_id: leadId });
 }
 ```
 
 ---
 
-## 4. Wiring Into Phase 1 Agent Flow
+## 4. Where it would hook into the agent flow
 
-### On every agent action:
+The June draft showed made-up routes (`/agents/respond-to-lead`, `/webhook/whatsapp`) and a price of 0.5 credits per action. The real entry points are:
 
-```javascript
-// In routes/crm.js or Phase 1 agent handlers
-import { logAgentAction } from '../services/agentActionService.js';
+| Flow | Real entry point today |
+|---|---|
+| Every AI turn (WhatsApp, web chat, qualifier, router, follow-up drafts) | `invokeAgent` in `apps/crm/server/agents/agentRuntime.js`. It checks provisioning and balance, deducts `AGENT_ACTION_CREDITS` (default **15**) as `agent_action`, runs the turn, refunds if the turn failed before any CRM write, and writes an audit row via `logAgentAction`. |
+| Web chat | `apps/crm/server/routes/agentChat.js` (mounted at `/api/crm/agent-chat`) → `agents/channels/webChannel.js` |
+| WhatsApp | Self-hosted Baileys transport (`services/whatsapp-platform`) → CRM (`apps/crm/server/routes/whatsappConversations.js`, `routes/webhooks.js`, `scripts/whatsapp-message-processor.js`) |
+| Lead events | `lead.created` → `scripts/lead-qualifier-handler.js`; `lead.qualified` → `scripts/lead-router-handler.js` (EventBridge rules in `cfn-backend.yaml`) |
 
-router.post('/agents/respond-to-lead', validateToken, extractTenantId, async (req, res) => {
-  const { leadId, reply } = req.body;
-  
-  // Execute the agent (Phase 1: Sales Assistant)
-  const agentResult = await salesAssistant(req.tenantId, leadId, reply);
-  
-  // Log to Postgres (Phase 2)
-  await logAgentAction(req.tenantId, {
-    agentType: 'sales_assistant',
-    action: 'replied_to_lead',
-    entityType: 'lead',
-    entityId: leadId,
-    input: { reply },
-    output: agentResult,
-    creditsUsed: 0.5, // sales assistant costs 0.5 credits
-  });
-  
-  // Send reply & update lead
-  await sendReplyToContact(...);
-  await updateLeadStatus(...);
-  
-  res.json({ ok: true });
-});
-```
-
-### On conversation routing:
-
-```javascript
-// Phase 1: Conversation Orchestrator
-import { openConversation, linkConversationToLead } from '../services/conversationMetaService.js';
-
-router.post('/webhook/whatsapp', validateWebhook, async (req, res) => {
-  const { contactId, channel, message } = req.body;
-  const tenantId = resolveTenantFromContact(contactId);
-  
-  // Ensure conversation exists
-  let conv = await analyticsDb('conversations_meta')
-    .where({ tenant_id: tenantId, contact_id: contactId, channel })
-    .first();
-  
-  if (!conv) {
-    conv = await openConversation(tenantId, { contactId, channel, source: 'whatsapp' });
-  }
-  
-  // Route & process (Phase 1 logic)
-  const lead = await routeAndQualify(tenantId, contactId, message);
-  
-  // Link conversation to lead (Phase 2)
-  if (lead) {
-    await linkConversationToLead(conv.id, lead.id);
-  }
-  
-  res.json({ ok: true });
-});
-```
+A projection would subscribe to these (audit table, ledger, lead events) rather than adding a second synchronous write in the request path.
 
 ---
 
-## 5. Analytics Dashboard Queries
-
-### Example dashboard: "Agent Efficiency"
+## 5. Analytics Dashboard Queries (illustrative)
 
 ```javascript
-// server/routes/analytics.js
+// apps/crm/server/routes/analytics.js  (not built; today's analytics are routes/admin.js and routes/agentActivity.js)
 router.get('/dashboard/agent-efficiency', validateToken, extractTenantId, async (req, res) => {
   const { startDate, endDate } = req.query;
-  
   const dailyStats = await analyticsDb('agent_performance_daily')
     .where('tenant_id', req.tenantId)
     .whereBetween('date', [startDate, endDate])
     .orderBy('date', 'asc');
-  
   res.json(dailyStats);
 });
-```
 
-### Example dashboard: "Conversion Funnel"
-
-```javascript
 router.get('/dashboard/funnel', validateToken, extractTenantId, async (req, res) => {
   const { date } = req.query;
-  
   const funnel = await analyticsDb('conversion_funnel_daily')
     .where({ tenant_id: req.tenantId, date })
     .first();
-  
   res.json(funnel);
 });
 ```
 
 ---
 
-## 6. Implementation Timeline
+## 6. Sequence if un-parked (no dates)
 
-| Week | Tasks |
+| Step | Tasks |
 |---|---|
-| **Week 3** | Provision Aurora + RDS Proxy; write schema migrations (Knex); create service layer (AgentActionService, etc.); unit tests. |
-| **Week 4** | Integrate with Phase 1 agent code; wire agent actions → Postgres; wire conversations → metadata table; test E2E. |
-| **Week 5** | Deploy to staging behind feature flags; validate analytics dashboards; pilot with 1 test agent. |
-| **Week 6+** | Gradual rollout to prod; monitor Postgres latency & costs; flip flags when stable. |
+| **1** | Fix `TODO(MED-1)` on DynamoDB first; confirm the dashboards still need a reporting store. |
+| **2** | Provision Aurora Serverless v2 in CloudFormation next to the service; write Knex migrations. |
+| **3** | Build a one-way projection from DynamoDB (Streams or scheduled export) for audit, ledger and lead events. Archive audit rows here instead of letting TTL delete them (D17). |
+| **4** | Point dashboards at the projection behind a feature flag; compare numbers with the DynamoDB-based dashboards before switching. |
 
 ---
 
-## 7. Cost & Performance
+## 7. Cost & Performance (June 2026 estimate, not re-checked)
 
-### Aurora Serverless v2 (new tables only, low volume in Phase 2)
+### Aurora Serverless v2 (new tables only, low volume)
 
 - **Compute:** ~0.5 ACU (idle) to 2 ACU (busy) = ~₹1-2k/month
 - **Storage:** ~5 GB initial = ~₹250/month
@@ -525,42 +434,29 @@ router.get('/dashboard/funnel', validateToken, extractTenantId, async (req, res)
 
 ### Performance targets
 
-- Agent action logging: <10ms (async, non-blocking)
+- Projection lag: minutes, not realtime
 - Conversation metadata queries: P95 <50ms
-- Daily analytics aggregation: nightly batch (not realtime)
-- Dashboard dashboards: <500ms (cached)
-
----
-
-## 8. Migration from Phase 1 → Phase 2
-
-Once Phase 1 (WhatsApp wedge) is live and stable:
-1. Deploy Postgres infrastructure (Aurora + RDS Proxy).
-2. Run schema migrations (Knex).
-3. Wire agent actions & conversation metadata to log to Postgres (feature-flagged).
-4. Monitor dual-write consistency (DDB side-effect + Postgres insert).
-5. Once 1 week of zero errors, promote analytics dashboard from read-only mode (if querying DDB) to read-write (querying Postgres).
+- Daily analytics aggregation: nightly batch
+- Dashboards: <500ms (cached)
 
 ---
 
 ## What This Is NOT
 
 - **Not a rewrite of the CRM.** Leads, contacts, properties, khata stay on DynamoDB.
-- **Not a data migration.** You're adding net-new tables, not moving existing data.
-- **Not risky.** If Postgres goes down, the agent still works (it logs to DDB event queue as fallback).
-- **Not the full vision.** This is the infrastructure for agents, audit, and analytics. Marketing + voice + portal automation come in Phase 3.
+- **Not a data migration.** A reporting store would be fed from DynamoDB, which stays the source of truth.
+- **Not on the request path.** If Postgres goes down, the product keeps working because nothing live reads from it. (The June claim of a "DDB event queue fallback" was never built and is not needed with a one-way projection.)
+- **Not the full vision.** Growth features are in doc 28.
 
 ---
 
-## Success Criteria for Phase 2
+## Success Criteria (if un-parked)
 
-- [ ] Aurora Serverless cluster provisioned, RDS Proxy working.
-- [ ] Knex migrations run successfully; all 12 tables created with indexes.
-- [ ] Agent actions logged to `agent_actions` on every AI action (feature-flagged).
-- [ ] Conversations linked to leads in `conversations_meta`.
-- [ ] Credits deducted in `credit_ledger` on every action.
-- [ ] Analytics dashboards queryable; P95 latency <500ms.
-- [ ] Zero data leaks; tenant isolation tests pass.
-- [ ] Postgres logs to CloudWatch; alerts set for failures.
-
-Once Phase 2 is live, you have audit, analytics, and metering in place — enabling cost control, agent eval, and compliance. Phase 3 can then scale the vision without worrying about those foundational gaps.
+- [ ] `TODO(MED-1)` fixed on DynamoDB.
+- [ ] Aurora Serverless cluster provisioned in CloudFormation.
+- [ ] Knex migrations run; tables and indexes created.
+- [ ] Projection copies agent audit, ledger and lead events with no gaps (daily count check against DynamoDB).
+- [ ] Audit rows archived instead of TTL-deleted.
+- [ ] Dashboards queryable; P95 latency <500ms.
+- [ ] Tenant isolation tests pass.
+- [ ] Failures alert through the existing `AlertEmail` / SNS setup in `cfn-backend.yaml`.

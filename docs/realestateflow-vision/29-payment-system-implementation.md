@@ -1,524 +1,156 @@
 # 29 — Payment System Implementation
 
-> **Phase:** 0 (gap fixes) + Phase 1 (UI) · **Infra:** CloudFormation only · **Status:** Implementation spec
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. Rewritten from a June fix spec into a description of the Razorpay system as built, with the gaps that must close before paid launch (D17); two of the June gaps are fixed, the rest are tracked below, and new issues found in the code are added.
 
 ---
 
-## Overview
+## 1. Summary
 
-The payment system backbone exists (`server/routes/billing.js`, `server/subscriptionService.js`, `PaywallModal.tsx`) but has critical gaps that will cause revenue leakage and operational blind spots at scale. This document specifies every fix, ordered by risk.
+- **Processor:** Razorpay only. No Stripe, Lago, Cashfree, PayU or PhonePe code exists.
+- **Two things can be bought:** a **plan subscription** (Razorpay Subscriptions, including a separate AI Employee plan) and a one-time **credit pack** (Razorpay Orders).
+- **Source of truth for payment state:** the Subscriptions table on DynamoDB, one row per tenant, updated by the Razorpay webhook.
+- **Web only.** The mobile builds show no prices and no checkout (App Store 3.1.1 / Google Play billing rules); `apps/crm/real-estate-crm-app/src/lib/razorpay.ts` refuses to open checkout inside the native app.
 
----
-
-## Gap 1: `subscription.cancelled` Webhook Never Updates DB (🔴 Critical)
-
-### Location
-`server/routes/billing.js` — `subscription.cancelled` handler
-
-### Current behavior
-```js
-case 'subscription.cancelled':
-  await logEventIfNotProcessed(eventId, eventType, payload);
-  // TODO: handle cancellation
-  break;
-```
-The event is logged, but the Subscriptions DynamoDB table is never updated. The tenant's `isPaying` stays `true` after cancellation.
-
-### Fix
-
-```js
-case 'subscription.cancelled': {
-  const processed = await logEventIfNotProcessed(eventId, eventType, payload);
-  if (processed) break;
-
-  const subscriptionId = payload.payload.subscription.entity.id;
-  const tenantId = await getTenantByRazorpaySubscriptionId(subscriptionId);
-  if (!tenantId) { console.error('Unknown subscriptionId', subscriptionId); break; }
-
-  const cancelledAt = payload.payload.subscription.entity.cancelled_at;
-  const endsAt = payload.payload.subscription.entity.current_end;  // billing period end
-
-  await updateItem({
-    TableName: SUBSCRIPTIONS_TABLE,
-    Key: { tenantId },
-    UpdateExpression: `SET #status = :cancelled,
-                           isPaying = :false,
-                           gracePeriodActive = :true,
-                           gracePeriodEndsAt = :endsAt,
-                           cancelledAt = :cancelledAt,
-                           updatedAt = :now`,
-    ExpressionAttributeNames: { '#status': 'paymentStatus' },
-    ExpressionAttributeValues: {
-      ':cancelled': 'cancelled',
-      ':false': false,
-      ':true': true,
-      ':endsAt': endsAt * 1000,       // epoch ms
-      ':cancelledAt': cancelledAt * 1000,
-      ':now': Date.now(),
-    },
-  });
-
-  // notify via Brevo transactional email
-  await sendCancellationEmail(tenantId, new Date(endsAt * 1000));
-  break;
-}
-```
-
-### New helper needed
-```js
-// server/subscriptionService.js
-export async function getTenantByRazorpaySubscriptionId(razorpaySubscriptionId) {
-  const result = await queryItems({
-    TableName: SUBSCRIPTIONS_TABLE,
-    IndexName: 'razorpay-subscription-index',  // GSI — see CFN change below
-    KeyConditionExpression: 'razorpaySubscriptionId = :sid',
-    ExpressionAttributeValues: { ':sid': razorpaySubscriptionId },
-    Limit: 1,
-  });
-  return result.Items?.[0]?.tenantId ?? null;
-}
-```
-
-### CFN change — add GSI to Subscriptions table
-
-In `server/infra/cfn-backend.yaml`, add to the Subscriptions table resource:
-
-```yaml
-# In SubscriptionsTable GlobalSecondaryIndexes:
-- IndexName: razorpay-subscription-index
-  KeySchema:
-    - AttributeName: razorpaySubscriptionId
-      KeyType: HASH
-  Projection:
-    ProjectionType: KEYS_ONLY
-
-# In AttributeDefinitions add:
-- AttributeName: razorpaySubscriptionId
-  AttributeType: S
-```
+**Pricing** is not defined here. Current (pre-launch) pricing is in `marketing-and-sales/launch-plan-v2/pricing.json` and CRM `apps/crm/real-estate-crm-app/src/lib/plans.ts`, which disagree on Team+; it is being replaced by the proposal in `docs/realestateflow-vision/38-pricing-plan-contacts-and-credits.md`.
 
 ---
 
-## Gap 2: Grace Period Never Activated (🔴 Critical)
+## 2. Components
 
-### Current state
-The `gracePeriodActive` field exists in the Subscriptions table schema but is never set to `true` by any code path. The cancellation webhook fix above (Gap 1) activates it immediately on cancellation. But for payment failures, there's a separate flow.
+| Part | File |
+|---|---|
+| Webhook receiver (all Razorpay events) | `apps/crm/server/routes/billing.js`, mounted at `/api/billing` before `express.json()` with its own rate limit (`apps/crm/server/server.js`) |
+| Subscription row helpers | `apps/crm/server/subscriptionService.js` |
+| Tenant-facing subscription and credit API | `apps/crm/server/routes/subscriptions.js`, mounted at `/api/subscriptions` |
+| Razorpay Orders client (credit packs) | `apps/crm/server/razorpayOrders.js` |
+| Webhook idempotency log | `apps/crm/server/webhookLogService.js` (table `${Env}-realestateflow-webhook-log`, 30-day TTL) |
+| AI Employee provisioning | `apps/crm/server/aiEmployeeProvisioningService.js` |
+| Tables | `SubscriptionsTable`, `WebhookLogTable` in `apps/crm/server/infra/launch-tables-cfn.yaml` (deployed via `infra/cicd/launch-tables`) |
+| Scheduled jobs | `apps/crm/server/scripts/trial-reminder-cron.js`, `grace-period-expiry-cron.js`, `credit-reset-cron.js`, `escalation-cron.js` |
+| Frontend | `src/lib/razorpay.ts`, `src/components/PaywallModal.tsx`, `src/components/TrialCountdownBanner.tsx`, `src/components/BuyCreditsModal.tsx`, `src/pages/crm/BillingSettings.tsx`, `src/lib/plans.ts` (all under `apps/crm/real-estate-crm-app/`) |
 
-### Fix: `payment.failed` → activate grace period
-
-```js
-case 'payment.failed': {
-  const processed = await logEventIfNotProcessed(eventId, eventType, payload);
-  if (processed) break;
-
-  const subscriptionId = payload.payload.payment.entity.invoice?.subscription_id;
-  if (!subscriptionId) break;
-
-  const tenantId = await getTenantByRazorpaySubscriptionId(subscriptionId);
-  if (!tenantId) break;
-
-  const gracePeriodEndsAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 days
-
-  await updateItem({
-    TableName: SUBSCRIPTIONS_TABLE,
-    Key: { tenantId },
-    UpdateExpression: `SET gracePeriodActive = :true,
-                           gracePeriodEndsAt = :ends,
-                           #status = :failed,
-                           updatedAt = :now`,
-    ExpressionAttributeNames: { '#status': 'paymentStatus' },
-    ExpressionAttributeValues: {
-      ':true': true,
-      ':ends': gracePeriodEndsAt,
-      ':failed': 'payment_failed',
-      ':now': Date.now(),
-    },
-  });
-
-  await sendPaymentFailedEmail(tenantId, gracePeriodEndsAt);
-  break;
-}
-```
-
-### Fix: `subscription.charged` → clear grace period (payment recovered)
-
-```js
-case 'subscription.charged': {
-  const processed = await logEventIfNotProcessed(eventId, eventType, payload);
-  if (processed) break;
-
-  const subscriptionId = payload.payload.subscription.entity.id;
-  const tenantId = await getTenantByRazorpaySubscriptionId(subscriptionId);
-  if (!tenantId) break;
-
-  const nextBillingDate = payload.payload.subscription.entity.current_end * 1000;
-
-  await updateItem({
-    TableName: SUBSCRIPTIONS_TABLE,
-    Key: { tenantId },
-    UpdateExpression: `SET gracePeriodActive = :false,
-                           gracePeriodEndsAt = :null,
-                           isPaying = :true,
-                           #status = :active,
-                           nextBillingDate = :next,
-                           updatedAt = :now`,
-    ExpressionAttributeNames: { '#status': 'paymentStatus' },
-    ExpressionAttributeValues: {
-      ':false': false,
-      ':null': null,
-      ':true': true,
-      ':active': 'active',
-      ':next': nextBillingDate,
-      ':now': Date.now(),
-    },
-  });
-  break;
-}
-```
+Secrets (`RazorpayKeySecret`, `RazorpayWebhookSecret`, `BrevoApiKey`, …) reach the CRM Lambda as `NoEcho` CloudFormation parameters synced from SSM (`apps/crm/server/infra/sync-ssm-params.sh`, `ssm-param-map.txt`). Moving them to Secrets Manager is a goal, not the current state.
 
 ---
 
-## Gap 3: Grace Period Expiry — No Enforcement Cron (🟠 High)
+## 3. How a webhook is processed
 
-When `gracePeriodEndsAt` passes, the tenant should be locked out. There is no cron that enforces this.
-
-### Fix: Grace Period Expiry Cron
-
-**File:** `server/scripts/grace-period-expiry-cron.js`
-
-```js
-import { scanItems, updateItem } from '../dynamoService.js';
-
-const SUBSCRIPTIONS_TABLE = process.env.SUBSCRIPTIONS_TABLE;
-
-export async function handler() {
-  const now = Date.now();
-
-  // Scan for tenants in grace period where grace has expired
-  // NOTE: Once pagination is fixed (Phase 0 item), replace with GSI query
-  const { Items } = await scanItems({
-    TableName: SUBSCRIPTIONS_TABLE,
-    FilterExpression: 'gracePeriodActive = :true AND gracePeriodEndsAt < :now',
-    ExpressionAttributeValues: { ':true': true, ':now': now },
-  });
-
-  for (const sub of Items ?? []) {
-    await updateItem({
-      TableName: SUBSCRIPTIONS_TABLE,
-      Key: { tenantId: sub.tenantId },
-      UpdateExpression: `SET gracePeriodActive = :false,
-                             isPaying = :false,
-                             #status = :expired,
-                             updatedAt = :now`,
-      ExpressionAttributeNames: { '#status': 'paymentStatus' },
-      ExpressionAttributeValues: {
-        ':false': false,
-        ':expired': 'grace_expired',
-        ':now': now,
-      },
-    });
-    await sendGraceExpiredEmail(sub.tenantId);
-  }
-}
+```mermaid
+flowchart TD
+  R[Razorpay event] --> W["POST /api/billing/webhook<br/>raw body"]
+  W --> S{"HMAC-SHA256 valid?<br/>constant-time compare"}
+  S -- no --> X401[401]
+  S -- yes --> T{"created_at within 5 min?"}
+  T -- no --> X401b[401 event_too_old]
+  T -- yes --> I{"event id already in<br/>webhook-log? (conditional put)"}
+  I -- yes --> OK1[200 duplicate]
+  I -- no --> H[Handler by event type]
+  H --> SUB[(Subscriptions table)]
+  H --> CR[(Credits table)]
+  H --> PH[PostHog event]
+  H --> OK2[200]
 ```
 
-### CFN change — EventBridge rule for grace expiry cron
+The tenant is read from `notes.tenantId` (or `notes.tenant_id`) on the subscription or payment and must match `^[a-zA-Z0-9_-]{1,100}$`. No GSI lookup by Razorpay subscription id is needed, so the June "`razorpay-subscription-index` GSI" task is dropped.
 
-Add to `server/infra/cfn-backend.yaml`:
+### Events handled
 
-```yaml
-GracePeriodExpiryRule:
-  Type: AWS::Events::Rule
-  Properties:
-    Name: !Sub "${AWS::StackName}-grace-period-expiry"
-    ScheduleExpression: "rate(1 hour)"
-    State: ENABLED
-    Targets:
-      - Id: GracePeriodExpiryLambda
-        Arn: !GetAtt GracePeriodExpiryFunction.Arn
-
-GracePeriodExpiryFunction:
-  Type: AWS::Lambda::Function
-  Properties:
-    FunctionName: !Sub "${AWS::StackName}-grace-period-expiry"
-    Runtime: nodejs20.x
-    Handler: grace-period-expiry-cron.handler
-    Role: !GetAtt LambdaExecutionRole.Arn
-    Environment:
-      Variables:
-        SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTable
-        BREVO_API_KEY: !Sub "{{resolve:secretsmanager:${AWS::StackName}/brevo:SecretString:apiKey}}"
-    Code:
-      S3Bucket: !Ref DeploymentBucket
-      S3Key: !Sub "scripts/grace-period-expiry-cron.zip"
-
-GracePeriodExpiryLambdaPermission:
-  Type: AWS::Lambda::Permission
-  Properties:
-    Action: lambda:InvokeFunction
-    FunctionName: !GetAtt GracePeriodExpiryFunction.Arn
-    Principal: events.amazonaws.com
-    SourceArn: !GetAtt GracePeriodExpiryRule.Arn
-
-# GSI for efficient grace period queries (replaces Scan once added)
-# Add to SubscriptionsTable GlobalSecondaryIndexes:
-# - IndexName: grace-period-index
-#   KeySchema:
-#     - AttributeName: gracePeriodActive
-#       KeyType: HASH
-#     - AttributeName: gracePeriodEndsAt
-#       KeyType: RANGE
-#   Projection:
-#     ProjectionType: KEYS_ONLY
-```
+| Event | What the code does |
+|---|---|
+| `subscription.activated` | If the plan is `RAZORPAY_PLAN_AI_EMPLOYEE`: create a provisioning row, email the founder, send an AiSensy WhatsApp broadcast, then auto-activate the AI Employee (`status=live`, `aiEmployeeEnabled=true`). For every plan: store `billingAnniversaryDay` from `start_at` and set `isPaying=true`. PostHog `subscription_started`. |
+| `subscription.charged` | PostHog `subscription_invoiced` and `subscription_paid` only. |
+| `payment.captured` | PostHog. If `notes.credits` is set (credit pack order): grant that many credits once per payment id (capped by `MAX_WEBHOOK_CREDIT_GRANT`, default 100,000). If the plan id or name looks like an AI Employee plan: activate the AI Employee. |
+| `payment.failed` | PostHog. If the tenant is paying and not already in grace: set `gracePeriodActive=true` and `gracePeriodEndsAt` = now + `GRACE_PERIOD_DAYS` (default **7**); email the founder. |
+| `payment.refunded`, `payment.reversed` | Deduct the credits granted for that payment (if any), set `paymentStatus` to `refunded`/`reversed` and `isPaying=false`. |
+| `payment.disputed`, `payment.chargeback` | Set `paymentStatus=chargeback`, `isPaying=false`, claw back granted credits, email the founder. |
+| `subscription.cancelled`, `subscription.halted` | Suspend the AI Employee if it was that plan; set `isPaying=false`, `paymentStatus` `cancelled`/`halted`, `cancelledAt`. |
+| `subscription.updated` | Seat change: add seats, or remove seats unless more users exist than the new seat count (then logged and skipped). |
+| `subscription.paused` / `subscription.resumed` | `paymentStatus=paused`; or `paymentStatus=active`, `isPaying=true`. |
 
 ---
 
-## Gap 4: Read-Only Enforcement Not Coded (🟠 High)
+## 4. Subscription row (as written by the code)
 
-`PaywallModal.tsx` FAQ says "your data is still accessible in read-only mode" but there is no middleware enforcing this.
+Table `${Env}-realestateflow-subscriptions`, partition key `tenantId`, GSIs `paymentStatus-createdAt-index` and `updatedAt-index`. All timestamps are ISO strings.
 
-### Fix: Read-only middleware
-
-**File:** `server/middleware/requireActiveSubscription.js`
-
-```js
-const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
-const ALWAYS_ALLOWED = [
-  '/api/subscriptions',
-  '/api/billing',
-  '/api/auth',
-  '/api/tenants/profile',
-];
-
-export function requireActiveSubscription(req, res, next) {
-  // Skip non-write methods and always-allowed paths
-  if (!WRITE_METHODS.has(req.method)) return next();
-  if (ALWAYS_ALLOWED.some(p => req.path.startsWith(p))) return next();
-
-  const sub = req.subscription; // populated by subscription loader middleware
-  if (!sub) return res.status(403).json({ error: 'Subscription not found' });
-
-  const isActive = sub.isPaying || sub.gracePeriodActive ||
-    (sub.isTrialing && sub.trialEndsAt > Date.now());
-
-  if (!isActive) {
-    return res.status(402).json({
-      error: 'subscription_required',
-      message: 'Your trial has ended. Upgrade to continue.',
-    });
-  }
-
-  next();
-}
-```
-
-**Mount in `server/app.js` (or equivalent entry):**
-```js
-import { requireActiveSubscription } from './middleware/requireActiveSubscription.js';
-// after auth + subscription loader middleware
-app.use(requireActiveSubscription);
-```
-
-**Subscription loader middleware** (load once, attach to req):
-
-**File:** `server/middleware/loadSubscription.js`
-```js
-import { getSubscription } from '../subscriptionService.js';
-
-export async function loadSubscription(req, res, next) {
-  if (!req.tenantId) return next();
-  try {
-    req.subscription = await getSubscription(req.tenantId);
-  } catch (e) {
-    console.error('Failed to load subscription', e);
-  }
-  next();
-}
-```
+| Field | Set by | Values / notes |
+|---|---|---|
+| `tenantId` | trial creation | string |
+| `plan` | trial creation | `solo` \| `team` \| `teamplus` \| `free`. Every current code path writes `solo` (see issue P2). |
+| `seatsPaid`, `seatsUsed` | trial creation, `subscription.updated`, member changes | seat defaults: solo 1, team 3, teamplus 5, free 1 |
+| `trialEndsAt` | trial creation | now + `TRIAL_DAYS` (default **14**) |
+| `isPaying` | trial (`false`), activation, refund, chargeback, cancel, pause/resume, grace expiry | boolean |
+| `paymentStatus` | webhook and crons | `trialing`, `active`, `cancelled`, `halted`, `refunded`, `reversed`, `chargeback`, `paused`, `grace_period_expired` |
+| `gracePeriodActive`, `gracePeriodEndsAt`, `gracePeriodExpiredAt` | `payment.failed`, grace cron | |
+| `razorpaySubscriptionId`, `nextBillingDate` | trial creation (`null`), cancel | `nextBillingDate` is never set by current code |
+| `billingAnniversaryDay` | `subscription.activated` | 1–31, used by the monthly credit reset |
+| `lastCreditResetAt` | credit reset cron | `YYYY-MM-DD` |
+| `consentSignedAt` | post-registration | DPDP consent time |
+| `lastTrialEmail`, `lastTrialEmailAt` | trial reminder cron | idempotency for reminder emails |
+| `cancelledAt`, `refundedAt`, `chargebackAt`, `pausedAt`, `resumedAt`, `createdAt`, `updatedAt` | various | |
 
 ---
 
-## Gap 5: No In-App Cancellation UI (🟡 Medium)
+## 5. Lifecycle
 
-Tenants must go to Razorpay dashboard to cancel. This is poor UX and blocks self-service.
-
-### Fix: Cancellation flow
-
-**Backend endpoint** `server/routes/subscriptions.js`:
-
-```js
-router.post('/cancel', requireAuth, requireRole(['ADMIN', 'OWNER']), async (req, res) => {
-  const { tenantId } = req;
-  const sub = await getSubscription(tenantId);
-  if (!sub?.razorpaySubscriptionId) return res.status(400).json({ error: 'No active subscription' });
-
-  // Cancel at period end (not immediately) — Razorpay cancel_at_cycle_end
-  const response = await razorpay.subscriptions.cancel(
-    sub.razorpaySubscriptionId,
-    { cancel_at_cycle_end: 1 }
-  );
-
-  await updateItem({
-    TableName: SUBSCRIPTIONS_TABLE,
-    Key: { tenantId },
-    UpdateExpression: 'SET cancellationScheduled = :true, updatedAt = :now',
-    ExpressionAttributeValues: { ':true': true, ':now': Date.now() },
-  });
-
-  res.json({ success: true, endsAt: response.current_end });
-});
+```mermaid
+stateDiagram-v2
+  [*] --> trialing: sign-up (routes/auth.js) or first trial-status call
+  trialing --> active_paying: subscription.activated (isPaying=true)
+  active_paying --> grace: payment.failed (7 days)
+  grace --> grace_period_expired: grace cron (NOT scheduled)
+  active_paying --> cancelled: subscription.cancelled / halted
+  active_paying --> paused: subscription.paused
+  paused --> active_paying: subscription.resumed
+  active_paying --> refunded: payment.refunded / reversed
+  active_paying --> chargeback: payment.disputed / chargeback
 ```
 
-**Frontend component** `real-estate-crm-app/src/components/CancelSubscriptionModal.tsx`:
-- Show current period end date
-- "Cancel at period end" (not immediate)
-- Confirm with typed text input: "type CANCEL to confirm"
-- Post to `/api/subscriptions/cancel`
-- On success: show "Your plan will end on [date]. You can reactivate anytime."
-
-**New Subscriptions table fields:**
-```
-cancellationScheduled: Boolean   # set when user schedules cancel
-cancellationEndsAt: Number       # epoch ms when access ends
-```
+- **Trial:** created on post-registration (`apps/crm/server/routes/auth.js`) or auto-created by `GET /api/subscriptions/trial-status`. Reminder emails at day 10, 12 and 14 and 3 days after expiry, from `TrialReminderFunction` on `cron(30 3 * * ? *)` UTC (`apps/crm/server/infra/cfn-backend.yaml`).
+- **Paywall (web):** `PaywallModal` opens when the trial has expired, the tenant is not paying and no grace period is active, except on `/profile`, `/crm/settings/billing`, `/legal`, `/grievance`, `/integrations/ai-employee`. `TrialCountdownBanner` shows in the last 7 days of trial. Both are **frontend only**.
+- **Grace:** starts only on `payment.failed` for a paying tenant. The expiry script sets `isPaying=false`, `paymentStatus=grace_period_expired` and suspends the AI Employee, but there is no Lambda or EventBridge rule for it in any template.
+- **Credit packs:** `POST /api/subscriptions/credits/purchase` (roles `ADMIN`, `FOUNDER`, `OWNER`) creates a Razorpay Order at the **server-side** pack price; `payment.captured` grants the credits. Details in doc 30.
 
 ---
 
-## Gap 6: AI Employee Manual Approval Needs UI (🟡 Medium)
+## 6. Gap tracker
 
-`server/scripts/escalation-cron.js` contains `// ₹500 credit note needed (manual step)` — the founder must manually update DynamoDB rows. There is no admin UI.
+### June gaps
 
-### Fix: Admin approval dashboard endpoint
+| # | June gap | Status (Sep 2026) | Evidence / remaining work |
+|---|---|---|---|
+| 1 | `subscription.cancelled` never updates the DB | **Fixed**, differently: tenant from `notes`, no GSI. `subscription.halted` handled too. | `routes/billing.js` cancelled/halted case |
+| 2a | `payment.failed` → grace | **Partly fixed.** Grace fields set, founder emailed. The tenant is not told. | `routes/billing.js` payment.failed case |
+| 2b | `subscription.charged` clears grace | **Open.** Only PostHog events. A recovered payment leaves `gracePeriodActive=true`. | Clear grace fields and set `paymentStatus=active` |
+| 3 | Grace expiry cron | **Half done.** Script exists; not scheduled. | Add `GracePeriodExpiryFunction` + rule to `apps/crm/server/infra/cfn-backend.yaml` (handler `scripts/grace-period-expiry-cron.handler`) |
+| 4 | Server-enforced read-only | **Open.** No middleware. The paywall copy promises "7-day grace … read-only for 30 days". | Middleware returning 402 on writes when not paying, not trialing and not in grace; before paid launch (D17) |
+| 5 | In-app cancellation | **Open.** No cancel route, no UI. | Cancel route that calls Razorpay cancel at cycle end, plus a confirm dialog |
+| 6 | AI Employee approval UI | **Mostly moot.** Activation is now automatic on `subscription.activated`. The ₹500 SLA credit note is still a manual step logged by `scripts/escalation-cron.js`. | Decide whether the SLA credit stays |
+| 7 | Payment-failed banner | **Open.** `trial-status` returns `paymentStatus` and `gracePeriodActive` but not `gracePeriodEndsAt`; no banner. | Add fields and a banner |
 
-**Backend** `server/routes/admin.js`:
+### Issues found in the code (not in the June doc)
 
-```js
-// List pending AI Employee approvals (FOUNDER only)
-router.get('/ai-employee/pending', requireRole(['FOUNDER']), async (req, res) => {
-  const { Items } = await queryItems({
-    TableName: AI_EMPLOYEE_TABLE,
-    IndexName: 'status-index',
-    KeyConditionExpression: '#s = :pending',
-    ExpressionAttributeNames: { '#s': 'status' },
-    ExpressionAttributeValues: { ':pending': 'pending' },
-  });
-  res.json({ items: Items });
-});
-
-// Approve or reject AI Employee request
-router.post('/ai-employee/:requestId/decision', requireRole(['FOUNDER']), async (req, res) => {
-  const { requestId } = req.params;
-  const { decision, note } = req.body; // 'approved' | 'rejected'
-
-  await updateItem({
-    TableName: AI_EMPLOYEE_TABLE,
-    Key: { requestId },
-    UpdateExpression: `SET #s = :decision, founderNote = :note,
-                           decidedAt = :now, updatedAt = :now`,
-    ExpressionAttributeNames: { '#s': 'status' },
-    ExpressionAttributeValues: {
-      ':decision': decision,
-      ':note': note ?? '',
-      ':now': Date.now(),
-    },
-  });
-
-  // Notify tenant via Brevo + AiSensy
-  await sendAiEmployeeDecisionNotification(requestId, decision, note);
-  res.json({ success: true });
-});
-```
-
-**Frontend:** Simple admin page at `/admin/ai-employee` (FOUNDER role only), listing pending requests with Approve/Reject buttons and note field.
+| # | Issue | Evidence | Fix |
+|---|---|---|---|
+| P1 | **Plan checkout is not wired end to end.** No server code creates a Razorpay subscription. The paywall passes `plan_<tier>_<cycle>` as `subscription_id` to Razorpay Checkout, which expects a subscription id created through the API. Credit-pack checkout (Orders) is wired. | `PaywallModal.tsx` `handleCheckout`; `lib/razorpay.ts` sets `subscription_id: opts.planId`; no `v1/subscriptions` call in `apps/` or `services/` | Server route that creates the subscription with `notes.tenantId`, returns its id to checkout |
+| P2 | **Activation does not record the plan or status.** `subscription.activated` sets `isPaying=true` (via `setBillingAnniversaryDay`) but leaves `plan=solo` and `paymentStatus=trialing`. The monthly credit reset picks the allotment from `plan`, so a paying Team tenant would get the free allotment. | `routes/billing.js` activated case; `subscriptionService.js` `setBillingAnniversaryDay`; `scripts/credit-reset-cron.js` `getMonthlyAllotment` | Map Razorpay `plan_id` to `plan`, set `paymentStatus=active` |
+| P3 | **Failed webhook handling is lost.** The event id is logged before the handler runs; if the handler throws, the 500 makes Razorpay retry, but the retry is treated as a duplicate. Retries older than 5 minutes are also rejected by the age check. | `routes/billing.js` steps 3 and 5, and the catch block comment | Mark the log row "processing" and complete it after success; accept retries by event id instead of rejecting on age |
+| P4 | Grace is only for failed renewals. The paywall copy says trial expiry also gets 7 days of grace. | `PaywallModal.tsx` `DATA_SAFETY_COPY` | Align copy with behaviour, or add trial grace |
 
 ---
 
-## Gap 7: Failed Payment In-App Alert (🟡 Medium)
+## 7. Before paid launch (D17)
 
-Currently only a PostHog event fires on `payment.failed`. Agents don't see an in-app banner.
+Must be done before the first paid customer:
 
-### Fix: Payment alert banner
+1. **Plan checkout (P1) and activation state (P2).** Without these, no plan can be bought correctly.
+2. **Webhook retry safety (P3).**
+3. **Grace:** schedule the expiry cron; clear grace on `subscription.charged` (2b).
+4. **Server-enforced read-only after grace** (gap 4), and make the paywall copy match.
+5. **API throttling and access logs** on the CRM API.
+6. **CORS fix** (allowlist is in `apps/crm/server/utils/corsOrigins.js`).
+7. **Archive audit-log rows instead of TTL delete** (agent audit rows currently expire after 90 days, `apps/crm/server/agents/agentAuditService.js`).
 
-The `SubscriptionContext.tsx` already polls `/api/subscriptions/trial-status`. Extend the response:
+After the first customers: WAF on the API (D17), in-app cancellation (gap 5), payment-failed banner and tenant email (gaps 2a, 7), Secrets Manager for payment secrets.
 
-```js
-// server/routes/subscriptions.js — GET /trial-status
-{
-  trialDaysLeft,
-  isTrialing,
-  isTrialExpired,
-  gracePeriodActive,
-  gracePeriodEndsAt,     // new
-  paymentStatus,         // new: 'active' | 'payment_failed' | 'cancelled' | 'grace_expired'
-  cancellationScheduled, // new
-  cancellationEndsAt,    // new
-}
-```
-
-Frontend `SubscriptionContext.tsx` adds:
-- `paymentFailed` state → shows red banner: "Payment failed. Update your card to avoid losing access. [Update Card]"
-- `cancellationScheduled` state → shows yellow banner: "Your plan ends on [date]. [Reactivate]"
-- `gracePeriodActive` state → shows orange banner with days remaining
-
----
-
-## Subscriptions Table — Complete Schema
-
-After all fixes, the Subscriptions DynamoDB table has these fields:
-
-```
-tenantId              String (PK)
-plan                  String          # 'solo' | 'team' | 'team_plus'
-seatsPaid             Number
-seatsUsed             Number
-trialEndsAt           Number          # epoch ms
-isPaying              Boolean
-paymentStatus         String          # 'trialing' | 'active' | 'payment_failed' | 'cancelled' | 'grace_expired'
-razorpaySubscriptionId String         # GSI: razorpay-subscription-index
-nextBillingDate       Number          # epoch ms
-gracePeriodActive     Boolean
-gracePeriodEndsAt     Number          # epoch ms
-cancelledAt           Number          # epoch ms (when Razorpay fired cancelled)
-cancellationScheduled Boolean         # user scheduled end-of-period cancel
-cancellationEndsAt    Number          # epoch ms (when access actually ends)
-lastTrialEmail        String          # 'day10' | 'day12' | 'day14' | 'day17'
-lastTrialEmailAt      Number          # epoch ms
-aiEmployeeAddon       Boolean
-createdAt             Number
-updatedAt             Number
-```
-
----
-
-## CFN Summary — All Changes to `server/infra/cfn-backend.yaml`
-
-| Change | Resource | Type |
-|--------|----------|------|
-| Add GSI `razorpay-subscription-index` to SubscriptionsTable | SubscriptionsTable | DynamoDB GSI |
-| Add GSI `grace-period-index` to SubscriptionsTable | SubscriptionsTable | DynamoDB GSI |
-| Add `GracePeriodExpiryFunction` Lambda | GracePeriodExpiryFunction | AWS::Lambda::Function |
-| Add `GracePeriodExpiryRule` EventBridge schedule | GracePeriodExpiryRule | AWS::Events::Rule |
-| Add `GracePeriodExpiryLambdaPermission` | GracePeriodExpiryLambdaPermission | AWS::Lambda::Permission |
-| Add `TrialReminderFunction` Lambda (move from scripts) | TrialReminderFunction | AWS::Lambda::Function |
-| Add `TrialReminderRule` EventBridge daily schedule | TrialReminderRule | AWS::Events::Rule |
-
-> **Note:** All secrets (Brevo, Razorpay, etc.) are resolved via `{{resolve:secretsmanager:...}}` in CFN. Never hardcoded in template or Lambda env. Phase 0 prerequisite: rotate all secrets to Secrets Manager first.
-
----
-
-## Implementation Order
-
-| # | Task | Risk if skipped |
-|---|------|----------------|
-| 1 | Fix `subscription.cancelled` webhook | Revenue leaks (paying tenants show as active after cancel) |
-| 2 | Fix `payment.failed` → grace period | Tenants locked out immediately on failed payment (churn) |
-| 3 | Fix `subscription.charged` → clear grace | Recovered payments don't restore access |
-| 4 | Add `razorpay-subscription-index` GSI | Required by gap 1 fix |
-| 5 | Grace period expiry cron + CFN | Tenants with expired grace period retain access indefinitely |
-| 6 | Read-only middleware | Promise in PaywallModal FAQ is false |
-| 7 | In-app payment alert banner | Tenants don't know payment failed |
-| 8 | In-app cancellation UI | Tenants must use Razorpay dashboard |
-| 9 | AI Employee approval UI | Founder manages approvals via raw DynamoDB |
-
-Items 1–5 are Phase 0 blockers. Items 6–9 are Phase 1 polish.
+Never delete tenant data in any of these flows: cancellation, refund, chargeback and grace expiry change status and access only.

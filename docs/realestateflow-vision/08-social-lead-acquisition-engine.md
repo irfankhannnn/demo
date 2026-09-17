@@ -1,78 +1,139 @@
 # 08 — Social Lead Acquisition & Conversion Engine
 
-> **Scope:** turning conversations on every public/private channel into leads, opportunities, appointments, site visits, and revenue. This is the revenue front door — **not a chatbot feature.** Research (WhatsApp/IG/Chatwoot, channel rules, India compliance) verified June 2026 (`20`).
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. Instagram DMs, comments and private replies are **built** (`apps/instagram/backend_insta_sol_ms`, running on dev, Meta App Review pending). WhatsApp is self-hosted Baileys carrying the **agency's own command channel**, not customer conversations; the official Cloud API move has its own plan in `39-whatsapp-official-api-plan.md`. Chatwoot was never adopted. Telegram and Facebook Messenger are dropped.
+
+> **Scope:** turning conversations on public and private channels into leads, appointments, site visits and revenue. This is the revenue front door, not a chatbot feature. Channel-rule and India-compliance research verified June 2026 (`20`); channel decisions re-taken September 2026.
 
 ---
 
-## 1. What This Engine Does
+## 1. What this engine does today
+
+The pipeline is real and source-agnostic. Every channel adapter normalises to one shape and everything after that point is shared:
 
 ```
- Conversation (any channel)  →  Contact resolved/merged  →  Conversation thread
-   →  Intent + grounded reply (Sales Assistant, 04)  →  Qualification (09)
-   →  Scoring (10)  →  Assignment (11)  →  Appointment / Site Visit
-   →  CRM outcome + events  →  Revenue
+  Instagram service      ManyChat webhook     Property-page booking
+  (DM / comment)         (per-tenant token)   (site visit)
+        │                       │                     │
+        └───────────────────────┴─────────────────────┘
+                                │
+              POST /api/internal/adapters/leads
+                                │
+        apps/crm/server/leadIngestion.js → ingestLead()
+        dedupe → createLead() → notifyNewLead() → lead.created
+                                │
+   EventBridge lead.created  → lead-qualifier-handler   (Hot / Warm / Cold)
+        → lead.qualified     → lead-router-handler      (assignment, 11)
+        → follow-up call job  (services/followup-agent-service
+                               → services/ai-calling-service → Exotel/ElevenLabs)
+        → call outcome → score + per-minute credit billing → convertLead()
 ```
 
-Every conversation **must end in a CRM outcome** (lead created/updated, score, task, visit, or closed-with-reason). The engine is the L2 channel adapters + L3 conversation backbone from `03 §3`.
+> Qualification, scoring and assignment are built as above. The founder is building a next-generation lead engine separately; these docs will be updated when it lands.
 
-## 2. Channels & How Each Is Captured
+Every conversation still has to **end in a CRM outcome** — lead created or updated, score, task, visit, or closed with a reason. The qualification pipeline never inspects `lead.source`; it operates on `{tenantId, leadId}`. That is why adding a channel means writing an adapter, not an engine (`docs/lead-adapter-architecture.md`).
 
-| Channel | Mechanism | Notes / rules |
+## 2. Channels: built vs not built
+
+| Channel | Status | How |
 |---|---|---|
-| **WhatsApp** | Cloud API webhooks (inbound), templates (outbound) | Primary in India. 24h service window; per-message pricing (see §4). Multi-tenant via Embedded Signup. |
-| **Instagram DMs** | Messaging API webhooks | 24h window; `human_agent` tag extends to 7d for genuine human support. |
-| **Instagram comments** | Comment webhook → **private reply (DM)** | One automated private reply per comment — classic "comment to DM" play for real estate posts/reels. |
-| **Facebook Messages** | Messenger Platform webhooks | Same windowing model as IG. |
-| **Facebook comments** | Page feed webhook → private reply / public reply | Comment-to-DM on listing posts/ads. |
-| **Telegram** | Bot API (webhook/long-poll) | Cheapest/easiest; no 24h restriction. |
-| **Website chat** | Embeddable widget → our webhook | Owns its own session; full control. |
-| **Meta Lead Ads** | Lead form retrieval API + webhook | High-intent inbound; sync to CRM + trigger instant follow-up. |
-| **Portal leads** | Official push/email (`07`) | Pull, dedupe, route. |
-| **Future** | New L2 adapter only | Channel-agnostic core. |
+| **Instagram DMs** | **Built** (dev; App Review pending) | Instagram Login Graph API, hosted service `apps/instagram/backend_insta_sol_ms`. See §3. |
+| **Instagram comments** | **Built** (dev) | Comment read + public reply + one private reply per comment. See §3. |
+| **ManyChat (Instagram flows)** | **Built** | `POST /instagram/:webhookToken` on the CRM (`apps/crm/server/routes/webhooks.js`), per-tenant token from `AgencyConfig.instagramWebhookToken`. No HMAC — ManyChat does not offer it — so the token is the only secret. Dedupe key `manychat:<tenant>:<subscriber>:<post>`. |
+| **Property pages** | **Built** | `apps/property-pages-ms` renders a tenant-branded listing page; "Schedule a visit" becomes a CRM lead plus a meeting. |
+| **WhatsApp (agency command channel)** | **Built** | Self-hosted Baileys on ECS Fargate (`services/whatsapp-platform`). Agency links its own number by QR. **Owner-only:** the CRM webhook drops anything that is not self-chat or `fromMe` as `unauthorized_sender` (`apps/crm/server/routes/webhooks.js`). |
+| **WhatsApp (customer conversations)** | **Not built** | Plan only. Direction is the official Cloud API — `39-whatsapp-official-api-plan.md`. See §4. |
+| **Website chat widget** | **Not built** | The CRM has an internal web chat for the agent runtime (`apps/crm/server/agents/channels/webChannel.js`); there is no embeddable public widget. |
+| **Meta Lead Ads** | **Not built** | No lead-form retrieval anywhere in code. |
+| **Portal leads** | **Not built** | Adapter design in `07 §3`. |
+| **Facebook Messages / comments** | **Dropped** | No code, no demand from the ICP. |
+| **Telegram** | **Dropped** | No code. Remove from marketing copy — `apps/landing-pages/main/index.html:28` still claims it. |
 
-## 3. Build vs Buy the Inbox: use Chatwoot as omnichannel infrastructure
+## 3. Instagram, as built
 
-**Decision: adopt Chatwoot (Community Edition, MIT, self-hosted) as the omnichannel ingestion + human-agent inbox layer, and put our agent/AI logic on top of it** — rather than building per-channel webhook plumbing from scratch.
+This is the channel that actually works, so it is worth describing precisely.
 
-Why:
-- Chatwoot CE already speaks **WhatsApp, Messenger, Instagram, Telegram, website chat, email, SMS, X** — exactly our channel list — with a unified conversation model, agent assignment, webhooks, and bot APIs.
-- MIT license, **self-hosted = full data ownership** (important for DPDP, `15`), runs on our AWS.
-- Gives agencies a **human-agent inbox for free** (the human-in-the-loop surface from `04 §6`) where AI drafts and humans approve.
+**Shape.** One Meta app serves every agency. An agency connects its own Instagram professional account through Connect Instagram (OAuth), and the service reads DMs, comments, posts, reels and insights, scores enquiries, hands leads to the CRM, and sends replies that a person writes or a keyword rule fires. The console lives at `/insta/*` on the CRM CloudFront distribution (`apps/instagram/frontend_insta_sol_ms`).
 
-Caveats (design around them):
-- Chatwoot CE accounts share one deployment/DB → **logical, not hard, tenant isolation.** For strict isolation we run **per-tenant or per-shard Chatwoot instances**, or keep Chatwoot as a stateless channel-gateway and treat *our* CRM/Conversation store as the system of record (preferred — Chatwoot holds transient inbox state, CRM holds truth).
-- SLA management, audit logs, custom dashboards are Enterprise-only → we provide those in our own dashboard, not Chatwoot's.
-- Chatwoot does **not** bypass Meta API approvals/window rules — those still apply.
+**Graph API only.** The service never browses or scrapes instagram.com. Browser automation against Instagram risks the agency's account, which is the same reasoning that dropped portal posting (`07 §1`).
 
-**Architecture:** Chatwoot receives channel events → forwards to our **Conversation Orchestrator** (via Chatwoot webhooks / agent-bot) → our agents reply through Chatwoot's send APIs → outcomes written to *our* CRM. If we later outgrow Chatwoot, the L2 adapter boundary (`03`) means we can swap to raw Cloud API webhooks without touching agents.
+**Messaging windows are enforced in code**, not left to the next feature (`apps/instagram/backend_insta_sol_ms/services/windowPolicy.js`):
 
-*(Alternative if we want zero third-party inbox: implement L2 adapters directly against each platform's webhooks. More control, more maintenance. Recommended only if Chatwoot's shared-DB model proves limiting.)*
+| Window | Means | What may be sent |
+|---|---|---|
+| `STANDARD` | They messaged us within 24 hours | A free-form reply |
+| `COMMENT_REPLY` | They commented within 7 days | Exactly one private reply |
+| `CLOSED` | Anything older | Nothing |
 
-## 4. WhatsApp Economics & Multi-Tenant Onboarding (critical detail)
+The `HUMAN_AGENT` tag is deliberately **not** offered: it needs its own Meta permission and is restricted to a human resolving a support issue. (The June draft's claim that `human_agent` extends the DM window to 7 days for us is wrong — that is the comment window, and it is one message.) Other limits handled in the product: 1000 characters per DM, the 20 most recent messages per conversation, request-folder threads idle for 30 days.
 
-- **Pricing (per-message, since 1 Jul 2025):** charged per **delivered template** by **category** and **country**. **Service conversations are free; all free-form replies within an open 24h window are free; Utility templates are free inside the 24h window.** Only **Marketing** and **Authentication** templates (and Utility outside 24h) cost money. India indicative: Marketing ~₹0.78–0.86/msg, Utility/Auth ~₹0.13/msg (verify on live rate card). **Implication:** keep conversations inside the 24h service window (respond fast — our <60s SLA helps) and prefer Utility over Marketing templates to minimize cost.
-- **Multi-tenant onboarding:** use **Embedded Signup** so each agency connects its **own WABA/number** under our Meta app via an OAuth flow. Choose the business model: **Tech Provider** (agencies pay Meta directly — simplest, no credit risk for us) vs **Solution Partner/BSP** (we hold the credit line and bill agencies — more margin, more ops). **Recommendation:** start as **Tech Provider** (or via an existing BSP like the already-integrated **AiSensy**, or Gupshup/Interakt) to avoid carrying Meta billing; revisit BSP economics at scale. The existing AiSensy integration is a pragmatic Phase-1 on-ramp.
+**Enquiry → lead.** `services/leadAnalyst.js` turns a DM thread into a decision a salesperson can act on: who this is, what they want, how hot they are, the next action, and a Hinglish reply draft. Providers are pluggable (`rules` — deterministic, free, offline; `gemini` when a key is set), and whatever a model returns is checked against the conversation before it is kept — a phone number is only accepted if it appears in the lead's own messages, so a model can neither invent one nor store our own number as theirs. Any model failure falls back to the rules result rather than dropping the lead. The result goes to the CRM through `services/crmBridge.js` → `POST /api/internal/adapters/leads` with `source: 'Instagram'`, `sourceAdapter: 'instagram'`.
 
-## 5. Conversation → CRM Outcome Pipeline (detail)
+**Autonomy: draft first, auto later.** Replies are written by a person or fired by an explicit keyword rule (`services/ruleMatcher.js`: exact, starts-with, contains, regex). On dev `INSTA_DRY_RUN_SENDS=true`, so replies are recorded rather than sent. Autonomous DM replies come after App Review and after the draft mode has been watched in production, not before.
 
-1. **Ingest & dedupe** (Redis idempotency on message id).
-2. **Resolve contact** (CRM/Contact MCP `resolve_contact_by_phone`/handle) — merge across channels into one Contact (multi-identity model already exists in auth/CRM).
-3. **Open/append Conversation thread** (Conversations/Messages store, `03 §7`), tagged with channel + source (ad id, post id, portal).
-4. **Route** (Conversation Router, Haiku): new-lead vs existing-customer vs spam vs human-needed.
-5. **Respond** (Sales Assistant, grounded) — within channel rules; draft-or-send per autonomy level.
-6. **Qualify → Score → Assign** (`09`/`10`/`11`) inline.
-7. **Convert intent to outcome:** create/update Lead, book Visit, create Task, or close-with-reason. Attribution (UTM/ad/post/portal) stamped for ROI.
-8. **Emit events** (LeadCreated/Qualified/VisitBooked) for follow-up journeys and analytics.
+**What is blocking.** The app is in Development Mode, so Meta only returns messages and comments from accounts with a role on the app — which is why DM and comment counts read zero on dev with a real account connected. Prod is not deployed; the `prod-realestateflow-insta-*` stacks still hold the old device-pairing build. Current state and actions: `docs/pending-items/instagram-service-status.md` and `docs/pending-items/instagram-app-review-actions.md`.
 
-## 6. Compliance (DPDP + Meta policy)
-- **DPDP Act 2023:** capture consent for lead data, store purpose, support data-access/deletion (the grievance flow already exists). Self-hosting Chatwoot + our CRM keeps PII in our controlled AWS (`15`).
-- **Meta platform policies:** respect automation rules, 24h windows, template approval/quality ratings; don't spam comments. Quality rating (Green/Yellow/Red) governs messaging limits — protect it.
-- **WhatsApp opt-in** required for proactive outreach; capture and record it.
+## 4. WhatsApp: what it is today, and where it is going
 
-## 7. KPIs
-Time-to-first-response (<60s target, 24/7), capture rate (conversations→leads), qualification rate, conversation→visit rate, channel-level CAC and ROI (via attribution), WhatsApp quality rating, cost-per-conversation.
+**Today — the agency's own command line.** Baileys (an unofficial WhatsApp Web client) runs self-hosted on ECS Fargate. A tenant links its own number by scanning a QR; one session per number; inbound messages fan out over EventBridge to the CRM's WhatsApp processor, which runs the agent (`03 §4`). The CRM webhook accepts **only self-chat or `fromMe`** messages and logs everything else as `unauthorized_sender`. So the agency owner can message their own number to ask "which leads came in today" and get an answer from the CRM. Customers cannot reach it, by design.
 
-## 8. Phasing
-- **P1:** WhatsApp (via AiSensy/Embedded Signup) + Website chat + Meta Lead Ads, on Chatwoot, with Router + Sales Assistant + qualification, approval-queue autonomy.
-- **P2:** Instagram DMs + comment-to-DM, Facebook messages/comments.
-- **P3:** Telegram, portal-lead ingestion, full attribution/ROI analytics, graduated autonomy.
+**WhatsApp is not a lead adapter.** The Baileys webhook never calls `createLead`; it publishes to EventBridge for the conversation processor. Making it one is new work, not a rewire (`docs/lead-adapter-architecture.md` Phase 5), and it needs the phone GSI first.
+
+**Where it is going — official.** Baileys is an unofficial protocol with real ban and ToS risk, which is acceptable for the agency's own number and not acceptable for customer messaging at scale. The direction is the **WhatsApp Business Cloud API**, possibly through a BSP; **AiSensy is being evaluated** for that move. The plan, including the Tech Provider vs BSP choice and the migration path off Baileys, lives in **`39-whatsapp-official-api-plan.md`**. Do not re-litigate it here.
+
+Two things worth carrying into that plan:
+
+- **Economics.** Since 1 July 2025, WhatsApp charges per delivered **template**, by category and country. Service conversations are free, all free-form replies inside an open 24-hour window are free, and Utility templates are free inside that window. Only Marketing and Authentication templates — and Utility outside the window — cost money. India indicative rates were Marketing ~₹0.78–0.86 and Utility/Auth ~₹0.13 per message in June 2026; verify against the live rate card. The design implication is simple: answer fast enough to stay inside the 24-hour window, and prefer Utility over Marketing templates.
+- **AiSensy today is not the WhatsApp channel.** It is used for exactly one thing: the AI-Employee onboarding broadcast after a successful payment (`apps/crm/server/routes/billing.js`). Any claim that the product "connects to the WhatsApp Business API" — including `apps/landing-pages/main/index.html:28` — is ahead of the code and needs fixing.
+
+## 5. Considered, not adopted: Chatwoot as the omnichannel inbox
+
+The June design adopted Chatwoot Community Edition, self-hosted, as the ingestion and human-agent inbox layer. It was never built and is **not the path**.
+
+Why it was attractive: one deployment speaking WhatsApp, Messenger, Instagram, Telegram, website chat and email, with a unified conversation model, agent assignment, webhooks and bot APIs; MIT-licensed and self-hostable, so PII stays in our AWS account.
+
+Why it was dropped:
+
+- The channel list it bought us is mostly channels we have now **dropped** (Telegram, Messenger) or already built directly (Instagram).
+- Chatwoot CE shares one deployment and database across accounts, so tenant isolation would have been logical rather than hard — and the workaround (per-tenant instances) is an operations burden a solo founder should not take on.
+- SLA management, audit logs and custom dashboards are Enterprise-only, so we would have built our own anyway.
+- It does not bypass a single Meta approval or window rule. The hard part of Instagram was `windowPolicy.js`, and Chatwoot would not have written it.
+
+The L2 adapter boundary (`03`) is what actually delivered the benefit: channels are swappable without touching agents. That boundary exists today as `ingestLead()`.
+
+## 6. Conversation → CRM outcome, in code
+
+1. **Ingest and dedupe.** `dedupeKey` through `logEventIfNotProcessed` in `apps/crm/server/leadIngestion.js`, plus `WebhookLog`. No Redis anywhere in the stack — the June draft's "Redis idempotency" was never built and is not needed.
+2. **Resolve the contact.** Phone lookup over the tenant's lead partition; a batch does one `buildLeadPhoneIndex()` query for the whole upload, so two enquiries from the same person in one batch collapse onto one lead. **Known race:** two adapters ingesting the same phone concurrently can both create; rare at current volumes, recoverable by merging, and properly fixed by a conditional write on a phone-uniqueness item.
+3. **Create or update the lead.** One row in `CrmTable`, `EntityType: 'LEAD'`, `PK TENANT#<t>#LEAD#<id>`. Source and `sourceAdapter` are stamped for attribution.
+4. **Notify and emit.** `notifyNewLead()` then `lead.created` on the EventBridge default bus.
+5. **Qualify.** `lead-qualifier-handler.js` scores Hot / Warm / Cold and emits `lead.qualified` (`09`, `10`).
+6. **Assign.** `lead-router-handler.js` routes through the agent runtime (`11`).
+7. **Follow up.** `services/followup-agent-service` schedules `site_visit_confirmation` and `post_visit_feedback` calls, up to 2 attempts 45 minutes apart inside business hours, escalating to the assignee and admins when the customer asks for a human or attempts run out. Conversation state and per-minute call billing are written back.
+8. **Convert.** `convertLead()` to Buyer / Owner / Customer, or closed with a reason. Nothing is deleted — archive instead.
+
+**Conversation storage.** WhatsApp messages and conversation state are rows in the CRM table under `TENANT#…#WHATSAPP#…` (`apps/crm/server/whatsappConversationService.js`, `conversationStateService.js`); Instagram threads live in the Instagram service's own table and are bridged as leads. There are no separate `Conversations` / `Messages` tables — that June design was not built.
+
+## 7. Compliance
+
+- **DPDP Act 2023.** Capture consent at intake, record purpose, support access and deletion requests. The grievance flow exists, and the App Review pack shipped `apps/landing-pages/legal/data-deletion/` plus the Instagram section of the privacy policy, which names the agency as controller of the people who message it. Data stays in `ap-south-1`.
+- **Meta platform policy.** Respect the windows in §3, template approval and quality ratings; do not spam comments. A Green/Yellow/Red quality rating governs messaging limits — protect it. Instagram access is Graph API only.
+- **Consent for calls.** Outbound voice is consent-at-intake, and DLT registration is required before any bulk calling (`12`).
+- **WhatsApp opt-in** is required for proactive outreach and must be recorded per contact — a requirement for `39`, not something Baileys gives us.
+
+## 8. KPIs
+
+Time to first response (target under 60 seconds, 24/7), capture rate (conversations → leads), qualification rate, conversation → site-visit rate, channel-level CAC and ROI via source attribution, WhatsApp quality rating once official, cost per conversation against the credit meter (`17`).
+
+Note these are **targets**, not measurements. The product is pre-launch with no customers, so there is no baseline yet.
+
+## 9. Roadmap
+
+Phases, not dates. These are this engine's slice of the Phase A → B → C plan in `21`.
+
+**Phase A — M1 launch.** Pass Meta App Review and deploy the Instagram service to prod. Instagram DMs and comments in **draft-first** mode with keyword rules. ManyChat and property-page booking adapters stay as they are. WhatsApp remains the agency command channel only.
+
+**Phase B — hardening.** Instagram auto-reply for narrow, safe intents once draft mode has been watched in production. The official WhatsApp Cloud API channel per `39`, including opt-in capture, templates and the Baileys migration. Website chat widget. Attribution reporting on `source` / `sourceAdapter`.
+
+**Phase C — growth.** Portal lead ingestion (`07 §3`), Meta Lead Ads, graduated autonomy per tenant, full channel-level ROI analytics, tenant social publishing through the Instagram service.
+
+**Not on the roadmap:** Telegram, Facebook Messenger, Chatwoot, browser automation against any platform.

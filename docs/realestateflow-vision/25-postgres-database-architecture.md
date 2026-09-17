@@ -1,5 +1,7 @@
 # 25 — PostgreSQL Database Architecture & Migration
 
+> **Archived (17 Sep 2026):** June 2026 design record, kept for history. Not the current plan. Current source: `apps/crm/server/infra/cfn-backend.yaml` and `apps/crm/server/infra/launch-tables-cfn.yaml` (all product data is on DynamoDB). Postgres is parked as a possible future reporting store fed from DynamoDB, with no date (see `docs/realestateflow-vision/27-phase-2-postgres-analytics-agent-tables.md`).
+
 > **Status:** Design spec · **Date:** 2026-06-16 · **Scope:** DynamoDB → Aurora PostgreSQL migration for operational, queryable, and reportable data. Keeps DynamoDB for high-throughput append-only streams.
 
 ---
@@ -347,13 +349,13 @@ CREATE POLICY tenant_isolation_contacts ON contacts
 
 ## 7. ORM Choice: Knex.js (for JavaScript backend)
 
-### CRITICAL: Your `server/` is JavaScript, not TypeScript
+### CRITICAL: Your `apps/crm/server/` is JavaScript, not TypeScript
 
 **Finding from codebase audit:**
-- `server/` has **zero TypeScript** — all `.js` files, no `tsconfig.json`, no `typescript` dependency, no build step.
-- Only `reality-flow-authentication/` and `real-estate-crm-app/` are TypeScript.
+- `apps/crm/server/` has **zero TypeScript** — all `.js` files, no `tsconfig.json`, no `typescript` dependency, no build step.
+- Only `services/reality-flow-authentication/` and `apps/crm/real-estate-crm-app/` are TypeScript.
 - Introducing a TypeScript ORM (`Drizzle`) means either:
-  1. Rewrite all of `server/` to TypeScript (massive, separate effort), **or**
+  1. Rewrite all of `apps/crm/server/` to TypeScript (massive, separate effort), **or**
   2. Use Drizzle from JS (defeats the entire value prop of picking it for type safety).
 
 ### Recommendation: Knex.js
@@ -451,36 +453,36 @@ Since you're NOT migrating the CRM, this is straightforward:
 
 | File | Purpose |
 |---|---|
-| `server/db/schema.ts` | Drizzle schema definition (leads, contacts, properties, etc.) |
-| `server/db/migrations/001_init.sql` | Initial schema + RLS policies |
-| `server/db/client.ts` | Drizzle + RDS Proxy connection pool |
-| `server/db/middleware.ts` | Middleware to set `app.tenant_id` per request |
-| `server/services/leadService.ts` | Lead CRUD (Drizzle) |
-| `server/services/contactService.ts` | Contact CRUD + merge logic |
-| `server/services/propertyService.ts` | Property CRUD + search |
-| `server/services/visitService.ts` | Visit scheduling + tracking |
-| `server/services/taskService.ts` | Task management |
-| `server/services/khataService.ts` | Accounting transactions (ACID) |
-| `server/services/projectService.ts` | Project/developer management |
-| `server/services/agentActionService.ts` | Agent action audit log |
-| `server/services/conversationMetaService.ts` | Conversation thread metadata |
+| `apps/crm/server/db/schema.ts` | Drizzle schema definition (leads, contacts, properties, etc.) |
+| `apps/crm/server/db/migrations/001_init.sql` | Initial schema + RLS policies |
+| `apps/crm/server/db/client.ts` | Drizzle + RDS Proxy connection pool |
+| `apps/crm/server/db/middleware.ts` | Middleware to set `app.tenant_id` per request |
+| `apps/crm/server/services/leadService.ts` | Lead CRUD (Drizzle) |
+| `apps/crm/server/services/contactService.ts` | Contact CRUD + merge logic |
+| `apps/crm/server/services/propertyService.ts` | Property CRUD + search |
+| `apps/crm/server/services/visitService.ts` | Visit scheduling + tracking |
+| `apps/crm/server/services/taskService.ts` | Task management |
+| `apps/crm/server/services/khataService.ts` | Accounting transactions (ACID) |
+| `apps/crm/server/services/projectService.ts` | Project/developer management |
+| `apps/crm/server/services/agentActionService.ts` | Agent action audit log |
+| `apps/crm/server/services/conversationMetaService.ts` | Conversation thread metadata |
 
 ### Modified Files
 
 | File | Changes |
 |---|---|
-| `server/infra/cfn-backend.yaml` | Add Aurora cluster, RDS Proxy, VPC config; keep DynamoDB tables |
-| `server/db.js` or `server/index.js` | Require new `server/db/client.ts` + middleware |
-| `server/routes/*.js` (23 files) | Swap service imports (e.g., `crmDynamodbService` → `leadService`); routes unchanged |
-| `realestateflow-vision/README.md` | Add document 25 to index |
-| `realestateflow-vision/18-migration-strategy.md` | Expand with DB migration details |
-| `realestateflow-vision/21-roadmap.md` | Add Phase 0 DB provisioning to critical path |
-| `realestateflow-vision/24-implementation-plan.md` | Add Postgres setup to Weeks 6–7 |
+| `apps/crm/server/infra/cfn-backend.yaml` | Add Aurora cluster, RDS Proxy, VPC config; keep DynamoDB tables |
+| `apps/crm/server/db.js` or `apps/crm/server/index.js` | Require new `apps/crm/server/db/client.ts` + middleware |
+| `apps/crm/server/routes/*.js` (23 files) | Swap service imports (e.g., `crmDynamodbService` → `leadService`); routes unchanged |
+| `docs/realestateflow-vision/README.md` | Add document 25 to index |
+| `docs/realestateflow-vision/18-migration-strategy.md` | Expand with DB migration details |
+| `docs/realestateflow-vision/21-roadmap.md` | Add Phase 0 DB provisioning to critical path |
+| `docs/realestateflow-vision/24-implementation-plan.md` | Add Postgres setup to Weeks 6–7 |
 
 ### Unchanged
 
-- Frontend (`real-estate-crm-app/`) — API contract identical
-- Auth service (`reality-flow-authentication/`) — No changes
+- Frontend (`apps/crm/real-estate-crm-app/`) — API contract identical
+- Auth service (`services/reality-flow-authentication/`) — No changes
 - Route signatures — Only service layer swaps; REST API unchanged
 
 ---

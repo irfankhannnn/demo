@@ -1,65 +1,114 @@
 # 12 — AI Voice Architecture
 
-> **Scope:** inbound + outbound AI voice for lead qualification, follow-up, and appointment scheduling in English/Hindi/Hinglish, on compliant Indian telephony. Evolves the existing (built, disabled) `ai-calling-service/`. Research verified June 2026 (`20`); **AWS/ElevenLabs pricing pages were 403-blocked to automated fetch — reconfirm exact rates before budgeting.**
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. The calling service was rebuilt in Sep 2026 on ElevenLabs' native Exotel integration (the June "Stack A"); the regex intent brain and Bedrock KB are gone. Outbound calls and follow-up call jobs are built but not live; inbound is later.
+
+> **Scope:** AI voice calls to leads in English / Hindi / Hinglish on licensed Indian telephony: what is built, what is left before go-live, and the compliance stance. Vendor rates quoted in June should be reconfirmed before budgeting (`20`).
 
 ---
 
-## 1. What Exists Today (reuse)
-`ai-calling-service/` already implements the hard plumbing: Exotel outbound (`connect.json`, tenant in `CustomField`), ElevenLabs Conversational AI sessions, status + intent webhooks, Bedrock KB grounding, per-tenant DynamoDB call/transcript store, S3 recordings, Secrets Manager. It is **disabled before launch** and its intent detection is **regex-based**. We keep the telephony/session/recording/grounding scaffolding and **replace the brittle regex brain with the agent stack** (`04`).
+## 1. What exists (Sep 2026)
 
-## 2. India Telephony & Compliance (decide first — non-negotiable)
-- **VoIP→PSTN termination is prohibited by DoT in India.** You **cannot** bridge an AI voice stack directly to the phone network yourself; you **must** route through a **licensed cloud-telephony provider** — **Exotel** (already integrated), Knowlarity, Ozonetel, Plivo.
-- **DLT / TRAI / TCCCPR (amendment notified 12 Feb 2025):** promotional voice on **140-series**, transactional/service on **1600-series**; 10-digit numbers banned for telemarketing; **explicit digital consent can override DND/DNC**; heavier penalties. **Implication:** outbound promotional calling requires DLT registration, the right number series, consent capture, DND scrubbing, and call-time/abandonment compliance. We treat outbound promotional voice as a **consented, rate-limited, human-supervised** capability.
-- **Recording consent** and language/disclosure norms apply; the existing recording pipeline must capture consent state.
+Code: `services/ai-calling-service/` (Lambda + API Gateway + one DynamoDB table + knowledge and recordings S3 buckets + one Secrets Manager secret, template `services/ai-calling-service/infra/cfn-ai-calling.yaml`, wrapper `infra/cicd/ai-calling-service/deploy.sh`).
 
-## 3. Two Viable Stacks (recommendation: start managed, keep self-host option)
+The original June-era service was audited on 2026-09-02 and found never to have worked: it created an ElevenLabs conversation and dialled through Exotel as two unconnected operations, with no audio bridge, and had never been deployed (`docs/services/ai-calling-service/GO-LIVE-RUNBOOK.md`). It was rebuilt (commit `bdff45e`):
 
-| | **A. ElevenLabs Agents + Exotel SIP (managed)** | **B. Pipecat/LiveKit + Bedrock + Exotel (self-host)** |
-|---|---|---|
-| Telephony | Exotel SIP trunk (compliant PSTN) | Exotel vSIP / **AgentStream** streaming |
-| Brain | ElevenLabs Agent + LLM passthrough (our tools via MCP/server tools) | Bedrock (Claude / **Nova 2 Sonic** Hindi speech-to-speech) |
-| Hindi/Hinglish | Native (Hindi STT ~5% WER, TTS, `hinglish_mode`) | Nova 2 Sonic (adds Hindi, Dec 2025) or Claude+TTS |
-| Cost (approx) | ~**$0.08/min platform + LLM passthrough ≈ $0.10–0.13/min (~₹9–11/min)** + telephony | Lower per-minute at scale; more engineering |
-| Effort | Low — fastest to GA | Higher — but reuses `ai-calling-service` + Exotel |
-| Control | Vendor-managed | Full control, AWS-native, data stays in our cloud |
+- **One request places the call and bridges the audio:** `POST /v1/convai/exotel/outbound-call` to ElevenLabs, which dials through Exotel.
+- **One shared ElevenLabs agent per environment** serves every tenant. Per-call values (`agency_name`, `lead_name`, `lead_context`, `rubric`, ...) travel as `dynamic_variables`. Per-tenant `agentId` / `agentPhoneNumberId` are optional overrides only. There is one Exotel account per environment.
+- **Server tools replace the regex intents.** The agent's own model decides when to call them. Nine tools hit `/api/ai-calling/tools/*` on the calling service, which calls the CRM internal API (`/api/internal/*`, `apps/crm/server/routes/aiCallingInternal.js`), not MCP:
+  `search_properties`, `get_property_details`, `schedule_site_visit`, `answer_policy_question`, `submit_qualification`, `request_human_handoff`, `confirm_site_visit`, `record_visit_feedback`, `request_callback` (`services/ai-calling-service/elevenlabs-agent-tools.md`).
+- **Tenant isolation:** DynamoDB keys `TENANT#{tenantId}#CALL#...`; server tools take the tenant from a `secret__tenant_id` dynamic variable bound to a header, never from a model-supplied parameter.
+- **Webhooks:** ElevenLabs post-call (HMAC verified) and Exotel status (IP allowlisted).
+- **Events:** publishes `call.ended` (source `aicalling.calls`) on EventBridge.
+- **Grounding:** no Bedrock grant in the template. Policy answers come from the CRM's DynamoDB vector search over agency policy text (`14`); property answers from live CRM data.
 
-**Recommendation:**
-- **Phase-2/3 GA: Stack A (ElevenLabs Agents + Exotel SIP).** Fastest path, native Hindi/Hinglish, batch outbound, tool calling, post-call webhooks — and we already use ElevenLabs + Exotel. Bridge ElevenLabs tools to our **MCP layer** (`05`) so the voice agent is grounded in the same CRM/Property/Knowledge tools as the chat agent.
-- **Evaluate Stack B in parallel** for cost control at scale and tighter AWS-native data residency: **Pipecat or LiveKit Agents** (both support Exotel + Bedrock) with **Nova 2 Sonic** for Hindi speech-to-speech. This reuses the existing `ai-calling-service` footprint and keeps audio/PII in our AWS.
-- Decision gate: pick B over A when monthly voice minutes make the per-minute delta exceed the engineering+ops cost of self-hosting (model it in `17`).
+Call purposes: `lead_qualification` (capped at 180 s; the agent submits a HOT / WARM / COLD verdict silently, which the CRM stores with `scoreSource: 'ai_call'`), `lead_followup`, `site_visit_confirmation` and `post_visit_feedback`. `click_to_call` is not an AI call: Exotel bridges a team member to a contact (`apps/crm/server/routes/clickToCall.js`).
 
-## 4. Target Architecture
+Who starts calls:
 
+- A user in the CRM: "qualify call" (`POST /api/crm/leads/:id/qualify-call`) or the AI Calling page (`apps/crm/real-estate-crm-app/src/pages/crm/AICalling.tsx`).
+- `services/followup-agent-service`: schedules `site_visit_confirmation` and `post_visit_feedback` jobs, 2 attempts 45 minutes apart inside the tenant's business hours, then escalates to the assignee and admins (see `09 §4`).
+
+Billing: credits are charged per started minute after the call settles (default 15 credits a minute, `ai_call_per_minute` in `apps/crm/server/creditConfig.js`; 1 credit = ₹1 on top-up packs). The charge is idempotent on `callSessionId` (`apps/crm/server/aiCallBilling.js`), and the CRM checks for at least one minute of credit before dialling. Pricing is being re-planned in `38`.
+
+### Go-live status
+
+| Item | State |
+|---|---|
+| Rebuilt code, tests, CFN template, deploy wrapper | Done |
+| Dev ElevenLabs agent | Created; server tools and post-call webhook not yet configured on it |
+| CRM UI | Built, hidden behind `VITE_AI_CALLING_ENABLED=false` (`apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx`) |
+| Exotel number import into ElevenLabs, `ELEVENLABS_AGENT_PHONE_NUMBER_ID` | Pending (human) |
+| Rotation of the leaked Exotel / ElevenLabs credentials | Unconfirmed (D18, see `15 §2`) |
+| End-to-end test call | Not done |
+| Prod agent and prod deploy | Not done |
+
+Sources: `docs/services/ai-calling-service/GO-LIVE-RUNBOOK.md`, `docs/pending-items/followup-e2e-and-dev-fixes.md`.
+
+## 2. India telephony and compliance
+
+- **VoIP to PSTN termination by an unlicensed party is not allowed in India.** Calls must go through a licensed cloud-telephony provider. We use Exotel.
+- **DLT / TRAI / TCCCPR:** promotional voice uses the 140 series, transactional/service the 1600 series; explicit digital consent can override DND. Promotional or bulk calling needs DLT registration, the right number series, consent and DND scrubbing.
+- **Recording consent** and disclosure norms apply.
+
+**Decision D16 (founder):**
+
+1. **Outbound only at launch.** Calls go to leads who enquired or asked for a call. Inbound AI answering is later (Phase C).
+2. **Consent is captured at intake** (Instagram DM "call me", ManyChat, property-page form and similar) before a lead is auto-called.
+3. **DLT registration before any bulk calls.**
+
+What the code does today: no consent, DND or DLT handling exists in `services/ai-calling-service/src` or `services/followup-agent-service/src`. The only call-time control is the tenant business-hours window (`services/followup-agent-service/src/utils/time.js`). Follow-up auto-calls run on an explicit `followUp` hint by default; the tenant opt-in "call any new Instagram lead with a phone" needs a consent flag before launch under D16.
+
+## 3. Stack choice
+
+**Adopted:** ElevenLabs Agents with ElevenLabs' native Exotel integration (the June "Stack A"). It gives Hindi / Hinglish speech, tool calling and post-call webhooks with no audio bridge for us to run.
+
+**Considered in June, not adopted:** a self-hosted Stack B (Pipecat or LiveKit Agents on Fargate or AgentCore, with Bedrock Nova Sonic speech-to-speech over Exotel vSIP / AgentStream). It was never evaluated. It would only be worth revisiting if monthly voice minutes make the per-minute cost gap larger than the engineering and ops cost of self-hosting (`17`).
+
+## 4. Architecture (as built)
+
+```mermaid
+flowchart LR
+  CRM[CRM: qualify call / AI Calling page] -->|POST /calls/start| ACS[ai-calling-service Lambda]
+  FU[followup-agent-service job engine] -->|POST /calls/start| ACS
+  ACS -->|outbound-call with dynamic_variables| EL[ElevenLabs agent]
+  EL -->|dials, bridges audio| EX[Exotel] --> Lead((Lead's phone))
+  EL -->|server tools| ACS
+  ACS -->|/api/internal/*| API[CRM internal API]
+  API --> DDB[(CRM DynamoDB + vector search)]
+  EL -->|post-call webhook, HMAC| ACS
+  EX -->|status webhook, IP allowlist| ACS
+  ACS -->|call outcome, score, notes| API
+  ACS -->|EventBridge call.ended| FU
 ```
- Inbound call → Exotel (licensed PSTN) ─┐
- Outbound (consented, DLT) ─────────────┤→ Voice runtime (ElevenLabs Agent  OR
-                                         │   Pipecat/LiveKit on Fargate/AgentCore)
-                                         │
-                          STT ↔ LLM ↔ TTS (Hindi/Hinglish)
-                                         │ tool calls
-                                         ▼
-                        Voice agent (04) ── MCP tools (05):
-                        Lead · Property · Visit · Knowledge · Task
-                                         │
-                        grounded answers + actions (book visit, update lead)
-                                         ▼
-              transcripts + recording + consent → DynamoDB/S3 (existing)
-              outcome events → CRM, scoring (10), follow-up (09)
-```
 
-## 5. Capabilities
-- **Inbound:** answer 24/7, identify caller (CRM/Contact MCP), answer grounded questions, qualify, book visits, escalate to human (warm transfer via Exotel) on request/low-confidence.
-- **Outbound (consented):** qualification calls on fresh leads, follow-up/nurture calls (triggered by journeys `09`), site-visit reminders/confirmations, re-engagement of cold leads. **Batch outbound** via the voice platform with per-row variables.
-- **Grounding & HITL:** identical principles to chat (`04 §5–6`) — never invent prices; offer human handoff; outbound promotional calls pinned to consented, supervised mode.
+## 5. Adjacent voice capabilities
 
-## 6. Multi-Tenancy & Cost
-- Per-tenant Exotel numbers/credentials and agent config (greeting, voice, language, persona) — pattern already in the calling service.
-- Per-tenant **voice-minute metering** → billable (`17`); concurrency caps per tenant; budget guards.
-- Recordings/transcripts tenant-isolated in S3/DynamoDB with retention + consent.
+- **Call Intelligence:** agency owners upload recordings of their own human calls. The file goes to S3, then an SQS queue, then a worker Lambda (`${Env}-realestateflow-call-recording-worker`) that transcribes with Amazon Transcribe, analyses with Gemini, and proposes CRM updates the owner approves (`docs/CALL_INTELLIGENCE.md`, `apps/crm/server/services/callIntelligence/`).
+- **Click-to-call:** human-to-human bridge through Exotel (`EXOTEL_CALLER_ID`; returns 503 when unset).
+- **Follow-up call jobs:** `services/followup-agent-service` (above and `09`).
+
+## 6. Capabilities: built vs later
+
+| Capability | Status |
+|---|---|
+| Outbound qualification call (user-triggered) | Built, not live |
+| Site-visit confirmation and post-visit feedback calls (scheduled, retried, escalated) | Built, not live |
+| Human handoff / callback request from the agent | Built (`request_human_handoff`, `request_callback`); no live warm transfer |
+| Per-minute credit metering | Built |
+| Consent capture at intake | Not built (D16: before launch) |
+| DLT registration, DND scrubbing | Not done (D16: before bulk calls) |
+| Batch outbound campaigns | Not built |
+| Inbound AI answering | Not built (Phase C) |
+| Per-tenant concurrency caps | Not built |
 
 ## 7. KPIs
-Connect rate, average handle time, qualification rate on calls, visit-booking rate, human-escalation rate, transcript groundedness, cost-per-call-minute, compliance exceptions (should be zero), CSAT/sentiment.
+
+Connect rate, average handle time, qualification verdict rate on qualification calls, visit confirmation rate, human-escalation rate, cost per call minute (credits vs vendor cost), compliance exceptions (should be zero).
 
 ## 8. Phasing
-- **P2:** re-enable calling service behind MCP; inbound answering + outbound follow-up reminders (transactional/service, 1600-series) with Stack A; human transfer.
-- **P3:** consented outbound qualification at scale (DLT/140-series), batch campaigns, Nova-Sonic/self-host cost evaluation, voice as a step inside cross-channel journeys (`09`).
+
+- **Phase A (M1 launch):** configure tools and webhook on the agent, import the ExoPhone, confirm key rotation, run the end-to-end call, prod deploy, turn on `VITE_AI_CALLING_ENABLED`. Outbound only. Consent captured at intake.
+- **Phase B (hardening):** DLT registration before any bulk or promotional calling; consent and DND checks enforced in code.
+- **Phase C (growth):** inbound AI answering; voice as a step in WhatsApp nurture journeys.
+
+> **Doc fix needed elsewhere:** `services/ai-calling-service/README.md` still mentions a Bedrock knowledge base in its diagram and isolation list; the template has no Bedrock grant and policy retrieval lives in the CRM (`14`).

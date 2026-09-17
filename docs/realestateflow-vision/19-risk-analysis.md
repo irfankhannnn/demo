@@ -1,38 +1,54 @@
 # 19 — Risk Analysis
 
-> **Scope:** the risks that can sink or slow RealEstateFlow's evolution, with likelihood × impact and concrete mitigations. Cross-references the relevant design docs.
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. The register is refreshed around today's real risks (leaked keys in history, Baileys ban risk, unscheduled grace cron, pricing mismatch, Meta App Review, realestateflow.in HTTPS down, single founder); risks tied to tools that were never adopted (Chatwoot, portal posting) are retired.
+
+> **Scope:** risks that can stop or slow the RealEstateFlow launch and growth, with likelihood × impact, what already mitigates each one, and what is still to do. RealEstateFlow is pre-launch with no customers. Phases A/B/C: `21-roadmap.md`.
 
 ---
 
 ## 1. Risk Register (ranked by exposure)
 
-| # | Risk | Likelihood | Impact | Exposure | Mitigation | Ref |
+| # | Risk | Likelihood | Impact | Exposure | In place today | Still to do (phase) |
 |---|---|---|---|---|---|---|
-| R1 | **Hardcoded production secrets in repo** (Exotel/ElevenLabs/CRM/Bedrock in `deploy-lambda.ps1`) | **Certain (present)** | High | 🔴 Critical | Rotate now; move to Secrets Manager; purge git history; secret scanning in pre-commit + CI | `15`,`24` |
-| R2 | **Portal automation ToS / legal exposure** (99acres/MagicBricks bot-block; no official upload API; IT Act/Copyright risk) | High | High | 🔴 Critical | Build official lead-retrieval first; gate posting, per-tenant consent, HITL, kill switch; pursue partnerships; legal review | `07` |
-| R3 | **AI hallucination** quotes wrong price/availability → reputational/financial harm | High | High | 🔴 Critical | Tool-gated facts; "don't-know→task"; citations; eval harness; HITL on high-stakes | `04`,`09`,`14` |
-| R4 | **Runaway AI cost** destroys margin | Medium | High | 🟠 High | Haiku-first; prompt caching; per-tenant budget caps + circuit breakers; metering | `17`,`04` |
-| R5 | **Telephony/messaging compliance breach** (DLT/TCCCPR/DND; WhatsApp policy; quality-rating drop) | Medium | High | 🟠 High | Consent capture; 140/1600 series; DND scrubbing; in-window messaging; template discipline; rate limits | `08`,`12` |
-| R6 | **DPDP / data-privacy violation** (lead PII mishandled) | Medium | High | 🟠 High | Consent + purpose; data-subject access/deletion (grievance flow); self-host channels; KMS; residency | `15`,`08` |
-| R7 | **Scope creep / over-engineering** (build agents/EKS/OpenSearch too early) | **High** | Medium | 🟠 High | T0/T1-first discipline; defer EKS/OpenSearch; one engine to GA at a time; flags | `04`,`16`,`18` |
-| R8 | **Small team overwhelmed** by surface area (8 engines, many integrations) | High | Medium | 🟠 High | Strangler-fig sequencing; managed services lazily; reuse existing assets; ruthless prioritization | `18`,`21` |
-| R9 | **Multi-tenant isolation failure** (cross-tenant data/credential leak) | Low | Critical | 🟠 High | Server-derived tenant everywhere; isolation tests in CI; per-tenant secrets/KMS; microVM browsers | `15`,`05` |
-| R10 | **Vendor pricing/feature change** (AgentCore/ElevenLabs/WhatsApp/models) | Medium | Medium | 🟡 Med | MCP/A2A standards keep models/runtime swappable; multi-option designs (managed+self-host); reconfirm pricing | `12`,`20` |
-| R11 | **Prompt injection** via inbound messages/documents | Medium | Medium | 🟡 Med | Untrusted-content handling; tool-permission enforcement regardless of prompt; no secrets in context; output filters | `15` |
-| R12 | **RBAC too coarse** for team-scoped agency use blocks adoption | Medium | Medium | 🟡 Med | Fine-grained role/region model early (already in-flight on `auth_rbac_feature`) | `15` |
-| R13 | **No automated deploy pipeline** → slow, error-prone releases | High | Low–Med | 🟡 Med | Build CI/CD early; consolidate IaC; feature flags | `16` |
-| R14 | **WhatsApp per-message cost** balloons if conversations leave free window | Medium | Medium | 🟡 Med | <60s response SLA keeps 24h window open; Utility>Marketing; monitor cost/conversation | `08`,`17` |
-| R15 | **Chatwoot shared-DB isolation** insufficient for strict tenancy | Medium | Medium | 🟡 Med | Treat CRM as source of truth; per-tenant/shard Chatwoot or raw adapters if needed | `08` |
-| R16 | **Voice quality/latency in Hindi/Hinglish** disappoints | Medium | Medium | 🟡 Med | Pilot both stacks; human transfer; HITL; measure CSAT | `12` |
-| R17 | **India auto-debit cap (₹15k)** complicates higher-tier billing | Medium | Low–Med | 🟡 Med | Keep auto-debit ≤₹15k; credit packs; invoicing for enterprise | `17` |
-| R18 | **Pricing-figure drift** (research figures from 403-blocked pages) | High | Low | 🟢 Low | Reconfirm all $ before budgeting; figures flagged in `20` | `20` |
+| R1 | **Leaked keys in git history.** Exotel, ElevenLabs, Gemini, Baileys and the CRM internal API key were committed; the files are deleted or untracked but the values stay in history. Rotation is **unconfirmed** (D18). | Certain (present) | High | 🔴 Critical | Deploy script deleted; env files untracked; Secrets Manager / SSM hydration; rotation runbooks `docs/security-key-rotation.md`, `docs/services/ai-calling-service/GO-LIVE-RUNBOOK.md` §3 | Rotate every key and record it; add gitleaks to CI. No history rewrite, never force-push. (A) |
+| R2 | **realestateflow.in HTTPS is down.** The domain resolves to 162.215.226.6 and port 443 does not answer (re-checked 17 Sep 2026; plain HTTP returns a 301). Privacy, terms and data-deletion pages are unreachable, and the CRM `/legal/*` routes redirect to them. | Certain (present) | High | 🔴 Critical | Pages exist in `apps/landing-pages/legal/` (privacy, terms, data-deletion, cookies, refund); landing CloudFront distribution exists | Point the domain and `www` at the landing CloudFront distribution and deploy `infra/cicd/landing-pages/deploy.sh` (`docs/pending-items/instagram-app-review-actions.md` item 1). (A) |
+| R3 | **Meta App Review blocks Instagram.** The hosted service cannot receive real followers' DMs or comments for other agencies until Advanced Access is granted and the app is Live. Blocked by R2, business verification, reviewer login, screencasts. Instagram is on dev only; prod not deployed. | High | High | 🔴 Critical | Service built and verified end to end on dev with the founder's account (`docs/pending-items/instagram-service-status.md`); review wording in `docs/insta-sol-ms-docs/10-APP-REVIEW.md` | Complete the checklist in `docs/pending-items/instagram-app-review-actions.md`; deploy prod. Tenant social publishing waits for review (D14). (A/C) |
+| R4 | **WhatsApp number ban (Baileys).** `services/whatsapp-platform/` uses the unofficial WhatsApp Web protocol; Meta can ban the number. | High | High | 🔴 Critical | CRM acts only on the agency's own self-chat or whitelisted admin senders (`apps/crm/server/routes/webhooks.js`), so no customer messaging runs on it | Move customer messaging to the WhatsApp Business Cloud API (D9, `39-whatsapp-official-api-plan.md`); never use Baileys for leads. (C) |
+| R5 | **Single founder.** Solo founder + AI agents + contractors (D20): one person holds deploys, Meta/Razorpay accounts, support and sales. | High | High | 🔴 Critical | Runbooks and open-item lists in `docs/pending-items/`; scripted deploys `infra/cicd/<service>/deploy.sh`; AI agents under `tools/claude-skills/agents/` | Keep scope to Phase A; hire after a revenue trigger; write down account ownership and recovery contacts. (A) |
+| R6 | **Payment enforcement gaps.** `grace-period-expiry-cron.js` exists but is not scheduled in CFN; `subscription.charged` does not clear grace; no server-enforced read-only after grace (only the frontend paywall blocks). | High (once paying) | High | 🟠 High | `payment.failed` starts a 7-day grace (`apps/crm/server/routes/billing.js`); paywall respects grace (`PaywallModal.tsx`) | Schedule the cron, clear grace on charge, enforce read-only on the server (D17, `00-phase-0-prerequisites.md` §1). (A) |
+| R7 | **Pricing mismatch across sources.** `marketing-and-sales/launch-plan-v2/pricing.json` says Team+ ₹1,999 + ₹500/extra seat; `apps/crm/real-estate-crm-app/src/lib/plans.ts` says ₹4,999 for up to 10 members. Top-up modal shows ₹499/₹1,799/₹3,999 while the server charges ₹500/₹2,000/₹5,000 (`BuyCreditsModal.tsx` vs `creditConfig.js`). Copy promises Telegram, which does not exist (`pricing.json`, `apps/landing-pages/ai-employee/index.html`, `AIEmployeeStatus.tsx`). | High | Medium | 🟠 High | — | Settle pricing through `38-pricing-plan-contacts-and-credits.md` and update every source; have the UI read pack prices from the server; remove Telegram from copy (D14). (A) |
+| R8 | **Weak API protection.** CRM rate limiter is in-memory per Lambda instance (`apps/crm/server/middleware/rateLimiter.js`); no API Gateway throttling or access logs on the CRM API; gateway responses return `Access-Control-Allow-Origin: *`; no WAF. | Medium | High | 🟠 High | CORS allowlist in Express (`apps/crm/server/server.js`); throttling on the Instagram and property-pages APIs | API Gateway throttling, access logs, CORS fix before paid launch; WAF after first customers (D17). (A, WAF B) |
+| R9 | **AI hallucination** (wrong price or availability quoted). | High | High | 🟠 High | Answers come from CRM tools; knowledge search returns nothing on a weak match (`apps/crm/server/services/knowledge/knowledge.test.js`); golden conversation tests (`agents/goldenConversations.test.js`); tool-choice eval (`eval/whatsapp-tool-choice.eval.js`); Call Intelligence actions need approval (`services/callIntelligence/actionExecutor.js`); follow-up `draft` mode | Run evals on real data before any customer-facing auto-send; Instagram DM assistant drafts first (D14). (C) |
+| R10 | **Telephony compliance** (TRAI/TCCCPR, DLT, DND). No DLT or DND code exists; call consent is not captured at intake. | Medium | High | 🟠 High | Outbound only (D16); follow-up calls inside tenant business hours (`services/followup-agent-service/README.md`); role-based phone masking | Capture consent at intake (A); DLT registration before any bulk calls (B). |
+| R11 | **DPDP / privacy.** Lead PII mishandled or deletion requests missed. | Medium | High | 🟠 High | Grievance portal (`apps/crm/server/routes/grievance.js`), cookie consent, in-app account deletion (`DeleteAccountModal.tsx`), data-deletion page (unreachable, R2) | Fix R2; CRM mutation audit (B). |
+| R12 | **Coarse RBAC blocks Team plans.** Auth issues only ADMIN/MEMBER; every member sees every lead; two mounted DELETE routes have no role check (`00` §4). | Medium | Medium | 🟡 Med | `requireRole.js` checks; phone masking | ADMIN/MEMBER for M1; MANAGER + own-lead scoping before selling Team plans (D15). (B) |
+| R13 | **Multi-tenant isolation failure.** | Low | Critical | 🟡 Med | Tenant from token in CRM routes; MCP OAuth scopes (`services/reality-flow-mcp/scripts/check-scopes.ts`); tenant id as vector-index partition key; cross-tenant spec `tests/playwright/api/cross-tenant-pentest.spec.ts` | Run the Playwright suite in CI (B). |
+| R14 | **Deploy drift.** Deploys are manual and were run from several checkouts; a CRM frontend deploy overwrote newer work on 2026-09-15 (`docs/pending-items/deploys-and-branches.md`). | Medium | Medium | 🟡 Med | Tracked builds with rollback (`infra/cicd/README.md`) | Deploy only from `main`; GitHub Actions deploy to dev later (D19). (B) |
+| R15 | **Single LLM vendor.** Gemini powers the CRM agent, lead qualifier, Call Intelligence and the Instagram analyst. | Medium | Medium | 🟡 Med | Model gateway seam (`apps/crm/server/agents/modelGateway/index.js`); Bedrock Claude Haiku and Titan embeddings invoke successfully in the dev account (D12; prod account not re-tested) | Add a second adapter only when cost or outage data justifies it. (C) |
+| R16 | **Runaway AI cost.** | Medium | Medium | 🟡 Med | Credits stop at zero (HTTP 402); tool-loop cap of 6 steps; refund on failed turn; agents off unless `AGENTS_ENABLED=true` | Soft-warn thresholds and spend alerts. (B) |
+| R17 | **Prompt injection** via DMs, calls or documents. | Medium | Medium | 🟡 Med | Role checks run server-side regardless of prompt; WhatsApp agent ignores non-admin senders; Instagram replies are human-written or keyword rules | Treat inbound text as untrusted in the DM assistant before auto-send. (C) |
+| R18 | **Audit and ledger rows lost to TTL.** `AgentAuditTable` rows expire after 90 days, credit ledger rows after 12 months. | Medium | Low–Med | 🟡 Med | PITR on tables | Archive instead of TTL delete; add CRM mutation audit (D17). (B) |
+| R19 | **Scope creep.** The June plan (Postgres, Chatwoot, 11 MCP servers, portal posting) is the example. | Medium | Medium | 🟡 Med | D8 parks Postgres; D14 drops portal posting, tenant marketing agent, Telegram | Hold to Phase A until launch. |
+| R20 | **Annual plans over the ₹15,000 no-AFA cap.** If an annual plan is charged as one yearly amount (e.g. Team at `pricing.json` prices ≈ ₹19,190 before GST), the mandate needs extra authentication. Monthly prices and one-time credit packs are unaffected. | Low | Medium | 🟢 Low | Credit packs are one-time Razorpay Orders | Check when doc 38 prices are set (`17` §5). |
+| R21 | **WhatsApp per-message cost** once customer messaging moves to the Cloud API. | Medium | Low | 🟢 Low | Not applicable on Baileys today | Keep replies in the 24h service window; Utility over Marketing templates (`39`). (C) |
 
-## 2. Top-5 Watchlist (founder attention)
-1. **R1 secrets** — fix this week; it's an active exposure.
-2. **R2 portal legal** — a go/no-go business decision, not just engineering; get legal input before shipping posting.
-3. **R3 hallucination** — the product's credibility depends on grounding; invest in the eval harness early.
-4. **R7/R8 over-engineering & team load** — the most likely way this stalls is building too much too soon; enforce T0/T1-first and one-engine-to-GA.
-5. **R5/R6 compliance** — India telephony + DPDP are non-negotiable; bake in from day one, not retrofitted.
+## 2. Retired Risks
 
-## 3. Risk-Adjusted Guidance
-The biggest *technical* risks (isolation, hallucination, cost) are all manageable with patterns already chosen in this plan. The biggest *non-technical* risks (portal legality, compliance, team bandwidth, over-engineering) require **discipline and business judgment** more than code. The architecture deliberately reduces exposure by **reusing the proven core, deferring heavy infra, standardizing on swappable protocols, and gating every autonomous capability behind approval queues and budgets.**
+| June risk | Why retired |
+|---|---|
+| Portal automation ToS / legal exposure | Browser posting to portals is dropped (D14). Portal lead ingestion stays and uses adapters, not browser bots. |
+| Chatwoot shared-DB isolation | Chatwoot is dropped (D9). |
+| "Pilot both voice stacks" | Voice is committed to ElevenLabs + Exotel; Hinglish intents shipped. |
+| Research pricing figures from blocked pages | Superseded by what was built; vendor prices still need reconfirming before commitments (`20`). |
+
+## 3. Top-5 Watchlist (founder attention)
+
+1. **R1 keys:** confirm rotation of all five keys and add gitleaks.
+2. **R2 + R3 domain and App Review:** fixing HTTPS on realestateflow.in unblocks the legal pages and the Instagram review.
+3. **R6 + R7 billing:** schedule the grace cron, enforce read-only on the server, and settle one price list before taking money.
+4. **R4 WhatsApp:** keep Baileys to the agency's own command channel; customer messaging only on the official API.
+5. **R5 single founder:** keep to Phase A; every other risk is harder with one person.
+
+## 4. Guidance
+
+The technical risks that remain (isolation, hallucination, cost) already have working mitigations in code. The risks most likely to stop the launch are operational: unrotated keys, a broken domain, Meta review, payment enforcement and one person doing everything. They need a checklist and time, not new architecture.

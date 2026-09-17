@@ -1,156 +1,85 @@
-# Internal Operations — GTM, Marketing, Content (Phase 4+)
+# Internal Operations — GTM, Marketing, Content
 
-> **Scope:** Foundational team productivity & go-to-market automation. Implemented **after** core product (Phases 0–3) reaches stability and agency features are production-ready.
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. The June week-by-week timeline, the "7 teams", the seven internal MCP servers, Strands, Postgres and the plan to sell the ops system are all corrected or removed. Nothing here is built; it starts after the M1 PMF gate (D21).
 
----
-
-## Overview
-
-This folder contains the architecture and implementation plans for the **internal GTM and content operations system** — the machinery that runs Cloudberry's business, distinct from what we sell to agency tenants.
-
-**Key principle:** The **product** (what agencies buy) is the RealEstateFlow AI Agency OS (Phases 0–3). The **operations** (how we run the company) are in this folder. They are separate systems with different audiences, constraints, and deployment models.
+> **Scope:** the machinery used to run the business — marketing, content, sales support, reporting — as distinct from the product agencies buy. Product: `../21-roadmap.md`.
 
 ---
 
-## Why Separate from Phases 0–3?
+## What This Folder Is
 
-| Dimension | Product (Phases 0–3) | Operations (Phase 4+) |
-|---|---|---|
-| **Audience** | Real estate agency tenants (paying customers) | Cloudberry team (internal ops) |
-| **Constraint** | Compliance (DPDP, DLT, financial), multi-tenant isolation | Team productivity, no compliance burden |
-| **Agents** | 10 domain-bounded agents (Lead Router, Sales Asst, Voice, etc.) | 20 GTM personas across 6 teams |
-| **Data** | Tenant's CRM (leads, contacts, properties) | Content repos, campaign data, research, analytics |
-| **MCP Tools** | 11 business domain servers (Lead, Property, Visit, etc.) | Marketing/Content/Scheduling MCPs (Higgsfield, Meta-Ads, Blotato, etc.) |
-| **Skills** | Productized (become MCP tools); business rules in tool layer | Internal tooling; stay in skill scripts; not productized |
-| **Autonomy** | Start conservative (Level 0 approval queue); graduate with evals | High (agents run research, drafts, campaigns autonomously) |
-| **Infra** | Lambda/Fargate (cost-sensitive, serverless); Cognito + RBAC | Same (cost efficiency) but no multi-tenancy requirements |
+The **product** is RealEstateFlow, the AI agency OS that agencies pay for. The **operations** side is how the company markets and sells it. They are different systems with different data, different risk and different people (or, today, one person).
 
----
+This folder holds three files:
 
-## Folder Structure
+- `README.md` — this file: the boundary, the reality check, the start trigger.
+- `31-internal-ops-overview.md` — the agents and MCP servers that actually exist, the autonomy model, the data sources.
+- `32-marketing-agent-architecture.md` — **archived** June design for an autonomous marketing agent.
 
-```
-realestateflow-vision/internal-operations/
-├── README.md (this file)
-├── 31-internal-ops-overview.md — What operations system is, phases, teams, data flow
-├── 32-marketing-agent-architecture.md — Marketing Agent (Strands T2), campaign playbooks, creative MCPs
-├── 33-content-creation-pipeline.md — Remotion + image/video/voice gen workflows; Hinglish content rules
-├── 34-gtm-skills-analysis.md — Existing 60+ skills; which stay as-is, which become productized
-├── 35-internal-mcp-servers.md — 7 internal MCPs: Content, Campaign, Analytics, Scheduling, Research, Workspace, Events
-├── 36-team-agent-coordination.md — 20 personas × 6 teams; workstreams, hand-offs, communication protocol
-└── phase-4-detailed-implementation.md — Week-by-week plan for ops launch
-```
+Docs 33–36 and a phase-4 implementation plan were listed in June and never written. See `INDEX.md` for where their content actually lives.
 
 ---
 
-## What's In This Folder
+## Reality Check (Sep 2026)
 
-### Strategic Documents (31–35)
-
-**31 — Internal Ops Overview**
-- What internal ops system is: AI-powered business machinery, separate from product
-- 7 teams × 20 agent personas + 60+ skills
-- Governance model: agent autonomy by team + domain
-- Data sources: content repos, Razorpay, PostHog, Brevo, Google Sheets (sales pipeline)
-- Deployment: same AWS infra; Cognito M2M for agent auth
-
-**32 — Marketing Agent Architecture**
-- Strands T2 agent (full framework, planning, memory, multi-turn)
-- Lifecycle: brief → research → script → content gen → campaign creation → scheduling → publish → measure ROI
-- Tools: Marketing MCP (Higgsfield, Meta-Ads, Blotato, Remotion bridges)
-- Approval gates: human review before publishing to IG/FB/TikTok (legal risk)
-- Closed-loop: Meta lead form → CRM → tracks ROAS per campaign
-
-**33 — Content Creation Pipeline**
-- Image: Higgsfield (Nano Banana Pro, Gemini 3) → Remotion stills
-- Video: Remotion (React-based) → 15–30s reels; FFmpeg post-process
-- Voice: ElevenLabs TTS (Hindi/English/Hinglish)
-- Text: Claude for copy (Hinglish tone: 70% English, 30% romanized Hindi)
-- Workflow: prompt → LLM draft → human edit → asset → queue in Blotato → schedule → publish
-
-**34 — GTM Skills Analysis**
-- Existing 60+ skills (brand-strategy, video-production, remotion-video, ugc-scripts, voiceover-gen, landing-page, seo-blog, etc.)
-- Which are **internal only** (stay as skill scripts): strategy, competitor research, engineering, market intel
-- Which are **migration candidates** for product (productized): lead-enrichment, nurture, outreach, pipeline-tracking
-- Which are **new** (design in Phase 4): AI-powered brand messaging, hypothesis testing, competitive analysis
-
-**35 — Internal MCP Servers** (7 total)
-- **Content MCP** — Git-based prompts, templates, brand kit, style guide
-- **Campaign MCP** — Razorpay data, conversion funnels, lead sources, budget allocation
-- **Analytics MCP** — PostHog events, Brevo email metrics, Google Analytics, conversion attribution
-- **Scheduling MCP** — Blotato queue, publish calendar, best-time-to-post AI
-- **Research MCP** — SerpAPI (competitor search), Perplexity (trend research), Reddit/Twitter sentiment
-- **Workspace MCP** — Google Sheets (sales pipeline, roadmap), Slack (message sending for alerts), Notion (docs)
-- **Events MCP** — Calendar (launches, webinars), signup tracking, feedback loops
-
-**36 — Team Agent Coordination**
-- 6 teams: Product & Eng, Market Intel, Creative, Growth, Sales, Operations
-- 20 agent personas (architect, sentry, pr-commander, trend-hunter, etc.)
-- Workstreams: product releases, competitive tracking, campaign planning, content sprints, lead gen, reporting
-- Hand-off protocol: agent A outputs → agent B inputs (e.g., researcher → copywriter → designer → media buyer)
-
----
-
-## Timeline: When This Launches
-
-**Phase 0–1 (Weeks 1–13):** Focus entirely on product foundation + WhatsApp wedge. Internal ops stay manual (founder + small team).
-
-**Phase 2–3 (Weeks 14–20):** Parallel track: internal ops agents spin up in beta (internal-only tools, no customer-facing impact).
-
-**Phase 4 (Weeks 21–32, Q3 2026+):** Full internal ops system live.
-- Marketing Agent: autonomous campaign planning + content gen + scheduling
-- Content Pipeline: fully automated image/video/copy generation
-- 20 agent personas: running GTM, content, research, sales support
-- Analytics loop: daily dashboard of campaign performance, pipeline health, agency churn
-
----
-
-## Key Design Decisions
-
-| Decision | Rationale |
+| June assumption | What is true |
 |---|---|
-| **Separate folder from Phases 0–3** | No coupling to product release cycle; internal ops can iterate faster; different RBAC/compliance |
-| **Same AWS infra** | Cost efficiency; leverage existing Lambda, Cognito, DynamoDB infrastructure |
-| **Strands T2 agents** (vs. T0/T1) | Internal tasks (research, planning, multi-step workflows) benefit from planning + memory; cheaper to iterate |
-| **Blotato for scheduling** | Own scheduling logic (timing optimization, format adaptation per platform); integrate via MCP |
-| **Hinglish content rule** | Product is for Indian agencies; founder teams use Hinglish for community/brand resonance |
-| **Google Sheets as sync source** | Non-technical team members (growth, sales) manage pipeline in Sheets; agents read + write via MCP |
-| **No productization of ops skills** | Founder's competitive advantage is ops execution; don't leak internal playbooks into product UI |
+| Phase 4, Weeks 21–32, Q3 2026 | It is Q3 2026 and none of it is built. It starts after the M1 PMF gate, with no date (D21). |
+| 8–12 people, 7 teams | Solo founder plus AI agents and contractors; no SDR hire until MRR ≥ ₹2L (D20). `CLAUDE.md` defines 6 teams, not 7. |
+| 20 agent personas, 60+ skills | 30 agent definitions exist in `tools/claude-skills/agents/` — the GTM personas plus engineering reviewers. Team 6 has only `pipeline-manager`. The skill registry is in `CLAUDE.md`; `tools/claude-skills/skills/` holds the ones that live in this repo. |
+| 7 internal MCP servers | None exist. `.mcp.json` configures `higgsfield`, `meta-ads`, `blotato`, `nabi-crm` and `git`. |
+| Strands T2 agents | Not adopted. Agents are Claude Code sub-agents over repo files (`../20-technology-decisions.md` ADR-02). |
+| PostgreSQL for analytics | Parked with no date (D8). DynamoDB is the only store. |
+| Same AWS account as the product | The product runs in separate dev and prod accounts (`infra/cicd/README.md`). |
+| Remotion for video, Vercel for pages, Blotato for scheduling | Video production runs on Higgsfield (`content-os/higgsfield/`); landing pages go to S3 + CloudFront via `infra/cicd/landing-pages/deploy.sh`; the scheduling tool is an open decision (D22). |
+| Slack for approvals and alerts | No Slack integration exists anywhere in the repo. |
+| Productize the ops skills and rent out the GTM agents | Not happening, and nothing is productized. This replaces the contradictory line in the June README. |
+
+---
+
+## Why It Waits
+
+1. **One founder.** Every hour on internal automation is an hour off the Phase A launch list.
+2. **Nothing to automate yet.** A go-to-market motion has to run manually before it is worth automating.
+3. **The design already moved.** The operating agents (marketing, content, distribution and the rest, over a DynamoDB event backbone) are designed in `marketing-and-sales/launch-plan-v2/content-os/growth-platform/ai-agents/ai-agent-architecture.md`. Build from there, not from `32`.
+
+**Start trigger:** after the M1 PMF gate — at least 3 paying agencies, at least 40% activation, at least 10% reply rate, Mumbai only (`marketing-and-sales/launch-plan-v2/00-DECISIONS-LOG.md`, D21).
+
+> Open decision D27 (what counts as "activation") and D28 (launch date) — see `marketing-and-sales/launch-plan-v2/00-OPEN-DECISIONS.md`.
 
 ---
 
 ## Governance
 
-**Agent Autonomy by Team:**
+The autonomy model is in `31` §7 and applies to every internal agent:
 
-- **Product & Eng:** Level 0 (drafts only, architect reviews)
-- **Market Intel:** Level 1–2 (agents write research autonomously; human validates before publishing)
-- **Creative:** Level 0–1 (human always edits copy/design before asset creation)
-- **Growth (Media Buyer):** Level 1 (agent plans campaigns; human approves budget + target before launch)
-- **Sales & Nurture:** Level 2 (agents send outreach; recorded in Brevo; team monitors for spam complaints)
-- **Operations:** Level 2 (agents update pipeline + analytics dashboards autonomously; human checks daily)
+- **Level 0 (draft, human approves)** is the default for copy, design, posts, outreach and anything financial.
+- **Level 1** for research summaries and metric reports.
+- **Level 2** only for reversible, routine work, after 30–50 clean runs.
+- **Never autonomous:** money, legal commitments, anything published under the company name, any reply sent to a real prospect.
 
-**Decision-making:**
-- Agent proposes → human approves (default)
-- Autonomy graduation: tracked eval pass rates + zero-incident track record (6–8 weeks per workflow)
+Prospect lists are personal data. DPDP obligations and the repo rule "archive, never delete" apply to internal data too.
 
 ---
 
-## Handoff to Product Team
+## What To Read Instead, Today
 
-When core product (Phases 0–3) reaches GA and internal ops system is stable:
+Internal operations is not running, so the useful documents are elsewhere:
 
-1. **Productize select skills** (lead-enrichment, nurture, outreach, pipeline-tracking) → become paid tiers / add-ons
-2. **Market the internal system** → agencies can rent Cloudberry's GTM agents as a service (premium tier)
-3. **Data moat** → proprietary playbooks + eval results become source of competitive advantage
-
-This is the long-term monetization path: sell the product first (Phases 0–3); then sell the operations system (Phase 4+) to mature agencies.
+| Need | Document |
+|---|---|
+| The launch plan and decisions | `marketing-and-sales/launch-plan-v2/00-PLAN-OVERVIEW.md`, `00-DECISIONS-LOG.md` |
+| Brand, tone, visual system | `marketing-and-sales/creative/realestateflow-launch/brand-kit.md` |
+| Positioning and ICP | `marketing-and-sales/realestateflow/BRAND-POSITIONING.md` |
+| Content production | `marketing-and-sales/launch-plan-v2/content-os/` |
+| The operating-agent design for later | `content-os/growth-platform/ai-agents/ai-agent-architecture.md` |
+| Product roadmap and status | `../21-roadmap.md`, `../QUICK-START.md` |
 
 ---
 
-## Next Steps
+## Next Steps (when the trigger fires)
 
-1. **Confirm scope** — are the 7 internal MCPs the right set? Any gaps?
-2. **Prioritize Phase 4 launches** — which team/workstream goes first? Likely: Marketing Agent (high ROI for customer acquisition)
-3. **Spike Strands integration** — confirm Strands SDK works for internal ops tasks (more complex than Phase 1 T0/T1)
-4. **Design approval gates** — which workflows need human review? Where's the legal risk?
+1. Confirm the scheduling tool (D22) and the channel set (D23) so distribution stops contradicting `.mcp.json`.
+2. Pick the first workstream. Content production is the obvious one — it is already half-defined in Content OS.
+3. Write the missing operations agent definitions (`finance-tracker`, `analytics-reporter`) or decide `pipeline-manager` covers them.
+4. Decide whether anything needs to be deployed at all, or whether founder tooling stays local scripts plus Claude Code.

@@ -1,63 +1,100 @@
 # 10 — Lead Scoring Engine
 
-> **Scope:** classifying leads as **Hot / Warm / Cold** to prioritize agent effort and drive assignment (`11`) and follow-up (`09`). Designed to be explainable, cheap, and tunable per tenant.
+> **Status (17 Sep 2026):** As built + roadmap. Checked against the code on main. The June weighted feature model with decay and tenant-tunable thresholds was not built; Hot/Warm/Cold now comes from a Gemini rubric in the CRM, plus a separate rules score in the Instagram service.
+
+> **Note:** The founder is building a next-generation lead engine separately; these docs will be updated when it lands.
+
+> **Scope:** how leads get a Hot / Warm / Cold temperature today, where it is stored, what can overwrite it, and where it shows up. Related: `09` (qualification), `11` (assignment).
 
 ---
 
-## 1. Philosophy: deterministic core + LLM signals, always explainable
+## 1. Two scorers exist
 
-Scoring drives money decisions (who gets the hot lead, who gets called first), so it must be **explainable and controllable**, not a black box. We use a **hybrid**:
-- a **deterministic, weighted feature model** (transparent, tunable, free) for the bulk of the signal, plus
-- **LLM-derived signals** (Haiku) for fuzzy inputs like conversation quality and sentiment.
+| Scorer | Where | Method | Output |
+|---|---|---|---|
+| **CRM rubric** | `apps/crm/server/utils/leadRubric.js`, called by `apps/crm/server/scripts/lead-qualifier-handler.js` and served to AI calls by `apps/crm/server/routes/aiCallingInternal.js` | An LLM (Gemini) judges the lead against a written rubric, with structured output | `HOT` / `WARM` / `COLD` plus confidence 0–100 and reasons |
+| **Instagram rules score** | `apps/instagram/backend_insta_sol_ms/services/extract.js` (`scoreLead`), used by `services/leadAnalyst.js` | Deterministic weighted sum | 0–100, mapped to `very_hot` / `hot` / `cold`, then to CRM `hot` / `warm` / `cold` |
 
-Output is a **score (0–100) + band (Hot/Warm/Cold) + top reasons** written onto the Lead record, recomputed on relevant events.
+They are not unified. A lead from Instagram gets the rules score inside the Instagram service, but CRM ingestion (`apps/crm/server/leadIngestion.js`) does not write that value to the CRM `score` field; in the CRM the lead is scored by the rubric after intake.
 
-## 2. Scoring Factors (from the vision, made concrete)
+## 2. The CRM rubric
 
-| Signal | Weight class | Source |
+The rubric text (`LEAD_TEMPERATURE_RUBRIC`):
+
+- **HOT:** wants a property immediately and has already named a specific area or building.
+- **WARM:** wants to visit and decide in person, but hasn't fixed an area or building.
+- **COLD:** timeline is roughly a couple of months out; early research.
+
+The only input computed in code is `hasNamedAreaOrBuilding`: true when `preferredArea` is set and is not a city-level value. The city list is hardcoded to Mumbai, Pune, Thane and Navi Mumbai.
+
+The model returns `{score, scoreValue, reasons}` under `QUALIFIER_RESPONSE_SCHEMA`. `scoreValue` is the model's **confidence** in the label, not a points total, and there are no numeric band thresholds. The label comes first. If the label is valid but the number is missing, the bucket midpoint is used: HOT 85, WARM 50, COLD 20. If nothing usable comes back, the lead gets WARM / 50 and a warning is logged.
+
+Fields stored on the Lead (`apps/crm/real-estate-crm-app/src/types/crm.ts`):
+
+| Field | Values |
+|---|---|
+| `score` | `HOT` \| `WARM` \| `COLD` (unset = unscored) |
+| `scoreValue` | 0–100 |
+| `scoreReasons` | up to 300 chars |
+| `scoredAt` | ISO timestamp |
+| `scoreSource` | `llm_text` \| `ai_call` \| `manual` \| `migrated` |
+
+The older `priority` field on Lead is retired. Existing leads were backfilled from it with `scoreSource: 'migrated'` (`apps/crm/server/scripts/backfill-lead-temperature.js`).
+
+## 3. The Instagram rules score
+
+From `scoreLead` in `extract.js`:
+
+| Signal | Points |
+|---|---|
+| Phone number found in the lead's own messages | +40 |
+| Budget stated (has a max) | +25 |
+| Intent known (buy / rent / sell / heavy deposit) | +12 |
+| Area named | +10 |
+| Asked for a site visit | +10 |
+| Message depth | +2 per message after the first, up to +8 |
+
+Capped at 100. Mapping (`scoreToLeadScore`): `very_hot` if a phone and at least one requirement signal are present, else `hot` if the score is 40 or more, else `cold`. `leadAnalyst.js` then maps `very_hot → hot`, `hot → warm`, `cold → cold`. Threads older than 21 days are treated as stale (`STALE_AFTER_MS`).
+
+## 4. When scoring runs and what wins
+
+| Event | Writer | `scoreSource` |
 |---|---|---|
-| **Price/pricing request** | High intent | conversation/intent |
-| **Brochure / floor-plan request** | High intent | Document MCP events |
-| **Phone shared** | High | CRM completeness |
-| **Email shared** | Medium | CRM completeness |
-| **Site-visit request** | Very high | Visit MCP |
-| **Follow-up engagement** (replies, opens, recency) | High | conversation metrics |
-| **Conversation quality** (specificity, seriousness, sentiment) | Medium | Haiku signal |
-| **Budget fit vs available inventory** | High | Lead × Property MCP |
-| **Timeline urgency** | High | qualification slot |
-| **Channel/source quality** (referral > portal > cold) | Medium | attribution |
-| **Negative signals** (broker/competitor, abusive, fake number) | Penalty | Haiku + validation |
+| `lead.created` (once; skipped if scored in the last 24 h; only for tenants with the AI Employee live and enabled) | `lead-qualifier-handler.js` | `llm_text` |
+| AI qualification call returns a verdict | `aiCallingInternal.js` call-outcome route | `ai_call` |
+| A user sets the score in the CRM | `apps/crm/server/routes/leads.js` (server stamps `scoreSource` and `scoredAt`; the client cannot set them) | `manual` |
 
-## 3. The Model
+Precedence in practice: an AI call result overwrites the text score, and a manual edit always sets `manual`. There is no rescoring on new messages, visit requests or follow-up engagement, and no time decay.
 
-```
-score = Σ (wᵢ · featureᵢ)    as a transparent weighted sum, normalized to 0–100
-bands:  Hot ≥ 70 ,  Warm 40–69 ,  Cold < 40   (thresholds tenant-tunable)
-```
+See `09 §2` for a known gap: the qualifier Lambda's template does not pass the Gemini key and model, so the `llm_text` path may not run in a deployed stack until that is fixed.
 
-- **Deterministic features** (visit requested, phone shared, recency, budget-fit) computed in code — free, instant, auditable.
-- **LLM features** (conversation_quality, sentiment, seriousness, is_broker) produced by a single **Haiku** call returning a structured 0–1 per signal — cheap, batched where possible.
-- **Recency decay:** engagement signals decay over time so stale "Hot" leads cool automatically (addresses the classic "hot lead rots in inbox" problem).
-- **Reasons:** the top contributing features are stored alongside the score so agents see *why* ("requested price + booked visit + replied within 2h").
+## 5. Where the score is used
 
-## 4. When It Runs (event-driven)
-Recompute on: new message, qualification slot change, brochure/price/visit request, follow-up engagement, time-decay tick (scheduled). Implemented as a small **Lead Scorer agent/function (T0)** subscribed to conversation/CRM events (`03 §3`); writes `score`, `band`, `reasons`, `scoredAt` via Lead MCP.
+- **Lead list filter** by temperature, including `unscored` (`apps/crm/server/crmDynamodbService.js`).
+- **Analytics:** temperature counts.
+- **Lead detail / drawer:** reasons shown (`LeadDetails.tsx`, `LeadDrawer.tsx`).
+- **Notifications:** a change to HOT notifies (`notifyHotLead` in `leads.js`).
+- **Assignment:** the router passes the score to the model as context (`11`).
+- **Human override:** built (manual edit, above).
 
-## 5. Tenant Tunability & Learning
-- **Per-tenant weights & thresholds** (a luxury-villa brokerage scores differently than a rental shop) — exposed in dashboard config.
-- **Calibration over time:** compare predicted band vs actual conversion; periodically adjust weights (start heuristic; introduce a learned model only once enough labeled outcomes exist — avoid premature ML).
-- **Guardrail:** scoring never *hides* leads, only orders them; humans can override band.
+Status against the June design:
 
-## 6. Integration
-- **→ Assignment (`11`):** band/score is an input to assignment rules (e.g. Hot → senior closer).
-- **→ Follow-Up (`09`):** band sets cadence/intensity and channel (Hot → immediate human + call; Cold → low-touch nurture).
-- **→ Analytics (`05` Analytics MCP):** funnel by band, scoring accuracy, band→conversion rates.
-- **→ Dashboard:** sortable, color-coded pipeline with reasons.
+| June item | Status |
+|---|---|
+| Score + band + reasons on the Lead | Built (label + confidence + reasons) |
+| Deterministic weighted feature model in the CRM | Not built (exists only in the Instagram service) |
+| Numeric band thresholds (Hot ≥ 70 …) | Not built |
+| Recency decay | Not built |
+| Recompute on each relevant event | Not built (lead creation and AI call only) |
+| Per-tenant weights and thresholds | Not built; rubric and city list are global |
+| Human override | Built |
+| Colour-coded pipeline with reasons | Partly built (filter, counts, reasons in detail views) |
+| Calibration against conversions | Not built |
+
+## 6. Considered in June, not adopted
+
+A hybrid score: a deterministic weighted sum (price or brochure request, phone and email shared, site-visit request, engagement, budget fit against inventory, timeline, source quality, negative signals) plus Haiku-derived quality and sentiment signals, bands at 70 / 40, recency decay, tenant-tunable weights, and a later calibration loop. None of this was built; per D11 no new target design is written here.
 
 ## 7. KPIs
-Band→conversion correlation (is Hot actually converting?), scoring latency, override rate (signals miscalibration), false-hot / false-cold rates, lift in agent efficiency.
 
-## 8. Phasing
-- **P1:** deterministic weighted model with the high-confidence signals (visit/price/brochure/phone/recency) + bands on the pipeline.
-- **P2:** add Haiku conversation-quality/sentiment + budget-fit; per-tenant tuning.
-- **P3:** calibration loop and optional learned scoring once labeled data supports it.
+Band → conversion correlation, share of leads scored, `llm_text` vs `ai_call` disagreement rate, manual override rate, time from lead creation to first score.

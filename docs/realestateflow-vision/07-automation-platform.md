@@ -1,91 +1,117 @@
-# 07 — Browser & Portal Automation Platform
+# 07 — Portal Lead Ingestion & Browser Automation
 
-> **Scope:** automated interaction with external systems agencies depend on — primarily Indian listing portals (99acres, MagicBricks, Housing.com), builder/CP portals, and other web tools — for listing posting and lead retrieval. **Read the legal section first: this is as much a business/legal decision as a technical one.** Research verified June 2026 (`20`).
+> **Status (17 Sep 2026):** Design only. Checked against the code on main — nothing in this document is built. Two things changed since June: portal **lead ingestion** now has a home (the lead-adapter pipeline that already carries ManyChat and Instagram), and listing **posting** by browser automation is **dropped** for account-block and ToS risk. The browser-runtime comparison is kept as the record of what was evaluated.
+
+> **Scope:** automated interaction with the external systems agencies depend on — mainly the Indian listing portals (99acres, MagicBricks, Housing.com) and builder/CP portals. **Read the legal section first: this was a business decision before it was a technical one.** Portal research verified June 2026 (`20`).
 
 ---
 
-## 1. The Honest Legal & ToS Reality (decide before you build)
+## 1. The legal and ToS reality (this is what settled it)
 
-Research finding, stated plainly:
+Stated plainly:
 
-- **No Indian statute clearly permits or bars** scraping/automation; courts have not definitively ruled on portal scraping.
-- **99acres / MagicBricks / Housing.com actively bot-block** (their ToS, robots.txt, and endpoints return 403 to automation) — a clear signal that automation is unwelcome.
-- **Automated posting under a client's credentials likely breaches portal ToS**, with untested exposure under **breach of contract, IT Act 2000 §43 (unauthorized access), and Copyright Act 1957** (listing data/images).
-- **No public official listing-*upload* API exists** for these portals. The "99acres/MagicBricks push integrations" offered via CRMs like Anarock are **inbound lead distribution, not listing posting**. Premium broker/builder feeds, if any, require a direct partnership conversation.
+- **No Indian statute clearly permits or bars** scraping and automation; courts have not ruled definitively on portal scraping.
+- **99acres, MagicBricks and Housing.com actively bot-block** — ToS, robots.txt and 403s to automated clients. That is a clear signal that automation is unwelcome.
+- **Automated posting under a client's credentials likely breaches portal ToS**, with untested exposure under breach of contract, IT Act 2000 §43 (unauthorised access), and the Copyright Act 1957 (listing data and images).
+- **No public listing-*upload* API exists** for these portals. The "99acres / MagicBricks push integrations" other CRMs advertise are **inbound lead distribution, not listing posting**. Premium broker/builder feeds, where they exist, need a direct partnership conversation.
 
-**Therefore:** programmatic *listing posting* realistically requires browser automation that collides with portal ToS. We treat it as **opt-in, per-tenant, human-supervised, and credential-owner-consented**, and we **prioritize the official, lower-risk path first**:
+**Decision taken (Sep 2026):** we do **not** post listings to portals by driving a browser under the agency's credentials. The exposure is not the fine — it is the agency's portal account being suspended because of something our software did on their behalf. That is the same reason Instagram is Graph API only and never browser-driven (`08`).
 
-1. **Lead *retrieval* via official channels** (portal→CRM lead push, email-parse, Meta Lead Ads) — low risk, high value. **Build this first.**
-2. **Listing *posting* automation** — gated premium feature, explicit tenant consent that they authorize automation under their own portal account, human-in-the-loop, conservative rate limits. Pursue official portal partnerships in parallel to replace automation where possible.
+**What we do instead:** the official, low-risk half of the original plan — **pull leads in**, on the pipeline that already exists.
 
-This document designs the *platform* to do (2) safely if/when the business chooses to; it does not assume (2) is risk-free.
+## 2. Use cases, re-scoped
 
-## 2. Use Cases & Priority
-
-| Use case | Risk | Priority |
+| Use case | Risk | Status |
 |---|---|---|
-| Pull portal leads into CRM (official push/email) | Low | **P1** |
-| Sync listing *status* (sold/rented) to reduce stale listings | Medium | P2 |
-| Post/refresh listings to portals (browser) | High (ToS) | P3, gated |
-| Builder/CP portal inventory sync | Medium | P2 |
-| Misc web tasks (CP registration forms, document portals) | Varies | P3 |
+| Pull portal leads into the CRM (official push, feed, or email parse) | Low | **P1 — on the roadmap**, builds on §3 |
+| Sync listing *status* (sold/rented) back to portals | Medium | Parked — only if a portal offers a sanctioned API |
+| Post or refresh listings on portals by browser | High (ToS, account block) | **Dropped** |
+| Builder / CP portal inventory sync | Medium | Parked — partnership-dependent |
+| Misc web tasks (CP registration forms, document portals) | Varies | Dropped; not a product problem |
 
-## 3. Browser Runtime — Options & Recommendation
+## 3. Portal lead ingestion rides the pipeline that already exists
 
-| Option | Cost | Multi-tenant isolation | Verdict |
+This is the part worth building, and most of it is already built — for other channels.
+
+Every lead, whatever channel it came from, lands as one row in one table and gets identical downstream treatment. The channel-specific part is an **adapter**, whose only job is to turn a native payload into the canonical `LeadInput` and call `ingestLead()`.
+
+```
+  ManyChat        Instagram        Property pages      (portal adapter)
+  webhook         service          booking             — not built
+     │               │                 │                     │
+     └───────────────┴─────────────────┴─────────────────────┘
+                              │
+              POST /api/internal/adapters/leads   (x-api-key, batch or single)
+                              │
+        apps/crm/server/leadIngestion.js → ingestLead()
+        dedupe → createLead() → notifyNewLead() → lead.created
+                              │
+     EventBridge lead.created → lead-qualifier-handler (Hot/Warm/Cold)
+        → lead.qualified → lead-router-handler (assignment)
+        → follow-up call jobs (services/followup-agent-service)
+```
+
+Reference: `docs/lead-adapter-architecture.md`. Code: `apps/crm/server/routes/adapterIngestionInternal.js`, `apps/crm/server/leadIngestion.js`, `apps/crm/server/scripts/lead-qualifier-handler.js`, `apps/crm/server/scripts/lead-router-handler.js`.
+
+**What a portal adapter has to supply, and nothing more:**
+
+| Field | Why |
+|---|---|
+| `source: 'Portal'`, `sourceAdapter: '99acres' \| 'magicbricks' \| …` | Provenance and attribution |
+| `externalRef` | The portal's own lead id, so a re-delivery is recognisable |
+| `dedupeKey` | Stable per-source id. `ingestLead()` runs it through `logEventIfNotProcessed`, so retries cost nothing |
+| Name, phone, enquiry text, listing reference | The canonical `LeadInput` fields |
+
+**The one prerequisite before a high-volume source is wired in.** A single ingest does one phone-lookup Query over the tenant's lead partition. That is fine at ManyChat and Instagram volumes. Before any source that fires per inbound message, add a real phone GSI (`normalizedPhone` as partition key) so the lookup is a point query — the same prerequisite `docs/lead-adapter-architecture.md` records for the WhatsApp adapter.
+
+**Three ways a portal lead can arrive**, in order of preference: a sanctioned webhook or push from the portal; a periodic feed pull; an email-parse adapter reading the lead-notification mails the agency already receives. The third needs no portal cooperation at all and is the realistic starting point.
+
+> **Marketing mismatch to fix.** `apps/landing-pages/main/index.html` already tells prospects we "connect with 99acres, MagicBricks, and Housing.com" (`:95`, `:225`) and that "Telegram is supported too" (`:28`). No portal adapter exists and Telegram is dropped (`08`). Either the copy comes down or the adapter ships first.
+
+## 4. Considered, not adopted: the browser-automation platform
+
+Kept as the record of what was evaluated, in case the posting decision is ever revisited. **None of this is being built.**
+
+### 4.1 Browser runtime options compared (June 2026)
+
+| Option | Cost | Multi-tenant isolation | Verdict then |
 |---|---|---|---|
-| **Playwright self-host** (Fargate/containers) | Free + compute | DIY (`newContext` per tenant; you build persistence/scaling) | Good for control/cost; most eng effort |
-| **Browserbase** | Free→$20→$99/mo tiers | Sandboxed sessions; per-tenant **Contexts API** | Fast start, managed |
-| **Steel.dev** (OSS core) | Free→$29→$99→$499 | Built-in session persistence, isolated browsers | OSS option, good middle ground |
-| **AgentCore Browser Tool** | Consumption, no minimum | **Strongest:** per-session dedicated **microVM**, sanitized on completion, up to 500 concurrent | Best isolation; AWS-native |
+| **Playwright self-hosted** (Fargate) | Compute only | DIY — `newContext` per tenant, you build persistence and scaling | Most control, most engineering |
+| **Browserbase** | Free → $20 → $99/mo | Sandboxed sessions, per-tenant Contexts API | Fast start, managed |
+| **Steel.dev** (OSS core) | Free → $29 → $99 → $499 | Session persistence, isolated browsers | Reasonable middle ground |
+| **AgentCore Browser Tool** | Consumption, no minimum | Strongest: per-session dedicated microVM, sanitised on completion | Best isolation, AWS-native |
 
-**Recommendation:** **AgentCore Browser Tool** as the primary runtime once on AgentCore — its per-session microVM isolation is exactly what multi-tenant credential handling demands, it's consumption-priced (no idle floor), AWS-native (IAM/Secrets/VPC), and integrates with the Automation agent (`04`). **Playwright self-hosted on Fargate** as the Phase-1/fallback runtime before AgentCore adoption and for cost-sensitive bulk jobs. Steel/Browserbase are viable if we want a managed option sooner than AgentCore Browser is adopted.
+The June recommendation was AgentCore Browser Tool, with Playwright on Fargate as the interim runtime. AgentCore is not used anywhere in the product (`03`, `05`).
 
-## 4. Platform Architecture
+### 4.2 The design, for the record
 
 ```
- Automation Agent (04, T2, Sonnet, human-in-loop)
-        │  plan steps
-        ▼
- Automation MCP (05)  ── enqueue_portal_post / get_run / request_2fa
-        │
-        ▼
- SQS job queue (per-tenant fairness, DLQ, retries, backoff)
-        │
-        ▼
- Worker (Fargate) ──► Browser runtime (AgentCore Browser microVM / Playwright)
-        │                     │ uses
-        │                     ▼
-        │            Secrets Manager (per-tenant portal credentials, KMS-encrypted)
-        │
-        ├──► 2FA/OTP human-in-the-loop:  request_2fa → notify tenant (WhatsApp/dashboard)
-        │      → human supplies OTP → resume run
-        │
-        └──► Audit log (every run: tenant, portal, action, screenshots, status, cost)
-              + Cost meter (17) + Outcome events (ListingPosted/Failed)
+ Automation agent → SQS job queue (per-tenant fairness, DLQ, backoff)
+       → Fargate worker → isolated browser session
+             ├── Secrets Manager: per-tenant portal credentials, KMS-encrypted,
+             │   resolved inside the session, never logged, never in agent context
+             ├── 2FA/OTP human-in-the-loop: pause → ask the tenant → resume
+             └── Audit log per run (screenshots, actions, outcome, cost)
+                 + credit metering (17) + kill switch per portal
 ```
 
-### Key properties
-- **Queue-based execution (SQS):** decouples bursty agent intent from rate-limited portal interaction; enforces **conservative per-portal, per-tenant rate limits** (mimic human cadence; never hammer).
-- **Credential isolation:** portal logins live in **Secrets Manager namespaced per tenant**, encrypted with per-tenant KMS keys; resolved at run time inside the isolated browser session; never logged, never in agent context. (At scale, a per-tenant JSON secret or KMS+DynamoDB pattern controls the $0.40/secret cost — `15`/`17`.)
-- **Human-in-the-loop for 2FA/OTP & first posts:** portals use OTP; runs **pause and request the OTP from the tenant** via WhatsApp/dashboard, then resume. First N posts per tenant are Level-0/1 (human approves) regardless of autonomy setting.
-- **Audit & evidence:** every run stores step screenshots, action log, and outcome — both for the tenant's trust and for dispute/compliance.
-- **Cost tracking:** browser-minutes and run counts metered per tenant → billable (`17`).
-- **Kill switch:** per-portal global disable (if a portal changes terms or blocks us, we stop cleanly).
+The properties that mattered — queue-based pacing, per-tenant credential isolation, a human in the loop for OTP and first posts, a full audit trail, a per-portal kill switch — are the right properties for *any* automation that acts as a customer. They are recorded here because the next risky integration should start from them rather than reinvent them.
 
-## 5. Anti-Fragility & Maintenance
+### 4.3 Why it was still dropped
 
-Portal DOMs change and anti-bot evolves. Mitigations: keep automations **declarative and small** (one task = one short script the Automation agent can re-plan), prefer **agent-driven navigation** (the agent reads the page and decides, rather than brittle hardcoded selectors) using the Browser Tool, monitor success rates, and **fail safe to human** on any uncertainty. Budget ongoing maintenance — this is the highest-maintenance subsystem in the platform.
+Even done perfectly, the failure mode is the agency's portal account, not ours. An account suspension costs a small agency more than our subscription is worth, and they would be right to blame us. Anti-bot systems also change faster than we could maintain selectors — the June draft already called this the highest-maintenance subsystem in the platform. For a pre-launch, one-founder product that is the wrong thing to own.
 
-## 6. Multi-Tenancy, RBAC, Audit (requirements recap)
-- Per-tenant credential vaults; an agent/worker can only resolve the calling tenant's secrets.
-- RBAC: only Owner/Manager roles can configure portal automation; agents act within that scope.
-- Full audit log + cost tracking per run (explicit vision requirements — satisfied above).
+## 5. Multi-tenancy, RBAC, audit (applies to the ingestion path)
 
-## 7. Recommendation Summary
+- **Credentials.** Any portal or feed credential lives in Secrets Manager or SSM, namespaced per tenant. An adapter resolves only the calling tenant's secret. Today the ingestion endpoint itself is protected by a shared internal `x-api-key` (`adapterIngestionInternal.js`), which is fine for first-party adapters and not fine for anything a customer configures.
+- **RBAC.** Today's real roles are `ADMIN` / `MEMBER` in the auth model (`services/reality-flow-authentication/src/models/usersModel.ts`), with the CRM server additionally accepting `FOUNDER` / `OWNER` / `MANAGER` (`apps/crm/server/middleware/requireRole.js`). Configuring a lead source is an **admin action** — `requireAdmin` (`ADMIN`, `FOUNDER`, `OWNER`). There is no Owner-vs-Manager distinction to rely on; `MANAGER` is planned but not sold yet (`15`).
+- **Audit.** Every ingest already writes an idempotency record and a lead row. A general CRM mutation audit log does not exist yet (`00 §7`) — a portal adapter is one of the sources that will make it necessary.
 
-1. **Build official lead-retrieval first** (P1) — most value, least risk.
-2. **Design the posting platform now, ship it gated** (P3): AgentCore Browser microVM runtime + SQS + Secrets Manager isolation + human-in-loop 2FA + audit + cost meter + kill switch.
-3. **Require explicit per-tenant authorization** that they consent to automation under their own portal account; pin first posts to human approval; rate-limit conservatively.
-4. **Pursue official portal partnerships** in parallel; replace browser automation with sanctioned APIs wherever obtainable.
-5. **Keep legal in the loop** — this is a business risk decision, documented in `19-risk-analysis.md`.
+## 6. Recommendation summary
+
+1. **Build portal lead ingestion as an adapter** on `POST /api/internal/adapters/leads`. Start with email-parse, because it needs nobody's permission.
+2. **Add the phone GSI first** if the source is high-volume.
+3. **Do not build listing-posting automation.** The decision is taken; revisit only with a sanctioned API.
+4. **Pursue official portal feeds and partnerships** as the route to status sync and inventory sync.
+5. **Fix the landing-page claims** until an adapter actually ships.
+6. **Keep the risk framing** in `19-risk-analysis.md` current — this is a business risk decision, not an engineering preference.
