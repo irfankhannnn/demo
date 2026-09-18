@@ -29,7 +29,7 @@ Phase 2E handles the production deployment of all Phase 2 features, including Cl
 **Effort:** 2-3 days | **Priority:** CRITICAL
 
 ### Subtask 2E.1.1: Add ConversationStateTable to Main CFN
-**File:** `apps/crm/server/infra/cfn-backend.yaml`
+**File:** `agency-app/api/infra/cfn-backend.yaml`
 
 **Changes:**
 ```yaml
@@ -72,7 +72,7 @@ CreateConversationStateTable: !Equals [!Ref CreateConversationState, 'true']
 ---
 
 ### Subtask 2E.1.2: Add Environment Variables to CFN Parameters
-**File:** `apps/crm/server/infra/cfn-backend.yaml`
+**File:** `agency-app/api/infra/cfn-backend.yaml`
 
 **Changes:**
 ```yaml
@@ -99,7 +99,7 @@ CreateConversationState:
 ---
 
 ### Subtask 2E.1.3: Update Lambda IAM Permissions
-**File:** `apps/crm/server/infra/cfn-backend.yaml`
+**File:** `agency-app/api/infra/cfn-backend.yaml`
 
 **Changes:**
 ```yaml
@@ -143,7 +143,7 @@ LambdaExecutionRole:
 ---
 
 ### Subtask 2E.1.4: Add CloudWatch Alarms
-**File:** `apps/crm/server/infra/cfn-backend.yaml`
+**File:** `agency-app/api/infra/cfn-backend.yaml`
 
 **Changes:**
 ```yaml
@@ -200,7 +200,7 @@ StateUpdateFailureAlarm:
 ---
 
 ### Subtask 2E.1.5: Deploy CloudFormation Stack
-**File:** `apps/crm/server/infra/deploy.sh`
+**File:** `agency-app/api/infra/deploy.sh`
 
 **Action:**
 ```bash
@@ -230,7 +230,7 @@ aws cloudformation deploy \
 **Effort:** 2-3 days | **Priority:** HIGH
 
 ### Subtask 2E.2.1: Add CloudWatch Metrics
-**File:** `apps/crm/server/observability/cloudwatch.js`
+**File:** `agency-app/api/observability/cloudwatch.js`
 
 **Changes:**
 ```javascript
@@ -335,7 +335,7 @@ export function contextCacheHitRate(tenantId, hits, misses) {
 ---
 
 ### Subtask 2E.2.2: Integrate Metrics into Agent Runtime
-**File:** `apps/crm/server/agents/agentRuntime.js`
+**File:** `agency-app/api/agents/agentRuntime.js`
 
 **Changes:**
 ```javascript
@@ -364,7 +364,7 @@ agentResponseTime(tenantId, agentId, agentDuration);
 ---
 
 ### Subtask 2E.2.3: Create CloudWatch Dashboard
-**File:** `apps/crm/server/infra/cloudwatch-dashboard.json` (new file)
+**File:** `agency-app/api/infra/cloudwatch-dashboard.json` (new file)
 
 **Changes:**
 ```json
@@ -441,7 +441,7 @@ aws cloudwatch put-dashboard --dashboard-body file://server/infra/cloudwatch-das
 ---
 
 ### Subtask 2E.2.4: Configure Alert Notifications
-**File:** `apps/crm/server/infra/sns-topic.yaml` (new file)
+**File:** `agency-app/api/infra/sns-topic.yaml` (new file)
 
 **Changes:**
 ```yaml

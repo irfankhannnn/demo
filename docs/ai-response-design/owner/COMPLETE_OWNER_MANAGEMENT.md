@@ -545,7 +545,7 @@ Meetings are not owner-specific. They can be tied to leads, contacts, properties
 Therefore, meeting views should live in a separate file:
 
 ```
-apps/crm/server/aiViewBuilders/meetingAIViewBuilder.js
+agency-app/api/aiViewBuilders/meetingAIViewBuilder.js
 ```
 
 The `OwnerAIViewBuilder` can import and delegate to `MeetingAIViewBuilder` when an owner-related meeting operation is performed.
@@ -718,7 +718,7 @@ migrateOwnerToContact(tenantId, ownerId)
 ## File Structure
 
 ```
-apps/crm/server/
+agency-app/api/
   services/
     ownerService.js              # Owner business logic
     meetingService.js            # Meeting business logic (shared)

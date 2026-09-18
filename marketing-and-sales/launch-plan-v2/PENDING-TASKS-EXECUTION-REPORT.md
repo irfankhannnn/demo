@@ -16,12 +16,12 @@ This batch completed all AI-completable coding, infrastructure-as-code, content 
 
 | ID | Task | Implementation Summary | Files Changed |
 |---|---|---|---|
-| DEPLOY-01 | Tagged LAUNCH ROUTES blocks | Already present in `apps/crm/server/server.js` and `App.tsx`; verified | `apps/crm/server/server.js`, `apps/crm/real-estate-crm-app/src/App.tsx` |
-| LEGAL-05 | Signup consent checkbox + DPDP log | Unchecked ToS/Privacy checkbox on `RegisterAdmin`; `consentAccepted` required; `consentSignedAt` written to `Subscriptions` via post-registration | `RegisterAdmin.tsx`, `apps/crm/server/routes/auth.js`, `apps/crm/server/subscriptionService.js`, `01-SHARED-CONTRACTS.md` |
-| INFRA-01 (partial) | Launch DDB tables CloudFormation | 7-table stack with PITR, GSIs, TTL on WebhookLog — deployable via `aws cloudformation deploy` | `apps/crm/server/infra/launch-tables-cfn.yaml` |
+| DEPLOY-01 | Tagged LAUNCH ROUTES blocks | Already present in `agency-app/api/server.js` and `App.tsx`; verified | `agency-app/api/server.js`, `agency-app/web/src/App.tsx` |
+| LEGAL-05 | Signup consent checkbox + DPDP log | Unchecked ToS/Privacy checkbox on `RegisterAdmin`; `consentAccepted` required; `consentSignedAt` written to `Subscriptions` via post-registration | `RegisterAdmin.tsx`, `agency-app/api/routes/auth.js`, `agency-app/api/subscriptionService.js`, `01-SHARED-CONTRACTS.md` |
+| INFRA-01 (partial) | Launch DDB tables CloudFormation | 7-table stack with PITR, GSIs, TTL on WebhookLog — deployable via `aws cloudformation deploy` | `agency-app/api/infra/launch-tables-cfn.yaml` |
 | SIGNUP | Self-serve trial funnel | Re-enabled `registerAdmin`, bootstrap returns `needsRegistration`, phone confirm allows new users → role-selection, `/signup` route preserves UTMs | `authController.ts`, `phoneAuthCustomController.ts`, `PhoneLogin.tsx`, `App.tsx` |
 | ZEE-003-T7 | Analytics Playwright suite | LP consent gating + CRM PostHog-only tests | `tests/analytics.spec.ts` |
-| ZEE-013-T1 (complete) | Post-registration PostHog | `signup_completed` server event via `serverTrack()` | `apps/crm/server/routes/auth.js` |
+| ZEE-013-T1 (complete) | Post-registration PostHog | `signup_completed` server event via `serverTrack()` | `agency-app/api/routes/auth.js` |
 | CONTENT-01 | Legal drafts (MAD-001) | 6 legal MD files with DPDP-compliant drafts + lawyer handoff | `launch-implement/pre-launch/01-legal/*` |
 | CONTENT-02 | Pricing copy (MAD-002) | page-copy, tiers, razorpay-products | `launch-implement/pre-launch/02-pricing/*` |
 | CONTENT-03 | Deliverability docs (MAD-003) | dns-records, warmup-plan, signature, tracker | `launch-implement/pre-launch/03-deliverability/*` |
@@ -81,11 +81,11 @@ This batch completed all AI-completable coding, infrastructure-as-code, content 
 
 ## Infrastructure Changes
 
-- **New:** `apps/crm/server/infra/launch-tables-cfn.yaml` — Grievances, AIEmployeeProvisioning, WebhookLog, TenantApiKeys, Subscriptions, NPSResponses, BetaInvites
+- **New:** `agency-app/api/infra/launch-tables-cfn.yaml` — Grievances, AIEmployeeProvisioning, WebhookLog, TenantApiKeys, Subscriptions, NPSResponses, BetaInvites
 - **Deploy command:**
   ```bash
   aws cloudformation deploy \
-    --template-file apps/crm/server/infra/launch-tables-cfn.yaml \
+    --template-file agency-app/api/infra/launch-tables-cfn.yaml \
     --stack-name realestateflow-launch-tables \
     --region ap-south-1 \
     --parameter-overrides EnvironmentName=prod

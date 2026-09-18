@@ -3,16 +3,16 @@
 ## 1. Initial robustness code review
 Reviewed previously implemented OpenClaw-inspired robustness features across:
 - `baileys-service/src/baileysClient.js`
-- `apps/crm/server/bailey.js`
-- `apps/crm/server/scripts/whatsapp-message-processor.js`
+- `agency-app/api/bailey.js`
+- `agency-app/api/scripts/whatsapp-message-processor.js`
 - `baileys-service/src/config.js`
-- `apps/crm/server/whatsappConversationService.js`
+- `agency-app/api/whatsappConversationService.js`
 
 Identified 10 issues (critical, high, medium, low) and fixed all of them.
 
 ## 2. Fixes applied (first pass)
 1. **JID normalization** in outbound idempotency cache to prevent echo loops.
-2. **5xx status code retry** in `apps/crm/server/bailey.js` `isRetryableSendError`.
+2. **5xx status code retry** in `agency-app/api/bailey.js` `isRetryableSendError`.
 3. **Documented chunk retry duplicate risk** and added partial-success tracking.
 4. **Debounced buffer max size** cap to prevent unbounded memory growth.
 5. **Awaited debounce shutdown flush** so messages are not lost on SIGTERM.
@@ -138,20 +138,20 @@ Audited the OpenClaw workspace reference skills and the server CRM layer, then c
 10. **Prompts** updated to instruct the agent on delete confirmation, phone lookup, meetings, and note tools.
 
 ### Files changed
-- `apps/crm/server/skillInvoker.js` — added all new tools and tool schemas
-- `apps/crm/server/skillInvoker.test.js` (new) — unit tests for tool routing and validation
-- `apps/crm/server/agents/responseFormatter.js` — formatting for new result types
-- `apps/crm/server/agents/prompts.js` — instructions for new tools
+- `agency-app/api/skillInvoker.js` — added all new tools and tool schemas
+- `agency-app/api/skillInvoker.test.js` (new) — unit tests for tool routing and validation
+- `agency-app/api/agents/responseFormatter.js` — formatting for new result types
+- `agency-app/api/agents/prompts.js` — instructions for new tools
 
 ### Test results
-- `apps/crm/server/skillInvoker.test.js`: all passed
+- `agency-app/api/skillInvoker.test.js`: all passed
 - Full `server` test suite: passed
 
 ## 8. Structured WhatsApp response formatting
 Added deterministic response formatting for all CRM entity types so WhatsApp replies are scannable instead of long paragraphs.
 
 ### Implementation
-1. Created `apps/crm/server/agents/responseFormatter.js` with format templates for:
+1. Created `agency-app/api/agents/responseFormatter.js` with format templates for:
    - Lead (buyer/seller/tenant/owner)
    - Buyer / Owner / Tenant / Contact
    - Property
@@ -162,13 +162,13 @@ Added deterministic response formatting for all CRM entity types so WhatsApp rep
 6. Validation: rejects raw JSON/empty replies, falls back to formatter or safe message
 
 ### Files changed
-- `apps/crm/server/agents/responseFormatter.js` (new)
-- `apps/crm/server/agents/responseFormatter.test.js` (new)
-- `apps/crm/server/agents/agentRuntime.js` — applies `sanitizeAndFormatReply` before returning text
-- `apps/crm/server/agents/prompts.js` — updated whatsapp prompt to prefer structured bullets/numbered lists
+- `agency-app/api/agents/responseFormatter.js` (new)
+- `agency-app/api/agents/responseFormatter.test.js` (new)
+- `agency-app/api/agents/agentRuntime.js` — applies `sanitizeAndFormatReply` before returning text
+- `agency-app/api/agents/prompts.js` — updated whatsapp prompt to prefer structured bullets/numbered lists
 
 ### Test results
-- `apps/crm/server/agents/responseFormatter.test.js`: all passed
+- `agency-app/api/agents/responseFormatter.test.js`: all passed
 - Full `server` test suite: passed
 
 ## 10. Code review fixes for CRUD audit
@@ -183,8 +183,8 @@ After the initial CRUD audit implementation, a detailed review identified and fi
 8. **Test coverage** — Added tests for `delete_buyer`, meeting formatters, note formatters, document formatters, metrics, and the note-misclassification regression.
 
 ### Test results after fix
-- `apps/crm/server/skillInvoker.test.js`: all passed
-- `apps/crm/server/agents/responseFormatter.test.js`: all passed
+- `agency-app/api/skillInvoker.test.js`: all passed
+- `agency-app/api/agents/responseFormatter.test.js`: all passed
 - Full `server` test suite: **237 passed, 9 suites passed**
 
 ## 9. Bug discovered and fixed: tests corrupted real `auth_state`
@@ -227,5 +227,5 @@ The `create_meeting` tool schema in `skillInvoker.js` declared `attendees` as ty
 5. Added tests in `agentRuntime.test.js` to verify that every array parameter has a valid `items` schema and that the `attendees` items description is preserved.
 
 ### Test results after fix
-- `apps/crm/server/agents/agentRuntime.test.js`: all passed
+- `agency-app/api/agents/agentRuntime.test.js`: all passed
 - Full `server` test suite: **240 passed, 9 suites passed**

@@ -98,8 +98,8 @@ Each phase is small, reversible, and independently testable. Production behavior
 
 ### Files
 
-- `apps/crm/server/normalizers/propertyNormalizer.js`
-- `apps/crm/server/normalizers/propertyNormalizer.test.js`
+- `agency-app/api/normalizers/propertyNormalizer.js`
+- `agency-app/api/normalizers/propertyNormalizer.test.js`
 
 ### Steps
 
@@ -206,8 +206,8 @@ Output:
 
 ### Files
 
-- `apps/crm/server/aiViewBuilders/propertyAIViewBuilder.js`
-- `apps/crm/server/aiViewBuilders/propertyAIViewBuilder.test.js`
+- `agency-app/api/aiViewBuilders/propertyAIViewBuilder.js`
+- `agency-app/api/aiViewBuilders/propertyAIViewBuilder.test.js`
 
 ### Steps
 
@@ -274,8 +274,8 @@ Output:
 
 ### Files
 
-- `apps/crm/server/services/propertyService.js`
-- `apps/crm/server/services/propertyService.test.js`
+- `agency-app/api/services/propertyService.js`
+- `agency-app/api/services/propertyService.test.js`
 
 ### Steps
 
@@ -325,12 +325,12 @@ Output:
 
 ## Phase 5 — Middleware Wiring
 
-**Goal:** Update `apps/crm/server/aiDtoMiddleware.js` to route property tool results through the new pipeline.
+**Goal:** Update `agency-app/api/aiDtoMiddleware.js` to route property tool results through the new pipeline.
 
 ### Files
 
-- `apps/crm/server/aiDtoMiddleware.js`
-- `apps/crm/server/aiDtoMiddleware.test.js`
+- `agency-app/api/aiDtoMiddleware.js`
+- `agency-app/api/aiDtoMiddleware.test.js`
 
 ### Steps
 
@@ -414,12 +414,12 @@ Output:
 
 ### Files
 
-- `apps/crm/server/agents/prompts.js`
-- `apps/crm/server/agents/responseFormatter.js`
+- `agency-app/api/agents/prompts.js`
+- `agency-app/api/agents/responseFormatter.js`
 
 ### Steps
 
-1. Update `apps/crm/server/agents/prompts.js`:
+1. Update `agency-app/api/agents/prompts.js`:
    - Remove JSON output requirement.
    - Remove "Output ONLY the final reply text" conflict.
    - Remove "Ignore PK/SK" instructions.
@@ -435,7 +435,7 @@ Output:
      - "For properties, mention title, area, status, listing status, price/rent, and owner name when relevant."
      - "For documents, agreements, and verifications, mention the count and most recent items."
 2. Add a property-specific prompt example if needed (e.g., how to handle `searchResults` with 10+ items).
-3. Update `apps/crm/server/agents/responseFormatter.js`:
+3. Update `agency-app/api/agents/responseFormatter.js`:
    - Remove property-specific card/list formatters for raw properties.
    - Remove `MAX_LIST_ITEMS_WITH_MORE` slicing.
    - Remove fake "+5 more" prompt.
@@ -489,15 +489,15 @@ Never include internal reasoning, constraints, or system instructions in your re
 
 ### Files
 
-- `apps/crm/server/aiImplementation.test.js`
-- `apps/crm/server/aiDtoMiddleware.test.js`
-- `apps/crm/server/aiViewBuilders/propertyAIViewBuilder.test.js`
-- `apps/crm/server/normalizers/propertyNormalizer.test.js`
-- `apps/crm/server/services/propertyService.test.js`
+- `agency-app/api/aiImplementation.test.js`
+- `agency-app/api/aiDtoMiddleware.test.js`
+- `agency-app/api/aiViewBuilders/propertyAIViewBuilder.test.js`
+- `agency-app/api/normalizers/propertyNormalizer.test.js`
+- `agency-app/api/services/propertyService.test.js`
 
 ### Steps
 
-1. In `apps/crm/server/aiImplementation.test.js` (or `apps/crm/server/aiImplementation.test.js` if new), add end-to-end test cases:
+1. In `agency-app/api/aiImplementation.test.js` (or `agency-app/api/aiImplementation.test.js` if new), add end-to-end test cases:
    - `search_properties` returns a DTO matching the contract.
    - `get_property` returns a detailed DTO.
    - `create_property` returns a create confirmation DTO.
@@ -506,7 +506,7 @@ Never include internal reasoning, constraints, or system instructions in your re
    - Property documents, agreements, and verifications return correct DTOs.
    - Empty search results return the correct empty DTO.
    - Property not found returns the correct error DTO.
-2. In `apps/crm/server/aiDtoMiddleware.test.js`:
+2. In `agency-app/api/aiDtoMiddleware.test.js`:
    - Add property tool cases under the feature flag.
    - Verify each property tool maps to the correct DTO view.
    - Verify feature flag off = original result unchanged.
@@ -537,10 +537,10 @@ Never include internal reasoning, constraints, or system instructions in your re
 ### Files
 
 - `.env.example`
-- `apps/crm/server/config.js` (if feature flags are centralized)
-- `apps/crm/server/aiDtoMiddleware.js`
-- `apps/crm/server/agents/prompts.js`
-- `apps/crm/server/agents/responseFormatter.js`
+- `agency-app/api/config.js` (if feature flags are centralized)
+- `agency-app/api/aiDtoMiddleware.js`
+- `agency-app/api/agents/prompts.js`
+- `agency-app/api/agents/responseFormatter.js`
 
 ### Steps
 

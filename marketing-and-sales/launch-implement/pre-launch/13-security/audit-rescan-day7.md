@@ -23,10 +23,10 @@ All routes added in Days 1-6 that weren't in the T-1 baseline scan.
 - [ ] Verify Sentry + CloudWatch alarms are firing on test errors
 
 ## New Route Files to Scan (expected by Day 7)
-- `apps/crm/server/routes/billing.js` (PR-F)
-- `apps/crm/server/routes/aiEmployeeStatus.js` (PR-F)
-- `apps/crm/server/routes/subscriptions.js` (PR-H)
-- `apps/crm/server/routes/feedback.js` (PR-K)
+- `agency-app/api/routes/billing.js` (PR-F)
+- `agency-app/api/routes/aiEmployeeStatus.js` (PR-F)
+- `agency-app/api/routes/subscriptions.js` (PR-H)
+- `agency-app/api/routes/feedback.js` (PR-K)
 
 ## Expected P0-check Focus Areas
 1. Billing webhook HMAC verification still intact after any changes

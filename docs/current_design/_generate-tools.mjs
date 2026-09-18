@@ -1,4 +1,4 @@
-import { toolDefinitions } from '../../apps/crm/server/shared/toolDefinitions.js';
+import { toolDefinitions } from '../../agency-app/api/shared/toolDefinitions.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -11,7 +11,7 @@ function escapeTable(s) {
 
 // 02-tool-definitions.md
 let md = '# Tool Definitions (SyncBot / Gemini)\n\n';
-md += 'Source: `apps/crm/server/shared/toolDefinitions.js`\n\n';
+md += 'Source: `agency-app/api/shared/toolDefinitions.js`\n\n';
 md += `Total tools: **${toolDefinitions.length}**\n\n`;
 md += '> Descriptions below are what Gemini sees via `descriptions.internal` in tool schemas.\n\n';
 

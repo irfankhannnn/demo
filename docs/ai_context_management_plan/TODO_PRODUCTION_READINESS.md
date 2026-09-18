@@ -8,22 +8,22 @@ Last updated: 2026-06-11
 ## CRITICAL (Must Fix Before Production)
 
 ### CRIT-5: Auth Service CORS is Completely Open
-**File:** `services/reality-flow-authentication/src/app.ts:20`
+**File:** `platform/auth/src/app.ts:20`
 **Why:** `app.use(cors())` with no origin restriction allows any website to call auth endpoints. A malicious site could embed your phone-auth flow, harvest OTPs, or abuse token exchange.
 **Fix:** Replace with `cors({ origin: ALLOWED_ORIGINS.split(','), credentials: true })` and read origins from env.
 
 ### CRIT-6: Auth Service Error Handler Leaks Internal Details
-**File:** `services/reality-flow-authentication/src/app.ts:48-50`
+**File:** `platform/auth/src/app.ts:48-50`
 **Why:** `res.status(500).json({ error: 'Internal Server Error', message: err.message })` sends raw `err.message` to the client. A DB error could expose table names, credentials, or stack traces.
 **Fix:** In production, return generic `"message": "An unexpected error occurred"`. Log the real error server-side only.
 
 ### CRIT-7: Auth Service Has Zero Security Headers
-**File:** `services/reality-flow-authentication/src/app.ts`
+**File:** `platform/auth/src/app.ts`
 **Why:** No `helmet`, no CSP, no `X-Frame-Options`, no `X-Content-Type-Options`. The auth service is a prime phishing target (login pages, token endpoints) but has no clickjacking or MIME-sniffing protection.
 **Fix:** Add `helmet` or at minimum set `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and a strict CSP.
 
 ### CRIT-3: Server Still Missing `deploy.sh`
-**File:** New `apps/crm/server/infra/deploy.sh`  
+**File:** New `agency-app/api/infra/deploy.sh`  
 **Why:** Global rules (`.windsurfrules`) mandate a `deploy.sh` script. The server currently has no build or deploy automation.  
 **Fix:** Create `deploy.sh` per global rules: validate env, `npm ci && npm run build`, zip, upload to S3, generate `cfn-params.json`, `aws cloudformation deploy`.
 
@@ -32,7 +32,7 @@ Last updated: 2026-06-11
 ## HIGH (Should Fix Before Production)
 
 ### HIGH-1: RBAC Missing on CRM Routes
-**Files:** `apps/crm/server/routes/crm.js`, `apps/crm/server/routes/contacts.js`, `apps/crm/server/routes/leads.js`, `apps/crm/server/routes/buyers.js`, etc.  
+**Files:** `agency-app/api/routes/crm.js`, `agency-app/api/routes/contacts.js`, `agency-app/api/routes/leads.js`, `agency-app/api/routes/buyers.js`, etc.  
 **Why:** Only `grievance.js` admin endpoints use `requireAdmin`. All other CRM endpoints (create property, delete contact, etc.) are accessible to any authenticated user with a valid token — including MEMBERs who should not be able to modify data.  
 **Fix:** Audit every CRM route. Apply `requireAdmin` or `requireAdminOrManager` to destructive/mutating operations. Read-only endpoints can remain open to all authenticated users.
 
@@ -42,12 +42,12 @@ Last updated: 2026-06-11
 **Fix:** Rewrite each as valid CloudFormation YAML with S3 `Code` references, proper `Environment.Variables`, explicit IAM roles, and `!Ref` / `!GetAtt` where needed.
 
 ### HIGH-5: Auth Service Public Endpoints Have No Rate Limiting
-**Files:** `services/reality-flow-authentication/src/routes/phoneAuth.ts`, `src/routes/auth.ts`
+**Files:** `platform/auth/src/routes/phoneAuth.ts`, `src/routes/auth.ts`
 **Why:** `POST /auth/phone/start`, `POST /auth/phone/confirm`, and `POST /auth/token` have zero rate limiting. An attacker can spam OTP initiation (costing you Cognito SMS charges) or brute-force OTP confirmation.
 **Fix:** Add `express-rate-limit` per IP. Stricter limits on `/auth/phone/start` (e.g., 3 per 15 min) and `/auth/phone/confirm` (e.g., 5 per 15 min).
 
 ### HIGH-6: Internal API Key Comparison Vulnerable to Timing Attack
-**File:** `services/reality-flow-authentication/src/routes/internal.ts:20`
+**File:** `platform/auth/src/routes/internal.ts:20`
 **Why:** `if (provided !== expected)` uses string comparison which short-circuits on first mismatch. An attacker measuring response times could brute-force the `INTERNAL_API_KEY` byte-by-byte.
 **Fix:** Use `crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))`.
 
@@ -57,7 +57,7 @@ Last updated: 2026-06-11
 **Fix:** Replace with the existing `src/utils/logger.ts` (or add `pino`/`winston`) and use `logger.info()` / `logger.error()` with context objects.
 
 ### HIGH-3: PostHog Lambda Flush Risk
-**File:** `apps/crm/server/lib/posthog.js`  
+**File:** `agency-app/api/lib/posthog.js`  
 **Why:** `flushAt: 1, flushInterval: 0` forces immediate flush, but Lambda may freeze/exit before async flush completes. Events are silently lost.  
 **Fix:** Remove aggressive flush settings. Add `await shutdownPostHog()` in `lambda-handler.js` after each invocation. Consider buffering events in memory and flushing at end of handler.
 
@@ -66,17 +66,17 @@ Last updated: 2026-06-11
 ## MEDIUM (Fix After Initial Deploy)
 
 ### MED-2: `rateLimiter.js` `setInterval` Wastes Lambda Resources
-**File:** `apps/crm/server/middleware/rateLimiter.js`  
+**File:** `agency-app/api/middleware/rateLimiter.js`  
 **Why:** The cleanup `setInterval` runs every 5 minutes in Lambda, keeping the container warm and using CPU for no reason. The `Map` also grows unbounded across invocations in the same container.  
 **Fix:** Switch to a time-windowed cleanup in the middleware itself (check `resetAt` on every request) or use `express-rate-limit` package instead of custom implementation.
 
 ### MED-3: `countUsersByTenant` Counts Suspended Users
-**File:** `services/reality-flow-authentication/src/models/usersModel.ts`  
+**File:** `platform/auth/src/models/usersModel.ts`  
 **Why:** The query uses `Select: 'COUNT'` without `FilterExpression: '#status = :active'`. Suspended or inactive users still count against the seat cap. This is conservative but may confuse admins.  
 **Fix:** Add `FilterExpression` to only count `ACTIVE` users, or document the behavior clearly.
 
 ### MED-7: Auth Service Error Response Format Inconsistent
-**File:** `services/reality-flow-authentication/src/utils/http.ts`
+**File:** `platform/auth/src/utils/http.ts`
 **Why:** `forbidden()` returns `{ error, code, message }` but `badRequest()`, `unauthorized()`, `notFound()`, `conflict()`, `internalError()` return `{ error, message }`. Frontend error handling must special-case the `403` shape.
 **Fix:** Standardize all helpers to `{ error, message, code? }` or adopt the same schema everywhere.
 
@@ -86,7 +86,7 @@ Last updated: 2026-06-11
 
 ### LOW-1: Add Sentry Node.js to Backend
 **Why:** Frontend has Sentry React, but backend has no error tracking. Production crashes are invisible.  
-**Fix:** Add `@sentry/node` to `apps/crm/server/package.json`, initialize in `server.js`, capture exceptions in `errorHandler`.
+**Fix:** Add `@sentry/node` to `agency-app/api/package.json`, initialize in `server.js`, capture exceptions in `errorHandler`.
 
 ### LOW-2: Add Billing State Transition Audit Table
 **Why:** No record of who/when subscription state changed. Hard to debug billing disputes.  
@@ -94,7 +94,7 @@ Last updated: 2026-06-11
 
 ### LOW-3: Add CloudWatch Alarms to CloudFormation
 **Why:** No automated alerting for Lambda errors, high latency, or DynamoDB throttling.  
-**Fix:** Add `AWS::CloudWatch::Alarm` resources to `apps/crm/server/infra/cfn-backend.yaml` for Lambda errors (>5 in 5 min) and API Gateway 5xx (>1% in 5 min).
+**Fix:** Add `AWS::CloudWatch::Alarm` resources to `agency-app/api/infra/cfn-backend.yaml` for Lambda errors (>5 in 5 min) and API Gateway 5xx (>1% in 5 min).
 
 ### LOW-4: Standardize Error Response Format
 **Why:** Some routes return `{ error: string }`, others return `{ error: string, details: string }`, others return `{ error: string, message: string }`. Inconsistent for frontend error handling.  
@@ -138,13 +138,13 @@ Last updated: 2026-06-11
 ## Parallel Changes (Added During This Session — No Action Needed)
 
 The following files were added in parallel and are good additions:
-- `services/reality-flow-authentication/src/utils/logger.ts` — structured logger for auth service
-- `services/reality-flow-authentication/src/utils/cookies.ts` — refresh token cookie helper
-- `services/reality-flow-authentication/src/middleware/requireAuth.ts` — Cognito auth middleware
-- `apps/crm/server/middleware/validateBody.js` — generic Zod body validation middleware
-- `apps/crm/server/validation/crmSchemas.js` + `otherSchemas.js` — request validation schemas
-- `apps/crm/server/middleware/csp.js` — Content Security Policy middleware
-- `apps/crm/server/middleware/rateLimiter.js` — in-memory rate limiter (see MED-2 for Lambda concerns)
+- `platform/auth/src/utils/logger.ts` — structured logger for auth service
+- `platform/auth/src/utils/cookies.ts` — refresh token cookie helper
+- `platform/auth/src/middleware/requireAuth.ts` — Cognito auth middleware
+- `agency-app/api/middleware/validateBody.js` — generic Zod body validation middleware
+- `agency-app/api/validation/crmSchemas.js` + `otherSchemas.js` — request validation schemas
+- `agency-app/api/middleware/csp.js` — Content Security Policy middleware
+- `agency-app/api/middleware/rateLimiter.js` — in-memory rate limiter (see MED-2 for Lambda concerns)
 
 These files are compatible with all security fixes and don't require changes.
 

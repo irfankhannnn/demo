@@ -110,13 +110,13 @@ As a user of the RealEstateFlow CRM, you now have:
 ## 📁 Files Created/Modified
 
 ### New Files (12)
-1. ✅ `apps/crm/server/conversationStateService.js` - Conversation state management
-2. ✅ `apps/crm/server/userCategoryService.js` - User category and access control
-3. ✅ `apps/crm/server/agents/toolContextBuilder.js` - Tool context enrichment
-4. ✅ `apps/crm/server/observability/phase2Metrics.js` - Metrics and monitoring
-5. ✅ `apps/crm/server/agents/agentRuntime.test.js` - Agent tests
-6. ✅ `apps/crm/server/conversationStateService.test.js` - Conversation state tests
-7. ✅ `apps/crm/server/userCategoryService.test.js` - User category tests
+1. ✅ `agency-app/api/conversationStateService.js` - Conversation state management
+2. ✅ `agency-app/api/userCategoryService.js` - User category and access control
+3. ✅ `agency-app/api/agents/toolContextBuilder.js` - Tool context enrichment
+4. ✅ `agency-app/api/observability/phase2Metrics.js` - Metrics and monitoring
+5. ✅ `agency-app/api/agents/agentRuntime.test.js` - Agent tests
+6. ✅ `agency-app/api/conversationStateService.test.js` - Conversation state tests
+7. ✅ `agency-app/api/userCategoryService.test.js` - User category tests
 8. ✅ `.devin/ai-employee/README.md` - Knowledge base guide
 9. ✅ `.devin/ai-employee/tenant-templates/example-tenant/business-context.md`
 10. ✅ `.devin/ai-employee/tenant-templates/example-tenant/team-members.md`
@@ -124,10 +124,10 @@ As a user of the RealEstateFlow CRM, you now have:
 12. ✅ `phase-2-implementation/IMPLEMENTATION_COMPLETE.md` - Implementation details
 
 ### Modified Files (4)
-1. ✅ `apps/crm/server/agents/prompts.js` - Personality injection
-2. ✅ `apps/crm/server/agents/agentRuntime.js` - Context loading integration
-3. ✅ `apps/crm/server/skillInvoker.js` - Tool access control
-4. ✅ `apps/crm/server/whatsappConversationService.js` - Conversation context loading
+1. ✅ `agency-app/api/agents/prompts.js` - Personality injection
+2. ✅ `agency-app/api/agents/agentRuntime.js` - Context loading integration
+3. ✅ `agency-app/api/skillInvoker.js` - Tool access control
+4. ✅ `agency-app/api/whatsappConversationService.js` - Conversation context loading
 
 ## 🧪 Testing Coverage
 

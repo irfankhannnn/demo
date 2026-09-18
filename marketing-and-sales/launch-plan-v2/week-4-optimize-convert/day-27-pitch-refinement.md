@@ -4,6 +4,7 @@
 > **Phase:** Week 4
 > **Skill(s):** `messaging-optimizer` + `copywriting` + `competitive-intel` + `marketing-psychology`
 > **Estimated time:** 1h founder + 5h AI
+> **Script:** `../40-sales-and-conversion/demo-script.md` and `../40-sales-and-conversion/objections.md` (the copy this day refines)
 
 ## Objective
 Synthesize all Month-1 messaging data (subject lines that worked, objections heard, demo scripts that converted, testimonials gathered) into a refined wedge + pitch + battle-card update for Month-2 use across cold sequences, LPs, and founder content.

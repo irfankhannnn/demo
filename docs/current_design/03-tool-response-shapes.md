@@ -1,6 +1,6 @@
 # Priority 3 — AI DTO / Tool Response Shapes
 
-Source: `apps/crm/server/skillInvoker.js`, `apps/crm/server/aiDtoMiddleware.js`, `apps/crm/server/aiViewBuilders/`, `apps/crm/server/crmDynamodbService.js`
+Source: `agency-app/api/skillInvoker.js`, `agency-app/api/aiDtoMiddleware.js`, `agency-app/api/aiViewBuilders/`, `agency-app/api/crmDynamodbService.js`
 
 ---
 

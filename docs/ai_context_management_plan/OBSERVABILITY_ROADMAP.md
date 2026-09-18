@@ -78,7 +78,7 @@
 ### 2.2 Logging Configuration
 
 ```typescript
-// apps/crm/server/config/logging.ts
+// agency-app/api/config/logging.ts
 export interface LoggingConfig {
   // File logging
   file?: {
@@ -117,7 +117,7 @@ export interface LoggingConfig {
 ### 2.3 Diagnostic Events System
 
 ```typescript
-// apps/crm/server/services/diagnostics/events.ts
+// agency-app/api/services/diagnostics/events.ts
 export type DiagnosticEventType =
   | 'webhook.received'
   | 'webhook.processed'
@@ -421,7 +421,7 @@ interface EchoSuppressedEvent extends DiagnosticEvent {
 ### 4.1 Detection Strategies
 
 ```typescript
-// apps/crm/server/services/diagnostics/tool-loop-detector.ts
+// agency-app/api/services/diagnostics/tool-loop-detector.ts
 
 export type LoopDetectionStrategy =
   | 'generic_repeat'           // Same tool called N times in a row
@@ -485,7 +485,7 @@ export interface LoopDetectionConfig {
 ### 5.1 Usage Aggregation
 
 ```typescript
-// apps/crm/server/services/diagnostics/session-usage.ts
+// agency-app/api/services/diagnostics/session-usage.ts
 
 export interface SessionUsage {
   sessionKey: string;
@@ -557,7 +557,7 @@ export function calculateCost(
 ### 6.1 Execution Pipeline Stages
 
 ```typescript
-// apps/crm/server/services/diagnostics/cache-trace.ts
+// agency-app/api/services/diagnostics/cache-trace.ts
 
 export type CacheTraceStage =
   | 'cache:result'              // Cache lookup result
@@ -605,7 +605,7 @@ export function saveCacheTrace(trace: CacheTrace): Promise<void>;
 ### 7.1 Audit Types
 
 ```typescript
-// apps/crm/server/services/security/audit.ts
+// agency-app/api/services/security/audit.ts
 
 export type SecurityAuditSeverity = 'critical' | 'warn' | 'info';
 
@@ -699,7 +699,7 @@ export async function runSecurityAudit(
 - `server/logging/logger.ts` (new)
 - `server/logging/subsystem.ts` (new)
 - `server/logging/redact.ts` (new)
-- `apps/crm/server/config/logging.ts` (new)
+- `agency-app/api/config/logging.ts` (new)
 
 **Effort:** 1 week
 
@@ -711,9 +711,9 @@ export async function runSecurityAudit(
 - [ ] Add sequence numbering
 
 **Files:**
-- `apps/crm/server/services/diagnostics/events.ts` (new)
-- `apps/crm/server/services/diagnostics/event-types.ts` (new)
-- `apps/crm/server/services/diagnostics/event-emitter.ts` (new)
+- `agency-app/api/services/diagnostics/events.ts` (new)
+- `agency-app/api/services/diagnostics/event-types.ts` (new)
+- `agency-app/api/services/diagnostics/event-emitter.ts` (new)
 
 **Effort:** 1 week
 
@@ -725,8 +725,8 @@ export async function runSecurityAudit(
 - [ ] Add span decorators
 
 **Files:**
-- `apps/crm/server/services/diagnostics/otel.ts` (new)
-- `apps/crm/server/services/diagnostics/otel-exporter.ts` (new)
+- `agency-app/api/services/diagnostics/otel.ts` (new)
+- `agency-app/api/services/diagnostics/otel-exporter.ts` (new)
 
 **Effort:** 1 week
 
@@ -747,7 +747,7 @@ export async function runSecurityAudit(
 - [ ] Add duration tracking
 
 **Files:**
-- `apps/crm/server/routes/webhooks.js` (update)
+- `agency-app/api/routes/webhooks.js` (update)
 
 **Effort:** 1 week
 
@@ -759,7 +759,7 @@ export async function runSecurityAudit(
 - [ ] Track cost
 
 **Files:**
-- `apps/crm/server/agents/agentRuntime.js` (update)
+- `agency-app/api/agents/agentRuntime.js` (update)
 
 **Effort:** 1 week
 
@@ -771,8 +771,8 @@ export async function runSecurityAudit(
 - [ ] Add loop warning events
 
 **Files:**
-- `apps/crm/server/agents/agentRuntime.js` (update)
-- `apps/crm/server/services/diagnostics/tool-loop-detector.ts` (new)
+- `agency-app/api/agents/agentRuntime.js` (update)
+- `agency-app/api/services/diagnostics/tool-loop-detector.ts` (new)
 
 **Effort:** 1 week
 
@@ -784,8 +784,8 @@ export async function runSecurityAudit(
 - [ ] Add fingerprinting
 
 **Files:**
-- `apps/crm/server/whatsappConversationService.js` (update)
-- `apps/crm/server/services/diagnostics/cache-trace.ts` (new)
+- `agency-app/api/whatsappConversationService.js` (update)
+- `agency-app/api/services/diagnostics/cache-trace.ts` (new)
 
 **Effort:** 1 week
 
@@ -807,7 +807,7 @@ export async function runSecurityAudit(
 - [ ] Add blocking and escalation
 
 **Files:**
-- `apps/crm/server/services/diagnostics/tool-loop-detector.ts` (new)
+- `agency-app/api/services/diagnostics/tool-loop-detector.ts` (new)
 
 **Effort:** 1 week
 
@@ -819,8 +819,8 @@ export async function runSecurityAudit(
 - [ ] Add reporting
 
 **Files:**
-- `apps/crm/server/services/diagnostics/session-usage.ts` (new)
-- `apps/crm/server/services/diagnostics/usage-aggregator.ts` (new)
+- `agency-app/api/services/diagnostics/session-usage.ts` (new)
+- `agency-app/api/services/diagnostics/usage-aggregator.ts` (new)
 
 **Effort:** 1 week
 
@@ -855,8 +855,8 @@ export async function runSecurityAudit(
 - [ ] Add remediation guidance
 
 **Files:**
-- `apps/crm/server/services/security/audit.ts` (new)
-- `apps/crm/server/services/security/audit-checks.ts` (new)
+- `agency-app/api/services/security/audit.ts` (new)
+- `agency-app/api/services/security/audit-checks.ts` (new)
 
 **Effort:** 2 weeks
 
@@ -868,7 +868,7 @@ export async function runSecurityAudit(
 - [ ] Implement compliance reporting
 
 **Files:**
-- `apps/crm/server/services/security/audit-logger.ts` (new)
+- `agency-app/api/services/security/audit-logger.ts` (new)
 
 **Effort:** 1 week
 
@@ -1022,7 +1022,7 @@ REALTYFLOW_REDACTION_MODE=strict
 ### 11.1 CloudWatch Integration
 
 ```typescript
-// apps/crm/server/services/diagnostics/cloudwatch-exporter.ts
+// agency-app/api/services/diagnostics/cloudwatch-exporter.ts
 
 export class CloudWatchExporter {
   async exportMetric(

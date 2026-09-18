@@ -1,0 +1,3930 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Real Estate Agency - Core AWS resources
+  (core properties table, multi-tenant CRM table, agency config table, S3 bucket).
+
+  NOTE: This template references OAuth tables (OAuthCodesTableName and
+  OAuthConnectionsTableName) that are created by the reality-flow-mcp stack.
+  Deploy the MCP stack first or ensure those tables already exist before
+  deploying this stack; otherwise the CRM Lambda will fail at runtime when
+  accessing them.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedValues: ['dev', 'prod']
+    Description: >-
+      Deployment environment. Drives the realestateflow-<EnvironmentName>-*
+      naming of every physical resource this stack creates (Lambda functions,
+      IAM roles, the REST APIs, the SQS queue/DLQ, the SNS topic, the
+      dashboard, cron rules and alarms), so dev and prod never collide on a
+      shared AWS-account-global name.
+
+  DynamoDbTableName:
+    Type: String
+    Default: dev-realestateflow-core
+    Description: Name of the core DynamoDB table used by the application
+
+  CrmDynamoDbTableName:
+    Type: String
+    Default: dev-realestateflow-crm
+    Description: Name of the DynamoDB table used by the multi-tenant CRM
+
+  AgencyConfigTableName:
+    Type: String
+    Default: dev-realestateflow-agencies
+    Description: Name of the DynamoDB table storing per-agency admin configuration
+
+  KnowledgeChunksTableName:
+    Type: String
+    Default: dev-realestateflow-knowledge-chunks
+    Description: >-
+      Name of the DynamoDB table storing embedded chunks of each agency's policy
+      documents. Derived data, regenerable from the policies held on the agency
+      record; kept apart from the CRM table so that a change to the policy
+      vector index cannot force a rebuild of the property one.
+
+  AreasTableName:
+    Type: String
+    Default: dev-realestateflow-areas
+    Description: Name of the DynamoDB table storing area information with banners
+
+  EnquiriesTableNameCloudberry:
+    Type: String
+    Default: dev-realestateflow-enquiries
+    Description: Name of the DynamoDB table storing contact and consultation enquiries
+
+  B2BLeadsTableName:
+    Type: String
+    Default: dev-realestateflow-b2b-details
+    Description: Name of the DynamoDB table storing B2B sales leads (Ten BKC channel partnership inquiries)
+
+  KhataTableName:
+    Type: String
+    Default: dev-realestateflow-khata
+    Description: Name of the DynamoDB table storing Khata Book transactions and categories
+
+  NotificationsTableName:
+    Type: String
+    Default: dev-realestateflow-notifications
+    Description: Name of the DynamoDB table storing in-app notifications and scheduled reminders
+
+  PushTokensTableName:
+    Type: String
+    Default: dev-realestateflow-push-tokens
+    Description: Name of the DynamoDB table storing mobile device push tokens (FCM/APNs)
+
+  FirebaseServiceAccountJson:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: >-
+      Firebase service-account key as a single-line JSON string, used to send
+      push via FCM HTTP v1. Leave empty to disable push entirely - the API
+      still accepts and stores device tokens, it just sends nothing.
+
+  DevelopersTableName:
+    Type: String
+    Default: dev-realestateflow-developers
+    Description: Name of the DynamoDB table storing real estate developer profiles (Emaar, Sobha, Lodha, etc.)
+
+  RealEstateAreasTableName:
+    Type: String
+    Default: dev-realestateflow-communities
+    Description: Name of the DynamoDB table storing area/community profiles (DIFC, Dubai Marina, Andheri, etc.)
+
+
+  ProjectsTableName:
+    Type: String
+    Default: dev-realestateflow-projects
+    Description: Name of the DynamoDB table storing real estate projects
+
+  GrievancesTableName:
+    Type: String
+    Default: dev-realestateflow-grievances
+    Description: >-
+      Name of the DynamoDB table storing DPDP Act 2023 grievances. Must match
+      the table launch-tables-cfn.yaml creates for the same EnvironmentName -
+      this stack only references it, it does not own it, and deploy.sh does
+      not currently override this parameter from cfn-params.json.
+
+  NpsResponsesTableName:
+    Type: String
+    Default: dev-realestateflow-nps-responses
+    Description: >-
+      Name of the DynamoDB table storing Net Promoter Score responses. Must
+      match the table launch-tables-cfn.yaml creates for the same
+      EnvironmentName (see GrievancesTableName note).
+
+  SubscriptionsTableName:
+    Type: String
+    Default: dev-realestateflow-subscriptions
+    Description: >-
+      Name of the DynamoDB table storing tenant subscription plans and seat
+      limits. Must match the table launch-tables-cfn.yaml creates for the
+      same EnvironmentName (see GrievancesTableName note).
+
+  WebhookLogTableName:
+    Type: String
+    Default: dev-realestateflow-webhook-log
+    Description: >-
+      Name of the DynamoDB table storing inbound webhook idempotency records.
+      Must match the table launch-tables-cfn.yaml creates for the same
+      EnvironmentName (see GrievancesTableName note).
+
+  TenantApiKeysTableName:
+    Type: String
+    Default: dev-realestateflow-tenant-api-keys
+    Description: >-
+      Name of the DynamoDB table storing per-tenant API keys. Must match the
+      table launch-tables-cfn.yaml creates for the same EnvironmentName (see
+      GrievancesTableName note).
+
+  CreditsTableName:
+    Type: String
+    Default: dev-realestateflow-credits
+    Description: DynamoDB table for tenant credit balances and ledger
+
+  CreditConfigTableName:
+    Type: String
+    Default: dev-realestateflow-credit-config
+    Description: DynamoDB table for owner-editable credit configuration
+
+  UserCategoriesTableName:
+    Type: String
+    Default: dev-realestateflow-user-categories
+    Description: DynamoDB table for WhatsApp user category assignments
+
+  SesFromEmail:
+    Type: String
+    Default: info@realestateflow.in
+
+  EmailProviderPrimary:
+    Type: String
+    Default: ses
+
+  BaileyEnabled:
+    Type: String
+    Default: 'false'
+
+  BaileyApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  BaileyMode:
+    Type: String
+    Default: 'hosted'
+    AllowedValues: ['hosted', 'selfhosted']
+    Description: Bailey mode - hosted (api.bailey.ai) or selfhosted (own Baileys service)
+
+  BaileyWebhookSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+
+  AgentsEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable AI Employee agents globally
+
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: >-
+      Email address to subscribe to the alerts SNS topic. Leave empty to create
+      the topic with no subscribers (alarms still fire and are visible in the
+      console, but nobody is notified). AWS sends a confirmation email that
+      must be accepted before alerts arrive.
+
+  ToolLogMaxResultChars:
+    Type: String
+    Default: '2000'
+    Description: >-
+      Max characters of a CRM tool result written to CloudWatch. 0 means
+      uncapped - do not use 0 in a deployed environment; tool results contain
+      customer records.
+
+  CloudWatchNamespace:
+    Type: String
+    Default: 'RealEstateFlow/MVP'
+    Description: >-
+      Custom metric namespace. MUST match the fallback in
+      agency-app/api/observability/cloudwatch.js, otherwise the dashboard's SEARCH
+      expressions silently find nothing.
+
+  AgentToolLoopEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Phase 3 bounded multi-step tool loop. 'false' keeps the original
+      single-shot planner (one tool call per turn). 'true' lets one turn
+      complete a compound request ("create a lead AND schedule a visit").
+      Both code paths ship; this only selects between them, so it is safe to
+      flip back. See docs/proposals/agent-channel-architecture/phase3-imp/.
+
+  AllowUserCategoryDefaultFallback:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      SECURITY: only enable in dev. If true, unknown users fall back to the
+      default user category when checking AI tool permissions. Production must
+      keep this false and explicitly provision user categories.
+
+  AgentWebToolLoopBudgetMs:
+    Type: Number
+    Default: 18000
+    MinValue: 5000
+    Description: >-
+      Tool-loop budget for an in-CRM web chat turn (Phase 5). Must leave room
+      inside LambdaTimeout (default 30s) for classify and compose on top, or a
+      long multi-step turn is killed by the platform and returns nothing at
+      all. Raise this only alongside LambdaTimeout, or after moving the
+      /api/crm/agent-chat route to its own longer-timeout Lambda.
+
+  WhatsAppFallbackCategory:
+    Type: String
+    Default: 'admin'
+    AllowedValues: ['admin', 'team_lead', 'agent', 'viewer', 'whatsapp_bot']
+    Description: >
+      RBAC category applied to a WhatsApp turn when the sender's principal
+      (wa:<phone>) has no provisioned CATEGORY#USER row, which is every tenant
+      today. 'admin' reproduces the pre-existing behaviour exactly - the
+      permission check used to be skipped altogether on this channel. Set
+      'whatsapp_bot' for a genuinely restricted bot on a shared number, but
+      note it forbids property and buyer writes and so is NOT compatible with
+      the WhatsApp-first flow as currently specified.
+
+  BaileyApiEndpoint:
+    Type: String
+    Default: 'https://api.bailey.ai'
+    Description: Bailey WhatsApp gateway API base URL
+
+  BaileyApiPrefix:
+    Type: String
+    Default: ''
+    Description: Optional API path prefix for Bailey service (defaults to '/v1' for hosted, '' for selfhosted)
+
+  S3BucketName:
+    Type: String
+    Description: S3 bucket name for documents (must be globally unique)
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    ConstraintDescription: >
+      Bucket name must be lowercase, 363 characters, and can contain
+      letters, numbers, dots, and hyphens.
+
+  LambdaCodeS3Bucket:
+    Type: String
+    Description: S3 bucket that stores the packaged Lambda zip (deployment artifact)
+
+  LambdaCodeS3Key:
+    Type: String
+    Description: S3 object key for the packaged Lambda zip
+
+  LambdaRuntime:
+    Type: String
+    Default: nodejs20.x
+    AllowedValues:
+      - nodejs18.x
+      - nodejs20.x
+    Description: Lambda runtime for the backend function
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    Description: Lambda memory size in MB
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+    Description: Lambda timeout in seconds
+
+  PublicApiDomainName:
+    Type: String
+    Description: Custom domain name for the public website API (e.g. api.example.com)
+
+  PublicApiBasePath:
+    Type: String
+    Default: api
+    Description: Base path for the public API mapping on the custom domain
+
+  PublicApiStageName:
+    Type: String
+    Default: prod
+    Description: Stage name for the public API Gateway
+
+  CrmApiDomainName:
+    Type: String
+    Description: Custom domain name for the CRM web UI API (e.g. crm-api.example.com)
+
+  CrmApiBasePath:
+    Type: String
+    Default: api
+    Description: Base path for the CRM API mapping on the custom domain
+
+  CrmApiStageName:
+    Type: String
+    Default: prod
+    Description: Stage name for the CRM API Gateway
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set to 'false' on a first deploy to a new account/region before the
+      AWS::ApiGateway::DomainName for PublicApiDomainName/CrmApiDomainName
+      has been created (this template doesn't manage that resource - it's
+      set up once, separately, e.g. via ACM cert + Route53). With it false,
+      BasePathMapping is skipped and the API has no supported public URL
+      (clients must only ever use https://<domain>/<base path>, never the
+      execute-api invoke URL). Flip to 'true' and redeploy once the custom
+      domain exists. Keep it 'true' on any stack whose mappings already
+      exist - flipping it to 'false' makes CloudFormation DELETE them.
+
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >
+      Set to 'true' when the custom domain URL includes the API base path
+      (e.g., /devrealestatecrm/api/...). The Lambda handler will strip that
+      base path so Express routes (mounted at /api/...) match correctly.
+
+  AuthServiceDomainName:
+    Type: String
+    Description: >-
+      API Gateway custom domain of reality-flow-authentication (bare host, no
+      scheme), e.g. services-api.cloudberrysolutions.in. Never an execute-api
+      host. Composed with AuthServiceBasePath by agency-app/api/config/serviceUrls.js.
+
+  AuthServiceBasePath:
+    Type: String
+    Description: >-
+      Base path mapping of reality-flow-authentication on AuthServiceDomainName
+      (single segment), e.g. devrealestateauth / prodrealestateauth.
+
+  AllowedOrigins:
+    Type: String
+    Default: ''
+    Description: Comma-separated list of allowed CORS origins (never use '*' in production)
+
+  ApiGatewayRoutesTemplateUrl:
+    Type: String
+    Description: S3 URL for nested template part 1 (explicit API Gateway routes)
+
+  ApiGatewayRoutesTemplateUrlPart2:
+    Type: String
+    Description: S3 URL for nested template part 2 (remaining explicit API Gateway routes)
+
+  DeployApiRoutePart2:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Set to false only while migrating the existing explicit routes into split nested stacks.
+
+  NpsHmacSecret:
+    Type: String
+    Default: ''
+    Description: HMAC secret for NPS score token verification (feedback module)
+    NoEcho: true
+
+  BrevoApiKey:
+    Type: String
+    Default: ''
+    Description: Brevo (Sendinblue) API key for transactional emails
+    NoEcho: true
+
+  RazorpayWebhookSecret:
+    Type: String
+    Default: ''
+    Description: Razorpay webhook secret for signature verification
+    NoEcho: true
+
+  RazorpayKeyId:
+    Type: String
+    Default: ''
+    Description: Razorpay API Key ID (from Dashboard  Settings  API Keys)
+    NoEcho: true
+
+  RazorpayKeySecret:
+    Type: String
+    Default: ''
+    Description: Razorpay API Key Secret (from Dashboard  Settings  API Keys)
+    NoEcho: true
+
+  BrevoFromEmail:
+    Type: String
+    Default: 'info@realestateflow.in'
+    Description: Sender email address for Brevo transactional emails
+
+  BrevoFromName:
+    Type: String
+    Default: 'RealEstateFlow'
+    Description: Sender display name for Brevo transactional emails
+
+  HcaptchaSecretKey:
+    Type: String
+    Default: ''
+    Description: hCaptcha secret key for grievance form verification
+    NoEcho: true
+
+  # --- Cron-specific parameters ----------------------------------------------
+  PostHogKeyServer:
+    Type: String
+    Default: ''
+    Description: PostHog server-side key for cron analytics events
+    NoEcho: true
+
+  PostHogHost:
+    Type: String
+    Default: 'https://eu.i.posthog.com'
+    Description: PostHog host URL
+
+  InternalApiKey:
+    Type: String
+    Default: ''
+    Description: Internal API key for auth service access (team member lookup)
+    NoEcho: true
+
+  AiCallingInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret ai-calling-service must present (x-api-key) to call /api/internal/* routes (Lead Temperature qualification calls)
+    NoEcho: true
+
+  AdapterInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret lead-source adapters must present (x-api-key) to call POST /api/internal/adapters/leads. Used by backend_insta_sol_ms to promote Instagram enquiries into CRM leads. Deliberately separate from AiCallingInternalApiKey so one service's compromise does not grant the other's access.
+    NoEcho: true
+
+  PublicPagesInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret the public property-pages microservice must present (x-api-key) to call /api/internal/public-pages/*. Its own key, separate from AdapterInternalApiKey, so compromising the internet-facing pages service does not also grant lead-ingestion access.
+    NoEcho: true
+
+  MarketplaceInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret marketplace-api (consumer properties portal) must present (x-api-key) to call /api/internal/marketplace/* - cross-agency listing reads and per-tenant enquiry/visit writes. Its own key, separate from PublicPagesInternalApiKey, so compromising the marketplace stack does not grant the branded-pages door or vice versa.
+    NoEcho: true
+
+  MarketplaceApiDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      Custom domain (bare host) of marketplace-api, used by the CRM Marketplace
+      Inbox to read/reply to buyer threads. Empty = marketplace not deployed.
+
+  MarketplaceApiBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of marketplace-api on MarketplaceApiDomainName
+
+  MarketplaceCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling marketplace-api's /internal/* routes. Tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the marketplace-api stack.
+    NoEcho: true
+
+  MarketplaceCities:
+    Type: String
+    Default: 'Mumbai,Navi Mumbai,Thane,Pune,Bengaluru,Hyderabad,Chennai,Delhi,Gurugram,Noida,Kolkata,Ahmedabad,Dubai'
+    Description: Comma-separated display names of the cities the consumer marketplace offers (probed for city chips; no distinct-cities index exists).
+
+  AiCallingServiceDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain of the ai-calling-service stack (bare host, no
+      scheme), used by POST /leads/:id/qualify-call and /api/crm/ai-calling/*.
+      Leave empty until that stack is deployed (feature returns 503).
+
+  AiCallingServiceBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of ai-calling-service on AiCallingServiceDomainName
+      (single segment). The /api/ai-calling route prefix is appended in code.
+
+  CrmCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling ai-calling-service's /api/ai-calling/* management routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the ai-calling-service stack. Deliberately separate from AiCallingInternalApiKey, which is the inbound direction.
+    NoEcho: true
+
+  FollowupServiceDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain of the followup-agent-service stack (bare host,
+      no scheme), used by POST /api/crm/leads/:id/followup-call,
+      GET /api/crm/leads/:id/followups, POST /api/crm/followups/:jobId/cancel
+      and the adapter/ManyChat follow-up hand-off. Leave empty until that stack
+      is deployed (proxy routes return 503; hand-offs are logged and skipped).
+
+  FollowupServiceBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of followup-agent-service on FollowupServiceDomainName
+      (single segment). The /api/followup route prefix is appended in code.
+
+  FollowupCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling followup-agent-service's /api/followup/* routes. That service authenticates this backend as a service and then trusts the x-tenant-id we send, making this a tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the followup-agent-service stack. Outbound direction; FollowupInternalApiKey is the inbound one.
+    NoEcho: true
+
+  FollowupInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret followup-agent-service must present (x-api-key) to call /api/internal/followups/* (lead snapshot, escalations, notes). Its own key, separate from AiCallingInternalApiKey and AdapterInternalApiKey, so compromising the follow-up stack grants neither of the others' access. Must equal CrmInternalApiKey in the followup-agent-service stack.
+    NoEcho: true
+
+  FounderWhatsApp:
+    Type: String
+    Default: ''
+    Description: Founder WhatsApp number for escalation notifications
+    NoEcho: true
+
+  AgentAuditTableName:
+    Type: String
+    Default: dev-realestateflow-agent-audit
+    Description: DynamoDB table for AI Employee agent audit logs
+
+  JwtSecret:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: JWT secret for signing MCP service tokens
+
+  AgentActionCredits:
+    Type: String
+    Default: '15'
+    Description: Number of credits charged per agent action
+
+  AiEmployeeRolloutPercentage:
+    Type: String
+    Default: '100'
+    Description: Percentage of tenants for gradual rollout (0-100)
+
+  AiEmployeeProvisioningTableName:
+    Type: String
+    Default: dev-realestateflow-ai-employee-provisioning
+    Description: >-
+      DynamoDB table for AI Employee provisioning rows. This stack owns and
+      creates the table (see AiEmployeeProvisioningTable below) - do not
+      also declare it in launch-tables-cfn.yaml, or a second stack will fail
+      with "Table already exists" on whichever deploys second.
+
+  # -- Phase 2: AI Employee LLM & Observability ---------------------------------
+  LlmProvider:
+    Type: String
+    Default: bedrock
+    AllowedValues:
+      - bedrock
+      - gemini
+    Description: LLM provider for AI agent invocations (bedrock | gemini)
+
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-haiku-20240307-v1:0
+    Description: Bedrock model ID for AI agent invocations
+
+  GeminiApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Google Gemini API key (required only if LlmProvider=gemini)
+
+  GeminiModel:
+    Type: String
+    Default: gemini-3.8-flash
+    Description: Gemini model name (used only if LlmProvider=gemini)
+
+  GeminiClassifierModel:
+    Type: String
+    Default: gemini-3.1-flash-lite
+    Description: Gemini classifier model name (used for lead classification)
+
+  CloudwatchMetricsEnabled:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Enable Phase 2 CloudWatch custom metrics emission
+
+  AiAdminWhatsAppNumbers:
+    Type: String
+    Default: ''
+    Description: Comma-separated admin WhatsApp numbers allowed to trigger the AI
+
+  # --- Externalized operational constants (no hardcoded fallbacks) ----------------
+
+  ServiceAccountUser:
+    Type: String
+    Default: 'system'
+    Description: Service account identifier for automated/system writes
+
+  DefaultCountryCode:
+    Type: String
+    Default: '+91'
+    Description: Default country code for phone normalization (e.g. +91, +971)
+
+  AppUrl:
+    Type: String
+    Default: 'https://app.realestateflow.in'
+    Description: Public app URL used in emails and reminders
+
+  GrievanceOfficerEmail:
+    Type: String
+    Default: 'info@realestateflow.in'
+    Description: DPDP Act 2023 grievance officer email address
+
+  LogLevel:
+    Type: String
+    Default: 'info'
+    Description: Application log level
+
+  McpApiDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain of reality-flow-mcp (bare host, no scheme),
+      used for OAuth client registration/authorize/token. Empty means MCP is
+      not configured in this environment (AI integrations return 500).
+
+  McpApiBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of reality-flow-mcp on McpApiDomainName (single
+      segment), e.g. devrealestatemcp. /oauth/* suffixes are appended in code.
+
+  OAuthCodesTableName:
+    Type: String
+    Default: 'realestate-flow-dev-oauth-codes'
+    Description: >-
+      DynamoDB table for OAuth authorization codes and sessions. Owned by
+      the reality-flow-mcp stack, not this one - must match the table that
+      stack actually created (its own naming convention predates this
+      prefix change, so it does NOT use realestateflow-*). Deploy MCP first
+      and confirm the live table name before deploying this stack.
+
+  OAuthConnectionsTableName:
+    Type: String
+    Default: 'realestate-flow-dev-oauth-connections'
+    Description: >-
+      DynamoDB table for connected AI app integrations. Owned by the
+      reality-flow-mcp stack (see OAuthCodesTableName note).
+
+  OAuthCallbackUrl:
+    Type: String
+    Default: 'https://services-api.cloudberrysolutions.in/devrealestatecrm/api/ai-integrations/callback'
+    Description: Public OAuth callback URL for the CRM backend (where MCP redirects after approval)
+
+  FrontendUrl:
+    Type: String
+    Default: 'http://localhost:3000'
+    Description: Frontend URL for post-OAuth redirect
+
+  RazorpayPlanAiEmployee:
+    Type: String
+    Default: 'plan_test_ai_employee'
+    Description: Razorpay plan ID for AI employee subscription
+
+  FounderEmail:
+    Type: String
+    Default: 'info@realestateflow.in'
+    Description: Founder email address
+
+  BrevoTrialListId:
+    Type: String
+    Default: ''
+    Description: Brevo trial list ID
+
+  BrevoPaymentFailedTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo payment failed template ID
+
+  BrevoAiEmployeePaidTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee paid template ID
+
+  BrevoAiEmployeeEscalatedFounderTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee escalated founder template ID
+
+  BrevoAiEmployeeEscalatedCustomerTemplateId:
+    Type: String
+    Default: ''
+    Description: Brevo AI employee escalated customer template ID
+
+  BaileyAdminApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Bailey admin API key for destructive operations
+
+  # ============== Call Intelligence (call recording analysis) ==============
+  AsrProvider:
+    Type: String
+    Default: amazon-transcribe
+    AllowedValues:
+      - amazon-transcribe
+      - whisper
+    Description: Speech-to-text provider used by the call recording pipeline
+
+  TranscribeLanguageOptions:
+    Type: String
+    Default: en-IN,hi-IN,mr-IN,gu-IN,ta-IN,te-IN,kn-IN,ml-IN,pa-IN,bn-IN
+    Description: Languages offered to Amazon Transcribe automatic language identification
+
+  TranscribeLanguageCode:
+    Type: String
+    Default: ''
+    Description: >
+      Fixed Amazon Transcribe language code (e.g. en-IN). Leave empty to use
+      automatic multi-language identification. Required when using a custom vocabulary.
+
+  TranscribeVocabularyName:
+    Type: String
+    Default: ''
+    Description: >
+      Optional Amazon Transcribe custom vocabulary name for Indian real-estate terms.
+      Create it out-of-band; an unknown name makes every transcription job fail.
+
+  CallIntelAutoApplyNotes:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Apply the AI call-summary note automatically (every other action always needs approval)
+
+  CallIntelWorkerMemorySize:
+    Type: Number
+    Default: 1024
+    Description: Memory (MB) for the call recording worker Lambda
+
+  CallIntelWorkerTimeout:
+    Type: Number
+    Default: 300
+    Description: Timeout (seconds) for the call recording worker Lambda
+
+  CallIntelPollDelaySeconds:
+    Type: Number
+    Default: 45
+    Description: Delay between Amazon Transcribe job status polls
+
+  CallIntelMaxPollAttempts:
+    Type: Number
+    Default: 60
+    Description: Maximum transcription status polls before a recording is marked failed
+
+  CallRecordingQueueRetentionSeconds:
+    Type: Number
+    Default: 345600
+    Description: SQS message retention for the call recording queue (default 4 days)
+
+  CallIntelMaxStageAttempts:
+    Type: Number
+    Default: 4
+    Description: Maximum retries for a single pipeline stage (transcription or analysis) before the recording is marked failed
+
+  CallIntelMaxTranscriptChars:
+    Type: Number
+    Default: 60000
+    Description: Transcript characters sent to the analysis model before truncation
+
+  CallIntelDefaultMeetingTime:
+    Type: String
+    Default: '11:00'
+    Description: Fallback time (HH:mm) used for a proposed meeting when the call did not state one
+
+  CallIntelMaxUploadBytes:
+    Type: Number
+    Default: 209715200
+    Description: Maximum accepted call recording size in bytes (default 200 MB)
+
+  CallIntelUploadUrlTtlSeconds:
+    Type: Number
+    Default: 900
+    Description: Expiry (seconds) for the pre-signed S3 upload URL
+
+  CallIntelPlaybackUrlTtlSeconds:
+    Type: Number
+    Default: 3600
+    Description: Expiry (seconds) for the pre-signed S3 playback URL
+
+  CallIntelStalledAnalysisMs:
+    Type: Number
+    Default: 900000
+    MinValue: 60000
+    Description: >-
+      How long a recording may sit in ANALYZING before a read re-drives the
+      stage. ANALYZING is deliberately un-claimable (that is what stops
+      duplicate Gemini runs), so a worker that dies mid-analysis needs this to
+      recover. Must be comfortably longer than a real analysis, or a live
+      worker gets pre-empted.
+
+Conditions:
+  ShouldDeployApiRoutePart2: !Equals [!Ref DeployApiRoutePart2, 'true']
+  # When AllowedOrigins is left empty the bucket falls back to "*" for uploads,
+  # which is only acceptable for throwaway dev stacks. Set the parameter.
+  HasAllowedOrigins: !Not [!Equals [!Ref AllowedOrigins, '']]
+  # Without an email the alerts topic is still created (alarms need a target)
+  # but has no subscriber - alarms fire silently into the console.
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
+
+Resources:
+  PropertiesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref DynamoDbTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: area-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: building-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CrmTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CrmDynamoDbTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+        - AttributeName: GSI4PK
+          AttributeType: S
+        - AttributeName: GSI4SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: owner-property-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # Cross-tenant marketplace index (properties.realestateflow.in).
+        #
+        # Every other index here is partitioned by TENANT#, which is exactly
+        # right for the CRM and exactly wrong for a consumer marketplace that
+        # has to answer "3BHK in Bangalore under 1.5Cr" across every agency at
+        # once. Fanning that out as one Query per tenant would get slower with
+        # every customer we sign.
+        #
+        # Partitioned by city rather than one PUBLIC# bucket: a single
+        # partition holding every listing in the country would be the hottest
+        # key in the table and is capped at 3000 RCU. Cities are a natural,
+        # enumerable shard, and city is the first thing a buyer filters on
+        # anyway, so it becomes a key condition instead of a filter.
+        #
+        # SPARSE BY DESIGN: only listings an agency has opted into the
+        # marketplace carry GSI4PK at all. Unpublishing must REMOVE the
+        # attribute, not blank it — see setMarketplaceIndexKeys in
+        # crmDynamodbService.js.
+        - IndexName: marketplace-index
+          KeySchema:
+            - AttributeName: GSI4PK
+              KeyType: HASH
+            - AttributeName: GSI4SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+      # NOTE: the semantic-property-search vector index is deliberately NOT
+      # declared here. CloudFormation does not support DynamoDB vector indexes.
+      #
+      # `VectorIndexes` is a real parameter — of the DynamoDB *CreateTable API*,
+      # not of AWS::DynamoDB::Table. Putting it in this template passes
+      # `aws cloudformation validate-template` (syntax only) and then fails every
+      # changeset with an opaque
+      #   "The following hook(s)/validation failed: [AWS::EarlyValidation::PropertyValidation]"
+      # that names no resource or property. That blocked all prod deploys of this
+      # stack on 2026-09-02. Same shape as the earlier LifecycleConfiguration
+      # `Expiration` vs `ExpirationInDays` bug: an API field that looks like a
+      # CFN property but isn't one.
+      #
+      # The index is created out-of-band instead, against the table this stack
+      # owns, by:
+      #     agency-app/api/infra/create-vector-index.sh <dev|prod>
+      # which calls UpdateTable with --vector-index-updates. Run it after this
+      # stack has deployed. It is idempotent and safe to re-run.
+      #
+      # Design constraints that script encodes (kept here because they belong
+      # with the table definition, and see
+      # docs/proposals/agent-channel-architecture/05-retrieval-and-vector-search.md):
+      #
+      # Three things are IMMUTABLE once created — changing any of them means
+      # delete + recreate + a full re-backfill of every embedding:
+      #   - DistanceFunction
+      #   - the Projection NonKeyAttributes set
+      #   - the vector dimension (fixed by EMBEDDING_DIMENSIONS on the app side)
+      #
+      # tenantId as the SearchSchema HASH is NOT optional and must never be
+      # removed. AWS requires the partition key value in every SearchVectors
+      # call, so tenant scoping becomes an API-level requirement that fails the
+      # call if omitted, rather than a convention a developer has to remember.
+      # Without it, one search would rank vectors from every agency in the
+      # system and return their data in the response body.
+      #
+      # NonKeyAttributes must carry every field used for post-search range
+      # filtering (price, bhk, status), because inline filters support equality
+      # only and the range predicates run in Lambda against whatever the index
+      # projected. Adding a field later is not possible without a rebuild.
+
+  # Embedded chunks of each agency's policy documents, for the voice agent's
+  # answer_policy_question tool and the WhatsApp / web chat agents.
+  #
+  # Separate from CrmTable on purpose. A DynamoDB vector index's projection and
+  # distance function are immutable: changing either means delete, recreate and
+  # re-embed everything in the index. Sharing one index between policies and
+  # properties would make any future policy field a full re-embed of every
+  # property. Two tables, two indexes, two independent blast radii.
+  #
+  # The vector index itself is NOT declared here -- CloudFormation has no
+  # schema for it. It is created out of band by
+  # agency-app/api/infra/create-vector-index.sh, which is idempotent.
+  KnowledgeChunksTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref KnowledgeChunksTableName
+      # On-demand is a hard requirement for vector indexes, not a preference.
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+
+      # PK: TENANT#<tenantId>#DOC#<policyId>, SK: CHUNK#<00000-padded index>.
+      # Every chunk of one document shares a partition, so re-indexing a
+      # document is a single Query plus a batched delete -- no scan, and no way
+      # to touch another tenant's chunks by accident.
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+  AgencyConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgencyConfigTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: TenantId
+          AttributeType: S
+        - AttributeName: connectedWhatsAppPhone
+          AttributeType: S
+        - AttributeName: instagramWebhookToken
+          AttributeType: S
+        - AttributeName: agencySlug
+          AttributeType: S
+        - AttributeName: adminEmail
+          AttributeType: S
+        - AttributeName: adminPhone
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: TenantId
+          KeyType: HASH
+
+      # Resolves tenantId from a connected WhatsApp number without a full
+      # table Scan (agency-app/api/agencyConfigService.js:getTenantIdByConnectedWhatsAppPhone).
+      # Not every item has connectedWhatsAppPhone set (only agencies that have
+      # connected WhatsApp), which is fine for a GSI hash key -- items missing
+      # the attribute simply don't appear in the index.
+      GlobalSecondaryIndexes:
+        - IndexName: connectedWhatsAppPhone-index
+          KeySchema:
+            - AttributeName: connectedWhatsAppPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # Same reasoning as the WhatsApp index: the Instagram/ManyChat webhook
+        # resolves its tenant from this token on EVERY inbound lead, and did so
+        # with a full-table Scan. Only agencies with the Instagram pipeline
+        # enabled have the attribute, so they are the only items in the index.
+        - IndexName: instagramWebhookToken-index
+          KeySchema:
+            - AttributeName: instagramWebhookToken
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # Resolves tenantId from the public-pages subdomain label
+        # (agency-app/api/publicListingService.js:getTenantIdByAgencySlug). This runs on
+        # every anonymous page render, crawlers included, so a Scan here would
+        # be both the hottest and the most expensive read in the system.
+        # Only agencies that have claimed a slug carry the attribute, so the
+        # index holds just those items.
+        - IndexName: agencySlug-index
+          KeySchema:
+            - AttributeName: agencySlug
+              KeyType: HASH
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes:
+              - TenantId
+        # adminEmail-index / adminPhone-index: reality-flow-authentication reads
+        # this same table directly (see AgencyConfigTableArn param on that stack)
+        # to resolve a pre-onboarded admin by email/phone at login time, mirroring
+        # the AdminEmailIndex/AdminPhoneIndex GSIs that service used to keep on
+        # its own separate, now-retired AgencyConfig table. Single source of
+        # truth for agency config lives here — see docs/proposals/
+        # agency-config-single-source/ for why the two tables existed and why
+        # they were consolidated.
+        - IndexName: adminEmail-index
+          KeySchema:
+            - AttributeName: adminEmail
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        # Added in a separate deploy from adminEmail-index above — DynamoDB
+        # rejects a stack update with "Cannot perform more than one GSI
+        # creation or deletion in a single update" (confirmed live 2026-09-12).
+        # This one was deployed once adminEmail-index reported ACTIVE.
+        - IndexName: adminPhone-index
+          KeySchema:
+            - AttributeName: adminPhone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  CreditsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CreditsTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: actionType-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  CreditConfigTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref CreditConfigTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: configKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: configKey
+          KeyType: HASH
+
+  UserCategoriesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref UserCategoriesTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: phone
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: phone
+          KeyType: HASH
+        - AttributeName: tenantId
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AgentAuditTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AgentAuditTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  AiEmployeeProvisioningTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AiEmployeeProvisioningTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: tenantId
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: ai-employee
+
+  AreasTableCloudberry:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref AreasTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-city-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  EnquiriesTableCloudberry:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref EnquiriesTableNameCloudberry
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-status-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  B2BLeadsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref B2BLeadsTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: leadId
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: submittedAt
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: leadId
+          KeyType: HASH
+
+      GlobalSecondaryIndexes:
+        - IndexName: tenant-date-index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: submittedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  KhataTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref KhataTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: property-settlement-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        - IndexName: tenant-settlement-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref NotificationsTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: unread-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  PushTokensTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref PushTokensTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      # FCM retires a token after ~270 days idle. Letting DynamoDB expire our
+      # copy keeps the registry from filling with tokens for uninstalled apps
+      # that never reached the unregister endpoint.
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+      GlobalSecondaryIndexes:
+        # token-index: find every registration of one token, so signing in on a
+        # handset a colleague used evicts their row instead of silently
+        # inheriting their notifications.
+        - IndexName: token-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # ============================================================
+  # Real Estate Management Tables (Developers, Areas, Projects)
+  # ============================================================
+
+  DevelopersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref DevelopersTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  RealEstateAreasTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref RealEstateAreasTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI3: Location index (tenant + city/emirate for geographic filtering)
+        - IndexName: location-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  ProjectsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Ref ProjectsTableName
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+        - AttributeName: GSI3PK
+          AttributeType: S
+        - AttributeName: GSI3SK
+          AttributeType: S
+        - AttributeName: GSI4PK
+          AttributeType: S
+        - AttributeName: GSI4SK
+          AttributeType: S
+        - AttributeName: GSI5PK
+          AttributeType: S
+        - AttributeName: GSI5SK
+          AttributeType: S
+
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        # GSI1: Developer index (tenant + developerId for projects by developer)
+        - IndexName: developer-index
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI2: Area index (tenant + areaId for projects by area/community)
+        - IndexName: area-index
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI3: Status index (tenant + status for filtering active/completed projects)
+        - IndexName: status-index
+          KeySchema:
+            - AttributeName: GSI3PK
+              KeyType: HASH
+            - AttributeName: GSI3SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI4: Search index (tenant + name/slug search)
+        - IndexName: search-index
+          KeySchema:
+            - AttributeName: GSI4PK
+              KeyType: HASH
+            - AttributeName: GSI4SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+        # GSI5: Slug lookup index (tenant + slug for URL-friendly lookups)
+        - IndexName: slug-index
+          KeySchema:
+            - AttributeName: GSI5PK
+              KeyType: HASH
+            - AttributeName: GSI5SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  DocumentsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref S3BucketName
+      VersioningConfiguration:
+        Status: Suspended
+      # This bucket holds call recordings, transcripts and analysis payloads -
+      # customer conversations, names and phone numbers. SSE-S3 (AES-256) is
+      # applied server-side on every write, including the browser's pre-signed
+      # PUT, and needs no client change. BucketKeyEnabled is harmless under
+      # SSE-S3 and avoids a re-write of this block if it ever moves to KMS.
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - BucketKeyEnabled: true
+            ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      # Storage hygiene only - deliberately NO expiration rule. Call recordings
+      # and property documents are customer records; nothing here deletes them.
+      # Object keys are tenant-prefixed (`<tenantId>/call-recordings/...`), and
+      # S3 prefix filters cannot wildcard a leading segment, so these rules are
+      # bucket-wide by necessity. Each one is chosen to be safe at that scope.
+      LifecycleConfiguration:
+        Rules:
+          # A browser that starts a pre-signed multipart upload and abandons it
+          # leaves parts that are billed but invisible in the console.
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+          # Versioning is Suspended, but any object versions written while it
+          # was enabled are still billed forever. Also clears delete markers
+          # left with no versions behind them.
+          - Id: ExpireNoncurrentVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+          - Id: RemoveExpiredDeleteMarkers
+            Status: Enabled
+            ExpiredObjectDeleteMarker: true
+          # Intelligent-Tiering, not STANDARD_IA: recordings go cold after the
+          # transcript is written, but property images stay hot and IA would
+          # add a per-GB retrieval charge to every page view. Intelligent
+          # tiering has no retrieval fee and moves objects back on access.
+          - Id: TierColdObjects
+            Status: Enabled
+            Transitions:
+              - StorageClass: INTELLIGENT_TIERING
+                TransitionInDays: 30
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - "*"
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedHeaders:
+              - "*"
+            MaxAge: 3600
+          # Browsers upload call recordings straight to S3 with a pre-signed
+          # PUT, which requires PUT to be allowed and ETag to be readable.
+          # Scoped to AllowedOrigins so a leaked pre-signed URL cannot be
+          # replayed from an arbitrary origin.
+          - AllowedOrigins: !If
+              - HasAllowedOrigins
+              - !Split [",", !Ref AllowedOrigins]
+              - ["*"]
+            AllowedMethods:
+              - PUT
+              - POST
+            AllowedHeaders:
+              - "*"
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3600
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # Refuse any request that did not arrive over TLS. Pre-signed URLs are handed
+  # to browsers and could in principle be replayed over plain HTTP, which would
+  # put a recording's bytes on the wire in the clear. The bucket had no policy
+  # before this, so nothing is being replaced here.
+  DocumentsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocumentsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt DocumentsBucket.Arn
+              - !Sub "${DocumentsBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  # ============== Call Intelligence pipeline ==============
+
+  CallRecordingDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-realestateflow-call-recordings-dlq"
+      MessageRetentionPeriod: 1209600 # 14 days
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  CallRecordingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${EnvironmentName}-realestateflow-call-recordings"
+      # Must be >= the worker timeout, otherwise SQS redelivers a message that
+      # is still being processed.
+      VisibilityTimeout: !Ref CallIntelWorkerTimeout
+      MessageRetentionPeriod: !Ref CallRecordingQueueRetentionSeconds
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt CallRecordingDlq.Arn
+        maxReceiveCount: 5
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  ApiLambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-api-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: RealEstateApiDynamoAndS3Access
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:DescribeTable
+                  # New action for vector search — existing DynamoDB read
+                  # permissions do NOT grant it. Without this, writes and Query
+                  # keep working and only semantic search fails.
+                  - dynamodb:SearchVectors
+                Resource:
+                  - !GetAtt PropertiesTable.Arn
+                  - !GetAtt CrmTable.Arn
+                  - !GetAtt AgencyConfigTable.Arn
+                  - !GetAtt KnowledgeChunksTable.Arn
+                  - !GetAtt AreasTableCloudberry.Arn
+                  - !GetAtt EnquiriesTableCloudberry.Arn
+                  - !GetAtt B2BLeadsTable.Arn
+                  - !GetAtt KhataTable.Arn
+                  - !GetAtt NotificationsTable.Arn
+                  - !GetAtt PushTokensTable.Arn
+                  - !GetAtt DevelopersTable.Arn
+                  - !GetAtt RealEstateAreasTable.Arn
+                  - !GetAtt ProjectsTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${NpsResponsesTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}"
+                  - !GetAtt CreditsTable.Arn
+                  - !GetAtt CreditConfigTable.Arn
+                  - !GetAtt UserCategoriesTable.Arn
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${WebhookLogTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TenantApiKeysTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${TenantApiKeysTableName}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthCodesTableName}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${OAuthConnectionsTableName}/index/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  # SearchVectors is granted on the TABLE arn above as well,
+                  # but the call targets an index, and DynamoDB authorises
+                  # index-targeted actions against the index arn - which is
+                  # the whole reason this second statement exists for Query.
+                  # Omitting it here fails only at the first live semantic
+                  # search, long after the index is built and backfilled.
+                  - dynamodb:SearchVectors
+                Resource:
+                  - !Sub "${PropertiesTable.Arn}/index/*"
+                  - !Sub "${CrmTable.Arn}/index/*"
+                  - !Sub "${AreasTableCloudberry.Arn}/index/*"
+                  - !Sub "${EnquiriesTableCloudberry.Arn}/index/*"
+                  - !Sub "${B2BLeadsTable.Arn}/index/*"
+                  - !Sub "${KhataTable.Arn}/index/*"
+                  - !Sub "${NotificationsTable.Arn}/index/*"
+                  - !Sub "${PushTokensTable.Arn}/index/*"
+                  - !Sub "${DevelopersTable.Arn}/index/*"
+                  - !Sub "${RealEstateAreasTable.Arn}/index/*"
+                  - !Sub "${ProjectsTable.Arn}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${GrievancesTableName}/index/*"
+                  - !Sub "${CreditsTable.Arn}/index/*"
+                  - !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${WebhookLogTableName}/index/*"
+                  - !Sub "${UserCategoriesTable.Arn}/index/*"
+                  - !Sub "${AgencyConfigTable.Arn}/index/*"
+                  - !Sub "${KnowledgeChunksTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:TransactWriteItems
+                Resource:
+                  - !GetAtt CreditsTable.Arn
+                  - !GetAtt CrmTable.Arn
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub "${DocumentsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+              # Call Intelligence: queue jobs and consume them in the worker.
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:ChangeMessageVisibility
+                Resource:
+                  - !GetAtt CallRecordingQueue.Arn
+                  - !GetAtt CallRecordingDlq.Arn
+              # Amazon Transcribe batch jobs read the audio from, and write the
+              # transcript back to, the documents bucket.
+              - Effect: Allow
+                Action:
+                  - transcribe:StartTranscriptionJob
+                  - transcribe:GetTranscriptionJob
+                  - transcribe:ListTranscriptionJobs
+                Resource: "*"
+              # Runtime config: both Lambdas fetch their env vars from SSM at
+              # cold start (config/ssmBootstrap.js) instead of carrying them
+              # directly, to stay under Lambda's 4KB env var limit. Scoped to
+              # this environment's own parameter namespace only.
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
+              # SecureString parameters are encrypted under the account's
+              # default SSM-managed KMS key (alias/aws/ssm) - this grants
+              # decrypt only when the call is made via the SSM service
+              # itself, not a general KMS grant.
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  ApiLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-api"
+      Runtime: !Ref LambdaRuntime
+      Handler: lambda-handler.handler
+      Role: !GetAtt ApiLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Environment:
+        Variables:
+          # Everything this Lambda used to get as a direct env var (~100
+          # values: table names, API keys, feature flags) now lives in SSM
+          # under this prefix instead, synced there by
+          # infra/cicd/agency-app/api/deploy.sh - see config/ssmBootstrap.js.
+          # Kept here directly, not in SSM: NODE_ENV/LOG_LEVEL are needed
+          # before hydration can even run (bootstrap itself logs), and this
+          # is what tells the Lambda where to look.
+          NODE_ENV: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
+          # exists once CloudFormation creates the queue, so it can't be
+          # pre-synced to SSM. Stays direct, same as before this migration.
+          CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
+
+  # ============== Call Intelligence worker ==============
+  # Same deployment package as the API Lambda, different handler. It reuses
+  # ApiLambdaExecutionRole so every CRM table/S3 permission the shared services
+  # need is already granted.
+  CallRecordingWorkerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-call-recording-worker"
+      Runtime: !Ref LambdaRuntime
+      Handler: workers/callRecordingWorker.handler
+      Role: !GetAtt ApiLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      MemorySize: !Ref CallIntelWorkerMemorySize
+      Timeout: !Ref CallIntelWorkerTimeout
+      Environment:
+        Variables:
+          # Same SSM-hydration design as ApiLambdaFunction above - see the
+          # comment there. Same path prefix (both Lambdas share one config
+          # namespace per environment).
+          NODE_ENV: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+          # A CFN resource !Ref (the SQS queue's URL), not a Parameter - only
+          # exists once CloudFormation creates the queue, so it can't be
+          # pre-synced to SSM. Stays direct, same as before this migration.
+          CALL_RECORDING_QUEUE_URL: !Ref CallRecordingQueue
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  CallRecordingWorkerEventSource:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt CallRecordingQueue.Arn
+      FunctionName: !GetAtt CallRecordingWorkerFunction.Arn
+      BatchSize: 5
+      MaximumBatchingWindowInSeconds: 5
+      # One bad message must not force redelivery of the whole batch.
+      FunctionResponseTypes:
+        - ReportBatchItemFailures
+
+  RealEstatePublicRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-public-api"
+      BinaryMediaTypes:
+        - "*/*"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  PublicApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  PublicApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  PublicApiResourcesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
+      Parameters:
+        RestApiId: !Ref RealEstatePublicRestApi
+        RootResourceId: !GetAtt RealEstatePublicRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+
+  PublicApiResourcesStackPart2:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldDeployApiRoutePart2
+    DependsOn:
+      - PublicApiResourcesStack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrlPart2
+      Parameters:
+        RestApiId: !Ref RealEstatePublicRestApi
+        RootResourceId: !GetAtt RealEstatePublicRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        ApiResourceId: !GetAtt PublicApiResourcesStack.Outputs.ApiResourceId
+        CrmContactResourceId: !GetAtt PublicApiResourcesStack.Outputs.CrmContactResourceId
+        CrmResourceId: !GetAtt PublicApiResourcesStack.Outputs.CrmResourceId
+
+  PublicApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - PublicApiResourcesStack
+    Properties:
+      RestApiId: !Ref RealEstatePublicRestApi
+      StageName: !Ref PublicApiStageName
+
+  PublicApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - PublicApiDeployment
+    Properties:
+      DomainName: !Ref PublicApiDomainName
+      RestApiId: !Ref RealEstatePublicRestApi
+      Stage: !Ref PublicApiStageName
+      BasePath: !Ref PublicApiBasePath
+
+  PublicApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RealEstatePublicRestApi}/*/*/*"
+
+  RealEstateCrmRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-crm-api"
+      BinaryMediaTypes:
+        - "*/*"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  CrmApiGatewayResponseDefault4XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: DEFAULT_4XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiGatewayResponseDefault5XX:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: DEFAULT_5XX
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiGatewayResponseRequestTooLarge:
+    Type: AWS::ApiGateway::GatewayResponse
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      ResponseType: REQUEST_TOO_LARGE
+      ResponseParameters:
+        gatewayresponse.header.Access-Control-Allow-Origin: "'*'"
+        gatewayresponse.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Requested-With,x-tenant-id'"
+        gatewayresponse.header.Access-Control-Allow-Methods: "'GET,POST,PUT,DELETE,OPTIONS,PATCH'"
+
+  CrmApiResourcesStackV2:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrl
+      Parameters:
+        RestApiId: !Ref RealEstateCrmRestApi
+        RootResourceId: !GetAtt RealEstateCrmRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+
+  CrmApiResourcesStackPart2:
+    Type: AWS::CloudFormation::Stack
+    Condition: ShouldDeployApiRoutePart2
+    DependsOn:
+      - CrmApiResourcesStackV2
+    Properties:
+      TemplateURL: !Ref ApiGatewayRoutesTemplateUrlPart2
+      Parameters:
+        RestApiId: !Ref RealEstateCrmRestApi
+        RootResourceId: !GetAtt RealEstateCrmRestApi.RootResourceId
+        LambdaFunctionArn: !GetAtt ApiLambdaFunction.Arn
+        AllowOrigin: "*"
+        AllowHeaders: "Content-Type,Authorization,X-Requested-With,x-tenant-id"
+        AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        ApiResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.ApiResourceId
+        CrmContactResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.CrmContactResourceId
+        CrmResourceId: !GetAtt CrmApiResourcesStackV2.Outputs.CrmResourceId
+
+  CrmApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - CrmApiResourcesStackV2
+    Properties:
+      RestApiId: !Ref RealEstateCrmRestApi
+      StageName: !Ref CrmApiStageName
+
+  CrmApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - CrmApiDeployment
+    Properties:
+      DomainName: !Ref CrmApiDomainName
+      RestApiId: !Ref RealEstateCrmRestApi
+      Stage: !Ref CrmApiStageName
+      BasePath: !Ref CrmApiBasePath
+
+  CrmApiLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ApiLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RealEstateCrmRestApi}/*/*/*"
+
+  # ========================================================================
+  # CRON JOBS & SCHEDULED LAMBDAS  Organized by function type
+  # ========================================================================
+
+  # --------------------------------------------------------------------------
+  # 1. BILLING & CREDITS  Daily resets, subscription management
+  # --------------------------------------------------------------------------
+
+  CreditResetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-credit-reset-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CreditResetPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+
+  CreditResetFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-credit-reset"
+      Runtime: nodejs20.x
+      Handler: scripts/credit-reset-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt CreditResetRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+
+
+  CreditResetRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-credit-reset"
+      Description: 'Trigger credit reset Lambda daily at 00:30 IST (18:30 UTC)'
+      ScheduleExpression: 'cron(30 18 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt CreditResetFunction.Arn
+          Id: CreditResetTarget
+
+  CreditResetPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreditResetFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt CreditResetRule.Arn
+
+  TrialReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-trial-reminder-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TrialReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  TrialReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-trial-reminder"
+      Runtime: nodejs20.x
+      Handler: scripts/trial-reminder-cron.handler
+      Role: !GetAtt TrialReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+
+
+  TrialReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-trial-reminder"
+      Description: 'Trigger trial reminder Lambda daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TrialReminderFunction.Arn
+          Id: TrialReminderTarget
+
+  TrialReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TrialReminderFunction
+      Action: 'lambda:InvokeFunction'
+      Principal: 'events.amazonaws.com'
+      SourceArn: !GetAtt TrialReminderRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 2. DATA QUALITY & ALERTS  Incomplete data, expiring agreements, team summary
+  # --------------------------------------------------------------------------
+
+  IncompleteDataRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-incomplete-data-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: IncompleteDataPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  IncompleteDataFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-incomplete-data"
+      Runtime: nodejs20.x
+      Handler: scripts/incomplete-data-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt IncompleteDataRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  IncompleteDataRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-incomplete-data"
+      Description: 'Trigger incomplete data check daily at 09:00 IST (03:30 UTC)'
+      ScheduleExpression: 'cron(30 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt IncompleteDataFunction.Arn
+          Id: IncompleteDataTarget
+
+  IncompleteDataPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref IncompleteDataFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IncompleteDataRule.Arn
+
+  ExpiringAgreementsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-expiring-agreements-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: ExpiringAgreementsPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  ExpiringAgreementsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-expiring-agreements"
+      Runtime: nodejs20.x
+      Handler: scripts/expiring-agreements-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt ExpiringAgreementsRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  ExpiringAgreementsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-expiring-agreements"
+      Description: 'Trigger expiring agreements alert daily at 08:30 IST (03:00 UTC)'
+      ScheduleExpression: 'cron(0 3 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ExpiringAgreementsFunction.Arn
+          Id: ExpiringAgreementsTarget
+
+  ExpiringAgreementsPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ExpiringAgreementsFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ExpiringAgreementsRule.Arn
+
+  TeamSummaryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-team-summary-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: TeamSummaryPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  TeamSummaryFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-team-summary"
+      Runtime: nodejs20.x
+      Handler: scripts/team-summary-cron.handler
+      Timeout: 300
+      MemorySize: 256
+      Role: !GetAtt TeamSummaryRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CRM_TABLE_NAME: !Ref CrmDynamoDbTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          AUTH_SERVICE_DOMAIN_NAME: !Ref AuthServiceDomainName
+          AUTH_SERVICE_BASE_PATH: !Ref AuthServiceBasePath
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          ADAPTER_INTERNAL_API_KEY: !Ref AdapterInternalApiKey
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BREVO_API_KEY: !Ref BrevoApiKey
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: 'ses'
+
+
+  TeamSummaryRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-team-summary"
+      Description: 'Trigger team summary Lambda daily at 18:00 IST (12:30 UTC)'
+      ScheduleExpression: 'cron(30 12 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TeamSummaryFunction.Arn
+          Id: TeamSummaryTarget
+
+  TeamSummaryPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref TeamSummaryFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt TeamSummaryRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 3. ESCALATIONS & NOTIFICATIONS  SLA breaches, founder alerts
+  # --------------------------------------------------------------------------
+
+  EscalationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-escalation-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: EscalationPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+
+  EscalationFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-ai-employee-escalation"
+      Runtime: nodejs20.x
+      Handler: scripts/escalation-cron.handler
+      Role: !GetAtt EscalationRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          AWS_REGION_OVERRIDE: ap-south-1
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          BREVO_API_KEY: !Ref BrevoApiKey
+          BREVO_AI_EMPLOYEE_ESCALATED_FOUNDER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedFounderTemplateId
+          BREVO_AI_EMPLOYEE_ESCALATED_CUSTOMER_TEMPLATE_ID: !Ref BrevoAiEmployeeEscalatedCustomerTemplateId
+          FOUNDER_EMAIL: !Ref FounderEmail
+          FOUNDER_WHATSAPP: !Ref FounderWhatsApp
+          POSTHOG_KEY_SERVER: !Ref PostHogKeyServer
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+
+  EscalationSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-ai-employee-escalation"
+      Description: 'Every 6 hours  check pending AI Employee provisioning SLA'
+      ScheduleExpression: 'rate(6 hours)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt EscalationFunction.Arn
+          Id: EscalationTarget
+
+  EscalationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref EscalationFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt EscalationSchedule.Arn
+
+  # Drains notificationDynamodbService.js's SCHEDULED queue (meeting
+  # reminders, khata reminders) across every tenant. SSM-hydrated like the
+  # main API Lambda rather than given its own Environment.Variables list, so
+  # it reads the same NOTIFICATIONS_TABLE_NAME/PUSH_TOKENS_TABLE/SES/Brevo/
+  # Firebase config from one source of truth instead of a second copy that
+  # can drift from it.
+  MeetingReminderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: MeetingReminderPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt NotificationsTable.Arn
+                  - !GetAtt PushTokensTable.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:Query
+                Resource:
+                  - !Sub "${PushTokensTable.Arn}/index/*"
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+              # Same SSM read as ApiLambdaRole — see its policy comment.
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                  - ssm:GetParametersByPath
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/${EnvironmentName}/realestateflow/server/*"
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    kms:ViaService: !Sub "ssm.${AWS::Region}.amazonaws.com"
+
+  MeetingReminderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Runtime: nodejs20.x
+      Handler: scripts/meeting-reminder-cron.handler
+      Role: !GetAtt MeetingReminderRole.Arn
+      Timeout: 60
+      MemorySize: 128
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          NODE_ENV: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          SSM_CONFIG_PATH: !Sub "/${EnvironmentName}/realestateflow/server/"
+
+  MeetingReminderRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-meeting-reminder"
+      Description: 'Every 5 minutes  fire due meeting/khata reminders (push + email to assignee + agency owner)'
+      ScheduleExpression: 'rate(5 minutes)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt MeetingReminderFunction.Arn
+          Id: MeetingReminderTarget
+
+  MeetingReminderPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MeetingReminderFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt MeetingReminderRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 4. LEAD MANAGEMENT  Qualification, routing, follow-ups
+  # --------------------------------------------------------------------------
+
+  LeadQualifierRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-qualifier-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadQualifierPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserCategoriesTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${UserCategoriesTableName}/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+
+  LeadQualifierFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-qualifier"
+      Runtime: nodejs20.x
+      Handler: scripts/lead-qualifier-handler.handler
+      Role: !GetAtt LeadQualifierRole.Arn
+      Timeout: 60
+      MemorySize: 512
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
+
+
+  LeadQualifierRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-qualifier"
+      EventPattern:
+        source:
+          - 'crm.leads'
+        detail-type:
+          - 'lead.created'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LeadQualifierFunction.Arn
+          Id: LeadQualifierTarget
+
+  LeadQualifierPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadQualifierFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadQualifierRule.Arn
+
+  LeadRouterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-router-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadRouterPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+
+  LeadRouterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-router"
+      Runtime: nodejs20.x
+      Handler: scripts/lead-router-handler.handler
+      Role: !GetAtt LeadRouterRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
+
+
+  LeadRouterRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-router"
+      Description: 'Trigger lead routing when a lead is qualified by the agent'
+      EventPattern:
+        source:
+          - 'crm.leads'
+        detail-type:
+          - 'lead.qualified'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LeadRouterFunction.Arn
+          Id: LeadRouterTarget
+
+  LeadRouterPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadRouterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadRouterRule.Arn
+
+  LeadFollowupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-lead-followup-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: LeadFollowupPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+              # Phase 2: Credits, agency config, and provisioning tables
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
+              - Effect: Allow
+                Action:
+                  - ses:SendEmail
+                  - ses:SendRawEmail
+                Resource:
+                  - !Sub 'arn:aws:ses:${AWS::Region}:${AWS::AccountId}:identity/${SesFromEmail}'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+              # Phase 2: CloudWatch metrics emission
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  LeadFollowupFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-lead-followup"
+      Runtime: nodejs20.x
+      Handler: scripts/lead-followup-cron.handler
+      Role: !GetAtt LeadFollowupRole.Arn
+      Timeout: 300
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          AWS_SES_FROM_EMAIL: !Ref SesFromEmail
+          EMAIL_PROVIDER_PRIMARY: !Ref EmailProviderPrimary
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
+          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
+          # Phase 2: LLM & observability
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
+          AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
+
+
+  LeadFollowupRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-lead-followup"
+      Description: 'Daily at 04:00 IST  send follow-up nudges for stale leads'
+      ScheduleExpression: 'cron(30 22 * * ? *)'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt LeadFollowupFunction.Arn
+          Id: LeadFollowupTarget
+
+  LeadFollowupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref LeadFollowupFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LeadFollowupRule.Arn
+
+  # --------------------------------------------------------------------------
+  # 5. MESSAGING  WhatsApp processing
+  # --------------------------------------------------------------------------
+
+  WhatsAppProcessorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-role"
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WhatsAppProcessorPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                  - dynamodb:BatchGetItem
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CrmDynamoDbTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}/*'
+              # Phase 2: Credits, agency config, and provisioning tables
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                  - dynamodb:Scan
+                Resource:
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${CreditsTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AgencyConfigTableName}/*'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}'
+                  - !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${AiEmployeeProvisioningTableName}/*'
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/anthropic.claude-3-haiku-20240307-v1:0'
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                  - dynamodb:GetItem
+                  - dynamodb:Query
+                  - dynamodb:UpdateItem
+                Resource:
+                  - !GetAtt AgentAuditTable.Arn
+                  - !Sub '${AgentAuditTable.Arn}/index/*'
+              # Phase 2: CloudWatch metrics emission
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  WhatsAppProcessorFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor"
+      Runtime: nodejs20.x
+      Handler: scripts/whatsapp-message-processor.handler
+      Role: !GetAtt WhatsAppProcessorRole.Arn
+      Timeout: 120
+      MemorySize: 256
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          CRM_DYNAMODB_TABLE_NAME: !Ref CrmDynamoDbTableName
+          SUBSCRIPTIONS_TABLE: !Ref SubscriptionsTableName
+          CREDITS_TABLE_NAME: !Ref CreditsTableName
+          CREDIT_CONFIG_TABLE_NAME: !Ref CreditConfigTableName
+          USER_CATEGORIES_TABLE_NAME: !Ref UserCategoriesTableName
+          BAILEY_ENABLED: !Ref BaileyEnabled
+          BAILEY_MODE: !Ref BaileyMode
+          BAILEY_API_KEY: !Ref BaileyApiKey
+          BAILEY_API_ENDPOINT: !Ref BaileyApiEndpoint
+          BAILEY_API_PREFIX: !Ref BaileyApiPrefix
+          AGENTS_ENABLED: !Ref AgentsEnabled
+          AGENT_AUDIT_TABLE_NAME: !Ref AgentAuditTableName
+          AGENT_ACTION_CREDITS: !Ref AgentActionCredits
+          AGENT_TOOL_LOOP_ENABLED: !Ref AgentToolLoopEnabled
+          AI_EMPLOYEE_PROVISIONING_TABLE: !Ref AiEmployeeProvisioningTableName
+          AI_EMPLOYEE_ROLLOUT_PERCENTAGE: !Ref AiEmployeeRolloutPercentage
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: !Ref AgencyConfigTableName
+          KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME: !Ref KnowledgeChunksTableName
+          # Phase 2: LLM & observability
+          LLM_PROVIDER: !Ref LlmProvider
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          CLOUDWATCH_METRICS_ENABLED: !Ref CloudwatchMetricsEnabled
+          CLOUDWATCH_NAMESPACE: !Ref CloudWatchNamespace
+          # Cap tool-result logging. The code default is 0 = uncapped ("fine
+          # for dev"), but this var was never set in CFN, so production ran
+          # uncapped and wrote whole CRM payloads to CloudWatch.
+          TOOL_LOG_MAX_RESULT_CHARS: !Ref ToolLogMaxResultChars
+          AI_ADMIN_WHATSAPP_NUMBERS: !Ref AiAdminWhatsAppNumbers
+
+
+  WhatsAppProcessorRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor"
+      Description: 'Process incoming WhatsApp messages from Bailey gateway'
+      EventPattern:
+        source:
+          - 'whatsapp.incoming'
+        detail-type:
+          - 'message.received'
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt WhatsAppProcessorFunction.Arn
+          Id: WhatsAppProcessorTarget
+
+  WhatsAppProcessorPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WhatsAppProcessorFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WhatsAppProcessorRule.Arn
+
+  # ==========================================================================
+  # OBSERVABILITY - alerting topic, alarms, dashboard
+  #
+  # Before this, the stack had ZERO CloudWatch alarms, ZERO dashboards and no
+  # SNS topic: a Lambda could fail every invocation and nothing would page.
+  # These alarm on AWS-native metrics (Lambda Errors/Throttles, SQS depth,
+  # DynamoDB throttles) rather than the app's custom metrics, deliberately:
+  # the custom metrics in agency-app/api/observability/cloudwatch.js carry a TenantId
+  # dimension, so an alarm on them would only ever watch ONE tenant. Those
+  # belong on the dashboard (via SEARCH expressions), not on alarms.
+  # ==========================================================================
+
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${EnvironmentName}-realestateflow-alerts"
+      DisplayName: RealEstateFlow Alerts
+
+  AlertsTopicEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Condition: HasAlertEmail
+    Properties:
+      TopicArn: !Ref AlertsTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # -- WhatsApp processor: the user-facing critical path --------------------
+  WhatsAppProcessorErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-errors"
+      AlarmDescription: >-
+        WhatsApp message processor is throwing. Users are sending messages and
+        not getting replies. The processor rethrows after releasing its dedup
+        claim, so these are retried -- sustained errors mean retries are also
+        failing.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  WhatsAppProcessorThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-throttles"
+      AlarmDescription: WhatsApp processor is being throttled - inbound messages are queueing or dropping.
+      Namespace: AWS/Lambda
+      MetricName: Throttles
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  WhatsAppProcessorDurationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-whatsapp-processor-slow"
+      AlarmDescription: >-
+        p95 processing time is approaching the Lambda timeout. Watch this when
+        enabling AgentToolLoopEnabled - a multi-step turn is legitimately
+        slower than a single-shot one, and the loop's own wall-clock budget
+        (AGENT_TOOL_LOOP_BUDGET_MS, default 25s) must stay below this timeout.
+      Namespace: AWS/Lambda
+      MetricName: Duration
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WhatsAppProcessorFunction
+      ExtendedStatistic: p95
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 30000
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # -- Main API --------------------------------------------------------------
+  ApiLambdaErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-api-lambda-errors"
+      AlarmDescription: Main CRM API Lambda is erroring - the web app is degraded.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ApiLambdaFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+      OKActions: [!Ref AlertsTopic]
+
+  # -- Call recording pipeline -----------------------------------------------
+  CallRecordingDlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-dlq-not-empty"
+      AlarmDescription: >-
+        A call recording failed all 5 delivery attempts and landed in the DLQ.
+        Any non-zero depth means a customer's recording will never be
+        transcribed unless someone intervenes.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CallRecordingDlq.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  CallRecordingBacklogAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-backlog"
+      AlarmDescription: Recordings are queueing faster than the worker drains them.
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt CallRecordingQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1800
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  CallRecordingWorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-call-recording-worker-errors"
+      AlarmDescription: Call recording worker is erroring - transcription/analysis is failing.
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref CallRecordingWorkerFunction
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # -- Data layer ------------------------------------------------------------
+  CrmTableThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${EnvironmentName}-realestateflow-crm-table-throttled"
+      AlarmDescription: >-
+        CrmTable requests are being throttled. Note this table is on-demand,
+        so throttling usually means a hot partition or a burst past the
+        table's adaptive capacity - often a full-table Scan (several search
+        paths still Scan; see the TODO(MED-1) in crmDynamodbService.js).
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref CrmDynamoDbTableName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: [!Ref AlertsTopic]
+
+  # -- Dashboard -------------------------------------------------------------
+  OpsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${EnvironmentName}-realestateflow-ops"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text", "x": 0, "y": 0, "width": 24, "height": 2,
+              "properties": { "markdown": "# RealEstateFlow - ${EnvironmentName}\n**WhatsApp** is the primary channel. If `whatsapp-processor-errors` is firing, users are not getting replies. Agent metrics are per-tenant (SEARCH expressions below)." }
+            },
+            {
+              "type": "metric", "x": 0, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "WhatsApp processor - invocations / errors / throttles",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "Sum" } ],
+                  [ ".", "Errors", ".", ".", { "stat": "Sum", "color": "#d62728" } ],
+                  [ ".", "Throttles", ".", ".", { "stat": "Sum", "color": "#ff7f0e" } ]
+                ],
+                "view": "timeSeries", "stacked": false, "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 2, "width": 12, "height": 6,
+              "properties": {
+                "title": "WhatsApp processor - duration (p50/p95/max) vs timeout",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${WhatsAppProcessorFunction}", { "stat": "p50" } ],
+                  [ "...", { "stat": "p95" } ],
+                  [ "...", { "stat": "Maximum" } ]
+                ],
+                "view": "timeSeries", "period": 300,
+                "annotations": { "horizontal": [ { "label": "alarm threshold 30s", "value": 30000 } ] }
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "Agent actions - invoked vs failed (all tenants)",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId,Action} MetricName=\"agent.action.invoked\"', 'Sum', 300))", "label": "invoked", "id": "e1" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId,Action} MetricName=\"agent.action.failed\"', 'Sum', 300))", "label": "failed", "id": "e2", "color": "#d62728" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 8, "width": 12, "height": 6,
+              "properties": {
+                "title": "Call recording pipeline - queue depth, DLQ, worker errors",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${CallRecordingQueue.QueueName}", { "stat": "Maximum", "label": "queue depth" } ],
+                  [ ".", ".", ".", "${CallRecordingDlq.QueueName}", { "stat": "Maximum", "label": "DLQ depth", "color": "#d62728" } ],
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${CallRecordingWorkerFunction}", { "stat": "Sum", "label": "worker errors" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "Main API Lambda - errors / duration",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${ApiLambdaFunction}", { "stat": "Sum", "color": "#d62728" } ],
+                  [ ".", "Duration", ".", ".", { "stat": "p95", "yAxis": "right" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 12, "y": 14, "width": 12, "height": 6,
+              "properties": {
+                "title": "DynamoDB - CrmTable consumed capacity & throttles",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${CrmDynamoDbTableName}", { "stat": "Sum" } ],
+                  [ ".", "ConsumedWriteCapacityUnits", ".", ".", { "stat": "Sum" } ],
+                  [ ".", "ThrottledRequests", ".", ".", { "stat": "Sum", "color": "#d62728" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            },
+            {
+              "type": "metric", "x": 0, "y": 20, "width": 24, "height": 6,
+              "properties": {
+                "title": "Webhooks & credits - received / invalid signature / insufficient credits",
+                "region": "${AWS::Region}",
+                "metrics": [
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},Provider} MetricName=\"webhook.received\"', 'Sum', 300))", "label": "webhooks received", "id": "w1" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},Provider} MetricName=\"webhook.signature_invalid\"', 'Sum', 300))", "label": "invalid signature", "id": "w2", "color": "#d62728" } ],
+                  [ { "expression": "SUM(SEARCH('{${CloudWatchNamespace},TenantId} MetricName=\"creditService.deductCredits.insufficient\"', 'Sum', 300))", "label": "insufficient credits", "id": "w3", "color": "#ff7f0e" } ]
+                ],
+                "view": "timeSeries", "period": 300
+              }
+            }
+          ]
+        }
+
+Outputs:
+  CallRecordingQueueUrlOutput:
+    Description: SQS queue URL for the call recording pipeline (CALL_RECORDING_QUEUE_URL)
+    Value: !Ref CallRecordingQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingQueueUrl"
+
+  CallRecordingDlqUrlOutput:
+    Description: Dead-letter queue URL for call recording jobs
+    Value: !Ref CallRecordingDlq
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingDlqUrl"
+
+  CallRecordingWorkerFunctionOutput:
+    Description: Call recording worker Lambda name (redeploy this together with the API Lambda)
+    Value: !Ref CallRecordingWorkerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-CallRecordingWorkerFunction"
+
+  DynamoDbTableNameOutput:
+    Description: Core DynamoDB table name to use in the backend .env
+    Value: !Ref DynamoDbTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDbTableName"
+
+  DynamoDbTableArnOutput:
+    Description: Core DynamoDB table ARN
+    Value: !GetAtt PropertiesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoDbTableArn"
+
+  CrmDynamoDbTableNameOutput:
+    Description: CRM DynamoDB table name to use in the backend .env (CRM_DYNAMODB_TABLE_NAME)
+    Value: !Ref CrmDynamoDbTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmDynamoDbTableName"
+
+  CrmDynamoDbTableArnOutput:
+    Description: CRM DynamoDB table ARN
+    Value: !GetAtt CrmTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmDynamoDbTableArn"
+
+  AgencyConfigTableNameOutput:
+    Description: Agency config DynamoDB table name for storing per-agency admin settings
+    Value: !Ref AgencyConfigTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-AgencyConfigTableName"
+
+  AgencyConfigTableArnOutput:
+    Description: Agency config DynamoDB table ARN
+    Value: !GetAtt AgencyConfigTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-AgencyConfigTableArn"
+
+  SubscriptionsTableNameOutput:
+    Description: Subscriptions DynamoDB table name (SUBSCRIPTIONS_TABLE)
+    Value: !Ref SubscriptionsTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-SubscriptionsTableName"
+
+  SubscriptionsTableArnOutput:
+    Description: Subscriptions DynamoDB table ARN
+    Value: !Sub 'arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${SubscriptionsTableName}'
+    Export:
+      Name: !Sub "${AWS::StackName}-SubscriptionsTableArn"
+
+  UserCategoriesTableNameOutput:
+    Description: User Categories DynamoDB table name (USER_CATEGORIES_TABLE_NAME)
+    Value: !Ref UserCategoriesTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-UserCategoriesTableName"
+
+  UserCategoriesTableArnOutput:
+    Description: User Categories DynamoDB table ARN
+    Value: !GetAtt UserCategoriesTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-UserCategoriesTableArn"
+
+  S3BucketNameOutput:
+    Description: S3 bucket name to use in the backend .env
+    Value: !Ref S3BucketName
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketName"
+
+  S3BucketArnOutput:
+    Description: S3 bucket ARN
+    Value: !GetAtt DocumentsBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-S3BucketArn"
+
+  EnquiriesTableNameOutput:
+    Description: Enquiries DynamoDB table name to use in the backend .env (ENQUIRIES_DYNAMODB_TABLE_NAME)
+    Value: !Ref EnquiriesTableNameCloudberry
+    Export:
+      Name: !Sub "${AWS::StackName}-EnquiriesTableCloudberry"
+
+  ApiLambdaFunctionNameOutput:
+    Description: Name of the Lambda function serving the HTTP APIs
+    Value: !Ref ApiLambdaFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiLambdaFunctionName"
+
+  PublicApiDomainOutput:
+    Description: Custom domain name for the public website API
+    Value: !Ref PublicApiDomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicApiDomainName"
+
+  PublicApiBaseUrlOutput:
+    Description: Base URL for the public website API (use as VITE_API_URL for the public UI)
+    Value: !Sub "https://${PublicApiDomainName}/${PublicApiBasePath}"
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicApiBaseUrl"
+
+  CrmApiDomainOutput:
+    Description: Custom domain name for the CRM web UI API
+    Value: !Ref CrmApiDomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmApiDomainName"
+
+  CrmApiBaseUrlOutput:
+    Description: Base URL for the CRM web UI API (use as VITE_API_URL for the CRM app)
+    Value: !Sub "https://${CrmApiDomainName}/${CrmApiBasePath}"
+    Export:
+      Name: !Sub "${AWS::StackName}-CrmApiBaseUrl"
+
+  # Real Estate Management Tables Outputs
+  DevelopersTableNameOutput:
+    Description: Developers DynamoDB table name (DEVELOPERS_TABLE_NAME)
+    Value: !Ref DevelopersTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-DevelopersTableName"
+
+  DevelopersTableArnOutput:
+    Description: Developers DynamoDB table ARN
+    Value: !GetAtt DevelopersTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-DevelopersTableArn"
+
+  RealEstateAreasTableNameOutput:
+    Description: Real Estate Areas/Communities DynamoDB table name (REAL_ESTATE_AREAS_TABLE_NAME)
+    Value: !Ref RealEstateAreasTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-RealEstateAreasTableName"
+
+  RealEstateAreasTableArnOutput:
+    Description: Real Estate Areas/Communities DynamoDB table ARN
+    Value: !GetAtt RealEstateAreasTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RealEstateAreasTableArn"
+
+  ProjectsTableNameOutput:
+    Description: Projects DynamoDB table name (PROJECTS_TABLE_NAME)
+    Value: !Ref ProjectsTableName
+    Export:
+      Name: !Sub "${AWS::StackName}-ProjectsTableName"
+
+  ProjectsTableArnOutput:
+    Description: Projects DynamoDB table ARN
+    Value: !GetAtt ProjectsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ProjectsTableArn"
+
+  # --- Cron Lambda Outputs ----------------------------------------------------
+  CreditResetFunctionOutput:
+    Description: Credit reset Lambda function name
+    Value: !Ref CreditResetFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-CreditResetFunction"
+
+  TrialReminderFunctionOutput:
+    Description: Trial reminder Lambda function name
+    Value: !Ref TrialReminderFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-TrialReminderFunction"
+
+  IncompleteDataFunctionOutput:
+    Description: Incomplete data quality Lambda function name
+    Value: !Ref IncompleteDataFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-IncompleteDataFunction"
+
+  ExpiringAgreementsFunctionOutput:
+    Description: Expiring agreements alert Lambda function name
+    Value: !Ref ExpiringAgreementsFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ExpiringAgreementsFunction"
+
+  TeamSummaryFunctionOutput:
+    Description: Team summary Lambda function name
+    Value: !Ref TeamSummaryFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-TeamSummaryFunction"
+
+  EscalationFunctionOutput:
+    Description: AI Employee escalation Lambda function name
+    Value: !Ref EscalationFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-EscalationFunction"
+
+  LeadQualifierFunctionOutput:
+    Description: Lead qualifier agent Lambda function name
+    Value: !Ref LeadQualifierFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadQualifierFunction"
+
+  LeadRouterFunctionOutput:
+    Description: Lead router Lambda function name
+    Value: !Ref LeadRouterFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadRouterFunction"
+
+  LeadFollowupFunctionOutput:
+    Description: Lead followup Lambda function name
+    Value: !Ref LeadFollowupFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-LeadFollowupFunction"
+
+  WhatsAppProcessorFunctionOutput:
+    Description: WhatsApp processor Lambda function name
+    Value: !Ref WhatsAppProcessorFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-WhatsAppProcessorFunction"

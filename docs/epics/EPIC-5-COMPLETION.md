@@ -9,7 +9,7 @@
 - **Sentry init** (`main.tsx`): `@sentry/react` with `VITE_SENTRY_DSN`, `tracesSampleRate: 0.1`.
 - **identifyUser wiring** (`App.tsx` initAuth): after `/auth/me` success, calls `identifyUser(userId, {tenantId, role, plan, agencyName, utm_source, utm_campaign})`.
 - **Page instrumentation**: `signup_started` (PhoneLogin), `onboarding_role_selected` (RoleSelection), `agency_registered` (RegisterAdmin), `buyer_added` first-use (BuyerDetails), `resetAnalytics()` on logout (CRMDashboard).
-- **Server PostHog** (`apps/crm/server/lib/posthog.js`): PostHog Node SDK wrapper — `serverTrack(distinctId, event, properties)` + `shutdownPostHog()`.
+- **Server PostHog** (`agency-app/api/lib/posthog.js`): PostHog Node SDK wrapper — `serverTrack(distinctId, event, properties)` + `shutdownPostHog()`.
 - **LP analytics snippet** (`head-analytics.hbs`): consent-gated vanilla JS — PostHog (always), GA4 (analytics), Meta Pixel (marketing), LinkedIn Insight (marketing), Hotjar (functional). CTA click tracking via `data-cta-id`.
 
 ## APIs Added
@@ -34,11 +34,11 @@ None.
 
 ## Known Constraints
 - grievance.js PostHog stub replacement deferred: file lives on PR-B branch, not yet merged to integration. When Batch 1 merges, the real `serverTrack` import should replace the stub.
-- Server Lambda Sentry init (`apps/crm/server/lambda-handler.js`) out of PR-E scope.
+- Server Lambda Sentry init (`agency-app/api/lambda-handler.js`) out of PR-E scope.
 - Remaining event instrumentation: `trial_paywall_shown` (PR-J), `subscription_started` (PR-F), `seat_limit_hit` (PR-H).
 
 ## Rollback Notes
-- Remove `src/lib/analytics.ts`, `src/types/analytics.ts`, `apps/crm/server/lib/posthog.js`.
+- Remove `src/lib/analytics.ts`, `src/types/analytics.ts`, `agency-app/api/lib/posthog.js`.
 - Revert `main.tsx`, `App.tsx`, `PhoneLogin.tsx`, `RoleSelection.tsx`, `RegisterAdmin.tsx`, `BuyerDetails.tsx`, `CRMDashboard.tsx` edits.
 - Revert `head-analytics.hbs` to stub.
 - `npm uninstall posthog-js @sentry/react` (CRM) and `npm uninstall posthog-node` (server).

@@ -53,7 +53,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
 - No connection state machine for observability
 - No socket reference following for reconnections
 
-#### 2. apps/crm/server/bailey.js
+#### 2. agency-app/api/bailey.js
 **Current State:**
 - Simple API client for Bailey service
 - Basic webhook signature verification (HMAC-SHA256, timing-safe)
@@ -68,9 +68,9 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
 - No status tracking
 - No error classification
 
-**Preservation Requirement:** The existing webhook signature verification in `apps/crm/server/bailey.js` (`verifyBaileySignature`) MUST be preserved and remain enforced throughout the refactor. Any new endpoints added must also enforce signature verification. No unauthenticated webhook endpoints may be introduced.
+**Preservation Requirement:** The existing webhook signature verification in `agency-app/api/bailey.js` (`verifyBaileySignature`) MUST be preserved and remain enforced throughout the refactor. Any new endpoints added must also enforce signature verification. No unauthenticated webhook endpoints may be introduced.
 
-#### 3. apps/crm/server/scripts/whatsapp-message-processor.js
+#### 3. agency-app/api/scripts/whatsapp-message-processor.js
 **Current State:**
 - Simple command parsing (lead:, search leads)
 - Basic AI agent invocation
@@ -288,7 +288,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - `crypto-error-detector.js` detects the error
   - `prekey-recovery.js` decides whether to reconnect (transient) or fresh-link (persistent)
 - **CRM-side notification:**
-  - `apps/crm/server/routes/auth.js` (modify): Add `POST /webhooks/bailey/fresh-link-required` endpoint
+  - `agency-app/api/routes/auth.js` (modify): Add `POST /webhooks/bailey/fresh-link-required` endpoint
   - On receipt: store alert in DynamoDB, emit Socket.IO event to CRM dashboard, send email to owner if configured
   - CRM dashboard shows "WhatsApp re-linking required" banner with QR code
 
@@ -422,7 +422,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - Migration script to seed default Owner from existing tenant config
 
 #### 3.2 Implement Category Resolution
-- **File:** `apps/crm/server/services/userCategoryService.js` (new)
+- **File:** `agency-app/api/services/userCategoryService.js` (new)
 - **Features:**
   - Resolve user category by phone number
   - In-memory cache with TTL (5 min) and max size (10,000 entries) with LRU eviction
@@ -431,14 +431,14 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - Owner resolution: compare against tenant's configured owner phone(s)
 
 #### 3.3 Implement Feature Toggles
-- **File:** `apps/crm/server/services/featureToggleService.js` (new)
+- **File:** `agency-app/api/services/featureToggleService.js` (new)
 - **Features:**
   - Feature definitions per category
   - Toggle evaluation logic
   - Configuration-driven feature sets (stored in agency config)
 
 #### 3.4 Implement Access Control
-- **File:** `apps/crm/server/services/whatsappAccessControl.js` (new)
+- **File:** `agency-app/api/services/whatsappAccessControl.js` (new)
 - **Pattern:** OpenClaw `inbound/access-control.ts`
 - **Features:**
   - DM policies: owner-only, allowlist, open, disabled
@@ -447,7 +447,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - Pairing flow for unknown users (optional)
 
 #### 3.5 Integrate Category System into Message Processor
-- **File:** `apps/crm/server/scripts/whatsapp-message-processor.js` (modify)
+- **File:** `agency-app/api/scripts/whatsapp-message-processor.js` (modify)
 - **Changes:**
   - Resolve user category before processing
   - Apply feature toggles based on category
@@ -463,7 +463,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
 - **Action:** Extract prompt templates, rules, context
 
 #### 4.2 Design WhatsApp Agent Prompt
-- **File:** `apps/crm/server/agents/whatsapp-agent-prompt.js` (new)
+- **File:** `agency-app/api/agents/whatsapp-agent-prompt.js` (new)
 - **Features:**
   - Rich identity from IDENTITY.md
   - Memory context from MEMORY.md
@@ -472,7 +472,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - Feature-aware prompts
 
 #### 4.3 Implement REST API Tool Execution
-- **File:** `apps/crm/server/agents/whatsapp-tool-executor.js` (new)
+- **File:** `agency-app/api/agents/whatsapp-tool-executor.js` (new)
 - **Features:**
   - REST API calls to CRM backend
   - Consistent with ai-employee tool execution
@@ -480,7 +480,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
   - Response parsing
 
 #### 4.4 Integrate Agent Runtime
-- **File:** `apps/crm/server/agents/agentRuntime.js` (modify)
+- **File:** `agency-app/api/agents/agentRuntime.js` (modify)
 - **Changes:**
   - Use WhatsApp agent prompt
   - Use REST API tool executor
@@ -581,7 +581,7 @@ All new modules use JavaScript (`.js`) consistent with the existing `baileys-ser
 ### Sprint 1: Foundation (Week 1)
 0. **PreKey Exhaustion Recovery** (ROOT CAUSE FIX — do this FIRST)
    - `prekey-recovery.js`: consecutive crypto error counting, threshold-based auth state deletion, fresh QR generation, CRM notification webhook
-   - `apps/crm/server/routes/auth.js`: `POST /webhooks/bailey/fresh-link-required` endpoint
+   - `agency-app/api/routes/auth.js`: `POST /webhooks/bailey/fresh-link-required` endpoint
    - CRM dashboard: "WhatsApp re-linking required" banner
 1. Credential backup/restore (with security + fallback)
 2. Crypto error detection (with rate-limit, integrated with prekey-recovery)
@@ -756,9 +756,9 @@ This section captures concrete bugs, security issues, and edge cases identified 
 5. **No authentication on pairing routes**
    - **Problem:** `POST /pairing/qr`, `GET /pairing/status/:phone`, and `POST /pairing/logout` have no authentication or rate limiting. Anyone who can reach the Bailey service can generate a QR code or disconnect a session.
    - **Impact:** Unauthorized session hijacking, forced disconnects, and potential DoS.
-   - **Fix:** Add an `x-api-key` or JWT middleware to all pairing routes. The key should be shared only between `apps/crm/server/bailey.js` and `baileys-service`. Add rate limiting (e.g., max 5 QR requests per phone per minute) and reject requests without the secret.
+   - **Fix:** Add an `x-api-key` or JWT middleware to all pairing routes. The key should be shared only between `agency-app/api/bailey.js` and `baileys-service`. Add rate limiting (e.g., max 5 QR requests per phone per minute) and reject requests without the secret.
 
-### A.3 Backend — `apps/crm/server/routes/aiEmployeeConfig.js`
+### A.3 Backend — `agency-app/api/routes/aiEmployeeConfig.js`
 
 6. **Overly restrictive `connectedWhatsAppPhone` validation**
    - **Problem:** The regex `^\+?\d{10,15}$` rejects valid formatted numbers like `+91 98765 43210` or `(+91) 98765-43210`.
@@ -768,9 +768,9 @@ This section captures concrete bugs, security issues, and edge cases identified 
 7. **No verification that the phone is actually connected**
    - **Problem:** The API allows an admin to set any phone number as the connected WhatsApp number, even if there is no active Bailey session for it.
    - **Impact:** The CRM dashboard will show a connected phone that cannot actually receive or send messages, leading to false confidence.
-   - **Fix:** When `connectedWhatsAppPhone` is updated, call `getConnectionStatus()` from `apps/crm/server/bailey.js` and reject the update if the session is not connected. Return a clear 400 error with the actual connection state.
+   - **Fix:** When `connectedWhatsAppPhone` is updated, call `getConnectionStatus()` from `agency-app/api/bailey.js` and reject the update if the session is not connected. Return a clear 400 error with the actual connection state.
 
-### A.4 Backend — `apps/crm/server/routes/whatsappConversations.js`
+### A.4 Backend — `agency-app/api/routes/whatsappConversations.js`
 
 8. **Non-unique message ID generation**
    - **Problem:** The send-message endpoint uses `Date.now() - Math.random()` to generate `messageId`. This is not unique across concurrent requests or across multiple server instances.
@@ -792,7 +792,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** Harder for the frontend to distinguish recoverable vs non-recoverable errors.
     - **Fix:** Return 400 for missing/invalid text, 404 for unknown phone, 403 for unauthorized recipient, 409 for rate limit, 503 if Bailey is unreachable, and 500 only for unexpected server errors.
 
-### A.5 Backend — `apps/crm/server/whatsappConversationService.js`
+### A.5 Backend — `agency-app/api/whatsappConversationService.js`
 
 12. **Breaking change in `getConversationSummary` return format**
     - **Problem:** `lastMessage` changed from an object to a plain text string. Any existing callers or future integration expecting the object format will break.
@@ -815,18 +815,18 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Fix:** Move whitelisted numbers to agency config (DynamoDB) and refresh them via the category/permission system in Phase 3. Until then, make it an optional override and document that it is global.
 
 16. **Duplicate `classifyWhatsAppId` logic**
-    - **Problem:** The classification logic for phone/LID/group is duplicated in `apps/crm/server/utils/whatsapp.js` and `apps/crm/real-estate-crm-app/src/components/WhatsAppConversationList.tsx`.
+    - **Problem:** The classification logic for phone/LID/group is duplicated in `agency-app/api/utils/whatsapp.js` and `agency-app/web/src/components/WhatsAppConversationList.tsx`.
     - **Impact:** Inconsistent behavior if the rules diverge; extra maintenance burden.
     - **Fix:** Centralize the logic in a shared utility. For the frontend, either import from a shared package or create a matching helper that stays in sync with the backend version.
 
-### A.6 Backend — `apps/crm/server/bailey.js`
+### A.6 Backend — `agency-app/api/bailey.js`
 
 17. **`forceNew` parameter is passed but not validated by the service**
     - **Problem:** `getPairingQr(phone, forceNew)` forwards `forceNew` to Bailey, but the plan does not specify how the CRM should decide when to request a forced re-pairing.
     - **Impact:** Ad-hoc use of `forceNew` could delete valid sessions unnecessarily.
     - **Fix:** Only allow `forceNew=true` when the current session is in `fresh_link_required` or `degraded` state, or when an admin explicitly confirms via the UI. Add a confirmation step in the frontend.
 
-### A.7 Frontend — `apps/crm/real-estate-crm-app/src/services/api.ts`
+### A.7 Frontend — `agency-app/web/src/services/api.ts`
 
 18. **Breaking change in WhatsApp API endpoint paths**
     - **Problem:** The diff changes endpoints from `/api/whatsapp/*` to `/whatsapp/*`. This breaks any existing callers, bookmarks, or third-party integrations.
@@ -838,7 +838,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** Harder to debug connection failures in the UI.
     - **Fix:** Return the actual response status and message when available, or throw a typed error so the UI can show actionable messages.
 
-### A.8 Frontend — `apps/crm/real-estate-crm-app/src/pages/onboarding/ConnectWhatsApp.tsx`
+### A.8 Frontend — `agency-app/web/src/pages/onboarding/ConnectWhatsApp.tsx`
 
 20. **Silent API failures when syncing `connectedWhatsAppPhone`**
     - **Problem:** `saveConnectedPhone()` and `clearConnectedPhone()` call `api.updateAiEmployeeConfig()` with an empty catch block.
@@ -850,7 +850,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** The final state may not match the user's last action.
     - **Fix:** Disable the connect/disconnect buttons while the async operation is in flight, and serialize operations using a local flag or queue.
 
-### A.9 Frontend — `apps/crm/real-estate-crm-app/src/pages/crm/CRMDashboard.tsx`
+### A.9 Frontend — `agency-app/web/src/pages/crm/CRMDashboard.tsx`
 
 22. **Duplicate polling for the same phone number**
     - **Problem:** `CRMDashboard` polls status every 30 seconds, and `WhatsAppInbox` polls conversations every 5 seconds plus status. If both are open, the same status endpoint is hit multiple times per minute.
@@ -862,7 +862,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** Users see internal error tokens instead of actionable messages.
     - **Fix:** Map error codes to human-friendly strings and provide a "Reconnect WhatsApp" action button when the error indicates a disconnect.
 
-### A.10 Frontend — `apps/crm/real-estate-crm-app/src/pages/crm/WhatsAppInbox.tsx`
+### A.10 Frontend — `agency-app/web/src/pages/crm/WhatsAppInbox.tsx`
 
 24. **Aggressive 5-second polling for conversations**
     - **Problem:** `REFRESH_INTERVAL_MS` was reduced from 10s to 5s. For large inboxes this creates significant load and may cause the UI to flash while re-rendering.
@@ -874,7 +874,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** Poor UX; users may send duplicates.
     - **Fix:** Add the message to the local `messages` array with `status: 'pending'` immediately, then update it to `sent` or `failed` when the API responds. Dedupe by the generated message ID.
 
-### A.11 Frontend — `apps/crm/real-estate-crm-app/src/components/WhatsAppChatThread.tsx`
+### A.11 Frontend — `agency-app/web/src/components/WhatsAppChatThread.tsx`
 
 26. **Missing UX polish for message input**
     - **Problem:** There is no character limit, no Enter-to-send shortcut, and no message preview.
@@ -889,7 +889,7 @@ This section captures concrete bugs, security issues, and edge cases identified 
     - **Impact:** Minor UI inconsistency; the button can be clicked but will no-op.
     - **Fix:** Use the same disabled condition for both input and button.
 
-### A.12 Frontend — `apps/crm/real-estate-crm-app/src/pages/crm/AiEmployee.tsx`
+### A.12 Frontend — `agency-app/web/src/pages/crm/AiEmployee.tsx`
 
 28. **Silent failure on WhatsApp status check**
     - **Problem:** If `api.getWhatsAppConnectionStatus()` fails, the code silently falls back to `false` without updating the UI.
@@ -899,9 +899,9 @@ This section captures concrete bugs, security issues, and edge cases identified 
 ### A.13 Testing & Utilities
 
 29. **No unit tests for phone number utilities**
-    - **Problem:** `apps/crm/server/utils/whatsapp.js` contains critical normalization and classification logic that is currently untested.
+    - **Problem:** `agency-app/api/utils/whatsapp.js` contains critical normalization and classification logic that is currently untested.
     - **Impact:** A bug in phone parsing can silently break the entire WhatsApp pipeline (tenant resolution, whitelisting, self-chat detection).
-    - **Fix:** Add unit tests in `apps/crm/server/utils/whatsapp.test.js` covering E.164, JID, LID, group IDs, device suffixes, international numbers, and malformed inputs. Add equivalent tests for the frontend helper if it remains.
+    - **Fix:** Add unit tests in `agency-app/api/utils/whatsapp.test.js` covering E.164, JID, LID, group IDs, device suffixes, international numbers, and malformed inputs. Add equivalent tests for the frontend helper if it remains.
 
 30. **No integration tests for the send-message endpoint**
     - **Problem:** The new `POST /api/whatsapp/conversations/:phone/messages` endpoint has no test coverage.
@@ -914,9 +914,9 @@ These items are small enough to fix before the full Phase 1 refactor and will pr
 
 1. **Fix `jidToPhone` ReferenceError** in `baileysClient.js`.
 2. **Add authentication middleware** to `baileys-service/src/routes/pairing.js`.
-3. **Revert or version the `/api/whatsapp` endpoint path change** in `api.ts` and `apps/crm/server/routes/whatsappConversations.js`.
+3. **Revert or version the `/api/whatsapp` endpoint path change** in `api.ts` and `agency-app/api/routes/whatsappConversations.js`.
 4. **Fix silent API failures** in `ConnectWhatsApp.tsx`.
-5. **Add unit tests** for `apps/crm/server/utils/whatsapp.js`.
+5. **Add unit tests** for `agency-app/api/utils/whatsapp.js`.
 6. **Normalize phone validation** in `aiEmployeeConfig.js` before rejecting formatted input.
 7. **Use `crypto.randomUUID()`** for outbound message IDs.
 

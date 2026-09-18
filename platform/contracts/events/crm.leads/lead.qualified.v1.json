@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.realestateflow.in/events/crm.leads/lead.qualified.v1.json",
+  "title": "lead.qualified",
+  "description": "The lead qualifier scored a lead from its intake text. An AI qualification call may later overwrite the score.",
+  "x-source": "crm.leads",
+  "x-detail-type": "lead.qualified",
+  "x-producer": "agency-app/api (scripts/lead-qualifier-handler.js)",
+  "x-consumers": ["agency-app/api LeadRouterFunction"],
+  "type": "object",
+  "required": ["tenantId", "leadId", "score"],
+  "properties": {
+    "tenantId": { "type": "string" },
+    "leadId": { "type": "string" },
+    "score": { "type": "string", "enum": ["Hot", "Warm", "Cold"] },
+    "scoreValue": { "type": "number" },
+    "qualifiedAt": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": true
+}

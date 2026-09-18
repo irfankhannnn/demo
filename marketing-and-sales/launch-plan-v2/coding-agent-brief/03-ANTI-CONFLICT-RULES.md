@@ -2,15 +2,15 @@
 
 ## The Core Problem with Parallel Agents
 
-When 4 agents simultaneously modify `apps/crm/server/server.js` and `App.tsx`, the second through fourth PRs to be created will have merge conflicts because they all branch from the same `main`. This document defines the exact rules to prevent this.
+When 4 agents simultaneously modify `agency-app/api/server.js` and `App.tsx`, the second through fourth PRs to be created will have merge conflicts because they all branch from the same `main`. This document defines the exact rules to prevent this.
 
 ---
 
 ## Rule 1: Tagged Comment Blocks in Shared Files
 
-Before any agent starts, the Founder adds placeholder blocks to `apps/crm/server/server.js` and `App.tsx`. Each agent inserts ONLY inside their designated tag — never outside it, never modifying existing content.
+Before any agent starts, the Founder adds placeholder blocks to `agency-app/api/server.js` and `App.tsx`. Each agent inserts ONLY inside their designated tag — never outside it, never modifying existing content.
 
-**In `apps/crm/server/server.js`**, two blocks are added:
+**In `agency-app/api/server.js`**, two blocks are added:
 
 ```javascript
 // === [LAUNCH ROUTES IMPORTS] ===
@@ -38,7 +38,7 @@ When multiple PRs add lines to the same block:
 - Reviewer accepts "both" in the merge conflict dialog
 - Each PR's lines are clearly tagged with `// PR-X:` so it's obvious what to keep
 
-**In `apps/crm/real-estate-crm-app/src/App.tsx`**, three blocks are added inside `<Routes>`:
+**In `agency-app/web/src/App.tsx`**, three blocks are added inside `<Routes>`:
 
 ```tsx
 {/* === [LAUNCH PUBLIC ROUTES] === */}
@@ -70,8 +70,8 @@ One owner per file. If a file is not in your ownership list → do not touch it.
 
 | File | Owner PR | Other PRs may read it? |
 |---|---|---|
-| `apps/crm/server/routes/grievance.js` | PR-B | PR-E (replaces stub) |
-| `apps/crm/server/grievanceDynamodbService.js` | PR-B | — |
+| `agency-app/api/routes/grievance.js` | PR-B | PR-E (replaces stub) |
+| `agency-app/api/grievanceDynamodbService.js` | PR-B | — |
 | `src/pages/public/Grievance.tsx` | PR-B | — |
 | `src/pages/admin/GrievanceList.tsx` | PR-B | — |
 | `creative/landing-pages/_partials/cookie-banner.html` | PR-C | PR-I (injects in pages) |
@@ -82,20 +82,20 @@ One owner per file. If a file is not in your ownership list → do not touch it.
 | `creative/landing-pages/netlify.toml` | PR-D | — |
 | `src/lib/analytics.ts` | PR-E | PR-J (uses it), PR-K (uses it) |
 | `src/types/analytics.ts` | PR-E | all CRM agents (read only) |
-| `apps/crm/server/lib/posthog.js` | PR-E (replaces PR-B stub) | all server agents (import it) |
-| `apps/crm/server/routes/billing.js` | PR-F (creates) → PR-H (adds one case) | — |
-| `apps/crm/server/aiEmployeeProvisioningService.js` | PR-F | — |
+| `agency-app/api/lib/posthog.js` | PR-E (replaces PR-B stub) | all server agents (import it) |
+| `agency-app/api/routes/billing.js` | PR-F (creates) → PR-H (adds one case) | — |
+| `agency-app/api/aiEmployeeProvisioningService.js` | PR-F | — |
 | `src/pages/crm/AIEmployeeStatus.tsx` | PR-F | — |
-| `apps/crm/server/scripts/escalation-cron.js` | PR-F | — |
+| `agency-app/api/scripts/escalation-cron.js` | PR-F | — |
 | `src/components/DemoBanner.tsx` | PR-A | — |
-| `apps/crm/server/scripts/seed-demo-tenant.js` | PR-A | — |
-| `apps/crm/server/subscriptionService.js` | PR-H (creates) | PR-J (uses it), PR-F (stubs it) |
-| `apps/crm/server/routes/subscriptions.js` | PR-H (creates) → PR-J (adds trial-status) | — |
+| `agency-app/api/scripts/seed-demo-tenant.js` | PR-A | — |
+| `agency-app/api/subscriptionService.js` | PR-H (creates) | PR-J (uses it), PR-F (stubs it) |
+| `agency-app/api/routes/subscriptions.js` | PR-H (creates) → PR-J (adds trial-status) | — |
 | `src/components/SeatCounter.tsx` | PR-H | — |
 | `src/components/SeatUpgradeModal.tsx` | PR-H | — |
 | `src/pages/admin/InviteManagement.tsx` | PR-H | — |
 | `src/pages/admin/MemberManagement.tsx` | PR-H | — |
-| `apps/crm/server/routes/auth.js` | PR-H (invite handler) → PR-L (register handler) | — |
+| `agency-app/api/routes/auth.js` | PR-H (invite handler) → PR-L (register handler) | — |
 | All 12 LP HTML files | PR-I | — |
 | `creative/landing-pages/sitemap.xml` | PR-D (stub) → PR-I (fills) | — |
 | `creative/landing-pages/llms.txt` | PR-D (stub) → PR-I (fills) | — |
@@ -104,7 +104,7 @@ One owner per file. If a file is not in your ownership list → do not touch it.
 | `src/components/TrialCountdownBanner.tsx` | PR-J | — |
 | `src/components/PaywallModal.tsx` | PR-J | — |
 | `src/lib/razorpay.ts` | PR-J | PR-H (stubs window.Razorpay) |
-| `apps/crm/server/routes/feedback.js` | PR-K | — |
+| `agency-app/api/routes/feedback.js` | PR-K | — |
 | `src/components/NpsModal.tsx` | PR-K | — |
 | `tests/grievance.spec.ts` | PR-B | — |
 | `tests/analytics.spec.ts` | PR-E | PR-M (adds coverage) |
@@ -113,12 +113,12 @@ One owner per file. If a file is not in your ownership list → do not touch it.
 | `tests/cross-tenant-pentest.spec.ts` | PR-G | — |
 | `tests/paywall.spec.ts` | PR-J | — |
 | `tests/nps.spec.ts` | PR-K | — |
-| `apps/crm/real-estate-crm-app/src/main.tsx` | PR-E | — |
+| `agency-app/web/src/main.tsx` | PR-E | — |
 
 **The two exceptions** where multiple PRs touch the same file:
-1. `apps/crm/server/routes/billing.js` → PR-F creates it, PR-H adds exactly one `case` block. PR-H's commit must happen AFTER PR-F merges.
-2. `apps/crm/server/routes/auth.js` → PR-H adds to invite handler, PR-L adds to register handler. These are different function bodies. PR-L must happen AFTER PR-H merges.
-3. `apps/crm/server/routes/subscriptions.js` → PR-H creates with `/current`, PR-J adds `/trial-status`. PR-J must happen AFTER PR-H merges.
+1. `agency-app/api/routes/billing.js` → PR-F creates it, PR-H adds exactly one `case` block. PR-H's commit must happen AFTER PR-F merges.
+2. `agency-app/api/routes/auth.js` → PR-H adds to invite handler, PR-L adds to register handler. These are different function bodies. PR-L must happen AFTER PR-H merges.
+3. `agency-app/api/routes/subscriptions.js` → PR-H creates with `/current`, PR-J adds `/trial-status`. PR-J must happen AFTER PR-H merges.
 4. `head-analytics.hbs` → PR-D creates stub, PR-E fills it. PR-E must happen AFTER PR-D merges.
 
 ---
@@ -128,7 +128,7 @@ One owner per file. If a file is not in your ownership list → do not touch it.
 When agent X needs something created by agent Y (in the same batch or later batch), X uses a stub:
 
 ```javascript
-// apps/crm/server/routes/grievance.js (PR-B)
+// agency-app/api/routes/grievance.js (PR-B)
 // PostHog stub — PR-E will replace this with the real module
 async function serverTrack(distinctId, event, properties) {
   if (process.env.NODE_ENV !== 'test') {
@@ -144,7 +144,7 @@ async function serverTrack(distinctId, event, properties) {
 ```
 
 ```javascript
-// apps/crm/server/routes/billing.js (PR-F)
+// agency-app/api/routes/billing.js (PR-F)
 // subscriptionService stub — PR-H creates the real service
 async function incrementSeatsPaid(tenantId, by) {
   console.log('[subscriptionService stub - replace with PR-H]', tenantId, by);
@@ -215,7 +215,7 @@ This is already specified in each PR prompt's "PR Description Template" section.
 
 ## Conflict Resolution Quick Reference
 
-When two PRs both modified `apps/crm/server/server.js`:
+When two PRs both modified `agency-app/api/server.js`:
 1. PR-A merges first → main is updated
 2. PR-B's branch is now behind main
 3. Rebase PR-B on main: `git rebase main`
@@ -250,7 +250,7 @@ Agents don't communicate with each other. They communicate through:
 
 ## Summary: The 6 Things That Prevent Merge Conflicts
 
-1. Tagged comment blocks in `apps/crm/server/server.js` and `App.tsx`
+1. Tagged comment blocks in `agency-app/api/server.js` and `App.tsx`
 2. File ownership matrix (one owner per file)
 3. Stub pattern for cross-PR dependencies
 4. Sequential batch merging (Batch 2 starts only after Batch 1 fully merges)

@@ -114,7 +114,7 @@ In your Claude Cowork workspace, create a folder structure like this:
 workspace/
 └── marketing-outputs/
     ├── brand/
-    ├── apps/landing-pages/
+    ├── agency-app/landing-pages/
     ├── blog/
     ├── images/
     ├── videos/

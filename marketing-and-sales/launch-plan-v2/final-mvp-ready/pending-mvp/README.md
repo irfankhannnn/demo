@@ -32,7 +32,7 @@
 
 ## Critical Path to Launch
 
-1. Deploy `apps/crm/server/infra/cfn-backend.yaml` with new credit + SES params (includes all 10 cron jobs)
+1. Deploy `agency-app/api/infra/cfn-backend.yaml` with new credit + SES params (includes all 10 cron jobs)
 2. Seed `cloudberry-real-estate-credit-config` table (run seed script once)
 3. Verify SES sender domain (see `../notes/ses-aws-setup.md`)
 4. Configure Razorpay webhook + `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`

@@ -17,8 +17,8 @@ enabled in dev as well as prod.
 1. **`app.realestateflow.in` is the dev stack.** CloudFront `E1I7OL5ISBMIBV` lives in `cloudberry-main`
    (730335176275) because the prod account (532404260898) cannot create CloudFront distributions yet. Decision: the
    dev frontends call the nonprod domain `services-api.cloudberrysolutions.in`.
-2. **Frontend env files held raw invoke URLs** (`apps/instagram/frontend_insta_sol_ms/.env.dev`, `apps/crm/real-estate-crm-app/.env.dev`,
-   and `apps/crm/real-estate-crm-app/.env.prod` for auth). Dev had `ENABLE_CUSTOM_DOMAIN_MAPPING=false` for auth and insta, so
+2. **Frontend env files held raw invoke URLs** (`agency-app/instagram-web/.env.dev`, `agency-app/web/.env.dev`,
+   and `agency-app/web/.env.prod` for auth). Dev had `ENABLE_CUSTOM_DOMAIN_MAPPING=false` for auth and insta, so
    no dev mapping existed.
 3. **Insta 401 on OPTIONS.** The dev `ALLOWED_ORIGINS` was only `http://localhost:5173`. With cors@2.8.x, a
    disallowed origin makes the middleware call `next()` without answering the preflight, so OPTIONS fell into JWT auth
@@ -89,8 +89,8 @@ Later dev deploys on 2026-09-14: `frontend_insta_sol_ms` build 0004 (verified li
 `.env.dev` had gone missing and was rebuilt from build 0004's params, `.env.prod` created from sample with blank
 secrets). CRM frontend content-deploy build 0010 **failed** (npm EPERM on esbuild.exe held by a local vite server; the
 failed `npm ci` wiped node_modules, restored since) so the live `/crm` still calls raw URLs. `server` not deployed:
-gate flags `DEMO_TENANT_ID=DEMO_YOUR_TENANT` (`apps/crm/server/.env.dev:180`), awaiting Kalim's real value; the audit also
-noticed plaintext AWS keys at `apps/crm/server/.env.dev:176-177`.
+gate flags `DEMO_TENANT_ID=DEMO_YOUR_TENANT` (`agency-app/api/.env.dev:180`), awaiting Kalim's real value; the audit also
+noticed plaintext AWS keys at `agency-app/api/.env.dev:176-177`.
 
 ## Onboarding / choose-plan work (local only, uncommitted, awaiting review)
 
@@ -99,7 +99,7 @@ Why new agencies never saw onboarding or pricing:
    without entering `loading`; Google signups never set the onboarding flag, so `/auth/me` 404 logged them out.
 2. No plans step after `RegisterAdmin`; `?plan=` from the marketing site was ignored.
 3. "Buy" in `PaywallModal` passes a plan name as a Razorpay `subscription_id`; no server route creates Razorpay
-   subscriptions. `apps/onboarding/` is a local operator tool, not the user flow.
+   subscriptions. `apps/onboarding/` was a local operator tool (deleted in the 2026-09-17 regroup), not the user flow.
 
 Changes in `real-estate-crm-app` (local): `App.tsx` (loading on auth-changed unless already authenticated; tenant-less
 onboarding users redirected to `/onboarding/role-selection`; new `/onboarding/choose-plan` route),
@@ -118,7 +118,7 @@ Next after approval: Razorpay checkout (server route + Razorpay test plans) to m
      the REST API (new API id). Claude Desktop connectors must be re-added afterwards.
    - `infra/deploy.sh` does not validate the env argument and has no stack-name prefix guard.
    - Single `.env` for all environments; needs `.env.dev` / `.env.prod`.
-   - The wrapper `infra/cicd/reality-flow-mcp/deploy.sh` is a bare `exec`: no build counter, S3 tagging or
+   - The wrapper `infra/cicd/platform/mcp/deploy.sh` is a bare `exec`: no build counter, S3 tagging or
      `rollback-code` / `rollback-full`.
    - `OAuthCodesTable` / `OAuthConnectionsTable` lack Retain and point-in-time recovery.
    - `.gitignore` lacks `.env.*.local`; `PARAM_OVERRIDES` and `DESIRED` param lists are duplicated.
@@ -127,21 +127,21 @@ Next after approval: Razorpay checkout (server route + Razorpay test plans) to m
    returns 403. Unpatched `mcp-remote` and claude.ai connectors fail (the team uses `tools/mcp-oauth-debug/patch_mcp_remote.py`).
    Recommended fix: dedicated host `mcp.cloudberrysolutions.in` / `mcp.realestateflow.in` with an empty base path
    mapping (needs ACM cert + DNS and an exception to the non-empty base path rule).
-3. **CRM mobile apps.** `apps/crm/real-estate-crm-app/.env.mobile:29-30` uses base path `realestatecrm`, which is not mapped
+3. **CRM mobile apps.** `agency-app/web/.env.mobile:29-30` uses base path `realestatecrm`, which is not mapped
    on either domain, and its auth vars are placeholders. The Android and iOS bundles still contain an old raw MCP
    URL; rebuild with `npm run mobile:build`.
-4. **Existing bug in the CRM app.** `apps/crm/real-estate-crm-app/src/services/api.ts:2491-2558` builds
+4. **Existing bug in the CRM app.** `agency-app/web/src/services/api.ts:2491-2558` builds
    `${API_BASE_URL}/api/whatsapp/...`, producing `/api/api/whatsapp`.
 5. **Dev CRM Lambda has no adapter API key**, so insta enquiry promotion to leads returns
    "Adapter intake not configured" in dev.
 6. **server test failures unrelated to this work:** 8 suites need `AWS_SES_FROM_EMAIL` set to load, and
    `services/embeddings/embeddings.test.js` has 8 failing tests covering an uncommitted `propertySearchService.js` change.
-7. **whatsapp-platform:** `apps/crm/server/.env.dev` and `.env.prod` set `BAILEY_API_ENDPOINT=http://localhost:3003`, which the
+7. **whatsapp-platform:** `agency-app/api/.env.dev` and `.env.prod` set `BAILEY_API_ENDPOINT=http://localhost:3003`, which the
    cloud CRM cannot reach.
-8. **Stale docs** still show raw URLs or old var names: `AGENTS.md:521-693`, `docs/mcp/OAUTH_MCP_INTEGRATION_ANALYSIS.md`,
-   `docs/insta-sol-ms-docs/04-BACKEND-API.md`, `06-DEPLOYMENT.md`, `08-TESTING.md`,
+8. **Stale docs** still show raw URLs or old var names: `AGENTS.md:521-693`, `docs/platform/mcp/OAUTH_MCP_INTEGRATION_ANALYSIS.md`,
+   `docs/agency-app/instagram/04-BACKEND-API.md`, `06-DEPLOYMENT.md`, `08-TESTING.md`,
    `docs/proposals/.../04-backend-deployment-runbook.md`, `infra/cicd/README.md:56,94`,
-   `docs/services/real-estate-crm-app/QUICKSTART.md`, `SETUP.md`, `SECURITY_AUDIT.md`.
+   `docs/agency-app/web/QUICKSTART.md`, `SETUP.md`, `SECURITY_AUDIT.md`.
 9. **Rollback caution.** Archived builds under `infra/cicd/*/deploy-versions/*` use the old raw-URL params.
    `rollback-full` to a build from before 2026-09-14 brings the raw URLs back; roll forward instead.
 10. **Local laptop agents** (`instagram-local-agent`): existing `~/.ig-agent/config.json` files must change

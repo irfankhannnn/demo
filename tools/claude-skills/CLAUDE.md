@@ -4,20 +4,19 @@
 Cloudberry is a full-stack real estate CRM platform serving India and Dubai markets. The system manages buyers, sellers, owners, tenants, developers, projects, areas, and AI-powered calling. **RealtyFlow** is the go-to-market brand targeting Indian real estate agents with a 3,000 lead generation campaign.
 
 ## Tech Stack
-- **Frontend:** React + TypeScript + Vite + TailwindCSS (apps/crm/real-estate-crm-app/)
-- **Backend:** Node.js + Express + DynamoDB (apps/crm/server/)
-- **AI Calling:** Lambda + Exotel + ElevenLabs (services/ai-calling-service/)
+- **Frontend:** React + TypeScript + Vite + TailwindCSS (agency-app/web/)
+- **Backend:** Node.js + Express + DynamoDB (agency-app/api/)
+- **AI Calling:** Lambda + Exotel + ElevenLabs (agency-app/ai-calling/)
 - **Video:** Remotion (React-based programmatic video) (marketing-and-sales/video-projects/my-video/)
 - **Auth:** JWT-based authentication
 - **Deployment:** AWS Lambda + API Gateway + CloudFormation
 - **Package Manager:** npm
 
 ## Key Directories
-- `apps/crm/real-estate-crm-app/src/` — Frontend source (components, pages, services, types, contexts)
-- `apps/crm/server/` — Express backend (routes, services, middleware)
-- `apps/crm/server/build-lambda/` — Lambda deployment build
-- `services/ai-calling-service/` — AI calling microservice
-- `apps/onboarding/` — Onboarding flow
+- `agency-app/web/src/` — Frontend source (components, pages, services, types, contexts)
+- `agency-app/api/` — Express backend (routes, services, middleware)
+- `agency-app/api/build-lambda/` — Lambda deployment build
+- `agency-app/ai-calling/` — AI calling microservice
 - `marketing-and-sales/video-projects/my-video/` — Remotion video generation project
 - `tools/claude-skills/` — Agent definitions, skills, scripts, templates
 - `marketing-and-sales/` — All marketing outputs (creative, leads, outreach, ads, research)
@@ -36,12 +35,12 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 - Error responses: `{ error: string, details?: string }`
 - **Hinglish convention:** All marketing copy uses 70% English + 30% Hindi (romanized)
 
-## Agent Teams (6 Teams, 20 Agents)
+## Agent Teams (7 Teams, 30 Agents)
 
 ### Team 1: Product & Engineering (The Builders)
 - `architect` — Codebase analysis, module planning
-- `sentry` — Security scanning, vulnerability detection
-- `pr-commander` — PR review, performance, documentation
+- `sentry` — Standalone security scan of the working tree (PR-time security review is the `security` agent's)
+- `pr-commander` — Documentation steward: doc drift, performance notes (PR review is `principal-engineer`'s)
 
 ### Team 2: Market Intelligence (The Strategists)
 - `trend-hunter` — Social listening, competitor tracking
@@ -69,6 +68,14 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 ### Team 6: Operations (The Trackers)
 - `pipeline-manager` — Pipeline tracking, Google Sheets MCP, daily summaries
 
+### Team 7: Engineering Change Intelligence (PR review)
+Driven by `tools/engineering-change-intelligence/`; run locally with `claude --agent pr-orchestrator "Review PR #N"`.
+- `pr-orchestrator` — routes a PR to reviewers; `pr-intelligence` — change summary and risk
+- `principal-engineer` — the overall review call; `security` — PR-time security review
+- `architecture`, `cicd` — design and pipeline (infra readiness defers to `cfn-readiness-auditor`)
+- `database` — DynamoDB single-table review; `finops` — cost impact
+- `release-readiness`, `sre-observability` — ship/no-ship and operability
+
 ## Agent Team Coordination Rules
 1. **No file conflicts:** Each agent owns specific directories. Check CLAUDE.md before editing.
 2. **Communication:** Use task lists and messages to coordinate between teammates.
@@ -82,24 +89,25 @@ Cloudberry is a full-stack real estate CRM platform serving India and Dubai mark
 ## File Ownership Map
 | Team | Owned Paths |
 |------|-------------|
-| Builders (architect, sentry, pr-commander) | `apps/crm/real-estate-crm-app/src/`, `apps/crm/server/`, `services/ai-calling-service/` |
+| Builders (architect, sentry, pr-commander) | `agency-app/web/src/`, `agency-app/api/`, `agency-app/ai-calling/` |
 | Strategists (trend-hunter, deep-researcher, oracle) | `marketing-and-sales/research/`, `marketing-and-sales/reports/` |
 | Content Factory (brand-strategist, nano-designer, motion-engineer, ugc-planner, orator, landing-page-builder, seo-content-writer) | `marketing-and-sales/creative/`, `marketing-and-sales/assets/` |
 | Scalers (media-buyer, ab-optimizer, lead-scraper) | `marketing-and-sales/ads/`, `marketing-and-sales/leads/` |
 | Converters (sdr, nurture-bot) | `marketing-and-sales/outreach/`, `marketing-and-sales/sequences/` |
 | Trackers (pipeline-manager) | `marketing-and-sales/leads/pipeline.*`, `marketing-and-sales/leads/daily-summary-*` |
 
-## Skills Registry (22 Skills)
+## Skills Registry (32 Skills)
 | Category | Skills |
 |----------|--------|
 | Engineering | `codebase-analysis`, `security-audit`, `pr-review` |
+| PR review (Team 7) | `pr-intelligence`, `pr-change-routing`, `principal-engineer-review`, `architecture-review`, `cicd-review`, `database-review`, `finops-review`, `release-readiness`, `sre-observability-review` |
 | Market Intel | `trend-analysis`, `icp-research`, `market-prediction` |
 | Creative | `brand-strategy`, `design-assets`, `image-generation`, `video-production`, `remotion-video`, `ugc-scripts`, `voiceover-gen`, `landing-page`, `seo-blog` |
 | Growth | `meta-ads-setup`, `ab-testing`, `lead-enrichment`, `serpapi-scraping` |
 | Sales | `outbound-outreach`, `whatsapp-outreach`, `lead-nurture` |
 | Operations | `pipeline-tracker` |
 
-## Scripts (8 Scripts)
+## Scripts (9 Scripts)
 | Script | Purpose |
 |--------|---------|
 | `scripts/validate-security-scan.sh` | Blocks destructive commands for Sentry |

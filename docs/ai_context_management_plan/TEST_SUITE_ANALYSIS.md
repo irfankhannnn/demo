@@ -21,7 +21,7 @@ After cleanup: **189 tests → 189 tests** (same coverage, less waste)
 **What it does:**
 - Tests 23 mock functions (state transitions, phone normalization, etc.)
 - These functions exist ONLY in the test file
-- Your actual backend code in `apps/crm/server/` has different implementations
+- Your actual backend code in `agency-app/api/` has different implementations
 - No connection between test and production code
 
 **Why it's waste:**

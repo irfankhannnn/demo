@@ -50,7 +50,7 @@ Triage into a P0/P1/P2 backlog at `marketing-and-sales/launch-implement/week-1/d
 - Title (1 line)
 - Description + observed vs expected
 - Severity: P0 (blocks core flow), P1 (significant friction, high frequency), P2 (polish)
-- Best-guess code location: scan `apps/crm/real-estate-crm-app/src/pages/`, `apps/crm/real-estate-crm-app/src/components/`, `apps/crm/server/routes/` to identify the file
+- Best-guess code location: scan `agency-app/web/src/pages/`, `agency-app/web/src/components/`, `agency-app/api/routes/` to identify the file
 - Proposed fix (1-3 lines)
 - ICE score (Impact 1-10 × Confidence 1-10 × Ease 1-10) / 10
 - Suggested fix-by-day (Day 2 for P0, Day 5 for P1, Week 4 for P2)

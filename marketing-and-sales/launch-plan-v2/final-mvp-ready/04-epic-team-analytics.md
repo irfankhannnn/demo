@@ -7,11 +7,11 @@
 **Architecture anchors (cross-service join):**
 - Team member identity → **auth microservice** `reality-flow-authentication`.
   - **Server-side (E4-T1):** No internal user-list endpoint exists. Forward the admin's Bearer token: `axios.get(\`${process.env.AUTH_SERVICE_URL}/users\`, { headers: { Authorization: req.headers.authorization } })`. Returns the tenant's user array.
-  - **Frontend (reference):** `apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx` calls `GET ${VITE_AUTH_API_URL}/users` directly. Mirror this pattern in `TeamAnalytics.tsx` if needed.
+  - **Frontend (reference):** `agency-app/web/src/pages/admin/MemberManagement.tsx` calls `GET ${VITE_AUTH_API_URL}/users` directly. Mirror this pattern in `TeamAnalytics.tsx` if needed.
   - `UserItem` fields: `userId, tenantId, displayName, email, phoneNumber, role ('ADMIN'|'MEMBER'), status ('ACTIVE'|'INACTIVE'|'SUSPENDED'), lastLoginAt, authMethod`.
-- Performance → **CRM** (`apps/crm/server/crmDynamodbService.js`): leads have `assignedTo` (userId string), `status` (`new|contacted|qualified|negotiating|converted|lost`), `convertedAt`, `createdAt`. Use existing CRM list/filter functions — do not scan raw.
-- Admin gating: `apps/crm/real-estate-crm-app/src/utils/rbac.ts` → `isAdmin()`. Copy admin redirect from `apps/crm/real-estate-crm-app/src/pages/admin/MemberManagement.tsx`: `if (profile?.role !== 'ADMIN') { navigate('/member/no-access'); return; }`.
-- Table UI: `apps/crm/real-estate-crm-app/src/components/GlassDataTable.tsx` — import and use directly (sort/filter built in; no built-in export button).
+- Performance → **CRM** (`agency-app/api/crmDynamodbService.js`): leads have `assignedTo` (userId string), `status` (`new|contacted|qualified|negotiating|converted|lost`), `convertedAt`, `createdAt`. Use existing CRM list/filter functions — do not scan raw.
+- Admin gating: `agency-app/web/src/utils/rbac.ts` → `isAdmin()`. Copy admin redirect from `agency-app/web/src/pages/admin/MemberManagement.tsx`: `if (profile?.role !== 'ADMIN') { navigate('/member/no-access'); return; }`.
+- Table UI: `agency-app/web/src/components/GlassDataTable.tsx` — import and use directly (sort/filter built in; no built-in export button).
 - Auth service URL server-side: `process.env.AUTH_SERVICE_URL` (already set in Lambda env via CFN).
 - See `notes/codebase-reference.md` §5 for exact UserItem schema and endpoint details.
 
@@ -24,9 +24,9 @@
 **Goal:** One endpoint returns per-member metrics for the tenant.
 
 **Files**
-- NEW `apps/crm/server/routes/admin.js` (mount at `/api/admin` in `apps/crm/server/server.js`, after express.json(); chain `validateToken, extractTenantId, requireAdmin` — `requireAdmin` already exported from `apps/crm/server/middleware/requireRole.js`)
-- NEW `apps/crm/server/teamAnalyticsService.js`
-- MODIFY `apps/crm/server/server.js` (mount router)
+- NEW `agency-app/api/routes/admin.js` (mount at `/api/admin` in `agency-app/api/server.js`, after express.json(); chain `validateToken, extractTenantId, requireAdmin` — `requireAdmin` already exported from `agency-app/api/middleware/requireRole.js`)
+- NEW `agency-app/api/teamAnalyticsService.js`
+- MODIFY `agency-app/api/server.js` (mount router)
 - Reuse: an internal call to the auth service for the member list. There is already a server→auth call pattern in `validateToken.js` (axios to `AUTH_SERVICE_URL`). Add a helper to fetch `GET {AUTH_SERVICE_URL}/internal/users?tenantId=` OR reuse the existing seat-count internal endpoint referenced by subscriptions (`/internal/users/count`). Confirm the exact internal users endpoint; if only `/users` (token-based) exists, call it forwarding the admin's token.
 
 **Endpoint**
@@ -44,9 +44,9 @@ lastActivityAt        // max(updatedAt) across records the member touched (creat
 ```
 
 **Detail**
-- `teamAnalyticsService.getTeamAnalytics(tenantId, range)` in `apps/crm/server/teamAnalyticsService.js`:
+- `teamAnalyticsService.getTeamAnalytics(tenantId, range)` in `agency-app/api/teamAnalyticsService.js`:
   1. `members` = call `GET {AUTH_SERVICE_URL}/users` with forwarded Authorization header. Parse response as `UserItem[]`.
-  2. `leads` = call existing CRM lead list functions from `apps/crm/server/crmDynamodbService.js` — pass `{ tenantId, startDate, endDate }` range filters. Do not re-query per member.
+  2. `leads` = call existing CRM lead list functions from `agency-app/api/crmDynamodbService.js` — pass `{ tenantId, startDate, endDate }` range filters. Do not re-query per member.
   3. Aggregate in memory keyed by `assignedTo` → metrics. Members with no leads still appear (zeros).
   4. `conversionRate = dealsClosed / totalAssigned` (guard division by zero with `|| 0`).
   5. `contactedRate = (leads where status !== 'new') / totalAssigned` as responsiveness proxy.
@@ -71,10 +71,10 @@ lastActivityAt        // max(updatedAt) across records the member touched (creat
 **Goal:** Download the same analytics as `.xlsx`.
 
 **Files**
-- NEW `apps/crm/server/utils/excel.js`
-- MODIFY `apps/crm/server/routes/admin.js` — `GET /api/admin/team-analytics/export?startDate&endDate`
-- MODIFY `apps/crm/server/package.json` — add `xlsx` dependency.
-- MODIFY `apps/crm/server/infra/deploy.sh` zip include — `xlsx` is in `node_modules` (already zipped via `node_modules`), so no include-list change needed. Verify bundle size still within Lambda limits.
+- NEW `agency-app/api/utils/excel.js`
+- MODIFY `agency-app/api/routes/admin.js` — `GET /api/admin/team-analytics/export?startDate&endDate`
+- MODIFY `agency-app/api/package.json` — add `xlsx` dependency.
+- MODIFY `agency-app/api/infra/deploy.sh` zip include — `xlsx` is in `node_modules` (already zipped via `node_modules`), so no include-list change needed. Verify bundle size still within Lambda limits.
 
 **Detail**
 - `excel.js`: `buildTeamAnalyticsWorkbook(items)` → `XLSX.utils.json_to_sheet`, one sheet "Team Analytics", returns Buffer.
@@ -98,8 +98,8 @@ lastActivityAt        // max(updatedAt) across records the member touched (creat
 **Goal:** Admin-only page with sortable table + filters + Excel download + member detail drawer.
 
 **Files**
-- NEW `apps/crm/real-estate-crm-app/src/pages/admin/TeamAnalytics.tsx`
-- MODIFY `apps/crm/real-estate-crm-app/src/App.tsx` — `/admin/team-analytics` (ProtectedRoute + admin redirect like MemberManagement).
+- NEW `agency-app/web/src/pages/admin/TeamAnalytics.tsx`
+- MODIFY `agency-app/web/src/App.tsx` — `/admin/team-analytics` (ProtectedRoute + admin redirect like MemberManagement).
 - Reuse `GlassDataTable` for the table; `apiService` for calls; lucide-react icons; Tailwind + brand `#2563EB`.
 
 **Detail**
@@ -128,9 +128,9 @@ lastActivityAt        // max(updatedAt) across records the member touched (creat
 **Goal:** Admin receives a daily team performance summary on WhatsApp.
 
 **Files**
-- NEW `apps/crm/server/scripts/team-summary-cron.js` (handler `handler`)
+- NEW `agency-app/api/scripts/team-summary-cron.js` (handler `handler`)
 - NEW CFN `cron/team-summary.yaml` (clone `trial-reminder.yaml`; schedule daily 18:00 IST = `cron(30 12 * * ? *)`; env: CRM table, AUTH_SERVICE_URL, BAILEY env, CREDITS table)
-- Reuse `teamAnalyticsService.getTeamAnalytics` and `apps/crm/server/bailey.js` (`sendWhatsAppMessage`).
+- Reuse `teamAnalyticsService.getTeamAnalytics` and `agency-app/api/bailey.js` (`sendWhatsAppMessage`).
 
 **Detail**
 - For each tenant with an ADMIN that has `whatsAppPhoneNumber` (and `BAILEY_ENABLED`): build a compact summary (top performers, totals) and send via Bailey.

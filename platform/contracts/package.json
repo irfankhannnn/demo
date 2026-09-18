@@ -1,0 +1,10 @@
+{
+  "name": "@realtyflow/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Event JSON schemas and API contracts shared by every unit in the repo",
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/check-events.mjs"
+  }
+}

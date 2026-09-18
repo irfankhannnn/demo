@@ -16,9 +16,9 @@ It is the third layer alongside:
 
 Implementation maps to:
 
-- `apps/crm/server/agents/responseFormatter.js` + `apps/crm/server/agents/formatting/`
-- `apps/crm/server/agents/prompts.js`
-- `apps/crm/server/conversationStateService.js`
+- `agency-app/api/agents/responseFormatter.js` + `agency-app/api/agents/formatting/`
+- `agency-app/api/agents/prompts.js`
+- `agency-app/api/conversationStateService.js`
 
 ## Relationship to other docs
 

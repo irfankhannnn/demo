@@ -1,0 +1,30 @@
+{
+  "_comment": [
+    "ALLOWLIST, not a denylist — fail-closed by design (same model as",
+    "agency-app/web/infra/config-only-allowed-params.json).",
+    "",
+    "This is a static site (S3 + CloudFront), so every CFN parameter is pure",
+    "infrastructure topology (domain, cert, hosted zone, price class, WAF).",
+    "'config-only' here means 'skip npm ci + vite build + s3 sync'",
+    "(infra/config-deploy.sh, --skip-build). It is a separate axis from",
+    "'skip the CFN update' (infra/content-deploy.sh, --skip-cfn) for a pure",
+    "VITE_*-only change, which is baked into the JS bundle at build time.",
+    "",
+    "Deliberately NOT listed, and why:",
+    "  EnvironmentName  — identity of the stack itself.",
+    "  BucketName       — the PHYSICAL S3 bucket name; changing it makes",
+    "                      CloudFormation try to REPLACE the bucket (serving",
+    "                      the site from an empty bucket), not a config tweak.",
+    "",
+    "WebDomainName / AcmCertificateArn / HostedZoneId are listed together:",
+    "the template's HasCustomDomain condition needs all three, and",
+    "infra/lib/params.sh refuses a partial set before any CFN call."
+  ],
+  "allowedParams": [
+    "PriceClass",
+    "WebDomainName",
+    "AcmCertificateArn",
+    "HostedZoneId",
+    "WafWebAclArn"
+  ]
+}

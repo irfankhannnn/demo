@@ -86,7 +86,7 @@ Repo: cloudberrysolutions/reality-flow-authentication  (NOT nabi-app-git-bkp —
 
 Context to load:
 - The invite-creation handler/route (search for "invite" / "createInvite" / "seats").
-- In nabi-app-git-bkp for reference: apps/crm/server/routes/subscriptions.js  (the /subscriptions/check-seat endpoint returning 402 when seatsUsed >= seatsPaid)
+- In nabi-app-git-bkp for reference: agency-app/api/routes/subscriptions.js  (the /subscriptions/check-seat endpoint returning 402 when seatsUsed >= seatsPaid)
 - marketing-and-sales/launch-plan-v2/coding-agent-brief/bugs/BUG-009.md
 
 Task:
@@ -105,13 +105,13 @@ Acceptance: direct API call to the invite endpoint cannot exceed paid seats; tes
 Repo: cloudberrysolutions/nabi-app-git-bkp (branch auth_rbac_feature)
 
 Context to load:
-- apps/crm/server/infra/launch-tables-cfn.yaml
+- agency-app/api/infra/launch-tables-cfn.yaml
 - docs/launch-audit/06-env-and-vendor-setup.md
 - docs/launch-audit/03-production-readiness.md
-- apps/crm/server/.env.example, apps/crm/real-estate-crm-app/.env.example, marketing-and-sales/creative/landing-pages/.env.example
+- agency-app/api/.env.example, agency-app/web/.env.example, marketing-and-sales/creative/landing-pages/.env.example
 
 Task (requires AWS creds + vendor accounts — see doc 06):
-1. `aws cloudformation deploy --template-file apps/crm/server/infra/launch-tables-cfn.yaml --stack-name realestateflow-launch-tables --capabilities CAPABILITY_NAMED_IAM --region ap-south-1`
+1. `aws cloudformation deploy --template-file agency-app/api/infra/launch-tables-cfn.yaml --stack-name realestateflow-launch-tables --capabilities CAPABILITY_NAMED_IAM --region ap-south-1`
 2. Map stack outputs to the DynamoDB table-name env vars.
 3. Set server env vars in the Lambda/host; set VITE_* in Netlify (CRM site) and LP build env in Netlify (LP site).
 4. Redeploy backend, CRM, and LP; run the smoke checks in doc 03.

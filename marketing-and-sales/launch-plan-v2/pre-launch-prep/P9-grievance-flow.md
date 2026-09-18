@@ -16,14 +16,14 @@ DPDP Act 2023 requires every Data Fiduciary to (a) appoint a Grievance Officer, 
 As a user (or third party) wanting to exercise my DPDP rights or report a grievance against RealEstateFlow's data handling, I want a public form linked from every page footer that submits in <30 seconds and emails the Grievance Officer with a tracking ID, so I have a clear path to resolution within 7 working days.
 
 ## Acceptance Criteria
-- [x] Public route `apps/crm/server/routes/grievance.js` accepts POST with `{name, email, phone (optional), category, description}` (rate-limited 5/IP/hour)
+- [x] Public route `agency-app/api/routes/grievance.js` accepts POST with `{name, email, phone (optional), category, description}` (rate-limited 5/IP/hour)
 - [x] DynamoDB table `Grievances`: PK `grievanceId`, sort `createdAt`, attrs: `name, email, phone, category, description, status, assignedTo, resolvedAt, resolutionNotes, internalNotes`
 - [x] Categories enum: `data_access` · `data_correction` · `data_deletion` · `data_export` · `account_security` · `billing` · `service_complaint` · `other`
 - [x] Status enum: `new` · `acknowledged` · `in_progress` · `resolved` · `escalated`
 - [x] Auto-acknowledgement email sent via Brevo within 60s of submission with: tracking ID `GR-{6-digit}`, "Response SLA 7 working days as per DPDP Act 2023", category, founder/Grievance-Officer name, link to status check (future feature, optional)
 - [x] Notification email to `info@realestateflow.in` (Grievance Officer mailbox) on every new submission
-- [ ] Public page `apps/crm/real-estate-crm-app/src/pages/Grievance.tsx` (also rendered as static HTML at `creative/landing-pages/main/legal/grievance/index.html` for LP footer link) with: form, category dropdown, expected SLA, GO contact block, link back to Privacy Policy
-- [x] Admin view `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx` (founder-only role gate): table of all grievances, filters (status, category, date), detail drawer, status update dropdown, internal notes textarea, "Send response" button (drafts email via Brevo with templated reply)
+- [ ] Public page `agency-app/web/src/pages/Grievance.tsx` (also rendered as static HTML at `creative/landing-pages/main/legal/grievance/index.html` for LP footer link) with: form, category dropdown, expected SLA, GO contact block, link back to Privacy Policy
+- [x] Admin view `agency-app/web/src/pages/admin/GrievanceList.tsx` (founder-only role gate): table of all grievances, filters (status, category, date), detail drawer, status update dropdown, internal notes textarea, "Send response" button (drafts email via Brevo with templated reply)
 - [ ] LP footer of all 5 LPs + CRM SPA footer shows: "Grievance Officer: {{NAME}} — info@realestateflow.in — Response SLA 7 working days" linking to `/grievance`
 - [ ] Privacy Policy footer links to `/grievance` (P1 dependency)
 - [ ] `Schema.org ContactPoint` JSON-LD added to homepage `<head>` (P16)
@@ -35,19 +35,19 @@ As a user (or third party) wanting to exercise my DPDP rights or report a grieva
 
 ```
 You are a senior full-stack engineer (Node/Express + React/TypeScript). Read these inputs to learn conventions:
-- `apps/crm/server/routes/leads.js` (route pattern: validateToken + extractTenantId)
-- `apps/crm/server/tenantMiddleware.js` (tenant scoping)
-- `apps/crm/server/crmDynamodbService.js` (DynamoDB service patterns — note: Grievances table is PUBLIC, no tenantId)
-- `apps/crm/server/server.js` (where to mount the new route)
-- `apps/crm/server/awsClientWrapper.js` (DDB client)
-- `apps/crm/real-estate-crm-app/src/App.tsx` (existing routes — add /grievance public route + /admin/grievances private route)
-- `apps/crm/real-estate-crm-app/src/pages/PhoneLogin.tsx` (auth conventions)
+- `agency-app/api/routes/leads.js` (route pattern: validateToken + extractTenantId)
+- `agency-app/api/tenantMiddleware.js` (tenant scoping)
+- `agency-app/api/crmDynamodbService.js` (DynamoDB service patterns — note: Grievances table is PUBLIC, no tenantId)
+- `agency-app/api/server.js` (where to mount the new route)
+- `agency-app/api/awsClientWrapper.js` (DDB client)
+- `agency-app/web/src/App.tsx` (existing routes — add /grievance public route + /admin/grievances private route)
+- `agency-app/web/src/pages/PhoneLogin.tsx` (auth conventions)
 - `marketing-and-sales/launch-plan-v2/pricing.json` (no direct dependency, but check brand)
 - `marketing-and-sales/creative/landing-pages/main/index.html` (footer convention to extend)
 
 Produce these files:
 
-## 1. `apps/crm/server/grievanceDynamodbService.js` — new service module
+## 1. `agency-app/api/grievanceDynamodbService.js` — new service module
 Mirrors patterns in `crmDynamodbService.js` but for the public `Grievances` table:
 - `createGrievance({name, email, phone, category, description, ip, userAgent})` → returns `{grievanceId, createdAt}`
 - `getGrievanceById(grievanceId)`
@@ -56,9 +56,9 @@ Mirrors patterns in `crmDynamodbService.js` but for the public `Grievances` tabl
 - Use ULID or UUIDv7 for grievanceId; cosmetic `GR-{first-6-chars}` for user-facing tracking ID
 - Auto-set createdAt = ISO timestamp, status = 'new'
 
-## 2. `apps/crm/server/routes/grievance.js` — Express route
+## 2. `agency-app/api/routes/grievance.js` — Express route
 - POST `/api/grievance` (PUBLIC — no validateToken, no tenantId)
-  - Rate-limit 5/IP/hour via `express-rate-limit` (add to `apps/crm/server/server.js` deps if not present)
+  - Rate-limit 5/IP/hour via `express-rate-limit` (add to `agency-app/api/server.js` deps if not present)
   - Validate body: name 1-100 chars, email valid format, phone optional 10-digit Indian, category in enum, description 10-2000 chars
   - hCaptcha verify (server-side `siteverify`)
   - Honeypot: reject if `body.middle_name` is filled
@@ -73,7 +73,7 @@ Mirrors patterns in `crmDynamodbService.js` but for the public `Grievances` tabl
 
 Mount in `server.js`: `app.use('/api', grievanceRoutes)`.
 
-## 3. `apps/crm/real-estate-crm-app/src/pages/Grievance.tsx` — public React page
+## 3. `agency-app/web/src/pages/Grievance.tsx` — public React page
 - Tailwind, mobile-first, follows brand kit (#22C55E + #0F3A66)
 - Form with: name, email, phone (optional), category dropdown (with descriptions), description textarea (with char counter), hCaptcha widget, submit button
 - Honeypot hidden field `middle_name` (CSS hidden + tabindex=-1)
@@ -81,20 +81,20 @@ Mount in `server.js`: `app.use('/api', grievanceRoutes)`.
 - Sidebar: GO name, postal address, email, SLA, link to Privacy Policy
 - Footer: link back to homepage, links to /legal/{terms,privacy,refund,cookies}
 
-## 4. `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx` — admin React page
+## 4. `agency-app/web/src/pages/admin/GrievanceList.tsx` — admin React page
 - Route `/admin/grievances`, gated by `role === 'founder' || role === 'admin'` (refer to `App.tsx initAuth` for role pattern)
 - Table: tracking ID, date, name, email, category, status badge, assigned-to, action buttons
 - Filters: status, category, date range, free-text search on email/description
 - Detail drawer (right side, slide-in): full grievance, internal notes, resolution notes, status dropdown, assigned-to picker (founders/admins), "Send response" button → opens templated Brevo email composer (see template below)
 - Status badges colored: new=red, acknowledged=yellow, in_progress=blue, resolved=green, escalated=red-bordered
 
-## 5. `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx` — response templates
+## 5. `agency-app/web/src/pages/admin/GrievanceList.tsx` — response templates
 Three Brevo templates (saved in Brevo dashboard, IDs hardcoded in code):
 - `grievance_acknowledgement` — sent automatically on creation
 - `grievance_resolved` — sent on status=resolved with resolutionNotes
 - `grievance_escalated` — sent if SLA missed (>7 working days)
 
-## 6. `infra/dynamodb/Grievances.tf` (or CloudFormation YAML or just markdown spec depending on infra style — check `apps/crm/server/infra/` for existing patterns)
+## 6. `infra/dynamodb/Grievances.tf` (or CloudFormation YAML or just markdown spec depending on infra style — check `agency-app/api/infra/` for existing patterns)
 Table definition:
 - PK: `grievanceId` (string)
 - Sort: `createdAt` (string ISO)
@@ -118,7 +118,7 @@ Internal SOP for founder/admin to triage:
 - Append all decisions to `00-DECISIONS-LOG.md`
 
 ## 9. Update LP footer + CRM SPA footer
-Update `creative/landing-pages/main/index.html` footer (and the other 4 LPs in P15) + `apps/crm/real-estate-crm-app/src/components/Footer.tsx` (or wherever footer lives) to include the GO disclosure block.
+Update `creative/landing-pages/main/index.html` footer (and the other 4 LPs in P15) + `agency-app/web/src/components/Footer.tsx` (or wherever footer lives) to include the GO disclosure block.
 
 Stop here. Do not deploy. Do not run hCaptcha signup (founder does manually).
 ```
@@ -126,7 +126,7 @@ Stop here. Do not deploy. Do not run hCaptcha signup (founder does manually).
 ## Manual Steps (🧍 — run after AI Prompt completes)
 
 1. **Sign up for hCaptcha** at `https://www.hcaptcha.com/` (free tier — 100k verifications/month). Get sitekey + secret.
-2. **Add env vars** to `apps/crm/server/.env` and Lambda config: `HCAPTCHA_SECRET`, `BREVO_API_KEY`, `BREVO_GRIEVANCE_ACK_TEMPLATE_ID`, `BREVO_GRIEVANCE_NOTIFY_TEMPLATE_ID`.
+2. **Add env vars** to `agency-app/api/.env` and Lambda config: `HCAPTCHA_SECRET`, `BREVO_API_KEY`, `BREVO_GRIEVANCE_ACK_TEMPLATE_ID`, `BREVO_GRIEVANCE_NOTIFY_TEMPLATE_ID`.
 3. **Create Brevo templates** — log into Brevo, Templates → Create New, paste the 3 templates from prompt output. Copy template IDs into env vars above.
 4. **Create DynamoDB `Grievances` table** via CloudFormation/Terraform from `infra/dynamodb/Grievances.tf` OR manually via AWS console. Verify GSI active.
 5. **Deploy server changes** + SPA build. Verify `/grievance` URL returns 200 and form works in test mode.
@@ -143,10 +143,10 @@ Stop here. Do not deploy. Do not run hCaptcha signup (founder does manually).
 - Founder name + postal address (for GO block)
 
 ## Outputs
-- `apps/crm/server/routes/grievance.js`
-- `apps/crm/server/grievanceDynamodbService.js`
-- `apps/crm/real-estate-crm-app/src/pages/Grievance.tsx`
-- `apps/crm/real-estate-crm-app/src/pages/admin/GrievanceList.tsx`
+- `agency-app/api/routes/grievance.js`
+- `agency-app/api/grievanceDynamodbService.js`
+- `agency-app/web/src/pages/Grievance.tsx`
+- `agency-app/web/src/pages/admin/GrievanceList.tsx`
 - `infra/dynamodb/Grievances.tf` (or equivalent)
 - `tests/grievance.spec.ts`
 - `marketing-and-sales/launch-implement/pre-launch/09-grievance/grievance-handling-sop.md`

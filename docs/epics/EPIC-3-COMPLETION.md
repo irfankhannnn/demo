@@ -5,7 +5,7 @@
 
 ## Implemented Features
 - **LP banner** (`marketing-and-sales/creative/landing-pages/_partials/cookie-banner.html`) — vanilla HTML + inline CSS + inline JS. Bottom-fixed bar with 3 equal-weight buttons (Accept all / Reject non-essential / Customize). Customize opens a modal with **4 categories**: Essential (locked-on), Functional (Hotjar), Analytics (PostHog + GA4), Marketing (Meta Pixel + LinkedIn). Dispatches `cookie-consent-done` CustomEvent on save. ARIA `role="dialog"`, Esc-to-close, mobile bottom-sheet via `@media`. Exposes `window.openCookiePreferences()` for the future footer link.
-- **CRM banner** (`apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`) — React + Tailwind, bottom-fixed. Same 3 buttons. Customize modal exposes **only 2 toggles** (Essential locked + Analytics) — **no Marketing toggle** (CRM loads PostHog only). Dispatches `cookieConsentChanged` CustomEvent on save. Returns `null` once consent of the current `version` is stored. Exposes `window.openCRMCookiePreferences()`.
+- **CRM banner** (`agency-app/web/src/components/CookieConsentBanner.tsx`) — React + Tailwind, bottom-fixed. Same 3 buttons. Customize modal exposes **only 2 toggles** (Essential locked + Analytics) — **no Marketing toggle** (CRM loads PostHog only). Dispatches `cookieConsentChanged` CustomEvent on save. Returns `null` once consent of the current `version` is stored. Exposes `window.openCRMCookiePreferences()`.
 - Both variants share the **same `localStorage.cookieConsent` key + schema** (01-SHARED-CONTRACTS §3.5), re-prompting only when `version !== 1`.
 - Mounted `<CookieConsentBanner />` in `App.tsx` via the tagged `[LAUNCH LAYOUT COMPONENTS]` block (renders on every route).
 
@@ -39,6 +39,6 @@
 - `/legal/cookies` page is P1/P15 scope.
 
 ## Rollback Notes
-- Delete `marketing-and-sales/creative/landing-pages/_partials/cookie-banner.html`, `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx`, `tests/cookie-consent.spec.ts`.
-- Revert the `[LAUNCH COMPONENT IMPORTS]` + `[LAUNCH LAYOUT COMPONENTS]` additions in `apps/crm/real-estate-crm-app/src/App.tsx`.
+- Delete `marketing-and-sales/creative/landing-pages/_partials/cookie-banner.html`, `agency-app/web/src/components/CookieConsentBanner.tsx`, `tests/cookie-consent.spec.ts`.
+- Revert the `[LAUNCH COMPONENT IMPORTS]` + `[LAUNCH LAYOUT COMPONENTS]` additions in `agency-app/web/src/App.tsx`.
 - No infra/DB/server changes to undo.

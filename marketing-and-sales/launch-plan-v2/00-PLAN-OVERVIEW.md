@@ -1,29 +1,35 @@
 # RealEstateFlow — Plan Overview (condensed)
 
-A Mumbai-first, founder-led, ₹0-paid-ads launch of RealEstateFlow positioned as an *AI Employee that runs your broking agency on WhatsApp + Telegram*, with English landing pages, ₹999/₹1,999+₹500/AI-Employee-₹7,999 pricing, and a 30-day execution sheet that 1 founder + 1 AI agent can complete end-to-end.
+> **Status (17 Sep 2026):** Checked against the code on `main` and against the September merge. Telegram removed (no code, dropped by decision), the inline pricing table replaced by a pointer to `pricing.json`, measurement sources pointed at the event map, and the stack table brought up to date.
+
+A Mumbai-first, founder-led, ₹0-paid-ads launch of RealEstateFlow positioned as an *AI Employee that runs your broking agency on WhatsApp*, with English landing pages, current pre-launch pricing held in `pricing.json`, and a 30-day execution sheet that one founder plus AI agents can complete end to end.
 
 ---
 
 ## 1. Wedge
 
-**RealEstateFlow is an AI Employee that runs your broking agency on WhatsApp and Telegram.** It qualifies leads, follows up buyers, books site visits, and updates your Khata book — without you hiring another agent.
+**RealEstateFlow is an AI Employee that runs your broking agency on WhatsApp.** It qualifies leads, follows up buyers, books site visits, and updates your Khata book — without you hiring another agent.
+
+> Telegram was dropped: there is no Telegram code in the repo. Remove it from any copy where it survives.
 
 - **Audience M1:** Solo brokers + small teams (≤3 agents), Mumbai only.
 - **Anti-positioning:** Sell.do · Zoho · LeadSquared · Excel + WhatsApp-only workflow.
 - **Activation event:** owner connects WhatsApp + AI Employee handles ≥1 inbound lead end-to-end within 7 days.
+  - ⚠️ A Solo/Team **trial** user cannot reach this event — the AI Employee is a paid add-on with no trial (`pricing.json`). The definition and its ≥40% target are therefore unsettled, and they conflict with the milestone-based definition in the archived activation specs. Working definition and options: `50-measurement/activation-definition.md`.
+  - > Open decision D27 — see marketing-and-sales/launch-plan-v2/00-OPEN-DECISIONS.md
 
 ---
 
-## 2. Pricing (canonical: see `pricing.json`)
+## 2. Pricing — pointer only
 
-| Plan | Price (+18% GST) | Trial | Refund | Includes |
-|---|---|---|---|---|
-| Solo | ₹999/mo | 14-day, no card | 1 month | 1 member, full CRM |
-| Team | ₹1,999/mo | 14-day, no card | 1 month | up to 3 members |
-| Team+ | ₹1,999 + ₹500/extra/mo | 14-day, no card | 1 month | 4+ members, prorated |
-| AI Employee add-on | ₹7,999/mo | **none** | **none** | 1 OpenClaw config per agency, 24h concierge setup |
+**`pricing.json` is the only source of prices, trial length and refund terms.** `README.md` forbids restating a price anywhere else, and the table that used to sit here did exactly that — and had drifted (it said a "1 month" refund where `pricing.json` says a **30-day money-back window for first-time subscribers, with anti-abuse terms**).
 
-Annual discount: 20% off Solo/Team/Team+ (not AI Employee). Free onboarding, training videos, chat & email support across all tiers.
+What a reader needs to know without opening the file:
+
+- Tiers are Solo, Team, Team+ and the **AI Employee add-on**, which has **no trial and no refund**. Any creative that names the AI Employee carries that disclosure.
+- Everything is quoted **+18% GST**. Annual billing carries a discount on the CRM tiers, not the add-on.
+- These are **current pre-launch prices, under review.** `pricing.json` and the CRM's own `agency-app/web/src/lib/plans.ts` disagree on Team+. Both are being replaced by the proposal at `docs/realestateflow-vision/38-pricing-plan-contacts-and-credits.md` (plans limited by number of properties plus AI credits, with a new "Contacts" billable unit). Do not treat today's numbers as final.
+- The brand kit states a **different offer** (2 months free, 6-month money-back, AI Employee +₹5,000). That conflict is unresolved — see `10-audience-and-voice/brand-constants.md` §5.
 
 ---
 
@@ -54,14 +60,18 @@ If gate is missed by Day 30, hold paid spend; iterate the Mumbai beta cycle for 
 
 ## 5. Success metrics M1 (Day 30)
 
+Event names are **not** restated here. Every row's exact source is defined once, in `50-measurement/posthog-event-map.md`, which is built from the live contract in `agency-app/web/src/types/analytics.ts`, `agency-app/api/lib/posthog.js`, `agency-app/landing-pages/_partials/head-analytics.hbs` and `coding-agent-brief/01-SHARED-CONTRACTS.md` §3.4.
+
 | Metric | Target | Measurement source |
 |---|---|---|
-| Trial signups | 30-50 | PostHog `signup_completed` |
-| Paying customers | 3-5 | Razorpay `subscription_charged` |
-| Activation rate | ≥40% | PostHog `ai_employee_lead_handled` within 7d of signup |
+| Trial signups | 30-50 | PostHog — see `50-measurement/posthog-event-map.md` |
+| Paying customers | 3-5 | Razorpay billing webhook (`agency-app/api/routes/billing.js`) |
+| Activation rate | ≥40% | PostHog, within 7d of signup — definition open, see D27 |
 | Cold reply rate | ≥10% | Manual log + Instantly metrics |
-| NPS responses | ≥10 | DynamoDB `NPSResponses` |
+| NPS responses | ≥10 | DynamoDB `NPSResponses` (`agency-app/api/routes/feedback.js`) |
 | Promoters (9-10) | ≥3 | NPS report |
+
+The weekly version of this table, with the exact query behind each number, is `50-measurement/weekly-scorecard.md`.
 
 ---
 
@@ -84,10 +94,12 @@ If gate is missed by Day 30, hold paid spend; iterate the Mumbai beta cycle for 
 | Cloud | AWS `ap-south-1` |
 | Payments | Razorpay (live KYC in flight) |
 | DNS | Cloudflare |
-| Analytics | PostHog + GA4 + Meta Pixel + LinkedIn Tag + Hotjar |
+| Analytics | **PostHog is the canonical event store** (wired in the SPA, the server and the landing pages) + GA4 + Meta Pixel + LinkedIn Tag + Hotjar |
+| Social scheduling | Blotato MCP — configured in `.mcp.json`, usage pending **D22** |
+| Property-page chat | ManyChat — live (`docs/public-app/property-pages/02-MANYCHAT-SETUP.md`) |
 | Transactional email | Brevo |
 | Cold email | Instantly |
-| WhatsApp warm | AiSensy (BSP) |
+| WhatsApp warm | AiSensy (BSP) — **planned**. Note the distinction: the *product's* WhatsApp is self-hosted Baileys (`platform/whatsapp-platform/`), QR-linked, not a BSP. The official WhatsApp Business Cloud API direction is `docs/realestateflow-vision/39-whatsapp-official-api-plan.md`. Which number talks to prospects is **D29c**. |
 | WhatsApp cold | personal number ≤15/day |
 | Helpdesk | Crisp |
 | Status + uptime | BetterStack |
@@ -104,6 +116,7 @@ If gate is missed by Day 30, hold paid spend; iterate the Mumbai beta cycle for 
 
 | Gap | File |
 |---|---|
+| Retired design specs, with the condition that would justify building each | `50-measurement/design-only-backlog.md` |
 | Logo SVG + dark + favicons + OG | `pre-launch-prep/P8-logo-and-favicons.md` |
 | Grievance flow + `/grievance` page | `pre-launch-prep/P9-grievance-flow.md` |
 | Analytics events SPA+LP+server | `pre-launch-prep/P10-analytics-events.md` |
@@ -114,13 +127,13 @@ If gate is missed by Day 30, hold paid spend; iterate the Mumbai beta cycle for 
 | Landing pages rewrite ×5 (English + new pricing) | `pre-launch-prep/P15-landing-pages-rewrite.md` |
 | SEO + AEO + JSON-LD on every page | `pre-launch-prep/P16-seo-aeo-master.md` |
 | Cookie consent banner | `pre-launch-prep/P17-cookie-consent-banner.md` |
-| In-app NPS + feedback (Day 28) | `week-4-optimize-convert/day-28-nps-feedback.md` |
+| In-app NPS + feedback (Day 28) | `week-4-optimize-convert/day-28-nps-feedback-loops.md` |
 
 ---
 
 ## 9. What's already shipped (reuse — don't recreate)
 
-See `cross-cutting/existing-asset-reuse-map.md`. Highlights:
+See `cross-cutting/existing-asset-reuse-map.md`, and `archive/content-os/README.md` for what was retired in the September merge. Highlights:
 - 4-week launch plan acceptance criteria already drafted in `marketing-and-sales/launch-plan/{pre-launch-prep,week-1..4}/`
 - Brand kit + Mumbai launch creative briefs at `creative/realestateflow-launch/`
 - ICP + Mumbai positioning + personas at `research/`

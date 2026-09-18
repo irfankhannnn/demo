@@ -4,6 +4,7 @@
 > **Phase:** Week 2
 > **Skill(s):** `cold-email` + `whatsapp-outreach` + `outbound-outreach`
 > **Estimated time:** 5h founder + 2h AI
+> **Script:** `../40-sales-and-conversion/qualification.md` (what to ask, how to route) · `../30-channels/whatsapp/lead-nurture.md` (the WhatsApp touches)
 
 ## Objective
 Send personalised beta invites to all 30-40 Day-8 prospects via 3 channels (email + WhatsApp + LinkedIn) with founder-personal voice + 90-sec Loom + cal.com booking link, targeting 8-12 confirmed beta tester signups by EOD Day 10.

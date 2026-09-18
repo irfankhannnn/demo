@@ -23,7 +23,7 @@ Work through fixes in order. Each fix can be committed independently.
 
 ### Fix 1.1: Add Seat Downgrade Handler
 
-**File:** `apps/crm/server/routes/billing.js`  
+**File:** `agency-app/api/routes/billing.js`  
 **Lines:** 331-357  
 **Issue:** Only handles seat upgrades (`newQuantity > previousQuantity`). Downgrades silently ignored.
 
@@ -113,7 +113,7 @@ aws dynamodb get-item --table-name Subscriptions \
 
 ### Fix 1.2: Update Subscriptions Table on Cancellation
 
-**File:** `apps/crm/server/routes/billing.js`  
+**File:** `agency-app/api/routes/billing.js`  
 **Lines:** 306-328  
 **Issue:** `subscription.cancelled` and `subscription.halted` only suspend AI Employee. Subscriptions table still shows `isPaying=true`.
 
@@ -195,7 +195,7 @@ case 'subscription.halted': {
 }
 ```
 
-**Also add to `apps/crm/server/subscriptionService.js` (append after `setBillingAnniversaryDay`):**
+**Also add to `agency-app/api/subscriptionService.js` (append after `setBillingAnniversaryDay`):**
 ```javascript
 /**
  * Update subscription status fields (paymentStatus, isPaying, cancelledAt, etc.)
@@ -246,7 +246,7 @@ aws dynamodb get-item --table-name Subscriptions \
 
 ### Fix 1.3: Implement Grace Period on Payment Failure
 
-**File:** `apps/crm/server/routes/billing.js`  
+**File:** `agency-app/api/routes/billing.js`  
 **Lines:** 294-304  
 **Issue:** `payment.failed` only logs to PostHog. No grace period activated.
 
@@ -306,13 +306,13 @@ case 'payment.failed': {
 }
 ```
 
-**Add to `apps/crm/server/subscriptionService.js` `createTrialSubscription` item (line 114-128):**
+**Add to `agency-app/api/subscriptionService.js` `createTrialSubscription` item (line 114-128):**
 ```javascript
 // Add gracePeriodEndsAt field to schema (initially null)
 gracePeriodEndsAt: null,
 ```
 
-**Add env var to `apps/crm/server/.env.example`:**
+**Add env var to `agency-app/api/.env.example`:**
 ```bash
 # Grace period for failed payments (days)
 GRACE_PERIOD_DAYS=7
@@ -326,7 +326,7 @@ BREVO_PAYMENT_FAILED_TEMPLATE_ID=4
 
 ### Fix 1.4: Add Grace Period Expiry Cron
 
-**File:** `apps/crm/server/scripts/grace-period-expiry-cron.js` (NEW FILE)  
+**File:** `agency-app/api/scripts/grace-period-expiry-cron.js` (NEW FILE)  
 **Issue:** No cron to expire grace period after N days and suspend features.
 
 **Create:**
@@ -420,7 +420,7 @@ aws dynamodb update-item --table-name Subscriptions \
   }' --region ap-south-1
 
 # Run cron
-node apps/crm/server/scripts/grace-period-expiry-cron.js
+node agency-app/api/scripts/grace-period-expiry-cron.js
 
 # Verify gracePeriodActive=false, paymentStatus=grace_period_expired
 ```
@@ -431,7 +431,7 @@ node apps/crm/server/scripts/grace-period-expiry-cron.js
 
 ### Fix 1.5: Add Idempotency Lock to Credit Reset Cron
 
-**File:** `apps/crm/server/scripts/credit-reset-cron.js`  
+**File:** `agency-app/api/scripts/credit-reset-cron.js`  
 **Lines:** 93-101  
 **Issue:** No `ConditionExpression` — concurrent cron runs could reset credits twice.
 
@@ -505,8 +505,8 @@ reset++;
 **Test:**
 ```bash
 # Run cron twice in parallel
-node apps/crm/server/scripts/credit-reset-cron.js &
-node apps/crm/server/scripts/credit-reset-cron.js &
+node agency-app/api/scripts/credit-reset-cron.js &
+node agency-app/api/scripts/credit-reset-cron.js &
 wait
 
 # Verify only one reset ledger entry per tenant for today
@@ -518,7 +518,7 @@ wait
 
 ### Fix 1.6: Make Refund Blocking in leads.js
 
-**File:** `apps/crm/server/routes/leads.js`  
+**File:** `agency-app/api/routes/leads.js`  
 **Lines:** 310-317  
 **Issue:** Refund is non-blocking (`.catch()` only logs). Credits can be lost.
 
@@ -582,8 +582,8 @@ wait
 ```
 
 **Apply same pattern to other credit-charging routes:**
-- `apps/crm/server/routes/crm.js` (search for `refundCredits`)
-- `apps/crm/server/routes/khata.js` (if applicable)
+- `agency-app/api/routes/crm.js` (search for `refundCredits`)
+- `agency-app/api/routes/khata.js` (if applicable)
 
 **Commit:** `fix(credits): make refund blocking to prevent credit loss on handler failure`
 
@@ -591,7 +591,7 @@ wait
 
 ### Fix 1.7: Fix Bailey Webhook Signature Skip in Dev
 
-**File:** `apps/crm/server/bailey.js`  
+**File:** `agency-app/api/bailey.js`  
 **Lines:** 234-241  
 **Issue:** In dev, skips signature verification if `BAILEY_WEBHOOK_SECRET` not set.
 
@@ -621,7 +621,7 @@ if (!secret) {
 }
 ```
 
-**Also update `apps/crm/server/.env.example`:**
+**Also update `agency-app/api/.env.example`:**
 ```bash
 # Bailey WhatsApp — REQUIRED in all environments (use a test secret in dev)
 BAILEY_WEBHOOK_SECRET=generate-a-test-secret-for-local-dev
@@ -633,7 +633,7 @@ BAILEY_WEBHOOK_SECRET=generate-a-test-secret-for-local-dev
 
 ### Fix 1.8: Add Validation for Razorpay Notes (tenantId)
 
-**File:** `apps/crm/server/routes/billing.js`  
+**File:** `agency-app/api/routes/billing.js`  
 **Lines:** 139-144 (subscription.activated handler)  
 **Issue:** `tenantId` from notes could be undefined, provisioning fails silently.
 
@@ -678,7 +678,7 @@ if (!tenantId) {
 
 ### Fix 1.9: Add Balance Reconciliation Utility
 
-**File:** `apps/crm/server/scripts/credit-balance-reconcile.js` (NEW FILE)  
+**File:** `agency-app/api/scripts/credit-balance-reconcile.js` (NEW FILE)  
 **Issue:** If BALANCE item deleted, `getBalance()` returns 0 silently.
 
 **Create:**
@@ -803,7 +803,7 @@ aws dynamodb delete-item --table-name cloudberry-real-estate-credits \
   --key '{"tenantId":{"S":"<TENANT_ID>"},"sk":{"S":"BALANCE"}}' --region ap-south-1
 
 # Run reconciliation
-node apps/crm/server/scripts/credit-balance-reconcile.js
+node agency-app/api/scripts/credit-balance-reconcile.js
 
 # Verify BALANCE item rebuilt
 aws dynamodb get-item --table-name cloudberry-real-estate-credits \
@@ -818,7 +818,7 @@ aws dynamodb get-item --table-name cloudberry-real-estate-credits \
 
 ### Fix 2.1: Add Rate Limiting to Billing Webhook
 
-**File:** `apps/crm/server/server.js`  
+**File:** `agency-app/api/server.js`  
 **Issue:** Billing webhook mounted before rate limiter.
 
 **Find the billing route mount (around line 83):**
@@ -842,7 +842,7 @@ app.use('/api/billing', webhookRateLimit, billingRoutes);
 
 ### Fix 2.2: Add subscription.paused and subscription.resumed Handlers
 
-**File:** `apps/crm/server/routes/billing.js`  
+**File:** `agency-app/api/routes/billing.js`  
 **Lines:** Add after `subscription.updated` case (line 357)  
 **Issue:** Paused/resumed subscriptions not handled.
 
@@ -894,7 +894,7 @@ case 'subscription.resumed': {
 
 ### Fix 2.3: Add Credit Amount Validation (Upper Bound)
 
-**File:** `apps/crm/server/routes/subscriptions.js`  
+**File:** `agency-app/api/routes/subscriptions.js`  
 **Lines:** 171-173  
 **Issue:** No upper bound on credit amount.
 
@@ -926,7 +926,7 @@ if (credits > MAX_CREDIT_PURCHASE) {
 
 ### Fix 2.4: Add Credit Admin Endpoint Input Validation
 
-**File:** `apps/crm/server/routes/creditAdmin.js`  
+**File:** `agency-app/api/routes/creditAdmin.js`  
 **Lines:** 24-42  
 **Issue:** Allows arbitrary action type keys. No upper bound on cost values.
 
@@ -1007,7 +1007,7 @@ router.put('/costs', async (req, res) => {
 
 ### Fix 2.5: Fix IP Spoofing in Rate Limiter
 
-**File:** `apps/crm/server/middleware/rateLimiter.js`  
+**File:** `agency-app/api/middleware/rateLimiter.js`  
 **Lines:** 15-16  
 **Issue:** Uses first IP from `x-forwarded-for` without validation.
 
@@ -1050,7 +1050,7 @@ const key = typeof ip === 'string' ? ip : String(ip);
 
 ### Fix 2.6: Fix Billing Anniversary Day Calculation
 
-**File:** `apps/crm/server/scripts/credit-reset-cron.js`  
+**File:** `agency-app/api/scripts/credit-reset-cron.js`  
 **Lines:** 23-42 (`isDueForReset` function)  
 **Issue:** Doesn't handle month-end edge cases (e.g., anniversary on 31st, but month has 28 days).
 
@@ -1101,7 +1101,7 @@ if (sub.billingAnniversaryDay) {
 
 ### Fix 2.7: Add Per-Tenant Rate Limiting
 
-**File:** `apps/crm/server/middleware/rateLimiter.js`  
+**File:** `agency-app/api/middleware/rateLimiter.js`  
 **Issue:** No per-tenant rate limiting. One tenant could DoS others.
 
 **Add new function:**
@@ -1149,7 +1149,7 @@ export const tenantRateLimit = createTenantRateLimit(60 * 1000, 200);
 export const creditActionRateLimit = createTenantRateLimit(60 * 1000, 30); // 30 credit-charging actions per minute
 ```
 
-**Apply to credit-charging routes in `apps/crm/server/routes/leads.js`:**
+**Apply to credit-charging routes in `agency-app/api/routes/leads.js`:**
 ```javascript
 import { creditActionRateLimit } from '../middleware/rateLimiter.js';
 // ...
@@ -1162,7 +1162,7 @@ router.post('/', validateToken, extractTenantId, creditActionRateLimit, async (r
 
 ### Fix 2.8: Redact Sensitive Data in Logs
 
-**File:** `apps/crm/server/logger.js`  
+**File:** `agency-app/api/logger.js`  
 **Issue:** Doesn't redact `razorpayPaymentId`, `razorpayOrderId`, `amountPaise`, phone numbers, emails.
 
 **Find the redaction configuration and add:**
@@ -1187,8 +1187,8 @@ const SENSITIVE_KEYS = [
 ### Fix 3.1: Add Invoice/Transaction History UI
 
 **Files:**
-- `apps/crm/real-estate-crm-app/src/pages/crm/BillingSettings.tsx` — Add "Transaction History" tab
-- `apps/crm/real-estate-crm-app/src/services/api.ts` — Add `getCreditLedger()` method
+- `agency-app/web/src/pages/crm/BillingSettings.tsx` — Add "Transaction History" tab
+- `agency-app/web/src/services/api.ts` — Add `getCreditLedger()` method
 
 **API method (api.ts):**
 ```typescript
@@ -1217,7 +1217,7 @@ async getCreditLedger(params?: { limit?: number; startKey?: string }): Promise<{
 
 ### Fix 3.2: Reduce Polling Interval for Trial Users
 
-**File:** `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx`  
+**File:** `agency-app/web/src/contexts/SubscriptionContext.tsx`  
 **Issue:** 5-minute polling too slow for trial users near expiry.
 
 **Change:**
@@ -1232,7 +1232,7 @@ const pollingInterval = subscription?.isTrialing ? 60 * 1000 : 5 * 60 * 1000;
 
 ### Fix 3.3: Add Grace Period Countdown in PaywallModal
 
-**File:** `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`  
+**File:** `agency-app/web/src/components/PaywallModal.tsx`  
 **Issue:** Doesn't show grace period remaining days.
 
 **Add:**
@@ -1258,7 +1258,7 @@ const graceDaysLeft = Math.ceil(
 
 ### Fix 3.4: Add Subscription State Validation
 
-**File:** `apps/crm/server/subscriptionService.js`  
+**File:** `agency-app/api/subscriptionService.js`  
 **Issue:** No validation for inconsistent state.
 
 **Add:**
@@ -1307,7 +1307,7 @@ export function validateSubscriptionState(sub) {
 
 ### Fix 3.5: Add Audit Logging for Config Changes
 
-**File:** `apps/crm/server/creditConfig.js`  
+**File:** `agency-app/api/creditConfig.js`  
 **Lines:** 91-105  
 **Issue:** No audit trail for config changes.
 
@@ -1356,7 +1356,7 @@ export async function updateConfig(key, value, updatedBy = 'system') {
 
 ### Fix 4.1: Add PITR to Billing Tables
 
-**File:** `apps/crm/server/infra/cfn-backend.yaml`  
+**File:** `agency-app/api/infra/cfn-backend.yaml`  
 **Issue:** No PITR on Credits, CreditConfig, AIEmployeeProvisioning.
 
 **Add to each billing table definition:**
@@ -1401,7 +1401,7 @@ AiEmployeeProvisioningTable:
 
 ### Fix 4.2: Add GSI to Subscriptions Table
 
-**File:** `apps/crm/server/infra/launch-tables-cfn.yaml` (or wherever Subscriptions table is defined)  
+**File:** `agency-app/api/infra/launch-tables-cfn.yaml` (or wherever Subscriptions table is defined)  
 **Issue:** No GSI — trial reminder cron does full table scan.
 
 **Add to Subscriptions table definition:**
@@ -1425,7 +1425,7 @@ GlobalSecondaryIndexes:
       ProjectionType: ALL
 ```
 
-**Then update `apps/crm/server/scripts/trial-reminder-cron.js` to use GSI:**
+**Then update `agency-app/api/scripts/trial-reminder-cron.js` to use GSI:**
 ```javascript
 // Replace ScanCommand with QueryCommand on GSI
 const result = await docClient.send(new QueryCommand({
@@ -1442,7 +1442,7 @@ const result = await docClient.send(new QueryCommand({
 
 ### Fix 4.3: Add GSI to WebhookLog Table
 
-**File:** `apps/crm/server/infra/launch-tables-cfn.yaml`  
+**File:** `agency-app/api/infra/launch-tables-cfn.yaml`  
 **Issue:** No GSI — cannot query webhook history by tenant or event type.
 
 **Add:**
@@ -1580,10 +1580,10 @@ describe('Billing Webhook', () => {
 3. Run `npm run build` to verify no TypeScript errors
 
 ### Post-Deployment
-1. Run credit balance reconciliation: `node apps/crm/server/scripts/credit-balance-reconcile.js`
+1. Run credit balance reconciliation: `node agency-app/api/scripts/credit-balance-reconcile.js`
 2. Verify webhook endpoint accepts requests: `curl -X POST <api-url>/api/billing/webhook -d '{}'`
 3. Monitor CloudWatch for webhook processing errors
-4. Run grace period expiry cron manually first time: `node apps/crm/server/scripts/grace-period-expiry-cron.js`
+4. Run grace period expiry cron manually first time: `node agency-app/api/scripts/grace-period-expiry-cron.js`
 
 ### Rollback Plan
 - Each fix is a separate commit — can revert individually
@@ -1594,7 +1594,7 @@ describe('Billing Webhook', () => {
 
 ## Environment Variables to Add
 
-Add to `apps/crm/server/.env.example`:
+Add to `agency-app/api/.env.example`:
 ```bash
 # Grace period for failed payments (days)
 GRACE_PERIOD_DAYS=7
@@ -1615,23 +1615,23 @@ MAX_CREDIT_COST=1000
 
 | File | Fixes | Phase |
 |------|-------|-------|
-| `apps/crm/server/routes/billing.js` | 1.1, 1.2, 1.3, 1.8, 2.2 | 1, 2 |
-| `apps/crm/server/subscriptionService.js` | 1.2, 1.3, 3.4 | 1, 3 |
-| `apps/crm/server/scripts/credit-reset-cron.js` | 1.5, 2.6 | 1, 2 |
-| `apps/crm/server/scripts/grace-period-expiry-cron.js` | 1.4 (NEW) | 1 |
-| `apps/crm/server/scripts/credit-balance-reconcile.js` | 1.9 (NEW) | 1 |
-| `apps/crm/server/routes/leads.js` | 1.6 | 1 |
-| `apps/crm/server/bailey.js` | 1.7 | 1 |
-| `apps/crm/server/server.js` | 2.1 | 2 |
-| `apps/crm/server/routes/subscriptions.js` | 2.3 | 2 |
-| `apps/crm/server/routes/creditAdmin.js` | 2.4 | 2 |
-| `apps/crm/server/middleware/rateLimiter.js` | 2.5, 2.7 | 2 |
-| `apps/crm/server/logger.js` | 2.8 | 2 |
-| `apps/crm/server/creditConfig.js` | 3.5 | 3 |
-| `apps/crm/server/infra/cfn-backend.yaml` | 4.1 | 4 |
-| `apps/crm/server/infra/launch-tables-cfn.yaml` | 4.2, 4.3 | 4 |
+| `agency-app/api/routes/billing.js` | 1.1, 1.2, 1.3, 1.8, 2.2 | 1, 2 |
+| `agency-app/api/subscriptionService.js` | 1.2, 1.3, 3.4 | 1, 3 |
+| `agency-app/api/scripts/credit-reset-cron.js` | 1.5, 2.6 | 1, 2 |
+| `agency-app/api/scripts/grace-period-expiry-cron.js` | 1.4 (NEW) | 1 |
+| `agency-app/api/scripts/credit-balance-reconcile.js` | 1.9 (NEW) | 1 |
+| `agency-app/api/routes/leads.js` | 1.6 | 1 |
+| `agency-app/api/bailey.js` | 1.7 | 1 |
+| `agency-app/api/server.js` | 2.1 | 2 |
+| `agency-app/api/routes/subscriptions.js` | 2.3 | 2 |
+| `agency-app/api/routes/creditAdmin.js` | 2.4 | 2 |
+| `agency-app/api/middleware/rateLimiter.js` | 2.5, 2.7 | 2 |
+| `agency-app/api/logger.js` | 2.8 | 2 |
+| `agency-app/api/creditConfig.js` | 3.5 | 3 |
+| `agency-app/api/infra/cfn-backend.yaml` | 4.1 | 4 |
+| `agency-app/api/infra/launch-tables-cfn.yaml` | 4.2, 4.3 | 4 |
 | Frontend components | 3.1, 3.2, 3.3 | 3 |
-| `apps/crm/server/.env.example` | All env vars | All |
+| `agency-app/api/.env.example` | All env vars | All |
 
 ---
 

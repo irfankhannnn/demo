@@ -13,13 +13,13 @@
 
 **Morning (4 hours): Fix deploy.sh + CFN**
 
-1. **Fix `apps/crm/server/infra/deploy.sh`** — add 8 missing parameters to `cfn-params.json` and `PARAM_OVERRIDES`:
+1. **Fix `agency-app/api/infra/deploy.sh`** — add 8 missing parameters to `cfn-params.json` and `PARAM_OVERRIDES`:
    - `CreditsTableName`, `CreditConfigTableName`
    - `SesFromEmail`, `EmailProviderPrimary`
    - `BaileyEnabled`, `BaileyApiKey`, `BaileyWebhookSecret`
    - `AgentsEnabled`
 
-2. **Fix `apps/crm/server/scripts/escalation-cron.js`** — add missing closing brace `}` at line 98.
+2. **Fix `agency-app/api/scripts/escalation-cron.js`** — add missing closing brace `}` at line 98.
 
 3. **Cron jobs are now merged into cfn-backend.yaml** — all 10 cron jobs are now part of the main CloudFormation template. No separate cron/*.yaml files needed.
 
@@ -31,7 +31,7 @@
 ```bash
 set -e
 # Validate syntax
-node --check apps/crm/server/scripts/escalation-cron.js
+node --check agency-app/api/scripts/escalation-cron.js
 # Validate CFN (all crons are now merged into cfn-backend.yaml)
 aws cloudformation validate-template --template-body file://server/infra/cfn-backend.yaml
 ```
@@ -241,7 +241,7 @@ describe('creditService', () => {
 ```bash
 set -e
 
-cd apps/crm/server/infra
+cd agency-app/api/infra
 
 # 1. Verify CFN template
 aws cloudformation validate-template --template-body file://cfn-backend.yaml

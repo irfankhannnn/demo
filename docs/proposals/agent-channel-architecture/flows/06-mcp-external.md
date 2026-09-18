@@ -10,7 +10,7 @@
 Claude Desktop / ChatGPT / other MCP client
     │  MCP protocol (JSON-RPC over SSE) + OAuth with Dynamic Client Registration
     ▼
-services/reality-flow-mcp/            ← standalone TypeScript service, own deployment
+platform/mcp/            ← standalone TypeScript service, own deployment
     src/controllers/mcpController.ts
     src/controllers/oauthController.ts
     src/services/toolDefinitions.ts   ⚠ hand-maintained COPY
@@ -18,10 +18,10 @@ services/reality-flow-mcp/            ← standalone TypeScript service, own dep
     │
     │  HTTP POST /api/crm/agent/tool   (Bearer service JWT, role: mcp-agent)
     ▼
-apps/crm/server/routes/agentTools.js
+agency-app/api/routes/agentTools.js
     │  verifies JWT, checks ALLOWED_TOOL_NAMES
     ▼
-apps/crm/server/skillInvoker.js  →  canUserAccessTool()  →  crmDynamodbService  →  DynamoDB
+agency-app/api/skillInvoker.js  →  canUserAccessTool()  →  crmDynamodbService  →  DynamoDB
 ```
 
 The OAuth handshake is genuinely involved — DCR registration against the MCP server, session codes persisted, a desktop-client callback path — and it works. That part is not the problem.
@@ -30,16 +30,16 @@ The OAuth handshake is genuinely involved — DCR registration against the MCP s
 
 ## The problem: two tool registries
 
-`services/reality-flow-mcp/src/services/toolDefinitions.ts` is an explicit copy. Its own header says so:
+`platform/mcp/src/services/toolDefinitions.ts` is an explicit copy. Its own header says so:
 
-> *"Defines all 54 CRM tools in a neutral format... This is a self-contained copy for the isolated MCP microservice. The canonical source lives in `apps/crm/server/shared/toolDefinitions.js`."*
+> *"Defines all 54 CRM tools in a neutral format... This is a self-contained copy for the isolated MCP microservice. The canonical source lives in `agency-app/api/shared/toolDefinitions.js`."*
 
 Measured at `f6b557e`:
 
 | Registry | Unique tools |
 |---|---|
-| `apps/crm/server/shared/toolDefinitions.js` (canonical) | **87** |
-| `services/reality-flow-mcp/src/services/toolDefinitions.ts` (copy) | **74** |
+| `agency-app/api/shared/toolDefinitions.js` (canonical) | **87** |
+| `platform/mcp/src/services/toolDefinitions.ts` (copy) | **74** |
 | Header comment in the copy | claims **54** |
 
 Two layers of staleness: the copy has drifted 13 tools behind the canonical registry, and its own documentation has drifted 20 tools behind itself. External AI clients simply cannot reach those 13+ capabilities, and nothing detects further drift.
@@ -51,14 +51,14 @@ This is the concrete failure that `../04-orchestration-patterns.md` exists to pr
 ## The fix: generate, do not copy
 
 ```
-apps/crm/server/shared/toolDefinitions.js          ← single source of truth
+agency-app/api/shared/toolDefinitions.js          ← single source of truth
             │
             │  build step (CI / prebuild)
             ▼
     generate-mcp-tools.mjs
             │  neutral definition → MCP inputSchema
             ▼
-services/reality-flow-mcp/src/services/toolDefinitions.ts   ← GENERATED, committed, never hand-edited
+platform/mcp/src/services/toolDefinitions.ts   ← GENERATED, committed, never hand-edited
 ```
 
 Requirements:
@@ -70,7 +70,7 @@ Requirements:
 
 The MCP protocol layer, OAuth flow and `crmClient.ts` do not change. Only the schema's provenance changes.
 
-There is already a related helper (`apps/crm/server/scripts/dump-tools.js`) and a docs generator (`docs/current_design/_generate-tools.mjs`), so this pattern is established in the repo.
+There is already a related helper (`agency-app/api/scripts/dump-tools.js`) and a docs generator (`docs/current_design/_generate-tools.mjs`), so this pattern is established in the repo.
 
 ---
 
@@ -93,7 +93,7 @@ Unification happens at the **registry**, not at the protocol.
 
 Because MCP hands planning to the caller, an external client with a strong model **already gets multi-step tool sequencing today** — it simply calls `/tool` repeatedly, reasoning between calls. That is precisely the bounded loop Flow 01 lacks.
 
-So the single-shot limitation is a property of `apps/crm/server/agents/llm/planTurn.js`, **not** of the tools. Two consequences:
+So the single-shot limitation is a property of `agency-app/api/agents/llm/planTurn.js`, **not** of the tools. Two consequences:
 
 1. It confirms the tools are already shaped correctly for multi-step use — the loop is the only missing piece.
 2. External clients may already be exercising tool combinations the internal agent has never produced. Their call logs are a **free source of realistic multi-step traces** for the Flow 01 eval set.

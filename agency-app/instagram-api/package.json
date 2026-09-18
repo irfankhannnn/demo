@@ -1,0 +1,24 @@
+{
+  "name": "backend-insta-sol-ms",
+  "version": "1.0.0",
+  "description": "Instagram Solution backend microservice — Express on Lambda, DynamoDB single-table, Instagram Business Login, webhooks + scheduled sync",
+  "type": "module",
+  "main": "lambda.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --env-file=.env.local --watch server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "axios": "^1.7.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "serverless-http": "^3.2.0",
+    "uuid": "^11.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

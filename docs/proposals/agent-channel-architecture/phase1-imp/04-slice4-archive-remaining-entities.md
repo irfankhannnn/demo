@@ -21,7 +21,7 @@ Slice 3 proved the tool-definition shape and dispatch pattern for `archive_*` us
 ### `lead`
 
 ```js
-// update_lead's status enum, apps/crm/server/shared/toolDefinitions.js
+// update_lead's status enum, agency-app/api/shared/toolDefinitions.js
 ['new', 'contacted', 'qualified', 'negotiating', 'lost', 'archived']
 ```
 ```js
@@ -78,7 +78,7 @@ export async function archiveBuyer(tenantId, buyerId) {
 ### `meeting`
 
 ```js
-// updateMeeting's validTransitions, apps/crm/server/crmDynamodbService.js
+// updateMeeting's validTransitions, agency-app/api/crmDynamodbService.js
 const validTransitions = {
   scheduled: ['completed', 'cancelled', 'rescheduled', 'archived'],
   rescheduled: ['completed', 'cancelled', 'scheduled', 'archived'],

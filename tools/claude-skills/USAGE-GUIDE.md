@@ -213,7 +213,7 @@ All outputs are saved under your workspace:
 ```
 marketing-outputs/
 ├── brand/              # Manifestos, taglines, tone guides
-├── apps/landing-pages/      # HTML files
+├── agency-app/landing-pages/      # HTML files
 ├── blog/               # SEO articles, editorial calendars
 ├── images/             # Generated PNG banners and posts
 ├── videos/             # MP4 videos

@@ -17,10 +17,9 @@ Perform a comprehensive analysis of the Cloudberry CRM codebase. If arguments ar
 
 ### 1. Map Directory Structure
 Scan the project layout and identify key directories:
-- `apps/crm/real-estate-crm-app/src/` — Frontend (React + TypeScript)
-- `apps/crm/server/` — Backend (Node.js + Express + DynamoDB)
-- `services/ai-calling-service/` — AI calling microservice
-- `apps/onboarding/` — Onboarding flow
+- `agency-app/web/src/` — Frontend (React + TypeScript)
+- `agency-app/api/` — Backend (Node.js + Express + DynamoDB)
+- `agency-app/ai-calling/` — AI calling microservice
 
 ### 2. Identify Key Patterns
 For each module, document:
@@ -32,10 +31,10 @@ For each module, document:
 
 ### 3. Module Inventory
 List all existing modules with their status:
-- Route files in `apps/crm/server/routes/`
-- Service files in `apps/crm/server/`
-- Frontend pages in `apps/crm/real-estate-crm-app/src/pages/`
-- Type definitions in `apps/crm/real-estate-crm-app/src/types/`
+- Route files in `agency-app/api/routes/`
+- Service files in `agency-app/api/`
+- Frontend pages in `agency-app/web/src/pages/`
+- Type definitions in `agency-app/web/src/types/`
 
 ### 4. Dependency Analysis
 Check `package.json` files for:
@@ -66,5 +65,5 @@ Output a structured report:
 ```
 
 ## Additional Resources
-- For architecture decisions, see [architecture-template.md](../templates/pr-review-template.md)
+- For architecture decisions, see [architecture-template.md](../../templates/pr-review-template.md)
 - For security concerns, delegate to the `sentry` agent

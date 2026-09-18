@@ -1,0 +1,58 @@
+name: PR Engineering Change Intelligence
+
+# Manual only. Gathers a PR's diff/commits/stats, routes the review agents and
+# uploads the result as an artifact. It does not run the AI review, post PR
+# comments or post to Slack: the review runs locally in Claude Code
+# (claude --agent pr-orchestrator "Review PR #N"), see
+# tools/engineering-change-intelligence/README.md.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to analyze'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-intelligence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate input
+        id: context
+        env:
+          PR_INPUT: ${{ inputs.pr_number }}
+        run: |
+          [[ "$PR_INPUT" =~ ^[0-9]+$ ]] || { echo "pr_number must be numeric"; exit 1; }
+          echo "pr_number=$PR_INPUT" >> "$GITHUB_OUTPUT"
+
+      - name: Gather PR context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        run: |
+          bash tools/engineering-change-intelligence/scripts/gather-pr-context.sh \
+            --pr "$PR_NUMBER" \
+            --output "tools/engineering-change-intelligence/reports/pr-$PR_NUMBER"
+
+      - name: Route agents
+        env:
+          PR_NUMBER: ${{ steps.context.outputs.pr_number }}
+        run: |
+          bash tools/engineering-change-intelligence/scripts/route-agents.sh \
+            "tools/engineering-change-intelligence/reports/pr-$PR_NUMBER/files-changed.txt"
+
+      - name: Upload context artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-intelligence-context-${{ steps.context.outputs.pr_number }}
+          path: tools/engineering-change-intelligence/reports/pr-${{ steps.context.outputs.pr_number }}/
+          retention-days: 30

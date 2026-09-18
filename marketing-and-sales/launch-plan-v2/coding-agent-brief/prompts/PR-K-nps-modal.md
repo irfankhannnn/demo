@@ -10,16 +10,16 @@
 
 1. `marketing-and-sales/launch-plan-v2/coding-agent-brief/00-MASTER-BRIEF.md`
 2. `marketing-and-sales/launch-plan-v2/coding-agent-brief/01-SHARED-CONTRACTS.md` (§1.6 NPSResponses table)
-3. `apps/crm/real-estate-crm-app/src/App.tsx`
-4. `apps/crm/real-estate-crm-app/src/components/CookieConsentBanner.tsx` (PR-C — modal pattern to follow)
-5. `apps/crm/server/routes/grievance.js` (PR-B — route pattern)
+3. `agency-app/web/src/App.tsx`
+4. `agency-app/web/src/components/CookieConsentBanner.tsx` (PR-C — modal pattern to follow)
+5. `agency-app/api/routes/grievance.js` (PR-B — route pattern)
 6. `marketing-and-sales/launch-plan-v2/week-4-optimize-convert/day-28-nps-feedback-loops.md`
 
 ---
 
 ## What to Build
 
-### 1. `apps/crm/server/routes/feedback.js`
+### 1. `agency-app/api/routes/feedback.js`
 
 Two endpoints:
 
@@ -42,7 +42,7 @@ Two endpoints:
 // If invalid: returns 401
 ```
 
-### 2. `apps/crm/real-estate-crm-app/src/components/NpsModal.tsx`
+### 2. `agency-app/web/src/components/NpsModal.tsx`
 
 Trigger logic:
 - Triggered by `useEffect` that checks: `user.createdAt` was >14 days ago AND last NPS shown >90 days ago (stored in `localStorage.nps_last_asked`)
@@ -90,7 +90,7 @@ Styling:
 
 ---
 
-## apps/crm/server/server.js Modification
+## agency-app/api/server.js Modification
 
 In `// === [LAUNCH ROUTES IMPORTS] ===`:
 ```js
@@ -120,7 +120,7 @@ In `{/* === [LAUNCH PUBLIC ROUTES] === */}`:
 <Route path="/nps" element={<NpsEmailLanding />} />
 ```
 
-Create a minimal `apps/crm/real-estate-crm-app/src/pages/public/NpsEmailLanding.tsx`:
+Create a minimal `agency-app/web/src/pages/public/NpsEmailLanding.tsx`:
 - Reads `score` + `token` from URL params
 - Validates token via `GET /api/nps?score={N}&token={T}`
 - If valid: shows the NPS form inline (reuses NpsModal form component)
@@ -130,7 +130,7 @@ Create a minimal `apps/crm/real-estate-crm-app/src/pages/public/NpsEmailLanding.
 
 ## What NOT to Touch
 
-- `apps/crm/server/subscriptionService.js` (PR-H)
+- `agency-app/api/subscriptionService.js` (PR-H)
 - `src/hooks/useSubscription.ts` (PR-J)
 - Any LP files
 
@@ -144,14 +144,14 @@ PR-K: NPS survey — in-app modal + feedback backend + email-link flow
 Batch 4 | Day 4 | Parallel with PR-J
 
 Files created:
-- apps/crm/server/routes/feedback.js — POST /api/feedback/nps + GET /api/nps (email link)
-- apps/crm/real-estate-crm-app/src/components/NpsModal.tsx — 3-step NPS modal (triggered after 14 days)
-- apps/crm/real-estate-crm-app/src/pages/public/NpsEmailLanding.tsx — email-link NPS form
+- agency-app/api/routes/feedback.js — POST /api/feedback/nps + GET /api/nps (email link)
+- agency-app/web/src/components/NpsModal.tsx — 3-step NPS modal (triggered after 14 days)
+- agency-app/web/src/pages/public/NpsEmailLanding.tsx — email-link NPS form
 - tests/nps.spec.ts — Playwright tests
 
 Files modified:
-- apps/crm/server/server.js — feedback route mount
-- apps/crm/real-estate-crm-app/src/App.tsx — NpsModal in layout + /nps public route
+- agency-app/api/server.js — feedback route mount
+- agency-app/web/src/App.tsx — NpsModal in layout + /nps public route
 
 Source task: Day-28 NPS (week-4-optimize-convert/day-28-nps-feedback-loops.md)
 ```

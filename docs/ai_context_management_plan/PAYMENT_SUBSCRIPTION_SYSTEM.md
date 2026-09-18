@@ -36,7 +36,7 @@ Brevo (Email) + AiSensy (WhatsApp)
 
 ## Backend Implementation
 
-### 1. **Subscription Service** (`apps/crm/server/subscriptionService.js`)
+### 1. **Subscription Service** (`agency-app/api/subscriptionService.js`)
 
 Core subscription management functions:
 
@@ -69,7 +69,7 @@ Core subscription management functions:
 }
 ```
 
-### 2. **Billing Webhook** (`apps/crm/server/routes/billing.js`)
+### 2. **Billing Webhook** (`agency-app/api/routes/billing.js`)
 
 Handles all Razorpay events with **HMAC signature verification** and **replay attack protection**:
 
@@ -105,7 +105,7 @@ Handles all Razorpay events with **HMAC signature verification** and **replay at
 10. Return 200 OK
 ```
 
-### 3. **Subscriptions API** (`apps/crm/server/routes/subscriptions.js`)
+### 3. **Subscriptions API** (`agency-app/api/routes/subscriptions.js`)
 
 **Endpoints:**
 
@@ -167,7 +167,7 @@ Pre-invite seat availability check. Returns 402 Payment Required if limit hit.
 }
 ```
 
-### 4. **Auth Post-Registration Hook** (`apps/crm/server/routes/auth.js`)
+### 4. **Auth Post-Registration Hook** (`agency-app/api/routes/auth.js`)
 
 Called after Cognito signup:
 1. Create trial subscription (14 days)
@@ -179,7 +179,7 @@ Called after Cognito signup:
 
 ## Frontend Implementation
 
-### 1. **Subscription Context** (`apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx`)
+### 1. **Subscription Context** (`agency-app/web/src/contexts/SubscriptionContext.tsx`)
 
 Provides subscription state globally:
 ```typescript
@@ -199,14 +199,14 @@ interface SubscriptionContextValue {
 - Polls every 5 minutes
 - Gracefully handles missing subscription (returns defaults)
 
-### 2. **useSubscription Hook** (`apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts`)
+### 2. **useSubscription Hook** (`agency-app/web/src/hooks/useSubscription.ts`)
 
 Simple wrapper around SubscriptionContext:
 ```typescript
 const { isPaying, isTrialing, trialDaysLeft, isTrialExpired, refetch } = useSubscription();
 ```
 
-### 3. **Paywall Modal** (`apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx`)
+### 3. **Paywall Modal** (`agency-app/web/src/components/PaywallModal.tsx`)
 
 **Triggers when:**
 - Trial expired AND
@@ -246,7 +246,7 @@ const { isPaying, isTrialing, trialDaysLeft, isTrialExpired, refetch } = useSubs
 }
 ```
 
-### 4. **Seat Upgrade Modal** (`apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx`)
+### 4. **Seat Upgrade Modal** (`agency-app/web/src/components/SeatUpgradeModal.tsx`)
 
 Triggered when user tries to invite but seat limit reached (402 response).
 
@@ -254,7 +254,7 @@ Triggered when user tries to invite but seat limit reached (402 response).
 - Solo: "Upgrade to Team for 3 seats — ₹1,999/month"
 - Team: "Add seats at ₹500/month (prorated)"
 
-### 5. **Razorpay Integration** (`apps/crm/real-estate-crm-app/src/lib/razorpay.ts`)
+### 5. **Razorpay Integration** (`agency-app/web/src/lib/razorpay.ts`)
 
 ```typescript
 export async function loadRazorpay(): Promise<void>
@@ -554,17 +554,17 @@ canInvite = seatsUsed < seatsPaid
 
 | File | Purpose |
 |------|---------|
-| `apps/crm/server/subscriptionService.js` | Subscription CRUD operations |
-| `apps/crm/server/routes/subscriptions.js` | Subscription API endpoints |
-| `apps/crm/server/routes/billing.js` | Razorpay webhook handler |
-| `apps/crm/server/routes/auth.js` | Post-registration hook |
-| `apps/crm/server/aiEmployeeProvisioningService.js` | AI Employee provisioning |
-| `apps/crm/real-estate-crm-app/src/contexts/SubscriptionContext.tsx` | Global subscription state |
-| `apps/crm/real-estate-crm-app/src/hooks/useSubscription.ts` | Subscription hook |
-| `apps/crm/real-estate-crm-app/src/components/PaywallModal.tsx` | Trial expiry paywall |
-| `apps/crm/real-estate-crm-app/src/components/SeatUpgradeModal.tsx` | Seat limit paywall |
-| `apps/crm/real-estate-crm-app/src/lib/razorpay.ts` | Razorpay checkout integration |
-| `apps/crm/server/.env.example` | Environment variables |
+| `agency-app/api/subscriptionService.js` | Subscription CRUD operations |
+| `agency-app/api/routes/subscriptions.js` | Subscription API endpoints |
+| `agency-app/api/routes/billing.js` | Razorpay webhook handler |
+| `agency-app/api/routes/auth.js` | Post-registration hook |
+| `agency-app/api/aiEmployeeProvisioningService.js` | AI Employee provisioning |
+| `agency-app/web/src/contexts/SubscriptionContext.tsx` | Global subscription state |
+| `agency-app/web/src/hooks/useSubscription.ts` | Subscription hook |
+| `agency-app/web/src/components/PaywallModal.tsx` | Trial expiry paywall |
+| `agency-app/web/src/components/SeatUpgradeModal.tsx` | Seat limit paywall |
+| `agency-app/web/src/lib/razorpay.ts` | Razorpay checkout integration |
+| `agency-app/api/.env.example` | Environment variables |
 
 ---
 

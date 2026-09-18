@@ -29,10 +29,10 @@ find . -name ".env.example" -exec cat {} \;
 ```
 
 ### Phase 2: Authentication & Authorization
-- Review `apps/crm/server/middleware/auth.js` for JWT implementation
+- Review `agency-app/api/middleware/auth.js` for JWT implementation
 - Check token expiration and refresh logic
 - Verify auth middleware on all protected routes
-- Check CORS configuration in `apps/crm/server/server.js`
+- Check CORS configuration in `agency-app/api/server.js`
 - Verify `x-api-key` validation on internal API routes
 
 ### Phase 3: Input Validation
@@ -43,8 +43,8 @@ find . -name ".env.example" -exec cat {} \;
 
 ### Phase 4: Dependency Vulnerabilities
 ```bash
-cd server && npm audit --json 2>/dev/null | head -100
-cd real-estate-crm-app && npm audit --json 2>/dev/null | head -100
+npm audit --json --prefix agency-app/api 2>/dev/null | head -100
+npm audit --json --prefix agency-app/web 2>/dev/null | head -100
 ```
 
 ### Phase 5: Data Security

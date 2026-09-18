@@ -58,7 +58,7 @@ Consequences to be aware of:
   `prod-realestateflow-insta-*` stacks are the old device-pairing build and the
   `.env.prod` secrets are blank. Do this after App Review (see
   [instagram-app-review-actions.md](instagram-app-review-actions.md)).
-- [ ] **Line endings.** `apps/crm/real-estate-crm-app/package-lock.json` and
+- [ ] **Line endings.** `agency-app/web/package-lock.json` and
   `android/gradlew.bat` show as modified in every checkout because of CRLF vs
   LF only. A `.gitattributes` entry would stop the noise.
 
