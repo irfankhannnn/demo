@@ -14,7 +14,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { to: '/crm', label: 'Home', Icon: LayoutDashboard },
-  { to: '/crm/leads', label: 'Leads', Icon: Users, matches: ['/crm/enquiries', '/crm/b2b-leads'] },
+  { to: '/crm/leads', label: 'Leads', Icon: Users, matches: ['/crm/enquiries', '/crm/b2b-leads', '/crm/marketplace'] },
   { to: '/crm/properties', label: 'Properties', Icon: Building2, matches: ['/crm/rented-properties'] },
   { to: '/crm/contacts', label: 'Contacts', Icon: Contact, matches: ['/crm/owners', '/crm/tenants', '/crm/buyers', '/crm/customers'] },
   { to: '/profile', label: 'More', Icon: MoreHorizontal, matches: ['/crm/settings', '/crm/calendar', '/crm/khata', '/crm/analytics', '/admin'] },

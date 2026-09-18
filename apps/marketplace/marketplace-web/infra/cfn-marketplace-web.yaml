@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  RealEstateFlow Homes (marketplace-web) — consumer property-matching SPA,
+  static hosting via S3 + CloudFront.
+
+  Deploy in ap-south-1 (Mumbai) so the S3 origin bucket lives there. CloudFront
+  is global; PriceClass_200 (default) is required for Indian edge locations.
+
+  Custom domain is a PLACEHOLDER — the public domain for the marketplace is
+  TBD. Leave WebDomainName / AcmCertificateArn / HostedZoneId empty and the
+  distribution serves from its *.cloudfront.net URL. When all three are set,
+  the alias, the ACM certificate and the Route53 A record are created together.
+  The certificate MUST be issued in us-east-1 (CloudFront rule).
+
+  Naming: every physical resource is <dev|prod>-realestateflow-marketplace-web-<resource>.
+  infra/deploy.sh derives BucketName as ${EnvironmentName}-${SERVICE_NAME}
+  (SERVICE_NAME=realestateflow-marketplace-web) unless overridden.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Deployment environment (matches the .env.<EnvironmentName> file used to build the app)
+
+  BucketName:
+    Type: String
+    Description: S3 bucket for the built assets (globally unique). Default <env>-realestateflow-marketplace-web.
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: "^[a-z0-9][a-z0-9.-]*[a-z0-9]$"
+    ConstraintDescription: Bucket name must be lowercase, 3-63 characters, letters, numbers, dots and hyphens.
+
+  IndexDocument:
+    Type: String
+    Default: index.html
+    Description: SPA entry document served at the site root
+
+  ErrorDocument:
+    Type: String
+    Default: index.html
+    Description: >
+      Document returned (with a 200) for 403/404 responses from S3, so
+      client-side routes (React Router) resolve on refresh / deep link.
+
+  PriceClass:
+    Type: String
+    Default: PriceClass_200
+    AllowedValues: [PriceClass_100, PriceClass_200, PriceClass_All]
+    Description: CloudFront price class. PriceClass_200 includes India; PriceClass_100 does not.
+
+  WebDomainName:
+    Type: String
+    Default: ''
+    Description: >
+      PLACEHOLDER — public domain for the marketplace (e.g. homes.realestateflow.in).
+      Domain is TBD; leave empty to use the *.cloudfront.net URL.
+
+  AcmCertificateArn:
+    Type: String
+    Default: ''
+    Description: ACM certificate ARN for WebDomainName. Must be issued in us-east-1. Required with WebDomainName.
+
+  HostedZoneId:
+    Type: String
+    Default: ''
+    Description: Route53 hosted zone ID for WebDomainName. Required with WebDomainName (A/AAAA alias records are created here).
+
+  WafWebAclArn:
+    Type: String
+    Default: ''
+    Description: Optional AWS WAF WebACL ARN (scope CLOUDFRONT, created in us-east-1)
+
+Conditions:
+  # All three must be set for a custom domain: alias + cert + DNS record go together.
+  HasCustomDomain: !And
+    - !Not [!Equals [!Ref WebDomainName, '']]
+    - !Not [!Equals [!Ref AcmCertificateArn, '']]
+    - !Not [!Equals [!Ref HostedZoneId, '']]
+  HasWaf: !Not [!Equals [!Ref WafWebAclArn, '']]
+
+Resources:
+  WebBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BucketName
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-web
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-marketplace-web-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Security headers on every response. The CSP is deliberately not set here:
+  # the app talks to two API origins whose domains are still placeholders, so a
+  # header-level CSP would have to change with every env — revisit once the
+  # marketplace-api / auth custom domains are final.
+  ResponseHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-marketplace-web-headers"
+        SecurityHeadersConfig:
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Override: true
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          XSSProtection:
+            Protection: true
+            ModeBlock: true
+            Override: true
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${EnvironmentName} RealEstateFlow Homes (marketplace-web)"
+        DefaultRootObject: !Ref IndexDocument
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: !Ref PriceClass
+        Aliases: !If
+          - HasCustomDomain
+          - [!Ref WebDomainName]
+          - !Ref "AWS::NoValue"
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        WebACLId: !If [HasWaf, !Ref WafWebAclArn, !Ref "AWS::NoValue"]
+        Origins:
+          - Id: S3Origin
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          # Managed-CachingOptimized — hashed Vite assets carry their own
+          # immutable Cache-Control (set by infra/deploy.sh at sync time);
+          # index.html is uploaded with max-age=0 so a deploy is visible at once.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          ResponseHeadersPolicyId: !Ref ResponseHeadersPolicy
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: !Sub "/${ErrorDocument}"
+            ErrorCachingMinTTL: 10
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: !Sub "/${ErrorDocument}"
+            ErrorCachingMinTTL: 10
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-web
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipalReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${WebBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}"
+
+  DnsRecordA:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebDomainName
+      Type: A
+      AliasTarget:
+        # Fixed CloudFront alias hosted zone ID (same for every distribution)
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+  DnsRecordAAAA:
+    Type: AWS::Route53::RecordSet
+    Condition: HasCustomDomain
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref WebDomainName
+      Type: AAAA
+      AliasTarget:
+        HostedZoneId: Z2FDTNDATAQYW2
+        DNSName: !GetAtt Distribution.DomainName
+
+Outputs:
+  BucketName:
+    Description: S3 bucket holding the built assets
+    Value: !Ref WebBucket
+
+  DistributionId:
+    Description: CloudFront distribution ID (used for cache invalidation)
+    Value: !Ref Distribution
+
+  DistributionDomain:
+    Description: CloudFront default domain (*.cloudfront.net)
+    Value: !GetAtt Distribution.DomainName
+
+  WebsiteURL:
+    Description: Public URL for the deployed site
+    Value: !If
+      - HasCustomDomain
+      - !Sub "https://${WebDomainName}"
+      - !Sub "https://${Distribution.DomainName}"

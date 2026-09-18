@@ -1,0 +1,751 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  marketplace-api — consumer-facing API of the AI property-matching
+  marketplace: catalogue reads, AI search, saved homes, buyer↔agency threads,
+  site-visit booking.
+
+  Express on Lambda behind a REGIONAL API Gateway, optionally fronted by
+  CloudFront and optionally mapped onto the shared API custom domain.
+
+  ISOLATION: this Lambda's IAM role grants access to exactly ONE table — the
+  marketplace's own single table (profiles, saved, searches, threads,
+  messages, rate-limit counters). It has no CRM table access and no S3
+  access. Every listing is fetched over HTTPS from the CRM's
+  /api/internal/marketplace/* at request time, which returns only
+  allowlisted public fields; nothing about a property is copied here.
+  Optional grants (SES send, Bedrock invoke) are attached only when the
+  matching parameter is set.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    AllowedValues: [dev, prod]
+    Description: Environment prefix for every resource name (env-first convention)
+
+  LambdaRuntime:
+    Type: String
+    Default: nodejs20.x
+    AllowedValues: [nodejs20.x, nodejs22.x]
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 512
+    MinValue: 256
+    MaxValue: 3008
+    Description: >-
+      512MB is chosen for CPU, not memory: JSON serialisation, JWT verification
+      and the model round-trip are what a buyer waits on.
+
+  LambdaTimeout:
+    Type: Number
+    Default: 25
+    MinValue: 5
+    MaxValue: 60
+    Description: >-
+      Must stay above CrmTimeoutMs + two ModelTimeoutMs (intent + explain), or
+      an AI search dies mid-flight and the fallback never runs. 25 = 12s CRM
+      + 8s model + headroom; the two model calls are sequential but each is
+      capped separately.
+
+  LambdaCodeS3Bucket:
+    Type: String
+  LambdaCodeS3Key:
+    Type: String
+
+  # ── CRM internal API (what this service calls) ─────────────────────────
+  CrmInternalApiDomainName:
+    Type: String
+    Description: >-
+      API Gateway custom domain the CRM API is mapped on. Host only - no
+      scheme, no path. Raw execute-api hosts are rejected by the Lambda at
+      cold start.
+    AllowedPattern: "^[A-Za-z0-9.-]+$"
+
+  CrmInternalApiBasePath:
+    Type: String
+    Description: The CRM API's base path on that domain. /api/internal/marketplace is appended in code.
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+
+  MarketplaceInternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: Presented to the CRM as x-api-key. Must match apps/crm/server/.env.<env>'s MARKETPLACE_INTERNAL_API_KEY exactly.
+
+  # ── Inbound service callers (who calls /internal/*) ────────────────────
+  CrmCallerApiKey:
+    Type: String
+    NoEcho: true
+    Description: Key the CRM presents on /internal/*. Must match the CRM's MARKETPLACE_CALLER_API_KEY.
+
+  AuthCallerApiKey:
+    Type: String
+    NoEcho: true
+    Description: Key marketplace-authentication presents on /internal/users/:id. Must differ from CrmCallerApiKey.
+
+  # ── Consumer identity ──────────────────────────────────────────────────
+  CognitoUserPoolId:
+    Type: String
+    Description: The marketplace consumer user pool (created by the marketplace-authentication stack).
+    AllowedPattern: "^[A-Za-z0-9_-]+$"
+
+  CognitoRegion:
+    Type: String
+    Default: ap-south-1
+
+  CognitoClientId:
+    Type: String
+    Default: ""
+    Description: Optional. When set, tokens must carry this client_id (access) / aud (id).
+
+  # ── LLM ────────────────────────────────────────────────────────────────
+  ModelProvider:
+    Type: String
+    Default: gemini
+    AllowedValues: [gemini, bedrock]
+    Description: >-
+      Which adapter services/modelGateway uses. bedrock also attaches the
+      Bedrock invoke grant for BedrockModelId to the Lambda role.
+
+  GeminiApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Required when ModelProvider=gemini. Without it AI search runs on the heuristic parser only.
+
+  GeminiModel:
+    Type: String
+    Default: gemini-2.0-flash
+
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-haiku-4-5-20251001-v1:0
+    Description: Foundation model id (or inference profile id) used when ModelProvider=bedrock.
+
+  ModelTimeoutMs:
+    Type: Number
+    Default: 8000
+
+  # ── Browser origin + email ─────────────────────────────────────────────
+  MarketplaceWebOrigin:
+    Type: String
+    Default: ""
+    Description: >-
+      Origin(s) of marketplace-web, comma-separated, e.g. https://homes.realestateflow.in.
+      PLACEHOLDER until the domain is chosen: empty means CORS is closed in
+      production and share pages redirect to this API's own /share URL.
+
+  SesFromEmail:
+    Type: String
+    Default: ""
+    Description: >-
+      Verified SES sender for "an agency replied" emails. Empty disables
+      email and omits the ses:SendEmail grant.
+
+  # ── This API's own mapping ─────────────────────────────────────────────
+  ApiStageName:
+    Type: String
+    Default: v1
+
+  EnableCloudFront:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Fronts the API with CloudFront for edge caching of public reads. Requires
+      EnableCustomDomainMapping=true (the origin is the custom domain).
+
+  MarketplaceApiDomainName:
+    Type: String
+    Default: ""
+    Description: >-
+      Existing API Gateway custom domain to map this API onto. Host only.
+      PLACEHOLDER: may be empty while EnableCustomDomainMapping=false — the
+      raw execute-api URL is used until the marketplace domain is decided.
+    AllowedPattern: "^[A-Za-z0-9.-]*$"
+
+  MarketplaceApiBasePath:
+    Type: String
+    Default: ""
+    Description: >-
+      Single-segment base path on MarketplaceApiDomainName (e.g. devrealestatemarketplace).
+      Also handed to the Lambda so it can strip the segment.
+    AllowedPattern: "^[A-Za-z0-9_-]*$"
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+
+  EnableBasePathStrip:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: Must be true when EnableCustomDomainMapping is true.
+
+  # ── Tunables (every one is read by config/env.js) ──────────────────────
+  CrmTimeoutMs:
+    Type: Number
+    Default: 12000
+    Description: >-
+      Timeout for calls to the CRM internal API. Must stay comfortably under LambdaTimeout.
+
+  LimitIpBurst:
+    Type: Number
+    Default: 20
+    Description: Public reads one IP may make per burst window.
+  LimitIpBurstWindowSeconds:
+    Type: Number
+    Default: 10
+  LimitIpHourly:
+    Type: Number
+    Default: 600
+    Description: Public reads one IP may make per hour.
+  LimitIpBookingsDaily:
+    Type: Number
+    Default: 6
+    Description: Site-visit bookings per IP per day.
+  LimitPhoneBookingsDaily:
+    Type: Number
+    Default: 3
+    Description: Site-visit bookings per phone number per day.
+  LimitTenantBookingsDaily:
+    Type: Number
+    Default: 200
+    Description: >-
+      Backstop on AI-qualification spend: every booking creates a lead that can
+      trigger a billable AI call, so this bounds a tenant's worst-case daily exposure.
+  LimitCaptchaTrigger:
+    Type: Number
+    Default: 3
+  LimitAiSearchAnonHourly:
+    Type: Number
+    Default: 20
+    Description: AI searches per IP per hour for anonymous callers (one model call each).
+  LimitAiSearchUserHourly:
+    Type: Number
+    Default: 60
+    Description: AI searches per logged-in buyer per hour.
+  LimitBuyerWritesHourly:
+    Type: Number
+    Default: 120
+    Description: Messages, pings, saves and searches per buyer per hour.
+
+  HcaptchaSiteKey:
+    Type: String
+    Default: ""
+  HcaptchaSecretKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+
+  MarketplaceSessionSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Optional salt for hashing phone numbers into rate-limit keys.
+
+  ListingCacheSeconds:
+    Type: Number
+    Default: 60
+    Description: In-process cache for CRM listing reads.
+  CitiesCacheSeconds:
+    Type: Number
+    Default: 300
+  AssetCacheSeconds:
+    Type: Number
+    Default: 300
+    Description: >-
+      Edge cache for image/document redirects. MUST stay well under the 900s
+      presigned URL lifetime, or a cached redirect outlives its signature.
+  PublicCacheSeconds:
+    Type: Number
+    Default: 60
+    Description: Edge cache (s-maxage) for public JSON reads.
+
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [error, warn, info, debug]
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+
+Rules:
+  CloudFrontRequiresCustomDomain:
+    RuleCondition: !Equals [!Ref EnableCloudFront, "true"]
+    Assertions:
+      - Assert: !Equals [!Ref EnableCustomDomainMapping, "true"]
+        AssertDescription: EnableCloudFront=true requires EnableCustomDomainMapping=true (the CloudFront origin is the custom domain).
+  CustomDomainMappingIsComplete:
+    RuleCondition: !Equals [!Ref EnableCustomDomainMapping, "true"]
+    Assertions:
+      - Assert: !Not [!Equals [!Ref MarketplaceApiDomainName, ""]]
+        AssertDescription: EnableCustomDomainMapping=true requires MarketplaceApiDomainName.
+      - Assert: !Not [!Equals [!Ref MarketplaceApiBasePath, ""]]
+        AssertDescription: EnableCustomDomainMapping=true requires MarketplaceApiBasePath.
+      - Assert: !Equals [!Ref EnableBasePathStrip, "true"]
+        AssertDescription: EnableCustomDomainMapping=true requires EnableBasePathStrip=true, or every route 404s.
+
+Conditions:
+  CloudFrontEnabled: !Equals [!Ref EnableCloudFront, "true"]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, "true"]
+  BedrockEnabled: !Equals [!Ref ModelProvider, "bedrock"]
+  SesEnabled: !Not [!Equals [!Ref SesFromEmail, ""]]
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # The marketplace table — the only store this service owns
+  # ---------------------------------------------------------------------------
+  # Single-table: USER#/THREAD#/GUARD# partitions (see threadsRepo.js and
+  # docs/services/marketplace-api/API-CONTRACT.md §2). Retained on stack
+  # deletion because it holds real buyers' conversations; PITR for the same
+  # reason. TTL only ever fires on GUARD# counter rows.
+  MarketplaceTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub "${EnvironmentName}-realestateflow-marketplace"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+        - AttributeName: GSI2PK
+          AttributeType: S
+        - AttributeName: GSI2SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # A buyer's threads, newest first.
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # An agency's inbox, newest first.
+        - IndexName: GSI2
+          KeySchema:
+            - AttributeName: GSI2PK
+              KeyType: HASH
+            - AttributeName: GSI2SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      SSESpecification:
+        SSEEnabled: true
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-api
+
+  MarketplaceLambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${EnvironmentName}-realestateflow-marketplace-api-lambda"
+      RetentionInDays: !Ref LogRetentionDays
+
+  MarketplaceLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${EnvironmentName}-realestateflow-marketplace-api-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: marketplace-api-lambda-policy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/${EnvironmentName}-realestateflow-marketplace-api-lambda:*"
+              # Its own table and indexes, nothing else. Deliberately no CRM
+              # table and no S3: listings arrive only through the CRM's
+              # internal API. Widening this policy silently destroys that
+              # guarantee.
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Query
+                  - dynamodb:BatchWriteItem
+                  - dynamodb:TransactWriteItems
+                  - dynamodb:ConditionCheckItem
+                Resource:
+                  - !GetAtt MarketplaceTable.Arn
+                  - !Sub "${MarketplaceTable.Arn}/index/*"
+              # "An agency replied" email, only when a sender is configured.
+              - !If
+                - SesEnabled
+                - Effect: Allow
+                  Action:
+                    - ses:SendEmail
+                  Resource: "*"
+                  Condition:
+                    StringEquals:
+                      ses:FromAddress: !Ref SesFromEmail
+                - !Ref AWS::NoValue
+              # Bedrock, only for the configured model and only when it is the provider.
+              - !If
+                - BedrockEnabled
+                - Effect: Allow
+                  Action:
+                    - bedrock:InvokeModel
+                    - bedrock:Converse
+                  Resource:
+                    - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockModelId}"
+                    - !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
+                - !Ref AWS::NoValue
+
+  MarketplaceLambda:
+    Type: AWS::Lambda::Function
+    DependsOn: MarketplaceLambdaLogGroup
+    Properties:
+      FunctionName: !Sub "${EnvironmentName}-realestateflow-marketplace-api-lambda"
+      Runtime: !Ref LambdaRuntime
+      Handler: lambda.handler
+      Role: !GetAtt MarketplaceLambdaRole.Arn
+      MemorySize: !Ref LambdaMemorySize
+      Timeout: !Ref LambdaTimeout
+      Code:
+        S3Bucket: !Ref LambdaCodeS3Bucket
+        S3Key: !Ref LambdaCodeS3Key
+      Environment:
+        Variables:
+          NODE_ENV: production
+          ENVIRONMENT_NAME: !Ref EnvironmentName
+          LOG_LEVEL: !Ref LogLevel
+          MARKETPLACE_TABLE_NAME: !Ref MarketplaceTable
+          CRM_INTERNAL_API_DOMAIN_NAME: !Ref CrmInternalApiDomainName
+          CRM_INTERNAL_API_BASE_PATH: !Ref CrmInternalApiBasePath
+          MARKETPLACE_INTERNAL_API_KEY: !Ref MarketplaceInternalApiKey
+          CRM_CALLER_API_KEY: !Ref CrmCallerApiKey
+          AUTH_CALLER_API_KEY: !Ref AuthCallerApiKey
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPoolId
+          COGNITO_REGION: !Ref CognitoRegion
+          COGNITO_CLIENT_ID: !Ref CognitoClientId
+          MODEL_PROVIDER: !Ref ModelProvider
+          GEMINI_API_KEY: !Ref GeminiApiKey
+          GEMINI_MODEL: !Ref GeminiModel
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          MODEL_TIMEOUT_MS: !Ref ModelTimeoutMs
+          MARKETPLACE_WEB_ORIGIN: !Ref MarketplaceWebOrigin
+          SES_FROM_EMAIL: !Ref SesFromEmail
+          CRM_TIMEOUT_MS: !Ref CrmTimeoutMs
+          LIMIT_IP_BURST: !Ref LimitIpBurst
+          LIMIT_IP_BURST_WINDOW_SECONDS: !Ref LimitIpBurstWindowSeconds
+          LIMIT_IP_HOURLY: !Ref LimitIpHourly
+          LIMIT_IP_BOOKINGS_DAILY: !Ref LimitIpBookingsDaily
+          LIMIT_PHONE_BOOKINGS_DAILY: !Ref LimitPhoneBookingsDaily
+          LIMIT_TENANT_BOOKINGS_DAILY: !Ref LimitTenantBookingsDaily
+          LIMIT_CAPTCHA_TRIGGER: !Ref LimitCaptchaTrigger
+          LIMIT_AI_SEARCH_ANON_HOURLY: !Ref LimitAiSearchAnonHourly
+          LIMIT_AI_SEARCH_USER_HOURLY: !Ref LimitAiSearchUserHourly
+          LIMIT_BUYER_WRITES_HOURLY: !Ref LimitBuyerWritesHourly
+          HCAPTCHA_SITE_KEY: !Ref HcaptchaSiteKey
+          HCAPTCHA_SECRET_KEY: !Ref HcaptchaSecretKey
+          MARKETPLACE_SESSION_SECRET: !Ref MarketplaceSessionSecret
+          LISTING_CACHE_SECONDS: !Ref ListingCacheSeconds
+          CITIES_CACHE_SECONDS: !Ref CitiesCacheSeconds
+          ASSET_CACHE_SECONDS: !Ref AssetCacheSeconds
+          PUBLIC_CACHE_SECONDS: !Ref PublicCacheSeconds
+          MARKETPLACE_API_BASE_PATH: !Ref MarketplaceApiBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-api
+
+  # ---------------------------------------------------------------------------
+  # API Gateway — one greedy {proxy+}; Express does the routing
+  # ---------------------------------------------------------------------------
+  MarketplaceRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-api"
+      Description: Consumer marketplace API
+      EndpointConfiguration:
+        Types: [REGIONAL]
+      MinimumCompressionSize: 1024
+      BinaryMediaTypes: []
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-api
+
+  MarketplaceProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      ParentId: !GetAtt MarketplaceRestApi.RootResourceId
+      PathPart: "{proxy+}"
+
+  MarketplaceProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      ResourceId: !Ref MarketplaceProxyResource
+      HttpMethod: ANY
+      # No authorizer here on purpose: half the routes are public, and the
+      # Lambda verifies the Cognito JWT itself on the consumer ones.
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MarketplaceLambda.Arn}/invocations"
+
+  # CORS preflight reaches the Lambda too (middleware/cors.js answers it), so
+  # the allowlist lives in one place — the env — rather than being duplicated
+  # in a MOCK integration here.
+  MarketplaceProxyOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      ResourceId: !Ref MarketplaceProxyResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MarketplaceLambda.Arn}/invocations"
+
+  MarketplaceRootMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      ResourceId: !GetAtt MarketplaceRestApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MarketplaceLambda.Arn}/invocations"
+
+  MarketplaceLambdaApiPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !GetAtt MarketplaceLambda.Arn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${MarketplaceRestApi}/*/*/*"
+
+  MarketplaceApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - MarketplaceProxyMethod
+      - MarketplaceProxyOptionsMethod
+      - MarketplaceRootMethod
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      Description: Deployed by apps/marketplace/marketplace-api/infra/deploy.sh
+
+  MarketplaceApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref MarketplaceRestApi
+      DeploymentId: !Ref MarketplaceApiDeployment
+      StageName: !Ref ApiStageName
+      TracingEnabled: true
+      MethodSettings:
+        - ResourcePath: "/*"
+          HttpMethod: "*"
+          # A coarser ceiling above the Lambda's own per-IP/per-user limits;
+          # bounds total spend if a distributed flood makes those ineffective.
+          ThrottlingBurstLimit: 400
+          ThrottlingRateLimit: 200
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-api
+
+  MarketplaceApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - MarketplaceApiStage
+    Properties:
+      DomainName: !Ref MarketplaceApiDomainName
+      RestApiId: !Ref MarketplaceRestApi
+      Stage: !Ref ApiStageName
+      BasePath: !Ref MarketplaceApiBasePath
+
+  # ---------------------------------------------------------------------------
+  # CloudFront (optional) — same shape as property-pages-ms
+  # ---------------------------------------------------------------------------
+  PreserveHostFunction:
+    Type: AWS::CloudFront::Function
+    Condition: CloudFrontEnabled
+    Properties:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-preserve-host"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Copies the viewer Host into X-Forwarded-Host so share pages emit the public origin
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          if (request.headers.host && request.headers.host.value) {
+            request.headers['x-forwarded-host'] = { value: request.headers.host.value };
+          }
+          return request;
+        }
+
+  # Cache key includes Authorization and Origin: a per-user answer (saved
+  # flag) must never be served to another user, and CORS headers vary by
+  # origin. DefaultTTL 0 means only responses that set s-maxage are cached.
+  MarketplaceCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Condition: CloudFrontEnabled
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-marketplace-cache"
+        Comment: Public JSON reads cached per origin-Cache-Control; per-user answers keyed on Authorization
+        DefaultTTL: 0
+        MinTTL: 0
+        MaxTTL: 3600
+        ParametersInCacheKeyAndForwardedToOrigin:
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+          HeadersConfig:
+            HeaderBehavior: whitelist
+            Headers:
+              - Authorization
+              - Origin
+              - X-Forwarded-Host
+          QueryStringsConfig:
+            QueryStringBehavior: all
+          CookiesConfig:
+            CookieBehavior: none
+
+  MarketplaceOriginRequestPolicy:
+    Type: AWS::CloudFront::OriginRequestPolicy
+    Condition: CloudFrontEnabled
+    Properties:
+      OriginRequestPolicyConfig:
+        Name: !Sub "${EnvironmentName}-realestateflow-marketplace-origin"
+        Comment: Forwards the viewer host, client IP and CORS preflight headers to the origin
+        HeadersConfig:
+          # Host is deliberately absent: the origin is an API Gateway custom
+          # domain, which routes by Host.
+          HeaderBehavior: whitelist
+          Headers:
+            - X-Forwarded-Host
+            - CloudFront-Viewer-Address
+            - User-Agent
+            - Referer
+            - Access-Control-Request-Headers
+            - Access-Control-Request-Method
+            - X-Api-Key
+            - X-Tenant-Id
+        QueryStringsConfig:
+          QueryStringBehavior: all
+        CookiesConfig:
+          CookieBehavior: none
+
+  MarketplaceDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: CloudFrontEnabled
+    DependsOn: MarketplaceApiBasePathMapping
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${EnvironmentName} marketplace API"
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: marketplace-api
+            DomainName: !Ref MarketplaceApiDomainName
+            OriginPath: !Sub "/${MarketplaceApiBasePath}"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+              OriginReadTimeout: 30
+        DefaultCacheBehavior:
+          TargetOriginId: marketplace-api
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: true
+          CachePolicyId: !Ref MarketplaceCachePolicy
+          OriginRequestPolicyId: !Ref MarketplaceOriginRequestPolicy
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt PreserveHostFunction.FunctionMetadata.FunctionARN
+      Tags:
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: Service
+          Value: realestateflow-marketplace-api
+
+Outputs:
+  MarketplaceRestApiId:
+    Value: !Ref MarketplaceRestApi
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-api-id"
+
+  MarketplaceApiBaseUrl:
+    Condition: CustomDomainMappingEnabled
+    Description: API Gateway custom domain + base path (bypasses CloudFront)
+    Value: !Sub "https://${MarketplaceApiDomainName}/${MarketplaceApiBasePath}"
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-api-base-url"
+
+  MarketplaceExecuteApiUrl:
+    Description: Raw invoke URL — for dev use until the custom domain is mapped
+    Value: !Sub "https://${MarketplaceRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
+
+  MarketplaceDistributionDomain:
+    Condition: CloudFrontEnabled
+    Value: !Sub "https://${MarketplaceDistribution.DomainName}"
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-cf-domain"
+
+  MarketplaceDistributionId:
+    Condition: CloudFrontEnabled
+    Value: !Ref MarketplaceDistribution
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-cf-id"
+
+  MarketplaceTableName:
+    Value: !Ref MarketplaceTable
+    Export:
+      Name: !Sub "${EnvironmentName}-realestateflow-marketplace-table"
+
+  LambdaFunctionName:
+    Value: !Ref MarketplaceLambda

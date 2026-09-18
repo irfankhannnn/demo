@@ -133,3 +133,20 @@ export function getFollowupServiceBaseUrl() {
     'FOLLOWUP_SERVICE_DOMAIN_NAME'
   );
 }
+
+/**
+ * marketplace-api (the consumer properties portal backend). Optional: returns
+ * null when MARKETPLACE_API_DOMAIN_NAME is blank (stack not deployed), so the
+ * CRM's Marketplace Inbox can report "not configured" instead of dialling a
+ * half-built URL. Still throws on a raw API Gateway host.
+ */
+export function getMarketplaceApiBaseUrl() {
+  if (isBlank(process.env.MARKETPLACE_API_DOMAIN_NAME)) {
+    return null;
+  }
+  return buildServiceBaseUrl(
+    process.env.MARKETPLACE_API_DOMAIN_NAME,
+    process.env.MARKETPLACE_API_BASE_PATH,
+    'MARKETPLACE_API_DOMAIN_NAME'
+  );
+}

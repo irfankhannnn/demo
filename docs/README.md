@@ -5,7 +5,7 @@ which stays next to the code it describes.
 
 | Folder | What's in it |
 |---|---|
-| `services/<service>/` | Design notes, runbooks and guides for one service (`server`, `real-estate-crm-app`, `ai-calling-service`, `followup-agent-service`, `reality-flow-authentication`, `whatsapp-platform`) |
+| `services/<service>/` | Design notes, runbooks and guides for one service (`server`, `real-estate-crm-app`, `ai-calling-service`, `followup-agent-service`, `reality-flow-authentication`, `whatsapp-platform`, `marketplace-api` (holds the marketplace API contract for all three marketplace services), `marketplace-web`, `marketplace-authentication`) |
 | `insta-sol-ms-docs/` | Instagram lead service: plan, architecture, API, deployment, Meta app review |
 | `property-pages/` | Public property pages: architecture, ManyChat setup, pricing, security |
 | `proposals/` | Design proposals (agent channel architecture, agency config, config-only deploy, …) |

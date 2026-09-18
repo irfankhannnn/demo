@@ -16,6 +16,9 @@ apps/                         product apps; a frontend and its backend share a f
   onboarding/                 onboarding page (web/ + server/)
   landing-pages/              marketing site (static, S3 + CloudFront)
   property-pages-ms/          public property pages (server-rendered)
+  marketplace/                consumer AI property-matching portal
+    marketplace-web/          buyer-facing SPA (Vite + React)
+    marketplace-api/          portal API: AI search, threads, saved, visits (Express on Lambda)
 services/                     standalone backend microservices
   reality-flow-authentication/
   reality-flow-mcp/

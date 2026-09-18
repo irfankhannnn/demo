@@ -1098,8 +1098,12 @@ export default function PropertyDetails() {
                       title={property.title || formData.title}
                       status={property.status}
                       publicVisibility={property.publicVisibility}
+                      marketplaceVisibility={property.marketplaceVisibility}
                       onVisibilityChange={(next) =>
                         setProperty((prev) => (prev ? { ...prev, publicVisibility: next } : prev))
+                      }
+                      onMarketplaceVisibilityChange={(next) =>
+                        setProperty((prev) => (prev ? { ...prev, marketplaceVisibility: next } : prev))
                       }
                     />
                   )}

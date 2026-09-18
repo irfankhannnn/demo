@@ -49,6 +49,7 @@ Top-level layout: `apps/` (product frontends + backends, grouped per product), `
 - `apps/crm/server/` — CRM Express backend (routes, services, middleware)
 - `apps/instagram/{frontend,backend}_insta_sol_ms/` — Instagram lead console + API
 - `apps/onboarding/`, `apps/landing-pages/`, `apps/property-pages-ms/` — Onboarding flow, marketing site, public property pages
+- `apps/marketplace/{marketplace-web,marketplace-api}/` + `services/marketplace-authentication/` — Consumer AI property-matching portal (MagicBricks-style). No listing data is copied: CRM keeps ownership and exposes `/api/internal/marketplace/*`; contract in `docs/services/marketplace-api/API-CONTRACT.md`
 - `services/` — `reality-flow-authentication`, `reality-flow-mcp`, `whatsapp-platform`, `ai-calling-service`, `followup-agent-service`
 - `infra/cicd/<service>/deploy.sh` — Release-tracked deploy wrapper; folder name matches the service folder's name
 - `docs/` — All documentation (index: `docs/README.md`); service READMEs stay in their service

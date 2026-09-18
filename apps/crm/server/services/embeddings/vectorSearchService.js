@@ -181,7 +181,7 @@ export async function semanticSearch({
  * Vector attributes are stripped: they are large, never useful downstream, and
  * would otherwise be serialised into an LLM prompt.
  */
-function unmarshallShallow(item) {
+export function unmarshallShallow(item) {
   const out = {};
   for (const [key, value] of Object.entries(item || {})) {
     if (!value || typeof value !== 'object') continue;

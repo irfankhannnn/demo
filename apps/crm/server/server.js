@@ -49,6 +49,8 @@ import followupInternalRoutes from './routes/followupInternal.js';
 import followupsRoutes from './routes/followups.js';
 import publicPagesInternalRoutes from './routes/publicPagesInternal.js';
 import publicPagesSettingsRoutes from './routes/publicPagesSettings.js';
+import marketplaceInternalRoutes from './routes/marketplaceInternal.js';
+import marketplaceInboxRoutes from './routes/marketplaceInbox.js';
 import validateToken from './middleware/validateToken.js';
 import phoneMaskingMiddleware from './middleware/phoneMasking.js';
 import clickToCallRoutes from './routes/clickToCall.js';
@@ -183,6 +185,12 @@ app.use('/api/internal/public-pages', publicPagesInternalRoutes);
 // Agency-facing settings for the public pages (authenticated, admin only).
 logger.info('routes.mount', { basePath: '/api/crm/public-pages', router: 'publicPagesSettingsRoutes' });
 app.use('/api/crm/public-pages', publicPagesSettingsRoutes);
+
+// Consumer marketplace (properties portal). /api/internal/marketplace/* is the
+// service door for marketplace-api (own key, cross-tenant reads, per-tenant
+// writes); /api/crm/marketplace/* is the agent-facing inbox (JWT).
+app.use('/api/internal/marketplace', marketplaceInternalRoutes);
+app.use('/api/crm/marketplace', marketplaceInboxRoutes);
 
 // Internal, service-to-service only (x-api-key + x-tenant-id, no user JWT) —
 // called by ai-calling-service, never by the frontend. Re-enabled as part of

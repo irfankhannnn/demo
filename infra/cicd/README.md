@@ -20,6 +20,9 @@ infra/cicd/                        (was cfn-templates-cicd/ until 2026-09-17)
 ├── frontend_insta_sol_ms/         # Instagram lead console                                                   -> apps/instagram/frontend_insta_sol_ms
 ├── landing-pages/                 # Marketing site (S3 + CloudFront)                                         -> apps/landing-pages
 ├── property-pages-ms/             # Public tenant-branded property pages                                     -> apps/property-pages-ms
+├── marketplace-api/               # Consumer marketplace API (AI search, chat, visits)                       -> apps/marketplace/marketplace-api
+├── marketplace-web/               # Consumer marketplace SPA (S3 + CloudFront)                               -> apps/marketplace/marketplace-web
+├── marketplace-authentication/    # Consumer auth (own Cognito pool, phone OTP + Google)                     -> services/marketplace-authentication
 ├── reality-flow-authentication/   # Auth microservice (Cognito + Lambda)                                     -> services/reality-flow-authentication
 ├── reality-flow-mcp/              # MCP server (Claude/ChatGPT integration)                                  -> services/reality-flow-mcp
 ├── whatsapp-platform/             # Baileys WhatsApp workers on ECS Fargate                                  -> services/whatsapp-platform
@@ -136,4 +139,7 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 | reality-flow-authentication | `cd infra/cicd/reality-flow-authentication && ./deploy.sh` | Reads `.env` from `services/reality-flow-authentication/` |
 | reality-flow-mcp | `cd infra/cicd/reality-flow-mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `services/reality-flow-mcp/`; supports `--skip-package` / `--skip-cfn` |
 | whatsapp-platform | `cd infra/cicd/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `services/whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `services/whatsapp-platform/infra/` |
+| marketplace-api | `cd infra/cicd/marketplace-api && ./deploy.sh <dev\|prod>` | Delegates to `apps/marketplace/marketplace-api/infra/deploy.sh`; numbered builds, CloudFront invalidation when enabled, `list`/`show`/`rollback-code`/`rollback-full` |
+| marketplace-web | `cd infra/cicd/marketplace-web && ./deploy.sh <dev\|prod>` | Delegates to `apps/marketplace/marketplace-web/infra/deploy.sh` (Vite build → S3 → CloudFront invalidation); numbered builds and rollbacks |
+| marketplace-authentication | `cd infra/cicd/marketplace-authentication && ./deploy.sh <dev\|prod>` | Delegates to `services/marketplace-authentication/infra/deploy.sh`; own Cognito pool + tables; numbered builds and rollbacks |
 | property-pages-ms | `cd infra/cicd/property-pages-ms && ./deploy.sh <dev\|prod>` | Delegates to `apps/property-pages-ms/infra/deploy.sh`; records a numbered build and invalidates CloudFront (`/*`) when the stack has a distribution. Reads `.env.<env>` from `apps/property-pages-ms/`; `list`/`show`/`rollback-code`/`rollback-full` manage build history |

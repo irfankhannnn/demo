@@ -211,7 +211,8 @@ export async function bookSiteVisit(tenantId, input = {}) {
         preferredArea: property?.area || input.preferredArea || undefined,
       },
       source: input.source || 'Website',
-      sourceAdapter: 'website',
+      // Branded pages leave this unset; the marketplace passes 'marketplace'.
+      sourceAdapter: input.sourceAdapter || 'website',
       externalRef: input.externalRef || null,
       createdBy: 'Public property page',
     },

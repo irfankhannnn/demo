@@ -17,6 +17,7 @@ import {
   Copy,
   Globe,
   Loader2,
+  Store,
   X,
 } from 'lucide-react';
 import Toast from '../../components/Toast';
@@ -42,6 +43,28 @@ interface FormState {
   publicAddress: string;
   publicAbout: string;
   publicPagesEnabled: boolean;
+  marketplaceEnabled: boolean;
+  marketplaceEmail: boolean;
+  marketplaceWhatsapp: boolean;
+  marketplacePush: boolean;
+  /** Comma-separated in the form; split into arrays on save. */
+  marketplaceExtraEmails: string;
+  marketplaceExtraPhones: string;
+}
+
+const MAX_EXTRA_RECIPIENTS = 5;
+
+/** "a, b,, c" -> ['a', 'b', 'c'] (trimmed, de-duplicated, empties dropped). */
+function splitList(value: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of value.split(/[,\n]/)) {
+    const item = raw.trim();
+    if (!item || seen.has(item)) continue;
+    seen.add(item);
+    out.push(item);
+  }
+  return out;
 }
 
 function toFormState(settings: PublicPagesSettingsData, suggestedSlug: string): FormState {
@@ -56,6 +79,12 @@ function toFormState(settings: PublicPagesSettingsData, suggestedSlug: string): 
     publicAddress: settings.publicAddress || '',
     publicAbout: settings.about || '',
     publicPagesEnabled: settings.enabled,
+    marketplaceEnabled: Boolean(settings.marketplaceEnabled),
+    marketplaceEmail: settings.marketplaceNotifications?.email ?? true,
+    marketplaceWhatsapp: settings.marketplaceNotifications?.whatsapp ?? true,
+    marketplacePush: settings.marketplaceNotifications?.push ?? true,
+    marketplaceExtraEmails: (settings.marketplaceNotifications?.extraEmails || []).join(', '),
+    marketplaceExtraPhones: (settings.marketplaceNotifications?.extraPhones || []).join(', '),
   };
 }
 
@@ -183,6 +212,22 @@ export default function PublicPagesSettings() {
       return;
     }
 
+    const extraEmails = splitList(form.marketplaceExtraEmails);
+    const extraPhones = splitList(form.marketplaceExtraPhones);
+    if (extraEmails.length > MAX_EXTRA_RECIPIENTS || extraPhones.length > MAX_EXTRA_RECIPIENTS) {
+      setSaveError(`You can add up to ${MAX_EXTRA_RECIPIENTS} extra alert emails and ${MAX_EXTRA_RECIPIENTS} extra phone numbers.`);
+      return;
+    }
+    const badEmail = extraEmails.find((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+    if (badEmail) {
+      setSaveError(`"${badEmail}" is not a valid email address.`);
+      return;
+    }
+    if (form.marketplaceEnabled && (!form.publicPagesEnabled || !slug)) {
+      setSaveError('Turn public pages on and claim a subdomain before listing on the marketplace.');
+      return;
+    }
+
     setSaving(true);
     try {
       const { settings: saved } = await publicPagesApi.updateSettings({
@@ -194,6 +239,14 @@ export default function PublicPagesSettings() {
         publicAddress: form.publicAddress.trim() || null,
         publicAbout: form.publicAbout.trim() || null,
         publicPagesEnabled: form.publicPagesEnabled,
+        marketplaceEnabled: form.marketplaceEnabled,
+        marketplaceNotifications: {
+          email: form.marketplaceEmail,
+          whatsapp: form.marketplaceWhatsapp,
+          push: form.marketplacePush,
+          extraEmails,
+          extraPhones,
+        },
       });
       setSettings(saved);
       setForm(toFormState(saved, saved.slug || slug));
@@ -421,6 +474,102 @@ export default function PublicPagesSettings() {
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
               />
             </div>
+
+            {/* RealEstateFlow Marketplace */}
+            {(() => {
+              const marketplaceReady = form.publicPagesEnabled && Boolean(form.agencySlug.trim());
+              const marketplaceOn = form.marketplaceEnabled && marketplaceReady;
+              const channels: Array<{ key: 'marketplaceEmail' | 'marketplaceWhatsapp' | 'marketplacePush'; label: string }> = [
+                { key: 'marketplaceEmail', label: 'Email' },
+                { key: 'marketplaceWhatsapp', label: 'WhatsApp' },
+                { key: 'marketplacePush', label: 'Push' },
+              ];
+              return (
+                <div className="border border-slate-200 rounded-lg p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Store className="h-5 w-5 text-brand" />
+                    <h2 className="font-semibold text-slate-900">RealEstateFlow Marketplace</h2>
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Buyers who chat, ping or request a visit from the marketplace create a lead in this
+                    CRM and alert your team via the channels chosen below.
+                  </p>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-slate-900 text-sm">List my published properties on the marketplace</p>
+                      {!marketplaceReady && (
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Marketplace listings link back to your public site, so enable public pages and
+                          claim a subdomain first.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        marketplaceReady &&
+                        setForm((prev) => (prev ? { ...prev, marketplaceEnabled: !prev.marketplaceEnabled } : prev))
+                      }
+                      disabled={!marketplaceReady}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                        marketplaceOn ? 'bg-brand' : 'bg-slate-200'
+                      }`}
+                      role="switch"
+                      aria-checked={marketplaceOn}
+                      aria-label="List my published properties on the marketplace"
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                          marketplaceOn ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 pt-3 border-t border-slate-100">
+                    <p className="font-medium text-slate-900 text-sm">Marketplace alerts</p>
+                    <div className="flex flex-wrap gap-x-6 gap-y-2">
+                      {channels.map(({ key, label }) => (
+                        <label key={key} className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={form[key]}
+                            onChange={(e) => setForm((prev) => (prev ? { ...prev, [key]: e.target.checked } : prev))}
+                            className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand"
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-700">Extra alert emails</label>
+                        <input
+                          type="text"
+                          value={form.marketplaceExtraEmails}
+                          onChange={(e) => setForm((prev) => (prev ? { ...prev, marketplaceExtraEmails: e.target.value } : prev))}
+                          placeholder="sales@agency.com, manager@agency.com"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
+                        />
+                        <p className="text-xs text-slate-400">Comma-separated, up to {MAX_EXTRA_RECIPIENTS}.</p>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-xs font-medium text-slate-700">Extra alert phone numbers</label>
+                        <input
+                          type="text"
+                          value={form.marketplaceExtraPhones}
+                          onChange={(e) => setForm((prev) => (prev ? { ...prev, marketplaceExtraPhones: e.target.value } : prev))}
+                          placeholder="+91 98765 43210, +91 91234 56789"
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand focus:outline-none"
+                        />
+                        <p className="text-xs text-slate-400">Comma-separated, up to {MAX_EXTRA_RECIPIENTS}.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             <button
               onClick={handleSave}
