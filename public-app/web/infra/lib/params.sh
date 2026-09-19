@@ -20,18 +20,23 @@ resolve_web_vars() {
   WEB_DOMAIN_NAME="${WEB_DOMAIN_NAME:-}"
   ACM_CERTIFICATE_ARN="${WEB_ACM_CERTIFICATE_ARN:-}"
   HOSTED_ZONE_ID="${WEB_HOSTED_ZONE_ID:-}"
+  WEB_DOMAIN_ALT_NAMES="${WEB_DOMAIN_ALT_NAMES:-}"
   WAF_WEB_ACL_ARN="${WEB_WAF_WEB_ACL_ARN:-}"
 
-  # The custom domain is all-or-nothing: the template's HasCustomDomain
-  # condition requires domain + cert + hosted zone together, so refuse a
-  # half-configured env file up front instead of silently serving from
-  # *.cloudfront.net.
-  if [ -n "$WEB_DOMAIN_NAME" ] || [ -n "$ACM_CERTIFICATE_ARN" ] || [ -n "$HOSTED_ZONE_ID" ]; then
-    if [ -z "$WEB_DOMAIN_NAME" ] || [ -z "$ACM_CERTIFICATE_ARN" ] || [ -z "$HOSTED_ZONE_ID" ]; then
-      echo "ERROR: WEB_DOMAIN_NAME, WEB_ACM_CERTIFICATE_ARN and WEB_HOSTED_ZONE_ID must all be set together (or all left blank — domain is a placeholder for now)."
+  # Domain and certificate go together: the template's HasCustomDomain
+  # condition needs both, so refuse a half-configured env file up front
+  # instead of silently serving from *.cloudfront.net. The hosted zone is
+  # optional (only for DNS in Route53); alt names and a zone make no sense
+  # without the domain.
+  if [ -n "$WEB_DOMAIN_NAME" ] || [ -n "$ACM_CERTIFICATE_ARN" ] || [ -n "$HOSTED_ZONE_ID" ] || [ -n "$WEB_DOMAIN_ALT_NAMES" ]; then
+    if [ -z "$WEB_DOMAIN_NAME" ] || [ -z "$ACM_CERTIFICATE_ARN" ]; then
+      echo "ERROR: WEB_DOMAIN_NAME and WEB_ACM_CERTIFICATE_ARN must be set together (or the whole domain block left blank)."
       exit 1
     fi
   fi
+  case "$WEB_DOMAIN_ALT_NAMES" in
+    *" "*) echo "ERROR: WEB_DOMAIN_ALT_NAMES is comma-separated with no spaces."; exit 1 ;;
+  esac
 }
 
 compute_param_values() {
@@ -40,6 +45,7 @@ compute_param_values() {
     BucketName
     PriceClass
     WebDomainName
+    WebDomainAltNames
     AcmCertificateArn
     HostedZoneId
     WafWebAclArn
@@ -50,6 +56,7 @@ compute_param_values() {
     [BucketName]="${BUCKET_NAME}"
     [PriceClass]="${PRICE_CLASS}"
     [WebDomainName]="${WEB_DOMAIN_NAME}"
+    [WebDomainAltNames]="${WEB_DOMAIN_ALT_NAMES}"
     [AcmCertificateArn]="${ACM_CERTIFICATE_ARN}"
     [HostedZoneId]="${HOSTED_ZONE_ID}"
     [WafWebAclArn]="${WAF_WEB_ACL_ARN}"

@@ -140,6 +140,11 @@ describe('normaliseIntent (model output)', () => {
     assert.deepEqual(i.mustHaves, ['parking']);
   });
 
+  test('a rent the model left in thousands is corrected to rupees', () => {
+    const i = normaliseIntent({ maxPrice: 35, mode: 'rent' });
+    assert.equal(i.maxPrice, 35000);
+  });
+
   test('swapped bounds are fixed and junk becomes null', () => {
     const i = normaliseIntent({ minPrice: 9000000, maxPrice: 5000000, mode: 'lease', propertyType: '<b>' });
     assert.equal(i.minPrice, 5000000);

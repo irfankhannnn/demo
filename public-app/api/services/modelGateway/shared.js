@@ -28,7 +28,7 @@ export function intentSystemPrompt() {
     'Money: convert everything to whole rupees. 1 lakh/lac/l = 100000. 1 crore/cr = 10000000. 1k = 1000. "80 lakh" = 8000000, "1.2 cr" = 12000000, "50k" = 50000. "under"/"upto"/"below"/"max"/"tak"/"se kam" = maxPrice. "above"/"min"/"se zyada" = minPrice. "between X and Y" / "X se Y" = both.',
     'BHK: "2 bhk", "2bhk", "2 bedroom", "do bhk" = bhk 2. "1 rk"/"studio" = bhk 0 (propertyType studio).',
     'Furnishing: "furnished"/"fully furnished" = furnished; "semi furnished"/"semi" = semi-furnished; "unfurnished"/"bare shell" = unfurnished.',
-    'City: match against the provided list of marketplace cities (by name or common alias — Bombay=Mumbai, Bangalore=Bengaluru, Gurgaon=Gurugram, Madras=Chennai). If the query names no city but names a well-known locality, use the city that locality belongs to when that city is on the list (Andheri, Kurla, Bandra, Powai = Mumbai; Whitefield, Koramangala = Bengaluru; Wakad, Hinjewadi, Baner = Pune; Gachibowli, Kondapur = Hyderabad). A city or locality in the query always wins over the default city; use the default city only when the query gives no location at all. If no city can be determined, set cityKey and city to null.',
+    'City: match against the provided list of marketplace cities (by name or common alias — Bombay=Mumbai, Bangalore=Bengaluru, Gurgaon=Gurugram, Madras=Chennai). If the query names no city but names a well-known locality, use the city that locality belongs to when that city is on the list (Andheri, Kurla, Bandra, Powai = Mumbai; Whitefield, Koramangala = Bengaluru; Wakad, Hinjewadi, Baner = Pune; Gachibowli, Kondapur = Hyderabad). A city or locality in the query always wins over the default city; use the default city only when the query gives no location at all. If the query names a city that is NOT on the list (e.g. Jaipur), return that name in "city" with cityKey null — never substitute the default city or another listed city for it. If no city can be determined, set cityKey and city to null.',
     'Locality: the neighbourhood/area if mentioned (not the city). mustHaves: short lowercase phrases for hard requirements (e.g. "parking", "gym", "pet friendly", "near metro", "sea view", "east facing").',
     'canonicalQuery: one clean English sentence describing the request, e.g. "2 BHK apartment in Andheri West, Mumbai, for sale, under 80 lakh".',
     '',
@@ -117,14 +117,15 @@ const num = (v) => {
 };
 
 /**
- * A price under 1000 is not rupees — the model echoed "80" for "80 lakh".
- * Anything that small is treated as lakh, which is the only unit a buyer
- * would ever omit. Rents below 1000/month do not exist either.
+ * A price under 1000 is not rupees — the model echoed the number and dropped
+ * the unit. Which unit depends on what is being priced: a buyer who omits it
+ * on a purchase means lakh ("80" for "80 lakh"), on a rent means thousand
+ * ("35" for "35k"). Rents below 1000/month do not exist either.
  */
-function rupees(v) {
+function rupees(v, mode) {
   const n = num(v);
   if (n === null || n <= 0) return null;
-  if (n < 1000) return Math.round(n * 100000);
+  if (n < 1000) return Math.round(n * (mode === 'rent' ? 1000 : 100000));
   return Math.round(n);
 }
 
@@ -148,8 +149,8 @@ export function normaliseIntent(raw, { query = '' } = {}) {
   let furnishing = str(o.furnishing, 40)?.toLowerCase().replace(/\s+/g, '-') || null;
   if (furnishing && !FURNISHING.includes(furnishing)) furnishing = null;
 
-  let minPrice = rupees(o.minPrice);
-  let maxPrice = rupees(o.maxPrice);
+  let minPrice = rupees(o.minPrice, mode);
+  let maxPrice = rupees(o.maxPrice, mode);
   if (minPrice !== null && maxPrice !== null && minPrice > maxPrice) [minPrice, maxPrice] = [maxPrice, minPrice];
 
   return {

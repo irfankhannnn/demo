@@ -16,13 +16,15 @@
     "                      CloudFormation try to REPLACE the bucket (serving",
     "                      the site from an empty bucket), not a config tweak.",
     "",
-    "WebDomainName / AcmCertificateArn / HostedZoneId are listed together:",
-    "the template's HasCustomDomain condition needs all three, and",
-    "infra/lib/params.sh refuses a partial set before any CFN call."
+    "WebDomainName / WebDomainAltNames / AcmCertificateArn / HostedZoneId are",
+    "listed together: the template's HasCustomDomain condition needs the domain",
+    "and the certificate, and infra/lib/params.sh refuses a partial set before",
+    "any CFN call."
   ],
   "allowedParams": [
     "PriceClass",
     "WebDomainName",
+    "WebDomainAltNames",
     "AcmCertificateArn",
     "HostedZoneId",
     "WafWebAclArn"

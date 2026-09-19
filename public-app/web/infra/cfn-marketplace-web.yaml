@@ -6,11 +6,10 @@ Description: >
   Deploy in ap-south-1 (Mumbai) so the S3 origin bucket lives there. CloudFront
   is global; PriceClass_200 (default) is required for Indian edge locations.
 
-  Custom domain is a PLACEHOLDER — the public domain for the marketplace is
-  TBD. Leave WebDomainName / AcmCertificateArn / HostedZoneId empty and the
-  distribution serves from its *.cloudfront.net URL. When all three are set,
-  the alias, the ACM certificate and the Route53 A record are created together.
-  The certificate MUST be issued in us-east-1 (CloudFront rule).
+  Custom domain: WebDomainName + AcmCertificateArn (us-east-1, covering every
+  alias) put the domain and any WebDomainAltNames on the distribution; empty
+  means the *.cloudfront.net URL. HostedZoneId only when DNS is in Route53.
+  realestateflow.in keeps DNS at the registrar: docs/public-app/web/DOMAIN-SETUP.md.
 
   Naming: every physical resource is <dev|prod>-realestateflow-marketplace-web-<resource>.
   infra/deploy.sh derives BucketName as ${EnvironmentName}-${SERVICE_NAME}
@@ -52,8 +51,16 @@ Parameters:
     Type: String
     Default: ''
     Description: >
-      PLACEHOLDER — public domain for the marketplace (e.g. homes.realestateflow.in).
-      Domain is TBD; leave empty to use the *.cloudfront.net URL.
+      Public domain for the marketplace (realestateflow.in). Leave empty to
+      serve from the *.cloudfront.net URL.
+
+  WebDomainAltNames:
+    Type: String
+    Default: ''
+    Description: >
+      Extra hostnames for the same site, comma-separated with no spaces (e.g.
+      www.realestateflow.in). Each must be covered by AcmCertificateArn and
+      must not be an alias on any other CloudFront distribution.
 
   AcmCertificateArn:
     Type: String
@@ -63,7 +70,10 @@ Parameters:
   HostedZoneId:
     Type: String
     Default: ''
-    Description: Route53 hosted zone ID for WebDomainName. Required with WebDomainName (A/AAAA alias records are created here).
+    Description: >
+      Optional. Route53 hosted zone ID for WebDomainName; when set, the A/AAAA
+      alias records for WebDomainName are created in it. Leave empty when DNS
+      is hosted outside Route53.
 
   WafWebAclArn:
     Type: String
@@ -71,10 +81,13 @@ Parameters:
     Description: Optional AWS WAF WebACL ARN (scope CLOUDFRONT, created in us-east-1)
 
 Conditions:
-  # All three must be set for a custom domain: alias + cert + DNS record go together.
+  # Alias + certificate go together. DNS records only when the zone is in Route53.
   HasCustomDomain: !And
     - !Not [!Equals [!Ref WebDomainName, '']]
     - !Not [!Equals [!Ref AcmCertificateArn, '']]
+  HasAltNames: !Not [!Equals [!Ref WebDomainAltNames, '']]
+  HasRoute53Zone: !And
+    - !Condition HasCustomDomain
     - !Not [!Equals [!Ref HostedZoneId, '']]
   HasWaf: !Not [!Equals [!Ref WafWebAclArn, '']]
 
@@ -156,7 +169,10 @@ Resources:
         PriceClass: !Ref PriceClass
         Aliases: !If
           - HasCustomDomain
-          - [!Ref WebDomainName]
+          - !If
+            - HasAltNames
+            - !Split [",", !Sub "${WebDomainName},${WebDomainAltNames}"]
+            - [!Ref WebDomainName]
           - !Ref "AWS::NoValue"
         ViewerCertificate: !If
           - HasCustomDomain
@@ -216,7 +232,7 @@ Resources:
 
   DnsRecordA:
     Type: AWS::Route53::RecordSet
-    Condition: HasCustomDomain
+    Condition: HasRoute53Zone
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref WebDomainName
@@ -228,7 +244,7 @@ Resources:
 
   DnsRecordAAAA:
     Type: AWS::Route53::RecordSet
-    Condition: HasCustomDomain
+    Condition: HasRoute53Zone
     Properties:
       HostedZoneId: !Ref HostedZoneId
       Name: !Ref WebDomainName
