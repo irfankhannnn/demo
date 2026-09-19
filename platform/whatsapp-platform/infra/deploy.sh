@@ -424,12 +424,16 @@ set_env_defaults() {
     staging)
       TASK_CPU_VAL="${TASK_CPU:-256}"
       TASK_MEMORY_VAL="${TASK_MEMORY:-1024}"
-      DESIRED_COUNT_VAL="${DESIRED_COUNT:-1}"
+      # Cost freeze 2026-09-20: 0 everywhere, not just dev. Fargate + the task's
+      # public IPv4 address were the whole of this account's non-CloudWatch spend.
+      # Restore with DESIRED_COUNT=1 in .env.<env>, or `deploy.sh start <env>`.
+      DESIRED_COUNT_VAL="${DESIRED_COUNT:-0}"
       ;;
     prod)
       TASK_CPU_VAL="${TASK_CPU:-512}"
       TASK_MEMORY_VAL="${TASK_MEMORY:-1024}"
-      DESIRED_COUNT_VAL="${DESIRED_COUNT:-1}"
+      # Cost freeze 2026-09-20 — see the staging comment above.
+      DESIRED_COUNT_VAL="${DESIRED_COUNT:-0}"
       ;;
     *)
       echo "  ERROR: Invalid environment '${env}'. Must be one of: dev, staging, prod"
