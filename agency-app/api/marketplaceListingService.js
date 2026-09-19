@@ -23,6 +23,7 @@ import {
 import {
   isMarketplaceVisible,
   normaliseLocationKey,
+  normaliseCityKey,
   priceSortKey,
 } from './marketplaceIndexing.js';
 import { semanticMarketplaceSearch, searchMarketplaceVectors } from './services/embeddings/marketplaceSearchService.js';
@@ -49,7 +50,7 @@ export function configuredCities() {
     .split(',')
     .map((c) => c.trim())
     .filter(Boolean)
-    .map((name) => ({ name, cityKey: normaliseLocationKey(name) }));
+    .map((name) => ({ name, cityKey: normaliseCityKey(name) }));
 }
 
 // ── agency card cache ──────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ export async function listMarketplaceProperties({
   bhk = null, minBhk = null, maxBhk = null, propertyType = null, furnishing = null,
   sort = 'newest', limit = 24, cursor = null,
 } = {}) {
-  const cityKey = normaliseLocationKey(city);
+  const cityKey = normaliseCityKey(city);
   if (!cityKey) return { items: [], nextCursor: null };
   const safeMode = mode === 'rent' ? 'rent' : 'sale';
   const safeLimit = Math.min(Math.max(Number(limit) || 24, 1), 50);
@@ -244,7 +245,9 @@ export async function listMarketplaceCities({ force = false } = {}) {
   }
 
   const value = cities.filter((c) => c.total > 0);
-  cityCache = { value, expiresAt: Date.now() + CITY_CACHE_TTL_MS };
+  // An empty answer is cached only briefly: the first agency to switch the
+  // marketplace on should not wait five minutes to see its city appear.
+  cityCache = { value, expiresAt: Date.now() + (value.length ? CITY_CACHE_TTL_MS : 20 * 1000) };
   return value;
 }
 
@@ -309,7 +312,7 @@ export async function searchMarketplace({
   minPrice = null, maxPrice = null, bhk = null, minBhk = null, maxBhk = null, furnishing = null,
   limit = 12, scoreThreshold,
 } = {}) {
-  const cityKey = normaliseLocationKey(city);
+  const cityKey = normaliseCityKey(city);
   if (!cityKey) return { items: [], cityKey: null, reason: 'city_required' };
   const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 25);
 

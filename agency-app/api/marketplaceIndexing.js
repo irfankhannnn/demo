@@ -66,6 +66,30 @@ export function normaliseLocationKey(value) {
   return key || null;
 }
 
+/**
+ * Agents type the city the way they say it: "Bangalore", "Gurgaon", "Bombay".
+ * The city is the partition key of both marketplace indexes, so two spellings
+ * of one city would be two partitions and a buyer searching one would never
+ * see the other. Fold the common alternates onto one key.
+ */
+const CITY_ALIASES = {
+  bangalore: 'bengaluru',
+  bengalooru: 'bengaluru',
+  gurgaon: 'gurugram',
+  bombay: 'mumbai',
+  'new-delhi': 'delhi',
+  'delhi-ncr': 'delhi',
+  madras: 'chennai',
+  calcutta: 'kolkata',
+  poona: 'pune',
+  'new-mumbai': 'navi-mumbai',
+};
+
+export function normaliseCityKey(value) {
+  const key = normaliseLocationKey(value);
+  return key ? (CITY_ALIASES[key] || key) : null;
+}
+
 /** `sale` | `rent`, matching publicListingService.derivePricing(). */
 export function deriveListingMode(property) {
   const isRental = property?.status === 'for-rent' || property?.propertyDealType === 'rent';
@@ -97,7 +121,7 @@ export function isMarketplaceVisible(property, agency) {
   if (agency.marketplaceEnabled !== true) return false;
   if (!isPubliclyVisible(property)) return false;
   if (property.marketplaceVisibility === 'unlisted') return false;
-  return Boolean(normaliseLocationKey(property.city));
+  return Boolean(normaliseCityKey(property.city));
 }
 
 /**
@@ -110,7 +134,7 @@ export function computeMarketplaceKeys(property, agency, { now = new Date().toIS
     return { set: null, remove: MARKETPLACE_KEY_ATTRIBUTES };
   }
 
-  const cityKey = normaliseLocationKey(property.city);
+  const cityKey = normaliseCityKey(property.city);
   const mode = deriveListingMode(property);
   const amount = deriveListingAmount(property, mode);
   const localityKey = normaliseLocationKey(property.area) || 'unknown';
@@ -296,6 +320,7 @@ export async function syncTenantMarketplaceKeys(tenantId, { dryRun = false, agen
 export default {
   MARKETPLACE_KEY_ATTRIBUTES,
   normaliseLocationKey,
+  normaliseCityKey,
   deriveListingMode,
   deriveListingAmount,
   priceSortKey,

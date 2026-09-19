@@ -37,6 +37,7 @@ const {
   computeMarketplaceKeys,
   isMarketplaceVisible,
   normaliseLocationKey,
+  normaliseCityKey,
   priceSortKey,
   keysAlreadyApplied,
   applyMarketplaceKeys,
@@ -61,6 +62,17 @@ function property(overrides = {}) {
     ...overrides,
   };
 }
+
+describe('normaliseCityKey', () => {
+  test('folds the common alternate spellings of a city onto one partition', () => {
+    expect(normaliseCityKey('Bangalore')).toBe('bengaluru');
+    expect(normaliseCityKey('Bengaluru')).toBe('bengaluru');
+    expect(normaliseCityKey(' Gurgaon ')).toBe('gurugram');
+    expect(normaliseCityKey('New Delhi')).toBe('delhi');
+    expect(normaliseCityKey('Pune')).toBe('pune');
+    expect(normaliseCityKey('')).toBeNull();
+  });
+});
 
 describe('normaliseLocationKey', () => {
   test('collapses case, whitespace and punctuation', () => {
