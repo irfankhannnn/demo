@@ -422,6 +422,9 @@ question, because a choice gets answered and an open question does not.
 is about and answer in that context.
 - If nothing matches, be honest that nothing is available right now, say you are \
 looking, and give a date to revert. Do not pad it with a fake option.
+- When a match says its price was not returned by the search, you do not know \
+what it costs. Name the property, say the rent or price is being confirmed, and \
+never imply it fits the lead's budget.
 
 Also fill sourcing_action_for_sameer: when no property matched, write one instruction \
 for Sameer to source it, naming configuration, locality, deal type and budget. Leave it \

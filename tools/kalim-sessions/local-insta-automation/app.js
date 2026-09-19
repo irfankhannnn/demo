@@ -969,7 +969,9 @@
       return;
     }
     el('reqList').innerHTML = '<div class="cards">' + rows.map(function (g) {
-      return '<div class="card"><h4>' + h(g.key.replace(/ \| /g, ' &middot; ')) + '</h4>' +
+      // Escape first, then put the separator in: inserting the entity before
+      // h() runs is what printed a literal "&middot;" in the heading.
+      return '<div class="card"><h4>' + h(g.key).replace(/ \| /g, ' &middot; ') + '</h4>' +
         '<div class="sub">' + g.leads.length + ' lead' + (g.leads.length > 1 ? 's' : '') +
         (g.budgets.length ? ' &middot; budgets: ' + h(g.budgets.join(', ')) : '') + '</div>' +
         '<div class="btn-row">' + g.leads.map(function (l) {
