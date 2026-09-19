@@ -36,6 +36,7 @@ const {
   getMarketplaceProperty,
   similarMarketplaceProperties,
   toMarketplaceListing,
+  localityMatches,
 } = await import('./marketplaceListingService.js');
 
 const agency = {
@@ -195,5 +196,18 @@ describe('similarMarketplaceProperties', () => {
   test('no vector → no similar', async () => {
     mockGetProperty.mockResolvedValue(item());
     expect(await similarMarketplaceProperties('t-1', 'p-1')).toEqual([]);
+  });
+});
+
+describe('localityMatches', () => {
+  test('a shorter name matches the longer one that contains its words', () => {
+    expect(localityMatches('andheri-east', 'andheri')).toBe(true);
+    expect(localityMatches('andheri', 'andheri-east')).toBe(true);
+    expect(localityMatches('whitefield', 'whitefield')).toBe(true);
+  });
+  test('sibling localities do not match each other', () => {
+    expect(localityMatches('andheri-west', 'andheri-east')).toBe(false);
+    expect(localityMatches('bandra', 'andheri')).toBe(false);
+    expect(localityMatches(null, 'andheri')).toBe(false);
   });
 });

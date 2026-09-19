@@ -113,6 +113,21 @@ async function serialiseAll(items, options = {}) {
 }
 
 /** Range/equality predicates the index cannot express, applied after the Query. */
+/**
+ * A buyer says "Andheri"; the agent typed "Andheri East". Equality would hide
+ * the listing, so one key matches another when every word of the shorter is a
+ * word of the longer. "andheri-west" still does not match "andheri-east".
+ */
+export function localityMatches(itemKey, wantedKey) {
+  if (!wantedKey) return true;
+  if (!itemKey) return false;
+  if (itemKey === wantedKey) return true;
+  const a = itemKey.split('-');
+  const b = wantedKey.split('-');
+  const [shorter, longer] = a.length <= b.length ? [a, new Set(b)] : [b, new Set(a)];
+  return shorter.every((word) => longer.has(word));
+}
+
 function buildFilter({ minPrice, maxPrice, bhk, minBhk, maxBhk, propertyType, furnishing, localityKey }) {
   return (item) => {
     const mode = item.mktMode;
@@ -131,7 +146,7 @@ function buildFilter({ minPrice, maxPrice, bhk, minBhk, maxBhk, propertyType, fu
 
     if (propertyType && item.propertyType !== propertyType) return false;
     if (furnishing && item.furnishing !== furnishing) return false;
-    if (localityKey && item.mktLocalityKey !== localityKey) return false;
+    if (localityKey && !localityMatches(item.mktLocalityKey, localityKey)) return false;
     return true;
   };
 }
@@ -316,21 +331,32 @@ export async function searchMarketplace({
   if (!cityKey) return { items: [], cityKey: null, reason: 'city_required' };
   const safeLimit = Math.min(Math.max(Number(limit) || 12, 1), 25);
 
+  // Locality is NOT sent as the index's inline filter: that is equality-only,
+  // and "andheri" would never equal "andheri-east". The query text already
+  // names the locality, so the ranking leans toward it; here the matches in
+  // the asked-for locality are put first and the rest of the city follows, so
+  // a buyer sees nearby homes instead of an empty page.
+  const localityKey = normaliseLocationKey(locality);
   let matches;
   try {
     matches = await semanticMarketplaceSearch({
       query,
       cityKey,
-      localityKey: normaliseLocationKey(locality),
       mode: mode === 'rent' || mode === 'sale' ? mode : null,
       propertyType: propertyType || null,
-      topK: safeLimit,
+      topK: localityKey ? Math.min(safeLimit * 2, 25) : safeLimit,
       scoreThreshold,
       postFilter: buildFilter({ minPrice, maxPrice, bhk, minBhk, maxBhk, furnishing }),
     });
   } catch (error) {
     logger.error('marketplace.search.failed', { cityKey, error: error.message, errorName: error.name });
     return { items: [], cityKey, reason: 'search_unavailable' };
+  }
+
+  if (localityKey) {
+    const inLocality = matches.filter((m) => localityMatches(m.item.mktLocalityKey, localityKey));
+    const elsewhere = matches.filter((m) => !localityMatches(m.item.mktLocalityKey, localityKey));
+    matches = [...inLocality, ...elsewhere].slice(0, safeLimit);
   }
 
   return { items: await attachScores(matches), cityKey };
