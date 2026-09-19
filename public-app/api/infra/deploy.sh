@@ -118,7 +118,8 @@ if [ "$CRM_CALLER_API_KEY" = "$AUTH_CALLER_API_KEY" ]; then
   exit 1
 fi
 for var in MARKETPLACE_INTERNAL_API_KEY CRM_CALLER_API_KEY AUTH_CALLER_API_KEY; do
-  if [ "${#!var}" -lt 32 ]; then
+  val="${!var}"
+  if [ "${#val}" -lt 32 ]; then
     echo "ERROR: $var must be at least 32 characters (openssl rand -hex 32)."
     exit 1
   fi
