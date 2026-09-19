@@ -1951,6 +1951,9 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                   - dynamodb:BatchWriteItem
+                  # Marketplace search hydrates vector hits (the index projects
+                  # only keys + filter fields) with one BatchGetItem per page.
+                  - dynamodb:BatchGetItem
                   - dynamodb:DescribeTable
                   # New action for vector search — existing DynamoDB read
                   # permissions do NOT grant it. Without this, writes and Query
