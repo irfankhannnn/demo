@@ -13,7 +13,7 @@ import { useLocation } from 'react-router-dom';
 import { ArrowLeft, Phone, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { errorMessage } from '@/services/api';
+import { errorMessage, isApiError } from '@/services/api';
 import { authService, storeGooglePkce } from '@/services/auth';
 import { googleRedirectUri } from '@/config/env';
 import { normalisePhone } from '@/lib/format';
@@ -121,6 +121,9 @@ export function AuthModal() {
         completeGate();
       }
     } catch (err) {
+      // A wrong code consumes the Cognito session; the 400 carries the next one.
+      const next = isApiError(err) ? err.body?.session : undefined;
+      if (typeof next === 'string' && next) setSession_(next);
       setError(errorMessage(err, 'That OTP did not match. Try again.'));
       setOtp('');
       otpRef.current?.focus();

@@ -117,11 +117,10 @@ builds, zips (tests and fakes excluded), uploads to
 `<env>-realestateflow-marketplace-auth-stack` and publishes a fresh API
 Gateway deployment.
 
-The custom domain is a placeholder: leave `MARKETPLACE_AUTH_DOMAIN_NAME` /
-`MARKETPLACE_AUTH_BASE_PATH` empty with `ENABLE_CUSTOM_DOMAIN_MAPPING=false`
-and use the `ApiBaseUrl` output (execute-api stage URL). Once the domain
-exists, fill both in, flip mapping and base-path strip to `true` together,
-and run `config-deploy`.
+The API is mapped onto the shared `services-api.*` custom domain with base
+path `<env>realestatemarketplaceauth` (`ENABLE_CUSTOM_DOMAIN_MAPPING=true` and
+`ENABLE_BASE_PATH_STRIP=true`, always together). The `ApiBaseUrl` output is
+that URL; the stack never publishes a raw invoke URL.
 
 Google Cloud Console: the authorised redirect URI is
 `https://<env>-realestateflow-marketplace-auth.auth.ap-south-1.amazoncognito.com/oauth2/idpresponse`.

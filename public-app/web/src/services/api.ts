@@ -12,12 +12,15 @@ import type { ApiError as ApiErrorShape } from '@/types/api';
 export class ApiError extends Error {
   readonly status: number;
   readonly details?: string;
+  /** Parsed error body. The auth service returns a fresh `session` with a wrong-OTP 400. */
+  readonly body?: Record<string, unknown>;
 
-  constructor(status: number, error: string, details?: string) {
+  constructor(status: number, error: string, details?: string, body?: Record<string, unknown>) {
     super(error);
     this.name = 'ApiError';
     this.status = status;
     this.details = details;
+    this.body = body;
   }
 
   get isNotFound() {
@@ -118,8 +121,8 @@ async function request<T>(base: string, path: string, opts: RequestOptions = {})
   }
 
   if (!res.ok) {
-    const body = (await parseBody(res)) as Partial<ApiErrorShape> | null;
-    throw new ApiError(res.status, body?.error || res.statusText || 'Request failed', body?.details);
+    const body = (await parseBody(res)) as (Partial<ApiErrorShape> & Record<string, unknown>) | null;
+    throw new ApiError(res.status, body?.error || res.statusText || 'Request failed', body?.details, body ?? undefined);
   }
 
   if (res.status === 204) return undefined as T;
@@ -152,7 +155,12 @@ export function isApiError(e: unknown): e is ApiError {
 export function errorMessage(e: unknown, fallback = 'Something went wrong. Try again?'): string {
   if (isApiError(e)) {
     if (e.isRateLimited) return 'Thoda slow — too many requests. Try again in a minute.';
-    return e.details ? `${e.message} (${e.details})` : e.message || fallback;
+    // marketplace-api puts the sentence in `error` and a code in `details`;
+    // the auth service does the reverse. Show the sentence, never the code.
+    const isSentence = (s?: string) => !!s && /\s/.test(s.trim());
+    if (isSentence(e.message)) return e.message;
+    if (isSentence(e.details)) return e.details as string;
+    return fallback;
   }
   if (e instanceof Error && e.name === 'AbortError') return '';
   if (e instanceof TypeError) return 'Network issue — check your connection and retry.';

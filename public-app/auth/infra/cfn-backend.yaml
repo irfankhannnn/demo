@@ -875,12 +875,9 @@ Outputs:
       Name: !Sub '${AWS::StackName}-RestApiId'
 
   ApiBaseUrl:
-    Description: Base URL clients use (custom domain when mapped, execute-api stage URL otherwise)
-    Value:
-      !If
-        - CustomDomainMappingEnabled
-        - !Sub 'https://${MarketplaceAuthDomainName}/${MarketplaceAuthBasePath}'
-        - !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${Env}'
+    Condition: CustomDomainMappingEnabled
+    Description: Base URL clients use - the shared API Gateway custom domain + this service's base path. Absent while the mapping is off, so no caller can pick up a raw invoke URL from this stack.
+    Value: !Sub 'https://${MarketplaceAuthDomainName}/${MarketplaceAuthBasePath}'
     Export:
       Name: !Sub '${AWS::StackName}-ApiBaseUrl'
 

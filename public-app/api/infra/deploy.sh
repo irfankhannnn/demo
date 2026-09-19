@@ -157,7 +157,7 @@ echo "CRM API:        https://${CRM_INTERNAL_API_DOMAIN_NAME}/${CRM_INTERNAL_API
 if [ "${ENABLE_CUSTOM_DOMAIN_MAPPING:-false}" = "true" ]; then
   echo "This API:       https://${MARKETPLACE_API_DOMAIN_NAME}/${MARKETPLACE_API_BASE_PATH}"
 else
-  echo "This API:       <raw execute-api URL; custom domain mapping is off>"
+  echo "This API:       <not published: custom domain mapping is off>"
 fi
 echo "Model:          ${MODEL_PROVIDER:-gemini}"
 echo "Web origin:     ${MARKETPLACE_WEB_ORIGIN:-<none, CORS closed in prod>}"

@@ -159,8 +159,9 @@ Parameters:
     Default: ""
     Description: >-
       Existing API Gateway custom domain to map this API onto. Host only.
-      PLACEHOLDER: may be empty while EnableCustomDomainMapping=false — the
-      raw execute-api URL is used until the marketplace domain is decided.
+      services-api.cloudberrysolutions.in (dev) / services-api.realestateflow.in
+      (prod), like every other backend. May be empty only while
+      EnableCustomDomainMapping=false; the stack then publishes no URL at all.
     AllowedPattern: "^[A-Za-z0-9.-]*$"
 
   MarketplaceApiBasePath:
@@ -725,10 +726,6 @@ Outputs:
     Value: !Sub "https://${MarketplaceApiDomainName}/${MarketplaceApiBasePath}"
     Export:
       Name: !Sub "${EnvironmentName}-realestateflow-marketplace-api-base-url"
-
-  MarketplaceExecuteApiUrl:
-    Description: Raw invoke URL — for dev use until the custom domain is mapped
-    Value: !Sub "https://${MarketplaceRestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
 
   MarketplaceDistributionDomain:
     Condition: CloudFrontEnabled

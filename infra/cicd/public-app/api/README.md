@@ -21,8 +21,7 @@ resource is named `<env>-realestateflow-marketplace-api-<resource>` (e.g.
 `<env>-realestateflow-marketplace` (PITR, `DeletionPolicy: Retain`). The
 artifact bucket is `<env>-realestateflow-artifacts`.
 
-Key stack outputs: `MarketplaceRestApiId`, `MarketplaceExecuteApiUrl` (raw
-invoke URL, for dev until the domain is mapped), `MarketplaceApiBaseUrl`
+Key stack outputs: `MarketplaceRestApiId`, `MarketplaceApiBaseUrl`
 (custom domain + base path; present when `EnableCustomDomainMapping=true`),
 `MarketplaceDistributionDomain` / `MarketplaceDistributionId` (only when
 `EnableCloudFront=true`), `MarketplaceTableName`, `LambdaFunctionName`.
@@ -105,9 +104,9 @@ truth.
 
 - **"env file not found"** — copy `.env.sample` to `.env.dev` / `.env.prod`
   in `public-app/api/` and fill in the required values.
-- **"MARKETPLACE_API_DOMAIN_NAME=... is a raw API Gateway host"** — leave
-  it empty (mapping off) until the marketplace domain exists; the stack's
-  `MarketplaceExecuteApiUrl` output is the dev URL meanwhile.
+- **"MARKETPLACE_API_DOMAIN_NAME=... is a raw API Gateway host"** — use the
+  shared custom domain (`services-api.cloudberrysolutions.in` for dev) with
+  base path `<env>realestatemarketplace` and the mapping on.
 - **"CRM_CALLER_API_KEY and AUTH_CALLER_API_KEY must differ"** — generate
   two keys; one per caller so either can be rotated alone.
 - **"no recorded build" on rollback** — run `./deploy.sh list`; builds are

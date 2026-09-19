@@ -251,17 +251,32 @@ meRouter.post('/threads/:threadId/messages', buyerWriteGuard, guarded(async (req
   if (thread.status === 'agency_closed') {
     return res.status(409).json({ error: 'This agency is no longer on the marketplace', details: 'agency_closed' });
   }
+  if (thread.status === 'listing_removed') {
+    return res.status(409).json({ error: 'This listing is no longer available', details: 'listing_removed' });
+  }
   const profile = await contactableProfile(req, res);
   if (!profile) return undefined;
+
+  // The CRM is the only place that knows whether the listing is still on the
+  // marketplace. Ask before writing, so a message about a removed listing is
+  // never stored as if an agent would read it.
+  const live = await crm.getListing(thread.agencySlug, thread.propertyId);
+  if (!live) {
+    await threads.setStatus(thread.threadId, 'listing_removed');
+    return res.status(409).json({ error: 'This listing is no longer available', details: 'listing_removed' });
+  }
 
   const { message } = await threads.appendMessage(thread.threadId, {
     senderType: 'buyer', senderId: profile.userId, senderName: profile.name, text, kind: 'text',
   });
   try {
-    await crm.postMessage(thread.tenantId, {
+    const result = await crm.postMessage(thread.tenantId, {
       buyer: buyerFor(profile), propertyId: thread.propertyId, threadId: thread.threadId,
       messageId: message.messageId, text, dedupeKey: message.messageId,
     });
+    if (result && !result.ok && result.reason === 'property_unavailable') {
+      await threads.setStatus(thread.threadId, 'listing_removed');
+    }
   } catch (err) {
     logger.error('me.crm_write_failed', { threadId: thread.threadId, kind: 'message', error: err.message });
   }

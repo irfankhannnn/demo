@@ -65,10 +65,10 @@ See [`.env.sample`](.env.sample) — every variable is annotated there.
 Required at cold start: `MARKETPLACE_TABLE_NAME`,
 `CRM_INTERNAL_API_DOMAIN_NAME`, `CRM_INTERNAL_API_BASE_PATH`,
 `MARKETPLACE_INTERNAL_API_KEY`, `CRM_CALLER_API_KEY`, `AUTH_CALLER_API_KEY`,
-`COGNITO_USER_POOL_ID`. Placeholders until decided: `MARKETPLACE_WEB_ORIGIN`
-(CORS + share redirect; empty = CORS closed in prod) and
-`MARKETPLACE_API_DOMAIN_NAME` (empty with the mapping off = raw execute-api
-URL).
+`COGNITO_USER_POOL_ID`. Placeholder until the web domain is decided:
+`MARKETPLACE_WEB_ORIGIN` (CORS + share redirect; empty = CORS closed in prod).
+`MARKETPLACE_API_DOMAIN_NAME` is the shared `services-api.*` custom domain,
+with base path `<env>realestatemarketplace`, like every other backend.
 
 ## Running locally
 
@@ -115,11 +115,11 @@ infra/cicd/public-app/api/deploy.sh dev
 
 Requires `.env.dev` or `.env.prod` (never a bare `.env`). Stack
 `<env>-realestateflow-marketplace-api-stack`; table
-`<env>-realestateflow-marketplace` (PITR, retained on delete). Until the
-marketplace domain exists deploy with `ENABLE_CUSTOM_DOMAIN_MAPPING=false`
-and use the `MarketplaceExecuteApiUrl` output; the CRM's
-`MARKETPLACE_API_DOMAIN_NAME` can be left blank meanwhile and its inbox
-reports "not configured".
+`<env>-realestateflow-marketplace` (PITR, retained on delete). The API is
+mapped onto the shared custom domain (`ENABLE_CUSTOM_DOMAIN_MAPPING=true`,
+`ENABLE_BASE_PATH_STRIP=true`); the stack publishes no raw invoke URL. The
+CRM's `MARKETPLACE_API_DOMAIN_NAME` / `_BASE_PATH` point at the same place,
+and its inbox reports "not configured" while they are blank.
 
 ## Layout
 

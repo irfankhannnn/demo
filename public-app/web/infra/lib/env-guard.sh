@@ -3,9 +3,8 @@
 # =============================================================================
 # The bundle bakes VITE_MARKETPLACE_API_URL and VITE_MARKETPLACE_AUTH_URL in at
 # build time. A deployed build must reach both services over https with no
-# trailing slash. Unlike the CRM frontend's api-domain-guard.sh, a raw
-# execute-api URL is only a WARNING for dev (the API contract allows it until
-# the custom domain is mapped) and an ERROR for prod.
+# trailing slash, and never through a raw execute-api URL (same rule as the CRM
+# frontend's api-domain-guard.sh).
 #
 # validate_web_env_vars <env> <env-file-label>
 #   Requires the caller to have already sourced .env.$ENV.
@@ -30,11 +29,8 @@ _check_web_url() {
     return 1
   fi
   if printf '%s' "$value" | grep -Eqi 'execute-api|amazonaws\.com'; then
-    if [ "$env" = "prod" ]; then
-      echo "ERROR: $var ('$value') is a raw API Gateway URL — prod must use the custom domain."
-      return 1
-    fi
-    echo "WARNING: $var ('$value') is a raw API Gateway URL — acceptable for dev until the custom domain is mapped (placeholder)."
+    echo "ERROR: $var ('$value') is a raw API Gateway URL. Every backend is reached through the shared custom domain (services-api.cloudberrysolutions.in for dev, services-api.realestateflow.in for prod) plus its base path."
+    return 1
   fi
   return 0
 }

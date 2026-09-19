@@ -114,6 +114,15 @@ router.post('/tenants/:tenantId/closed', guarded(async (req, res) => {
   return res.json({ updated });
 }));
 
+/** The agency switched the marketplace back on: its agency_closed threads reopen. */
+router.post('/tenants/:tenantId/reopened', guarded(async (req, res) => {
+  if (!ID_RE.test(req.params.tenantId)) return res.status(404).json({ error: 'Not found' });
+  const header = req.headers['x-tenant-id'];
+  if (header && header !== req.params.tenantId) return res.status(404).json({ error: 'Not found' });
+  const updated = await threads.reopenTenantThreads(req.params.tenantId);
+  return res.json({ updated });
+}));
+
 // ── account deletion (marketplace-authentication) ──────────────────────────
 
 /**

@@ -25,6 +25,7 @@ import {
   normaliseMarketplaceNotifications,
 } from '../publicListingService.js';
 import { syncTenantMarketplaceKeys, invalidateAgencyCache } from '../marketplaceIndexing.js';
+import { notifyMarketplaceTenantState } from './marketplaceInbox.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
@@ -115,6 +116,12 @@ router.put('/settings', validateToken, extractTenantId, requireAdmin, validateBo
       updates.marketplaceNotifications = normaliseMarketplaceNotifications(updates.marketplaceNotifications);
     }
 
+    // Read before the write: whether the marketplace flag really flips decides
+    // if buyer threads are closed or reopened below.
+    const wasOnMarketplace = updates.marketplaceEnabled !== undefined
+      ? (await getAgencyConfig(req.tenantId))?.marketplaceEnabled === true
+      : null;
+
     const saved = await updateAgencyConfig(req.tenantId, updates);
 
     // Switching the marketplace on/off re-keys every property of the tenant so
@@ -127,6 +134,10 @@ router.put('/settings', validateToken, extractTenantId, requireAdmin, validateBo
         logger.info('publicPagesSettings.marketplace_synced', { tenantId: req.tenantId, enabled: updates.marketplaceEnabled, ...stats });
       } catch (err) {
         logger.error('publicPagesSettings.marketplace_sync_failed', { tenantId: req.tenantId, error: err.message });
+      }
+      // Only on a real change of the flag, not on every save that repeats it.
+      if (wasOnMarketplace !== (updates.marketplaceEnabled === true)) {
+        await notifyMarketplaceTenantState(req.tenantId, updates.marketplaceEnabled === true);
       }
     } else {
       invalidateAgencyCache(req.tenantId);

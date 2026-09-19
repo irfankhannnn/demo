@@ -23,7 +23,16 @@ const router = express.Router();
 const TIMEOUT_MS = 8000;
 
 async function marketplaceFetch(tenantId, path, { method = 'GET', body = null } = {}) {
-  const base = getMarketplaceApiBaseUrl();
+  let base;
+  try {
+    base = getMarketplaceApiBaseUrl();
+  } catch (err) {
+    // A malformed domain value must answer, not hang the request: Express 4
+    // does not catch a throw inside an async handler.
+    if (!(err instanceof ServiceUrlConfigError)) throw err;
+    logger.error('marketplaceInbox.bad_config', { error: err.message });
+    base = null;
+  }
   if (!base) return { status: 503, data: { error: 'Marketplace not configured' } };
 
   const controller = new AbortController();
@@ -47,6 +56,24 @@ async function marketplaceFetch(tenantId, path, { method = 'GET', body = null } 
     return { status: err.name === 'AbortError' ? 504 : 502, data: { error: 'Marketplace unavailable' } };
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+/**
+ * Called by the settings route when an agency flips marketplaceEnabled: open
+ * buyer threads close (or reopen) to match. Best-effort and never throws; a
+ * missed call leaves threads open, and the buyer's next message is refused by
+ * the CRM anyway because the listing is off the marketplace.
+ */
+export async function notifyMarketplaceTenantState(tenantId, enabled) {
+  const path = `/internal/tenants/${encodeURIComponent(tenantId)}/${enabled ? 'reopened' : 'closed'}`;
+  try {
+    const { status, data } = await marketplaceFetch(tenantId, path, { method: 'POST' });
+    logger.info('marketplaceInbox.tenant_state_sent', { tenantId, enabled, status, updated: data?.updated });
+    return status >= 200 && status < 300;
+  } catch (err) {
+    logger.error('marketplaceInbox.tenant_state_failed', { tenantId, enabled, error: err.message });
+    return false;
   }
 }
 

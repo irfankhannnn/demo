@@ -90,9 +90,9 @@ Alerts fan out per AgencyConfig `marketplaceNotifications` `{ email, whatsapp, p
 ## 2. marketplace-api — `public-app/api/`
 
 Express on Lambda (ESM, Node 20), own REST API Gateway, base URL
-`https://<MARKETPLACE_API_DOMAIN_NAME>/<MARKETPLACE_API_BASE_PATH>` (dev may
-use the raw execute-api URL until the custom domain is mapped — the domain is
-a placeholder, see `.env.sample`).
+`https://<MARKETPLACE_API_DOMAIN_NAME>/<MARKETPLACE_API_BASE_PATH>` (dev:
+`services-api.cloudberrysolutions.in/devrealestatemarketplace`; consumer auth
+is at `/devrealestatemarketplaceauth`). Only the web domain is a placeholder.
 
 Auth:
 - **Public**: none (abuse guard by IP).
@@ -155,7 +155,8 @@ Message  { messageId, threadId, senderType: 'buyer'|'agency'|'system', senderId,
 | GET | `/internal/threads/:threadId` | `since?`; header `x-tenant-id` must equal thread.tenantId | `{ thread, buyer, messages }` |
 | POST | `/internal/threads/:threadId/messages` | `{ text, agentUserId, agentName }` | `{ message }` (unreadBuyer++, buyer email via SES if set) |
 | POST | `/internal/threads/:threadId/read` | – | `{ ok }` (unreadAgency = 0) |
-| POST | `/internal/tenants/:tenantId/closed` | – | `{ updated }` (threads → `agency_closed`) |
+| POST | `/internal/tenants/:tenantId/closed` | – | `{ updated }` (open threads → `agency_closed`) |
+| POST | `/internal/tenants/:tenantId/reopened` | – | `{ updated }` (`agency_closed` threads → `open`) |
 | DELETE | `/internal/users/:userId` | – | `{ ok }` (profile/saved/searches deleted; messages anonymised `senderName: 'Deleted user'`) |
 
 ### MarketplaceTable `<env>-realestateflow-marketplace`

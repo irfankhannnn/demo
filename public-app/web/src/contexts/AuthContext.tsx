@@ -26,6 +26,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { registerTokenProvider } from '@/services/api';
 import { authService } from '@/services/auth';
+import { marketplace } from '@/services/marketplace';
 import type { AuthUser, TokenResponse } from '@/types/api';
 
 export type AuthStatus = 'loading' | 'anon' | 'authed';
@@ -162,6 +163,10 @@ export function AuthProvider({ children, skipBootstrap = false }: { children: Re
   const updateProfile = useCallback(async (patch: { name?: string; email?: string }) => {
     const { user: updated } = await authService.updateProfile(patch);
     setUser(updated);
+    // The token in memory was minted before this edit and carries no name, so
+    // marketplace-api cannot learn it from claims. Chat, ping and visit are
+    // refused without a name on its profile: write it there too.
+    await marketplace.updateMe(patch);
     return updated;
   }, []);
 

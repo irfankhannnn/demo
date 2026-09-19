@@ -346,21 +346,36 @@ export async function listThreadsForTenant(tenantId, opts = {}) {
   return queryIndex('GSI2', 'GSI2PK', `TENANT#${tenantId}`, opts);
 }
 
-/** Every open thread of a tenant → agency_closed. Returns how many changed. */
-export async function closeTenantThreads(tenantId) {
+async function moveTenantThreads(tenantId, from, to) {
   let updated = 0;
   let cursor = null;
   do {
     // eslint-disable-next-line no-await-in-loop
-    const page = await listThreadsForTenant(tenantId, { cursor, limit: 100, status: 'open' });
+    const page = await listThreadsForTenant(tenantId, { cursor, limit: 100, status: from });
     for (const item of page.items) {
       // eslint-disable-next-line no-await-in-loop
-      await setStatus(item.threadId, 'agency_closed');
+      await setStatus(item.threadId, to);
       updated += 1;
     }
     cursor = page.nextCursor;
   } while (cursor);
+  return updated;
+}
+
+/** Every open thread of a tenant → agency_closed. Returns how many changed. */
+export async function closeTenantThreads(tenantId) {
+  const updated = await moveTenantThreads(tenantId, 'open', 'agency_closed');
   logger.info('threads.tenant_closed', { tenantId, updated });
+  return updated;
+}
+
+/**
+ * The agency switched the marketplace back on: agency_closed → open.
+ * listing_removed threads stay as they are; that is a fact about one listing.
+ */
+export async function reopenTenantThreads(tenantId) {
+  const updated = await moveTenantThreads(tenantId, 'agency_closed', 'open');
+  logger.info('threads.tenant_reopened', { tenantId, updated });
   return updated;
 }
 
