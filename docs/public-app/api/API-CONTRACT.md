@@ -99,7 +99,7 @@ Auth:
 - **Consumer** (`/me/*`, `/listings/*/ping|visit`): `Authorization: Bearer <Cognito ID token>` from marketplace-authentication (access tokens are also accepted, but Cognito access tokens carry no `phone_number`/`email`/`name`, so the web app sends the ID token). Verified with `jwks-rsa` against `COGNITO_USER_POOL_ID` (+ client binding when `COGNITO_CLIENT_ID` is set); `req.user = { userId (= sub), sub, phone?, email?, name? }`. Chat/ping/visit return `400 profile_incomplete` until the profile has name + phone.
 - **Internal** (`/internal/*`): `x-api-key: <CRM_CALLER_API_KEY>` (presented by the CRM) or `<AUTH_CALLER_API_KEY>` (presented by marketplace-authentication) — both accepted, checked constant-time.
 
-Env: `MARKETPLACE_TABLE_NAME`, `CRM_INTERNAL_API_DOMAIN_NAME`, `CRM_INTERNAL_API_BASE_PATH`, `MARKETPLACE_INTERNAL_API_KEY` (to CRM), `CRM_CALLER_API_KEY`, `AUTH_CALLER_API_KEY`, `COGNITO_USER_POOL_ID`, `COGNITO_REGION`, `MODEL_PROVIDER=gemini|bedrock`, `GEMINI_API_KEY`, `GEMINI_MODEL`, `BEDROCK_MODEL_ID`, `MARKETPLACE_WEB_ORIGIN` (CORS; placeholder), `SES_FROM_EMAIL`, guard limits.
+Env: `MARKETPLACE_TABLE_NAME`, `CRM_INTERNAL_API_DOMAIN_NAME`, `CRM_INTERNAL_API_BASE_PATH`, `MARKETPLACE_INTERNAL_API_KEY` (to CRM), `CRM_CALLER_API_KEY`, `AUTH_CALLER_API_KEY`, `COGNITO_USER_POOL_ID`, `COGNITO_REGION`, `MODEL_PROVIDER=bedrock|gemini` (bedrock is the default; `BEDROCK_MODEL_ID` is an inference profile id such as `global.amazon.nova-2-lite-v1:0`), `GEMINI_API_KEY`, `GEMINI_MODEL`, `BEDROCK_MODEL_ID`, `MARKETPLACE_WEB_ORIGIN` (CORS; placeholder), `SES_FROM_EMAIL`, guard limits.
 
 ### Public
 
@@ -111,13 +111,13 @@ Env: `MARKETPLACE_TABLE_NAME`, `CRM_INTERNAL_API_DOMAIN_NAME`, `CRM_INTERNAL_API
 | GET | `/agencies/:slug` | – | proxied |
 | GET | `/agencies/:slug/listings/:propertyId` | – | `{ listing }` + `saved: boolean` when logged in |
 | GET | `/agencies/:slug/listings/:propertyId/similar` | – | proxied |
-| POST | `/search/ai` | `{ query, city?, filters?: { mode, propertyType, bhk, minPrice, maxPrice, locality, furnishing }, conversationId? }` | `{ intent: { cityKey, city, mode, propertyType, bhk, minPrice, maxPrice, locality, mustHaves[], canonicalQuery }, results: MarketplaceListing[] (matchScore, why), followUps: string[], assistantMessage: string, needsCity: boolean }` |
+| POST | `/search/ai` | `{ query, city?, filters?: { mode, propertyType, bhk, minPrice, maxPrice, locality, furnishing }, conversationId? }` | `{ intent: { cityKey, city, mode, propertyType, bhk, minPrice, maxPrice, locality, mustHaves[], canonicalQuery }, results: MarketplaceListing[] (matchScore, why, closeMatch), followUps: string[], assistantMessage: string, needsCity: boolean, relaxed: boolean }` |
 | GET | `/i/:slug/:propertyId/:index` | – | 302 → presigned image URL (cache 300 s) |
 | GET | `/d/:slug/:propertyId/:index` | – | 302 → presigned document |
 | GET | `/share/p/:slug/:propertyId` | – | HTML with OG/JSON-LD + meta-refresh to `<MARKETPLACE_WEB_ORIGIN>/p/:slug/:propertyId` |
 | GET | `/sitemap.xml`, `/robots.txt` | – | text |
 
-`POST /search/ai` flow: `modelGateway.parseIntent(query, city)` → JSON intent; if no city → `needsCity: true, assistantMessage` asks for it; else CRM `POST /search` with `canonicalQuery` + filters; then `modelGateway.explain(query, top 8)` → `why` per result + 2 follow-ups. Guard: 20/IP/hour anonymous, 60 logged-in.
+`POST /search/ai` flow: `modelGateway.parseIntent(query, city)` → JSON intent. `mode` stays null unless the query has a rent/sale word or a budget, and a null mode searches both. A city or well-known locality in the query beats the caller's `city`. With a live city: CRM `POST /search` with `canonicalQuery` + filters. With no city, or a city the marketplace does not serve: the same search runs in every live city (busiest first, max 6) and the hits are merged by `matchScore`. If nothing fits every filter the search is loosened, first dropping bhk/price/type/furnishing, then rent/sale as well; such a response has `relaxed: true` and every result `closeMatch: true`, and the UI labels them closest homes. Results from a city the buyer did not ask for are flagged the same way. `needsCity: true` only when there is no city and no live city returned anything. Then `modelGateway.explain(query, top 8, relaxed)` → `why` per result + 2 follow-ups. Guard: 20/IP/hour anonymous, 60 logged-in.
 
 ### Consumer (`authRequired`)
 

@@ -51,8 +51,8 @@ write. See the memory of that decision in the plan history.
 ## Search path
 
 1. Buyer types "2 bhk andheri under 80 lakh, near metro".
-2. marketplace-api `modelGateway.parseIntent()` (Gemini Flash by default; Claude
-   on Bedrock as the second adapter) → `{ cityKey: 'mumbai', mode: 'sale', bhk: 2, maxPrice: 8000000, locality: 'andheri', canonicalQuery }`.
+2. marketplace-api `modelGateway.parseIntent()` (Bedrock Converse by default, model set by
+   `BEDROCK_MODEL_ID`; Gemini as the second adapter) → `{ cityKey: 'mumbai', mode: 'sale', bhk: 2, maxPrice: 8000000, locality: 'andheri', canonicalQuery }`.
    If the model is unavailable a deterministic heuristic (lakh/crore/k, rent words, BHK) fills in.
 3. CRM `POST /api/internal/marketplace/search` → `embedText(canonicalQuery)` (Titan V2, inside the CRM) →
    `SearchVectors` on `marketplace-vector-index` partition `mumbai` with inline filters → over-fetch ×4,
