@@ -294,13 +294,20 @@ export async function markRead(threadId, side) {
 
 export async function setLeadId(threadId, leadId) {
   if (!leadId) return;
-  await getDocClient().send(new UpdateCommand({
-    TableName: table(),
-    Key: { PK: threadPk(threadId), SK: 'META' },
-    UpdateExpression: 'SET leadId = if_not_exists(leadId, :lead), updatedAt = :now',
-    ExpressionAttributeValues: { ':lead': leadId, ':now': new Date().toISOString() },
-    ConditionExpression: 'attribute_exists(PK)',
-  }));
+  try {
+    await getDocClient().send(new UpdateCommand({
+      TableName: table(),
+      Key: { PK: threadPk(threadId), SK: 'META' },
+      UpdateExpression: 'SET leadId = :lead, updatedAt = :now',
+      ExpressionAttributeValues: { ':lead': leadId, ':now': new Date().toISOString(), ':null': 'NULL' },
+      // A thread is created with leadId: null, and if_not_exists() treats a
+      // stored NULL as "exists", so the first lead id would never be written.
+      // Set it while it is absent or NULL; never replace a real one.
+      ConditionExpression: 'attribute_exists(PK) AND (attribute_not_exists(leadId) OR attribute_type(leadId, :null))',
+    }));
+  } catch (err) {
+    if (err.name !== 'ConditionalCheckFailedException') throw err;
+  }
 }
 
 export async function setStatus(threadId, status) {
