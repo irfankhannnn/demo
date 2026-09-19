@@ -12,13 +12,16 @@ import { Button } from '../ui/Button';
 
 function useUnreadCount(enabled: boolean) {
   const { data } = useQuery({
-    queryKey: qk.threads,
+    // Its own key under the 'threads' prefix: the Enquiries page caches an
+    // infinite query ({ pages }) at qk.threads, and sharing the key hands this
+    // hook that shape. Invalidating qk.threads still refreshes both.
+    queryKey: [...qk.threads, 'unread'],
     queryFn: () => marketplace.threads(),
     enabled,
     staleTime: 30_000,
     refetchInterval: enabled ? 60_000 : false,
   });
-  return data?.items.reduce((n, t) => n + (t.unreadBuyer > 0 ? 1 : 0), 0) ?? 0;
+  return data?.items?.reduce((n, t) => n + (t.unreadBuyer > 0 ? 1 : 0), 0) ?? 0;
 }
 
 export function Header() {
