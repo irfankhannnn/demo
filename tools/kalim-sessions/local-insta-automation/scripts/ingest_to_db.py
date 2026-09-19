@@ -49,6 +49,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+import ai_provider as ai  # noqa: E402
 import lead_db as db  # noqa: E402
 import parse_dm_export as pde  # noqa: E402
 
@@ -386,7 +387,8 @@ def load_env():
                     continue
                 key, _, value = line.partition("=")
                 config[key.strip()] = value.strip().strip('"').strip("'")
-    for key in ("GEMINI_API_KEY", "GEMINI_MODEL"):
+    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "AI_PROVIDER", "CLAUDE_BIN",
+                "CLAUDE_MODEL", "CLAUDE_VISION_MODEL", "CLAUDE_TIMEOUT"):
         if os.environ.get(key):
             config[key] = os.environ[key]
     return config
@@ -461,16 +463,38 @@ def snap_handle(handle, known):
     return lowered, ""
 
 
+def vision_reader(config):
+    """The function that turns one screenshot into JSON, and the model's name.
+
+    Which one you get is AI_PROVIDER's decision, made once here rather than per
+    image, so a missing key or a missing CLI is reported before the first call
+    rather than on every file in the folder.
+    """
+    if ai.chosen(config) == "claude_cli":
+        info = ai.health(config)
+        if not info["ok"]:
+            return None, "", info["note"]
+        return (lambda path: ai.read_image(config, path, IMAGE_PROMPT,
+                                           IMAGE_SCHEMA),
+                info["vision_model"], "")
+
+    key = config.get("GEMINI_API_KEY", "")
+    if not key:
+        return None, "", (
+            "GEMINI_API_KEY is not set. Put it in %s (copy .env.sample to "
+            ".env), export it for this shell, or set AI_PROVIDER=claude_cli "
+            "to use the Claude CLI instead." % ENV_PATH)
+    model = config.get("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
+    return lambda path: read_screenshot(path, key, model), model, ""
+
+
 def parse_images(folder, out_dir, known_handles=None):
     """Turn a folder of thread screenshots into a parsed payload."""
     config = load_env()
-    key = config.get("GEMINI_API_KEY", "")
-    if not key:
-        log("GEMINI_API_KEY is not set. Put it in %s (copy .env.sample to .env)"
-            % ENV_PATH)
-        log("or export it for this shell, then run --images again.")
+    read_one, model, problem = vision_reader(config)
+    if read_one is None:
+        log(problem)
         return None, 1
-    model = config.get("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
 
     images = sorted(os.path.join(folder, n) for n in os.listdir(folder)
                     if n.lower().endswith(IMAGE_SUFFIXES))
@@ -483,7 +507,7 @@ def parse_images(folder, out_dir, known_handles=None):
     for path in images:
         name = os.path.basename(path)
         try:
-            result = read_screenshot(path, key, model)
+            result = read_one(path)
         except RuntimeError as exc:
             warnings.append("%s: %s" % (name, exc))
             log("  %-44s FAILED: %s" % (name, exc))

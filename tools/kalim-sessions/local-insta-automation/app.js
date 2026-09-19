@@ -24,7 +24,8 @@
     answers: {},          // per-lead last answer
     drafts: {},           // per-lead last AI draft
     busy: {},
-    inventory: null
+    inventory: null,
+    inbox: { shots: [], leads: [], batch: '', warnings: [], busy: false, done: '' }
   };
 
   /* ------------------------------------------------------------- helpers */
@@ -968,7 +969,9 @@
       return;
     }
     el('reqList').innerHTML = '<div class="cards">' + rows.map(function (g) {
-      return '<div class="card"><h4>' + h(g.key.replace(/ \| /g, ' &middot; ')) + '</h4>' +
+      // Escape first, then put the separator in: inserting the entity before
+      // h() runs is what printed a literal "&middot;" in the heading.
+      return '<div class="card"><h4>' + h(g.key).replace(/ \| /g, ' &middot; ') + '</h4>' +
         '<div class="sub">' + g.leads.length + ' lead' + (g.leads.length > 1 ? 's' : '') +
         (g.budgets.length ? ' &middot; budgets: ' + h(g.budgets.join(', ')) : '') + '</div>' +
         '<div class="btn-row">' + g.leads.map(function (l) {
@@ -1010,8 +1013,11 @@
 
     el('brandAccount').textContent = health.account ? '@' + health.account : '';
 
-    statHtml(el('statGemini'), health.gemini_configured ? 'on' : 'off', 'AI',
-      health.gemini_configured ? (health.model || 'ready') : 'no key in .env',
+    var ai = health.ai || {};
+    var aiOn = ai.provider ? ai.ok : health.gemini_configured;
+    statHtml(el('statGemini'), aiOn ? 'on' : 'off', 'AI',
+      aiOn ? (health.model || 'ready')
+           : (ai.provider === 'claude_cli' ? 'claude CLI not found' : 'no key in .env'),
       health.model_note || '');
 
     var invDot = inv.ok ? 'on' : (inv.sample || inv.mode === 'not connected' ? 'warn' : 'off');
@@ -1066,6 +1072,213 @@
     if (name === 'activity') renderActivity();
     if (name === 'requirements') renderRequirements();
     if (name === 'inventory') renderInventory();
+    if (name === 'inbox') { renderShots(); renderInboxPreview(); }
+  }
+
+  /* ----------------------------------------------------------------- inbox
+   *
+   * A screenshot pasted here becomes a lead. The read and the save are two
+   * separate calls on purpose: the handle is guessed off the header of a
+   * picture, and one wrong character would open a second row for someone
+   * already in the pipeline. So everything below is editable, and nothing
+   * reaches the database until Add is pressed.
+   */
+
+  function shotName(file, index) {
+    return (file && file.name) || ('pasted-' + (index + 1) + '.png');
+  }
+
+  function addShots(files) {
+    var list = Array.prototype.slice.call(files || []).filter(function (f) {
+      return f && /^image\//.test(f.type);
+    });
+    if (!list.length) { toast('that was not a picture', 'bad'); return; }
+    list.forEach(function (file, i) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        state.inbox.shots.push({ name: shotName(file, state.inbox.shots.length + i),
+                                 url: String(reader.result) });
+        renderShots();
+      };
+      reader.onerror = function () { toast('could not read that picture', 'bad'); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function renderShots() {
+    var shots = state.inbox.shots;
+    el('inboxShots').innerHTML = shots.map(function (s, i) {
+      return '<figure class="shot"><img src="' + h(s.url) + '" alt="' + h(s.name) + '">' +
+        '<figcaption><span>' + h(s.name) + '</span>' +
+        '<button class="btn sm ghost" data-act="inbox-drop-shot" data-i="' + i +
+        '" title="Remove">&times;</button></figcaption></figure>';
+    }).join('');
+    el('inboxActions').hidden = !shots.length;
+    el('inboxHint').textContent = shots.length
+      ? shots.length + ' screenshot' + (shots.length === 1 ? '' : 's') +
+        ' ready. Reading takes roughly ' + (12 * shots.length) + ' seconds.'
+      : '';
+  }
+
+  function inboxChips(draft) {
+    var got = draft.extracted || {};
+    var pairs = [['lead_score', got.lead_score], ['lead_type', got.lead_type],
+                 ['deal', got.deal_type], ['type', got.property_type],
+                 ['where', got.locality || got.city], ['budget', got.budget],
+                 ['phone', got.mobile_number], ['meeting', got.meeting_schedule]];
+    return pairs.filter(function (p) { return txt(p[1]); }).map(function (p) {
+      return '<span class="chip static">' + h(p[0]) + ': ' + h(p[1]) + '</span>';
+    }).join('');
+  }
+
+  function inboxLeadHtml(entry, index) {
+    var draft = entry.draft || {};
+    var edit = entry.edit || {};
+    var keep = edit.keep !== false;
+    var thread = (entry.read_messages || []).map(function (m) {
+      var who = m.direction === 'business' ? 'business'
+              : (m.direction === 'lead' ? 'lead' : 'unknown');
+      return '<div class="msg ' + who + '"><div><div class="bubble">' + h(m.text) +
+        '</div><div class="when">' + h(txt(m.date) || 'no date') + ' ' +
+        h(m.time || '') + '</div></div></div>';
+    }).join('') || '<div class="mini">no messages were readable</div>';
+
+    return '<article class="inbox-lead' + (keep ? '' : ' skipped') +
+      '" data-read="' + h(entry.lead_id) + '" data-i="' + index + '">' +
+      '<header class="inbox-head">' +
+        '<label class="handle">@<input type="text" data-role="inbox-handle" value="' +
+          h(txt(edit.lead_id) || entry.lead_id) + '" spellcheck="false"></label>' +
+        '<input type="text" class="named" data-role="inbox-name" placeholder="name" value="' +
+          h(txt(edit.lead_name) || entry.lead_name || '') + '">' +
+        '<span class="tag ' + (entry.existing ? 'known' : 'fresh') + '">' +
+          (entry.existing ? 'already on file' : 'new lead') + '</span>' +
+        '<span class="mini">' + (entry.read_messages || []).length +
+          ' read, ' + entry.new_messages + ' new to us</span>' +
+        '<label class="keep"><input type="checkbox" data-role="inbox-keep"' +
+          (keep ? ' checked' : '') + '> add this one</label>' +
+      '</header>' +
+      (draft.error ? '<div class="warn-line">the draft failed: ' + h(draft.error) +
+                     '. The conversation can still be added.</div>' : '') +
+      '<div class="inbox-cols">' +
+        '<div class="thread inbox-thread">' + thread + '</div>' +
+        '<div class="inbox-draft">' +
+          '<div class="chips">' + inboxChips(draft) + '</div>' +
+          '<label class="mini">What to reply</label>' +
+          '<textarea data-role="inbox-reply" rows="5">' +
+            h(txt(edit.reply) !== '' ? edit.reply : (draft.reply || '')) + '</textarea>' +
+          '<div class="btn-row">' +
+            '<button class="btn primary" data-act="inbox-copy" data-i="' + index +
+              '">Copy</button>' +
+            (draft.next_action ? '<span class="mini">next: ' + h(draft.next_action) +
+                                 '</span>' : '') +
+          '</div>' +
+          (draft.matches && draft.matches.length
+            ? '<p class="mini">' + draft.matches.length +
+              ' matching listing(s) were used to write this.</p>'
+            : '<p class="mini">no inventory matched, so the reply promises nothing.</p>') +
+        '</div>' +
+      '</div>' +
+    '</article>';
+  }
+
+  function renderInboxPreview() {
+    var box = el('inboxPreview');
+    var data = state.inbox;
+    if (!data.leads.length) { box.innerHTML = data.done || ''; return; }
+    box.innerHTML =
+      (data.warnings && data.warnings.length
+        ? '<div class="warn-line">' + data.warnings.map(h).join('<br>') + '</div>' : '') +
+      '<div class="view-head sub"><div class="view-title"><h3>Read ' +
+        data.leads.length + ' conversation' + (data.leads.length === 1 ? '' : 's') +
+        '</h3></div><p>Check the handle against the screenshot before you add it. ' +
+        'Nothing here is saved yet.</p></div>' +
+      data.leads.map(inboxLeadHtml).join('') +
+      '<div class="btn-row sticky-actions">' +
+        '<button class="btn primary lg" data-act="inbox-commit">Add to pipeline</button>' +
+        '<button class="btn ghost" data-act="inbox-discard">Discard this read</button>' +
+      '</div>';
+  }
+
+  function captureInbox() {
+    qsa('#inboxPreview .inbox-lead').forEach(function (card) {
+      var entry = state.inbox.leads[Number(card.dataset.i)];
+      if (!entry) return;
+      var handle = qs('[data-role="inbox-handle"]', card);
+      var name = qs('[data-role="inbox-name"]', card);
+      var reply = qs('[data-role="inbox-reply"]', card);
+      var keep = qs('[data-role="inbox-keep"]', card);
+      entry.edit = {
+        lead_id: handle ? txt(handle.value).replace(/^@/, '').toLowerCase() : '',
+        lead_name: name ? txt(name.value) : '',
+        reply: reply ? reply.value : '',
+        keep: keep ? keep.checked : true
+      };
+    });
+  }
+
+  function inboxRead() {
+    var shots = state.inbox.shots;
+    if (!shots.length) { toast('paste a screenshot first', 'bad'); return; }
+    if (state.inbox.busy) return;
+    state.inbox.busy = true;
+    state.inbox.done = '';
+    el('inboxPreview').innerHTML = '<div class="mini"><span class="busy"></span> ' +
+      'reading ' + shots.length + ' screenshot' + (shots.length === 1 ? '' : 's') +
+      ', then drafting the reply&hellip;</div>';
+    api('/api/inbox/read', {
+      body: { images: shots.map(function (s) { return { name: s.name, data: s.url }; }) }
+    }).then(function (out) {
+      state.inbox.busy = false;
+      state.inbox.batch = out.batch;
+      state.inbox.leads = out.leads || [];
+      state.inbox.warnings = out.warnings || [];
+      renderInboxPreview();
+      toast('read ' + state.inbox.leads.length + ' conversation(s)', 'ok');
+    }).catch(function (err) {
+      state.inbox.busy = false;
+      el('inboxPreview').innerHTML = '<div class="empty"><b>Could not read that</b>' +
+        h(err.message) + '</div>';
+    });
+  }
+
+  function inboxCommit() {
+    captureInbox();
+    if (state.inbox.busy) return;
+    var picked = state.inbox.leads.filter(function (e) {
+      return !e.edit || e.edit.keep !== false; });
+    if (!picked.length) { toast('nothing is ticked to add', 'bad'); return; }
+    state.inbox.busy = true;
+    api('/api/inbox/commit', {
+      body: {
+        batch: state.inbox.batch,
+        leads: state.inbox.leads.map(function (e) {
+          var edit = e.edit || {};
+          return { read_as: e.lead_id, lead_id: edit.lead_id || e.lead_id,
+                   lead_name: edit.lead_name, reply: edit.reply,
+                   skip: edit.keep === false };
+        })
+      }
+    }).then(function (out) {
+      state.inbox.busy = false;
+      var c = out.counts || {};
+      state.inbox.shots = [];
+      state.inbox.leads = [];
+      state.inbox.batch = '';
+      state.inbox.done = '<div class="empty"><b>Added to the pipeline</b>' +
+        (c.new || 0) + ' new lead(s), ' + (c.updated || 0) + ' updated, ' +
+        (c.messages || 0) + ' message(s) stored.<br>' +
+        (c.handles || []).map(function (id) {
+          return '<button class="btn sm" data-act="goto-lead" data-id="' + h(id) +
+            '">@' + h(id) + '</button>';
+        }).join(' ') + '</div>';
+      renderShots();
+      renderInboxPreview();
+      toast('saved ' + ((c.handles || []).length) + ' conversation(s)', 'ok');
+      boot(false);
+    }).catch(function (err) {
+      state.inbox.busy = false;
+      toast(err.message, 'bad');
+    });
   }
 
   /* ------------------------------------------------------------------ wire */
@@ -1215,6 +1428,30 @@
         if (t) { t.hidden = !t.hidden; if (!t.hidden) paintThread(id); }
         break;
       }
+      case 'inbox-pick': el('inboxFile').click(); break;
+      case 'inbox-read': inboxRead(); break;
+      case 'inbox-commit': inboxCommit(); break;
+      case 'inbox-clear':
+        state.inbox.shots = [];
+        renderShots();
+        break;
+      case 'inbox-discard':
+        state.inbox.leads = [];
+        state.inbox.batch = '';
+        state.inbox.warnings = [];
+        state.inbox.done = '';
+        renderInboxPreview();
+        break;
+      case 'inbox-drop-shot':
+        state.inbox.shots.splice(Number(node.dataset.i), 1);
+        renderShots();
+        break;
+      case 'inbox-copy': {
+        captureInbox();
+        var entry = state.inbox.leads[Number(node.dataset.i)];
+        copy(entry && entry.edit ? entry.edit.reply : '', node, 'Reply copied');
+        break;
+      }
       case 'refresh': boot(true); break;
       case 'theme': {
         var root = document.documentElement;
@@ -1236,6 +1473,11 @@
           if (out.changed.length) toast('saved ' + out.changed.join(', '), 'ok');
           renderKpis();
         }).catch(function (err) { toast(err.message, 'bad'); });
+    }
+    if (node.dataset.role === 'inbox-keep') {
+      captureInbox();
+      var card = node.closest('.inbox-lead');
+      if (card) card.classList.toggle('skipped', !node.checked);
     }
     if (node.dataset.role === 'assign') {
       scratch(node.dataset.id).assign[node.dataset.key] = node.value;
@@ -1319,6 +1561,42 @@
     qsa('.nav button').forEach(function (b) {
       b.addEventListener('click', function () { showView(b.dataset.view); });
     });
+    document.addEventListener('paste', function (e) {
+      if (state.view !== 'inbox') return;
+      var items = (e.clipboardData || {}).items || [];
+      var files = [];
+      for (var i = 0; i < items.length; i++) {
+        if (items[i].kind === 'file' && /^image\//.test(items[i].type)) {
+          files.push(items[i].getAsFile());
+        }
+      }
+      if (!files.length) return;
+      e.preventDefault();
+      addShots(files);
+    });
+
+    var drop = el('inboxDrop');
+    ['dragenter', 'dragover'].forEach(function (name) {
+      drop.addEventListener(name, function (e) {
+        e.preventDefault(); drop.classList.add('over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function (name) {
+      drop.addEventListener(name, function (e) {
+        e.preventDefault(); drop.classList.remove('over');
+      });
+    });
+    drop.addEventListener('drop', function (e) {
+      addShots(e.dataTransfer && e.dataTransfer.files);
+    });
+    drop.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-act]')) el('inboxFile').click();
+    });
+    el('inboxFile').addEventListener('change', function (e) {
+      addShots(e.target.files);
+      e.target.value = '';
+    });
+
     el('invSearch').addEventListener('keydown', function (e) {
       if (e.key !== 'Enter') return;
       var q = e.target.value;

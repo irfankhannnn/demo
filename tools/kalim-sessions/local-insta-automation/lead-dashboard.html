@@ -28,6 +28,12 @@
         <span class="nav-short">Pipeline</span>
         <span class="nav-count"></span>
       </button>
+      <button data-view="inbox" title="Add a DM from a screenshot" aria-current="false">
+        <span class="nav-ico" aria-hidden="true">&#43;</span>
+        <span class="nav-label">Add a DM</span>
+        <span class="nav-short">Add DM</span>
+        <span class="nav-count"></span>
+      </button>
       <button data-view="sourcing" title="Sourcing board" aria-current="false">
         <span class="nav-ico" aria-hidden="true">&#9873;</span>
         <span class="nav-label">Sourcing</span>
@@ -102,6 +108,36 @@
       <div class="lead-list" id="leadList">
         <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
       </div>
+    </section>
+
+    <!-- --------------------------- inbox -------------------------- -->
+    <section class="view" data-view="inbox" hidden>
+      <div class="view-head">
+        <div class="view-title"><h2>Add a DM</h2></div>
+        <p>Screenshot the conversation in Instagram and paste it here. The AI reads
+           the thread, works out the requirement and writes the reply to send. Nothing
+           is saved until you press Add, so a misread handle is yours to fix first.</p>
+      </div>
+
+      <div class="drop" id="inboxDrop" tabindex="0"
+           aria-label="Paste or drop a screenshot">
+        <b>Paste the screenshot</b>
+        <span class="mini">Ctrl&nbsp;+&nbsp;V anywhere on this page, drop a picture here,
+          or <button class="btn sm ghost" data-act="inbox-pick">choose a file</button>
+        </span>
+        <span class="mini">One conversation per screenshot. Several shots of the same
+          thread are stitched back together by the handle in the header.</span>
+        <input type="file" id="inboxFile" accept="image/*" multiple hidden>
+      </div>
+
+      <div class="shots" id="inboxShots"></div>
+      <div class="btn-row" id="inboxActions" hidden>
+        <button class="btn primary" data-act="inbox-read">Read the screenshots</button>
+        <button class="btn ghost" data-act="inbox-clear">Clear</button>
+        <span class="mini" id="inboxHint"></span>
+      </div>
+
+      <div id="inboxPreview"></div>
     </section>
 
     <!-- ------------------------- sourcing ------------------------- -->
@@ -194,6 +230,12 @@
         <li><b>Every change is recorded.</b>
           Field edits, reel links, assignments and status moves all append to the
           changelog with the old and the new value. Nothing is overwritten silently.</li>
+        <li><b>A pasted screenshot is read, not trusted.</b>
+          Add a DM sends the picture to the AI, which reads the handle off the
+          thread header &mdash; the one thing in the flow with no ground truth behind
+          it. So the read shows you what it got and saves nothing; only Add writes,
+          with whatever handle you confirmed. A batch you discard leaves the
+          database untouched.</li>
         <li><b>A drafted reply is a draft.</b>
           The model is given the real matching properties and told explicitly when
           there are none, so it will not invent a listing or a price. Read it before

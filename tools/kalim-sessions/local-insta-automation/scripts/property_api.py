@@ -407,6 +407,25 @@ def get_property(config, property_id):
         problems.append("CRM base url: %s" % err)
 
     headers = _crm_headers(config)
+
+    # The internal details route, before the CRM's own by-id route: it takes
+    # the same api key and tenant the search already uses, while /api/crm/... is
+    # authenticated per user and answers 401 to a key.
+    if crm and _clean(config.get("CRM_INTERNAL_API_KEY")) \
+            and _clean(config.get("CRM_TENANT_ID")):
+        try:
+            payload = http_json(
+                crm + "/api/internal/properties/" + quoted + "/details",
+                headers={"x-api-key": _clean(config["CRM_INTERNAL_API_KEY"]),
+                         "x-tenant-id": _clean(config["CRM_TENANT_ID"])},
+                timeout=20)
+            prop = normalise_property(_single_from(payload))
+            if prop and prop.get("id"):
+                return {"property": _decorate(prop, 100, "exact id"),
+                        "source": "CRM internal via %s" % crm, "error": ""}
+        except (RuntimeError, ValueError, TypeError) as err:
+            problems.append("CRM internal details: %s" % err)
+
     if crm and headers:
         try:
             payload = http_json(crm + "/api/crm/properties/" + quoted,
@@ -504,6 +523,10 @@ def property_facts(prop):
     if prop.get("deposit"):
         add("Deposit", money(prop["deposit"]))
     carpet = _clean(prop.get("carpet_area"))
+    # A listing with no area recorded comes back as 0, and "0 sq ft" reads like
+    # a measurement rather than a blank. Same reasoning as the dropped blanks.
+    if carpet in ("0", "0.0"):
+        carpet = ""
     if carpet:
         # Stored as a bare number of square feet everywhere it has been seen.
         add("Carpet area", carpet + " sq ft"
@@ -543,6 +566,8 @@ def describe_for_prompt(prop):
 
     extras = []
     carpet = _clean(prop.get("carpet_area"))
+    if carpet in ("0", "0.0"):
+        carpet = ""                 # no area on file; never quote it as zero
     if carpet:
         extras.append("Carpet area " + (carpet + " sq ft" if re.fullmatch(
             r"\d+(\.\d+)?", carpet) else carpet) + ".")

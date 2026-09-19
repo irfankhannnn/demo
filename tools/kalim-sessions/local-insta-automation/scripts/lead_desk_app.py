@@ -24,6 +24,8 @@ the row.
     GET  /api/properties/search        live inventory search
     GET  /api/properties/<id>          one property
     POST /api/properties/answer        reel links + property id -> the answer
+    POST /api/inbox/read               pasted DM screenshots -> leads, drafted
+    POST /api/inbox/commit             keep what the read got right
 
 Credentials live in .env beside the README and never reach the browser.
 
@@ -32,6 +34,8 @@ Usage:
 """
 
 import argparse
+import base64
+import binascii
 import json
 import os
 import re
@@ -49,9 +53,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
+import ai_provider as ai  # noqa: E402
+import ingest_to_db as ingest  # noqa: E402
 import lead_db as db  # noqa: E402
 
 ENV_PATH = os.path.join(ROOT, ".env")
+# Screenshots pasted into the app land here, one folder per batch, so a read
+# can be looked at again later and a bad read can be thrown away whole.
+INBOX_DIR = os.path.join(ROOT, "screenshots-dm", "inbox")
 GEMINI_HOST = "https://generativelanguage.googleapis.com/v1beta"
 # Stepped down to when the preferred model keeps answering 503.
 FALLBACK_MODEL = "gemini-2.5-flash"
@@ -71,7 +80,9 @@ def load_env():
                     continue
                 key, _, value = line.partition("=")
                 config[key.strip()] = value.strip().strip('"').strip("'")
-    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "CRM_API_DOMAIN_NAME",
+    for key in ("GEMINI_API_KEY", "GEMINI_MODEL", "AI_PROVIDER", "CLAUDE_BIN",
+                "CLAUDE_MODEL", "CLAUDE_VISION_MODEL", "CLAUDE_TIMEOUT",
+                "CRM_API_DOMAIN_NAME",
                 "CRM_API_BASE_PATH", "CRM_AUTH_TOKEN", "CRM_INTERNAL_API_KEY",
                 "CRM_PUBLIC_API_KEY", "CRM_TENANT_ID", "CRM_TENANT_HEADER",
                 "CRM_PROPERTY_SEARCH_PATH", "USE_MOCK_PROPERTIES",
@@ -254,6 +265,29 @@ def resolve_model(force=False):
     return _model_cache["name"], _model_cache["note"]
 
 
+def active_model():
+    """The model the next prompt will actually go to, and why."""
+    if ai.chosen(CONFIG) == "claude_cli":
+        info = ai.health(CONFIG)
+        return info["model"], info["note"]
+    return resolve_model()
+
+
+def ai_json(system_text, user_text, schema, temperature=0.4):
+    """One prompt, one JSON object back, from whichever provider is selected.
+
+    Every prompt in this file goes through here. The Claude CLI path reads no
+    key and bills nothing, because it runs on the subscription this machine is
+    already signed in with; the Gemini path is the original one and still the
+    faster of the two. Temperature belongs to Gemini alone: the CLI takes no
+    such flag, and the prompts carry their own instruction about how literal to
+    be.
+    """
+    if ai.chosen(CONFIG) == "claude_cli":
+        return ai.json_call(CONFIG, system_text, user_text, schema)
+    return gemini(system_text, user_text, schema, temperature)
+
+
 def gemini(system_text, user_text, schema, temperature=0.4):
     key = CONFIG.get("GEMINI_API_KEY", "")
     if not key:
@@ -388,6 +422,9 @@ question, because a choice gets answered and an open question does not.
 is about and answer in that context.
 - If nothing matches, be honest that nothing is available right now, say you are \
 looking, and give a date to revert. Do not pad it with a fake option.
+- When a match says its price was not returned by the search, you do not know \
+what it costs. Name the property, say the rent or price is being confirmed, and \
+never imply it fits the lead's budget.
 
 Also fill sourcing_action_for_sameer: when no property matched, write one instruction \
 for Sameer to source it, naming configuration, locality, deal type and budget. Leave it \
@@ -462,7 +499,15 @@ def lead_payload(connection, lead):
 
 
 def handle_health():
-    model, note = resolve_model()
+    provider = ai.health(CONFIG)
+    # The status bar asks one question -- can this app think? -- so the model
+    # and the note it shows are whichever provider is actually answering.
+    if provider["provider"] == "claude_cli":
+        model, note = provider["model"], provider["note"]
+        configured = provider["ok"]
+    else:
+        model, note = resolve_model()
+        configured = bool(CONFIG.get("GEMINI_API_KEY"))
     connection = conn()
     if property_api is not None and hasattr(property_api, "health"):
         try:
@@ -485,7 +530,8 @@ def handle_health():
     return {
         "ok": True,
         "account": our_account(),
-        "gemini_configured": bool(CONFIG.get("GEMINI_API_KEY")),
+        "ai": provider,
+        "gemini_configured": configured,
         "model": model, "model_note": note,
         "env_file_present": os.path.isfile(ENV_PATH),
         "database": db.DB_PATH,
@@ -569,11 +615,24 @@ def handle_draft(lead_id, body):
     lead = db.get_lead(connection, lead_id)
     if lead is None:
         raise RuntimeError("no lead %r" % lead_id)
-    thread = db.messages_for(connection, lead_id)
-    reels = db.reels_for(connection, lead_id)
-    new_message = db.as_text(body.get("message"))
+    return draft_for_thread(lead,
+                            db.messages_for(connection, lead_id),
+                            db.reels_for(connection, lead_id),
+                            new_message=db.as_text(body.get("message")),
+                            query=db.as_text(body.get("query")))
 
-    extracted = gemini(
+
+def draft_for_thread(lead, thread, reels, new_message="", query=""):
+    """Read a conversation, then write the next DM for it.
+
+    Nothing here touches the database, which is what lets a screenshot just
+    pasted into the app be drafted for before anyone has decided to keep it.
+    The lead is a plain dict of the columns we hold, so an unsaved read passes
+    the same shape a stored row does.
+    """
+    lead_id = db.as_text(lead.get("lead_id"))
+
+    extracted = ai_json(
         EXTRACT_SYSTEM,
         "What the record already holds for this lead:\n%s\n\nThe conversation so "
         "far:\n%s\n\nReels or posts the lead shared:\n%s\n\nThe lead has just "
@@ -590,7 +649,7 @@ def handle_draft(lead_id, body):
     }
     tagged = [r["property_id"] for r in reels if db.as_text(r.get("property_id"))]
     found = property_search_call(
-        query_text=db.as_text(body.get("query")), requirement=requirement, limit=6)
+        query_text=query, requirement=requirement, limit=6)
     matches = found["matches"]
 
     # A property the lead actually sent a reel about beats anything the search
@@ -613,7 +672,7 @@ def handle_draft(lead_id, body):
                           (" (lookup failed: %s)" % found["error"]
                            if found["error"] else ""))
 
-    composed = gemini(
+    composed = ai_json(
         COMPOSE_SYSTEM,
         "Lead record:\n%s\n\nConversation so far:\n%s\n\nReels or posts the lead "
         "shared:\n%s\n\nThe lead has just replied:\n%s\n\nRequirement as now "
@@ -631,7 +690,7 @@ def handle_draft(lead_id, body):
             requirement.get("locality") or "the requested area",
             requirement.get("budget") or "not stated", lead_id)).replace("  ", " ")
 
-    model, model_note = resolve_model()
+    model, model_note = active_model()
     return {
         "lead_id": lead_id,
         "reply": composed.get("reply", ""),
@@ -803,7 +862,7 @@ def handle_answer(body):
     facts = property_facts(prop)
     thread = db.messages_for(connection, lead_id) if lead_id else []
 
-    result = gemini(
+    result = ai_json(
         ANSWER_SYSTEM,
         "The property record from inventory:\n%s\n\nEvery field we hold:\n%s\n\n"
         "Reels or posts the lead shared:\n%s\n\nLead record:\n%s\n\nConversation "
@@ -828,6 +887,263 @@ def handle_answer(body):
     return payload
 
 
+# ================================================================== inbox ==
+#
+# Paste a screenshot of a DM into the app and it becomes a lead. The read is
+# deliberately two calls rather than one: the vision model has to guess the
+# handle off the header, and a wrong character there would quietly open a
+# second row for someone already on file. So the first call reads and drafts
+# and writes nothing, and the second call, with whatever you corrected, is the
+# only one that touches the database.
+
+MAX_IMAGES = 12
+MAX_IMAGE_BYTES = 12 * 1024 * 1024
+BATCH_RE = re.compile(r"^paste-\d{8}-\d{6}$")
+
+
+def batch_folder(batch, must_exist=True):
+    """Resolve a batch name to its folder, refusing anything we did not name."""
+    if not BATCH_RE.match(db.as_text(batch)):
+        raise RuntimeError("unknown batch %r" % batch)
+    path = os.path.join(INBOX_DIR, batch)
+    if must_exist and not os.path.isdir(path):
+        raise RuntimeError("that batch is no longer on disk: %s" % batch)
+    return path
+
+
+def save_uploads(images):
+    """Write the pasted pictures into a fresh batch folder."""
+    if not images:
+        raise RuntimeError("no screenshot was sent")
+    if len(images) > MAX_IMAGES:
+        raise RuntimeError("that is %d screenshots. Send at most %d at a time, "
+                           "so one read stays quick to check."
+                           % (len(images), MAX_IMAGES))
+
+    batch = datetime.now().strftime("paste-%Y%m%d-%H%M%S")
+    folder = batch_folder(batch, must_exist=False)
+    os.makedirs(folder, exist_ok=True)
+    written = []
+    for index, image in enumerate(images, start=1):
+        blob = db.as_text(image.get("data") if isinstance(image, dict) else image)
+        # A canvas or a paste hands over a data URL; the prefix is not payload.
+        if blob.startswith("data:"):
+            blob = blob.partition(",")[2]
+        try:
+            raw = base64.b64decode(blob, validate=False)
+        except (ValueError, binascii.Error):
+            raise RuntimeError("screenshot %d did not arrive as valid base64"
+                               % index)
+        if not raw:
+            raise RuntimeError("screenshot %d was empty" % index)
+        if len(raw) > MAX_IMAGE_BYTES:
+            raise RuntimeError("screenshot %d is %.1fMB, over the %dMB limit"
+                               % (index, len(raw) / 1048576.0,
+                                  MAX_IMAGE_BYTES // 1048576))
+        kind = "jpg" if raw[:3] == b"\xff\xd8\xff" else "png"
+        name = "shot-%02d.%s" % (index, kind)
+        with open(os.path.join(folder, name), "wb") as fh:
+            fh.write(raw)
+        written.append(name)
+    return batch, folder, written
+
+
+def merged_thread(connection, lead_id, read_messages):
+    """The stored conversation plus whatever the screenshot added to it.
+
+    A screenshot of an old thread is usually the tail of a conversation we
+    already hold, so drafting from the screenshot alone would lose everything
+    above it. Same key the importer de-duplicates on, so what the draft sees is
+    what the database would end up with.
+    """
+    thread = list(db.messages_for(connection, lead_id)) if lead_id else []
+    seen = {(db.as_text(m.get("date")), db.as_text(m.get("time")),
+             db.as_text(m.get("text"))) for m in thread}
+    fresh = []
+    for message in read_messages:
+        key = (db.as_text(message.get("date")), db.as_text(message.get("time")),
+               db.as_text(message.get("text")))
+        if key in seen:
+            continue
+        seen.add(key)
+        fresh.append(message)
+        thread.append(message)
+    thread.sort(key=lambda m: (db.as_text(m.get("date")) or "9999",
+                               db.as_text(m.get("time")) or "99:99"))
+    return thread, fresh
+
+
+def handle_inbox_read(body):
+    """Read pasted screenshots, draft a reply for each, save nothing."""
+    batch, folder, written = save_uploads(body.get("images") or [])
+
+    connection = conn()
+    known = {row["lead_id"] for row in db.all_leads(connection)}
+    parsed_path, code = ingest.parse_images(folder, folder, known)
+    if parsed_path is None:
+        raise RuntimeError(
+            "nothing readable in those screenshots. They need to show the "
+            "thread header with the handle, and the messages under it."
+            if code == 2 else
+            "the AI could not read the screenshots. Check the AI line in the "
+            "top bar.")
+
+    parsed = ingest.read_json(parsed_path)
+    leads = []
+    for record in parsed.get("leads") or []:
+        lead_id = db.as_text(record.get("lead_id")).lower()
+        existing = db.get_lead(connection, lead_id) if lead_id else None
+        thread, fresh = merged_thread(connection, lead_id if existing else "",
+                                      record.get("messages") or [])
+        reels = db.reels_for(connection, lead_id) if existing else []
+        reels = reels + [{"url": url, "property_id": "", "note": "from this screenshot"}
+                         for url in record.get("reel_links") or []
+                         if url not in {r["url"] for r in reels}]
+
+        lead = dict(existing) if existing else {}
+        lead.setdefault("lead_id", lead_id)
+        if db.as_text(record.get("lead_name")) and not db.as_text(lead.get("lead_name")):
+            lead["lead_name"] = record["lead_name"]
+
+        try:
+            draft = draft_for_thread(lead, thread, reels)
+        except RuntimeError as err:
+            # One unreadable thread should not cost you the rest of the batch.
+            draft = {"reply": "", "next_action": "", "meeting_proposal": "",
+                     "sourcing_action_for_sameer": "", "extracted": {},
+                     "matches": [], "error": str(err)}
+
+        leads.append({
+            "lead_id": lead_id,
+            "lead_name": db.as_text(record.get("lead_name"))
+                         or db.as_text(lead.get("lead_name")),
+            "instagram_link": db.as_text(record.get("instagram_link")),
+            "existing": bool(existing),
+            "known_since": db.as_text((existing or {}).get("conversation_start_date")),
+            "read_messages": record.get("messages") or [],
+            "new_messages": len(fresh),
+            "thread_size": len(thread),
+            "reel_links": record.get("reel_links") or [],
+            "source_images": record.get("source_images") or [],
+            "draft": draft,
+        })
+
+    preview = {"batch": batch, "images": written,
+               "warnings": parsed.get("warnings") or [],
+               "read_at": db.now_iso(), "leads": leads}
+    with open(os.path.join(folder, "preview.json"), "w", encoding="utf-8") as fh:
+        json.dump(preview, fh, indent=2, ensure_ascii=False, default=str)
+    model, note = active_model()
+    preview["model"] = model
+    preview["model_note"] = note
+    return preview
+
+
+def judgement_for(entry, edits):
+    """The analysis row for one lead: what the draft worked out, plus your edits."""
+    draft = entry.get("draft") or {}
+    extracted = draft.get("extracted") or {}
+    values = {"lead_id": db.as_text(edits.get("lead_id")) or entry["lead_id"]}
+    for field in ("deal_type", "property_type", "locality", "city",
+                  "building_name", "budget", "units_required",
+                  "possession_timeline", "lead_type", "lead_score",
+                  "whatsapp_available", "meeting_schedule", "mobile_number"):
+        if db.as_text(extracted.get(field)):
+            values[field] = db.as_text(extracted[field])
+    if db.as_text(extracted.get("intent_summary")):
+        values["summary"] = db.as_text(extracted["intent_summary"])
+
+    reply = db.as_text(edits.get("reply")) or db.as_text(draft.get("reply"))
+    action = db.as_text(edits.get("next_action")) or db.as_text(draft.get("next_action"))
+    if reply:
+        values["suggested_reply"] = reply
+    if action:
+        values["next_action"] = action
+    if db.as_text(draft.get("sourcing_action_for_sameer")):
+        values["sourcing_action_for_sameer"] = draft["sourcing_action_for_sameer"]
+    if db.as_text(edits.get("lead_name")):
+        values["lead_name"] = db.as_text(edits.get("lead_name"))
+    return values
+
+
+def handle_inbox_commit(body):
+    """Write the leads you kept, with the handle you confirmed."""
+    batch = db.as_text(body.get("batch"))
+    folder = batch_folder(batch)
+    preview_path = os.path.join(folder, "preview.json")
+    if not os.path.isfile(preview_path):
+        raise RuntimeError("that batch was never read: %s" % batch)
+    preview = ingest.read_json(preview_path)
+    by_handle = {entry["lead_id"]: entry for entry in preview.get("leads") or []}
+
+    # Only what the preview actually read can be committed: the browser sends
+    # corrections, never content.
+    wanted = []
+    for edit in body.get("leads") or []:
+        original = db.as_text(edit.get("read_as")) or db.as_text(edit.get("lead_id"))
+        entry = by_handle.get(original.lower())
+        if entry is None:
+            raise RuntimeError("no @%s in that batch" % original)
+        if edit.get("skip"):
+            continue
+        wanted.append((entry, edit))
+    if not wanted:
+        raise RuntimeError("nothing was selected to add")
+
+    parsed_path = os.path.join(folder, "%s.parsed.json" % batch)
+    parsed = ingest.read_json(parsed_path)
+    records = {db.as_text(r.get("lead_id")).lower(): r
+               for r in parsed.get("leads") or []}
+
+    keep, judgements = [], []
+    for entry, edit in wanted:
+        record = dict(records.get(entry["lead_id"]) or {})
+        if not record:
+            continue
+        handle = db.as_text(edit.get("lead_id")).lower().lstrip("@") \
+            or entry["lead_id"]
+        if not re.match(r"^[a-z0-9._]{1,60}$", handle):
+            raise RuntimeError("@%s is not a usable Instagram handle" % handle)
+        record["lead_id"] = handle
+        record["instagram_handle"] = handle
+        record["instagram_link"] = "https://www.instagram.com/%s/" % handle
+        if db.as_text(edit.get("lead_name")):
+            record["lead_name"] = db.as_text(edit.get("lead_name"))
+        keep.append(record)
+        judgements.append(judgement_for(entry, dict(edit, lead_id=handle)))
+
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    name = "inbox-%s" % stamp
+    os.makedirs(ingest.PARSED_DIR, exist_ok=True)
+    os.makedirs(ingest.ANALYSIS_DIR, exist_ok=True)
+    final_parsed = os.path.join(ingest.PARSED_DIR, "%s.parsed.json" % name)
+    final_analysis = os.path.join(ingest.ANALYSIS_DIR, "%s.analysis.json" % name)
+    with open(final_parsed, "w", encoding="utf-8") as fh:
+        json.dump(dict(parsed, leads=keep, lead_count=len(keep),
+                       source_file=folder), fh, indent=2, ensure_ascii=False,
+                  default=str)
+    with open(final_analysis, "w", encoding="utf-8") as fh:
+        json.dump({"source": folder, "analysed_at": db.now_iso(),
+                   "leads": judgements}, fh, indent=2, ensure_ascii=False,
+                  default=str)
+
+    with _write_lock:
+        connection = conn()
+        run_id = "paste-%s" % stamp
+        counts = ingest.new_counts()
+        ingest.ingest_pair(connection, final_parsed, final_analysis, run_id,
+                           counts)
+        ingest.record_run(connection, run_id, counts)
+        saved = [lead_payload(connection, db.get_lead(connection, h))
+                 for h in counts["handles"] if db.get_lead(connection, h)]
+
+    with open(os.path.join(folder, "committed.json"), "w", encoding="utf-8") as fh:
+        json.dump({"run_id": run_id, "counts": counts}, fh, indent=2,
+                  ensure_ascii=False, default=str)
+    return {"run_id": run_id, "batch": batch, "counts": counts, "leads": saved,
+            "parsed_file": os.path.basename(final_parsed)}
+
+
 def handle_ingest_hint():
     """What the app should tell you about keeping the data fresh."""
     connection = conn()
@@ -842,6 +1158,8 @@ ROUTES = [
     ("GET", r"^/api/health$", lambda m, b, q: handle_health()),
     ("GET", r"^/api/bootstrap$", lambda m, b, q: handle_bootstrap()),
     ("GET", r"^/api/ingest/status$", lambda m, b, q: handle_ingest_hint()),
+    ("POST", r"^/api/inbox/read$", lambda m, b, q: handle_inbox_read(b)),
+    ("POST", r"^/api/inbox/commit$", lambda m, b, q: handle_inbox_commit(b)),
     ("GET", r"^/api/properties/search$", lambda m, b, q: handle_property_search(q)),
     ("POST", r"^/api/properties/answer$", lambda m, b, q: handle_answer(b)),
     ("GET", r"^/api/properties/(?P<pid>[^/]+)$",

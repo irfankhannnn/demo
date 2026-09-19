@@ -293,6 +293,36 @@ def search_semantic(config, base, requirement, limit):
     return rows_from(payload)
 
 
+def search_internal_listing(config, base, requirement, limit):
+    """The internal listing route, on the same key and tenant as the semantic one.
+
+    This is the path that actually returns something. The semantic route is
+    empty for any environment whose vector index was never built, and the
+    filter route wants a user JWT no desktop app can hold, which used to leave
+    an internal-key setup with nothing behind the embeddings. This route takes
+    the same x-api-key and x-tenant-id, so there is no new credential to hold.
+
+    Its filters are the agent tool's vocabulary: `location` ORs across area,
+    building name, address and city, which is the closest thing to how a lead
+    names a place. Budget is deliberately not sent -- the route applies a
+    generic range against whichever of rent or sale price the listing carries,
+    and a listing with the amount nested where it cannot read it is then
+    dropped. Scoring locally keeps it.
+    """
+    params = {"limit": str(min(max(limit * 5, 10), 50))}
+    if requirement.get("locality"):
+        params["location"] = text(requirement["locality"])
+    number = bhk_number(requirement.get("property_type"))
+    if number:
+        params["bhk"] = number
+    headers = {
+        "x-api-key": config["CRM_INTERNAL_API_KEY"],
+        "x-tenant-id": config["CRM_TENANT_ID"],
+    }
+    url = base + "/api/internal/properties/available?" + urllib.parse.urlencode(params)
+    return rows_from(http_json(url, headers=headers, timeout=30))
+
+
 def search_filtered(config, base, mode, requirement, limit):
     """Exact-filter listing call, parameter names taken from the live route."""
     params = {"limit": str(max(limit * 20, 100))}
@@ -346,15 +376,21 @@ def fetch_inventory(config, requirement, limit=5):
         except RuntimeError as err:
             notes.append("semantic search failed: %s" % err)
 
+        try:
+            rows = search_internal_listing(config, base, requirement, limit)
+            if rows:
+                return rows, "internal listing via %s" % base, notes
+            notes.append("the internal listing route answered with nothing for "
+                         "this tenant.")
+        except RuntimeError as err:
+            notes.append("internal listing failed: %s" % err)
+
     if config.get("CRM_AUTH_TOKEN") or config.get("CRM_PUBLIC_API_KEY"):
         try:
             rows = search_filtered(config, base, mode, requirement, limit)
             return rows, "filter search via %s" % base, notes
         except RuntimeError as err:
             notes.append("filter search failed: %s" % err)
-    elif mode == "internal":
-        notes.append("no CRM_AUTH_TOKEN set, so there is no filter-search "
-                     "fallback behind the semantic path.")
 
     notes.append("using the mock inventory instead.")
     return load_mock_inventory(), "mock inventory (fallback)", notes
@@ -411,12 +447,22 @@ def match_properties(config, requirement, limit=5):
             score += 25
             why.append("configuration")
         if wanted_deal:
-            deal = prop["deal"] or ("rent" if prop["rent"] else "buy")
+            # What the listing itself says it is. A row with no deal and no
+            # amount says nothing: the semantic index projects neither, so
+            # reading that silence as "for sale" dropped every listing the
+            # embeddings path returned from every rent requirement. Confirmed
+            # live on dev 2026-09-20 with the one Kurla West flat, which the
+            # inventory tab could see and the pipeline row could not.
+            stated = prop["deal"] or (
+                "rent" if prop["rent"] else
+                ("buy" if prop["price"] or prop["amount"] else ""))
             if wanted_deal.startswith("heavy"):
                 if prop["deposit"]:
                     score += 10
                     why.append("deposit deal")
-            elif wanted_deal in deal or deal in wanted_deal:
+            elif not stated:
+                why.append("deal not stated")
+            elif wanted_deal in stated or stated in wanted_deal:
                 score += 15
                 why.append("deal type")
             else:
