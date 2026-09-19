@@ -40,6 +40,7 @@
     "GeminiApiKey",
     "GeminiModel",
     "BedrockModelId",
+    "BedrockFoundationModelId",
     "ModelTimeoutMs",
     "MarketplaceWebOrigin",
     "ApiStageName",

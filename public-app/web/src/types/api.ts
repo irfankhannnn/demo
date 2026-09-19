@@ -69,6 +69,8 @@ export interface MarketplaceListing {
   matchScore?: number;
   /** Plain-English reason, only on POST /search/ai results (top 8). */
   why?: string;
+  /** POST /search/ai only: true when nothing matched every filter and this is a nearest alternative. */
+  closeMatch?: boolean;
 }
 
 export interface ListingsQuery {
@@ -143,6 +145,8 @@ export interface AiSearchResponse {
   followUps: string[];
   assistantMessage: string;
   needsCity: boolean;
+  /** True when `results` are the closest alternatives rather than exact matches. */
+  relaxed?: boolean;
 }
 
 export interface Availability {

@@ -2,7 +2,7 @@
  * Picks the model adapter by MODEL_PROVIDER and exposes one interface:
  *
  *   parseIntent({ query, city, cities[] }) → intent
- *   explain({ query, intent, listings[] })  → { why: {propertyId: text}, followUps[], assistantMessage }
+ *   explain({ query, intent, listings[], relaxed }) → { why: {propertyId: text}, followUps[], assistantMessage }
  *
  * Adapters are loaded lazily so that a stack configured for Gemini never
  * instantiates a Bedrock client (and vice versa), and so tests can import
@@ -17,7 +17,7 @@ let adapterPromise = null;
 export function getGateway() {
   if (!adapterPromise) {
     adapterPromise = config.model.provider === 'bedrock'
-      ? import('./bedrockClaude.js')
+      ? import('./bedrock.js')
       : import('./gemini.js');
   }
   return adapterPromise;

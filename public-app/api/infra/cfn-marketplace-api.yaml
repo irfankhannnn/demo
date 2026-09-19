@@ -100,7 +100,7 @@ Parameters:
   # ── LLM ────────────────────────────────────────────────────────────────
   ModelProvider:
     Type: String
-    Default: gemini
+    Default: bedrock
     AllowedValues: [gemini, bedrock]
     Description: >-
       Which adapter services/modelGateway uses. bedrock also attaches the
@@ -110,7 +110,7 @@ Parameters:
     Type: String
     Default: ""
     NoEcho: true
-    Description: Required when ModelProvider=gemini. Without it AI search runs on the heuristic parser only.
+    Description: Only for ModelProvider=gemini. Without it that provider runs on the heuristic parser only.
 
   GeminiModel:
     Type: String
@@ -118,8 +118,20 @@ Parameters:
 
   BedrockModelId:
     Type: String
-    Default: anthropic.claude-haiku-4-5-20251001-v1:0
-    Description: Foundation model id (or inference profile id) used when ModelProvider=bedrock.
+    Default: global.amazon.nova-2-lite-v1:0
+    Description: >-
+      What the Converse call names when ModelProvider=bedrock: a foundation
+      model id, or an inference profile id (global.* / apac.*), which is the
+      only way to reach the current models from ap-south-1.
+
+  BedrockFoundationModelId:
+    Type: String
+    Default: ""
+    Description: >-
+      The foundation model behind BedrockModelId when that is an inference
+      profile (the id without its global./apac. prefix). Invoking through a
+      profile needs a grant on both. Empty means BedrockModelId is already a
+      foundation model id. infra/lib/params.sh derives it.
 
   ModelTimeoutMs:
     Type: Number
@@ -292,6 +304,7 @@ Conditions:
   CloudFrontEnabled: !Equals [!Ref EnableCloudFront, "true"]
   CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, "true"]
   BedrockEnabled: !Equals [!Ref ModelProvider, "bedrock"]
+  BedrockViaInferenceProfile: !Not [!Equals [!Ref BedrockFoundationModelId, ""]]
   SesEnabled: !Not [!Equals [!Ref SesFromEmail, ""]]
 
 Resources:
@@ -421,8 +434,14 @@ Resources:
                   Action:
                     - bedrock:InvokeModel
                     - bedrock:Converse
+                  # A profile routes the call to the model in whichever
+                  # region has capacity, hence the region wildcard on the
+                  # foundation-model ARN only.
                   Resource:
-                    - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockModelId}"
+                    - !If
+                      - BedrockViaInferenceProfile
+                      - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockFoundationModelId}"
+                      - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/${BedrockModelId}"
                     - !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
                 - !Ref AWS::NoValue
 

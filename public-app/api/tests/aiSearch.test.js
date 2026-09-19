@@ -190,13 +190,68 @@ describe('aiSearch flow with a failing model', () => {
     assert.equal(out.intent.cityKey, 'mumbai');
   });
 
-  test('asks for a city when none can be determined', async () => {
+  test('no city anywhere → searches every live city instead of asking first', async () => {
+    calls.length = 0;
     const ai = createAiSearch({ crm, gateway: brokenGateway });
+    const out = await ai.run({ query: '2 bhk under 80 lakh', city: null, filters: {} });
+    assert.equal(out.needsCity, false);
+    assert.equal(calls.length, CITIES.length);
+    assert.deepEqual(calls.map((c) => c.args.city).sort(), CITIES.map((c) => c.name).sort());
+    assert.ok(out.results.length > 0);
+    assert.ok(out.results[0].matchScore >= out.results[1].matchScore);
+  });
+
+  test('asks for a city only when no live city has anything', async () => {
+    const emptyCrm = { ...crm, search: async () => ({ items: [], cityKey: null }) };
+    const ai = createAiSearch({ crm: emptyCrm, gateway: brokenGateway });
     const out = await ai.run({ query: '2 bhk under 80 lakh', city: null, filters: {} });
     assert.equal(out.needsCity, true);
     assert.deepEqual(out.results, []);
     assert.equal(out.intent.cityKey, null);
     assert.ok(out.assistantMessage.length > 0);
+  });
+
+  test('a locality in the query beats the default city', async () => {
+    calls.length = 0;
+    const ai = createAiSearch({ crm, gateway: brokenGateway });
+    const out = await ai.run({ query: '2bhk in kurla', city: 'Pune', filters: {} });
+    assert.equal(calls[0].args.city, 'Mumbai');
+    assert.equal(calls[0].args.mode, undefined, 'no rent/sale word and no budget → both modes');
+    assert.equal(out.intent.locality, 'Kurla');
+  });
+
+  test('nothing matches every filter → closest homes, flagged as relaxed', async () => {
+    const seen = [];
+    const pickyCrm = {
+      ...crm,
+      // Only a search without bhk finds anything: the city has no 2 BHK.
+      search: async (args) => { seen.push(args); return { items: args.bhk === undefined ? LISTINGS : [], cityKey: 'mumbai' }; },
+    };
+    const ai = createAiSearch({ crm: pickyCrm, gateway: brokenGateway });
+    const out = await ai.run({ query: '2bhk in andheri on rent', city: null, filters: {} });
+    assert.equal(seen.length, 2);
+    assert.equal(seen[0].bhk, 2);
+    assert.equal(seen[1].bhk, undefined);
+    assert.equal(seen[1].mode, 'rent', 'the first relaxation keeps rent/sale');
+    assert.equal(seen[1].locality, 'Andheri', 'locality still orders the results');
+    assert.equal(out.relaxed, true);
+    assert.equal(out.results.length, 2);
+    assert.equal(out.results[0].closeMatch, true);
+    assert.ok(out.assistantMessage.includes('exact'));
+  });
+
+  test('an exact match is never flagged as relaxed', async () => {
+    const ai = createAiSearch({ crm, gateway: brokenGateway });
+    const out = await ai.run({ query: '2 bhk andheri', city: 'Mumbai', filters: {} });
+    assert.equal(out.relaxed, false);
+    assert.equal(out.results[0].closeMatch, false);
+  });
+
+  test('a city with no agencies yet → other cities, flagged as relaxed', async () => {
+    const ai = createAiSearch({ crm, gateway: brokenGateway });
+    const out = await ai.run({ query: '2 bhk flat', city: 'Jaipur', filters: {} });
+    assert.equal(out.needsCity, false);
+    assert.equal(out.relaxed, true);
   });
 
   test('explicit filters override the parsed intent', async () => {

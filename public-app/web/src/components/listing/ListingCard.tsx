@@ -32,8 +32,12 @@ export function ListingCard({ listing, index = 0, showWhy, compact }: { listing:
         <CardImage listing={l} />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-ink/55 to-transparent" aria-hidden />
         <div className="absolute left-3 top-3 z-[2] flex gap-2">
-          <MatchBadge score={l.matchScore} />
-          {!l.matchScore && <span className="rounded-pill bg-paper/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink backdrop-blur">{l.pricing.mode === 'rent' ? 'Rent' : 'Buy'}</span>}
+          {l.closeMatch ? (
+            <span className="rounded-pill bg-ink/85 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-paper backdrop-blur">Close match</span>
+          ) : (
+            <MatchBadge score={l.matchScore} />
+          )}
+          {(!l.matchScore || l.closeMatch) && <span className="rounded-pill bg-paper/90 px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink backdrop-blur">{l.pricing.mode === 'rent' ? 'Rent' : 'Buy'}</span>}
         </div>
         <SaveButton slug={l.agencySlug} propertyId={l.propertyId} size="sm" className="absolute right-3 top-3 z-[2]" />
         <p className="absolute bottom-3 left-3 z-[2] font-display text-lg font-extrabold tracking-tight text-paper drop-shadow tabular">{formatRupees(l.pricing.amount, l.pricing.mode)}</p>

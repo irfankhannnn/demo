@@ -12,6 +12,16 @@
 # only a real deploy's upload produces; config-deploy.sh calls this with an
 # empty string, since that key is never on the config-only-safe allowlist
 # and always falls back to the live stack's current value regardless.
+# An inference profile id is the foundation model id behind a routing prefix
+# (global. / apac. / us. / eu. ...). IAM needs the bare id as well; an id
+# without such a prefix is already a foundation model id, so this prints "".
+bedrock_foundation_model_id() {
+  case "$1" in
+    global.*|apac.*|us.*|eu.*|au.*|jp.*|us-gov.*) printf '%s' "${1#*.}" ;;
+    *) printf '' ;;
+  esac
+}
+
 compute_param_values() {
   local s3_key="${1:-}"
 
@@ -34,6 +44,7 @@ compute_param_values() {
     GeminiApiKey
     GeminiModel
     BedrockModelId
+    BedrockFoundationModelId
     ModelTimeoutMs
     MarketplaceWebOrigin
     SesFromEmail
@@ -80,10 +91,11 @@ compute_param_values() {
     [CognitoUserPoolId]="${COGNITO_USER_POOL_ID}"
     [CognitoRegion]="${COGNITO_REGION:-${AWS_REGION}}"
     [CognitoClientId]="${COGNITO_CLIENT_ID:-}"
-    [ModelProvider]="${MODEL_PROVIDER:-gemini}"
+    [ModelProvider]="${MODEL_PROVIDER:-bedrock}"
     [GeminiApiKey]="${GEMINI_API_KEY:-}"
     [GeminiModel]="${GEMINI_MODEL:-gemini-2.0-flash}"
-    [BedrockModelId]="${BEDROCK_MODEL_ID:-anthropic.claude-haiku-4-5-20251001-v1:0}"
+    [BedrockModelId]="${BEDROCK_MODEL_ID:-global.amazon.nova-2-lite-v1:0}"
+    [BedrockFoundationModelId]="$(bedrock_foundation_model_id "${BEDROCK_MODEL_ID:-global.amazon.nova-2-lite-v1:0}")"
     [ModelTimeoutMs]="${MODEL_TIMEOUT_MS:-8000}"
     [MarketplaceWebOrigin]="${MARKETPLACE_WEB_ORIGIN:-}"
     [SesFromEmail]="${SES_FROM_EMAIL:-}"

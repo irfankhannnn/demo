@@ -82,7 +82,7 @@ function originList(raw) {
     .filter(Boolean);
 }
 
-const DEFAULT_BEDROCK_MODEL_ID = 'anthropic.claude-haiku-4-5-20251001-v1:0';
+const DEFAULT_BEDROCK_MODEL_ID = 'global.amazon.nova-2-lite-v1:0';
 
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -115,7 +115,7 @@ export const config = {
 
   // ── LLM ───────────────────────────────────────────────────────────────
   model: {
-    provider: (process.env.MODEL_PROVIDER || 'gemini').toLowerCase(),
+    provider: (process.env.MODEL_PROVIDER || 'bedrock').toLowerCase(),
     geminiApiKey: process.env.GEMINI_API_KEY || '',
     geminiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
     bedrockModelId: process.env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,

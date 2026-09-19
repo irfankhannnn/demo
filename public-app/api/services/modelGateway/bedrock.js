@@ -1,15 +1,17 @@
 /**
- * Bedrock (Claude) adapter — MODEL_PROVIDER=bedrock.
+ * Bedrock adapter — MODEL_PROVIDER=bedrock.
  *
- * Uses the Converse API so the request shape does not depend on the model
- * family, and reads the model id from BEDROCK_MODEL_ID (config/env.js holds
- * the one default; nothing else in the service names a model). The Lambda
- * role only grants bedrock:InvokeModel / Converse on that configured id, and
- * only when the stack is deployed with this provider — see the Condition in
- * infra/cfn-marketplace-api.yaml.
+ * Uses the Converse API, so the request shape is the same for every model
+ * family: Amazon Nova, Anthropic Claude, Meta Llama. The model comes from
+ * BEDROCK_MODEL_ID (config/env.js holds the one default; nothing else in the
+ * service names a model). In ap-south-1 the current models are reachable
+ * only through an inference profile, so the id usually carries a prefix
+ * (`global.` / `apac.`); the stack grants invoke on that profile and on the
+ * foundation model behind it, and only when this provider is selected — see
+ * the Condition in infra/cfn-marketplace-api.yaml.
  *
- * Claude has no JSON-mode switch, so the system prompt demands bare JSON and
- * extractJson() strips any fence or preamble that slips through. Both
+ * Converse has no JSON-mode switch, so the system prompt demands bare JSON
+ * and extractJson() strips any fence or preamble that slips through. Both
  * exported functions throw on failure; aiSearch.js owns the fallback.
  */
 
@@ -57,8 +59,8 @@ export async function parseIntent({ query, city, cities }) {
   return normaliseIntent(raw, { query });
 }
 
-export async function explain({ query, intent, listings }) {
-  const raw = await converseJson(explainSystemPrompt(), explainUserPrompt({ query, intent, listings }));
+export async function explain({ query, intent, listings, relaxed = false }) {
+  const raw = await converseJson(explainSystemPrompt(), explainUserPrompt({ query, intent, listings, relaxed }));
   return normaliseExplanation(raw, listings);
 }
 

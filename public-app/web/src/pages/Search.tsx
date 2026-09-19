@@ -111,8 +111,14 @@ export default function Search() {
   const activeFilters = countActiveFilters(state);
   const results = aiMode ? ai.data?.results ?? [] : browse.items;
   const loading = aiMode ? ai.isLoading : browse.isLoading;
-  const needsCity = aiMode ? !!ai.data?.needsCity || (!city && !ai.isLoading) : !city;
   const intent = ai.data?.intent ?? null;
+  // In AI mode the API decides whether a city is missing: it reads the city
+  // out of the query ("2bhk in kurla" is Mumbai) and otherwise searches every
+  // live city, so an empty picker alone is no reason to hide results.
+  const needsCity = aiMode ? !!ai.data?.needsCity : !city;
+  const relaxed = aiMode && !!ai.data?.relaxed && results.length > 0;
+  // Where the results are actually from, which can differ from the picker.
+  const resultCity = (aiMode && intent?.city) || city;
   const chipsForTitle = buildIntentChips(state, intent, { price: formatCompactRupees });
 
   return (
@@ -126,9 +132,9 @@ export default function Search() {
         className="flex items-center gap-2 rounded-2xl border border-line bg-white/70 p-1.5 shadow-card focus-within:border-ink/40"
         role="search"
       >
-        <button type="button" onClick={() => setCityOpen(true)} className="hidden h-10 shrink-0 items-center gap-1.5 rounded-xl bg-paper-2 px-3 text-[13px] font-bold sm:inline-flex" aria-label={`City: ${city || 'choose'}`}>
+        <button type="button" onClick={() => setCityOpen(true)} className="hidden h-10 shrink-0 items-center gap-1.5 rounded-xl bg-paper-2 px-3 text-[13px] font-bold sm:inline-flex" aria-label={`City: ${resultCity || 'choose'}`}>
           <MapPin size={14} className="text-marigold" aria-hidden />
-          {city || 'City'}
+          {resultCity || 'City'}
         </button>
         <label htmlFor="search-q" className="sr-only">
           Describe what you want
@@ -164,7 +170,7 @@ export default function Search() {
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => setCityOpen(true)} className="inline-flex h-9 items-center gap-1.5 rounded-pill border border-line bg-paper px-3 text-[13px] font-bold sm:hidden">
           <MapPin size={14} className="text-marigold" aria-hidden />
-          {city || 'City'}
+          {resultCity || 'City'}
         </button>
         <Button variant="outline" size="sm" onClick={() => setFiltersOpen(true)} leftIcon={<SlidersHorizontal size={14} aria-hidden />} className="lg:hidden">
           Filters{activeFilters > 0 ? ` · ${activeFilters}` : ''}
@@ -230,7 +236,15 @@ export default function Search() {
           {!needsCity && (
             <div className="mb-3 mt-5 flex items-baseline justify-between gap-3">
               <h1 className="font-display text-lg font-extrabold sm:text-xl">
-                {aiMode ? (loading ? 'Matching…' : `${results.length} match${results.length === 1 ? '' : 'es'}`) : city ? `Homes in ${city}` : 'Homes'}
+                {aiMode
+                  ? loading
+                    ? 'Matching…'
+                    : relaxed
+                      ? `No exact match · ${results.length} closest home${results.length === 1 ? '' : 's'}`
+                      : `${results.length} match${results.length === 1 ? '' : 'es'}${resultCity && results.length > 0 ? ` in ${resultCity}` : ''}`
+                  : city
+                    ? `Homes in ${city}`
+                    : 'Homes'}
               </h1>
               {!aiMode && browse.data && (
                 <span className="text-xs text-dust-dim tabular">
@@ -271,9 +285,9 @@ export default function Search() {
                           Clear filters
                         </Button>
                       )}
-                      {aiMode && (
-                        <Button variant="secondary" onClick={() => navigate(`/search?city=${encodeURIComponent(city)}`)}>
-                          Browse all in {city}
+                      {aiMode && resultCity && (
+                        <Button variant="secondary" onClick={() => navigate(`/search?city=${encodeURIComponent(resultCity)}`)}>
+                          Browse all in {resultCity}
                         </Button>
                       )}
                     </div>

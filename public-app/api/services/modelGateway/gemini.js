@@ -49,8 +49,8 @@ export async function parseIntent({ query, city, cities }) {
   return normaliseIntent(raw, { query });
 }
 
-export async function explain({ query, intent, listings }) {
-  const raw = await generateJson(explainSystemPrompt(), explainUserPrompt({ query, intent, listings }));
+export async function explain({ query, intent, listings, relaxed = false }) {
+  const raw = await generateJson(explainSystemPrompt(), explainUserPrompt({ query, intent, listings, relaxed }));
   return normaliseExplanation(raw, listings);
 }
 

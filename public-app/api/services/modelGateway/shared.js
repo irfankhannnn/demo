@@ -24,11 +24,11 @@ export function intentSystemPrompt() {
     'You turn an Indian home-buyer\'s search into a JSON filter. The buyer may write in English, Hindi (romanised) or a mix (Hinglish).',
     '',
     'Vocabulary: "ghar", "makaan", "flat", "home" = a home (propertyType null unless a type word appears); "flat"/"apartment" = apartment; "villa"/"bungalow"/"kothi" = villa; "independent house"/"row house" = house; "plot"/"zameen" = plot; "office"/"shop"/"dukaan" = office/shop.',
-    'Mode: "rent", "rental", "kiraye", "kiraya", "kiraye pe", "lease", "pg" = rent. "buy", "kharidna", "kharidne", "purchase", "sale", "resale", "invest" = sale. If no mode word appears, use "sale" unless the budget is clearly a monthly rent (under 5 lakh total).',
+    'Mode: "rent", "rental", "kiraye", "kiraya", "kiraye pe", "lease", "pg" = rent. "buy", "kharidna", "kharidne", "purchase", "sale", "resale", "invest" = sale. If no mode word appears, infer it from the budget only: a budget under 5 lakh is a monthly rent (rent), a budget of 5 lakh or more is a purchase (sale). With no mode word and no budget, mode is null — never guess, the search then covers both.',
     'Money: convert everything to whole rupees. 1 lakh/lac/l = 100000. 1 crore/cr = 10000000. 1k = 1000. "80 lakh" = 8000000, "1.2 cr" = 12000000, "50k" = 50000. "under"/"upto"/"below"/"max"/"tak"/"se kam" = maxPrice. "above"/"min"/"se zyada" = minPrice. "between X and Y" / "X se Y" = both.',
     'BHK: "2 bhk", "2bhk", "2 bedroom", "do bhk" = bhk 2. "1 rk"/"studio" = bhk 0 (propertyType studio).',
     'Furnishing: "furnished"/"fully furnished" = furnished; "semi furnished"/"semi" = semi-furnished; "unfurnished"/"bare shell" = unfurnished.',
-    'City: match against the provided list of marketplace cities (by name or common alias — Bombay=Mumbai, Bangalore=Bengaluru, Gurgaon=Gurugram, Madras=Chennai). If the query names a locality (Andheri, Whitefield, Wakad, Powai) and a default city is given, keep that city. If no city can be determined and no default is given, set cityKey and city to null.',
+    'City: match against the provided list of marketplace cities (by name or common alias — Bombay=Mumbai, Bangalore=Bengaluru, Gurgaon=Gurugram, Madras=Chennai). If the query names no city but names a well-known locality, use the city that locality belongs to when that city is on the list (Andheri, Kurla, Bandra, Powai = Mumbai; Whitefield, Koramangala = Bengaluru; Wakad, Hinjewadi, Baner = Pune; Gachibowli, Kondapur = Hyderabad). A city or locality in the query always wins over the default city; use the default city only when the query gives no location at all. If no city can be determined, set cityKey and city to null.',
     'Locality: the neighbourhood/area if mentioned (not the city). mustHaves: short lowercase phrases for hard requirements (e.g. "parking", "gym", "pet friendly", "near metro", "sea view", "east facing").',
     'canonicalQuery: one clean English sentence describing the request, e.g. "2 BHK apartment in Andheri West, Mumbai, for sale, under 80 lakh".',
     '',
@@ -77,8 +77,11 @@ export function listingForPrompt(l) {
   };
 }
 
-export function explainUserPrompt({ query, intent, listings }) {
+export function explainUserPrompt({ query, intent, listings, relaxed = false }) {
   return [
+    relaxed
+      ? 'IMPORTANT: nothing matched every requirement, so these listings are the CLOSEST ALTERNATIVES, not exact matches. Say that honestly in assistantMessage, and in each "why" name what differs from the request (BHK, locality, rent vs sale, budget) along with what still fits.'
+      : 'These listings matched the request.',
     `Buyer query: ${JSON.stringify(String(query || '').slice(0, 500))}`,
     `Parsed intent: ${JSON.stringify(intent)}`,
     `Listings: ${JSON.stringify((listings || []).slice(0, 8).map(listingForPrompt))}`,

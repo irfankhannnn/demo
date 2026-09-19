@@ -38,7 +38,7 @@ Errors are always `{ error, details? }`. A CRM outage is a 503 with
 
 ### AI search
 
-`POST /search/ai` → `modelGateway.parseIntent` (Gemini or Bedrock Claude,
+`POST /search/ai` → `modelGateway.parseIntent` (Bedrock or Gemini,
 strict JSON, understands "2 bhk andheri under 80 lakh", "1.2 cr", "50k
 kiraye pe") → CRM `POST /search` (vector search in one city) →
 `modelGateway.explain` (a one-line *why* per result, two follow-ups). Every
@@ -134,7 +134,7 @@ routes/me.js                   consumer surface (+ per-listing ping/availability
 routes/internal.js             agency inbox + account deletion
 services/crmClient.js          the only door to listing data; 60 s cache, assets never cached
 services/aiSearch.js           parse → search → explain, with fallbacks; heuristicIntent()
-services/modelGateway/         gemini.js, bedrockClaude.js, shared prompts; picked by MODEL_PROVIDER
+services/modelGateway/         bedrock.js, gemini.js, shared prompts; picked by MODEL_PROVIDER
 services/threadsRepo.js        threads + messages, GSI1/GSI2, ThreadLookup dedupe
 services/usersRepo.js          profile, saved, searches, delete-user
 services/abuseGuard.js         DynamoDB counters under GUARD# keys in the same table

@@ -71,6 +71,43 @@ const CITY_ALIASES = {
   cochin: 'kochi', baroda: 'vadodara', 'navi-mumbai': 'navi mumbai',
 };
 
+/**
+ * Well-known localities → their city, for queries that name only the
+ * neighbourhood ("2bhk in andheri"). Only consulted by the heuristic parser
+ * and only honoured when that city is live on the marketplace. It is a hint
+ * list, not inventory: a locality missing here still works once the buyer
+ * names the city, or through the all-cities search in run().
+ */
+const LOCALITY_CITY = {
+  mumbai: ['andheri', 'kurla', 'bandra', 'powai', 'borivali', 'malad', 'goregaon', 'kandivali', 'juhu', 'santacruz',
+    'vile parle', 'dadar', 'worli', 'lower parel', 'chembur', 'ghatkopar', 'mulund', 'vikhroli', 'bhandup', 'colaba',
+    'versova', 'jogeshwari', 'dahisar', 'sion', 'wadala', 'bkc', 'khar', 'mahim', 'byculla'],
+  'navi mumbai': ['vashi', 'kharghar', 'nerul', 'belapur', 'panvel', 'airoli', 'ghansoli', 'seawoods', 'ulwe'],
+  thane: ['ghodbunder', 'majiwada', 'kolshet', 'manpada', 'hiranandani estate'],
+  pune: ['wakad', 'hinjewadi', 'baner', 'kothrud', 'viman nagar', 'kharadi', 'hadapsar', 'aundh', 'pimple saudagar',
+    'magarpatta', 'koregaon park', 'wagholi', 'balewadi', 'pimpri', 'chinchwad'],
+  bengaluru: ['whitefield', 'koramangala', 'indiranagar', 'hsr layout', 'hsr', 'marathahalli', 'electronic city',
+    'jayanagar', 'jp nagar', 'hebbal', 'yelahanka', 'bellandur', 'sarjapur', 'btm layout', 'btm', 'malleshwaram'],
+  hyderabad: ['gachibowli', 'kondapur', 'madhapur', 'hitech city', 'hitec city', 'banjara hills', 'jubilee hills',
+    'kukatpally', 'miyapur', 'manikonda', 'begumpet', 'kompally', 'nallagandla'],
+  chennai: ['adyar', 'velachery', 'anna nagar', 'omr', 'porur', 'tambaram', 't nagar', 'sholinganallur', 'besant nagar'],
+  delhi: ['dwarka', 'rohini', 'saket', 'vasant kunj', 'greater kailash', 'lajpat nagar', 'janakpuri', 'pitampura'],
+  gurugram: ['dlf phase', 'sohna road', 'golf course road', 'sushant lok', 'cyber city'],
+  noida: ['greater noida', 'noida extension', 'sector 62', 'sector 137', 'sector 150'],
+  kolkata: ['salt lake', 'new town', 'rajarhat', 'ballygunge', 'behala', 'garia'],
+  ahmedabad: ['satellite', 'bopal', 'prahlad nagar', 'sg highway', 'thaltej', 'gota', 'maninagar'],
+};
+
+/** The marketplace city a locality in the text belongs to, or null. */
+function cityFromLocality(text, cities = []) {
+  for (const [cityName, localities] of Object.entries(LOCALITY_CITY)) {
+    if (localities.some((l) => new RegExp(`(^|\\s)${l}(\\s|$)`).test(text))) {
+      return resolveCity(cityName, cities);
+    }
+  }
+  return null;
+}
+
 const STOPWORDS = new Set([
   'a', 'an', 'the', 'in', 'at', 'near', 'for', 'with', 'and', 'or', 'of', 'to', 'me', 'my', 'i', 'want', 'need',
   'looking', 'chahiye', 'chahiye.', 'hai', 'ho', 'mein', 'main', 'ke', 'ki', 'ka', 'pe', 'par', 'se', 'ek', 'koi',
@@ -219,8 +256,12 @@ export function heuristicIntent({ query, city = null, cities = [] }) {
   const has = (list) => words.some((w) => list.includes(w));
   if (has(RENT_WORDS) || /\bkiraye\b|\bon rent\b|\bfor rent\b/.test(text)) intent.mode = 'rent';
   else if (has(SALE_WORDS) || /\bfor sale\b/.test(text)) intent.mode = 'sale';
-  else if (intent.maxPrice !== null && intent.maxPrice < 500000) intent.mode = 'rent';
-  else intent.mode = 'sale';
+  else {
+    // No mode word: only a budget says anything. Without one the mode stays
+    // null and the search covers both — guessing "sale" hid every rental.
+    const budget = intent.maxPrice ?? intent.minPrice;
+    if (budget !== null) intent.mode = budget < 500000 ? 'rent' : 'sale';
+  }
 
   // ── bhk ──
   const bhkMatch = text.match(/(\d+(?:\.\d+)?)\s*-?\s*(?:bhk|bhks|bedroom|bedrooms|bed|beds)\b/)
@@ -259,10 +300,18 @@ export function heuristicIntent({ query, city = null, cities = [] }) {
     intent.city = inText.city.name;
     intent.cityKey = inText.city.cityKey;
     matchedCityWords = inText.matched;
-  } else if (city) {
-    const resolved = resolveCity(city, cities);
-    intent.city = resolved?.name || String(city).trim();
-    intent.cityKey = resolved?.cityKey || null;
+  } else {
+    // A locality the buyer typed beats the default city they happened to
+    // have selected: "2bhk in kurla" means Mumbai whatever the picker says.
+    const fromLocality = cityFromLocality(text, cities);
+    if (fromLocality) {
+      intent.city = fromLocality.name;
+      intent.cityKey = fromLocality.cityKey;
+    } else if (city) {
+      const resolved = resolveCity(city, cities);
+      intent.city = resolved?.name || String(city).trim();
+      intent.cityKey = resolved?.cityKey || null;
+    }
   }
 
   // ── locality: whatever is left once every recognised token is removed ──
@@ -304,11 +353,13 @@ export function heuristicFollowUps(intent) {
   return ups.slice(0, 2);
 }
 
-export function heuristicMessage(intent, count) {
-  const where = intent.locality ? `${intent.locality}, ${intent.city}` : intent.city;
+export function heuristicMessage(intent, count, { relaxed = false } = {}) {
+  const city = intent.city || 'sab cities';
+  const where = intent.locality ? `${intent.locality}${intent.city ? `, ${intent.city}` : ''}` : city;
   const what = [intent.bhk !== null ? `${intent.bhk} BHK` : null, intent.propertyType || 'homes'].filter(Boolean).join(' ');
   const budget = intent.maxPrice !== null ? ` under ${formatRupees(intent.maxPrice)}${intent.mode === 'rent' ? '/month' : ''}` : '';
   if (count === 0) return `${where} mein abhi ${what}${budget} ke liye koi listing nahi mili — filters thode loose karke dekhein?`;
+  if (relaxed) return `${where} mein exact ${what}${budget} abhi nahi hai — yeh ${city} ke sabse kareeb ke ${count} option${count === 1 ? '' : 's'} hain.`;
   return `${where} mein ${count} ${what}${budget} mile — yeh top matches hain.`;
 }
 
@@ -327,6 +378,23 @@ function applyFilters(intent, filters = {}) {
     }
   }
   return out;
+}
+
+const MAX_FANOUT_CITIES = 6;
+
+const NARROWING_KEYS = ['bhk', 'minPrice', 'maxPrice', 'propertyType', 'furnishing'];
+
+function hasNarrowingFilters(intent) {
+  return Boolean(intent.mode) || NARROWING_KEYS.some((k) => intent[k] !== null && intent[k] !== undefined);
+}
+
+/** Progressively looser copies of an intent; see run(). */
+function relaxationLadder(intent) {
+  const base = { ...intent, bhk: null, minPrice: null, maxPrice: null, propertyType: null, furnishing: null };
+  const steps = [];
+  if (NARROWING_KEYS.some((k) => intent[k] !== null && intent[k] !== undefined)) steps.push(base);
+  if (intent.mode) steps.push({ ...base, mode: null });
+  return steps;
 }
 
 export function createAiSearch({ crm = realCrm, gateway = realGateway } = {}) {
@@ -366,7 +434,28 @@ export function createAiSearch({ crm = realCrm, gateway = realGateway } = {}) {
   }
 
   /**
-   * @returns {{ intent, results, followUps, assistantMessage, needsCity }}
+   * No city anywhere in the request: run the same search in every live city
+   * (busiest first, capped) and merge by score. Four or five parallel CRM
+   * calls cost less than sending the buyer away to pick a city first.
+   */
+  async function searchAcrossCities(intent, query, cities) {
+    const targets = [...(cities || [])].sort((x, y) => (y.total || 0) - (x.total || 0)).slice(0, MAX_FANOUT_CITIES);
+    if (targets.length === 0) return { items: [], cityKey: null, degraded: false };
+    const settled = await Promise.allSettled(
+      targets.map((c) => searchCrm({ ...intent, city: c.name, cityKey: c.cityKey }, query)),
+    );
+    const ok = settled.filter((r) => r.status === 'fulfilled').map((r) => r.value);
+    if (ok.length === 0) throw settled[0].reason;
+    const seen = new Set();
+    const items = ok.flatMap((r) => r.items)
+      .filter((l) => (seen.has(l.propertyId) ? false : seen.add(l.propertyId)))
+      .sort((x, y) => (y.matchScore ?? 0) - (x.matchScore ?? 0))
+      .slice(0, 25);
+    return { items, cityKey: null, degraded: ok.some((r) => r.degraded) };
+  }
+
+  /**
+   * @returns {{ intent, results, followUps, assistantMessage, needsCity, relaxed }}
    */
   async function run({ query, city = null, filters = {} }) {
     const cities = await safeCities();
@@ -383,14 +472,55 @@ export function createAiSearch({ crm = realCrm, gateway = realGateway } = {}) {
     intent = applyFilters(intent, filters);
 
     // The city the search runs in: what the parser found, else the caller's
-    // default. The CRM resolves names itself, so an unlisted name still goes
-    // through (and comes back empty) rather than being refused here.
+    // default. A name that is not a live marketplace city (a city we have no
+    // agency in, or a locality the model mistook for a city) cannot return
+    // anything, so that case searches every live city instead and the answer
+    // is flagged as "closest", never passed off as a match. With no city list
+    // to check against (CRM cities read failed) the name goes through as is.
     const resolved = resolveCity(intent.cityKey || intent.city, cities) || resolveCity(city, cities);
-    const cityName = resolved?.name || intent.city || (city ? String(city).trim() : null);
+    const namedCity = intent.city || (city ? String(city).trim() : null);
+    const cityName = resolved?.name || (cities.length === 0 ? namedCity : null);
+    const cityNotLive = !cityName && Boolean(namedCity);
     intent.city = cityName || null;
-    intent.cityKey = resolved?.cityKey || intent.cityKey || null;
+    intent.cityKey = resolved?.cityKey || null;
 
-    if (!cityName) {
+    // Exact search first: one city when we know it, else every live city.
+    let search = cityName
+      ? await searchCrm(intent, query)
+      : await searchAcrossCities(intent, query, cities);
+
+    // Nothing fits every filter. A blank page helps nobody, so loosen the
+    // search and say so: first keep rent/sale and drop the rest, then drop
+    // rent/sale too. The buyer's locality still orders the results (the CRM
+    // ranks the asked-for locality first), so the nearest homes lead.
+    let relaxed = cityNotLive && search.items.length > 0;
+    if (search.items.length === 0 && hasNarrowingFilters(intent)) {
+      for (const loose of relaxationLadder(intent)) {
+        const attempt = cityName
+          ? await searchCrm(loose, query)
+          : await searchAcrossCities(loose, query, cities);
+        if (attempt.items.length > 0) {
+          search = attempt;
+          relaxed = true;
+          break;
+        }
+      }
+    }
+
+    const { items, degraded } = search;
+    if (search.cityKey) intent.cityKey = search.cityKey;
+
+    // An all-cities search that landed in one city has found the buyer's city.
+    if (!cityName && items.length > 0) {
+      const found = [...new Set(items.map((l) => l.city).filter(Boolean))];
+      if (found.length === 1) {
+        const only = resolveCity(found[0], cities);
+        intent.city = only?.name || found[0];
+        intent.cityKey = only?.cityKey || intent.cityKey;
+      }
+    }
+
+    if (!cityName && items.length === 0) {
       const names = cities.slice(0, 6).map((c) => c.name);
       return {
         intent,
@@ -400,31 +530,30 @@ export function createAiSearch({ crm = realCrm, gateway = realGateway } = {}) {
           ? `Kaunse city mein dhoondh rahe hain? Abhi ${names.join(', ')} mein listings hain.`
           : 'Kaunse city mein dhoondh rahe hain?',
         needsCity: true,
+        relaxed: false,
       };
     }
-
-    const { items, cityKey, degraded } = await searchCrm(intent, query);
-    if (cityKey) intent.cityKey = cityKey;
 
     let explanation = null;
     if (items.length > 0) {
       try {
-        explanation = await gateway.explain({ query, intent, listings: items.slice(0, 8) });
+        explanation = await gateway.explain({ query, intent, listings: items.slice(0, 8), relaxed });
       } catch (err) {
         logger.warn('aiSearch.explain_model_failed', { error: err.message });
       }
     }
 
     logger.info('aiSearch.completed', {
-      cityKey: intent.cityKey, results: items.length, intentSource, explained: Boolean(explanation), degraded,
+      cityKey: intent.cityKey, results: items.length, intentSource, explained: Boolean(explanation), degraded, relaxed,
     });
 
     return {
       intent,
-      results: items.map((l) => ({ ...l, why: explanation?.why?.[l.propertyId] ?? null })),
+      results: items.map((l) => ({ ...l, why: explanation?.why?.[l.propertyId] ?? null, closeMatch: relaxed })),
       followUps: explanation?.followUps?.length ? explanation.followUps : heuristicFollowUps(intent),
-      assistantMessage: explanation?.assistantMessage || heuristicMessage(intent, items.length),
+      assistantMessage: explanation?.assistantMessage || heuristicMessage(intent, items.length, { relaxed }),
       needsCity: false,
+      relaxed,
     };
   }
 
