@@ -82,10 +82,15 @@ Parameters:
 
   DesiredCount:
     Type: Number
-    Default: 1
+    # Cost freeze 2026-09-20: default 0 in every environment until the WhatsApp
+    # platform is explicitly turned back on. A running task costs Fargate vCPU/GB
+    # plus $0.005/hr for the public IPv4 address it has to carry while the NAT
+    # Gateways stay commented out (infra/cicd/common-infra/vpc-networking.yaml).
+    # To run it again: DESIRED_COUNT=1 in .env.<env>, or `deploy.sh start <env>`.
+    Default: 0
     MinValue: 0
     MaxValue: 20
-    Description: ECS service desired task count (set to 0 in dev when not testing to stop charges)
+    Description: ECS service desired task count (0 = service defined but nothing running, no charges)
 
   TaskCpu:
     Type: String
@@ -392,8 +397,12 @@ Resources:
     Properties:
       ClusterName: !Sub "${EnvironmentName}-whatsapp-platform"
       ClusterSettings:
+        # Cost freeze 2026-09-20: Container Insights publishes ~76 custom metrics
+        # per cluster at $0.30/metric/month — the largest single line on the dev
+        # bill ($0.39/day, more than Fargate itself). Set back to "enabled" when
+        # the service is running for real and the container metrics are worth it.
         - Name: containerInsights
-          Value: enabled
+          Value: disabled
       Tags:
         - Key: Environment
           Value: !Ref EnvironmentName
@@ -582,6 +591,11 @@ Resources:
           Subnets: !Ref PrivateSubnetIds
           SecurityGroups:
             - !Ref ServiceSecurityGroup
+          # Left ENABLED deliberately, even under the 2026-09-20 cost freeze: the
+          # address is billed per hour only while a task holds it, so DesiredCount: 0
+          # already takes it to $0, and while the NAT Gateways are commented out this
+          # is the task's only route to the internet — setting it to DISABLED would
+          # make the service unable to start at all when it is turned back on.
           AssignPublicIp: ENABLED
       HealthCheckGracePeriodSeconds: 60
       DeploymentConfiguration:
