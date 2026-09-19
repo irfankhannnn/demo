@@ -101,13 +101,23 @@ function fakeDynamo() {
         }
         case 'QueryCommand': {
           const v = cmd.ExpressionAttributeValues;
+          // Real DynamoDB rejects a value that no expression references; the
+          // fake must too, or a stray placeholder only fails once deployed.
+          const expressions = `${cmd.KeyConditionExpression || ''} ${cmd.FilterExpression || ''}`;
+          for (const name of Object.keys(v || {})) {
+            if (!new RegExp(`${name}(?![A-Za-z0-9_])`).test(expressions)) {
+              const err = new Error(`Value provided in ExpressionAttributeValues unused in expressions: keys: {${name}}`);
+              err.name = 'ValidationException';
+              throw err;
+            }
+          }
           let rows = [...items.values()];
           if (cmd.IndexName === 'GSI1') rows = rows.filter((r) => r.GSI1PK === v[':pk']);
           else if (cmd.IndexName === 'GSI2') rows = rows.filter((r) => r.GSI2PK === v[':pk']);
           else {
             rows = rows.filter((r) => r.PK === v[':pk']);
             if (v[':prefix']) rows = rows.filter((r) => r.SK.startsWith(v[':prefix']));
-            if (v[':since']) rows = rows.filter((r) => r.SK > v[':since']);
+            if (v[':since']) rows = rows.filter((r) => r.SK >= v[':since'] && r.SK <= v[':end']);
           }
           if (cmd.FilterExpression === '#s = :status') rows = rows.filter((r) => r.status === v[':status']);
           if (cmd.FilterExpression === 'senderType = :buyer') rows = rows.filter((r) => r.senderType === 'buyer');

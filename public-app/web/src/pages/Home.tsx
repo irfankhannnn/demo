@@ -51,7 +51,7 @@ export default function Home() {
   return (
     <>
       {/* Hero */}
-      <section className="relative overflow-hidden">
+      <section className="relative [overflow:clip]">
         <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
           <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-marigold/20 blur-3xl" />
           <div className="absolute -right-16 top-40 h-64 w-64 rounded-full bg-gulal/15 blur-3xl" />

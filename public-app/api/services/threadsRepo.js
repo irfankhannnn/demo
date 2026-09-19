@@ -266,8 +266,12 @@ export async function listMessages(threadId, { since = null, limit = 200 } = {})
     // that millisecond: '~' (0x7E) is greater than any Crockford base32
     // character, so `MSG#<since>#~` excludes the whole `since` millisecond
     // and admits everything stamped later.
+    // DynamoDB rejects a value no expression uses, so :prefix gives way to
+    // the upper bound of the MSG# range.
+    delete values[':prefix'];
     values[':since'] = `MSG#${since}#~`;
-    keyCondition = 'PK = :pk AND SK > :since';
+    values[':end'] = 'MSG#~';
+    keyCondition = 'PK = :pk AND SK BETWEEN :since AND :end';
   }
   const result = await getDocClient().send(new QueryCommand({
     TableName: table(),

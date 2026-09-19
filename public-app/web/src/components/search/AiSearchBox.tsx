@@ -2,7 +2,7 @@
  * The hero search box: a textarea-feel input + city chip + example prompts.
  * Submits to /search?q=&city=.
  */
-import { useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, MapPin, Sparkles } from 'lucide-react';
 import { useCity } from '@/contexts/CityContext';
@@ -23,6 +23,12 @@ export function AiSearchBox({ initialQuery = '', size = 'lg', autoFocus, classNa
   const [q, setQ] = useState(initialQuery);
   const [cityOpen, setCityOpen] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
+
+  // Native autofocus scrolls the field into view, which can nudge a clipped
+  // ancestor sideways. Focus it ourselves and tell the browser not to scroll.
+  useEffect(() => {
+    if (autoFocus) ref.current?.focus({ preventScroll: true });
+  }, [autoFocus]);
 
   const submit = (text: string) => {
     const trimmed = text.trim();
@@ -68,7 +74,6 @@ export function AiSearchBox({ initialQuery = '', size = 'lg', autoFocus, classNa
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKey}
-          autoFocus={autoFocus}
           rows={big ? 2 : 1}
           maxLength={500}
           placeholder="e.g. 2 BHK Andheri, under 80 lakh, near metro"
