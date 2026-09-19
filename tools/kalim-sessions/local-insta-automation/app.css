@@ -433,6 +433,8 @@ textarea { line-height: 1.55; font-family: inherit; }
 .mini.good { color: var(--good); }
 
 .btn-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+/* display:flex would otherwise win over the browser's own [hidden] rule. */
+.btn-row[hidden] { display: none; }
 .btn-row .grow { flex: 1 1 120px; min-width: 0; }
 
 .notice {
@@ -668,6 +670,108 @@ table.plain .lead-link { color: var(--accent); cursor: pointer; white-space: now
 
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* ============================================================= add a DM */
+
+/* The paste target is the whole page, not this box -- the box is only where
+   the eye goes first, so it says what to press rather than pretending to be
+   the only place a paste lands. */
+.drop {
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  text-align: center; cursor: pointer;
+  padding: 26px 18px; margin-bottom: 12px;
+  background: var(--surface); border: 1.5px dashed var(--line);
+  border-radius: var(--radius); color: var(--text-dim);
+}
+.drop:hover, .drop:focus-visible { border-color: var(--accent-line); }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop b { color: var(--text); font-size: 14px; }
+.drop .mini { max-width: 62ch; }
+
+.shots { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.shot {
+  margin: 0; width: 148px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius-sm); overflow: hidden;
+}
+.shot img {
+  display: block; width: 100%; height: 108px; object-fit: cover;
+  object-position: top; background: var(--bg);
+}
+.shot figcaption {
+  display: flex; align-items: center; gap: 4px; padding: 5px 6px;
+  font-size: 10.5px; color: var(--text-faint);
+}
+.shot figcaption span {
+  flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inbox-lead {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 12px; margin-bottom: 12px;
+}
+/* Unticked stays readable rather than disappearing: it is still the evidence
+   for why it was unticked. */
+.inbox-lead.skipped { opacity: .55; }
+
+.inbox-head {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 10px;
+}
+.inbox-head .handle {
+  display: flex; align-items: center; gap: 2px;
+  color: var(--text-faint); font: 12px var(--mono);
+}
+.inbox-head input {
+  background: var(--bg); border: 1px solid var(--line); color: var(--text);
+  border-radius: var(--radius-sm); padding: 5px 8px; font: 12.5px var(--mono);
+  min-width: 0; width: 20ch;
+}
+.inbox-head input:focus { outline: none; border-color: var(--accent-line); }
+.inbox-head input.named { font-family: inherit; width: 16ch; }
+.inbox-head .keep {
+  display: flex; align-items: center; gap: 5px; margin-left: auto;
+  font-size: 11.5px; color: var(--text-dim); white-space: nowrap;
+}
+.tag {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; padding: 3px 7px; border-radius: 999px;
+}
+.tag.fresh { background: var(--good-soft); color: var(--good); }
+.tag.known { background: var(--surface-3); color: var(--text-dim); }
+
+.inbox-cols {
+  display: grid; gap: 12px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+}
+.inbox-thread { max-height: 300px; }
+.inbox-draft { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.inbox-draft textarea {
+  width: 100%; resize: vertical; background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+  padding: 9px 10px; font: 13px/1.5 inherit;
+}
+.inbox-draft textarea:focus { outline: none; border-color: var(--accent-line); }
+.chip.static { cursor: default; }
+.chip.static:hover { color: var(--text-dim); background: var(--surface-2); }
+
+.warn-line {
+  background: var(--warm-soft); border: 1px solid var(--warm);
+  color: var(--warm); border-radius: var(--radius-sm);
+  padding: 8px 10px; font-size: 12px; margin-bottom: 10px;
+}
+.view-head.sub { margin: 16px 0 10px; }
+.view-head.sub h3 { margin: 0; font-size: 15px; }
+.btn.lg { padding: 10px 18px; font-size: 13px; }
+.sticky-actions {
+  position: sticky; bottom: 0; z-index: 2;
+  padding: 10px 0; background: linear-gradient(transparent, var(--bg) 35%);
+}
+
+@media (max-width: 1024px) {
+  .inbox-cols { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ======================================================= responsive steps */

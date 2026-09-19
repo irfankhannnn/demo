@@ -142,12 +142,67 @@ is read from `config/fetch-config.json`, not typed into the HTML.
 Instagram DM export ─┐
 screenshots          ├─> scripts/ingest_to_db.py ─> db/lead-desk.db ─> the app
 master/*.xlsx        ─┘   (see docs/INGESTION.md)
+
+paste a screenshot ──> Add a DM tab ──> the same ingest ──> db/lead-desk.db
 ```
 
 Everything is keyed on the lowercase Instagram handle, so a re-run updates a
 conversation rather than duplicating it, and messages de-duplicate on handle,
 date, time and text. See `docs/INGESTION.md` for what the ingest accepts and
 how the incremental check works.
+
+---
+
+## Add a DM: a screenshot becomes a lead
+
+The **Add a DM** tab takes a screenshot of an Instagram thread and turns it into
+a pipeline row with the reply already written. Paste it with Ctrl+V anywhere on
+that page, drop it on the box, or pick the file.
+
+```
+paste ──> POST /api/inbox/read ──> vision reads the thread
+                                   the requirement is extracted
+                                   the next DM is drafted
+                                   nothing is written
+     ──> you check the handle ──> POST /api/inbox/commit ──> the row exists
+```
+
+Two calls rather than one, because the handle is read off the thread header and
+that is the single step in the pipeline with no ground truth behind it. One
+wrong character would open a second row for someone already in the pipeline, so
+the handle sits in an editable box next to the messages it was read from, every
+lead has a tick you can clear, and only the second call touches the database. A
+handle close to one already on file is snapped to it and the preview says so.
+
+An existing lead is recognised before the draft is written, so the reply is
+composed against the whole conversation on file rather than the fragment in the
+picture, and messages already stored are not stored twice. What lands in the
+database goes through the same `ingest_to_db` merge as every other import: the
+batch's parsed and analysis files are written to `parsed/` and `analysis/`, and
+the import appears in the run history like any other.
+
+Screenshots pasted into the app are kept in `screenshots-dm/inbox/<batch>/`
+alongside what was read from them, so a bad read can be looked at again. That
+folder is gitignored, like every other screenshot batch.
+
+---
+
+## Which AI answers
+
+`AI_PROVIDER` in `.env` picks one, and the status strip names whichever is
+answering:
+
+| Value | What runs | Needs |
+|---|---|---|
+| `claude_cli` (default) | the Claude Code CLI on this machine, on your Claude subscription | `claude` on PATH |
+| `gemini` | the Google API | `GEMINI_API_KEY` |
+
+Both do the same three jobs: read the screenshot, extract the requirement, write
+the DM. The CLI adds a few seconds per call because each one starts a process,
+and it cannot enforce a response schema, so `scripts/ai_provider.py` writes the
+shape into the prompt and parses the answer leniently, with one retry. Gemini is
+faster and does enforce the schema. Nothing else in the app knows the
+difference.
 
 ---
 
