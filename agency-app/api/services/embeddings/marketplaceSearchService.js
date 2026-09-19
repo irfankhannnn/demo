@@ -19,7 +19,16 @@ import { DynamoDBClient, SearchVectorsCommand } from '@aws-sdk/client-dynamodb';
 import { logger } from '../../logger.js';
 import { wrapAwsClient } from '../../awsClientWrapper.js';
 import { embedText } from './embeddingService.js';
-import { DEFAULT_SCORE_THRESHOLD, unmarshallShallow } from './vectorSearchService.js';
+import { unmarshallShallow } from './vectorSearchService.js';
+
+/**
+ * COSINE distance ceiling for marketplace hits. Looser than the CRM's 0.55:
+ * a buyer's one-line query sits further from a listing's long description
+ * than an agent's requirement does, and city, mode, BHK and price are already
+ * enforced as filters, so the vector only has to rank. Measured on dev with
+ * Titan V2: on-topic queries score 0.31-0.75, off-topic ones 0.80-0.98.
+ */
+export const MARKETPLACE_SCORE_THRESHOLD = Number(process.env.MARKETPLACE_VECTOR_SCORE_THRESHOLD || 0.78);
 
 export const MARKETPLACE_VECTOR_INDEX = 'marketplace-vector-index';
 
@@ -58,7 +67,7 @@ export async function searchMarketplaceVectors({
   localityKey = null,
   mode = null,
   propertyType = null,
-  scoreThreshold = DEFAULT_SCORE_THRESHOLD,
+  scoreThreshold = MARKETPLACE_SCORE_THRESHOLD,
   tableName = CRM_TABLE_NAME,
 }) {
   if (!cityKey) throw new Error('cityKey is required for marketplace vector search');
