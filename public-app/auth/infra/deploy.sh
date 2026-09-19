@@ -164,7 +164,7 @@ echo "[3/7] Building TypeScript..."
 echo "[4/7] Packaging function.zip..."
 rm -f "$PROJECT_DIR/function.zip"
 cd "$PROJECT_DIR"
-zip -qr function.zip node_modules dist package.json \
+zip -r -q function.zip node_modules dist package.json \
   -x "node_modules/.cache/*" "node_modules/typescript/*" "node_modules/ts-node/*" \
      "node_modules/@types/*" "node_modules/rimraf/*" \
      "dist/*.test.js" "dist/**/*.test.js" "dist/**/*.test.js.map" "dist/testing/*"
