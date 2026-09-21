@@ -16,7 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Copy, ExternalLink, Globe, Loader2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Globe, Loader2, Store } from 'lucide-react';
 import { api } from '../services/api';
 import { publicPagesApi } from '../services/publicPagesApi';
 
@@ -53,14 +53,20 @@ function slugifyTitle(title: string): string {
 interface AgencyPagesState {
   enabled: boolean;
   slug: string | null;
+  marketplaceEnabled: boolean;
 }
+
+type MarketplaceVisibility = 'listed' | 'unlisted';
 
 interface PropertyPublishControlProps {
   propertyId: string;
   title: string;
   status: string;
   publicVisibility?: 'public' | 'private' | null;
+  /** Absent/null means 'listed' — the server default. */
+  marketplaceVisibility?: MarketplaceVisibility | null;
   onVisibilityChange: (next: 'public' | 'private') => void;
+  onMarketplaceVisibilityChange?: (next: MarketplaceVisibility) => void;
 }
 
 export default function PropertyPublishControl({
@@ -68,7 +74,9 @@ export default function PropertyPublishControl({
   title,
   status,
   publicVisibility,
+  marketplaceVisibility,
   onVisibilityChange,
+  onMarketplaceVisibilityChange,
 }: PropertyPublishControlProps) {
   const navigate = useNavigate();
 
@@ -78,6 +86,8 @@ export default function PropertyPublishControl({
   const [toggling, setToggling] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [marketplaceToggling, setMarketplaceToggling] = useState(false);
+  const [marketplaceError, setMarketplaceError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +97,11 @@ export default function PropertyPublishControl({
       .getSettings()
       .then(({ settings }) => {
         if (cancelled) return;
-        setAgencyPages({ enabled: settings.enabled, slug: settings.slug });
+        setAgencyPages({
+          enabled: settings.enabled,
+          slug: settings.slug,
+          marketplaceEnabled: Boolean(settings.marketplaceEnabled),
+        });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -104,6 +118,8 @@ export default function PropertyPublishControl({
   const isPublic = publicVisibility === 'public';
   const isLive = isPublic && PUBLICLY_MARKETABLE_STATUSES.has(status);
   const agencyReady = Boolean(agencyPages?.enabled && agencyPages?.slug);
+  const marketplaceListed = marketplaceVisibility !== 'unlisted';
+  const showMarketplace = isPublic && agencyReady && Boolean(agencyPages?.marketplaceEnabled);
 
   const shareableUrl =
     isLive && agencyReady && PUBLIC_PAGES_BASE_URL
@@ -122,6 +138,20 @@ export default function PropertyPublishControl({
       setToggleError(err instanceof Error ? err.message : 'Failed to update publish status');
     } finally {
       setToggling(false);
+    }
+  };
+
+  const handleMarketplaceToggle = async (checked: boolean) => {
+    const next: MarketplaceVisibility = checked ? 'listed' : 'unlisted';
+    setMarketplaceToggling(true);
+    setMarketplaceError(null);
+    try {
+      await api.updateCRMProperty(propertyId, { marketplaceVisibility: next });
+      onMarketplaceVisibilityChange?.(next);
+    } catch (err) {
+      setMarketplaceError(err instanceof Error ? err.message : 'Failed to update marketplace visibility');
+    } finally {
+      setMarketplaceToggling(false);
     }
   };
 
@@ -204,6 +234,31 @@ export default function PropertyPublishControl({
           </div>
 
           {toggleError && <p className="text-xs text-red-600">{toggleError}</p>}
+
+          {showMarketplace && (
+            <div className="pt-2 border-t border-gray-200 space-y-1">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={marketplaceListed}
+                  disabled={marketplaceToggling}
+                  onChange={(e) => handleMarketplaceToggle(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-brand focus:ring-brand disabled:opacity-50"
+                />
+                <Store className="h-4 w-4 text-slate-500" />
+                Show on RealEstateFlow Marketplace
+                {marketplaceToggling && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+              </label>
+              <p className="text-xs text-slate-500">
+                {marketplaceListed
+                  ? isLive
+                    ? 'Buyers on the marketplace can find this listing and message you.'
+                    : 'Will appear on the marketplace once the listing is live.'
+                  : 'Hidden from the marketplace; still visible on your public site.'}
+              </p>
+              {marketplaceError && <p className="text-xs text-red-600">{marketplaceError}</p>}
+            </div>
+          )}
 
           {shareableUrl && (
             <div className="flex items-center gap-2">

@@ -20,7 +20,10 @@ infra/cicd/                        (was cfn-templates-cicd/ until 2026-09-17; re
 │   ├── mcp/                       # MCP server (Claude/ChatGPT integration)              -> platform/mcp
 │   └── whatsapp-platform/         # Baileys WhatsApp workers on ECS Fargate              -> platform/whatsapp-platform
 ├── public-app/
-│   └── property-pages/            # Public tenant-branded property pages                 -> public-app/property-pages
+│   ├── property-pages/            # Public tenant-branded property pages                 -> public-app/property-pages
+│   ├── api/                       # Consumer marketplace API (AI search, chat, visits)   -> public-app/api
+│   ├── web/                       # Consumer marketplace SPA (S3 + CloudFront)           -> public-app/web
+│   └── auth/                      # Consumer auth (own Cognito pool, phone OTP + Google) -> public-app/auth
 ├── agency-app/
 │   ├── api/                       # CRM backend + API Gateway routes + Call Intelligence -> agency-app/api
 │   ├── web/                       # CRM frontend static hosting (S3 + CloudFront)        -> agency-app/web
@@ -142,3 +145,6 @@ Confirmed via `git merge-base` that this folder's source branch was a strict anc
 | platform/mcp | `cd infra/cicd/platform/mcp && ./deploy.sh [dev\|test\|prod]` | Reads `.env` from `platform/mcp/`; supports `--skip-package` / `--skip-cfn` |
 | platform/whatsapp-platform | `cd infra/cicd/platform/whatsapp-platform && ./deploy.sh [dev\|staging\|prod]` | Delegates to `platform/whatsapp-platform/infra/deploy.sh`; records a numbered build. `start\|stop\|status\|endpoint [env]` pass through without recording a build; `list`/`show`/`rollback-code`/`rollback-full` manage build history. `.generated-<env>.env` (secrets) stays in `platform/whatsapp-platform/infra/` |
 | public-app/property-pages | `cd infra/cicd/public-app/property-pages && ./deploy.sh <dev\|prod>` | Delegates to `public-app/property-pages/infra/deploy.sh`; records a numbered build and invalidates CloudFront (`/*`) when the stack has a distribution. Reads `.env.<env>` from `public-app/property-pages/`; `list`/`show`/`rollback-code`/`rollback-full` manage build history |
+| public-app/api | `cd infra/cicd/public-app/api && ./deploy.sh <dev\|prod>` | Delegates to `public-app/api/infra/deploy.sh`; numbered builds, CloudFront invalidation when enabled, `list`/`show`/`rollback-code`/`rollback-full` |
+| public-app/web | `cd infra/cicd/public-app/web && ./deploy.sh <dev\|prod>` | Delegates to `public-app/web/infra/deploy.sh` (Vite build → S3 → CloudFront invalidation); numbered builds and rollbacks |
+| public-app/auth | `cd infra/cicd/public-app/auth && ./deploy.sh <dev\|prod>` | Delegates to `public-app/auth/infra/deploy.sh`; own Cognito pool + tables; numbered builds and rollbacks |

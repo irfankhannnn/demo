@@ -22,7 +22,10 @@ import {
   slugifyAgencyName,
   getTenantIdByAgencySlug,
   toPublicAgency,
+  normaliseMarketplaceNotifications,
 } from '../publicListingService.js';
+import { syncTenantMarketplaceKeys, invalidateAgencyCache } from '../marketplaceIndexing.js';
+import { notifyMarketplaceTenantState } from './marketplaceInbox.js';
 import { logger } from '../logger.js';
 
 const router = express.Router();
@@ -36,6 +39,16 @@ const settingsSchema = z.object({
   publicAddress: z.string().max(300).optional().nullable(),
   publicAbout: z.string().max(1000).optional().nullable(),
   publicPagesEnabled: z.boolean().optional(),
+  // Consumer marketplace opt-in + alert channels (stored top-level on
+  // AgencyConfig; see publicListingService.normaliseMarketplaceNotifications).
+  marketplaceEnabled: z.boolean().optional(),
+  marketplaceNotifications: z.object({
+    email: z.boolean().optional(),
+    whatsapp: z.boolean().optional(),
+    push: z.boolean().optional(),
+    extraEmails: z.array(z.string().email().max(200)).max(5).optional(),
+    extraPhones: z.array(z.string().min(6).max(20)).max(5).optional(),
+  }).optional(),
 });
 
 /** GET /api/crm/public-pages/settings */
@@ -99,7 +112,36 @@ router.put('/settings', validateToken, extractTenantId, requireAdmin, validateBo
       }
     }
 
+    if (updates.marketplaceNotifications) {
+      updates.marketplaceNotifications = normaliseMarketplaceNotifications(updates.marketplaceNotifications);
+    }
+
+    // Read before the write: whether the marketplace flag really flips decides
+    // if buyer threads are closed or reopened below.
+    const wasOnMarketplace = updates.marketplaceEnabled !== undefined
+      ? (await getAgencyConfig(req.tenantId))?.marketplaceEnabled === true
+      : null;
+
     const saved = await updateAgencyConfig(req.tenantId, updates);
+
+    // Switching the marketplace on/off re-keys every property of the tenant so
+    // the sparse marketplace indexes reflect the decision immediately. Runs
+    // after the save (the rule reads the saved flag) and never fails the
+    // request: the backfill script repairs anything a partial walk missed.
+    if (updates.marketplaceEnabled !== undefined) {
+      try {
+        const stats = await syncTenantMarketplaceKeys(req.tenantId, { agency: saved });
+        logger.info('publicPagesSettings.marketplace_synced', { tenantId: req.tenantId, enabled: updates.marketplaceEnabled, ...stats });
+      } catch (err) {
+        logger.error('publicPagesSettings.marketplace_sync_failed', { tenantId: req.tenantId, error: err.message });
+      }
+      // Only on a real change of the flag, not on every save that repeats it.
+      if (wasOnMarketplace !== (updates.marketplaceEnabled === true)) {
+        await notifyMarketplaceTenantState(req.tenantId, updates.marketplaceEnabled === true);
+      }
+    } else {
+      invalidateAgencyCache(req.tenantId);
+    }
 
     logger.info('publicPagesSettings.updated', {
       tenantId: req.tenantId,

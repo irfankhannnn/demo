@@ -8,6 +8,7 @@ which stays next to the code it describes.
 | `realestateflow-vision/` | Product vision, architecture and roadmap (docs 00–39). Start at `README.md`; doc 38 is the pricing proposal and doc 39 the plan for moving WhatsApp to the official API. `internal-operations/` holds the internal GTM ops docs |
 | `platform/auth/`, `platform/mcp/`, `platform/whatsapp-platform/` | Design notes, runbooks, phase summaries and fixes for the shared services |
 | `public-app/property-pages/` | Public property pages: architecture, ManyChat setup, pricing, security |
+| `public-app/api/`, `public-app/web/`, `public-app/auth/` | Consumer marketplace: design notes; `public-app/api/API-CONTRACT.md` is the contract for every call that crosses a marketplace service boundary |
 | `agency-app/api/`, `agency-app/web/` | CRM backend and frontend: deployment guide, API Gateway structure, hardening, setup |
 | `agency-app/instagram/` | Instagram lead service: plan, architecture, API, deployment, Meta app review |
 | `agency-app/ai-calling/`, `agency-app/followup-agent/` | Go-live runbooks, setup briefs, approval plans |

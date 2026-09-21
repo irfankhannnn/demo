@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+*.zip
+function.zip
+
+# Real environment files carry live secrets (CRM internal key, caller keys,
+# model API key). Only .env.sample is committed.
+.env
+.env.*
+# Templates are committed; only files holding real values are not. The
+# negation must be listed explicitly — `.env.*` above would otherwise
+# swallow the sample too.
+!.env.sample
+
+# Build tracking written by the CI/CD wrapper.
+deploy-versions/
+cfn-params.json
+infra/cfn-params.json
+
+# Written by infra/deploy.sh on every run to record what it uploaded.
+.last-deploy-artifacts.json
+infra/.last-deploy-artifacts.json
+
+# Written by infra/config-deploy.sh — may carry real parameter values.
+infra/.last-config-diff.json
+infra/.last-config-params.json

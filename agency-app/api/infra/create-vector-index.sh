@@ -4,9 +4,10 @@ set -euo pipefail
 # =============================================================================
 # Create the DynamoDB vector indexes this backend needs
 # =============================================================================
-# Usage: ./infra/create-vector-index.sh <dev|prod> [property|policy|all]
+# Usage: ./infra/create-vector-index.sh <dev|prod> [property|marketplace|policy|all]
 #
-#   property  property-vector-index   on the CRM table        (semantic property search)
+#   property     property-vector-index     on the CRM table  (tenant-scoped semantic search)
+#   marketplace  marketplace-vector-index  on the CRM table  (cross-agency consumer marketplace)
 #   policy    knowledge-vector-index  on the knowledge table  (answer_policy_question)
 #
 # Both idempotent: an index that already exists is left alone, because
@@ -38,7 +39,7 @@ DEPLOY_ENV="${1:-}"
 TARGET="${2:-all}"
 
 if [ "$DEPLOY_ENV" != "dev" ] && [ "$DEPLOY_ENV" != "prod" ]; then
-  echo "ERROR: Usage: $0 <dev|prod> [property|policy|all]"
+  echo "ERROR: Usage: $0 <dev|prod> [property|marketplace|policy|all]"
   exit 1
 fi
 

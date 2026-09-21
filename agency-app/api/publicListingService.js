@@ -277,6 +277,35 @@ export function toPublicAgency(config, tenantId) {
     publicAddress: config.publicAddress || null,
     about: config.publicAbout || null,
     enabled: config.publicPagesEnabled === true,
+    // Consumer marketplace (properties portal) opt-in + alert channels.
+    // Stored top-level on AgencyConfig, NOT under notificationSettings, whose
+    // strict schema + rebuild in routes/notifications.js would drop them.
+    marketplaceEnabled: config.marketplaceEnabled === true,
+    marketplaceNotifications: normaliseMarketplaceNotifications(config.marketplaceNotifications),
+  };
+}
+
+export const DEFAULT_MARKETPLACE_NOTIFICATIONS = Object.freeze({
+  email: true,
+  whatsapp: false,
+  push: true,
+  extraEmails: [],
+  extraPhones: [],
+});
+
+/** Fill defaults so callers never branch on a missing key. */
+export function normaliseMarketplaceNotifications(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const strings = (arr, max) => (Array.isArray(arr) ? arr : [])
+    .filter((v) => typeof v === 'string' && v.trim())
+    .map((v) => v.trim())
+    .slice(0, max);
+  return {
+    email: src.email !== false,
+    whatsapp: src.whatsapp === true,
+    push: src.push !== false,
+    extraEmails: strings(src.extraEmails, 5),
+    extraPhones: strings(src.extraPhones, 5),
   };
 }
 

@@ -27,6 +27,19 @@ export interface PublicPagesSettings {
   publicAddress: string | null;
   about: string | null;
   enabled: boolean;
+  /** Whether published listings are also offered on the RealEstateFlow marketplace. */
+  marketplaceEnabled: boolean;
+  /** Which channels get an alert when a marketplace buyer chats, pings or requests a visit. */
+  marketplaceNotifications: MarketplaceNotifications;
+}
+
+export interface MarketplaceNotifications {
+  email: boolean;
+  whatsapp: boolean;
+  push: boolean;
+  /** Extra recipients beyond the team's own addresses. Max 5 each, server-validated. */
+  extraEmails: string[];
+  extraPhones: string[];
 }
 
 export interface GetPublicPagesSettingsResult {
@@ -44,6 +57,8 @@ export interface UpdatePublicPagesSettingsInput {
   publicAddress?: string | null;
   publicAbout?: string | null;
   publicPagesEnabled?: boolean;
+  marketplaceEnabled?: boolean;
+  marketplaceNotifications?: MarketplaceNotifications;
 }
 
 export interface UpdatePublicPagesSettingsResult {

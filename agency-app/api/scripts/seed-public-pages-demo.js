@@ -2,7 +2,13 @@
  * Seeds a demo agency and published listings for the public property pages.
  *
  * Usage:
- *   node agency-app/api/scripts/seed-public-pages-demo.js [--tenant <id>] [--slug <slug>]
+ *   node agency-app/api/scripts/seed-public-pages-demo.js [--tenant <id>] [--slug <slug>] [--batch base|mumbai]
+ *
+ * --batch base (default) writes the agency config and one listing in each of
+ * four cities. --batch mumbai adds a Mumbai-only set (Kurla, Andheri, Powai,
+ * Bandra; rent and sale) and leaves the agency config alone — enough depth in
+ * one city for the consumer marketplace's locality and "closest match"
+ * behaviour to be seen working.
  *
  * The agency config write is idempotent. The listings are NOT — every run
  * creates a fresh batch, because createProperty always mints a new id. Each
@@ -29,6 +35,7 @@ const argValue = (name, fallback) => {
 
 const TENANT_ID = argValue('--tenant', 'demo_properties_pages');
 const AGENCY_SLUG = argValue('--slug', 'sunrise-realty');
+const BATCH = argValue('--batch', 'base');
 
 // ── Minimal PNG encoder ─────────────────────────────────────────────────────
 // A vertical two-tone gradient. Enough to look like a real photo slot in a
@@ -139,6 +146,68 @@ const LISTINGS = [
   },
 ];
 
+const rent = (expectedRent, securityDeposit) => ({
+  expectedRent, currentRent: null, currentTenantId: null, leaseStartDate: null, leaseEndDate: null, securityDeposit,
+});
+const sale = (listedPrice) => ({ listedPrice, soldPrice: null, soldDate: null, soldToBuyerId: null });
+
+const MUMBAI_LISTINGS = [
+  {
+    title: '2 BHK in Kohinoor City, Kurla West',
+    description: 'Well-kept 2 BHK on the 11th floor with an open east view and cross ventilation.\n\nInside the Kohinoor City township: school, hospital and mall within the gates. Ten minutes to BKC, close to Kurla station and the Santacruz-Chembur Link Road.',
+    propertyType: 'apartment', bhk: 2, area: 'Kurla West', city: 'Mumbai',
+    buildingName: 'Kohinoor City', carpetArea: 720, builtUpArea: 910,
+    furnishing: 'semi-furnished', facing: 'east', status: 'for-sale', saleInfo: sale(16500000),
+    amenities: ['Covered parking', 'Lift', 'Gym', 'Security', 'Power backup', 'Kids play area'],
+    latitude: 19.0822, longitude: 72.8856,
+  },
+  {
+    title: '2 BHK on rent near Kurla station',
+    description: 'Freshly painted 2 BHK with modular kitchen and two balconies. Family or working professionals.\n\nFive minutes walk to Kurla station (Central and Harbour line), 15 minutes to BKC by auto.',
+    propertyType: 'apartment', bhk: 2, area: 'Kurla East', city: 'Mumbai',
+    buildingName: 'Nehru Nagar Heights', carpetArea: 650, builtUpArea: 800,
+    furnishing: 'unfurnished', facing: 'north', status: 'for-rent', rentalInfo: rent(52000, 200000),
+    amenities: ['Lift', 'Security', '24x7 water', 'Parking'],
+    latitude: 19.0653, longitude: 72.8890,
+  },
+  {
+    title: '2 BHK with deck, Andheri West',
+    description: 'Bright 2 BHK off Lokhandwala back road with a usable deck and a society garden.\n\nWalk to the market, Infiniti Mall and the Versova metro. Reserved covered parking for one car.',
+    propertyType: 'apartment', bhk: 2, area: 'Andheri West', city: 'Mumbai',
+    buildingName: 'Oberoi Springs', carpetArea: 810, builtUpArea: 1020,
+    furnishing: 'furnished', facing: 'west', status: 'for-sale', saleInfo: sale(24500000),
+    amenities: ['Swimming pool', 'Gym', 'Covered parking', 'Clubhouse', 'Security', 'Garden'],
+    latitude: 19.1364, longitude: 72.8296,
+  },
+  {
+    title: '2 BHK semi-furnished, Andheri East (near metro)',
+    description: '2 BHK in a gated society off the Andheri-Kurla Road, wardrobes and kitchen fitted.\n\nThree minutes to the Marol Naka metro, easy for SEEPZ, MIDC and the airport.',
+    propertyType: 'apartment', bhk: 2, area: 'Andheri East', city: 'Mumbai',
+    buildingName: 'Kanakia Sevens', carpetArea: 690, builtUpArea: 860,
+    furnishing: 'semi-furnished', facing: 'east', status: 'for-rent', rentalInfo: rent(65000, 250000),
+    amenities: ['Lift', 'Gym', 'Security', 'Covered parking', 'Power backup'],
+    latitude: 19.1086, longitude: 72.8790,
+  },
+  {
+    title: '3 BHK lake-facing in Hiranandani Gardens, Powai',
+    description: 'Large 3 BHK with a Powai lake view from the living room and master bedroom.\n\nHiranandani Gardens: schools, hospital, high street and offices all on foot.',
+    propertyType: 'apartment', bhk: 3, area: 'Powai', city: 'Mumbai',
+    buildingName: 'Hiranandani Gardens', carpetArea: 1180, builtUpArea: 1500,
+    furnishing: 'semi-furnished', facing: 'north', status: 'for-sale', saleInfo: sale(41000000),
+    amenities: ['Lake view', 'Swimming pool', 'Gym', 'Clubhouse', 'Covered parking', 'Security'],
+    latitude: 19.1176, longitude: 72.9060,
+  },
+  {
+    title: '1 BHK sea-breeze flat, Bandra West',
+    description: 'Compact 1 BHK a lane away from Carter Road, fully furnished, pet friendly society.\n\nCafes, the promenade and Bandra station all close by.',
+    propertyType: 'apartment', bhk: 1, area: 'Bandra West', city: 'Mumbai',
+    buildingName: 'Sea Breeze Apartments', carpetArea: 450, builtUpArea: 560,
+    furnishing: 'furnished', facing: 'west', status: 'for-rent', rentalInfo: rent(75000, 300000),
+    amenities: ['Lift', 'Security', 'Pet friendly', 'Power backup'],
+    latitude: 19.0640, longitude: 72.8235,
+  },
+];
+
 async function seedImages(index, title) {
   const [from, to] = PALETTES[index % PALETTES.length];
   const keys = [];
@@ -161,29 +230,32 @@ async function seedImages(index, title) {
 async function main() {
   console.log(`Seeding demo public pages for tenant "${TENANT_ID}" (slug: ${AGENCY_SLUG})`);
 
-  // 1. Agency branding + the public-pages switch.
-  const existing = await getAgencyConfig(TENANT_ID);
-  await updateAgencyConfig(TENANT_ID, {
-    agencySlug: AGENCY_SLUG,
-    agencyName: 'Sunrise Realty',
-    brandPrimaryColor: '#FF7A1A',
-    publicPhone: '+91 98765 43210',
-    publicEmail: 'hello@sunriserealty.example',
-    publicAddress: '2nd Floor, MG Road, Bangalore 560001',
-    publicAbout: 'Family-run brokerage since 2009. We handle resale and rentals across Bangalore, Pune, Hyderabad and Mumbai.',
-    publicPagesEnabled: true,
-    // Business hours drive the bookable slot range.
-    businessHoursStart: 10,
-    businessHoursEnd: 19,
-    timezone: 'Asia/Kolkata',
-    demoSeed: true,
-  });
-  console.log(`  agency config ${existing ? 'updated' : 'created'}`);
+  // 1. Agency branding + the public-pages switch (base batch only).
+  if (BATCH === 'base') {
+    const existing = await getAgencyConfig(TENANT_ID);
+    await updateAgencyConfig(TENANT_ID, {
+      agencySlug: AGENCY_SLUG,
+      agencyName: 'Sunrise Realty',
+      brandPrimaryColor: '#FF7A1A',
+      publicPhone: '+91 98765 43210',
+      publicEmail: 'hello@sunriserealty.example',
+      publicAddress: '2nd Floor, MG Road, Bangalore 560001',
+      publicAbout: 'Family-run brokerage since 2009. We handle resale and rentals across Bangalore, Pune, Hyderabad and Mumbai.',
+      publicPagesEnabled: true,
+      // Business hours drive the bookable slot range.
+      businessHoursStart: 10,
+      businessHoursEnd: 19,
+      timezone: 'Asia/Kolkata',
+      demoSeed: true,
+    });
+    console.log(`  agency config ${existing ? 'updated' : 'created'}`);
+  }
 
   // 2. Listings.
+  const inventory = BATCH === 'mumbai' ? MUMBAI_LISTINGS : LISTINGS;
   const created = [];
-  for (let i = 0; i < LISTINGS.length; i += 1) {
-    const listing = LISTINGS[i];
+  for (let i = 0; i < inventory.length; i += 1) {
+    const listing = inventory[i];
     const images = await seedImages(i, listing.title);
 
     const property = await createProperty(TENANT_ID, {

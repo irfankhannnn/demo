@@ -1,0 +1,5 @@
+# Local build/release history — see README.md. Durable source of truth for
+# the actual artifacts is S3 (versioned); this folder is a local index plus
+# instant-access template/param snapshots for rollback. Never commit it.
+deploy-versions/
+config-versions/

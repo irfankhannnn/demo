@@ -18,6 +18,7 @@ const client = new DynamoDBClient({ region: REGION });
 
 const EXPECTED = [
   { table: process.env.CRM_DYNAMODB_TABLE_NAME, index: 'property-vector-index' },
+  { table: process.env.CRM_DYNAMODB_TABLE_NAME, index: 'marketplace-vector-index' },
   { table: process.env.KNOWLEDGE_CHUNKS_DYNAMODB_TABLE_NAME, index: 'knowledge-vector-index' },
 ];
 

@@ -471,6 +471,36 @@ Parameters:
     Description: Shared secret the public property-pages microservice must present (x-api-key) to call /api/internal/public-pages/*. Its own key, separate from AdapterInternalApiKey, so compromising the internet-facing pages service does not also grant lead-ingestion access.
     NoEcho: true
 
+  MarketplaceInternalApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret marketplace-api (consumer properties portal) must present (x-api-key) to call /api/internal/marketplace/* - cross-agency listing reads and per-tenant enquiry/visit writes. Its own key, separate from PublicPagesInternalApiKey, so compromising the marketplace stack does not grant the branded-pages door or vice versa.
+    NoEcho: true
+
+  MarketplaceApiDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      Custom domain (bare host) of marketplace-api, used by the CRM Marketplace
+      Inbox to read/reply to buyer threads. Empty = marketplace not deployed.
+
+  MarketplaceApiBasePath:
+    Type: String
+    Default: ''
+    Description: >-
+      Base path mapping of marketplace-api on MarketplaceApiDomainName
+
+  MarketplaceCallerApiKey:
+    Type: String
+    Default: ''
+    Description: Shared secret this backend presents (x-api-key) when calling marketplace-api's /internal/* routes. Tenant-crossing credential - server-side only. Must equal CrmCallerApiKey in the marketplace-api stack.
+    NoEcho: true
+
+  MarketplaceCities:
+    Type: String
+    Default: 'Mumbai,Navi Mumbai,Thane,Pune,Bengaluru,Hyderabad,Chennai,Delhi,Gurugram,Noida,Kolkata,Ahmedabad,Dubai'
+    Description: Comma-separated display names of the cities the consumer marketplace offers (probed for city chips; no distinct-cities index exists).
+
   AiCallingServiceDomainName:
     Type: String
     Default: ''
@@ -1921,6 +1951,9 @@ Resources:
                   - dynamodb:Query
                   - dynamodb:Scan
                   - dynamodb:BatchWriteItem
+                  # Marketplace search hydrates vector hits (the index projects
+                  # only keys + filter fields) with one BatchGetItem per page.
+                  - dynamodb:BatchGetItem
                   - dynamodb:DescribeTable
                   # New action for vector search — existing DynamoDB read
                   # permissions do NOT grant it. Without this, writes and Query

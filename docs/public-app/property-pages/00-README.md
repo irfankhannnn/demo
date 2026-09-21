@@ -12,7 +12,7 @@ the main CRM backend.
 |---|---|---|
 | Per-agency branded pages | Built | `<slug>.pages.realestateflow.in/...` (or `/t/<slug>/...` before DNS is wired) — one agency's listings, styled with that agency's brand color and logo. |
 | Instagram / ManyChat visit CTA | Built | A visitor comments on an agency's Instagram post, ManyChat DMs them a link into the booking flow (`/visit/<propertyId>`), prefilled with whatever ManyChat knows about them. |
-| Consumer marketplace (`properties.realestateflow.in`) | **Not built** | Cross-tenant, city-sharded search across every agency's listings. The DynamoDB GSI it will need (`marketplace-index`) already exists in `agency-app/api/infra/cfn-backend.yaml`, but nothing writes to it or reads from it yet. |
+| Consumer marketplace (domain TBD) | Built | Cross-agency, city-sharded AI property matching across every opted-in agency's listings: `public-app/web` (SPA) + `public-app/api` + `public-app/auth`. No listing data is copied: the CRM sets sparse `marketplace-index` (GSI4) + `marketplace-vector-index` keys on its own PROPERTY items (`agency-app/api/marketplaceIndexing.js`) and serves reads via `/api/internal/marketplace/*`. Contract: `docs/public-app/api/API-CONTRACT.md`. |
 
 ## Documents in this folder
 

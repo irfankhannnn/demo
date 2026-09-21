@@ -268,6 +268,12 @@ export interface CRMProperty {
    * available/for-sale/for-rent — see agency-app/api/publicListingService.js.
    */
   publicVisibility?: 'public' | 'private' | null;
+  /**
+   * Whether a public listing is also offered on the RealEstateFlow marketplace.
+   * Absent means 'listed'; only matters when the agency has marketplace enabled
+   * and the property is public.
+   */
+  marketplaceVisibility?: 'listed' | 'unlisted' | null;
   /** Set the first time publicVisibility was switched to 'public'. */
   publishedAt?: string | null;
   agreementStatus: 'pending' | 'done';
@@ -501,6 +507,7 @@ export interface UpdatePropertyData {
   verified?: boolean;
   ownerSnapshot?: { name?: string | null; phone?: string | null };
   publicVisibility?: 'public' | 'private';
+  marketplaceVisibility?: 'listed' | 'unlisted';
   reelRef?: LeadReelRef | null;
 }
 

@@ -15,6 +15,7 @@ export const LeadNotificationType = {
   LEAD_HOT: 'LEAD_HOT',
   SITE_VISIT_BOOKED: 'SITE_VISIT_BOOKED',
   FOLLOWUP_ESCALATION: 'FOLLOWUP_ESCALATION',
+  MARKETPLACE_ACTIVITY: 'MARKETPLACE_ACTIVITY',
 };
 
 /** Roles that count as "the agency owner" for escalations (see CONTRACTS.md 7). */
@@ -298,4 +299,129 @@ export async function notifyFollowupEscalation(tenantId, { lead, jobId, jobType,
   }
 
   return { notified: targets };
+}
+
+/**
+ * Activity from the consumer marketplace (properties portal): a buyer opened
+ * a chat, sent a message, pinged "I'm interested", or requested a visit.
+ *
+ * Channels are governed by the agency's `marketplaceNotifications` settings
+ * (AgencyConfig, edited in the CRM under Settings → Public pages). In-app
+ * always fires; email / WhatsApp / push each only when switched on. The
+ * audience is the lead's assignee plus every admin — the same rule as
+ * `notifyFollowupEscalation` — plus any extra emails/phones the agency listed.
+ *
+ * Like the escalation notifier this never puts the buyer's phone number in an
+ * outbound text; the CRM masks numbers and the agent calls through the lead.
+ *
+ * @param {string} tenantId
+ * @param {object} args
+ * @param {'enquiry'|'message'|'ping'|'visit_request'} args.kind
+ * @param {object} args.lead                 the CRM lead (leadId, name, assignedTo)
+ * @param {string} [args.propertyTitle]
+ * @param {string} [args.threadId]           marketplace thread, for the deep link
+ * @param {string} [args.preview]            first ~200 chars of the buyer's text
+ * @param {string} [args.messageId]          dedupe key component (one alert per message)
+ * @param {object} [args.settings]           pre-resolved marketplaceNotifications
+ * @returns {Promise<{ notified: string[], channels: string[] }>}
+ */
+export async function notifyMarketplaceActivity(tenantId, {
+  kind, lead, propertyTitle, threadId, preview, messageId, settings,
+}) {
+  const leadName = lead?.name || 'A buyer';
+  const forTitle = propertyTitle ? ` for ${propertyTitle}` : '';
+  const headline = {
+    enquiry: `${leadName} started a chat${forTitle}`,
+    message: `${leadName} sent a message${forTitle}`,
+    ping: `${leadName} is interested${forTitle}`,
+    visit_request: `${leadName} requested a site visit${forTitle}`,
+  }[kind] || `${leadName} reached out${forTitle}`;
+  const body = preview ? String(preview).slice(0, 200) : '';
+  const deepLink = threadId ? `/crm/marketplace/inbox/${threadId}` : `/crm/leads/${lead?.leadId}`;
+
+  let prefs = settings;
+  if (!prefs) {
+    try {
+      const { getAgencyConfig } = await import('./agencyConfigService.js');
+      const { normaliseMarketplaceNotifications } = await import('./publicListingService.js');
+      prefs = normaliseMarketplaceNotifications((await getAgencyConfig(tenantId))?.marketplaceNotifications);
+    } catch (err) {
+      logger.warn('leadNotifications.marketplace.settings_failed', { tenantId, error: err.message });
+      prefs = { email: true, whatsapp: false, push: true, extraEmails: [], extraPhones: [] };
+    }
+  }
+
+  const members = await listTeamMembers(tenantId);
+  const targets = new Set();
+  if (lead?.assignedTo) targets.add(lead.assignedTo);
+  for (const m of members) if (isAdminMember(m)) targets.add(m.userId);
+  const targetIds = Array.from(targets);
+
+  await safeCreateNotification(tenantId, {
+    category: NotificationCategory.LEADS || 'LEADS',
+    type: LeadNotificationType.MARKETPLACE_ACTIVITY,
+    title: { enquiry: 'New marketplace enquiry', message: 'New marketplace message', ping: 'Buyer interested', visit_request: 'Site visit requested' }[kind] || 'Marketplace activity',
+    message: `${headline}.${body ? ` "${body}"` : ''}`.slice(0, 500),
+    deepLink,
+    entityRef: { entityType: 'lead', entityId: lead?.leadId },
+    dedupeKey: `marketplace:${kind}:${messageId || threadId || lead?.leadId}`,
+    // Push is delivered by dispatchPushForNotification inside createNotification
+    // to these members' phones; an agency that turned push off gets the in-app
+    // entry with no phone audience.
+    targetUserIds: prefs.push === false ? undefined : (targetIds.length ? targetIds : undefined),
+  });
+
+  const channels = ['in_app'];
+  const recipients = members.filter((m) => targets.has(m.userId));
+  const appUrl = process.env.APP_URL ? process.env.APP_URL.replace(/\/+$/, '') : '';
+  const lines = [
+    `${headline}.`,
+    body ? `Message: ${body}` : null,
+    `Reply in the CRM: ${appUrl}${deepLink}`,
+  ].filter(Boolean);
+  const text = lines.join('\n');
+  const html = `<p>${lines.map((l) => l.replace(/</g, '&lt;')).join('</p><p>')}</p>`;
+
+  if (prefs.email) {
+    const emails = new Set(recipients.map((m) => m.email).filter(Boolean));
+    for (const extra of prefs.extraEmails || []) emails.add(extra);
+    for (const to of emails) {
+      await safeSendEmail({ to, subject: `RealEstateFlow: ${headline}`, html, text });
+    }
+    if (emails.size) channels.push('email');
+  }
+
+  if (prefs.whatsapp) {
+    try {
+      const { isBaileyEnabled, sendWhatsAppMessage } = await import('./bailey.js');
+      if (isBaileyEnabled()) {
+        const phones = new Set(recipients.map((m) => m.phone).filter(Boolean));
+        for (const extra of prefs.extraPhones || []) phones.add(extra);
+        for (const phone of phones) {
+          try {
+            await sendWhatsAppMessage(phone, text);
+          } catch (err) {
+            logger.warn('leadNotifications.marketplace.whatsapp_failed', { tenantId, error: err.message });
+          }
+        }
+        if (phones.size) channels.push('whatsapp');
+      }
+    } catch (err) {
+      logger.warn('leadNotifications.marketplace.whatsapp_unavailable', { tenantId, error: err.message });
+    }
+  }
+
+  if (lead?.leadId && (kind === 'enquiry' || kind === 'ping' || kind === 'visit_request')) {
+    try {
+      const { createLeadNote } = await import('./crmDynamodbService.js');
+      await createLeadNote(tenantId, lead.leadId, {
+        content: `[Marketplace] ${headline}.${body ? ` "${body}"` : ''}`,
+        createdBy: 'Marketplace',
+      });
+    } catch (err) {
+      logger.warn('leadNotifications.marketplace.note_failed', { tenantId, leadId: lead.leadId, error: err.message });
+    }
+  }
+
+  return { notified: targetIds, channels };
 }

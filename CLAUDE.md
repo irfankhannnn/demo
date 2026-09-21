@@ -53,6 +53,7 @@ See `README.md` for the full tree and the three boundary rules.
 - `agency-app/ai-calling/`, `agency-app/followup-agent/` — AI voice calling, follow-up agent
 - `agency-app/landing-pages/` — marketing site for the agency product (static, S3 + CloudFront)
 - `public-app/property-pages/` — public tenant-branded property pages (server-rendered)
+- `public-app/web/`, `public-app/api/`, `public-app/auth/` — consumer AI property-matching portal (MagicBricks-style): SPA, portal API (AI search, chat, saved, visits) and consumer auth (own Cognito pool). No listing data is copied: `agency-app/api` keeps ownership and exposes `/api/internal/marketplace/*`; contract in `docs/public-app/api/API-CONTRACT.md`
 - `platform/auth/`, `platform/mcp/`, `platform/whatsapp-platform/` — Cognito auth, MCP server, Baileys WhatsApp workers
 - `platform/contracts/` — event JSON schemas + API contracts; the only thing units share
 - `platform/gateway/`, `platform/events/` — API Gateway and EventBridge design notes (target state)

@@ -1,0 +1,902 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  RealEstateFlow marketplace-authentication — consumer (buyer/renter) Cognito
+  user pool with phone-OTP custom auth + Google IdP, three DynamoDB tables,
+  Express-on-Lambda API behind a REST API Gateway.
+
+# =============================================================================
+# Parameters
+# =============================================================================
+Parameters:
+  ServiceName:
+    Type: String
+    Default: realestateflow-marketplace-auth
+    Description: >-
+      Base name for every resource this stack creates. Every physical name is
+      ${Env}-${ServiceName}-<resource> (env first), e.g.
+      dev-realestateflow-marketplace-auth-lambda.
+
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, prod, test]
+
+  LambdaMemorySize:
+    Type: Number
+    Default: 256
+
+  LambdaTimeout:
+    Type: Number
+    Default: 30
+
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+
+  SubnetIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Optional VPC subnet IDs for the API Lambda
+
+  SecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Optional VPC security group IDs for the API Lambda
+
+  LambdaPackagesBucketName:
+    Type: String
+    Description: S3 bucket (<env>-realestateflow-artifacts) holding ${ServiceName}/function.zip
+
+  # --- Custom domain (placeholder until the marketplace domain exists) -------
+  MarketplaceAuthDomainName:
+    Type: String
+    Default: ''
+    Description: >-
+      API Gateway custom domain (already registered as AWS::ApiGateway::DomainName)
+      to map this API onto. May be empty while EnableCustomDomainMapping is false.
+
+  MarketplaceAuthBasePath:
+    Type: String
+    Default: ''
+    Description: Base path for this API's mapping on the custom domain (e.g. devmarketplaceauth)
+
+  EnableCustomDomainMapping:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Creates the BasePathMapping on MarketplaceAuthDomainName. Requires a non-empty domain + base path.
+
+  EnableBasePathStrip:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: >-
+      Set 'true' together with EnableCustomDomainMapping. The base path mapping
+      only affects routing; the Lambda strips the segment itself (src/index.ts).
+
+  # --- Cognito / Google ------------------------------------------------------
+  GoogleClientId:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client ID (consumer marketplace client)
+
+  GoogleClientSecret:
+    Type: String
+    NoEcho: true
+    Description: Google OAuth 2.0 Client Secret
+
+  IdentityCallbackURL:
+    Type: String
+    Default: http://localhost:5173/auth/callback
+    Description: Comma-separated allowed redirect URLs after managed-login sign-in (marketplace-web callback)
+
+  IdentityLogoutURL:
+    Type: String
+    Default: http://localhost:5173/
+    Description: Comma-separated allowed post-logout redirect URLs
+
+  TestOtpEnabled:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Set to 'true' to make the CreateAuthChallenge trigger use TestOtpCode and skip SNS (dev only)
+
+  TestOtpCode:
+    Type: String
+    Default: '123456'
+    Description: The fixed OTP used when TestOtpEnabled is 'true'
+
+  # --- Keys -----------------------------------------------------------------
+  InternalApiKey:
+    Type: String
+    NoEcho: true
+    Description: Inbound key expected on x-internal-api-key for /internal/*
+
+  AuthCallerApiKey:
+    Type: String
+    NoEcho: true
+    Default: ''
+    Description: Outbound key presented as x-api-key to marketplace-api /internal/* (AUTH_CALLER_API_KEY there)
+
+  # --- marketplace-api (placeholder domain until mapped) ---------------------
+  MarketplaceApiDomainName:
+    Type: String
+    Default: ''
+    Description: Host of marketplace-api's custom domain (bare host, may be empty until mapped)
+
+  MarketplaceApiBasePath:
+    Type: String
+    Default: ''
+    Description: Base path of marketplace-api on that domain
+
+  AllowedOrigins:
+    Type: String
+    Default: 'http://localhost:5173,http://localhost:3000'
+    Description: Comma-separated CORS origins (marketplace-web)
+
+# =============================================================================
+# Conditions
+# =============================================================================
+Conditions:
+  HasVpcConfig: !Not [!Equals [!Select [0, !Ref SubnetIds], '']]
+  CustomDomainMappingEnabled: !Equals [!Ref EnableCustomDomainMapping, 'true']
+
+# =============================================================================
+# Resources
+# =============================================================================
+Resources:
+
+  # ===========================================================================
+  # 1. Cognito SMS role (phone_number auto-verification / SmsConfiguration)
+  # ===========================================================================
+  CognitoSmsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cognito-idp.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Sub '${Env}-${ServiceName}-cognito-sms'
+      Policies:
+        - PolicyName: CognitoSmsPublish
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: '*'
+
+  # ===========================================================================
+  # 2. Cognito consumer user pool — username IS the E.164 phone number
+  # ===========================================================================
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub '${Env}-${ServiceName}-user-pool'
+      SmsConfiguration:
+        SnsCallerArn: !GetAtt CognitoSmsRole.Arn
+        ExternalId: !Sub '${Env}-${ServiceName}-cognito-sms'
+      AutoVerifiedAttributes:
+        - phone_number
+      MfaConfiguration: 'OFF'
+      Schema:
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+      UsernameAttributes:
+        - phone_number
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_phone_number
+            Priority: 1
+          - Name: verified_email
+            Priority: 2
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        SmsMessage: 'Your RealEstateFlow code is {####}. Valid for 5 minutes.'
+      LambdaConfig:
+        DefineAuthChallenge: !GetAtt DefineAuthChallengeLambda.Arn
+        CreateAuthChallenge: !GetAtt CreateAuthChallengeLambda.Arn
+        VerifyAuthChallengeResponse: !GetAtt VerifyAuthChallengeResponseLambda.Arn
+
+  GoogleIdentityProvider:
+    Type: AWS::Cognito::UserPoolIdentityProvider
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ProviderName: Google
+      ProviderType: Google
+      ProviderDetails:
+        client_id: !Ref GoogleClientId
+        client_secret: !Ref GoogleClientSecret
+        authorize_scopes: 'profile email openid'
+      AttributeMapping:
+        email: email
+        name: name
+        username: sub
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: GoogleIdentityProvider
+    Properties:
+      ClientName: !Sub '${Env}-${ServiceName}-client'
+      UserPoolId: !Ref CognitoUserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes:
+        - phone
+        - email
+        - openid
+        - profile
+      SupportedIdentityProviders:
+        - COGNITO
+        - Google
+      CallbackURLs: !Split [',', !Ref IdentityCallbackURL]
+      LogoutURLs: !Split [',', !Ref IdentityLogoutURL]
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub '${Env}-${ServiceName}'
+      UserPoolId: !Ref CognitoUserPool
+      # Managed login (v2) forwards prompt=select_account to Google.
+      ManagedLoginVersion: 2
+
+  ManagedLoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    DependsOn: UserPoolDomain
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientId: !Ref UserPoolClient
+      UseCognitoProvidedValues: true
+
+  # ===========================================================================
+  # 3. DynamoDB — users / identities / otp
+  # ===========================================================================
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-users'
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: UserId
+          AttributeType: S
+        - AttributeName: sub
+          AttributeType: S
+        - AttributeName: phone
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: UserId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: SubIndex
+          KeySchema:
+            - AttributeName: sub
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: PhoneIndex
+          KeySchema:
+            - AttributeName: phone
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: EmailIndex
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  IdentitiesTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-identities'
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
+          KeyType: HASH
+
+  OtpTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      TableName: !Sub '${Env}-${ServiceName}-otp'
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: PhoneNumber
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PhoneNumber
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ===========================================================================
+  # 4. Cognito trigger Lambdas (phone OTP custom auth)
+  # ===========================================================================
+  CognitoTriggerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Env}-${ServiceName}-cognito-trigger-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublishAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: sns:Publish
+                Resource: '*'
+        - PolicyName: OtpTableAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                Resource: !GetAtt OtpTable.Arn
+        - PolicyName: CognitoAdminAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminCreateUser
+                # Not !GetAtt CognitoUserPool.Arn — the pool's LambdaConfig
+                # references these Lambdas, which reference this role; a
+                # GetAtt back to the pool is a circular dependency.
+                Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+
+  DefineAuthChallengeLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-define-auth-challenge'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt CognitoTriggerLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Code:
+        ZipFile: |
+          exports.handler = async (event) => {
+            const session = event.request.session || [];
+            if (session.length === 0) {
+              event.response.issueTokens = false;
+              event.response.failAuthentication = false;
+              event.response.challengeName = 'CUSTOM_CHALLENGE';
+            } else if (session.slice(-1)[0].challengeResult === true) {
+              event.response.issueTokens = true;
+              event.response.failAuthentication = false;
+            } else if (session.length >= 3) {
+              event.response.issueTokens = false;
+              event.response.failAuthentication = true;
+            } else {
+              event.response.issueTokens = false;
+              event.response.failAuthentication = false;
+              event.response.challengeName = 'CUSTOM_CHALLENGE';
+            }
+            return event;
+          };
+
+  CreateAuthChallengeLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-create-auth-challenge'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt CognitoTriggerLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          OTP_TABLE: !Ref OtpTable
+          TEST_OTP_ENABLED: !Ref TestOtpEnabled
+          TEST_OTP_CODE: !Ref TestOtpCode
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+          const { DynamoDBDocumentClient, PutCommand } = require('@aws-sdk/lib-dynamodb');
+          const { CognitoIdentityProviderClient, AdminGetUserCommand, AdminCreateUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
+          const { SNSClient, PublishCommand } = require('@aws-sdk/client-sns');
+          const crypto = require('crypto');
+          const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+          const cognito = new CognitoIdentityProviderClient({});
+          const sns = new SNSClient({});
+
+          exports.handler = async (event) => {
+            const phoneNumber = event.request.userAttributes && event.request.userAttributes.phone_number;
+            if (!phoneNumber) throw new Error('phone_number attribute missing');
+
+            const testOtpEnabled = (process.env.TEST_OTP_ENABLED || '').toLowerCase() === 'true';
+            const testOtpCode = process.env.TEST_OTP_CODE || '123456';
+            const isFirstChallenge = !event.request.session || event.request.session.length === 0;
+            console.log('CreateAuthChallenge', { phoneNumber, testOtpEnabled, isFirstChallenge });
+
+            if (isFirstChallenge) {
+              // Safety net — the API Lambda normally creates the user first.
+              // The pool's username attribute is phone_number, so the E.164
+              // phone is the username.
+              try {
+                await cognito.send(new AdminGetUserCommand({ UserPoolId: event.userPoolId, Username: phoneNumber }));
+              } catch (err) {
+                if (err.name === 'UserNotFoundException') {
+                  await cognito.send(new AdminCreateUserCommand({
+                    UserPoolId: event.userPoolId,
+                    Username: phoneNumber,
+                    UserAttributes: [
+                      { Name: 'phone_number', Value: phoneNumber },
+                      { Name: 'phone_number_verified', Value: 'false' }
+                    ],
+                    MessageAction: 'SUPPRESS'
+                  }));
+                } else {
+                  throw err;
+                }
+              }
+
+              const otp = testOtpEnabled ? testOtpCode : crypto.randomInt(100000, 1000000).toString();
+              const otpHash = crypto.createHash('sha256').update(otp).digest('hex');
+              const ttl = Math.floor(Date.now() / 1000) + 300; // 5 minutes
+
+              await ddb.send(new PutCommand({
+                TableName: process.env.OTP_TABLE,
+                Item: { PhoneNumber: phoneNumber, otpHash, attempts: 0, createdAt: Date.now(), ttl }
+              }));
+
+              if (!testOtpEnabled) {
+                await sns.send(new PublishCommand({
+                  PhoneNumber: phoneNumber,
+                  Message: `Your RealEstateFlow code is ${otp}. Valid for 5 minutes.`
+                }));
+              }
+
+              event.response.publicChallengeParameters = { phoneNumber };
+              event.response.privateChallengeParameters = { otpHash };
+            } else {
+              // Retry within the same session: no new OTP.
+              event.response.publicChallengeParameters = { phoneNumber };
+              event.response.privateChallengeParameters = {};
+            }
+            return event;
+          };
+
+  VerifyAuthChallengeResponseLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-verify-auth-challenge'
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt CognitoTriggerLambdaRole.Arn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          OTP_TABLE: !Ref OtpTable
+      Code:
+        ZipFile: |
+          const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+          const { DynamoDBDocumentClient, GetCommand, DeleteCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+          const crypto = require('crypto');
+          const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+          exports.handler = async (event) => {
+            try {
+              const phoneNumber = event.request.userAttributes && event.request.userAttributes.phone_number;
+              const answer = event.request.challengeAnswer;
+              if (!phoneNumber || !answer) { event.response.answerCorrect = false; return event; }
+
+              const key = { PhoneNumber: phoneNumber };
+              const result = await ddb.send(new GetCommand({ TableName: process.env.OTP_TABLE, Key: key }));
+              const record = result.Item;
+              if (!record) { event.response.answerCorrect = false; return event; }
+
+              if (Date.now() > record.ttl * 1000 || record.attempts >= 3) {
+                await ddb.send(new DeleteCommand({ TableName: process.env.OTP_TABLE, Key: key }));
+                event.response.answerCorrect = false;
+                return event;
+              }
+
+              const answerHash = crypto.createHash('sha256').update(String(answer)).digest('hex');
+              const isCorrect = answerHash.length === record.otpHash.length &&
+                crypto.timingSafeEqual(Buffer.from(answerHash), Buffer.from(record.otpHash));
+              console.log('VerifyAuthChallenge', { phoneNumber, isCorrect, attempts: record.attempts });
+
+              if (isCorrect) {
+                await ddb.send(new DeleteCommand({ TableName: process.env.OTP_TABLE, Key: key }));
+              } else {
+                await ddb.send(new UpdateCommand({
+                  TableName: process.env.OTP_TABLE, Key: key,
+                  UpdateExpression: 'SET attempts = attempts + :inc',
+                  ExpressionAttributeValues: { ':inc': 1 }
+                }));
+              }
+              event.response.answerCorrect = isCorrect;
+              return event;
+            } catch (error) {
+              console.error('VerifyAuthChallenge error:', error);
+              event.response.answerCorrect = false;
+              return event;
+            }
+          };
+
+  DefineAuthChallengeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref DefineAuthChallengeLambda
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CognitoUserPool.Arn
+
+  CreateAuthChallengeLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref CreateAuthChallengeLambda
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CognitoUserPool.Arn
+
+  VerifyAuthChallengeResponseLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref VerifyAuthChallengeResponseLambda
+      Action: lambda:InvokeFunction
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt CognitoUserPool.Arn
+
+  # ===========================================================================
+  # 5. API Lambda
+  # ===========================================================================
+  ApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${Env}-${ServiceName}-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: DynamoDBAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource:
+                  - !GetAtt UsersTable.Arn
+                  - !GetAtt IdentitiesTable.Arn
+              - Effect: Allow
+                Action: dynamodb:Query
+                Resource:
+                  - !Sub '${UsersTable.Arn}/index/SubIndex'
+                  - !Sub '${UsersTable.Arn}/index/PhoneIndex'
+                  - !Sub '${UsersTable.Arn}/index/EmailIndex'
+        - PolicyName: CognitoAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cognito-idp:AdminGetUser
+                  - cognito-idp:AdminCreateUser
+                  - cognito-idp:AdminEnableUser
+                  - cognito-idp:AdminDisableUser
+                  - cognito-idp:AdminInitiateAuth
+                  - cognito-idp:AdminUpdateUserAttributes
+                  - cognito-idp:AdminUserGlobalSignOut
+                Resource: !GetAtt CognitoUserPool.Arn
+
+  ApiLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${Env}-${ServiceName}-lambda'
+      Runtime: nodejs20.x
+      Handler: dist/index.handler
+      Role: !GetAtt ApiLambdaRole.Arn
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemorySize
+      # Only this Lambda is VPC-placed when SubnetIds/SecurityGroupIds are
+      # given; the Cognito trigger Lambdas never are (strict Cognito timeouts).
+      VpcConfig:
+        !If
+          - HasVpcConfig
+          - SubnetIds: !Ref SubnetIds
+            SecurityGroupIds: !Ref SecurityGroupIds
+          - !Ref 'AWS::NoValue'
+      Environment:
+        Variables:
+          ENV: !Ref Env
+          SERVICE_NAME: !Ref ServiceName
+          LOG_LEVEL: !Ref LogLevel
+          COGNITO_USER_POOL_ID: !Ref CognitoUserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          COGNITO_HOSTED_UI_DOMAIN: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+          USERS_TABLE: !Ref UsersTable
+          IDENTITIES_TABLE: !Ref IdentitiesTable
+          ALLOWED_ORIGINS: !Ref AllowedOrigins
+          INTERNAL_API_KEY: !Ref InternalApiKey
+          AUTH_CALLER_API_KEY: !Ref AuthCallerApiKey
+          MARKETPLACE_API_DOMAIN_NAME: !Ref MarketplaceApiDomainName
+          MARKETPLACE_API_BASE_PATH: !Ref MarketplaceApiBasePath
+          MARKETPLACE_AUTH_BASE_PATH: !Ref MarketplaceAuthBasePath
+          ENABLE_BASE_PATH_STRIP: !Ref EnableBasePathStrip
+      Code:
+        S3Bucket: !Ref LambdaPackagesBucketName
+        S3Key: !Sub '${ServiceName}/function.zip'
+
+  # ===========================================================================
+  # 6. Log groups
+  # ===========================================================================
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-${ServiceName}-lambda'
+      RetentionInDays: !Ref LogRetentionDays
+
+  DefineTriggerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-${ServiceName}-define-auth-challenge'
+      RetentionInDays: !Ref LogRetentionDays
+
+  CreateTriggerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-${ServiceName}-create-auth-challenge'
+      RetentionInDays: !Ref LogRetentionDays
+
+  VerifyTriggerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${Env}-${ServiceName}-verify-auth-challenge'
+      RetentionInDays: !Ref LogRetentionDays
+
+  ApiGatewayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/apigateway/${Env}-${ServiceName}-api'
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ===========================================================================
+  # 7. REST API Gateway — single {proxy+} ANY (+ root ANY). No Cognito
+  #    authorizer: the Express app verifies bearer tokens itself
+  #    (src/middleware/authMiddleware.ts) and checks x-internal-api-key on
+  #    /internal/*. OPTIONS preflight is covered by ANY and answered by
+  #    Express's cors() middleware.
+  # ===========================================================================
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${Env}-${ServiceName}-api'
+      Description: RealEstateFlow marketplace consumer authentication API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+
+  ProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: '{proxy+}'
+
+  ProxyAnyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambdaFunction.Arn}/invocations'
+
+  RootAnyMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !GetAtt RestApi.RootResourceId
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiLambdaFunction.Arn}/invocations'
+
+  LambdaApiGatewayPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  LambdaApiGatewayRootPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiLambdaFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/'
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - ProxyAnyMethod
+      - RootAnyMethod
+    Properties:
+      RestApiId: !Ref RestApi
+      # CloudFormation does not reliably republish this on content changes;
+      # infra/deploy.sh runs `apigateway create-deployment` after every deploy.
+      Description: 'Initial deployment - infra/deploy.sh publishes a fresh one per deploy'
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      StageName: !Ref Env
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiDeployment
+      AccessLogSetting:
+        DestinationArn: !GetAtt ApiGatewayLogGroup.Arn
+        Format: '{"requestId":"$context.requestId","ip":"$context.identity.sourceIp","method":"$context.httpMethod","path":"$context.path","status":"$context.status","latency":"$context.responseLatency"}'
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+
+  ApiBasePathMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Condition: CustomDomainMappingEnabled
+    DependsOn:
+      - ApiStage
+    Properties:
+      DomainName: !Ref MarketplaceAuthDomainName
+      RestApiId: !Ref RestApi
+      Stage: !Ref Env
+      BasePath: !Ref MarketplaceAuthBasePath
+
+# =============================================================================
+# Outputs
+# =============================================================================
+Outputs:
+  UserPoolId:
+    Description: Consumer Cognito user pool ID
+    Value: !Ref CognitoUserPool
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolId'
+
+  UserPoolClientId:
+    Description: Consumer Cognito app client ID
+    Value: !Ref UserPoolClient
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolClientId'
+
+  UserPoolArn:
+    Description: Consumer Cognito user pool ARN
+    Value: !GetAtt CognitoUserPool.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UserPoolArn'
+
+  HostedUiDomain:
+    Description: Cognito managed-login domain
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+
+  RestApiId:
+    Description: REST API Gateway ID
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub '${AWS::StackName}-RestApiId'
+
+  ApiBaseUrl:
+    Condition: CustomDomainMappingEnabled
+    Description: Base URL clients use - the shared API Gateway custom domain + this service's base path. Absent while the mapping is off, so no caller can pick up a raw invoke URL from this stack.
+    Value: !Sub 'https://${MarketplaceAuthDomainName}/${MarketplaceAuthBasePath}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiBaseUrl'
+
+  UsersTableName:
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTableName'
+
+  IdentitiesTableName:
+    Value: !Ref IdentitiesTable
+    Export:
+      Name: !Sub '${AWS::StackName}-IdentitiesTableName'
+
+  OtpTableName:
+    Value: !Ref OtpTable
+    Export:
+      Name: !Sub '${AWS::StackName}-OtpTableName'
+
+  ApiLambdaArn:
+    Value: !GetAtt ApiLambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiLambdaArn'

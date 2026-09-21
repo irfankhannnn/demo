@@ -18,7 +18,9 @@ platform/                     shared foundation ("common")
   events/                     EventBridge bus, rules, DLQs (design, target state)
 public-app/                   consumer marketplace
   property-pages/             public tenant-branded property pages (server-rendered)
-  web/, listings-api/         planned: consumer frontend + search read model
+  web/                        consumer marketplace SPA (Vite + React)
+  api/                        marketplace API: AI search, chat threads, saved, visits (Express on Lambda)
+  auth/                       consumer auth: own Cognito pool, phone OTP + Google (Express on Lambda)
 agency-app/                   agency owners and agents
   web/                        CRM web + mobile frontend (React/Vite/Capacitor)
   api/                        CRM backend (Express on Lambda) + launch-tables stack

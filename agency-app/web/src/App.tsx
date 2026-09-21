@@ -116,6 +116,7 @@ import CallRecordings from './pages/crm/CallRecordings';
 import AICalling from './pages/crm/AICalling';
 import AgencyPolicies from './pages/crm/AgencyPolicies';
 import PublicPagesSettings from './pages/crm/PublicPagesSettings';
+import MarketplaceInbox from './pages/crm/MarketplaceInbox';
 
 
 
@@ -495,6 +496,8 @@ function App() {
             {/* Lead Routes */}
             <Route path="/crm/settings/billing" element={<ProtectedRoute authState={authState}><BillingSettings /></ProtectedRoute>} />
             <Route path="/crm/settings/public-pages" element={<ProtectedRoute authState={authState}><PublicPagesSettings /></ProtectedRoute>} />
+            <Route path="/crm/marketplace/inbox" element={<ProtectedRoute authState={authState}><MarketplaceInbox /></ProtectedRoute>} />
+            <Route path="/crm/marketplace/inbox/:threadId" element={<ProtectedRoute authState={authState}><MarketplaceInbox /></ProtectedRoute>} />
             <Route path="/crm/leads" element={<ProtectedRoute authState={authState}><LeadList /></ProtectedRoute>} />
             <Route path="/crm/leads/new" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />
             <Route path="/crm/leads/:id" element={<ProtectedRoute authState={authState}><LeadDetails /></ProtectedRoute>} />

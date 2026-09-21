@@ -69,7 +69,7 @@ validate_service_endpoints() {
     _sse_check_base_path "${stem}_BASE_PATH" "$label" || ok=1
   done
 
-  for stem in MCP_API AI_CALLING_SERVICE; do
+  for stem in MCP_API AI_CALLING_SERVICE FOLLOWUP_SERVICE MARKETPLACE_API; do
     local d="${stem}_DOMAIN_NAME" b="${stem}_BASE_PATH"
     if [ -z "${!d:-}" ] && [ -z "${!b:-}" ]; then
       echo "NOTE: $d / $b are empty — that integration is treated as not configured."

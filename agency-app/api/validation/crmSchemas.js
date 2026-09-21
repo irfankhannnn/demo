@@ -105,6 +105,10 @@ export const createPropertySchema = z.object({
   // in the caller, and defaulting it to 'public' would be the wrong bug.
   publicVisibility: z.enum(['public', 'private']).optional(),
   publicSlug: z.string().max(80).optional().nullable(),
+  // Per-listing opt-out from the cross-agency consumer marketplace. Default
+  // 'listed': a published property is on the marketplace once the agency
+  // switches it on (Settings -> Public pages), unless the agent unlists it.
+  marketplaceVisibility: z.enum(['listed', 'unlisted']).optional(),
 
   // Marketing documents shown on the public page. Deliberately separate from
   // titleDeed / occupancyCertificate / propertyTaxReceipt, which are legal

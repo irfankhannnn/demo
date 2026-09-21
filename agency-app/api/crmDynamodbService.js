@@ -22,6 +22,7 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { getOrCreateArea, incrementAreaPropertyCount } from './areasDynamodbService.js';
+import { syncPropertyMarketplaceKeys } from './marketplaceIndexing.js';
 import { logger } from './logger.js';
 import { scheduleMeetingReminder, cancelMeetingReminder } from './notificationDynamodbService.js';
 import { publishMeetingStatusEvent } from './services/meetingEvents.js';
@@ -1286,6 +1287,10 @@ export async function createProperty(tenantId, data) {
     Item: property,
   }));
 
+  // Marketplace index keys (sparse GSI4 + marketplace-vector-index). Decided
+  // and written by marketplaceIndexing.js; never throws.
+  await syncPropertyMarketplaceKeys(tenantId, property);
+
   // Auto-create or update area when property is created
   if (property.area && property.city) {
     try {
@@ -1824,6 +1829,15 @@ export async function updateProperty(tenantId, propertyId, data) {
     previousStatus,
     performedBy: data.updatedBy || data.performedBy || SERVICE_ACCOUNT_USER,
   });
+
+  // Every update path (publish/unpublish, status change, archive, price or
+  // city edit, per-listing marketplace toggle) ends here, so this is the one
+  // place that keeps the marketplace indexes in step with the item.
+  const mkt = await syncPropertyMarketplaceKeys(tenantId, updatedProperty);
+  if (mkt.changed && mkt.keys) {
+    for (const attr of mkt.keys.remove || []) delete updatedProperty[attr];
+    if (mkt.keys.set) Object.assign(updatedProperty, mkt.keys.set);
+  }
 
   return updatedProperty;
 }

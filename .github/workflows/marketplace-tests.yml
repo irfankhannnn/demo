@@ -1,0 +1,122 @@
+name: Marketplace Tests
+
+# CI for the consumer marketplace (the "AI property matching" portal):
+#   public-app/api        Express on Lambda   (node --test)
+#   public-app/web        Vite React SPA      (vitest + tsc + build)
+#   public-app/auth     TS Express on Lambda (build + tests)
+#   agency-app/api marketplace suites      the CRM side: indexing, listing reads, internal API
+#
+# Path-filtered so an unrelated PR does not pay for four installs. Deploys
+# stay manual and release-tracked through infra/cicd/public-app/<name>/deploy.sh,
+# matching every other service in this repo.
+
+on:
+  pull_request:
+    branches: [main, 'cursor/*', 'claude/*']
+    paths:
+      - 'public-app/web/**'
+      - 'public-app/api/**'
+      - 'public-app/auth/**'
+      - 'infra/cicd/public-app/**'
+      - 'agency-app/api/marketplace*.js'
+      - 'agency-app/api/routes/marketplace*.js'
+      - 'agency-app/api/services/embeddings/marketplaceSearchService.js'
+      - '.github/workflows/marketplace-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public-app/web/**'
+      - 'public-app/api/**'
+      - 'public-app/auth/**'
+      - 'infra/cicd/public-app/**'
+      - 'agency-app/api/marketplace*.js'
+      - 'agency-app/api/routes/marketplace*.js'
+
+jobs:
+  marketplace-api:
+    name: marketplace-api (node --test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: public-app/api/package-lock.json
+      - name: Install
+        working-directory: public-app/api
+        run: npm ci
+      - name: Test
+        working-directory: public-app/api
+        run: npm test
+
+  marketplace-web:
+    name: marketplace-web (vitest + tsc + build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: public-app/web/package-lock.json
+      - name: Install
+        working-directory: public-app/web
+        run: npm ci
+      - name: Typecheck
+        working-directory: public-app/web
+        run: npx tsc --noEmit
+      - name: Unit tests
+        working-directory: public-app/web
+        run: npm test -- --run
+      - name: Build
+        working-directory: public-app/web
+        run: npm run build
+        env:
+          VITE_MARKETPLACE_API_URL: https://ci.invalid/api
+          VITE_MARKETPLACE_AUTH_URL: https://ci.invalid/auth
+
+  marketplace-authentication:
+    name: marketplace-authentication (build + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: public-app/auth/package-lock.json
+      - name: Install
+        working-directory: public-app/auth
+        run: npm ci
+      - name: Build
+        working-directory: public-app/auth
+        run: npm run build
+      - name: Test
+        working-directory: public-app/auth
+        run: npm test
+
+  crm-marketplace-suites:
+    name: CRM marketplace suites (Jest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: agency-app/api/package-lock.json
+      - name: Install server dependencies
+        working-directory: agency-app/api
+        run: npm ci
+      - name: Run marketplace suites
+        working-directory: agency-app/api
+        run: npm test -- marketplaceIndexing.test.js marketplaceListingService.test.js routes/marketplaceInternal.test.js leadNotifications.marketplace.test.js
+        env:
+          CRM_DYNAMODB_TABLE_NAME: ci-placeholder-crm-table
+          AGENCY_CONFIG_DYNAMODB_TABLE_NAME: ci-placeholder-agency-config
+          AWS_REGION: ap-south-1
