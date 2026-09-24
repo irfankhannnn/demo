@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">RealEstateFlow</string>
-    <string name="title_activity_main">RealEstateFlow</string>
-    <string name="package_name">in.realestateflow.app</string>
-    <string name="custom_url_scheme">in.realestateflow.app</string>
-</resources>

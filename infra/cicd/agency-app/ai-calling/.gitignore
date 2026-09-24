@@ -1,8 +1,0 @@
-# Local build/release index. S3 is the durable, shareable source of truth --
-# this folder is a local index plus instant-access template/param snapshots for
-# rollback, and is rebuilt from S3 on demand.
-#
-# It also holds cfn-params.json snapshots, which carry real Exotel/ElevenLabs/CRM
-# secret values -- another reason this never gets committed.
-deploy-versions/
-config-versions/
